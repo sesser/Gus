@@ -10,6 +10,9 @@ import UniformTypeIdentifiers
 ///     zoom                  project <n>|all         rating any|unrated|<1-5>
 ///     flag any|picked|rejected|unflagged|notrejected                 quit
 ///     pairs grouped|separate  pairfile raw|jpeg     advance on|off
+///     selectall             addkeywords <a, b>      keyentry      text <typed text>
+///     undo | redo           inspector on|off        keyword <n>   (sidebar keyword n, 0-based)
+///     print <what>          (state for checks: selection, keywords, undo)
 ///
 /// Keys are characters ("3", "p") or names (left, right, up, down, home, end,
 /// pageup, pagedown, return, escape, space); prefix "opt+" or "shift+" for modifiers. Key events go through
@@ -25,8 +28,18 @@ enum DebugScript {
         Task {
             // Give the window and the first items time to appear.
             try? await Task.sleep(for: .seconds(1))
+            // Scripted commands arrive without events, so nothing would separate
+            // their undo steps; each command gets its own group, as a key press would.
+            let undoManager = model.undoManager
+            undoManager.groupsByEvent = false
+            // Only commands that can change photos get a group; empty groups
+            // would otherwise become undo steps that do nothing.
+            let changing: Set<String> = ["key", "addkeywords", "text", "pairfile"]
             for command in commands where !command.isEmpty {
+                let grouped = changing.contains(String(command.prefix { $0 != " " }))
+                if grouped { undoManager.beginUndoGrouping() }
                 await run(command, model: model)
+                if grouped { undoManager.endUndoGrouping() }
             }
         }
     }
@@ -82,10 +95,57 @@ enum DebugScript {
             model.showPairFile(raw: rest.first != "jpeg")
         case "advance":
             model.autoAdvance = rest.first == "on"
+        case "selectall":
+            perform(#selector(NSResponder.selectAll(_:)), verb)
+        case "addkeywords":
+            model.addKeywords(KeywordCompletion.keywords(in: rest.joined(separator: " ")))
+        case "keyentry":
+            model.beginKeywordEntry()
+        case "text":
+            let text = command.dropFirst(verb.count + 1)
+            (window?.firstResponder as? NSTextView)?.insertText(String(text), replacementRange: NSRange(location: NSNotFound, length: 0))
+        case "undo", "redo":
+            perform(Selector((verb + ":")), verb)
+        case "inspector":
+            model.showsInspector = rest.first != "off"
+        case "keyword":
+            if let index = Int(rest.first ?? ""), model.keywords.indices.contains(index) {
+                model.sidebarSelection = .keyword(model.keywords[index].id)
+            }
+        case "print":
+            printState(rest.first ?? "", model: model)
         case "quit":
             NSApp.terminate(nil)
         default:
             print("debug-script: unknown command \(verb)")
+        }
+    }
+
+    /// Sends an action up the responder chain from the window's first responder,
+    /// the way a menu item does in the key window. (A scripted launch is often
+    /// not the active app, so there may be no key window to send it to.)
+    private static func perform(_ action: Selector, _ name: String) {
+        guard let responder = window?.firstResponder, responder.tryToPerform(action, with: nil) else {
+            print("debug-script: nothing handled \(name)")
+            return
+        }
+    }
+
+    private static func printState(_ what: String, model: LibraryModel) {
+        switch what {
+        case "selection":
+            print("debug-script: selection \(model.selection.count), focus \(model.focusIndex.map(String.init) ?? "-")")
+        case "keywords":
+            print("debug-script: keywords " + model.keywords.map { "\($0.name)=\($0.count)" }.joined(separator: " "))
+        case "responder":
+            print("debug-script: key \(NSApp.keyWindow.map { "\(type(of: $0))" } ?? "nil") first \(window?.firstResponder.map { "\(type(of: $0))" } ?? "nil") shared undo \(window?.undoManager === model.undoManager)")
+        case "undo":
+            let manager = model.undoManager
+            print("debug-script: undo '\(manager.canUndo ? manager.undoActionName : "-")' redo '\(manager.canRedo ? manager.redoActionName : "-")'")
+        case "items":
+            print("debug-script: items " + model.items.prefix(12).map { "\($0.baseName):\($0.rating.rawValue)" }.joined(separator: " "))
+        default:
+            print("debug-script: nothing to print for \(what)")
         }
     }
 

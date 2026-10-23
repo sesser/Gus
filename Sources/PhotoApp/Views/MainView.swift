@@ -11,6 +11,10 @@ struct MainView: View {
                 .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 360)
         } detail: {
             BrowserView(model: model)
+                .inspector(isPresented: $model.showsInspector) {
+                    InspectorView(model: model)
+                        .inspectorColumnWidth(min: 240, ideal: 280, max: 420)
+                }
         }
         .navigationTitle(title)
         .navigationSubtitle(subtitle)
@@ -26,6 +30,8 @@ struct MainView: View {
             String(localized: "All Photos")
         case .project(let id):
             model.projects.first { $0.id == id }?.project.name ?? AppBranding.displayName
+        case .keyword(let id):
+            model.keywords.first { $0.id == id }?.name ?? AppBranding.displayName
         }
     }
 
@@ -48,6 +54,12 @@ struct BrowserView: View {
             GridView(model: model)
             if model.mode == .loupe {
                 LoupeView(model: model)
+            }
+            if let request = model.keywordEntry {
+                VStack {
+                    KeywordEntryPanel(model: model, request: request)
+                    Spacer()
+                }
             }
             if model.itemCount == 0, model.mode == .grid {
                 EmptyLibraryView(model: model)
@@ -155,6 +167,14 @@ struct BrowserToolbar: ToolbarContent {
             .disabled(model.isImporting)
         }
         ToolbarItemGroup(placement: .primaryAction) {
+            Button {
+                model.beginKeywordEntry()
+            } label: {
+                Label("Add Keywords", systemImage: "tag")
+            }
+            .help("Add keywords to the selected photos (⌘K)")
+            .disabled(model.itemCount == 0)
+
             Picker("View", selection: $model.mode) {
                 Label("Grid", systemImage: "square.grid.2x2").tag(BrowserMode.grid)
                 Label("Loupe", systemImage: "rectangle").tag(BrowserMode.loupe)

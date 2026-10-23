@@ -10,7 +10,8 @@ struct LocalizationTests {
     /// Calls whose string-literal argument is a `LocalizedStringKey` or `String.LocalizationValue`.
     static let localizingCalls = [
         "Text(\"", "String(localized: \"", "Button(\"", "Label(\"", "Section(\"", "Picker(\"",
-        "Toggle(\"", "Menu(\"", "CommandMenu(\"", ".help(\"",
+        "Toggle(\"", "Menu(\"", "CommandMenu(\"", ".help(\"", "TextField(\"", ".alert(\"",
+        ".confirmationDialog(\"",
     ]
 
     enum Segment: Equatable {

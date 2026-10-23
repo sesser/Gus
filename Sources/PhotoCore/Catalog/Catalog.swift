@@ -313,6 +313,24 @@ extension Catalog {
         try await update(ids, VersionRecord.Columns.colorLabel, to: label.databaseValue, at: date)
     }
 
+    /// Sets all three culling values at once (used to restore them on undo).
+    public func setCulling(rating: Rating, flag: Flag, colorLabel: ColorLabel, forVersions ids: some Collection<Int64>,
+                           at date: Date = Date()) async throws {
+        guard !ids.isEmpty else { return }
+        let keys = Array(ids)
+        try await database.write { db in
+            let targets = keys + (try ImagePairing.partnerVersionIDs(db, of: keys))
+            for chunk in targets.chunked(into: 10_000) {
+                _ = try VersionRecord.filter(keys: chunk).updateAll(db, [
+                    VersionRecord.Columns.rating.set(to: rating.databaseValue),
+                    VersionRecord.Columns.flag.set(to: flag.databaseValue),
+                    VersionRecord.Columns.colorLabel.set(to: colorLabel.databaseValue),
+                    VersionRecord.Columns.modifiedAt.set(to: date),
+                ])
+            }
+        }
+    }
+
     private func update(_ ids: some Collection<Int64>, _ column: Column, to value: DatabaseValue, at date: Date) async throws {
         guard !ids.isEmpty else { return }
         let keys = Array(ids)

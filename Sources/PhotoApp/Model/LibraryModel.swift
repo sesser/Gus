@@ -20,6 +20,7 @@ protocol LibraryItemsObserver: AnyObject {
 enum SidebarSelection: Hashable {
     case allPhotos
     case project(Int64)
+    case keyword(Int64)
 }
 
 enum BrowserMode: Hashable {
@@ -41,6 +42,10 @@ final class LibraryModel {
 
     private(set) var projects: [ProjectSummary] = []
     private(set) var libraryCount = 0
+    /// Every keyword with its photo count, for the sidebar and autocomplete.
+    var keywords: [KeywordSummary] = []
+    /// Bumped whenever keyword assignments may have changed.
+    var keywordRevision = 0
 
     var sidebarSelection: SidebarSelection = .allPhotos {
         didSet { if oldValue != sidebarSelection { reloadItems(keepFocus: false) } }
@@ -56,6 +61,7 @@ final class LibraryModel {
         let scope: LibraryFilter.Scope = switch sidebarSelection {
         case .allPhotos: .allPhotos
         case .project(let id): .project(id)
+        case .keyword(let id): .keyword(id)
         }
         return LibraryFilter(scope: scope, rating: ratingRule, flag: flagRule, groupsPairs: groupPairs)
     }
@@ -71,7 +77,14 @@ final class LibraryModel {
     private(set) var itemsRevision = 0
     private(set) var focusIndex: Int?
     @ObservationIgnored private(set) var selection = IndexSet()
+    /// Observed stand-in for `selection`, which is not observed.
+    private(set) var selectionRevision = 0
     var mode: BrowserMode = .grid
+    /// The open ⌘K keyword field, with the photos it will tag.
+    var keywordEntry: KeywordEntryRequest?
+    var showsInspector: Bool {
+        didSet { UserDefaults.standard.set(showsInspector, forKey: Self.showsInspectorKey) }
+    }
 
     var focusedItem: CatalogItem? {
         _ = itemsRevision
@@ -102,7 +115,10 @@ final class LibraryModel {
             guard oldValue != groupPairs else { return }
             UserDefaults.standard.set(groupPairs, forKey: Self.groupPairsKey)
             reloadItems(keepFocus: true)
-            Task { await refreshProjects() }
+            Task {
+                await refreshProjects()
+                await refreshKeywords()
+            }
         }
     }
     static let thumbnailSizeRange = 80.0...360.0
@@ -110,6 +126,7 @@ final class LibraryModel {
     private static let autoAdvanceKey = "culling.autoAdvance"
     private static let showFileInfoKey = "browser.showFileInfo"
     private static let groupPairsKey = "browser.groupPairs"
+    private static let showsInspectorKey = "browser.showsInspector"
 
     // MARK: Background work
 
@@ -124,6 +141,9 @@ final class LibraryModel {
     @ObservationIgnored private var importTask: Task<Void, Never>?
     @ObservationIgnored private var warmTask: Task<Void, Never>?
     @ObservationIgnored private var writeChain: Task<Void, Never>?
+    /// Undo for changes to photos and keywords. The grid and loupe answer
+    /// undo:/redo: with it, so text fields keep their own undo.
+    @ObservationIgnored var undoManager = UndoManager()
     @ObservationIgnored private var lastLiveRefresh = Date.distantPast
     @ObservationIgnored private var started = false
     @ObservationIgnored private var volumeObservers: [any NSObjectProtocol] = []
@@ -141,6 +161,7 @@ final class LibraryModel {
         autoAdvance = defaults.bool(forKey: Self.autoAdvanceKey)
         showFileInfo = defaults.object(forKey: Self.showFileInfoKey) as? Bool ?? true
         groupPairs = defaults.object(forKey: Self.groupPairsKey) as? Bool ?? true
+        showsInspector = defaults.bool(forKey: Self.showsInspectorKey)
     }
 
     /// Opens the catalog at the standard location (or `--library-root`).
@@ -166,6 +187,7 @@ final class LibraryModel {
         observeVolumes()
         await refreshVolumes()
         await refreshProjects()
+        await refreshKeywords()
         reloadItems(keepFocus: false)
     }
 
@@ -201,6 +223,7 @@ final class LibraryModel {
             focusIndex = newItems.isEmpty ? nil : 0
         }
         selection = focusIndex.map { IndexSet(integer: $0) } ?? []
+        selectionRevision += 1
         if items.isEmpty { mode = .grid }
         itemsRevision += 1
         observer?.libraryItemsReloaded()
@@ -214,6 +237,18 @@ final class LibraryModel {
             Self.log.error("Loading projects failed: \(error.localizedDescription, privacy: .public)")
         }
         if case .project(let id) = sidebarSelection, !projects.contains(where: { $0.id == id }) {
+            sidebarSelection = .allPhotos
+        }
+    }
+
+    func refreshKeywords() async {
+        do {
+            keywords = try await catalog.keywordSummaries(groupingPairs: groupPairs)
+        } catch {
+            Self.log.error("Loading keywords failed: \(error.localizedDescription, privacy: .public)")
+        }
+        keywordRevision += 1
+        if case .keyword(let id) = sidebarSelection, !keywords.contains(where: { $0.id == id }) {
             sidebarSelection = .allPhotos
         }
     }
@@ -274,6 +309,7 @@ final class LibraryModel {
         } else if let current = focusIndex, !newSelection.contains(current) {
             focusIndex = newSelection.first
         }
+        selectionRevision += 1
     }
 
     /// Moves focus and selection; `extend` grows the selection instead (shift).
@@ -285,6 +321,7 @@ final class LibraryModel {
             selection = IndexSet(integer: index)
         }
         focusIndex = index
+        selectionRevision += 1
         if notify { observer?.libraryFocusChanged() }
     }
 
@@ -307,55 +344,79 @@ final class LibraryModel {
 
     // MARK: Culling
 
+    /// A version's culling values, as remembered for undo.
+    struct CullingValues: Hashable {
+        var rating: Rating
+        var flag: Flag
+        var colorLabel: ColorLabel
+
+        init(_ item: CatalogItem) {
+            rating = item.rating
+            flag = item.flag
+            colorLabel = item.colorLabel
+        }
+    }
+
     /// Applies the action to the selection (grid) or the photo on screen (loupe)
-    /// and saves it right away. Saves are chained so they reach the catalog in
-    /// the order they were made.
+    /// and saves it right away.
     func perform(_ action: CullingAction) {
         let targets = actionTargets
         guard !targets.isEmpty else { return }
-        let catalog = self.catalog
-        // The catalog applies each change to both halves of a pair; when they are
-        // shown separately, the partner's cell changes with it.
-        var changed = targets
-        func update(_ index: Int, _ change: (inout CatalogItem) -> Void) {
-            change(&items[index])
-            if let partner = items[index].partnerVersionID, let partnerIndex = indexByVersionID[partner] {
-                change(&items[partnerIndex])
-                changed.insert(partnerIndex)
+        var before: [Int64: CullingValues] = [:]
+        var after: [Int64: CullingValues] = [:]
+        for index in targets {
+            let item = items[index]
+            var values = CullingValues(item)
+            before[item.versionID] = values
+            switch action {
+            case .setRating(let rating): values.rating = rating
+            case .adjustRating(let delta): values.rating = Rating(clamping: item.rating.rawValue + delta)
+            case .setFlag(let flag): values.flag = flag
+            case .setColorLabel(let label): values.colorLabel = label
             }
+            after[item.versionID] = values
         }
-
-        switch action {
-        case .setRating(let rating):
-            for index in targets { update(index) { $0.rating = rating } }
-            let ids = targets.map { items[$0].versionID }
-            persist { try await catalog.setRating(rating, forVersions: ids) }
-        case .adjustRating(let delta):
-            var groups: [Rating: [Int64]] = [:]
-            for index in targets {
-                let rating = Rating(clamping: items[index].rating.rawValue + delta)
-                update(index) { $0.rating = rating }
-                groups[rating, default: []].append(items[index].versionID)
-            }
-            let changes = groups
-            persist {
-                for (rating, ids) in changes { try await catalog.setRating(rating, forVersions: ids) }
-            }
-        case .setFlag(let flag):
-            for index in targets { update(index) { $0.flag = flag } }
-            let ids = targets.map { items[$0].versionID }
-            persist { try await catalog.setFlag(flag, forVersions: ids) }
-        case .setColorLabel(let label):
-            for index in targets { update(index) { $0.colorLabel = label } }
-            let ids = targets.map { items[$0].versionID }
-            persist { try await catalog.setColorLabel(label, forVersions: ids) }
-        }
-        itemsRevision += 1
-        observer?.libraryItemsChanged(at: changed)
+        applyCulling(after, undoingTo: before, actionName: action.undoActionName)
 
         if autoAdvance, targets.count == 1, let focusIndex, focusIndex + 1 < items.count {
             setFocus(focusIndex + 1)
         }
+    }
+
+    /// Shows the new values at once, saves them in order, and registers the
+    /// previous values for undo (whose redo is this call again).
+    func applyCulling(_ values: [Int64: CullingValues], undoingTo previous: [Int64: CullingValues], actionName: String) {
+        // The catalog applies each change to both halves of a pair; when they are
+        // shown separately, the partner's cell changes with it.
+        var changed = IndexSet()
+        for (versionID, value) in values {
+            guard let index = indexByVersionID[versionID] else { continue }
+            var indices = [index]
+            if let partner = items[index].partnerVersionID, let partnerIndex = indexByVersionID[partner] {
+                indices.append(partnerIndex)
+            }
+            for index in indices {
+                items[index].rating = value.rating
+                items[index].flag = value.flag
+                items[index].colorLabel = value.colorLabel
+                changed.insert(index)
+            }
+        }
+        let groups = Dictionary(grouping: values.keys) { values[$0]! }
+        let catalog = self.catalog
+        persist {
+            for (value, ids) in groups {
+                try await catalog.setCulling(rating: value.rating, flag: value.flag, colorLabel: value.colorLabel,
+                                             forVersions: ids)
+            }
+        }
+        itemsRevision += 1
+        if !changed.isEmpty { observer?.libraryItemsChanged(at: changed) }
+
+        undoManager.registerUndo(withTarget: self) { model in
+            model.applyCulling(previous, undoingTo: values, actionName: actionName)
+        }
+        undoManager.setActionName(actionName)
     }
 
     /// The selection in the grid, or the photo on screen in the loupe.
@@ -366,31 +427,56 @@ final class LibraryModel {
         return selection
     }
 
+    var actionTargetVersionIDs: [Int64] {
+        actionTargets.map { items[$0].versionID }
+    }
+
     // MARK: Pairs
 
     /// Makes the RAW (`raw`) or the JPEG/HEIC represent the targeted pairs while
-    /// pairs are grouped. The focused pair stays focused through the switch.
+    /// pairs are grouped.
     func showPairFile(raw: Bool) {
-        let pairs = actionTargets.filter { items[$0].partnerVersionID != nil }
-        guard !pairs.isEmpty else { return }
-        let ids = pairs.map { items[$0].versionID }
-        let showsCompanion = !raw
-        // Whichever half is in the list now, the other one may be the new cover.
-        let focusID: Int64? = focusedItem.flatMap { item -> Int64? in
-            guard let partner = item.partnerVersionID else { return item.versionID }
-            let isRaw = item.fileKind == .raw
-            return isRaw == raw ? item.versionID : partner
+        var covers: [Int64: Bool] = [:]
+        var previous: [Int64: Bool] = [:]
+        for index in actionTargets where items[index].partnerVersionID != nil {
+            let item = items[index]
+            covers[item.versionID] = !raw
+            previous[item.versionID] = item.fileKind != .raw
         }
-        let catalog = self.catalog
-        persist { try await catalog.setPairsShowCompanion(showsCompanion, forVersions: ids) }
-        let previous = writeChain
-        Task {
-            await previous?.value
-            reloadItems(keepFocus: true, focusVersionID: focusID)
-        }
+        guard !covers.isEmpty else { return }
+        setPairCovers(covers, undoingTo: previous)
     }
 
-    private func persist(_ work: @escaping @Sendable () async throws -> Void) {
+    /// `showsCompanion` per pair, keyed by the version id of either half. The
+    /// focused pair stays focused through the switch.
+    func setPairCovers(_ covers: [Int64: Bool], undoingTo previous: [Int64: Bool]) {
+        let focusID: Int64? = focusedItem.flatMap { item -> Int64? in
+            guard let partner = item.partnerVersionID,
+                  let showsCompanion = covers[item.versionID] ?? covers[partner] else { return item.versionID }
+            let itemIsCompanion = item.fileKind != .raw
+            return itemIsCompanion == showsCompanion ? item.versionID : partner
+        }
+        let catalog = self.catalog
+        let groups = Dictionary(grouping: covers.keys) { covers[$0]! }
+        persist {
+            for (showsCompanion, ids) in groups {
+                try await catalog.setPairsShowCompanion(showsCompanion, forVersions: ids)
+            }
+        }
+        afterPendingWrites { model in model.reloadItems(keepFocus: true, focusVersionID: focusID) }
+
+        let actionName = String(localized: "Switch RAW+JPEG Pair", comment: "Undo action name")
+        undoManager.registerUndo(withTarget: self) { model in
+            model.setPairCovers(previous, undoingTo: covers)
+        }
+        undoManager.setActionName(actionName)
+    }
+
+    // MARK: Saving
+
+    /// Runs catalog work after every earlier write, so changes reach the catalog
+    /// in the order they were made (and undo steps after the change they undo).
+    func persist(_ work: @escaping @MainActor () async throws -> Void) {
         let previous = writeChain
         writeChain = Task {
             await previous?.value
@@ -400,6 +486,15 @@ final class LibraryModel {
                 Self.log.error("Saving failed: \(error.localizedDescription, privacy: .public)")
                 statusMessage = String(localized: "Could not save the change: \(error.localizedDescription)")
             }
+        }
+    }
+
+    /// Runs `body` once the writes queued so far have finished.
+    func afterPendingWrites(_ body: @escaping @MainActor (LibraryModel) async -> Void) {
+        let previous = writeChain
+        Task {
+            await previous?.value
+            await body(self)
         }
     }
 
@@ -453,6 +548,7 @@ final class LibraryModel {
     private func finishImport(_ summary: ImportSummary) async {
         await refreshVolumes()
         await refreshProjects()
+        await refreshKeywords()
         let progress = summary.progress
         let skipped = progress.duplicates + progress.alreadyInCatalog
         let failed = progress.failed + progress.changedOnDisk

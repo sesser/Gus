@@ -58,7 +58,7 @@ public struct ImageMetadata: Hashable, Sendable, Codable {
 
 extension ImageMetadata {
     /// Keeps the first spelling of each keyword, ignoring case and blanks.
-    static func uniqueKeywords(_ keywords: [String]) -> [String] {
+    public static func uniqueKeywords(_ keywords: [String]) -> [String] {
         var seen: Set<String> = []
         return keywords.compactMap { keyword in
             guard let name = Catalog.normalizedKeywordName(keyword), seen.insert(name.lowercased()).inserted else { return nil }

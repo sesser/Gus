@@ -91,6 +91,12 @@ final class LoupeController: NSObject {
         }
         NotificationCenter.default.addObserver(self, selector: #selector(didEndMagnify(_:)),
                                                name: NSScrollView.didEndLiveMagnifyNotification, object: scrollView)
+        NotificationCenter.default.addObserver(self, selector: #selector(takeFocus(_:)),
+                                               name: .browserShouldTakeFocus, object: model)
+    }
+
+    @objc private func takeFocus(_ notification: Notification) {
+        if model.mode == .loupe { hostView.window?.makeFirstResponder(hostView) }
     }
 
     func tearDown() {

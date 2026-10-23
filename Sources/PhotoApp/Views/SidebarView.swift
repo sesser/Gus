@@ -3,6 +3,10 @@ import SwiftUI
 
 struct SidebarView: View {
     @Bindable var model: LibraryModel
+    @State private var renaming: KeywordSummary?
+    @State private var newName = ""
+    @State private var deleting: KeywordSummary?
+    @AppStorage("sidebar.keywordsExpanded") private var keywordsExpanded = true
 
     var body: some View {
         List(selection: $model.sidebarSelection) {
@@ -40,11 +44,59 @@ struct SidebarView: View {
                     .help(summary.project.sourcePath ?? summary.project.name)
                 }
             }
+            Section("Keywords", isExpanded: $keywordsExpanded) {
+                if model.keywords.isEmpty {
+                    Text("Select photos and press ⌘K to add keywords.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+                ForEach(model.keywords) { keyword in
+                    Label {
+                        HStack {
+                            Text(keyword.name)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            Spacer()
+                            CountBadge(count: keyword.count)
+                        }
+                    } icon: {
+                        Image(systemName: "tag")
+                    }
+                    .tag(SidebarSelection.keyword(keyword.id))
+                    .contextMenu {
+                        Button("Rename…") {
+                            newName = keyword.name
+                            renaming = keyword
+                        }
+                        Button("Delete…", role: .destructive) { deleting = keyword }
+                    }
+                }
+            }
         }
         .listStyle(.sidebar)
+        .alert("Rename Keyword", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } }),
+               presenting: renaming) { keyword in
+            TextField("Name", text: $newName)
+            Button("Rename") { model.renameKeyword(keyword.id, to: newName) }
+            Button("Cancel", role: .cancel) {}
+        } message: { _ in
+            Text("Using the name of another keyword merges the two.")
+        }
+        .confirmationDialog(deletingTitle, isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
+                            presenting: deleting) { keyword in
+            Button("Delete Keyword", role: .destructive) { model.deleteKeyword(keyword.id) }
+        } message: { keyword in
+            Text("It is removed from \(keyword.count) photos. The photos stay in the library.")
+        }
         .safeAreaInset(edge: .bottom) {
             FilterPanel(model: model)
         }
+    }
+}
+
+extension SidebarView {
+    private var deletingTitle: String {
+        String(localized: "Delete the keyword “\(deleting?.name ?? "")”?")
     }
 }
 

@@ -53,6 +53,8 @@ final class GridController: NSObject, NSCollectionViewDataSource, NSCollectionVi
         NotificationCenter.default.addObserver(self, selector: #selector(boundsDidChange(_:)),
                                                name: NSView.boundsDidChangeNotification,
                                                object: scrollView.contentView)
+        NotificationCenter.default.addObserver(self, selector: #selector(takeFocus(_:)),
+                                               name: .browserShouldTakeFocus, object: model)
         model.observer = self
     }
 
@@ -213,6 +215,8 @@ final class GridController: NSObject, NSCollectionViewDataSource, NSCollectionVi
     /// Previews are converted to the screen's color space as they are decoded, so
     /// Core Animation never converts them on the main thread.
     func windowDidChange(_ window: NSWindow?) {
+        // One undo stack for the window, so ⌘Z works wherever the focus is.
+        if let undoManager = window?.undoManager { model.undoManager = undoManager }
         let center = NotificationCenter.default
         for name in [NSWindow.didChangeScreenNotification, NSWindow.didChangeScreenProfileNotification] {
             center.removeObserver(self, name: name, object: nil)
@@ -221,6 +225,10 @@ final class GridController: NSObject, NSCollectionViewDataSource, NSCollectionVi
             }
         }
         updateDisplayColorSpace(window)
+    }
+
+    @objc private func takeFocus(_ notification: Notification) {
+        if mode == .grid { collectionView.window?.makeFirstResponder(collectionView) }
     }
 
     @objc private func screenDidChange(_ notification: Notification) {

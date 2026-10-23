@@ -45,6 +45,17 @@
         }
       }
     },
+    "%lld of %lld" : {
+      "comment" : "Inspector: how many of the selected photos have a keyword",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld of %lld"
+          }
+        }
+      }
+    },
     "%lld photos" : {
       "comment" : "Window subtitle",
       "localizations" : {
@@ -91,6 +102,29 @@
         }
       }
     },
+    "%lld photos selected" : {
+      "comment" : "Inspector",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photo selected"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photos selected"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld × %lld px" : {
       "comment" : "Image dimensions",
       "localizations" : {
@@ -98,6 +132,95 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld × %lld px"
+          }
+        }
+      }
+    },
+    "Add Keyword" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Keyword"
+          }
+        }
+      }
+    },
+    "Add Keywords" : {
+      "comment" : "Undo action name; also the toolbar button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Keywords"
+          }
+        }
+      }
+    },
+    "Add Keywords…" : {
+      "comment" : "Photo menu (⌘K)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Keywords…"
+          }
+        }
+      }
+    },
+    "Add keywords" : {
+      "comment" : "Inspector field placeholder",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add keywords"
+          }
+        }
+      }
+    },
+    "Add keywords to %lld photos" : {
+      "comment" : "Keyword panel title",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Add keywords to %lld photo"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Add keywords to %lld photos"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Add keywords to the selected photos (⌘K)" : {
+      "comment" : "Toolbar help",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add keywords to the selected photos (⌘K)"
+          }
+        }
+      }
+    },
+    "Add to all selected photos" : {
+      "comment" : "Inspector: help for the + button of a keyword some selected photos lack",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add to all selected photos"
           }
         }
       }
@@ -152,12 +275,34 @@
         }
       }
     },
+    "Cancel" : {
+      "comment" : "Alert button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel"
+          }
+        }
+      }
+    },
     "Cancel Import" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cancel Import"
+          }
+        }
+      }
+    },
+    "Captured" : {
+      "comment" : "Inspector info row",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Captured"
           }
         }
       }
@@ -219,6 +364,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Could not save the change: %@"
+          }
+        }
+      }
+    },
+    "Delete Keyword" : {
+      "comment" : "Undo action name and the confirming button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Keyword"
+          }
+        }
+      }
+    },
+    "Delete the keyword “%@”?" : {
+      "comment" : "Delete keyword confirmation title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete the keyword “%@”?"
+          }
+        }
+      }
+    },
+    "Delete…" : {
+      "comment" : "Sidebar keyword context menu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete…"
+          }
+        }
+      }
+    },
+    "Exposure" : {
+      "comment" : "Inspector info row",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exposure"
           }
         }
       }
@@ -407,6 +596,40 @@
         }
       }
     },
+    "Info" : {
+      "comment" : "Inspector section title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Info"
+          }
+        }
+      }
+    },
+    "It is removed from %lld photos. The photos stay in the library." : {
+      "comment" : "Delete keyword confirmation",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "It is removed from %lld photo. The photo stays in the library."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "It is removed from %lld photos. The photos stay in the library."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "JPEG" : {
       "comment" : "Grid badge: JPEG file",
       "localizations" : {
@@ -414,6 +637,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "JPEG"
+          }
+        }
+      }
+    },
+    "Keywords" : {
+      "comment" : "Inspector and sidebar section title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keywords"
+          }
+        }
+      }
+    },
+    "Keywords, separated by commas" : {
+      "comment" : "Keyword panel field placeholder",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keywords, separated by commas"
           }
         }
       }
@@ -470,6 +715,28 @@
         }
       }
     },
+    "Merged “%@” into “%@”." : {
+      "comment" : "Status after renaming a keyword onto an existing one",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merged “%@” into “%@”."
+          }
+        }
+      }
+    },
+    "Name" : {
+      "comment" : "Rename alert text field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name"
+          }
+        }
+      }
+    },
     "No Label" : {
       "localizations" : {
         "en" : {
@@ -486,6 +753,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No Rating"
+          }
+        }
+      }
+    },
+    "No keywords" : {
+      "comment" : "Inspector, selection has no keywords",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No keywords"
           }
         }
       }
@@ -557,6 +835,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "PNG"
+          }
+        }
+      }
+    },
+    "Pair" : {
+      "comment" : "Inspector info row: the file types of a RAW+JPEG pair",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pair"
+          }
+        }
+      }
+    },
+    "Path" : {
+      "comment" : "Inspector info row",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Path"
           }
         }
       }
@@ -685,12 +985,133 @@
         }
       }
     },
+    "Remove Keyword" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove Keyword"
+          }
+        }
+      }
+    },
+    "Remove from the selected photos" : {
+      "comment" : "Inspector: help for a keyword's remove button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove from the selected photos"
+          }
+        }
+      }
+    },
+    "Rename" : {
+      "comment" : "Rename alert button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rename"
+          }
+        }
+      }
+    },
+    "Rename Keyword" : {
+      "comment" : "Undo action name and title of the rename alert",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rename Keyword"
+          }
+        }
+      }
+    },
+    "Rename…" : {
+      "comment" : "Sidebar keyword context menu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rename…"
+          }
+        }
+      }
+    },
     "Rendering previews %lld of %lld" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Rendering previews %lld of %lld"
+          }
+        }
+      }
+    },
+    "Return adds them. Tab completes, Esc closes." : {
+      "comment" : "Keyword panel hint",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Return adds them. Tab completes, Esc closes."
+          }
+        }
+      }
+    },
+    "Select photos and press ⌘K to add keywords." : {
+      "comment" : "Sidebar, no keywords yet",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select photos and press ⌘K to add keywords."
+          }
+        }
+      }
+    },
+    "Select photos to see and change their keywords." : {
+      "comment" : "Inspector, nothing selected",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select photos to see and change their keywords."
+          }
+        }
+      }
+    },
+    "Set Color Label" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set Color Label"
+          }
+        }
+      }
+    },
+    "Set Flag" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set Flag"
+          }
+        }
+      }
+    },
+    "Set Rating" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set Rating"
           }
         }
       }
@@ -712,6 +1133,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Show Grid"
+          }
+        }
+      }
+    },
+    "Show Inspector" : {
+      "comment" : "View menu toggle",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Inspector"
           }
         }
       }
@@ -754,6 +1186,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Smaller Thumbnails"
+          }
+        }
+      }
+    },
+    "Switch RAW+JPEG Pair" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Switch RAW+JPEG Pair"
           }
         }
       }
@@ -850,12 +1293,34 @@
         }
       }
     },
+    "Using the name of another keyword merges the two." : {
+      "comment" : "Rename keyword alert message",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Using the name of another keyword merges the two."
+          }
+        }
+      }
+    },
     "View" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "View"
+          }
+        }
+      }
+    },
+    "Volume" : {
+      "comment" : "Inspector info row",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Volume"
           }
         }
       }

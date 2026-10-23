@@ -116,6 +116,10 @@ struct LibraryCommands: Commands {
                     Button(ColorLabelText.name(label)) { model?.perform(.setColorLabel(label)) }
                 }
             }
+            Button("Add Keywords…") { model?.beginKeywordEntry() }
+                .keyboardShortcut("k", modifiers: .command)
+                .disabled(model == nil || model?.itemCount == 0)
+            Divider()
             Menu("RAW+JPEG Pair") {
                 Button("Show the RAW File") { model?.showPairFile(raw: true) }
                 Button("Show the JPEG or HEIC File") { model?.showPairFile(raw: false) }
@@ -143,6 +147,11 @@ struct LibraryCommands: Commands {
                 get: { model?.showFileInfo ?? true },
                 set: { model?.showFileInfo = $0 }
             ))
+            Toggle("Show Inspector", isOn: Binding(
+                get: { model?.showsInspector ?? false },
+                set: { model?.showsInspector = $0 }
+            ))
+            .keyboardShortcut("i", modifiers: [.command, .option])
             Toggle("Group RAW+JPEG Pairs", isOn: Binding(
                 get: { model?.groupPairs ?? true },
                 set: { model?.groupPairs = $0 }

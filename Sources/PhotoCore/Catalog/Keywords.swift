@@ -32,6 +32,13 @@ public struct KeywordMerge: Hashable, Sendable {
     public var addedToTarget: [VersionKeywordRecord]
 }
 
+/// What adding keywords changed: new assignments, and keywords that did not
+/// exist before.
+public struct KeywordAddition: Hashable, Sendable {
+    public var assignments: [VersionKeywordRecord] = []
+    public var createdKeywords: [KeywordRecord] = []
+}
+
 public enum KeywordRename: Hashable, Sendable {
     case renamed(from: String)
     case merged(KeywordMerge)
@@ -100,25 +107,51 @@ extension Catalog {
     }
 
     /// Adds keywords (created when new) to the versions and their pair partners.
-    /// Returns the assignments that did not exist before, for undo.
+    /// Returns exactly what changed, for undo.
     @discardableResult
-    public func addKeywords(named names: [String], toVersions versionIDs: [Int64]) async throws -> [VersionKeywordRecord] {
+    public func addKeywords(named names: [String], toVersions versionIDs: [Int64]) async throws -> KeywordAddition {
         let names = names.compactMap(Self.normalizedKeywordName)
-        guard !names.isEmpty, !versionIDs.isEmpty else { return [] }
+        guard !names.isEmpty, !versionIDs.isEmpty else { return KeywordAddition() }
         return try await database.write { db in
             let targets = versionIDs + (try ImagePairing.partnerVersionIDs(db, of: versionIDs))
-            var added: [VersionKeywordRecord] = []
+            var addition = KeywordAddition()
             for name in names {
-                let keyword = try Self.findOrCreateKeyword(db, name: name)
+                let existing = try Self.existingKeyword(db, name: name)
+                let keyword = try existing ?? Self.findOrCreateKeyword(db, name: name)
                 guard let keywordID = keyword.id else { continue }
+                if existing == nil { addition.createdKeywords.append(keyword) }
                 for versionID in targets {
                     let assignment = VersionKeywordRecord(versionId: versionID, keywordId: keywordID)
                     try assignment.insert(db, onConflict: .ignore)
-                    if db.changesCount > 0 { added.append(assignment) }
+                    if db.changesCount > 0 { addition.assignments.append(assignment) }
                 }
             }
-            return added
+            return addition
         }
+    }
+
+    /// Reverses `addKeywords`: removes its assignments, and the keywords it
+    /// created unless something else uses them by now.
+    public func undoKeywordAddition(_ addition: KeywordAddition) async throws {
+        try await deleteKeywordAssignments(addition.assignments)
+        try await database.write { db in
+            for keyword in addition.createdKeywords {
+                try db.execute(sql: """
+                    DELETE FROM keyword WHERE id = ?
+                      AND NOT EXISTS (SELECT 1 FROM versionKeyword WHERE keywordId = ?)
+                    """, arguments: [keyword.id, keyword.id])
+            }
+        }
+    }
+
+    /// Repeats an addition that `undoKeywordAddition` reversed, keeping keyword ids.
+    public func redoKeywordAddition(_ addition: KeywordAddition) async throws {
+        try await database.write { db in
+            for var keyword in addition.createdKeywords {
+                try keyword.insert(db, onConflict: .ignore)
+            }
+        }
+        try await insertKeywordAssignments(addition.assignments)
     }
 
     /// Removes keywords from the versions and their pair partners. Returns the

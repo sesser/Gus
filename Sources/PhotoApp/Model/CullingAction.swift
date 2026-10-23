@@ -7,6 +7,14 @@ enum CullingAction: Equatable {
     case adjustRating(Int)
     case setFlag(Flag)
     case setColorLabel(ColorLabel)
+
+    var undoActionName: String {
+        switch self {
+        case .setRating, .adjustRating: String(localized: "Set Rating", comment: "Undo action name")
+        case .setFlag: String(localized: "Set Flag", comment: "Undo action name")
+        case .setColorLabel: String(localized: "Set Color Label", comment: "Undo action name")
+        }
+    }
 }
 
 /// The single place culling keys are defined. Grid and loupe both route key events

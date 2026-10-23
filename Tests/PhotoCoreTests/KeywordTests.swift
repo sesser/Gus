@@ -20,9 +20,12 @@ struct KeywordTests {
         let catalog = fixture.catalog
 
         let added = try await catalog.addKeywords(named: ["Dog", " dog ", "beach"], toVersions: [ids[0], ids[1]])
-        #expect(added.count == 4)
+        #expect(added.assignments.count == 4)
+        #expect(added.createdKeywords.map(\.name) == ["Dog", "beach"])
         #expect(try await names(catalog, ids[0]) == ["beach", "Dog"])
-        #expect(try await catalog.addKeywords(named: ["DOG"], toVersions: ids).count == 1) // only ids[2] is new
+        let again = try await catalog.addKeywords(named: ["DOG"], toVersions: ids)
+        #expect(again.assignments.count == 1) // only ids[2] is new
+        #expect(again.createdKeywords.isEmpty)
         #expect(try await catalog.keywordSummaries().map(\.name) == ["beach", "Dog"])
 
         let dog = try #require(try await catalog.keywordSummaries().first { $0.name == "Dog" })
@@ -34,9 +37,22 @@ struct KeywordTests {
         try await catalog.insertKeywordAssignments(removed)
         #expect(try await names(catalog, ids[0]) == ["beach", "Dog"])
         #expect(try await names(catalog, ids[2]) == ["Dog"])
-        try await catalog.deleteKeywordAssignments(added)
+        try await catalog.deleteKeywordAssignments(added.assignments)
         #expect(try await names(catalog, ids[0]).isEmpty)
         #expect(try await names(catalog, ids[2]) == ["Dog"])
+    }
+
+    @Test func undoingAnAdditionRemovesTheKeywordsItCreated() async throws {
+        let fixture = try await CatalogFixture.make()
+        let ids = try await fixture.addMasters((1...2).map { CatalogFixture.master($0) })
+        let catalog = fixture.catalog
+        try await catalog.addKeywords(named: ["beach"], toVersions: [ids[1]])
+        let addition = try await catalog.addKeywords(named: ["beach", "sunset"], toVersions: [ids[0]])
+        try await catalog.undoKeywordAddition(addition)
+        #expect(try await catalog.keywordSummaries().map { "\($0.name) \($0.count)" } == ["beach 1"])
+        try await catalog.redoKeywordAddition(addition)
+        #expect(try await catalog.keywordSummaries().map { "\($0.name) \($0.count)" } == ["beach 2", "sunset 1"])
+        #expect(try await catalog.keywordSummaries().last?.id == addition.createdKeywords.first?.id)
     }
 
     @Test func usageCountsTheGivenVersions() async throws {
@@ -57,7 +73,7 @@ struct KeywordTests {
         ])
         let catalog = fixture.catalog
         let added = try await catalog.addKeywords(named: ["dog"], toVersions: [ids[0], ids[2]])
-        #expect(added.count == 3)
+        #expect(added.assignments.count == 3)
         #expect(try await names(catalog, ids[1]) == ["dog"])
         #expect(try await catalog.keywordSummaries(groupingPairs: true).first?.count == 2)
         #expect(try await catalog.keywordSummaries(groupingPairs: false).first?.count == 3)
@@ -159,5 +175,28 @@ struct KeywordTests {
         let (catalog, ids) = try await importTagged(reader: reader)
         await reader.shutdown()
         try await expectEmbeddedValues(catalog, ids)
+    }
+}
+
+@Suite("Keyword completion")
+struct KeywordCompletionTests {
+    let names = ["beach", "Dog", "dog park", "hot dog", "Sunset", "underdog", "Doge"]
+
+    @Test func suggestsPrefixThenWordThenSubstringMatches() {
+        #expect(KeywordCompletion.suggestions(for: "do", from: names) == ["Dog", "Doge", "dog park", "hot dog", "underdog"])
+        #expect(KeywordCompletion.suggestions(for: "SUN", from: names) == ["Sunset"])
+        #expect(KeywordCompletion.suggestions(for: "", from: names).isEmpty)
+        #expect(KeywordCompletion.suggestions(for: "do", from: names, limit: 2) == ["Dog", "Doge"])
+    }
+
+    @Test func completesTheLastWordAndSkipsKeywordsAlreadyTyped() {
+        #expect(KeywordCompletion.suggestions(for: "dog, beach, do", from: names) == ["Doge", "dog park", "hot dog", "underdog"])
+        #expect(KeywordCompletion.completing("beach,  do", with: "Dog") == "beach, Dog, ")
+        #expect(KeywordCompletion.completing("do", with: "Dog") == "Dog, ")
+    }
+
+    @Test func readsEveryKeywordInTheField() {
+        #expect(KeywordCompletion.keywords(in: "beach, Dog ,, dog,  sunset glow ") == ["beach", "Dog", "sunset glow"])
+        #expect(KeywordCompletion.keywords(in: "  ").isEmpty)
     }
 }
