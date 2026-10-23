@@ -14,6 +14,7 @@ public actor ExifToolMetadataReader: MetadataReader {
         "SubSecDateTimeOriginal", "DateTimeOriginal", "CreateDate", "OffsetTimeOriginal",
         "ImageSize", "ImageWidth", "ImageHeight", "Orientation",
         "Make", "Model", "LensModel", "ISO", "ExposureTime", "FNumber", "FocalLength",
+        "Keywords", "Subject", "Rating", "Label",
     ]
 
     public enum Failure: Error {
@@ -141,6 +142,15 @@ public actor ExifToolMetadataReader: MetadataReader {
             }
         }
         func int(_ key: String) -> Int? { double(key).flatMap { $0.isFinite ? Int($0) : nil } }
+        // List tags are arrays, or a plain value when there is only one entry.
+        func strings(_ key: String) -> [String] {
+            switch entry[key] {
+            case let values as [Any]: values.compactMap { ($0 as? String) ?? ($0 as? NSNumber)?.stringValue }
+            case let value as String: [value]
+            case let value as NSNumber: [value.stringValue]
+            default: []
+            }
+        }
 
         let offset = string("OffsetTimeOriginal")
         let parsed = (string("SubSecDateTimeOriginal") ?? string("DateTimeOriginal") ?? string("CreateDate"))
@@ -160,7 +170,8 @@ public actor ExifToolMetadataReader: MetadataReader {
             pixelWidth: width, pixelHeight: height, orientation: int("Orientation") ?? 1,
             cameraMake: string("Make"), cameraModel: string("Model"), lensModel: string("LensModel"),
             iso: int("ISO"), exposureTime: double("ExposureTime"), fNumber: double("FNumber"),
-            focalLength: double("FocalLength"))
+            focalLength: double("FocalLength"), keywords: strings("Keywords") + strings("Subject"),
+            rating: int("Rating"), label: string("Label"))
     }
 }
 

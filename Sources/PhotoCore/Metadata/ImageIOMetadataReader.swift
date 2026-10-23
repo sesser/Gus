@@ -45,6 +45,16 @@ public struct ImageIOMetadataReader: MetadataReader {
                            offset: exif[kCGImagePropertyExifOffsetTimeOriginal] as? String)
         }
         let iso = (exif[kCGImagePropertyExifISOSpeedRatings] as? [NSNumber])?.first?.intValue
+        let iptc = properties[kCGImagePropertyIPTCDictionary] as? [CFString: Any] ?? [:]
+        var keywords = (iptc[kCGImagePropertyIPTCKeywords] as? [String]) ?? []
+        var rating: Int?
+        var label: String?
+        if let xmp = CGImageSourceCopyMetadataAtIndex(source, 0, options) {
+            keywords += xmpStrings(xmp, "dc:subject")
+            rating = (CGImageMetadataCopyStringValueWithPath(xmp, nil, "xmp:Rating" as CFString) as String?)
+                .flatMap { Double($0) }.map { Int($0) }
+            label = CGImageMetadataCopyStringValueWithPath(xmp, nil, "xmp:Label" as CFString) as String?
+        }
 
         return ImageMetadata(
             captureDate: parsedDate?.date,
@@ -58,7 +68,18 @@ public struct ImageIOMetadataReader: MetadataReader {
             iso: iso,
             exposureTime: (exif[kCGImagePropertyExifExposureTime] as? NSNumber)?.doubleValue,
             fNumber: (exif[kCGImagePropertyExifFNumber] as? NSNumber)?.doubleValue,
-            focalLength: (exif[kCGImagePropertyExifFocalLength] as? NSNumber)?.doubleValue)
+            focalLength: (exif[kCGImagePropertyExifFocalLength] as? NSNumber)?.doubleValue,
+            keywords: keywords, rating: rating, label: label)
+    }
+
+    /// The items of an XMP array (bag or sequence) of text values.
+    static func xmpStrings(_ metadata: CGImageMetadata, _ path: String) -> [String] {
+        guard let tag = CGImageMetadataCopyTagWithPath(metadata, nil, path as CFString),
+              let value = CGImageMetadataTagCopyValue(tag) else { return [] }
+        if let items = value as? [CGImageMetadataTag] {
+            return items.compactMap { CGImageMetadataTagCopyValue($0) as? String }
+        }
+        return (value as? String).map { [$0] } ?? []
     }
 }
 

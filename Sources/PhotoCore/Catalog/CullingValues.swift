@@ -43,3 +43,29 @@ public enum ColorLabel: Int, Hashable, Sendable, Codable, CaseIterable {
 extension Rating: DatabaseValueConvertible {}
 extension Flag: DatabaseValueConvertible {}
 extension ColorLabel: DatabaseValueConvertible {}
+
+extension ColorLabel {
+    /// The label as other apps write it to XMP (`xmp:Label`): an English color
+    /// name. These are file-format values, not UI text.
+    public var xmpName: String? {
+        switch self {
+        case .none: nil
+        case .red: "Red"
+        case .orange: "Orange"
+        case .yellow: "Yellow"
+        case .green: "Green"
+        case .blue: "Blue"
+        case .purple: "Purple"
+        case .gray: "Gray"
+        }
+    }
+
+    /// Reads an `xmp:Label` value; unknown names (custom label sets) give nil.
+    public init?(xmpName: String) {
+        let name = xmpName.trimmingCharacters(in: .whitespaces).lowercased()
+        guard let match = ColorLabel.allCases.first(where: { $0.xmpName?.lowercased() == name })
+            ?? (name == "grey" ? .gray : nil) ?? (name == "violet" ? .purple : nil)
+        else { return nil }
+        self = match
+    }
+}

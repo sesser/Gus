@@ -14,15 +14,29 @@ public enum SyntheticImages {
         public var make: String?
         public var model: String?
         public var orientation: Int
+        /// IPTC Keywords.
+        public var keywords: [String]
+        /// XMP values, written the way other photo apps embed them.
+        public var xmpRating: Int?
+        public var xmpLabel: String?
+        public var xmpSubject: [String]
 
         public init(dateTimeOriginal: String? = nil, offsetTimeOriginal: String? = nil,
-                    make: String? = "Synthetic", model: String? = "Generator", orientation: Int = 1) {
+                    make: String? = "Synthetic", model: String? = "Generator", orientation: Int = 1,
+                    keywords: [String] = [], xmpRating: Int? = nil, xmpLabel: String? = nil,
+                    xmpSubject: [String] = []) {
             self.dateTimeOriginal = dateTimeOriginal
             self.offsetTimeOriginal = offsetTimeOriginal
             self.make = make
             self.model = model
             self.orientation = orientation
+            self.keywords = keywords
+            self.xmpRating = xmpRating
+            self.xmpLabel = xmpLabel
+            self.xmpSubject = xmpSubject
         }
+
+        var hasXMP: Bool { xmpRating != nil || xmpLabel != nil || !xmpSubject.isEmpty }
     }
 
     /// Renders the test pattern for `seed` as an sRGB image.
@@ -79,14 +93,46 @@ public enum SyntheticImages {
         var tiffDictionary: [CFString: Any] = [:]
         tiffDictionary[kCGImagePropertyTIFFMake] = exif.make
         tiffDictionary[kCGImagePropertyTIFFModel] = exif.model
-        let properties: [CFString: Any] = [
+        var properties: [CFString: Any] = [
             kCGImageDestinationLossyCompressionQuality: quality,
             kCGImagePropertyOrientation: exif.orientation,
             kCGImagePropertyExifDictionary: exifDictionary,
             kCGImagePropertyTIFFDictionary: tiffDictionary,
         ]
+        if !exif.keywords.isEmpty {
+            properties[kCGImagePropertyIPTCDictionary] = [kCGImagePropertyIPTCKeywords: exif.keywords]
+        }
         CGImageDestinationAddImage(destination, image, properties as CFDictionary)
         guard CGImageDestinationFinalize(destination) else { throw CocoaError(.fileWriteUnknown) }
+        if exif.hasXMP { try addXMP(exif, to: url, type: type) }
+    }
+
+    /// Merges XMP into the written file without re-encoding the image.
+    private static func addXMP(_ exif: Exif, to url: URL, type: UTType) throws {
+        let metadata = CGImageMetadataCreateMutable()
+        if let rating = exif.xmpRating {
+            CGImageMetadataSetValueWithPath(metadata, nil, "xmp:Rating" as CFString, String(rating) as CFString)
+        }
+        if let label = exif.xmpLabel {
+            CGImageMetadataSetValueWithPath(metadata, nil, "xmp:Label" as CFString, label as CFString)
+        }
+        if !exif.xmpSubject.isEmpty,
+           let tag = CGImageMetadataTagCreate(kCGImageMetadataNamespaceDublinCore, kCGImageMetadataPrefixDublinCore,
+                                              "subject" as CFString, .arrayUnordered, exif.xmpSubject as CFArray) {
+            CGImageMetadataSetTagWithPath(metadata, nil, "dc:subject" as CFString, tag)
+        }
+        let data = try Data(contentsOf: url)
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { throw CocoaError(.fileReadCorruptFile) }
+        let output = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(output, type.identifier as CFString, 1, nil) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        let options: [CFString: Any] = [kCGImageDestinationMetadata: metadata, kCGImageDestinationMergeMetadata: true]
+        var error: Unmanaged<CFError>?
+        guard CGImageDestinationCopyImageSource(destination, source, options as CFDictionary, &error) else {
+            throw error?.takeRetainedValue() ?? CocoaError(.fileWriteUnknown)
+        }
+        try (output as Data).write(to: url)
     }
 
     static func color(hue: Double, saturation: Double, brightness: Double, alpha: Double = 1) -> CGColor {

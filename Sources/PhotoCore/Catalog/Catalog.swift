@@ -245,9 +245,17 @@ extension Catalog {
                     continue
                 }
                 var version = VersionRecord.makeDefault(imageId: imageID, at: importedAt)
+                (version.rating, version.flag, version.colorLabel) = metadata.embeddedCulling
                 try version.insert(db)
                 result.insertedImageIDs.append(imageID)
-                if let versionID = version.id { result.insertedVersionIDs.append(versionID) }
+                guard let versionID = version.id else { continue }
+                result.insertedVersionIDs.append(versionID)
+                for name in metadata.keywords {
+                    let keyword = try Self.findOrCreateKeyword(db, name: name)
+                    if let keywordID = keyword.id {
+                        try VersionKeywordRecord(versionId: versionID, keywordId: keywordID).insert(db, onConflict: .ignore)
+                    }
+                }
             }
             // Partners may have come in an earlier batch or an earlier import.
             let keys = Set(masters.map { ImagePairing.key(forRelativePath: $0.relativePath) })

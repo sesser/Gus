@@ -8,6 +8,7 @@ public struct LibraryFilter: Hashable, Sendable {
         case allPhotos
         case project(Int64)
         case album(Int64)
+        case keyword(Int64)
     }
 
     public enum RatingRule: Hashable, Sendable {
@@ -117,6 +118,9 @@ extension Catalog {
             arguments += [id]
         case .album(let id):
             clauses.append("version.id IN (SELECT versionId FROM albumMember WHERE albumId = ?)")
+            arguments += [id]
+        case .keyword(let id):
+            clauses.append("version.id IN (SELECT versionId FROM versionKeyword WHERE keywordId = ?)")
             arguments += [id]
         }
         switch filter.rating {
