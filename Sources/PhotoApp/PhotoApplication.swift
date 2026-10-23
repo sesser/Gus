@@ -134,6 +134,10 @@ struct LibraryCommands: Commands {
                 .keyboardShortcut("=", modifiers: .command)
             Button("Smaller Thumbnails") { model?.resizeThumbnails(by: 1 / 1.2) }
                 .keyboardShortcut("-", modifiers: .command)
+            Toggle("Show File Names", isOn: Binding(
+                get: { model?.showFileInfo ?? true },
+                set: { model?.showFileInfo = $0 }
+            ))
             Divider()
         }
     }

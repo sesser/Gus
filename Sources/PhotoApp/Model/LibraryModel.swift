@@ -91,9 +91,14 @@ final class LibraryModel {
     var autoAdvance: Bool {
         didSet { UserDefaults.standard.set(autoAdvance, forKey: Self.autoAdvanceKey) }
     }
+    /// File name and type badge under each thumbnail.
+    var showFileInfo: Bool {
+        didSet { UserDefaults.standard.set(showFileInfo, forKey: Self.showFileInfoKey) }
+    }
     static let thumbnailSizeRange = 80.0...360.0
     private static let thumbnailSizeKey = "browser.thumbnailSize"
     private static let autoAdvanceKey = "culling.autoAdvance"
+    private static let showFileInfoKey = "browser.showFileInfo"
 
     // MARK: Background work
 
@@ -123,6 +128,7 @@ final class LibraryModel {
         let size = defaults.double(forKey: Self.thumbnailSizeKey)
         thumbnailSize = Self.thumbnailSizeRange.contains(size) ? size : 180
         autoAdvance = defaults.bool(forKey: Self.autoAdvanceKey)
+        showFileInfo = defaults.object(forKey: Self.showFileInfoKey) as? Bool ?? true
     }
 
     /// Opens the catalog at the standard location (or `--library-root`).

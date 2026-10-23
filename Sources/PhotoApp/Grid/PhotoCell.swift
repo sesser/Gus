@@ -32,6 +32,7 @@ final class PhotoCell: NSCollectionViewItem {
     func configure(with item: CatalogItem, model: LibraryModel, pixelSize: Int) {
         let isNewItem = versionID != item.versionID
         versionID = item.versionID
+        cellView.showsInfo = model.showFileInfo
         cellView.apply(item, offline: model.isOffline(item))
         guard isNewItem || cellView.image == nil else { return }
 
@@ -70,6 +71,8 @@ final class PhotoCellView: NSView {
 
     private let imageLayer = CALayer()
     private let ratingLayer = CATextLayer()
+    private let nameLayer = CATextLayer()
+    private let kindLayer = CALayer()
     private let flagLayer = CALayer()
     private let labelLayer = CALayer()
     private let offlineLayer = CALayer()
@@ -78,13 +81,24 @@ final class PhotoCellView: NSView {
     private var item: CatalogItem?
     private var offline = false
     private var unavailable = false
+    private var kindSize = CGSize.zero
+    private var shownBadgeText: String?
+
+    /// File name and type badge above the star strip, when the cell is wide enough.
+    var showsInfo = true {
+        didSet { if oldValue != showsInfo { needsLayout = true } }
+    }
 
     var isSelected = false {
         didSet { if oldValue != isSelected { updateChrome() } }
     }
 
     static let stripHeight: CGFloat = 20
+    static let infoHeight: CGFloat = 16
     static let padding: CGFloat = 6
+    /// Narrower cells show the image and culling marks only.
+    static let minimumStripWidth: CGFloat = 96
+    static let minimumInfoWidth: CGFloat = 120
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -104,6 +118,12 @@ final class PhotoCellView: NSView {
         ratingLayer.foregroundColor = Palette.rating.cgColor
         ratingLayer.alignmentMode = .left
         ratingLayer.truncationMode = .end
+        nameLayer.fontSize = 11
+        nameLayer.font = NSFont.systemFont(ofSize: 11)
+        nameLayer.foregroundColor = Palette.fileName.cgColor
+        nameLayer.alignmentMode = .left
+        nameLayer.truncationMode = .middle
+        kindLayer.contentsGravity = .resizeAspect
         labelLayer.cornerRadius = 5
         flagLayer.contentsGravity = .resizeAspect
         offlineLayer.contentsGravity = .resizeAspect
@@ -111,7 +131,8 @@ final class PhotoCellView: NSView {
         offlineLayer.backgroundColor = NSColor(white: 0, alpha: 0.55).cgColor
         offlineLayer.cornerRadius = 4
 
-        for sublayer in [placeholderLayer, imageLayer, ratingLayer, flagLayer, labelLayer, offlineLayer] {
+        for sublayer in [placeholderLayer, imageLayer, ratingLayer, nameLayer, kindLayer, flagLayer, labelLayer,
+                         offlineLayer] {
             sublayer.actions = Self.noActions
             layer.addSublayer(sublayer)
         }
@@ -132,7 +153,7 @@ final class PhotoCellView: NSView {
     override func viewDidChangeBackingProperties() {
         super.viewDidChangeBackingProperties()
         let scale = window?.backingScaleFactor ?? 2
-        for sublayer in [imageLayer, ratingLayer, flagLayer, offlineLayer] {
+        for sublayer in [imageLayer, ratingLayer, nameLayer, kindLayer, flagLayer, offlineLayer] {
             sublayer.contentsScale = scale
         }
     }
@@ -143,24 +164,40 @@ final class PhotoCellView: NSView {
         CATransaction.setDisableActions(true)
         let bounds = self.bounds
         let padding = Self.padding
-        let showStrip = bounds.width >= 96
-        let strip = showStrip ? Self.stripHeight : 0
+        let showStrip = bounds.width >= Self.minimumStripWidth
+        let showInfo = showStrip && showsInfo && bounds.width >= Self.minimumInfoWidth
+        let strip = showStrip ? Self.stripHeight + (showInfo ? Self.infoHeight : 0) : 0
         let imageFrame = NSRect(x: padding, y: padding + strip, width: bounds.width - padding * 2,
                                 height: bounds.height - padding * 2 - strip)
         imageLayer.frame = imageFrame
         placeholderLayer.frame = imageFrame.insetBy(dx: imageFrame.width * 0.08, dy: imageFrame.height * 0.08)
         ratingLayer.isHidden = !showStrip
         ratingLayer.frame = NSRect(x: padding + 2, y: padding + 2, width: bounds.width * 0.6, height: 15)
+        nameLayer.isHidden = !showInfo
+        kindLayer.isHidden = !showInfo
+        positionInfo()
         flagLayer.frame = NSRect(x: bounds.width - padding - 16, y: padding + 1, width: 15, height: 15)
         positionLabel()
         offlineLayer.frame = NSRect(x: imageFrame.minX + 4, y: imageFrame.maxY - 22, width: 22, height: 18)
         CATransaction.commit()
     }
 
+    /// The name takes the row's width minus the badge, whose width depends on its text.
+    private func positionInfo() {
+        guard !nameLayer.isHidden else { return }
+        let padding = Self.padding
+        let rowY = padding + Self.stripHeight - 1
+        kindLayer.frame = NSRect(x: bounds.width - padding - 2 - kindSize.width,
+                                 y: rowY + (Self.infoHeight - kindSize.height) / 2,
+                                 width: kindSize.width, height: kindSize.height)
+        nameLayer.frame = NSRect(x: padding + 2, y: rowY, width: max(0, kindLayer.frame.minX - padding - 6),
+                                 height: Self.infoHeight - 1)
+    }
+
     /// The label dot sits left of the flag when there is one.
     private func positionLabel() {
         let padding = Self.padding
-        labelLayer.frame = bounds.width >= 96
+        labelLayer.frame = bounds.width >= Self.minimumStripWidth
             ? NSRect(x: bounds.width - padding - (flagLayer.isHidden ? 12 : 32), y: padding + 4, width: 10, height: 10)
             : NSRect(x: bounds.width - 14, y: bounds.height - 14, width: 10, height: 10)
     }
@@ -171,6 +208,17 @@ final class PhotoCellView: NSView {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         ratingLayer.string = item.rating.rawValue > 0 ? String(repeating: "★", count: item.rating.rawValue) : ""
+        if nameLayer.string as? String != item.baseName {
+            nameLayer.string = item.baseName
+        }
+        let badgeText = FileKindText.badge(for: item)
+        if badgeText != shownBadgeText {
+            shownBadgeText = badgeText
+            let badge = Badges.image(badgeText)
+            kindLayer.contents = badge?.image
+            kindSize = badge?.size ?? .zero
+            positionInfo()
+        }
         switch item.flag {
         case .picked:
             flagLayer.contents = Symbols.image("flag.fill", color: Palette.pick, pointSize: 11)
@@ -250,6 +298,10 @@ enum Palette {
     static let cell = NSColor(white: 0.17, alpha: 1)
     static let cellSelected = NSColor(white: 0.27, alpha: 1)
     static let rating = NSColor(calibratedRed: 0.98, green: 0.82, blue: 0.35, alpha: 1)
+    static let fileName = NSColor(white: 0.78, alpha: 1)
+    static let badgeText = NSColor(white: 0.86, alpha: 1)
+    static let badgeFill = NSColor(white: 1, alpha: 0.13)
+    static let rawBadgeFill = NSColor(calibratedRed: 0.95, green: 0.7, blue: 0.3, alpha: 0.3)
     static let pick = NSColor(calibratedRed: 0.45, green: 0.85, blue: 0.5, alpha: 1)
     static let reject = NSColor(calibratedRed: 0.95, green: 0.4, blue: 0.35, alpha: 1)
 
@@ -285,5 +337,65 @@ enum Symbols {
                                    hints: [.ctm: AffineTransform(scale: 2)])
         cache[key] = image
         return image
+    }
+}
+
+/// Small rounded type badges ("RAW", "JPEG"), rendered once per label.
+@MainActor
+enum Badges {
+    struct Badge {
+        let image: CGImage
+        /// Size in points.
+        let size: CGSize
+    }
+
+    private static var cache: [String: Badge] = [:]
+
+    static func image(_ text: String?) -> Badge? {
+        guard let text, !text.isEmpty else { return nil }
+        if let cached = cache[text] { return cached }
+        let font = NSFont.systemFont(ofSize: 8.5, weight: .bold)
+        let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: Palette.badgeText, .kern: 0.4]
+        let string = NSAttributedString(string: text, attributes: attributes)
+        let textSize = string.size()
+        let size = CGSize(width: ceil(textSize.width) + 8, height: 13)
+        let scale: CGFloat = 2
+        guard let context = CGContext(data: nil, width: Int(size.width * scale), height: Int(size.height * scale),
+                                      bitsPerComponent: 8, bytesPerRow: 0,
+                                      space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return nil }
+        context.scaleBy(x: scale, y: scale)
+        let fill = text.hasPrefix(FileKindText.badge(.raw)) ? Palette.rawBadgeFill : Palette.badgeFill
+        context.addPath(CGPath(roundedRect: CGRect(origin: .zero, size: size), cornerWidth: 3, cornerHeight: 3,
+                               transform: nil))
+        context.setFillColor(fill.cgColor)
+        context.fillPath()
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
+        string.draw(at: NSPoint(x: (size.width - textSize.width) / 2, y: (size.height - textSize.height) / 2 + 0.5))
+        NSGraphicsContext.restoreGraphicsState()
+        guard let image = context.makeImage() else { return nil }
+        let badge = Badge(image: image, size: size)
+        cache[text] = badge
+        return badge
+    }
+}
+
+/// Badge text for file types. The abbreviations are conventional, but they go
+/// through the String Catalog like every other UI string.
+enum FileKindText {
+    static func badge(_ kind: FileKind) -> String {
+        switch kind {
+        case .raw: String(localized: "RAW", comment: "Grid badge: camera raw file")
+        case .jpeg: String(localized: "JPEG", comment: "Grid badge: JPEG file")
+        case .heic: String(localized: "HEIC", comment: "Grid badge: HEIC or HEIF file")
+        case .tiff: String(localized: "TIFF", comment: "Grid badge: TIFF file")
+        case .png: String(localized: "PNG", comment: "Grid badge: PNG file")
+        }
+    }
+
+    static func badge(for item: CatalogItem) -> String? {
+        item.fileKind.map(badge)
     }
 }

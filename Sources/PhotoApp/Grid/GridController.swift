@@ -15,7 +15,7 @@ struct GridView: NSViewRepresentable {
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
-        context.coordinator.update(cellSize: model.thumbnailSize, mode: model.mode)
+        context.coordinator.update(cellSize: model.thumbnailSize, mode: model.mode, showsInfo: model.showFileInfo)
     }
 }
 
@@ -27,6 +27,7 @@ final class GridController: NSObject, NSCollectionViewDataSource, NSCollectionVi
     let collectionView = PhotoCollectionView()
     let layout = UniformGridLayout()
     private var mode: BrowserMode = .grid
+    private var showsInfo: Bool?
     private var prefetchTasks: [Int: Task<Void, Never>] = [:]
     private var prefetchScheduled = false
 
@@ -55,7 +56,11 @@ final class GridController: NSObject, NSCollectionViewDataSource, NSCollectionVi
         model.observer = self
     }
 
-    func update(cellSize: Double, mode: BrowserMode) {
+    func update(cellSize: Double, mode: BrowserMode, showsInfo: Bool) {
+        if showsInfo != self.showsInfo {
+            self.showsInfo = showsInfo
+            refreshVisibleCells()
+        }
         if layout.targetCellSize != cellSize {
             let anchor = model.focusIndex
             layout.targetCellSize = cellSize

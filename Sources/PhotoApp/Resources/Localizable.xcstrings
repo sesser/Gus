@@ -262,6 +262,17 @@
         }
       }
     },
+    "HEIC" : {
+      "comment" : "Grid badge: HEIC or HEIF file",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HEIC"
+          }
+        }
+      }
+    },
     "ISO %lld" : {
       "localizations" : {
         "en" : {
@@ -370,6 +381,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Importing %lld of %lld"
+          }
+        }
+      }
+    },
+    "JPEG" : {
+      "comment" : "Grid badge: JPEG file",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JPEG"
           }
         }
       }
@@ -506,6 +528,17 @@
         }
       }
     },
+    "PNG" : {
+      "comment" : "Grid badge: PNG file",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PNG"
+          }
+        }
+      }
+    },
     "Photo" : {
       "comment" : "Menu title",
       "localizations" : {
@@ -554,6 +587,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Purple"
+          }
+        }
+      }
+    },
+    "RAW" : {
+      "comment" : "Grid badge: camera raw file",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RAW"
           }
         }
       }
@@ -618,6 +662,17 @@
         }
       }
     },
+    "Show File Names" : {
+      "comment" : "View menu toggle: file name and type badge under each thumbnail",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show File Names"
+          }
+        }
+      }
+    },
     "Show Grid" : {
       "localizations" : {
         "en" : {
@@ -654,6 +709,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Switch between the grid and a single photo"
+          }
+        }
+      }
+    },
+    "TIFF" : {
+      "comment" : "Grid badge: TIFF file",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TIFF"
           }
         }
       }

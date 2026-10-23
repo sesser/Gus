@@ -74,6 +74,11 @@ public struct CatalogItem: Hashable, Sendable, Identifiable {
 
     public var fileName: String { (relativePath as NSString).lastPathComponent }
 
+    /// File name without its extension.
+    public var baseName: String { (fileName as NSString).deletingPathExtension }
+
+    public var fileKind: FileKind? { FileKind(pathExtension: (relativePath as NSString).pathExtension) }
+
     /// Displayed size after EXIF orientation, or nil when unknown.
     public var orientedSize: CGSize? {
         guard pixelWidth > 0, pixelHeight > 0 else { return nil }

@@ -15,6 +15,30 @@ public enum SupportedFormats {
     }
 }
 
+/// The broad file type of a master, as shown on grid badges.
+public enum FileKind: String, Hashable, Sendable, CaseIterable {
+    case raw
+    case jpeg
+    case heic
+    case tiff
+    case png
+
+    public init?(pathExtension: String) {
+        let ext = pathExtension.lowercased()
+        if SupportedFormats.rawExtensions.contains(ext) {
+            self = .raw
+            return
+        }
+        switch ext {
+        case "jpg", "jpeg": self = .jpeg
+        case "heic", "heif": self = .heic
+        case "tif", "tiff": self = .tiff
+        case "png": self = .png
+        default: return nil
+        }
+    }
+}
+
 /// A candidate master found on disk.
 public struct ScannedFile: Hashable, Sendable {
     public var url: URL
