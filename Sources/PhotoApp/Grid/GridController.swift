@@ -203,6 +203,31 @@ final class GridController: NSObject, NSCollectionViewDataSource, NSCollectionVi
         scrollView.reflectScrolledClipView(scrollView.contentView)
     }
 
+    // MARK: Display
+
+    /// Previews are converted to the screen's color space as they are decoded, so
+    /// Core Animation never converts them on the main thread.
+    func windowDidChange(_ window: NSWindow?) {
+        let center = NotificationCenter.default
+        for name in [NSWindow.didChangeScreenNotification, NSWindow.didChangeScreenProfileNotification] {
+            center.removeObserver(self, name: name, object: nil)
+            if let window {
+                center.addObserver(self, selector: #selector(screenDidChange(_:)), name: name, object: window)
+            }
+        }
+        updateDisplayColorSpace(window)
+    }
+
+    @objc private func screenDidChange(_ notification: Notification) {
+        updateDisplayColorSpace(notification.object as? NSWindow)
+    }
+
+    private func updateDisplayColorSpace(_ window: NSWindow?) {
+        let space = window?.colorSpace?.cgColorSpace ?? window?.screen?.colorSpace?.cgColorSpace
+        guard model.previews.displayColorSpace != space else { return }
+        model.previews.displayColorSpace = space
+    }
+
     // MARK: Prefetch
 
     /// Decodes thumbnails a screen above and below the visible area at low
@@ -271,6 +296,7 @@ final class PhotoCollectionView: NSCollectionView {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        controller?.windowDidChange(window)
         window?.makeFirstResponder(self)
     }
 }

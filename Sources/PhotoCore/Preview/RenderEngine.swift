@@ -36,10 +36,12 @@ public final class RenderEngine: @unchecked Sendable {
 
     public var isMetalBacked: Bool { device != nil }
 
-    /// Renders to an 8-bit Display P3 `CGImage`.
-    public func makeCGImage(_ image: CIImage) -> CGImage? {
-        context.createCGImage(image, from: image.extent.integral, format: .RGBA8,
-                              colorSpace: Self.outputColorSpace)
+    /// Renders to an 8-bit `CGImage` in `colorSpace` (Display P3 by default). Pass
+    /// the screen's color space for images headed straight to a layer, so Core
+    /// Animation does not have to convert them on the main thread.
+    public func makeCGImage(_ image: CIImage, colorSpace: CGColorSpace? = nil) -> CGImage? {
+        let space = colorSpace.flatMap { $0.model == .rgb ? $0 : nil } ?? Self.outputColorSpace
+        return context.createCGImage(image, from: image.extent.integral, format: .BGRA8, colorSpace: space)
     }
 
     /// Renders and encodes as JPEG with an embedded Display P3 profile.

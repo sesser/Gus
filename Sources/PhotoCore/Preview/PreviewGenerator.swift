@@ -51,10 +51,12 @@ public struct PreviewGenerator: Sendable {
         return result
     }
 
-    /// Full-resolution (or capped) rendition for 1:1 viewing.
-    public func cgImage(source: URL, stack: EditStack, longEdge: Int? = nil) throws -> CGImage {
+    /// Full-resolution (or capped) rendition for 1:1 viewing, in `colorSpace`
+    /// (Display P3 when nil).
+    public func cgImage(source: URL, stack: EditStack, longEdge: Int? = nil,
+                        colorSpace: CGColorSpace? = nil) throws -> CGImage {
         let image = try image(source: source, stack: stack, longEdge: longEdge)
-        guard let cgImage = engine.makeCGImage(image) else { throw Failure.renderFailed }
+        guard let cgImage = engine.makeCGImage(image, colorSpace: colorSpace) else { throw Failure.renderFailed }
         return cgImage
     }
 

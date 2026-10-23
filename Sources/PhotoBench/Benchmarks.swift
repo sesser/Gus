@@ -13,7 +13,8 @@ struct BenchLibrary {
         catalog = try Catalog.open(at: locations.catalogFileURL)
     }
 
-    func service(generateConcurrency: Int = 4, loadConcurrency: Int = 6) -> PreviewService {
+    func service(generateConcurrency: Int = PreviewService.defaultGenerateConcurrency,
+                 loadConcurrency: Int = 6) -> PreviewService {
         let catalog = self.catalog
         return PreviewService(cache: PreviewDiskCache(root: locations.previewCacheDirectory), editStack: { id in
             try await catalog.version(id: id)?.decodedEditStack() ?? .identity
@@ -69,10 +70,13 @@ enum PreviewBenchmark {
     static func generate(_ arguments: Arguments) async throws -> [String: any Sendable] {
         let library = try BenchLibrary(arguments)
         let tier = tier(arguments)
-        let concurrency = arguments.int("concurrency", default: 4)
+        let concurrency = arguments.int("concurrency", default: PreviewService.defaultGenerateConcurrency)
         let service = library.service(generateConcurrency: concurrency)
         if arguments.flags.contains("fresh") { try service.cache.removeAll() }
         var items = try await library.itemsWithSources()
+        if let format = arguments.values["format"]?.lowercased() {
+            items = items.filter { ($0.0.relativePath as NSString).pathExtension.lowercased() == format }
+        }
         if let limit = arguments.values["limit"].flatMap(Int.init) { items = Array(items.prefix(limit)) }
         let requests: [(String, PreviewRequest)] = items.compactMap { item, url in
             guard let key = PreviewCacheKey(item: item, tier: tier), let url else { return nil }

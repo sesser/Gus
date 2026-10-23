@@ -152,11 +152,17 @@ final class PhotoCellView: NSView {
         ratingLayer.isHidden = !showStrip
         ratingLayer.frame = NSRect(x: padding + 2, y: padding + 2, width: bounds.width * 0.6, height: 15)
         flagLayer.frame = NSRect(x: bounds.width - padding - 16, y: padding + 1, width: 15, height: 15)
-        labelLayer.frame = showStrip
-            ? NSRect(x: bounds.width - padding - (flagLayer.isHidden ? 12 : 32), y: padding + 4, width: 10, height: 10)
-            : NSRect(x: bounds.width - 14, y: bounds.height - 14, width: 10, height: 10)
+        positionLabel()
         offlineLayer.frame = NSRect(x: imageFrame.minX + 4, y: imageFrame.maxY - 22, width: 22, height: 18)
         CATransaction.commit()
+    }
+
+    /// The label dot sits left of the flag when there is one.
+    private func positionLabel() {
+        let padding = Self.padding
+        labelLayer.frame = bounds.width >= 96
+            ? NSRect(x: bounds.width - padding - (flagLayer.isHidden ? 12 : 32), y: padding + 4, width: 10, height: 10)
+            : NSRect(x: bounds.width - 14, y: bounds.height - 14, width: 10, height: 10)
     }
 
     func apply(_ item: CatalogItem, offline: Bool) {
@@ -184,8 +190,10 @@ final class PhotoCellView: NSView {
         }
         offlineLayer.isHidden = !offline
         imageLayer.opacity = item.flag == .rejected ? 0.35 : 1
+        // Only the label moves with the flag; a full layout pass per configured
+        // cell showed up in fast-scroll profiles.
+        positionLabel()
         CATransaction.commit()
-        needsLayout = true
     }
 
     func setImage(_ image: CGImage?, animated: Bool) {
@@ -228,6 +236,11 @@ final class PhotoCellView: NSView {
         super.mouseDown(with: event)
         if event.clickCount == 2 { onDoubleClick?() }
     }
+
+    /// AppKit's default resets alpha, hiding and animations under an animator on
+    /// every reuse, a visible share of cell dequeue time in fast-scroll profiles.
+    /// This view never changes those, and `PhotoCell` resets what it does change.
+    override func prepareForReuse() {}
 }
 
 /// Neutral grays so photos are judged against a background that does not tint them.

@@ -2,7 +2,7 @@ import AppKit
 import PhotoCore
 import QuartzCore
 
-/// `--benchmark-scroll`: scrolls the grid at fixed speeds and cell sizes, records
+/// `--benchmark-scroll <report.json>`: scrolls the grid at fixed speeds and cell sizes, records
 /// frame intervals from a display link and how many visible cells already show
 /// their thumbnail, then writes a JSON report and quits.
 @MainActor
@@ -41,20 +41,31 @@ final class ScrollBenchmark: NSObject {
     static func startIfRequested(model: LibraryModel) {
         let options = LaunchOptions.current
         guard options.benchmarkScroll, running == nil else { return }
-        let benchmark = ScrollBenchmark(model: model, output: options.benchmarkOutput)
+        let benchmark = ScrollBenchmark(model: model, output: options.benchmarkReport)
         running = benchmark
         Task { await benchmark.run() }
     }
 
     private let model: LibraryModel
     private let output: URL?
-    private let configurations: [Configuration] = [
-        Configuration(cellSize: 120, pointsPerSecond: 3000),
-        Configuration(cellSize: 200, pointsPerSecond: 3000),
-        Configuration(cellSize: 320, pointsPerSecond: 3000),
-        Configuration(cellSize: 160, pointsPerSecond: 12000),
-    ]
-    private let secondsPerRun = 6.0
+    /// Cell size × scroll speed pairs. `SCROLL_BENCHMARK_RUNS="160x12000,120x3000"`
+    /// in the environment overrides them (environment, not arguments, so AppKit
+    /// does not see them).
+    private let configurations: [Configuration] = {
+        let defaults = [
+            Configuration(cellSize: 120, pointsPerSecond: 3000),
+            Configuration(cellSize: 200, pointsPerSecond: 3000),
+            Configuration(cellSize: 320, pointsPerSecond: 3000),
+            Configuration(cellSize: 160, pointsPerSecond: 12000),
+        ]
+        guard let spec = ProcessInfo.processInfo.environment["SCROLL_BENCHMARK_RUNS"] else { return defaults }
+        let parsed = spec.split(separator: ",").compactMap { pair -> Configuration? in
+            let parts = pair.split(separator: "x").compactMap { Double($0) }
+            return parts.count == 2 ? Configuration(cellSize: parts[0], pointsPerSecond: parts[1]) : nil
+        }
+        return parsed.isEmpty ? defaults : parsed
+    }()
+    private let secondsPerRun = Double(ProcessInfo.processInfo.environment["SCROLL_BENCHMARK_SECONDS"] ?? "") ?? 6
 
     private var link: CADisplayLink?
     private var grid: GridController?
@@ -86,7 +97,10 @@ final class ScrollBenchmark: NSObject {
         grid.scrollView.window?.makeKeyAndOrderFront(nil)
 
         var results: [Result] = []
+        let originalSize = model.thumbnailSize
+        log("starting with \(model.itemCount) items")
         for configuration in configurations {
+            log("measuring \(configuration)")
             model.thumbnailSize = configuration.cellSize
             try? await Task.sleep(for: .milliseconds(300))
             grid.scrollView.contentView.scroll(to: .zero)
@@ -95,6 +109,8 @@ final class ScrollBenchmark: NSObject {
             try? await Task.sleep(for: .seconds(1.5))
             results.append(await measure(configuration))
         }
+        // The size is a saved preference; leave it the way it was.
+        model.thumbnailSize = originalSize
         let screen = grid.scrollView.window?.screen
         finish(Report(itemCount: model.itemCount, screenScale: Double(screen?.backingScaleFactor ?? 0),
                       maximumFramesPerSecond: screen?.maximumFramesPerSecond ?? 0, results: results))
@@ -160,6 +176,10 @@ final class ScrollBenchmark: NSObject {
             finishRun?.resume()
             finishRun = nil
         }
+    }
+
+    private func log(_ message: String) {
+        FileHandle.standardError.write(Data("scroll-benchmark: \(message)\n".utf8))
     }
 
     private func finish(_ report: Report) {

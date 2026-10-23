@@ -290,6 +290,25 @@ struct MetadataTests {
         }
     }
 
+    @Test(.enabled(if: ExifToolMetadataReader.locateExecutable() != nil, "ExifTool is not installed"))
+    func exifToolSplitsLargeBatchesAcrossProcesses() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            var files: [URL] = []
+            for seed in 0..<40 {
+                let file = root.appending(path: "batch-\(seed).jpg")
+                try SyntheticImages.writeJPEG(to: file, width: 32 + seed, height: 24, seed: UInt64(seed))
+                files.append(file)
+            }
+            let reader = ExifToolMetadataReader(executableURL: ExifToolMetadataReader.locateExecutable()!, processCount: 3)
+            let result = try await reader.metadata(for: files + [root.appending(path: "missing.jpg")])
+            await reader.shutdown()
+            #expect(result.count == 40)
+            for (index, file) in files.enumerated() {
+                #expect(result[file]?.pixelWidth == 32 + index)
+            }
+        }
+    }
+
     @Test func fallbackFillsGapsFromTheSecondReader() async throws {
         struct Fixed: MetadataReader {
             let answers: [URL: ImageMetadata]

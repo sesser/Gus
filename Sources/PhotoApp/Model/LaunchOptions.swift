@@ -2,17 +2,21 @@ import Foundation
 
 /// Command-line switches, used for development and profiling.
 ///
-///     --library-root <folder>     keep catalog and previews in <folder> instead of
-///                                 the standard per-user locations
-///     --benchmark-scroll          scroll the grid at fixed speeds, write frame
-///                                 statistics, then quit
-///     --benchmark-output <file>   where the benchmark writes its JSON report
-///     --debug-script "<commands>" drive the UI for development checks (DebugScript)
+///     --library-root <folder>          keep catalog and previews in <folder> instead
+///                                      of the standard per-user locations
+///     --benchmark-scroll <report.json> scroll the grid at fixed speeds, write frame
+///                                      statistics to the file, then quit
+///     --debug-script "<commands>"      drive the UI for development checks (DebugScript)
+///
+/// Every switch takes exactly one value. AppKit reads launch arguments as
+/// "-key value" pairs and treats any leftover argument as a document to open,
+/// which suppresses the main window.
 struct LaunchOptions {
     var libraryRoot: URL?
-    var benchmarkScroll = false
-    var benchmarkOutput: URL?
+    var benchmarkReport: URL?
     var debugScript: String?
+
+    var benchmarkScroll: Bool { benchmarkReport != nil }
 
     static let current = LaunchOptions(arguments: CommandLine.arguments)
 
@@ -23,11 +27,9 @@ struct LaunchOptions {
             case "--library-root":
                 libraryRoot = iterator.next().map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) }
             case "--benchmark-scroll":
-                benchmarkScroll = true
+                benchmarkReport = iterator.next().map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) }
             case "--debug-script":
                 debugScript = iterator.next()
-            case "--benchmark-output":
-                benchmarkOutput = iterator.next().map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) }
             default:
                 break
             }

@@ -35,9 +35,16 @@ public final class PreviewDiskCache: Sendable {
     /// Decodes a cached rendition, downsampled to `maxPixelSize` if given. The
     /// image is fully decoded before returning so that drawing it never decodes on
     /// the main thread.
-    public func loadImage(for key: PreviewCacheKey, maxPixelSize: Int? = nil) -> CGImage? {
+    ///
+    /// With `displayColorSpace`, the pixels are also converted to that space in
+    /// Core Animation's native layout (8-bit BGRA, premultiplied). Otherwise Core
+    /// Animation converts each new image itself while committing, on the main
+    /// thread, which is what made fast scrolling stutter.
+    public func loadImage(for key: PreviewCacheKey, maxPixelSize: Int? = nil,
+                          displayColorSpace: CGColorSpace? = nil) -> CGImage? {
         let options = [kCGImageSourceShouldCache: false] as CFDictionary
         guard let source = CGImageSourceCreateWithURL(url(for: key) as CFURL, options) else { return nil }
+        let decoded: CGImage?
         if let maxPixelSize, maxPixelSize < key.tier.longEdge {
             let thumbnailOptions: [CFString: Any] = [
                 kCGImageSourceCreateThumbnailFromImageAlways: true,
@@ -45,10 +52,25 @@ public final class PreviewDiskCache: Sendable {
                 kCGImageSourceCreateThumbnailWithTransform: true,
                 kCGImageSourceShouldCacheImmediately: true,
             ]
-            return CGImageSourceCreateThumbnailAtIndex(source, 0, thumbnailOptions as CFDictionary)
+            decoded = CGImageSourceCreateThumbnailAtIndex(source, 0, thumbnailOptions as CFDictionary)
+        } else {
+            let decodeOptions = [kCGImageSourceShouldCacheImmediately: true] as CFDictionary
+            decoded = CGImageSourceCreateImageAtIndex(source, 0, decodeOptions)
         }
-        let decodeOptions = [kCGImageSourceShouldCacheImmediately: true] as CFDictionary
-        return CGImageSourceCreateImageAtIndex(source, 0, decodeOptions)
+        guard let decoded, let displayColorSpace else { return decoded }
+        return Self.converted(decoded, to: displayColorSpace) ?? decoded
+    }
+
+    /// Redraws `image` into a BGRA bitmap in `colorSpace`.
+    static func converted(_ image: CGImage, to colorSpace: CGColorSpace) -> CGImage? {
+        let bitmapInfo = CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+        guard colorSpace.model == .rgb,
+              let context = CGContext(data: nil, width: image.width, height: image.height, bitsPerComponent: 8,
+                                      bytesPerRow: 0, space: colorSpace, bitmapInfo: bitmapInfo)
+        else { return nil }
+        context.interpolationQuality = .none
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        return context.makeImage()
     }
 
     public func remove(_ key: PreviewCacheKey) {

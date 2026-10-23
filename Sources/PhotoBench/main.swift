@@ -16,6 +16,7 @@ let usage = """
                  Imports DIR into the catalog under ROOT and reports stage timings.
 
       previews   --library-root ROOT [--tier thumbnail|preview] [--concurrency N] [--limit N]
+                 [--format EXT] [--fresh]
                  Generates cached renditions for every version and reports per-format timings.
 
       read-cache --library-root ROOT [--tier thumbnail|preview] [--pixel-size N] [--limit N]

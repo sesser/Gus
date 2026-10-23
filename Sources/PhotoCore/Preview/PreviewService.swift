@@ -62,6 +62,7 @@ public final class PreviewService: Sendable {
     public let generator: PreviewGenerator
     private let editStack: @Sendable (Int64) async throws -> EditStack
     private let memory: MemoryCache
+    private let display = DisplayColorSpace()
     private let loadLane: WorkLane<DecodedImage>
     private let generateLane: WorkLane<Bool>
     private let fullLane: WorkLane<DecodedImage>
@@ -72,7 +73,8 @@ public final class PreviewService: Sendable {
     ///   - memoryLimit: Bytes of decoded images kept in memory.
     public init(cache: PreviewDiskCache, generator: PreviewGenerator = PreviewGenerator(),
                 editStack: @escaping @Sendable (Int64) async throws -> EditStack,
-                memoryLimit: Int = 512 << 20, loadConcurrency: Int = 6, generateConcurrency: Int = 4) {
+                memoryLimit: Int = 512 << 20, loadConcurrency: Int = 6,
+                generateConcurrency: Int = PreviewService.defaultGenerateConcurrency) {
         self.cache = cache
         self.generator = generator
         self.editStack = editStack
@@ -82,12 +84,27 @@ public final class PreviewService: Sendable {
         self.fullLane = WorkLane(concurrency: 1)
     }
 
+    /// Rendering scales with cores up to about eight jobs (RAW decodes measured on
+    /// Apple silicon); beyond that jobs mostly wait on each other.
+    public static var defaultGenerateConcurrency: Int {
+        min(8, max(4, ProcessInfo.processInfo.activeProcessorCount / 2))
+    }
+
     /// Convenience for a catalog-backed service.
     public convenience init(cacheDirectory: URL, catalog: Catalog, generator: PreviewGenerator = PreviewGenerator(),
                             memoryLimit: Int = 512 << 20) {
         self.init(cache: PreviewDiskCache(root: cacheDirectory), generator: generator, editStack: { versionID in
             try await catalog.version(id: versionID)?.decodedEditStack() ?? .identity
         }, memoryLimit: memoryLimit)
+    }
+
+    /// Color space of the screen showing the images. Decoded images are converted
+    /// to it off the main thread; changing it empties the memory cache.
+    public var displayColorSpace: CGColorSpace? {
+        get { display.value }
+        set {
+            if display.exchange(newValue) { memory.removeAll() }
+        }
     }
 
     /// Thumbnail decode sizes. Decoding at the cell's size keeps memory small.
@@ -116,9 +133,12 @@ public final class PreviewService: Sendable {
         }
         let cache = self.cache
         let key = request.key
+        let colorSpace = display.value
         let decoded = try await loadLane.run(key: memoryKey, priority: priority.rawValue,
                                              taskPriority: priority.taskPriority) {
-            guard let image = cache.loadImage(for: key, maxPixelSize: bucket) else { throw Failure.decodeFailed }
+            guard let image = cache.loadImage(for: key, maxPixelSize: bucket, displayColorSpace: colorSpace) else {
+                throw Failure.decodeFailed
+            }
             return DecodedImage(cgImage: image)
         }
         memory.insert(decoded, forKey: memoryKey)
@@ -163,11 +183,13 @@ public final class PreviewService: Sendable {
         let generator = self.generator
         let loadStack = self.editStack
         let versionID = request.versionID
+        let colorSpace = display.value
         let decoded = try await fullLane.run(key: memoryKey, priority: Priority.visible.rawValue,
                                              taskPriority: .userInitiated) {
             let stack = try await loadStack(versionID)
             try Task.checkCancellation()
-            return DecodedImage(cgImage: try generator.cgImage(source: source, stack: stack))
+            let image = try generator.cgImage(source: source, stack: stack, colorSpace: colorSpace)
+            return DecodedImage(cgImage: image)
         }
         memory.insertFullResolution(decoded, forKey: memoryKey)
         return decoded.cgImage
@@ -179,6 +201,28 @@ public final class PreviewService: Sendable {
 
     static func memoryKey(_ key: PreviewCacheKey, bucket: Int) -> String {
         "\(key.relativePath)@\(bucket)"
+    }
+}
+
+/// The display color space, readable from any thread.
+final class DisplayColorSpace: @unchecked Sendable {
+    // @unchecked: guarded by `lock`; CGColorSpace itself is immutable.
+    private let lock = NSLock()
+    private var space: CGColorSpace?
+
+    var value: CGColorSpace? {
+        lock.lock()
+        defer { lock.unlock() }
+        return space
+    }
+
+    /// Stores `newValue` and returns whether it differs from the old one.
+    func exchange(_ newValue: CGColorSpace?) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        let changed = space != newValue
+        space = newValue
+        return changed
     }
 }
 

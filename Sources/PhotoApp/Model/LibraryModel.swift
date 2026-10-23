@@ -424,7 +424,7 @@ final class LibraryModel {
             var done = 0
             await withTaskGroup(of: Void.self) { group in
                 var pending = requests.makeIterator()
-                for _ in 0..<4 {
+                for _ in 0..<PreviewService.defaultGenerateConcurrency {
                     guard let request = pending.next() else { break }
                     group.addTask { try? await previews.prepare(request, priority: .background) }
                 }
