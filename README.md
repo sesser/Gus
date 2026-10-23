@@ -5,8 +5,9 @@ masters, projects and albums, non-destructive versions, fast culling. The
 current working name is defined in `Sources/PhotoCore/Branding/AppBranding.swift`
 and is easy to change (see [RENAMING.md](RENAMING.md)).
 
-Status: **phase 1** — catalog, importer, thumbnail grid, loupe, culling and basic
-filters. Adjustments, export, stacks/keywords UI and sidecars come later.
+Status: **phase 1**. It covers the catalog, importer, thumbnail grid, loupe,
+culling and basic filters. Adjustments, export, the stacks and keywords UI, and
+sidecars come later.
 
 ## Requirements
 
@@ -34,7 +35,40 @@ open build/*.app
 ```
 
 `Scripts/build-app.sh` builds in release mode and assembles the `.app` bundle in
-`build/`. Use `CONFIGURATION=debug Scripts/build-app.sh` for a debug build.
+`build/`. It fills `Support/Info.plist` from `Branding.xcconfig`, compiles the
+String Catalog, and signs ad hoc. Use `CONFIGURATION=debug Scripts/build-app.sh`
+for a debug build.
+
+## Using it
+
+Choose **File ▸ Import Folder…** (⇧⌘I) and pick a folder. Photos in it and its
+subfolders (CR3, CR2, NEF, ARW, DNG, RAF, ORF, RW2, HEIC, JPEG, TIFF, PNG) are
+added to a new project named after the folder. Duplicates (same content
+anywhere in the library) are skipped, and so are files already imported from
+the same place. Originals are never moved, copied or modified.
+
+| key | grid | loupe |
+|---|---|---|
+| arrows | move selection (⇧ extends) | ← → previous / next photo |
+| Home, End, Page Up, Page Down | jump | first / last photo |
+| Return, Space, double-click | open the loupe | back to the grid |
+| Esc | | back to the grid |
+| Z, double-click | | toggle fit / 100 % (pinch zooms too; drag pans) |
+| 0–5 | set rating | set rating |
+| [ and ] | lower / raise rating | lower / raise rating |
+| P, X, U | pick, reject, clear flag | pick, reject, clear flag |
+| ⌥1–⌥7, ⌥0 | color label red…gray, clear | color label |
+| ⌘= and ⌘− | thumbnail size | |
+| ⌘Return | switch grid / loupe | switch grid / loupe |
+
+Changes are saved to the catalog immediately. In the grid they apply to every
+selected photo. **Photo ▸ Advance After Rating** moves on to the next photo after
+each change. Rating and flag filters live at the bottom of the sidebar; photos
+that stop matching stay visible until the filter changes, so they do not jump
+away while you cull.
+
+Photos on a volume that is not connected show an offline badge. Their cached
+previews still display, and nothing is removed from the catalog.
 
 ## Repository layout
 
@@ -42,16 +76,31 @@ open build/*.app
 |---|---|
 | `Sources/PhotoCore` | catalog (GRDB), importer, metadata, edit stack, preview pipeline, branding |
 | `Sources/PhotoApp` | SwiftUI shell, AppKit grid and loupe |
-| `Sources/PhotoBench` | synthetic library generator and profiling |
+| `Sources/PhotoFixtures` | synthetic JPEG/HEIC and Bayer DNG writers for tests and benchmarks |
+| `Sources/PhotoBench` | synthetic library generator and profiling (`photobench`) |
 | `Sources/StringCatalogCompiler` | String Catalog compiler used by the build script |
 | `Tests/PhotoCoreTests` | Swift Testing suites |
 | `Branding.xcconfig` | brand-dependent build settings |
 | `Support/` | Info.plist template, version numbers |
 | `docs/PHASE1_PLAN.md` | schema and architecture decisions |
+| `docs/PROFILING.md` | timings with a 10k/50k synthetic library |
 
 ## Data locations
 
 - Catalog: `~/Library/Application Support/<app folder>/Library/catalog.sqlite`
-- Previews: `~/Library/Caches/<bundle id>/Previews/` (safe to delete)
+- Previews: `~/Library/Caches/<bundle id>/Previews/` (safe to delete; regenerated on demand)
 
-Originals are never moved, copied or modified.
+## Development options
+
+Every launch option takes exactly one value (AppKit treats a stray argument as a
+document to open, which keeps the main window from appearing).
+
+| option | effect |
+|---|---|
+| `--library-root <folder>` | use a self-contained catalog and cache in `<folder>` |
+| `--benchmark-scroll <report.json>` | run the grid scroll benchmark, write the report, quit |
+| `--debug-script "<commands>"` | drive the UI and take window snapshots (see `DebugScript.swift`) |
+
+`photobench` generates synthetic libraries and profiles import, preview
+generation, cache reads and catalog queries. See
+[docs/PROFILING.md](docs/PROFILING.md) for results and commands.

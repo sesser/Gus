@@ -5,7 +5,8 @@ Short design record for phase 1. The architecture rules themselves live in
 
 ## Toolchain reality
 
-The build machine has the Command Line Tools only (no Xcode.app). That means:
+Phase 1 started with the Command Line Tools only (Xcode 27.1 was installed
+partway through; nothing depends on it). That shaped the build:
 
 - `swift build` / `swift test` are the build entry points (no `xcodebuild`).
 - Tests use **Swift Testing** (`import Testing`); XCTest is not shipped with the CLT.
@@ -128,4 +129,8 @@ snapshot in place.
 of synthetic Bayer DNGs to exercise `CIRAWFilter`), then measures import, preview
 generation, cache hits and catalog queries headlessly, including a 50k-row
 catalog. The app has a `--benchmark-scroll` mode that scrolls the grid at a
-fixed speed and records frame pacing.
+fixed speed and records frame pacing. Results are in `docs/PROFILING.md`.
+
+Changes made because of profiling: ExifTool runs as a process pool (import
+12.7 s → 5.5 s for 10k files), generation concurrency follows core count, and
+decoded images are converted to the screen's color space off the main thread.
