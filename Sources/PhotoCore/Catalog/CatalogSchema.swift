@@ -7,6 +7,7 @@ enum CatalogSchema {
         var migrator = DatabaseMigrator()
         migrator.registerMigration("v1", migrate: createInitialSchema)
         migrator.registerMigration("v2", migrate: addImagePairs)
+        migrator.registerMigration("v3", migrate: addKeywordSuggestions)
         return migrator
     }
 
@@ -161,5 +162,23 @@ enum CatalogSchema {
             try update.execute(arguments: [ImagePairing.key(forRelativePath: path), row["id"] as Int64])
         }
         try ImagePairing.pairAll(db)
+    }
+
+    /// On-device keyword suggestions. `analysisVersion` records which analysis
+    /// looked at a master (NULL: not analyzed yet).
+    private static func addKeywordSuggestions(_ db: Database) throws {
+        try db.alter(table: "image") { t in
+            t.add(column: "analysisVersion", .integer)
+        }
+        try db.create(table: "keywordSuggestion") { t in
+            t.column("imageId", .integer).notNull()
+                .references("image", onDelete: .cascade)
+            t.column("name", .text).notNull()
+            t.column("confidence", .double).notNull()
+            // 0 open, 1 accepted, 2 dismissed. Accepted and dismissed rows stay so
+            // a later analysis does not offer the same keyword again.
+            t.column("state", .integer).notNull().defaults(to: 0)
+            t.primaryKey(["imageId", "name"])
+        }
     }
 }

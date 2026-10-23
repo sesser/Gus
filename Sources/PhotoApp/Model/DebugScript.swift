@@ -6,13 +6,14 @@ import UniformTypeIdentifiers
 /// screen recording permission. Commands are separated by ";":
 ///
 ///     wait <seconds>        snapshot <file.png>     key <key> [<key>…]
-///     loupe | grid          size <points>           focus <index>
+///     loupe | grid          size <points>           focus <index>|<file name without extension>
 ///     zoom                  project <n>|all         rating any|unrated|<1-5>
 ///     flag any|picked|rejected|unflagged|notrejected                 quit
 ///     pairs grouped|separate  pairfile raw|jpeg     advance on|off
 ///     selectall             addkeywords <a, b>      keyentry      text <typed text>
 ///     undo | redo           inspector on|off        keyword <n>   (sidebar keyword n, 0-based)
-///     print <what>          (state for checks: selection, keywords, undo)
+///     print <what>          (state for checks: selection, keywords, undo, suggestions, items)
+///     suggest               (analyzes the selection and waits)      accept <keyword>
 ///
 /// Keys are characters ("3", "p") or names (left, right, up, down, home, end,
 /// pageup, pagedown, return, escape, space); prefix "opt+" or "shift+" for modifiers. Key events go through
@@ -34,7 +35,7 @@ enum DebugScript {
             undoManager.groupsByEvent = false
             // Only commands that can change photos get a group; empty groups
             // would otherwise become undo steps that do nothing.
-            let changing: Set<String> = ["key", "addkeywords", "text", "pairfile"]
+            let changing: Set<String> = ["key", "addkeywords", "text", "pairfile", "accept"]
             for command in commands where !command.isEmpty {
                 let grouped = changing.contains(String(command.prefix { $0 != " " }))
                 if grouped { undoManager.beginUndoGrouping() }
@@ -69,7 +70,11 @@ enum DebugScript {
         case "size":
             model.thumbnailSize = Double(rest.first ?? "") ?? model.thumbnailSize
         case "focus":
-            model.setFocus(Int(rest.first ?? "") ?? 0)
+            if let index = Int(rest.first ?? "") {
+                model.setFocus(index)
+            } else if let index = model.items.firstIndex(where: { $0.baseName == rest.joined(separator: " ") }) {
+                model.setFocus(index)
+            }
         case "zoom":
             send("z")
         case "project":
@@ -112,6 +117,11 @@ enum DebugScript {
             if let index = Int(rest.first ?? ""), model.keywords.indices.contains(index) {
                 model.sidebarSelection = .keyword(model.keywords[index].id)
             }
+        case "suggest":
+            model.suggestKeywords(for: model.actionTargetVersionIDs)
+            while model.analysisTask != nil { try? await Task.sleep(for: .milliseconds(100)) }
+        case "accept":
+            model.acceptSuggestion(rest.joined(separator: " "))
         case "print":
             printState(rest.first ?? "", model: model)
         case "quit":
@@ -142,6 +152,14 @@ enum DebugScript {
         case "undo":
             let manager = model.undoManager
             print("debug-script: undo '\(manager.canUndo ? manager.undoActionName : "-")' redo '\(manager.canRedo ? manager.redoActionName : "-")'")
+        case "suggestions":
+            let ids = model.actionTargetVersionIDs
+            Task {
+                let summary = try? await model.catalog.suggestionSummary(forVersions: ids)
+                print("debug-script: suggestions " + (summary?.suggestions ?? []).map {
+                    "\($0.name)=\($0.count)@\(String(format: "%.2f", $0.confidence))"
+                }.joined(separator: " ") + " unanalyzed \(summary?.unanalyzedCount ?? -1)")
+            }
         case "items":
             print("debug-script: items " + model.items.prefix(12).map { "\($0.baseName):\($0.rating.rawValue)" }.joined(separator: " "))
         default:

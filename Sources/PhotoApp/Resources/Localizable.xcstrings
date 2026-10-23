@@ -169,6 +169,17 @@
         }
       }
     },
+    "Add Suggested Keyword" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Suggested Keyword"
+          }
+        }
+      }
+    },
     "Add keywords" : {
       "comment" : "Inspector field placeholder",
       "localizations" : {
@@ -210,6 +221,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Add keywords to the selected photos (⌘K)"
+          }
+        }
+      }
+    },
+    "Add this keyword to the selected photos it was suggested for" : {
+      "comment" : "Suggestion chip help",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add this keyword to the selected photos it was suggested for"
           }
         }
       }
@@ -271,6 +293,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Blue"
+          }
+        }
+      }
+    },
+    "Camera" : {
+      "comment" : "Inspector info row",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Camera"
           }
         }
       }
@@ -401,6 +434,17 @@
         }
       }
     },
+    "Don't suggest this keyword for these photos again" : {
+      "comment" : "Suggestion chip dismiss help",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Don't suggest this keyword for these photos again"
+          }
+        }
+      }
+    },
     "Exposure" : {
       "comment" : "Inspector info row",
       "localizations" : {
@@ -480,6 +524,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "HEIC"
+          }
+        }
+      }
+    },
+    "Hide Suggestion" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide Suggestion"
           }
         }
       }
@@ -673,6 +728,17 @@
         }
       }
     },
+    "Lens" : {
+      "comment" : "Inspector info row",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lens"
+          }
+        }
+      }
+    },
     "Library" : {
       "comment" : "Sidebar section",
       "localizations" : {
@@ -680,6 +746,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Library"
+          }
+        }
+      }
+    },
+    "Looking at photos for keyword suggestions" : {
+      "comment" : "Inspector progress help",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Looking at photos for keyword suggestions"
           }
         }
       }
@@ -784,6 +861,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No photos yet"
+          }
+        }
+      }
+    },
+    "No suggestions" : {
+      "comment" : "Inspector, analysis found nothing",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No suggestions"
           }
         }
       }
@@ -1180,12 +1268,79 @@
         }
       }
     },
+    "Size" : {
+      "comment" : "Inspector info row: pixel dimensions",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Size"
+          }
+        }
+      }
+    },
     "Smaller Thumbnails" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Smaller Thumbnails"
+          }
+        }
+      }
+    },
+    "Suggest Keywords" : {
+      "comment" : "Photo menu (⇧⌘K)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suggest Keywords"
+          }
+        }
+      }
+    },
+    "Suggest Keywords for %lld Photos" : {
+      "comment" : "Inspector button: analyze photos not looked at yet",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Suggest Keywords for %lld Photo"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Suggest Keywords for %lld Photos"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Suggested" : {
+      "comment" : "Inspector section: keywords suggested by on-device analysis",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suggested"
+          }
+        }
+      }
+    },
+    "Suggesting keywords %lld of %lld" : {
+      "comment" : "Status bar while analyzing photos",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suggesting keywords %lld of %lld"
           }
         }
       }

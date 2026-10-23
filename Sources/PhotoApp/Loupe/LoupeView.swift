@@ -384,14 +384,7 @@ struct LoupeInfoBar: View {
     static func captureLine(_ details: VersionDetails) -> String {
         var parts: [String] = []
         let image = details.image
-        if let date = image.captureDate {
-            let formatter = DateFormatter()
-            formatter.dateStyle = .medium
-            formatter.timeStyle = .short
-            // Times without an offset are floating local times stored as UTC.
-            formatter.timeZone = image.captureOffsetSeconds.flatMap(TimeZone.init(secondsFromGMT:)) ?? TimeZone(secondsFromGMT: 0)
-            parts.append(formatter.string(from: date))
-        }
+        if let date = captureDateText(image) { parts.append(date) }
         if let camera = [image.cameraMake, image.cameraModel].compactMap({ $0 }).joined(separator: " ").nilIfEmpty {
             parts.append(camera)
         }
@@ -400,6 +393,16 @@ struct LoupeInfoBar: View {
             parts.append(String(localized: "\(width) × \(height) px"))
         }
         return parts.joined(separator: "  ·  ")
+    }
+
+    static func captureDateText(_ image: ImageRecord) -> String? {
+        guard let date = image.captureDate else { return nil }
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        // Times without an offset are floating local times stored as UTC.
+        formatter.timeZone = image.captureOffsetSeconds.flatMap(TimeZone.init(secondsFromGMT:)) ?? TimeZone(secondsFromGMT: 0)
+        return formatter.string(from: date)
     }
 
     static func exposureLine(_ image: ImageRecord) -> String {

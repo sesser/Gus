@@ -37,6 +37,7 @@ final class LibraryModel {
     let catalog: Catalog
     let importer: Importer
     let previews: PreviewService
+    let suggester: any KeywordSuggester = VisionKeywordSuggester()
 
     // MARK: Sidebar and filters
 
@@ -46,6 +47,10 @@ final class LibraryModel {
     var keywords: [KeywordSummary] = []
     /// Bumped whenever keyword assignments may have changed.
     var keywordRevision = 0
+    /// Bumped when new suggestions are stored or their state changes.
+    var suggestionRevision = 0
+    /// Background keyword analysis in progress.
+    var suggestionProgress: (done: Int, total: Int)?
 
     var sidebarSelection: SidebarSelection = .allPhotos {
         didSet { if oldValue != sidebarSelection { reloadItems(keepFocus: false) } }
@@ -147,6 +152,8 @@ final class LibraryModel {
     @ObservationIgnored private var lastLiveRefresh = Date.distantPast
     @ObservationIgnored private var started = false
     @ObservationIgnored private var volumeObservers: [any NSObjectProtocol] = []
+    @ObservationIgnored var pendingAnalysis: [Int64] = []
+    @ObservationIgnored var analysisTask: Task<Void, Never>?
 
     private static let log = Logger(subsystem: AppBranding.bundleIdentifier, category: "library")
 
@@ -562,6 +569,7 @@ final class LibraryModel {
                 sidebarSelection = .project(projectID)
             }
             warmPreviews(projectID: projectID)
+            suggestKeywords(for: summary.insertedVersionIDs)
         } else {
             reloadItems(keepFocus: true)
         }

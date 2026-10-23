@@ -283,3 +283,48 @@ enum Synthesize {
         return ["versions": total, "links": links]
     }
 }
+
+/// Times on-device keyword analysis the way the app runs it: cached thumbnail,
+/// Vision classification, then storing the suggestions.
+enum SuggestionBenchmark {
+    static func run(_ arguments: Arguments) async throws -> [String: any Sendable] {
+        let library = try BenchLibrary(arguments)
+        let limit = arguments.int("limit", default: 500)
+        let service = library.service()
+        let suggester = VisionKeywordSuggester()
+        let candidates = try await library.itemsWithSources().prefix(limit).compactMap { item, url -> (CatalogItem, PreviewRequest)? in
+            guard let key = PreviewCacheKey(item: item, tier: .thumbnail) else { return nil }
+            return (item, PreviewRequest(versionID: item.versionID, key: key, sourceURL: url))
+        }
+        print("Analyzing \(candidates.count) photos (thumbnails are generated when not cached)")
+
+        var load: [Double] = []
+        var classify: [Double] = []
+        var store: [Double] = []
+        var labels = 0
+        let (_, elapsed) = try await measure {
+            for (item, request) in candidates {
+                let (image, loadTime) = await measure { try? await service.image(for: request, maxPixelSize: 512, priority: .background) }
+                load.append(loadTime.milliseconds)
+                guard let image else { continue }
+                let (suggestions, classifyTime) = try await measure { try await suggester.suggestions(for: image) }
+                classify.append(classifyTime.milliseconds)
+                labels += suggestions.count
+                let (_, storeTime) = try await measure {
+                    try await library.catalog.storeSuggestions(suggestions, forImage: item.imageID,
+                                                               analysisVersion: suggester.analysisVersion)
+                }
+                store.append(storeTime.milliseconds)
+            }
+        }
+        let perSecond = Double(candidates.count) / max(elapsed.seconds, 0.001)
+        print(String(format: "  %.0f photos/s one at a time, %.1f suggestions per photo", perSecond,
+                     Double(labels) / Double(max(classify.count, 1))))
+        print("  thumbnail: \(Stats(load).line)")
+        print("  classify:  \(Stats(classify).line)")
+        print("  store:     \(Stats(store).line)")
+        return ["machine": machineDescription(), "count": candidates.count, "per_second": perSecond,
+                "thumbnail": Stats(load).dictionary, "classify": Stats(classify).dictionary,
+                "store": Stats(store).dictionary]
+    }
+}

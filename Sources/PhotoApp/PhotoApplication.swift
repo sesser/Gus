@@ -119,6 +119,13 @@ struct LibraryCommands: Commands {
             Button("Add Keywords…") { model?.beginKeywordEntry() }
                 .keyboardShortcut("k", modifiers: .command)
                 .disabled(model == nil || model?.itemCount == 0)
+            Button("Suggest Keywords") {
+                guard let model else { return }
+                model.suggestKeywords(for: model.actionTargetVersionIDs)
+                model.showsInspector = true
+            }
+            .keyboardShortcut("k", modifiers: [.command, .shift])
+            .disabled(model == nil || model?.itemCount == 0)
             Divider()
             Menu("RAW+JPEG Pair") {
                 Button("Show the RAW File") { model?.showPairFile(raw: true) }

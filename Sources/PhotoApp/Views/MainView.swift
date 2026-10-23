@@ -120,6 +120,11 @@ struct StatusBar: View {
                     .frame(width: 100)
                 Text("Rendering previews \(warming.done) of \(warming.total)")
                     .monospacedDigit()
+            } else if let progress = model.suggestionProgress {
+                ProgressView(value: Double(progress.done), total: Double(max(progress.total, 1)))
+                    .frame(width: 100)
+                Text("Suggesting keywords \(progress.done) of \(progress.total)")
+                    .monospacedDigit()
             } else if let message = model.statusMessage {
                 Text(message)
                     .lineLimit(1)

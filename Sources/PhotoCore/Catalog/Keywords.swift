@@ -112,22 +112,25 @@ extension Catalog {
     public func addKeywords(named names: [String], toVersions versionIDs: [Int64]) async throws -> KeywordAddition {
         let names = names.compactMap(Self.normalizedKeywordName)
         guard !names.isEmpty, !versionIDs.isEmpty else { return KeywordAddition() }
-        return try await database.write { db in
-            let targets = versionIDs + (try ImagePairing.partnerVersionIDs(db, of: versionIDs))
-            var addition = KeywordAddition()
-            for name in names {
-                let existing = try Self.existingKeyword(db, name: name)
-                let keyword = try existing ?? Self.findOrCreateKeyword(db, name: name)
-                guard let keywordID = keyword.id else { continue }
-                if existing == nil { addition.createdKeywords.append(keyword) }
-                for versionID in targets {
-                    let assignment = VersionKeywordRecord(versionId: versionID, keywordId: keywordID)
-                    try assignment.insert(db, onConflict: .ignore)
-                    if db.changesCount > 0 { addition.assignments.append(assignment) }
-                }
+        return try await database.write { db in try Self.addKeywords(db, names: names, toVersions: versionIDs) }
+    }
+
+    static func addKeywords(_ db: Database, names: [String], toVersions versionIDs: [Int64]) throws -> KeywordAddition {
+        guard !versionIDs.isEmpty else { return KeywordAddition() }
+        let targets = versionIDs + (try ImagePairing.partnerVersionIDs(db, of: versionIDs))
+        var addition = KeywordAddition()
+        for name in names {
+            let existing = try existingKeyword(db, name: name)
+            let keyword = try existing ?? findOrCreateKeyword(db, name: name)
+            guard let keywordID = keyword.id else { continue }
+            if existing == nil { addition.createdKeywords.append(keyword) }
+            for versionID in targets {
+                let assignment = VersionKeywordRecord(versionId: versionID, keywordId: keywordID)
+                try assignment.insert(db, onConflict: .ignore)
+                if db.changesCount > 0 { addition.assignments.append(assignment) }
             }
-            return addition
         }
+        return addition
     }
 
     /// Reverses `addKeywords`: removes its assignments, and the keywords it

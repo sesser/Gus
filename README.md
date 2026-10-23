@@ -87,6 +87,13 @@ keyword; click one to see its photos, or right-click to rename (renaming onto
 an existing keyword merges the two) or delete it. Keywords, ratings and labels
 embedded in files by other apps or the camera (IPTC, XMP) are read at import.
 
+**Suggested keywords**: after each import, Apple's on-device image classifier
+looks at the new photos (nothing leaves the Mac) and the inspector shows what it
+found as chips. Click one to add it to the selected photos it was suggested
+for, or × to stop suggesting it for them. **Photo ▸ Suggest Keywords** (⇧⌘K)
+analyzes the selection, for photos imported before. The labels are generic
+("dog", "beach", "sunset"), not breeds or places.
+
 **Undo**: ⌘Z and ⇧⌘Z undo and redo culling, keyword and pair changes, including
 changes made to many photos at once.
 

@@ -25,6 +25,9 @@ let usage = """
       query      --library-root ROOT
                  Times library queries and culling writes.
 
+      suggest    --library-root ROOT [--limit N]
+                 Runs on-device keyword analysis and reports per-stage timings.
+
       synthesize --library-root ROOT --count N
                  Grows the catalog to N versions by cloning existing rows with new content
                  hashes and hard-linking their cached thumbnails (grid-scale testing).
@@ -86,6 +89,7 @@ do {
     case "read-cache": report = try await PreviewBenchmark.readCache(arguments)
     case "query": report = try await QueryBenchmark.run(arguments)
     case "synthesize": report = try await Synthesize.run(arguments)
+    case "suggest": report = try await SuggestionBenchmark.run(arguments)
     default:
         print(usage)
         exit(arguments.command == "help" || arguments.flags.contains("help") ? 0 : 64)

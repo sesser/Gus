@@ -7,11 +7,15 @@ struct InspectorView: View {
     @State private var usage: [KeywordUsage] = []
     @State private var targetCount = 0
     @State private var details: VersionDetails?
+    @State private var suggestions = SuggestionSummary()
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 keywordsSection
+                if targetCount > 0 {
+                    suggestionsSection
+                }
                 if let details {
                     Divider()
                     InfoSection(details: details, item: model.focusedItem)
@@ -21,15 +25,17 @@ struct InspectorView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .task(id: Reload(selection: model.selectionRevision, keywords: model.keywordRevision,
-                         focus: model.focusedItem?.versionID)) {
+                         suggestions: model.suggestionRevision, focus: model.focusedItem?.versionID)) {
             // Coalesces bursts of selection changes (shift-arrowing through a shoot).
             try? await Task.sleep(for: .milliseconds(60))
             guard !Task.isCancelled else { return }
             let ids = model.actionTargetVersionIDs
             let loaded = (try? await model.catalog.keywordUsage(forVersions: ids)) ?? []
             let loadedDetails = try? await model.catalog.details(forVersion: model.focusedItem?.versionID ?? -1)
+            let loadedSuggestions = (try? await model.catalog.suggestionSummary(forVersions: ids)) ?? SuggestionSummary()
             guard !Task.isCancelled else { return }
             usage = loaded
+            suggestions = loadedSuggestions
             targetCount = ids.count
             details = loadedDetails
         }
@@ -38,7 +44,40 @@ struct InspectorView: View {
     private struct Reload: Equatable {
         var selection: Int
         var keywords: Int
+        var suggestions: Int
         var focus: Int64?
+    }
+
+    /// Chips for keywords the on-device analysis suggests; clicking one adds it.
+    private var suggestionsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Suggested")
+                    .font(.headline)
+                Spacer()
+                if let progress = model.suggestionProgress {
+                    ProgressView(value: Double(progress.done), total: Double(max(progress.total, 1)))
+                        .frame(width: 60)
+                        .help("Looking at photos for keyword suggestions")
+                }
+            }
+            if suggestions.suggestions.isEmpty, suggestions.unanalyzedCount == 0 {
+                Text("No suggestions")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            FlowLayout(spacing: 6) {
+                ForEach(suggestions.suggestions) { suggestion in
+                    SuggestionChip(suggestion: suggestion, total: targetCount, model: model)
+                }
+            }
+            if suggestions.unanalyzedCount > 0, model.suggestionProgress == nil {
+                Button("Suggest Keywords for \(suggestions.unanalyzedCount) Photos") {
+                    model.suggestKeywords(for: model.actionTargetVersionIDs)
+                }
+                .controlSize(.small)
+            }
+        }
     }
 
     private var keywordsSection: some View {
@@ -70,6 +109,95 @@ struct InspectorView: View {
                              onCommit: { model.addKeywords($0) })
             }
         }
+    }
+}
+
+private struct SuggestionChip: View {
+    let suggestion: SuggestionUsage
+    let total: Int
+    let model: LibraryModel
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Button {
+                model.acceptSuggestion(suggestion.name)
+            } label: {
+                HStack(spacing: 3) {
+                    Image(systemName: "plus")
+                        .font(.caption2.weight(.bold))
+                    Text(suggestion.name)
+                    if total > 1 {
+                        Text(suggestion.count, format: .number)
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+            .help("Add this keyword to the selected photos it was suggested for")
+            Button {
+                model.dismissSuggestion(suggestion.name)
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Don't suggest this keyword for these photos again")
+        }
+        .font(.callout)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .background(.quaternary, in: Capsule())
+    }
+}
+
+/// Lays out children left to right, wrapping to new lines.
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 6
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let rows = arrange(subviews, width: proposal.width ?? .infinity)
+        let width = rows.map(\.width).max() ?? 0
+        let height = rows.map(\.height).reduce(0, +) + spacing * CGFloat(max(rows.count - 1, 0))
+        return CGSize(width: min(width, proposal.width ?? width), height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var y = bounds.minY
+        for row in arrange(subviews, width: bounds.width) {
+            var x = bounds.minX
+            for index in row.indices {
+                let size = subviews[index].sizeThatFits(.unspecified)
+                subviews[index].place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+                x += size.width + spacing
+            }
+            y += row.height + spacing
+        }
+    }
+
+    private struct Row {
+        var indices: [Int] = []
+        var width: CGFloat = 0
+        var height: CGFloat = 0
+    }
+
+    private func arrange(_ subviews: Subviews, width: CGFloat) -> [Row] {
+        var rows: [Row] = []
+        var row = Row()
+        for index in subviews.indices {
+            let size = subviews[index].sizeThatFits(.unspecified)
+            let needed = row.indices.isEmpty ? size.width : row.width + spacing + size.width
+            if needed > width, !row.indices.isEmpty {
+                rows.append(row)
+                row = Row()
+            }
+            row.width = row.indices.isEmpty ? size.width : row.width + spacing + size.width
+            row.height = max(row.height, size.height)
+            row.indices.append(index)
+        }
+        if !row.indices.isEmpty { rows.append(row) }
+        return rows
     }
 }
 
@@ -150,8 +278,18 @@ private struct InfoSection: View {
     private var rows: [Row] {
         let image = details.image
         var rows: [Row] = []
-        let capture = LoupeInfoBar.captureLine(details)
-        if !capture.isEmpty { rows.append(Row(label: String(localized: "Captured"), value: capture)) }
+        if let date = LoupeInfoBar.captureDateText(image) {
+            rows.append(Row(label: String(localized: "Captured"), value: date))
+        }
+        if let camera = [image.cameraMake, image.cameraModel].compactMap({ $0 }).joined(separator: " ").nilIfEmpty {
+            rows.append(Row(label: String(localized: "Camera"), value: camera))
+        }
+        if let lens = image.lensModel {
+            rows.append(Row(label: String(localized: "Lens"), value: lens))
+        }
+        if let width = image.pixelWidth, let height = image.pixelHeight {
+            rows.append(Row(label: String(localized: "Size"), value: String(localized: "\(width) × \(height) px")))
+        }
         let exposure = LoupeInfoBar.exposureLine(image)
         if !exposure.isEmpty { rows.append(Row(label: String(localized: "Exposure"), value: exposure)) }
         if let partner = item?.partnerKind, let kind = item?.fileKind {
