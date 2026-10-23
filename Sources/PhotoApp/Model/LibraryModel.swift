@@ -19,8 +19,30 @@ protocol LibraryItemsObserver: AnyObject {
 
 enum SidebarSelection: Hashable {
     case allPhotos
+    case builtIn(BuiltInAlbum)
+    case year(Int)
+    case month(year: Int, month: Int)
     case project(Int64)
+    case album(Int64)
+    case smartAlbum(Int64)
     case keyword(Int64)
+}
+
+/// The smart albums every library has.
+enum BuiltInAlbum: String, CaseIterable, Hashable {
+    case lastImport, picks, rejects, unrated, noKeywords
+
+    /// Rules for the rule-based ones; Last Import is an import run instead.
+    var rules: SmartAlbumRules? {
+        let rule: SmartRule? = switch self {
+        case .lastImport: nil
+        case .picks: SmartRule(field: .flag, comparison: .equals, value: RuleValue(text: "picked"))
+        case .rejects: SmartRule(field: .flag, comparison: .equals, value: RuleValue(text: "rejected"))
+        case .unrated: SmartRule(field: .rating, comparison: .equals, value: RuleValue(number: 0))
+        case .noKeywords: SmartRule(field: .hasKeywords, comparison: .isFalse)
+        }
+        return rule.map { SmartAlbumRules(match: .all, rules: [$0]) }
+    }
 }
 
 enum BrowserMode: Hashable {
@@ -51,6 +73,14 @@ final class LibraryModel {
     var suggestionRevision = 0
     /// Background keyword analysis in progress.
     var suggestionProgress: (done: Int, total: Int)?
+    var albums: [AlbumSummary] = []
+    var smartAlbums: [SmartAlbum] = []
+    var captureMonths: [CaptureMonth] = []
+    var lastImportRunID: Int64?
+    /// Photo counts for built-in and smart albums.
+    var sidebarCounts: [SidebarSelection: Int] = [:]
+    /// A sheet asked for by the sidebar or a menu command.
+    var sidebarSheet: SidebarSheet?
 
     var sidebarSelection: SidebarSelection = .allPhotos {
         didSet { if oldValue != sidebarSelection { reloadItems(keepFocus: false) } }
@@ -63,12 +93,32 @@ final class LibraryModel {
     }
 
     var filter: LibraryFilter {
-        let scope: LibraryFilter.Scope = switch sidebarSelection {
+        LibraryFilter(scope: scope(for: sidebarSelection), rating: ratingRule, flag: flagRule, groupsPairs: groupPairs)
+    }
+
+    func scope(for selection: SidebarSelection) -> LibraryFilter.Scope {
+        switch selection {
         case .allPhotos: .allPhotos
+        case .builtIn(let album):
+            if let rules = album.rules {
+                .rules(rules, projectID: nil)
+            } else {
+                .importRun(lastImportRunID ?? -1)
+            }
+        case .year(let year):
+            .captureDays(start: String(format: "%04d-01-01", year), end: String(format: "%04d-01-01", year + 1))
+        case .month(let year, let month):
+            Self.monthScope(year: year, month: month)
         case .project(let id): .project(id)
+        case .album(let id): .album(id)
+        case .smartAlbum(let id): smartAlbums.first { $0.id == id }?.scope ?? .album(-1)
         case .keyword(let id): .keyword(id)
         }
-        return LibraryFilter(scope: scope, rating: ratingRule, flag: flagRule, groupsPairs: groupPairs)
+    }
+
+    private static func monthScope(year: Int, month: Int) -> LibraryFilter.Scope {
+        let days = CaptureMonth(year: year, month: month, count: 0).days
+        return .captureDays(start: days.start, end: days.end)
     }
 
     var isFiltered: Bool { ratingRule != .any || flagRule != .any }
@@ -154,6 +204,9 @@ final class LibraryModel {
     @ObservationIgnored private var volumeObservers: [any NSObjectProtocol] = []
     @ObservationIgnored var pendingAnalysis: [Int64] = []
     @ObservationIgnored private var metadataTask: Task<Void, Never>?
+    @ObservationIgnored private var sidebarRefreshTask: Task<Void, Never>?
+    /// Version ids being dragged from the grid, for drops on the sidebar.
+    @ObservationIgnored var draggedVersionIDs: [Int64] = []
     @ObservationIgnored var analysisTask: Task<Void, Never>?
 
     private static let log = Logger(subsystem: AppBranding.bundleIdentifier, category: "library")
@@ -247,6 +300,47 @@ final class LibraryModel {
         if case .project(let id) = sidebarSelection, !projects.contains(where: { $0.id == id }) {
             sidebarSelection = .allPhotos
         }
+        scheduleSidebarRefresh()
+    }
+
+    /// Albums, smart albums, dates and their counts, a moment after the last
+    /// change (culling while a filter-like album is open changes many counts).
+    func scheduleSidebarRefresh() {
+        sidebarRefreshTask?.cancel()
+        sidebarRefreshTask = Task {
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled else { return }
+            await refreshSidebar()
+        }
+    }
+
+    func refreshSidebar() async {
+        let catalog = self.catalog
+        let grouped = groupPairs
+        do {
+            albums = try await catalog.albumSummaries(groupingPairs: grouped)
+            smartAlbums = try await catalog.smartAlbums()
+            captureMonths = try await catalog.captureMonths(groupingPairs: grouped)
+            let lastRun = try await catalog.lastImportRun()?.id
+            if lastRun != lastImportRunID {
+                lastImportRunID = lastRun
+                if sidebarSelection == .builtIn(.lastImport) { reloadItems(keepFocus: true) }
+            }
+            var counts: [SidebarSelection: Int] = [:]
+            let selections = BuiltInAlbum.allCases.map(SidebarSelection.builtIn) + smartAlbums.map { .smartAlbum($0.id) }
+            for selection in selections {
+                counts[selection] = try await catalog.itemCount(matching: LibraryFilter(scope: scope(for: selection),
+                                                                                        groupsPairs: grouped))
+            }
+            sidebarCounts = counts
+        } catch {
+            Self.log.error("Loading the sidebar failed: \(error.localizedDescription, privacy: .public)")
+        }
+        switch sidebarSelection {
+        case .album(let id) where !albums.contains { $0.id == id }: sidebarSelection = .allPhotos
+        case .smartAlbum(let id) where !smartAlbums.contains { $0.id == id }: sidebarSelection = .allPhotos
+        default: break
+        }
     }
 
     func refreshKeywords() async {
@@ -259,6 +353,7 @@ final class LibraryModel {
         if case .keyword(let id) = sidebarSelection, !keywords.contains(where: { $0.id == id }) {
             sidebarSelection = .allPhotos
         }
+        scheduleSidebarRefresh()
     }
 
     // MARK: Volumes
@@ -446,6 +541,7 @@ final class LibraryModel {
         }
         itemsRevision += 1
         if !changed.isEmpty { observer?.libraryItemsChanged(at: changed) }
+        afterPendingWrites { $0.scheduleSidebarRefresh() }
 
         undoManager.registerUndo(withTarget: self) { model in
             model.applyCulling(previous, undoingTo: values, actionName: actionName)

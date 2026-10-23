@@ -89,6 +89,13 @@ struct LibraryCommands: Commands {
 
     var body: some Commands {
         CommandGroup(after: .newItem) {
+            Button("New Album…") { model?.sidebarSheet = .newAlbum(projectID: model?.selectedProjectID) }
+                .keyboardShortcut("n", modifiers: .command)
+                .disabled(model == nil)
+            Button("New Smart Album…") { model?.sidebarSheet = .smartAlbum(nil, projectID: model?.selectedProjectID) }
+                .keyboardShortcut("n", modifiers: [.command, .option])
+                .disabled(model == nil)
+            Divider()
             Button("Import Folder…") {
                 if let model { ImportPanel.run(model: model) }
             }
@@ -126,6 +133,14 @@ struct LibraryCommands: Commands {
             }
             .keyboardShortcut("k", modifiers: [.command, .shift])
             .disabled(model == nil || model?.itemCount == 0)
+            Menu("Add to Album") {
+                ForEach(model?.albums ?? []) { album in
+                    Button(album.album.name) { model?.addToAlbum(album.id) }
+                }
+            }
+            .disabled(model?.albums.isEmpty ?? true)
+            Button("Remove from Album") { model?.removeFromCurrentAlbum() }
+                .disabled(model?.currentAlbumID == nil)
             Divider()
             Menu("RAW+JPEG Pair") {
                 Button("Show the RAW File") { model?.showPairFile(raw: true) }

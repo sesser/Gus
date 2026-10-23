@@ -63,6 +63,8 @@ the same place. Originals are never moved, copied or modified.
 | ⌘= and ⌘− | thumbnail size | |
 | ⌘Return | switch grid / loupe | switch grid / loupe |
 | ⌘K | add keywords | add keywords |
+| ⌘N, ⌥⌘N | new album, new smart album | |
+| ⌫ | remove from the album on screen | |
 | ⌘Z, ⇧⌘Z | undo, redo | undo, redo |
 
 Changes are saved to the catalog immediately. In the grid they apply to every
@@ -94,7 +96,20 @@ for, or × to stop suggesting it for them. **Photo ▸ Suggest Keywords** (⇧�
 analyzes the selection, for photos imported before. The labels are generic
 ("dog", "beach", "sunset"), not breeds or places.
 
-**Undo**: ⌘Z and ⇧⌘Z undo and redo culling, keyword and pair changes, including
+**Albums and smart albums**: the sidebar's Library section has built-in smart
+albums (Last Import, Picks, Rejects, Unrated, No Keywords), and Dates lists
+years and months by capture date, in the time zone each photo was taken in.
+**File ▸ New Album…** (⌘N) makes an album, in the library or in a project,
+optionally with the selected photos; drag photos onto an album (or a keyword)
+to add them, and press ⌫ inside an album to take photos out (they stay in the
+library). **File ▸ New Smart Album…** (⌥⌘N) opens the rule editor: match all
+or any of rules on rating, flag, label, keywords, file type and name, capture
+and import dates, project, camera, lens, serial number, ISO, aperture, shutter
+speed, focal length, exposure compensation, flash, white balance, location,
+artist, copyright and caption, with a live count. Right-click albums to rename,
+edit or delete them.
+
+**Undo**: ⌘Z and ⇧⌘Z undo and redo culling, keyword, album and pair changes, including
 changes made to many photos at once.
 
 Photos on a volume that is not connected show an offline badge. Their cached

@@ -79,6 +79,29 @@
         }
       }
     },
+    "%lld photos match" : {
+      "comment" : "Smart album editor live count",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photo matches"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photos match"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld photos match the filter" : {
       "comment" : "Window subtitle",
       "localizations" : {
@@ -169,6 +192,17 @@
         }
       }
     },
+    "Add Rule" : {
+      "comment" : "Smart album editor button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Rule"
+          }
+        }
+      }
+    },
     "Add Suggested Keyword" : {
       "comment" : "Undo action name",
       "localizations" : {
@@ -225,6 +259,29 @@
         }
       }
     },
+    "Add the %lld selected photos" : {
+      "comment" : "New album sheet toggle",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Add the %lld selected photo"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Add the %lld selected photos"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "Add this keyword to the selected photos it was suggested for" : {
       "comment" : "Suggestion chip help",
       "localizations" : {
@@ -232,6 +289,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Add this keyword to the selected photos it was suggested for"
+          }
+        }
+      }
+    },
+    "Add to Album" : {
+      "comment" : "Undo action name and Photo menu submenu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add to Album"
           }
         }
       }
@@ -253,6 +321,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Advance After Rating"
+          }
+        }
+      }
+    },
+    "Albums" : {
+      "comment" : "Sidebar section",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Albums"
           }
         }
       }
@@ -287,6 +366,39 @@
         }
       }
     },
+    "Aperture" : {
+      "comment" : "Smart album rule field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aperture"
+          }
+        }
+      }
+    },
+    "Artist" : {
+      "comment" : "Smart album rule field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Artist"
+          }
+        }
+      }
+    },
+    "Auto" : {
+      "comment" : "White balance",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto"
+          }
+        }
+      }
+    },
     "Blue" : {
       "localizations" : {
         "en" : {
@@ -308,6 +420,17 @@
         }
       }
     },
+    "Camera Serial Number" : {
+      "comment" : "Smart album rule field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Camera Serial Number"
+          }
+        }
+      }
+    },
     "Cancel" : {
       "comment" : "Alert button",
       "localizations" : {
@@ -325,6 +448,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cancel Import"
+          }
+        }
+      }
+    },
+    "Caption" : {
+      "comment" : "Smart album rule field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Caption"
+          }
+        }
+      }
+    },
+    "Capture Date" : {
+      "comment" : "Smart album rule field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Capture Date"
           }
         }
       }
@@ -381,6 +526,28 @@
         }
       }
     },
+    "Comparison" : {
+      "comment" : "Smart album rule comparison picker (accessibility label)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comparison"
+          }
+        }
+      }
+    },
+    "Copyright" : {
+      "comment" : "Smart album rule field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copyright"
+          }
+        }
+      }
+    },
     "Could not load photos: %@" : {
       "localizations" : {
         "en" : {
@@ -401,6 +568,61 @@
         }
       }
     },
+    "Create" : {
+      "comment" : "Sheet button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create"
+          }
+        }
+      }
+    },
+    "Dates" : {
+      "comment" : "Sidebar section: photos by capture month",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dates"
+          }
+        }
+      }
+    },
+    "Day" : {
+      "comment" : "Smart album rule date picker (accessibility label)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Day"
+          }
+        }
+      }
+    },
+    "Delete" : {
+      "comment" : "Confirmation button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete"
+          }
+        }
+      }
+    },
+    "Delete Album" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Album"
+          }
+        }
+      }
+    },
     "Delete Keyword" : {
       "comment" : "Undo action name and the confirming button",
       "localizations" : {
@@ -412,6 +634,28 @@
         }
       }
     },
+    "Delete Smart Album" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Smart Album"
+          }
+        }
+      }
+    },
+    "Delete the album “%@”?" : {
+      "comment" : "Delete album confirmation title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete the album “%@”?"
+          }
+        }
+      }
+    },
     "Delete the keyword “%@”?" : {
       "comment" : "Delete keyword confirmation title",
       "localizations" : {
@@ -419,6 +663,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Delete the keyword “%@”?"
+          }
+        }
+      }
+    },
+    "Delete the smart album “%@”?" : {
+      "comment" : "Delete smart album confirmation title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete the smart album “%@”?"
           }
         }
       }
@@ -445,6 +700,39 @@
         }
       }
     },
+    "EV" : {
+      "comment" : "Unit after an exposure compensation value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EV"
+          }
+        }
+      }
+    },
+    "Edit Smart Album" : {
+      "comment" : "Undo action name and editor title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit Smart Album"
+          }
+        }
+      }
+    },
+    "Edit…" : {
+      "comment" : "Sidebar smart album context menu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit…"
+          }
+        }
+      }
+    },
     "Exposure" : {
       "comment" : "Inspector info row",
       "localizations" : {
@@ -452,6 +740,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Exposure"
+          }
+        }
+      }
+    },
+    "Exposure Compensation" : {
+      "comment" : "Smart album rule field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exposure Compensation"
+          }
+        }
+      }
+    },
+    "Field" : {
+      "comment" : "Smart album rule field picker (accessibility label)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Field"
+          }
+        }
+      }
+    },
+    "File Name" : {
+      "comment" : "Smart album rule field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "File Name"
+          }
+        }
+      }
+    },
+    "File Type" : {
+      "comment" : "Smart album rule field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "File Type"
           }
         }
       }
@@ -472,6 +804,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Flag"
+          }
+        }
+      }
+    },
+    "Flash" : {
+      "comment" : "Smart album rule field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flash"
+          }
+        }
+      }
+    },
+    "Focal Length" : {
+      "comment" : "Smart album rule field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Focal Length"
           }
         }
       }
@@ -539,6 +893,17 @@
         }
       }
     },
+    "ISO" : {
+      "comment" : "Smart album rule field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ISO"
+          }
+        }
+      }
+    },
     "ISO %lld" : {
       "localizations" : {
         "en" : {
@@ -556,6 +921,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Import"
+          }
+        }
+      }
+    },
+    "Import Date" : {
+      "comment" : "Smart album rule field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import Date"
           }
         }
       }
@@ -651,6 +1027,17 @@
         }
       }
     },
+    "In" : {
+      "comment" : "Album location picker label",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In"
+          }
+        }
+      }
+    },
     "Info" : {
       "comment" : "Inspector section title",
       "localizations" : {
@@ -696,6 +1083,17 @@
         }
       }
     },
+    "Keyword" : {
+      "comment" : "Smart album rule field and keyword picker label",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keyword"
+          }
+        }
+      }
+    },
     "Keywords" : {
       "comment" : "Inspector and sidebar section title",
       "localizations" : {
@@ -728,6 +1126,17 @@
         }
       }
     },
+    "Last Import" : {
+      "comment" : "Built-in album: photos from the most recent import",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last Import"
+          }
+        }
+      }
+    },
     "Lens" : {
       "comment" : "Inspector info row",
       "localizations" : {
@@ -746,6 +1155,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Library"
+          }
+        }
+      }
+    },
+    "Location" : {
+      "comment" : "Smart album rule field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Location"
           }
         }
       }
@@ -792,6 +1212,28 @@
         }
       }
     },
+    "Manual" : {
+      "comment" : "White balance",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manual"
+          }
+        }
+      }
+    },
+    "Match" : {
+      "comment" : "Smart album editor: match all or any rules",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Match"
+          }
+        }
+      }
+    },
     "Merged “%@” into “%@”." : {
       "comment" : "Status after renaming a keyword onto an existing one",
       "localizations" : {
@@ -810,6 +1252,83 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Name"
+          }
+        }
+      }
+    },
+    "New Album" : {
+      "comment" : "Undo action name and sheet title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Album"
+          }
+        }
+      }
+    },
+    "New Album in Project…" : {
+      "comment" : "Sidebar project context menu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Album in Project…"
+          }
+        }
+      }
+    },
+    "New Album…" : {
+      "comment" : "File menu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Album…"
+          }
+        }
+      }
+    },
+    "New Smart Album" : {
+      "comment" : "Undo action name and editor title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Smart Album"
+          }
+        }
+      }
+    },
+    "New Smart Album in Project…" : {
+      "comment" : "Sidebar project context menu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Smart Album in Project…"
+          }
+        }
+      }
+    },
+    "New Smart Album…" : {
+      "comment" : "File menu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Smart Album…"
+          }
+        }
+      }
+    },
+    "No Keywords" : {
+      "comment" : "Built-in album: photos without keywords",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Keywords"
           }
         }
       }
@@ -865,6 +1384,17 @@
         }
       }
     },
+    "No stars" : {
+      "comment" : "Smart album rule rating value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No stars"
+          }
+        }
+      }
+    },
     "No suggestions" : {
       "comment" : "Inspector, analysis found nothing",
       "localizations" : {
@@ -892,6 +1422,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Offline"
+          }
+        }
+      }
+    },
+    "Only the album is deleted, not its photos." : {
+      "comment" : "Delete smart album confirmation",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only the album is deleted, not its photos."
           }
         }
       }
@@ -976,6 +1517,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Picked"
+          }
+        }
+      }
+    },
+    "Picks" : {
+      "comment" : "Built-in album",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Picks"
+          }
+        }
+      }
+    },
+    "Project" : {
+      "comment" : "Smart album rule field and project picker label",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Project"
           }
         }
       }
@@ -1073,6 +1636,17 @@
         }
       }
     },
+    "Rejects" : {
+      "comment" : "Built-in album",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rejects"
+          }
+        }
+      }
+    },
     "Remove Keyword" : {
       "comment" : "Undo action name",
       "localizations" : {
@@ -1080,6 +1654,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Remove Keyword"
+          }
+        }
+      }
+    },
+    "Remove from Album" : {
+      "comment" : "Undo action name and Photo menu item",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove from Album"
           }
         }
       }
@@ -1095,6 +1680,17 @@
         }
       }
     },
+    "Remove this rule" : {
+      "comment" : "Smart album editor help",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove this rule"
+          }
+        }
+      }
+    },
     "Rename" : {
       "comment" : "Rename alert button",
       "localizations" : {
@@ -1102,6 +1698,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Rename"
+          }
+        }
+      }
+    },
+    "Rename Album" : {
+      "comment" : "Undo action name and sheet title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rename Album"
           }
         }
       }
@@ -1145,6 +1752,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Return adds them. Tab completes, Esc closes."
+          }
+        }
+      }
+    },
+    "Save" : {
+      "comment" : "Sheet button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save"
           }
         }
       }
@@ -1268,6 +1886,17 @@
         }
       }
     },
+    "Shutter Speed" : {
+      "comment" : "Smart album rule field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shutter Speed"
+          }
+        }
+      }
+    },
     "Size" : {
       "comment" : "Inspector info row: pixel dimensions",
       "localizations" : {
@@ -1285,6 +1914,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Smaller Thumbnails"
+          }
+        }
+      }
+    },
+    "Stars" : {
+      "comment" : "Smart album rule rating picker (accessibility label)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stars"
           }
         }
       }
@@ -1377,12 +2017,34 @@
         }
       }
     },
+    "Text" : {
+      "comment" : "Smart album rule text field placeholder",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Text"
+          }
+        }
+      }
+    },
     "The library could not be opened." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "The library could not be opened."
+          }
+        }
+      }
+    },
+    "The photos stay in the library." : {
+      "comment" : "Delete album confirmation",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The photos stay in the library."
           }
         }
       }
@@ -1448,6 +2110,39 @@
         }
       }
     },
+    "Untitled Album" : {
+      "comment" : "Default album name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Untitled Album"
+          }
+        }
+      }
+    },
+    "Untitled Smart Album" : {
+      "comment" : "Default smart album name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Untitled Smart Album"
+          }
+        }
+      }
+    },
+    "Use File ▸ New Album to make one." : {
+      "comment" : "Sidebar, no albums yet",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use File ▸ New Album to make one."
+          }
+        }
+      }
+    },
     "Using the name of another keyword merges the two." : {
       "comment" : "Rename keyword alert message",
       "localizations" : {
@@ -1455,6 +2150,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Using the name of another keyword merges the two."
+          }
+        }
+      }
+    },
+    "Value" : {
+      "comment" : "Smart album rule value picker (accessibility label)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Value"
           }
         }
       }
@@ -1480,12 +2186,342 @@
         }
       }
     },
+    "White Balance" : {
+      "comment" : "Smart album rule field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "White Balance"
+          }
+        }
+      }
+    },
+    "Whole library" : {
+      "comment" : "Album location picker: not in a project",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whole library"
+          }
+        }
+      }
+    },
     "Yellow" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Yellow"
+          }
+        }
+      }
+    },
+    "all of the rules" : {
+      "comment" : "Smart album editor match picker",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "all of the rules"
+          }
+        }
+      }
+    },
+    "and" : {
+      "comment" : "Smart album rule: between X and Y",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "and"
+          }
+        }
+      }
+    },
+    "any of the rules" : {
+      "comment" : "Smart album editor match picker",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "any of the rules"
+          }
+        }
+      }
+    },
+    "are assigned" : {
+      "comment" : "Smart album rule: Keywords are assigned",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "are assigned"
+          }
+        }
+      }
+    },
+    "are not assigned" : {
+      "comment" : "Smart album rule: Keywords are not assigned",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "are not assigned"
+          }
+        }
+      }
+    },
+    "begins with" : {
+      "comment" : "Smart album rule comparison",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "begins with"
+          }
+        }
+      }
+    },
+    "contains" : {
+      "comment" : "Smart album rule comparison",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "contains"
+          }
+        }
+      }
+    },
+    "days" : {
+      "comment" : "Smart album rule: in the last N days",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "days"
+          }
+        }
+      }
+    },
+    "did not fire" : {
+      "comment" : "Smart album rule: Flash did not fire",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "did not fire"
+          }
+        }
+      }
+    },
+    "does not contain" : {
+      "comment" : "Smart album rule comparison",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "does not contain"
+          }
+        }
+      }
+    },
+    "ends with" : {
+      "comment" : "Smart album rule comparison",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ends with"
+          }
+        }
+      }
+    },
+    "fired" : {
+      "comment" : "Smart album rule: Flash fired",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "fired"
+          }
+        }
+      }
+    },
+    "is" : {
+      "comment" : "Smart album rule comparison",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "is"
+          }
+        }
+      }
+    },
+    "is after" : {
+      "comment" : "Smart album rule comparison (date)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "is after"
+          }
+        }
+      }
+    },
+    "is at least" : {
+      "comment" : "Smart album rule comparison",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "is at least"
+          }
+        }
+      }
+    },
+    "is at most" : {
+      "comment" : "Smart album rule comparison",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "is at most"
+          }
+        }
+      }
+    },
+    "is before" : {
+      "comment" : "Smart album rule comparison (date)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "is before"
+          }
+        }
+      }
+    },
+    "is between" : {
+      "comment" : "Smart album rule comparison",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "is between"
+          }
+        }
+      }
+    },
+    "is empty" : {
+      "comment" : "Smart album rule comparison",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "is empty"
+          }
+        }
+      }
+    },
+    "is in the last" : {
+      "comment" : "Smart album rule comparison, followed by a number of days",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "is in the last"
+          }
+        }
+      }
+    },
+    "is known" : {
+      "comment" : "Smart album rule: Location is known",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "is known"
+          }
+        }
+      }
+    },
+    "is not" : {
+      "comment" : "Smart album rule comparison",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "is not"
+          }
+        }
+      }
+    },
+    "is not empty" : {
+      "comment" : "Smart album rule comparison",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "is not empty"
+          }
+        }
+      }
+    },
+    "is not in the last" : {
+      "comment" : "Smart album rule comparison, followed by a number of days",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "is not in the last"
+          }
+        }
+      }
+    },
+    "is on" : {
+      "comment" : "Smart album rule comparison (date)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "is on"
+          }
+        }
+      }
+    },
+    "is unknown" : {
+      "comment" : "Smart album rule: Location is unknown",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "is unknown"
+          }
+        }
+      }
+    },
+    "mm" : {
+      "comment" : "Unit after a focal length value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "mm"
+          }
+        }
+      }
+    },
+    "seconds" : {
+      "comment" : "Unit after a shutter speed value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "seconds"
           }
         }
       }

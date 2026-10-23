@@ -1,26 +1,90 @@
 import PhotoCore
 import SwiftUI
+import UniformTypeIdentifiers
+
+/// A sheet the sidebar or a menu command asks for.
+enum SidebarSheet: Identifiable {
+    case renameKeyword(KeywordSummary)
+    case renameAlbum(AlbumSummary)
+    case newAlbum(projectID: Int64?)
+    /// Editing an existing smart album, or making one (nil) in a project or the library.
+    case smartAlbum(SmartAlbum?, projectID: Int64?)
+
+    var id: String {
+        switch self {
+        case .renameKeyword(let keyword): "keyword-\(keyword.id)"
+        case .renameAlbum(let album): "album-\(album.id)"
+        case .newAlbum(let project): "new-album-\(project ?? 0)"
+        case .smartAlbum(let album, let project): "smart-\(album?.id ?? 0)-\(project ?? 0)"
+        }
+    }
+}
+
+/// Something the person asked to delete, waiting for confirmation.
+private enum SidebarDeletion: Identifiable {
+    case keyword(KeywordSummary)
+    case album(AlbumSummary)
+    case smartAlbum(SmartAlbum)
+
+    var id: String {
+        switch self {
+        case .keyword(let keyword): "keyword-\(keyword.id)"
+        case .album(let album): "album-\(album.id)"
+        case .smartAlbum(let album): "smart-\(album.id)"
+        }
+    }
+}
+
+extension UTType {
+    /// Photos dragged out of the grid. The ids travel through the model; the
+    /// type lets drop targets recognize the drag.
+    static let photoVersions = UTType(exportedAs: AppBranding.bundleIdentifier + ".versions")
+}
 
 struct SidebarView: View {
     @Bindable var model: LibraryModel
-    @State private var renaming: KeywordSummary?
-    @State private var newName = ""
-    @State private var deleting: KeywordSummary?
+    @State private var deletion: SidebarDeletion?
+    @AppStorage("sidebar.datesExpanded") private var datesExpanded = true
+    @AppStorage("sidebar.albumsExpanded") private var albumsExpanded = true
     @AppStorage("sidebar.keywordsExpanded") private var keywordsExpanded = true
+    @State private var expandedYears: Set<Int> = []
+    @State private var expandedProjects: Set<Int64> = []
 
     var body: some View {
         List(selection: $model.sidebarSelection) {
             Section("Library") {
-                Label {
-                    HStack {
-                        Text("All Photos")
-                        Spacer()
-                        CountBadge(count: model.libraryCount)
-                    }
-                } icon: {
-                    Image(systemName: "photo.on.rectangle")
+                SidebarRow(title: String(localized: "All Photos"), symbol: "photo.on.rectangle", count: model.libraryCount)
+                    .tag(SidebarSelection.allPhotos)
+                ForEach(BuiltInAlbum.allCases, id: \.self) { album in
+                    SidebarRow(title: album.title, symbol: album.symbol, count: model.sidebarCounts[.builtIn(album)])
+                        .tag(SidebarSelection.builtIn(album))
                 }
-                .tag(SidebarSelection.allPhotos)
+            }
+            if !model.captureMonths.isEmpty {
+                Section("Dates", isExpanded: $datesExpanded) {
+                    ForEach(years, id: \.year) { year in
+                        DisclosureGroup(isExpanded: expansion(of: year.year, in: $expandedYears)) {
+                            ForEach(year.months) { month in
+                                SidebarRow(title: MonthText.monthOnly(year: month.year, month: month.month),
+                                           symbol: "calendar", count: month.count)
+                                    .tag(SidebarSelection.month(year: month.year, month: month.month))
+                            }
+                        } label: {
+                            SidebarRow(title: String(year.year), symbol: "calendar", count: year.count)
+                                .tag(SidebarSelection.year(year.year))
+                        }
+                    }
+                }
+            }
+            Section("Albums", isExpanded: $albumsExpanded) {
+                let albums = model.albums.filter { $0.album.projectId == nil }
+                let smart = model.smartAlbums.filter { $0.projectID == nil }
+                if albums.isEmpty, smart.isEmpty {
+                    Text("Use File ▸ New Album to make one.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+                albumRows(albums, smart)
             }
             Section("Projects") {
                 if model.projects.isEmpty {
@@ -29,19 +93,17 @@ struct SidebarView: View {
                         .foregroundStyle(.secondary)
                 }
                 ForEach(model.projects) { summary in
-                    Label {
-                        HStack {
-                            Text(summary.project.name)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                            Spacer()
-                            CountBadge(count: summary.versionCount)
+                    let albums = model.albums.filter { $0.album.projectId == summary.id }
+                    let smart = model.smartAlbums.filter { $0.projectID == summary.id }
+                    if albums.isEmpty, smart.isEmpty {
+                        projectRow(summary)
+                    } else {
+                        DisclosureGroup(isExpanded: expansion(of: summary.id, in: $expandedProjects)) {
+                            albumRows(albums, smart)
+                        } label: {
+                            projectRow(summary)
                         }
-                    } icon: {
-                        Image(systemName: "folder")
                     }
-                    .tag(SidebarSelection.project(summary.id))
-                    .help(summary.project.sourcePath ?? summary.project.name)
                 }
             }
             Section("Keywords", isExpanded: $keywordsExpanded) {
@@ -51,52 +113,129 @@ struct SidebarView: View {
                         .foregroundStyle(.secondary)
                 }
                 ForEach(model.keywords) { keyword in
-                    Label {
-                        HStack {
-                            Text(keyword.name)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                            Spacer()
-                            CountBadge(count: keyword.count)
+                    SidebarRow(title: keyword.name, symbol: "tag", count: keyword.count)
+                        .tag(SidebarSelection.keyword(keyword.id))
+                        .onDrop(of: [.photoVersions], isTargeted: nil) { _ in
+                            model.addKeywords([keyword.name], to: model.draggedVersionIDs)
+                            return true
                         }
-                    } icon: {
-                        Image(systemName: "tag")
-                    }
-                    .tag(SidebarSelection.keyword(keyword.id))
-                    .contextMenu {
-                        Button("Rename…") {
-                            newName = keyword.name
-                            renaming = keyword
+                        .contextMenu {
+                            Button("Rename…") { model.sidebarSheet = .renameKeyword(keyword) }
+                            Button("Delete…", role: .destructive) { deletion = .keyword(keyword) }
                         }
-                        Button("Delete…", role: .destructive) { deleting = keyword }
-                    }
                 }
             }
         }
         .listStyle(.sidebar)
-        .alert("Rename Keyword", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } }),
-               presenting: renaming) { keyword in
-            TextField("Name", text: $newName)
-            Button("Rename") { model.renameKeyword(keyword.id, to: newName) }
-            Button("Cancel", role: .cancel) {}
-        } message: { _ in
-            Text("Using the name of another keyword merges the two.")
+        .sheet(item: $model.sidebarSheet) { sheet in
+            SidebarSheetView(model: model, sheet: sheet)
         }
-        .confirmationDialog(deletingTitle, isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
-                            presenting: deleting) { keyword in
-            Button("Delete Keyword", role: .destructive) { model.deleteKeyword(keyword.id) }
-        } message: { keyword in
-            Text("It is removed from \(keyword.count) photos. The photos stay in the library.")
+        .confirmationDialog(deletionTitle, isPresented: Binding(get: { deletion != nil }, set: { if !$0 { deletion = nil } }),
+                            presenting: deletion) { deletion in
+            Button("Delete", role: .destructive) {
+                switch deletion {
+                case .keyword(let keyword): model.deleteKeyword(keyword.id)
+                case .album(let album): model.deleteAlbum(album.id)
+                case .smartAlbum(let album): model.deleteSmartAlbum(album.id)
+                }
+            }
+        } message: { deletion in
+            switch deletion {
+            case .keyword(let keyword):
+                Text("It is removed from \(keyword.count) photos. The photos stay in the library.")
+            case .album:
+                Text("The photos stay in the library.")
+            case .smartAlbum:
+                Text("Only the album is deleted, not its photos.")
+            }
         }
         .safeAreaInset(edge: .bottom) {
             FilterPanel(model: model)
         }
     }
+
+    private var deletionTitle: String {
+        switch deletion {
+        case .keyword(let keyword): String(localized: "Delete the keyword “\(keyword.name)”?")
+        case .album(let album): String(localized: "Delete the album “\(album.album.name)”?")
+        case .smartAlbum(let album): String(localized: "Delete the smart album “\(album.name)”?")
+        case nil: ""
+        }
+    }
+
+    @ViewBuilder
+    private func albumRows(_ albums: [AlbumSummary], _ smart: [SmartAlbum]) -> some View {
+        // Album and smart album ids come from different tables, so they can
+        // coincide; the uuids keep the rows apart.
+        ForEach(albums, id: \.album.uuid) { album in
+            SidebarRow(title: album.album.name, symbol: "rectangle.stack", count: album.count)
+                .tag(SidebarSelection.album(album.id))
+                .onDrop(of: [.photoVersions], isTargeted: nil) { _ in
+                    model.addToAlbum(album.id, versionIDs: model.draggedVersionIDs)
+                    return true
+                }
+                .contextMenu {
+                    Button("Rename…") { model.sidebarSheet = .renameAlbum(album) }
+                    Button("Delete…", role: .destructive) { deletion = .album(album) }
+                }
+        }
+        ForEach(smart, id: \.uuid) { album in
+            SidebarRow(title: album.name, symbol: "gearshape", count: model.sidebarCounts[.smartAlbum(album.id)])
+                .tag(SidebarSelection.smartAlbum(album.id))
+                .contextMenu {
+                    Button("Edit…") { model.sidebarSheet = .smartAlbum(album, projectID: album.projectID) }
+                    Button("Delete…", role: .destructive) { deletion = .smartAlbum(album) }
+                }
+        }
+    }
+
+    private func projectRow(_ summary: ProjectSummary) -> some View {
+        SidebarRow(title: summary.project.name, symbol: "folder", count: summary.versionCount)
+            .tag(SidebarSelection.project(summary.id))
+            .help(summary.project.sourcePath ?? summary.project.name)
+            .contextMenu {
+                Button("New Album in Project…") { model.sidebarSheet = .newAlbum(projectID: summary.id) }
+                Button("New Smart Album in Project…") { model.sidebarSheet = .smartAlbum(nil, projectID: summary.id) }
+            }
+    }
+
+    private struct Year {
+        var year: Int
+        var count: Int
+        var months: [CaptureMonth]
+    }
+
+    private var years: [Year] {
+        Dictionary(grouping: model.captureMonths, by: \.year)
+            .map { Year(year: $0.key, count: $0.value.map(\.count).reduce(0, +), months: $0.value) }
+            .sorted { $0.year > $1.year }
+    }
+
+    private func expansion<ID: Hashable>(of id: ID, in set: Binding<Set<ID>>) -> Binding<Bool> {
+        Binding(get: { set.wrappedValue.contains(id) },
+                set: { expanded in
+                    if expanded { set.wrappedValue.insert(id) } else { set.wrappedValue.remove(id) }
+                })
+    }
 }
 
-extension SidebarView {
-    private var deletingTitle: String {
-        String(localized: "Delete the keyword “\(deleting?.name ?? "")”?")
+private struct SidebarRow: View {
+    let title: String
+    let symbol: String
+    let count: Int?
+
+    var body: some View {
+        Label {
+            HStack {
+                Text(title)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Spacer()
+                if let count { CountBadge(count: count) }
+            }
+        } icon: {
+            Image(systemName: symbol)
+        }
     }
 }
 

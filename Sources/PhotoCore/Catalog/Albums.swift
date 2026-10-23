@@ -48,6 +48,12 @@ public struct CaptureMonth: Hashable, Sendable, Identifiable {
     public var count: Int
     public var id: String { String(format: "%04d-%02d", year, month) }
 
+    public init(year: Int, month: Int, count: Int) {
+        self.year = year
+        self.month = month
+        self.count = count
+    }
+
     /// The month's first day and the next month's, as `captureDays` bounds.
     public var days: (start: String, end: String) {
         let next = month == 12 ? (year + 1, 1) : (year, month + 1)

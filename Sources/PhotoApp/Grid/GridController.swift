@@ -1,6 +1,7 @@
 import AppKit
 import PhotoCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Hosts the AppKit grid inside SwiftUI.
 struct GridView: NSViewRepresentable {
@@ -42,6 +43,7 @@ final class GridController: NSObject, NSCollectionViewDataSource, NSCollectionVi
         collectionView.allowsEmptySelection = true
         collectionView.backgroundColors = [Palette.gridBackground]
         collectionView.register(PhotoCell.self, forItemWithIdentifier: PhotoCell.identifier)
+        collectionView.setDraggingSourceOperationMask(.copy, forLocal: true)
         collectionView.controller = self
 
         scrollView.documentView = collectionView
@@ -110,6 +112,35 @@ final class GridController: NSObject, NSCollectionViewDataSource, NSCollectionVi
 
     func collectionView(_ collectionView: NSCollectionView, didDeselectItemsAt indexPaths: Set<IndexPath>) {
         syncSelectionToModel(clicked: nil)
+    }
+
+    // MARK: Dragging to the sidebar
+
+    func collectionView(_ collectionView: NSCollectionView, canDragItemsAt indexPaths: Set<IndexPath>,
+                        with event: NSEvent) -> Bool {
+        true
+    }
+
+    func collectionView(_ collectionView: NSCollectionView,
+                        pasteboardWriterForItemAt indexPath: IndexPath) -> (any NSPasteboardWriting)? {
+        guard model.items.indices.contains(indexPath.item) else { return nil }
+        let item = NSPasteboardItem()
+        item.setString(String(model.items[indexPath.item].versionID),
+                       forType: NSPasteboard.PasteboardType(UTType.photoVersions.identifier))
+        return item
+    }
+
+    func collectionView(_ collectionView: NSCollectionView, draggingSession session: NSDraggingSession,
+                        willBeginAt screenPoint: NSPoint, forItemsAt indexPaths: Set<IndexPath>) {
+        model.draggedVersionIDs = indexPaths.sorted().compactMap { path in
+            model.items.indices.contains(path.item) ? model.items[path.item].versionID : nil
+        }
+    }
+
+    func collectionView(_ collectionView: NSCollectionView, draggingSession session: NSDraggingSession,
+                        endedAt screenPoint: NSPoint, dragOperation operation: NSDragOperation) {
+        // Drops run on the main queue before this, so the ids are no longer needed.
+        model.draggedVersionIDs = []
     }
 
     private func syncSelectionToModel(clicked: Int?) {
@@ -302,6 +333,11 @@ final class PhotoCollectionView: NSCollectionView {
         }
         if let key = NavigationKey.from(event),
            controller?.navigate(key, extend: event.modifierFlags.contains(.shift)) == true {
+            return
+        }
+        // ⌫ in an album takes the selection out of it.
+        if event.keyCode == 51 || event.keyCode == 117, let model = controller?.model, model.currentAlbumID != nil {
+            model.removeFromCurrentAlbum()
             return
         }
         super.keyDown(with: event)

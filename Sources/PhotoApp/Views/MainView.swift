@@ -25,14 +25,7 @@ struct MainView: View {
     }
 
     private var title: String {
-        switch model.sidebarSelection {
-        case .allPhotos:
-            String(localized: "All Photos")
-        case .project(let id):
-            model.projects.first { $0.id == id }?.project.name ?? AppBranding.displayName
-        case .keyword(let id):
-            model.keywords.first { $0.id == id }?.name ?? AppBranding.displayName
-        }
+        model.title(for: model.sidebarSelection)
     }
 
     private var subtitle: String {

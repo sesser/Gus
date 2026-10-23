@@ -15,7 +15,8 @@ public enum LocalDate {
         return format(fallback, in: timeZone)
     }
 
-    static func format(_ date: Date, in timeZone: TimeZone) -> String {
+    /// `YYYY-MM-DD` of `date` in `timeZone`.
+    public static func format(_ date: Date, in timeZone: TimeZone) -> String {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone
         let parts = calendar.dateComponents([.year, .month, .day], from: date)

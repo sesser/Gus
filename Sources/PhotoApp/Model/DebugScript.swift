@@ -14,6 +14,8 @@ import UniformTypeIdentifiers
 ///     undo | redo           inspector on|off        keyword <n>   (sidebar keyword n, 0-based)
 ///     print <what>          (state for checks: selection, keywords, undo, suggestions, items)
 ///     suggest               (analyzes the selection and waits)      accept <keyword>
+///     album <name>          (from the selection)    smartalbum <name>  (rating ≥ 3)     remove
+///     sidebar album|smart|month <n> | builtin <name> | all            sheet smart|album|none
 ///
 /// Keys are characters ("3", "p") or names (left, right, up, down, home, end,
 /// pageup, pagedown, return, escape, space); prefix "opt+" or "shift+" for modifiers. Key events go through
@@ -35,7 +37,7 @@ enum DebugScript {
             undoManager.groupsByEvent = false
             // Only commands that can change photos get a group; empty groups
             // would otherwise become undo steps that do nothing.
-            let changing: Set<String> = ["key", "addkeywords", "text", "pairfile", "accept"]
+            let changing: Set<String> = ["key", "addkeywords", "text", "pairfile", "accept", "album", "smartalbum", "remove"]
             for command in commands where !command.isEmpty {
                 let grouped = changing.contains(String(command.prefix { $0 != " " }))
                 if grouped { undoManager.beginUndoGrouping() }
@@ -122,12 +124,44 @@ enum DebugScript {
             while model.analysisTask != nil { try? await Task.sleep(for: .milliseconds(100)) }
         case "accept":
             model.acceptSuggestion(rest.joined(separator: " "))
+        case "album":
+            model.createAlbum(named: rest.joined(separator: " "), projectID: nil, adding: model.actionTargetVersionIDs)
+        case "smartalbum":
+            // A test album: rating at least 3, picks, or the given name's rule set.
+            let rules = SmartAlbumRules(match: .all, rules: [SmartRule(field: .rating, comparison: .atLeast,
+                                                                       value: RuleValue(number: 3))])
+            model.createSmartAlbum(named: rest.joined(separator: " "), projectID: nil, rules: rules)
+        case "remove":
+            model.removeFromCurrentAlbum()
+        case "sidebar":
+            selectSidebar(rest, model: model)
+        case "sheet":
+            switch rest.first {
+            case "smart": model.sidebarSheet = .smartAlbum(model.smartAlbums.first, projectID: nil)
+            case "album": model.sidebarSheet = .newAlbum(projectID: nil)
+            default: model.sidebarSheet = nil
+            }
         case "print":
             printState(rest.first ?? "", model: model)
         case "quit":
             NSApp.terminate(nil)
         default:
             print("debug-script: unknown command \(verb)")
+        }
+    }
+
+    private static func selectSidebar(_ words: [String], model: LibraryModel) {
+        let index = Int(words.dropFirst().first ?? "") ?? 0
+        switch words.first {
+        case "album" where model.albums.indices.contains(index): model.sidebarSelection = .album(model.albums[index].id)
+        case "smart" where model.smartAlbums.indices.contains(index):
+            model.sidebarSelection = .smartAlbum(model.smartAlbums[index].id)
+        case "builtin":
+            model.sidebarSelection = BuiltInAlbum(rawValue: words.dropFirst().first ?? "").map { .builtIn($0) } ?? .allPhotos
+        case "month" where model.captureMonths.indices.contains(index):
+            let month = model.captureMonths[index]
+            model.sidebarSelection = .month(year: month.year, month: month.month)
+        default: model.sidebarSelection = .allPhotos
         }
     }
 
@@ -160,6 +194,11 @@ enum DebugScript {
                     "\($0.name)=\($0.count)@\(String(format: "%.2f", $0.confidence))"
                 }.joined(separator: " ") + " unanalyzed \(summary?.unanalyzedCount ?? -1)")
             }
+        case "sidebar":
+            let counts = model.sidebarCounts.map { "\(model.title(for: $0.key))=\($0.value)" }.sorted()
+            print("debug-script: albums " + model.albums.map { "\($0.album.name)=\($0.count)" }.joined(separator: " ")
+                  + " | months " + model.captureMonths.map { "\($0.id)=\($0.count)" }.joined(separator: " ")
+                  + " | " + counts.joined(separator: " ") + " | showing \(model.items.count)")
         case "items":
             print("debug-script: items " + model.items.prefix(12).map { "\($0.baseName):\($0.rating.rawValue)" }.joined(separator: " "))
         default:
@@ -202,7 +241,8 @@ enum DebugScript {
     /// Renders the window's layer tree, which includes layer contents that
     /// `cacheDisplay` would miss.
     private static func snapshot(to url: URL) {
-        guard let window, let view = window.contentView?.superview ?? window.contentView, let layer = view.layer else {
+        // An open sheet is its own window; show it rather than the dimmed window behind.
+        guard let window = window.map({ $0.attachedSheet ?? $0 }), let view = window.contentView?.superview ?? window.contentView, let layer = view.layer else {
             print("debug-script: no window to snapshot")
             return
         }
