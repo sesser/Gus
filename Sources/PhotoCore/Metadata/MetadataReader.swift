@@ -31,12 +31,13 @@ public struct FallbackMetadataReader: MetadataReader {
 public enum MetadataReaders {
     /// ExifTool when it is installed (with ImageIO for anything it misses),
     /// otherwise ImageIO alone.
+    /// Videos always go through AVFoundation.
     public static func makeDefault() -> any MetadataReader {
         if let exiftool = ExifToolMetadataReader.locateExecutable() {
-            return FallbackMetadataReader(primary: ExifToolMetadataReader(executableURL: exiftool),
-                                          fallback: ImageIOMetadataReader())
+            return MediaMetadataReader(photos: FallbackMetadataReader(primary: ExifToolMetadataReader(executableURL: exiftool),
+                                                                      fallback: ImageIOMetadataReader()))
         }
-        return ImageIOMetadataReader()
+        return MediaMetadataReader(photos: ImageIOMetadataReader())
     }
 }
 

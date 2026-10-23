@@ -4,10 +4,13 @@ import Foundation
 public enum SupportedFormats {
     public static let rawExtensions: Set<String> = ["cr3", "cr2", "nef", "arw", "dng", "raf", "orf", "rw2"]
     public static let bitmapExtensions: Set<String> = ["jpg", "jpeg", "heic", "heif", "tif", "tiff", "png"]
-    public static let allExtensions = rawExtensions.union(bitmapExtensions)
+    public static let photoExtensions = rawExtensions.union(bitmapExtensions)
+    /// Containers AVFoundation plays; videos are catalogued and played, not edited.
+    public static let videoExtensions: Set<String> = ["mov", "mp4", "m4v"]
+    public static let allExtensions = photoExtensions.union(videoExtensions)
 
-    public static func isSupported(_ url: URL) -> Bool {
-        allExtensions.contains(url.pathExtension.lowercased())
+    public static func isSupported(_ url: URL, includingVideos: Bool = true) -> Bool {
+        (includingVideos ? allExtensions : photoExtensions).contains(url.pathExtension.lowercased())
     }
 
     public static func isRaw(pathExtension: String) -> Bool {
@@ -22,11 +25,16 @@ public enum FileKind: String, Hashable, Sendable, CaseIterable {
     case heic
     case tiff
     case png
+    case video
 
     public init?(pathExtension: String) {
         let ext = pathExtension.lowercased()
         if SupportedFormats.rawExtensions.contains(ext) {
             self = .raw
+            return
+        }
+        if SupportedFormats.videoExtensions.contains(ext) {
+            self = .video
             return
         }
         switch ext {
@@ -56,7 +64,7 @@ public enum FileScanner {
     ]
 
     /// Sorted by path. Checks for cancellation as it goes.
-    public static func scan(_ root: URL) throws -> [ScannedFile] {
+    public static func scan(_ root: URL, includingVideos: Bool = true) throws -> [ScannedFile] {
         let root = root.resolvingSymlinksInPath()
         guard let enumerator = FileManager.default.enumerator(
             at: root, includingPropertiesForKeys: resourceKeys,
@@ -69,7 +77,7 @@ public enum FileScanner {
         for case let url as URL in enumerator {
             visited += 1
             if visited.isMultiple(of: 512) { try Task.checkCancellation() }
-            guard SupportedFormats.isSupported(url),
+            guard SupportedFormats.isSupported(url, includingVideos: includingVideos),
                   let values = try? url.resourceValues(forKeys: Set(resourceKeys)),
                   values.isRegularFile == true,
                   let volumeURL = values.volume

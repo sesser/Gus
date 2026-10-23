@@ -42,6 +42,18 @@ public struct PreviewGenerator: Sendable {
         guard let largest = tiers.max(by: { $0.longEdge < $1.longEdge }) else { return [:] }
         let base = try image(source: source, stack: stack, longEdge: largest.longEdge,
                              draft: tiers.allSatisfy(\.allowsDraftDecode))
+        return try encode(base, tiers: tiers)
+    }
+
+    /// Tiers from an already decoded frame (a video's poster frame).
+    public func jpegData(decoded: CGImage, stack: EditStack, tiers: Set<PreviewTier>) throws -> [PreviewTier: Data] {
+        guard let largest = tiers.max(by: { $0.longEdge < $1.longEdge }) else { return [:] }
+        let base = try renderer.apply(stack, to: CIImage(cgImage: decoded)).scaledToFit(longEdge: largest.longEdge)
+        return try encode(base, tiers: tiers)
+    }
+
+    private func encode(_ base: CIImage, tiers: Set<PreviewTier>) throws -> [PreviewTier: Data] {
+        guard let largest = tiers.max(by: { $0.longEdge < $1.longEdge }) else { return [:] }
         var result: [PreviewTier: Data] = [:]
         for tier in tiers {
             let scaled = tier == largest ? base : base.scaledToFit(longEdge: tier.longEdge)

@@ -11,6 +11,7 @@ enum CatalogSchema {
         migrator.registerMigration("v4", migrate: addMetadataAndAlbums)
         migrator.registerMigration("v5", migrate: addSidecarSync)
         migrator.registerMigration("v6", migrate: addImportPresets)
+        migrator.registerMigration("v7", migrate: addVideos)
         return migrator
     }
 
@@ -239,6 +240,13 @@ enum CatalogSchema {
             let day = LocalDate.string(captureDate: row["captureDate"], offset: row["captureOffsetSeconds"],
                                        fallback: row["modifiedAt"])
             try update.execute(arguments: [day, row["id"] as Int64])
+        }
+    }
+
+    /// Videos: their length. Their kind follows from `format`.
+    private static func addVideos(_ db: Database) throws {
+        try db.alter(table: "image") { t in
+            t.add(column: "duration", .double)
         }
     }
 

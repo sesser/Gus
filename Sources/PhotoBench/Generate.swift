@@ -12,6 +12,8 @@ enum Generate {
         let dngCount = arguments.int("dng", default: 100)
         let heicCount = arguments.int("heic", default: 100)
         let pairCount = arguments.int("pairs", default: 0)
+        let videoCount = arguments.int("videos", default: 0)
+        let videoSeconds = Double(arguments.int("video-seconds", default: 10))
         let perFolder = max(1, arguments.int("per-folder", default: 500))
         let jpegSize = arguments.size("jpeg-size", default: (2048, 1365))
         let dngSize = arguments.size("dng-size", default: (6000, 4000))
@@ -72,6 +74,19 @@ enum Generate {
                 } catch {
                     failures.increment()
                 }
+            }
+        }
+        // Videos are written one after another (AVAssetWriter is asynchronous).
+        for index in 0..<videoCount {
+            let folder = output.appending(path: String(format: "Shoot-%03d", (jobs.count + index) / perFolder + 1))
+            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            let created = ISO8601DateFormatter().string(from: base.addingTimeInterval(Double(jobs.count + index) * 7))
+            do {
+                try await SyntheticVideo.write(to: folder.appending(path: String(format: "MVI_%05d.MOV", jobs.count + index + 1)),
+                                               options: .init(width: 1280, height: 720, seconds: videoSeconds, framesPerSecond: 5,
+                                                              seed: UInt64(index) &* 7919, creationDate: created))
+            } catch {
+                failures.increment()
             }
         }
         let bytes = folderSize(output)

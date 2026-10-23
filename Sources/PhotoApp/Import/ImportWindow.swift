@@ -265,6 +265,12 @@ private struct ImportOptionsPanel: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                Section("Videos") {
+                    Toggle("Include videos", isOn: $model.includesVideos)
+                    Text("Videos are copied and catalogued like photos and play in the loupe. They cannot be edited.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 Section("After Importing") {
                     Toggle("Delete originals from the source", isOn: $model.deletesOriginals)
                     Toggle("Eject the card", isOn: $model.ejectsWhenDone)
@@ -445,6 +451,11 @@ actor SourceThumbnails {
 
     func thumbnail(for url: URL) async -> CGImage? {
         if let cached = cache[url] { return cached }
+        if FileKind(pathExtension: url.pathExtension) == .video {
+            let poster = try? await VideoFrames.poster(of: url, longEdge: 360)
+            if let poster { cache[url] = poster }
+            return poster
+        }
         let image = await Task.detached(priority: .userInitiated) { () -> CGImage? in
             guard let source = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary)
             else { return nil }

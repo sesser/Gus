@@ -60,7 +60,8 @@ are deleted from the card (after a confirmation) and the card is ejected.
 
 Choose **File ▸ Import Folder…** (⇧⌘I) to add photos where they are, without
 copying: pick a folder. Photos in it and its
-subfolders (CR3, CR2, NEF, ARW, DNG, RAF, ORF, RW2, HEIC, JPEG, TIFF, PNG) are
+subfolders (CR3, CR2, NEF, ARW, DNG, RAF, ORF, RW2, HEIC, JPEG, TIFF, PNG) and
+videos (MOV, MP4, M4V) are
 added to a new project named after the folder. Duplicates (same content
 anywhere in the library) are skipped, and so are files already imported from
 the same place. Originals are never moved, copied or modified.
@@ -138,6 +139,12 @@ for Changes on Disk**, sidecars and originals changed outside the app are listed
 under **Library ▸ Changed on Disk**, and the inspector compares the library's
 values with the file's so you can keep either, or choose per field (keywords can
 be merged). Writing can be turned off in **Settings**.
+
+**Videos** (MOV, MP4, M4V) are catalogued like photos by both kinds of import
+(the import window has an **Include videos** switch): their poster frame is the
+thumbnail, the grid shows their length, and the loupe plays them (space plays
+and pauses; the arrow and culling keys still move between and rate items). They
+take ratings, keywords, albums and sidecars. There is no video editing or export.
 
 **Undo**: ⌘Z and ⇧⌘Z undo and redo culling, keyword, album and pair changes, including
 changes made to many photos at once.

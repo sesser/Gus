@@ -98,6 +98,12 @@ final class CardImportModel {
     var ejectsWhenDone: Bool {
         didSet { defaults.set(ejectsWhenDone, forKey: Keys.eject) }
     }
+    var includesVideos: Bool {
+        didSet {
+            defaults.set(includesVideos, forKey: Keys.videos)
+            if oldValue != includesVideos { rescan() }
+        }
+    }
     /// Not remembered: deleting from the card is decided each time.
     var deletesOriginals = false
     var counter: Int {
@@ -129,6 +135,7 @@ final class CardImportModel {
         static let preset = "import.metadataPreset"
         static let eject = "import.ejectWhenDone"
         static let counter = "import.counter"
+        static let videos = "import.includeVideos"
     }
 
     init() {
@@ -143,6 +150,7 @@ final class CardImportModel {
         presetID = preset == 0 ? nil : Int64(preset)
         ejectsWhenDone = defaults.bool(forKey: Keys.eject)
         counter = max(1, defaults.integer(forKey: Keys.counter))
+        includesVideos = defaults.object(forKey: Keys.videos) as? Bool ?? true
     }
 
     // MARK: Sources
@@ -193,10 +201,11 @@ final class CardImportModel {
         guard let source, let library else { return }
         let reader = library.importer.metadataReader
         let catalog = library.catalog
+        let videos = includesVideos
         isScanning = true
         scanTask = Task {
             do {
-                let found = try await SourceScanner.scan(source.scanRoot, reader: reader)
+                let found = try await SourceScanner.scan(source.scanRoot, reader: reader, includingVideos: videos)
                 let marked = try await SourceScanner.markDuplicates(in: found, catalog: catalog)
                 guard !Task.isCancelled else { return }
                 shots = marked

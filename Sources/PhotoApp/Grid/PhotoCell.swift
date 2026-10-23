@@ -392,12 +392,22 @@ enum FileKindText {
         case .heic: String(localized: "HEIC", comment: "Grid badge: HEIC or HEIF file")
         case .tiff: String(localized: "TIFF", comment: "Grid badge: TIFF file")
         case .png: String(localized: "PNG", comment: "Grid badge: PNG file")
+        case .video: String(localized: "VIDEO", comment: "Grid badge: video file")
         }
+    }
+
+    /// "0:42", "1:05:09".
+    static func duration(_ seconds: Double) -> String {
+        let total = Int(seconds.rounded())
+        let (hours, minutes, secs) = (total / 3600, total / 60 % 60, total % 60)
+        return hours > 0 ? String(format: "%d:%02d:%02d", hours, minutes, secs) : String(format: "%d:%02d", minutes, secs)
     }
 
     /// A grouped pair shows both types, the one on screen first ("RAW+JPEG").
     static func badge(for item: CatalogItem) -> String? {
         guard let kind = item.fileKind else { return nil }
+        // A video's length says more than its type.
+        if kind == .video, let seconds = item.duration { return "▶ " + duration(seconds) }
         guard item.representsPair, let partner = item.partnerKind else { return badge(kind) }
         return String(localized: "\(badge(kind))+\(badge(partner))",
                       comment: "Grid badge for a RAW+JPEG pair; the first type is the file shown")

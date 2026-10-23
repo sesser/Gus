@@ -1773,6 +1773,17 @@
         }
       }
     },
+    "Include videos" : {
+      "comment" : "Import window toggle",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Include videos"
+          }
+        }
+      }
+    },
     "Info" : {
       "comment" : "Inspector section title",
       "localizations" : {
@@ -3307,6 +3318,17 @@
         }
       }
     },
+    "VIDEO" : {
+      "comment" : "Grid badge: video file",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "VIDEO"
+          }
+        }
+      }
+    },
     "Value" : {
       "comment" : "Smart album rule value picker (accessibility label)",
       "localizations" : {
@@ -3314,6 +3336,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Value"
+          }
+        }
+      }
+    },
+    "Videos" : {
+      "comment" : "Import window section",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Videos"
+          }
+        }
+      }
+    },
+    "Videos are copied and catalogued like photos and play in the loupe. They cannot be edited." : {
+      "comment" : "Import window note",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Videos are copied and catalogued like photos and play in the loupe. They cannot be edited."
           }
         }
       }

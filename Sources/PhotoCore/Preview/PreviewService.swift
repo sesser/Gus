@@ -167,7 +167,15 @@ public final class PreviewService: Sendable {
                !cache.contains(thumbnail) {
                 keys[.thumbnail] = thumbnail
             }
-            for (tier, data) in try generator.jpegData(source: source, stack: stack, tiers: Set(keys.keys)) {
+            let tiers = Set(keys.keys)
+            let encoded: [PreviewTier: Data]
+            if FileKind(pathExtension: source.pathExtension) == .video {
+                let poster = try await VideoFrames.poster(of: source, longEdge: tiers.map(\.longEdge).max())
+                encoded = try generator.jpegData(decoded: poster, stack: stack, tiers: tiers)
+            } else {
+                encoded = try generator.jpegData(source: source, stack: stack, tiers: tiers)
+            }
+            for (tier, data) in encoded {
                 if let tierKey = keys[tier] { try cache.store(data, for: tierKey) }
             }
             return true
@@ -188,6 +196,9 @@ public final class PreviewService: Sendable {
                                              taskPriority: .userInitiated) {
             let stack = try await loadStack(versionID)
             try Task.checkCancellation()
+            if FileKind(pathExtension: source.pathExtension) == .video {
+                return DecodedImage(cgImage: try await VideoFrames.poster(of: source, longEdge: nil))
+            }
             let image = try generator.cgImage(source: source, stack: stack, colorSpace: colorSpace)
             return DecodedImage(cgImage: image)
         }

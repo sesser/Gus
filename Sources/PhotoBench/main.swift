@@ -8,8 +8,8 @@ import PhotoCore
 let usage = """
     usage: photobench <command> [options]
 
-      generate   --output DIR [--jpeg N] [--dng N] [--heic N] [--pairs N] [--per-folder N]
-                 [--jpeg-size WxH] [--dng-size WxH] [--heic-size WxH]
+      generate   --output DIR [--jpeg N] [--dng N] [--heic N] [--pairs N] [--videos N] [--per-folder N]
+                 [--jpeg-size WxH] [--dng-size WxH] [--heic-size WxH] [--video-seconds N]
                  Writes a synthetic library with unique pixels and EXIF dates.
 
       import     --library-root ROOT --source DIR [--imageio] [--chunk N] [--hash-concurrency N]

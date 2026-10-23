@@ -278,6 +278,7 @@ extension Catalog {
                                                 fallback: master.modifiedAt),
                     metadataRevision: ImageMetadata.revision)
                 image.applyExtendedMetadata(metadata)
+                image.duration = metadata.duration
                 try image.insert(db, onConflict: .ignore)
                 guard db.changesCount > 0, let imageID = image.id else {
                     let hashExists = try ImageRecord.filter(ImageRecord.Columns.contentHash == master.contentHash).fetchCount(db) > 0

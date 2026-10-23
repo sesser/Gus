@@ -31,8 +31,8 @@ public struct SourceShot: Hashable, Sendable, Identifiable {
 public enum SourceScanner {
     /// Every supported file under `root`, grouped into shots in capture order,
     /// with embedded metadata read (for templates and sorting).
-    public static func scan(_ root: URL, reader: any MetadataReader) async throws -> [SourceShot] {
-        let scanned = try FileScanner.scan(root)
+    public static func scan(_ root: URL, reader: any MetadataReader, includingVideos: Bool = true) async throws -> [SourceShot] {
+        let scanned = try FileScanner.scan(root, includingVideos: includingVideos)
         let metadata = try await reader.metadata(for: scanned.map(\.url))
         let files = scanned.compactMap { file -> SourceFile? in
             guard let kind = FileKind(pathExtension: file.url.pathExtension) else { return nil }

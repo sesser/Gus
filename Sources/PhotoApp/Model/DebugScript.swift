@@ -292,7 +292,9 @@ enum DebugScript {
                                                characters: characters, charactersIgnoringModifiers: characters,
                                                isARepeat: false, keyCode: code)
             else { continue }
-            window.sendEvent(event)
+            // Through the application when it is active, so local event monitors see
+            // the key as they would a real one; a scripted launch often is not.
+            if NSApp.isActive, NSApp.keyWindow === window { NSApp.sendEvent(event) } else { window.sendEvent(event) }
         }
     }
 

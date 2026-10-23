@@ -86,6 +86,10 @@ public struct CatalogItem: Hashable, Sendable, Identifiable {
     public var partnerKind: FileKind? = nil
     /// True when pairs are grouped and this item stands for both files.
     public var representsPair = false
+    /// Seconds, for videos.
+    public var duration: Double? = nil
+
+    public var isVideo: Bool { fileKind == .video }
 
     public var id: Int64 { versionID }
 
@@ -177,7 +181,7 @@ extension Catalog {
         let sql = """
             SELECT version.id, version.imageId, image.volumeId, version.rating, version.flag,
                    version.colorLabel, image.contentHash, version.editStackHash, image.relativePath,
-                   image.pixelWidth, image.pixelHeight, image.orientation, version.isDefault
+                   image.pixelWidth, image.pixelHeight, image.orientation, image.duration, version.isDefault
             FROM version
             JOIN image ON image.id = version.imageId
             \(whereClause)
@@ -192,7 +196,7 @@ extension Catalog {
             let rows = try Row.fetchCursor(db, sql: sql, arguments: finalArguments)
             while let row = try rows.next() {
                 let item = Self.item(from: row)
-                if hasPairs, row[12] as Bool { defaultIndexByImage[item.imageID] = items.count }
+                if hasPairs, row[13] as Bool { defaultIndexByImage[item.imageID] = items.count }
                 items.append(item)
             }
             guard hasPairs else { return items }
@@ -245,7 +249,7 @@ extension Catalog {
                 let rows = try Row.fetchCursor(db, sql: """
                     SELECT version.id, version.imageId, image.volumeId, version.rating, version.flag,
                            version.colorLabel, image.contentHash, version.editStackHash, image.relativePath,
-                           image.pixelWidth, image.pixelHeight, image.orientation
+                           image.pixelWidth, image.pixelHeight, image.orientation, image.duration
                     FROM version
                     JOIN image ON image.id = version.imageId
                     WHERE version.id IN (\(databaseQuestionMarks(count: chunk.count)))
@@ -256,9 +260,9 @@ extension Catalog {
         }
     }
 
-    /// Decodes the first twelve columns of the item queries.
+    /// Decodes the first thirteen columns of the item queries.
     static func item(from row: Row) -> CatalogItem {
-        CatalogItem(
+        var item = CatalogItem(
             versionID: row[0], imageID: row[1], volumeID: row[2],
             rating: Rating(clamping: row[3]),
             flag: Flag(rawValue: row[4]) ?? .none,
@@ -266,6 +270,8 @@ extension Catalog {
             contentHash: row[6], editStackHash: row[7], relativePath: row[8],
             pixelWidth: (row[9] as Int?) ?? 0, pixelHeight: (row[10] as Int?) ?? 0,
             orientation: row[11])
+        item.duration = row[12]
+        return item
     }
 
     /// How many items `libraryItems(matching:)` would return, without building them.

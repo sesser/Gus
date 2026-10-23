@@ -8,7 +8,13 @@ struct LoupeView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            LoupeCanvas(model: model)
+            // A video whose original is offline shows its cached poster frame instead.
+            if let item = model.focusedItem, item.isVideo, let url = model.sourceURL(for: item) {
+                VideoLoupe(model: model, url: url)
+                    .id(item.versionID)
+            } else {
+                LoupeCanvas(model: model)
+            }
             LoupeInfoBar(model: model)
         }
         .background(Color(nsColor: Palette.loupeBackground))

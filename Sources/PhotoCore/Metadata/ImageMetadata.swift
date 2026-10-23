@@ -43,6 +43,8 @@ public struct ImageMetadata: Hashable, Sendable, Codable {
     public var focalLength35mm: Double?
     public var creatorContact: CreatorContact?
     public var usageTerms: String?
+    /// Seconds, for videos.
+    public var duration: Double?
 
     /// What the readers fill in. Masters read with an older revision are read
     /// again in the background so the newer columns fill in.

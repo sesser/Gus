@@ -120,6 +120,8 @@ public struct ImageRecord: Codable, Hashable, Sendable, Identifiable, FetchableR
     /// JSON of `CreatorContact`.
     public var creatorContact: String?
     public var usageTerms: String?
+    /// Seconds, for videos.
+    public var duration: Double?
 
     public enum Columns {
         public static let id = Column(CodingKeys.id)
