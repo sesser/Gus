@@ -49,14 +49,15 @@ public struct ImageIOMetadataReader: MetadataReader {
         var keywords = (iptc[kCGImagePropertyIPTCKeywords] as? [String]) ?? []
         var rating: Int?
         var label: String?
-        if let xmp = CGImageSourceCopyMetadataAtIndex(source, 0, options) {
+        let xmp = CGImageSourceCopyMetadataAtIndex(source, 0, options)
+        if let xmp {
             keywords += xmpStrings(xmp, "dc:subject")
             rating = (CGImageMetadataCopyStringValueWithPath(xmp, nil, "xmp:Rating" as CFString) as String?)
                 .flatMap { Double($0) }.map { Int($0) }
             label = CGImageMetadataCopyStringValueWithPath(xmp, nil, "xmp:Label" as CFString) as String?
         }
 
-        return ImageMetadata(
+        var metadata = ImageMetadata(
             captureDate: parsedDate?.date,
             captureOffsetSeconds: parsedDate?.offsetSeconds,
             pixelWidth: (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.intValue,
@@ -70,6 +71,35 @@ public struct ImageIOMetadataReader: MetadataReader {
             fNumber: (exif[kCGImagePropertyExifFNumber] as? NSNumber)?.doubleValue,
             focalLength: (exif[kCGImagePropertyExifFocalLength] as? NSNumber)?.doubleValue,
             keywords: keywords, rating: rating, label: label)
+
+        let gps = properties[kCGImagePropertyGPSDictionary] as? [CFString: Any] ?? [:]
+        func coordinate(_ value: CFString, _ reference: CFString, negative: String) -> Double? {
+            guard let degrees = (gps[value] as? NSNumber)?.doubleValue else { return nil }
+            return (gps[reference] as? String)?.uppercased() == negative ? -degrees : degrees
+        }
+        func xmpText(_ path: String) -> String? {
+            guard let xmp else { return nil }
+            return xmpStrings(xmp, path).joined(separator: ", ").trimmedNonEmpty
+        }
+        metadata.artist = (tiff[kCGImagePropertyTIFFArtist] as? String)?.trimmedNonEmpty
+            ?? (iptc[kCGImagePropertyIPTCByline] as? [String])?.joined(separator: ", ").trimmedNonEmpty
+            ?? xmpText("dc:creator")
+        metadata.copyright = (tiff[kCGImagePropertyTIFFCopyright] as? String)?.trimmedNonEmpty
+            ?? (iptc[kCGImagePropertyIPTCCopyrightNotice] as? String)?.trimmedNonEmpty
+            ?? xmpText("dc:rights")
+        metadata.caption = xmpText("dc:description")
+            ?? (iptc[kCGImagePropertyIPTCCaptionAbstract] as? String)?.trimmedNonEmpty
+            ?? (tiff[kCGImagePropertyTIFFImageDescription] as? String)?.trimmedNonEmpty
+        metadata.cameraSerial = (exif[kCGImagePropertyExifBodySerialNumber] as? String)?.trimmedNonEmpty
+        metadata.latitude = coordinate(kCGImagePropertyGPSLatitude, kCGImagePropertyGPSLatitudeRef, negative: "S")
+        metadata.longitude = coordinate(kCGImagePropertyGPSLongitude, kCGImagePropertyGPSLongitudeRef, negative: "W")
+        metadata.flashFired = (exif[kCGImagePropertyExifFlash] as? NSNumber).map { $0.intValue & 1 == 1 }
+        metadata.exposureCompensation = (exif[kCGImagePropertyExifExposureBiasValue] as? NSNumber)?.doubleValue
+        metadata.whiteBalance = (exif[kCGImagePropertyExifWhiteBalance] as? NSNumber)?.intValue
+        metadata.exposureProgram = (exif[kCGImagePropertyExifExposureProgram] as? NSNumber)?.intValue
+        metadata.meteringMode = (exif[kCGImagePropertyExifMeteringMode] as? NSNumber)?.intValue
+        metadata.focalLength35mm = (exif[kCGImagePropertyExifFocalLenIn35mmFilm] as? NSNumber)?.doubleValue
+        return metadata
     }
 
     /// The items of an XMP array (bag or sequence) of text values.

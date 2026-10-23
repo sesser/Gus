@@ -13,9 +13,10 @@ struct CatalogTests {
             try String.fetchSet(db, sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name != 'grdb_migrations'")
         }
         #expect(tables == ["volume", "project", "image", "version", "album", "albumMember",
-                           "stack", "stackMember", "keyword", "versionKeyword", "imagePair", "keywordSuggestion"])
+                           "stack", "stackMember", "keyword", "versionKeyword", "imagePair", "keywordSuggestion",
+                           "importRun", "smartAlbum"])
         let applied = try await catalog.database.read { db in try CatalogSchema.migrator.appliedMigrations(db) }
-        #expect(applied == ["v1", "v2", "v3"])
+        #expect(applied == ["v1", "v2", "v3", "v4"])
     }
 
     @Test func schemaNamesDoNotEmbedTheProductName() async throws {

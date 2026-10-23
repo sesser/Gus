@@ -139,6 +139,7 @@ public final class Importer: Sendable {
         var projectName: String
         var sourcePath: String
         var project: ProjectRecord?
+        var importRun: ImportRunRecord?
         var seenHashes: Set<String> = []
         var failures: [ImportFailure] = []
         var insertedVersionIDs: [Int64] = []
@@ -227,13 +228,15 @@ public final class Importer: Sendable {
             catalogStart = clock.now
             if run.project == nil {
                 run.project = try await catalog.createProject(name: run.projectName, sourcePath: run.sourcePath)
+                run.importRun = try await catalog.createImportRun(sourcePath: run.sourcePath, projectID: run.project?.id)
             }
             let masters = newMasters.map { candidate in
                 NewMaster(relativePath: candidate.relativePath, fileSize: candidate.file.fileSize,
                           modifiedAt: candidate.file.modifiedAt, contentHash: candidate.hash,
                           metadata: metadata[candidate.file.url] ?? .empty)
             }
-            let result = try await catalog.insertMasters(masters, volumeID: volumeID, projectID: run.project!.id!)
+            let result = try await catalog.insertMasters(masters, volumeID: volumeID, projectID: run.project!.id!,
+                                                         importRunID: run.importRun?.id)
             timings.catalog += clock.now - catalogStart
             progress.imported += result.insertedImageIDs.count
             progress.duplicates += result.duplicateHashes.count

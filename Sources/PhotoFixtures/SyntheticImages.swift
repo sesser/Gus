@@ -20,6 +20,16 @@ public enum SyntheticImages {
         public var xmpRating: Int?
         public var xmpLabel: String?
         public var xmpSubject: [String]
+        public var artist: String?
+        public var copyright: String?
+        public var serialNumber: String?
+        /// Degrees; south and west negative.
+        public var latitude: Double?
+        public var longitude: Double?
+        /// EXIF Flash value (bit 0: fired).
+        public var flash: Int?
+        public var exposureBias: Double?
+        public var whiteBalance: Int?
 
         public init(dateTimeOriginal: String? = nil, offsetTimeOriginal: String? = nil,
                     make: String? = "Synthetic", model: String? = "Generator", orientation: Int = 1,
@@ -90,9 +100,15 @@ public enum SyntheticImages {
         var exifDictionary: [CFString: Any] = [:]
         exifDictionary[kCGImagePropertyExifDateTimeOriginal] = exif.dateTimeOriginal
         exifDictionary[kCGImagePropertyExifOffsetTimeOriginal] = exif.offsetTimeOriginal
+        exifDictionary[kCGImagePropertyExifBodySerialNumber] = exif.serialNumber
+        exifDictionary[kCGImagePropertyExifFlash] = exif.flash
+        exifDictionary[kCGImagePropertyExifExposureBiasValue] = exif.exposureBias
+        exifDictionary[kCGImagePropertyExifWhiteBalance] = exif.whiteBalance
         var tiffDictionary: [CFString: Any] = [:]
         tiffDictionary[kCGImagePropertyTIFFMake] = exif.make
         tiffDictionary[kCGImagePropertyTIFFModel] = exif.model
+        tiffDictionary[kCGImagePropertyTIFFArtist] = exif.artist
+        tiffDictionary[kCGImagePropertyTIFFCopyright] = exif.copyright
         var properties: [CFString: Any] = [
             kCGImageDestinationLossyCompressionQuality: quality,
             kCGImagePropertyOrientation: exif.orientation,
@@ -101,6 +117,12 @@ public enum SyntheticImages {
         ]
         if !exif.keywords.isEmpty {
             properties[kCGImagePropertyIPTCDictionary] = [kCGImagePropertyIPTCKeywords: exif.keywords]
+        }
+        if let latitude = exif.latitude, let longitude = exif.longitude {
+            properties[kCGImagePropertyGPSDictionary] = [
+                kCGImagePropertyGPSLatitude: abs(latitude), kCGImagePropertyGPSLatitudeRef: latitude < 0 ? "S" : "N",
+                kCGImagePropertyGPSLongitude: abs(longitude), kCGImagePropertyGPSLongitudeRef: longitude < 0 ? "W" : "E",
+            ]
         }
         CGImageDestinationAddImage(destination, image, properties as CFDictionary)
         guard CGImageDestinationFinalize(destination) else { throw CocoaError(.fileWriteUnknown) }

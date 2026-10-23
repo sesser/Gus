@@ -15,6 +15,9 @@ public actor ExifToolMetadataReader: MetadataReader {
         "ImageSize", "ImageWidth", "ImageHeight", "Orientation",
         "Make", "Model", "LensModel", "ISO", "ExposureTime", "FNumber", "FocalLength",
         "Keywords", "Subject", "Rating", "Label",
+        "Artist", "Creator", "Copyright", "Rights", "ImageDescription", "Description", "Caption-Abstract",
+        "SerialNumber", "InternalSerialNumber", "Composite:GPSLatitude", "Composite:GPSLongitude",
+        "Flash", "ExposureCompensation", "WhiteBalance", "ExposureProgram", "MeteringMode", "FocalLengthIn35mmFormat",
     ]
 
     public enum Failure: Error {
@@ -165,13 +168,27 @@ public actor ExifToolMetadataReader: MetadataReader {
                 height = parts[1]
             }
         }
-        return ImageMetadata(
+        var metadata = ImageMetadata(
             captureDate: parsed?.date, captureOffsetSeconds: parsed?.offsetSeconds,
             pixelWidth: width, pixelHeight: height, orientation: int("Orientation") ?? 1,
             cameraMake: string("Make"), cameraModel: string("Model"), lensModel: string("LensModel"),
             iso: int("ISO"), exposureTime: double("ExposureTime"), fNumber: double("FNumber"),
             focalLength: double("FocalLength"), keywords: strings("Keywords") + strings("Subject"),
             rating: int("Rating"), label: string("Label"))
+        // XMP Creator is a list; the EXIF Artist is one string.
+        metadata.artist = string("Artist") ?? strings("Creator").joined(separator: ", ").trimmedNonEmpty
+        metadata.copyright = string("Copyright") ?? string("Rights")
+        metadata.caption = string("Description") ?? string("Caption-Abstract") ?? string("ImageDescription")
+        metadata.cameraSerial = string("SerialNumber") ?? string("InternalSerialNumber")
+        metadata.latitude = double("GPSLatitude")
+        metadata.longitude = double("GPSLongitude")
+        metadata.flashFired = int("Flash").map { $0 & 1 == 1 }
+        metadata.exposureCompensation = double("ExposureCompensation")
+        metadata.whiteBalance = int("WhiteBalance")
+        metadata.exposureProgram = int("ExposureProgram")
+        metadata.meteringMode = int("MeteringMode")
+        metadata.focalLength35mm = double("FocalLengthIn35mmFormat")
+        return metadata
     }
 }
 

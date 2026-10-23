@@ -153,6 +153,7 @@ final class LibraryModel {
     @ObservationIgnored private var started = false
     @ObservationIgnored private var volumeObservers: [any NSObjectProtocol] = []
     @ObservationIgnored var pendingAnalysis: [Int64] = []
+    @ObservationIgnored private var metadataTask: Task<Void, Never>?
     @ObservationIgnored var analysisTask: Task<Void, Never>?
 
     private static let log = Logger(subsystem: AppBranding.bundleIdentifier, category: "library")
@@ -271,6 +272,7 @@ final class LibraryModel {
             if online != onlineVolumeIDs {
                 onlineVolumeIDs = online
                 observer?.libraryAvailabilityChanged()
+                refreshStaleMetadata()
             }
         } catch {
             Self.log.error("Refreshing volumes failed: \(error.localizedDescription, privacy: .public)")
@@ -284,6 +286,31 @@ final class LibraryModel {
             volumeObservers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
                 Task { @MainActor in await self?.refreshVolumes() }
             })
+        }
+    }
+
+    /// Reads metadata again for masters a previous version of the reader
+    /// handled, on whatever volumes are mounted. Runs quietly in the background.
+    func refreshStaleMetadata() {
+        guard metadataTask == nil else { return }
+        let catalog = self.catalog
+        let reader = importer.metadataReader
+        let online = onlineVolumeIDs
+        metadataTask = Task {
+            while !Task.isCancelled {
+                guard let stale = try? await catalog.staleMetadata(onVolumes: online), !stale.isEmpty else { break }
+                let byURL = Dictionary(stale.map { ($0.url, $0.imageID) }, uniquingKeysWith: { first, _ in first })
+                let read = (try? await reader.metadata(for: stale.map(\.url))) ?? [:]
+                let byImage = Dictionary(read.compactMap { url, metadata in byURL[url].map { ($0, metadata) } },
+                                         uniquingKeysWith: { first, _ in first })
+                do {
+                    try await catalog.refreshMetadata(byImage, checked: stale.map(\.imageID))
+                } catch {
+                    Self.log.error("Refreshing metadata failed: \(error.localizedDescription, privacy: .public)")
+                    break
+                }
+            }
+            metadataTask = nil
         }
     }
 

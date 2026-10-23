@@ -130,6 +130,25 @@ extension Catalog {
         }
     }
 
+    /// Starts an import run; the masters it adds point back to it.
+    public func createImportRun(sourcePath: String?, projectID: Int64?, startedAt: Date = Date()) async throws -> ImportRunRecord {
+        try await database.write { db in
+            var run = ImportRunRecord(id: nil, startedAt: startedAt, sourcePath: sourcePath, projectId: projectID)
+            try run.insert(db)
+            return run
+        }
+    }
+
+    /// The most recent import run that added at least one master.
+    public func lastImportRun() async throws -> ImportRunRecord? {
+        try await database.read { db in
+            try ImportRunRecord.fetchOne(db, sql: """
+                SELECT * FROM importRun WHERE EXISTS (SELECT 1 FROM image WHERE image.importRunId = importRun.id)
+                ORDER BY startedAt DESC, id DESC LIMIT 1
+                """)
+        }
+    }
+
     public func renameProject(id: Int64, to name: String) async throws {
         try await database.write { db in
             _ = try ProjectRecord.filter(key: id).updateAll(db, ProjectRecord.Columns.name.set(to: name))
@@ -212,7 +231,7 @@ extension Catalog {
     /// Registers masters and creates one default version for each, in one
     /// transaction. Rows that collide with an existing hash or path are skipped
     /// and reported; they never abort the batch.
-    public func insertMasters(_ masters: [NewMaster], volumeID: Int64, projectID: Int64,
+    public func insertMasters(_ masters: [NewMaster], volumeID: Int64, projectID: Int64, importRunID: Int64? = nil,
                               importedAt: Date = Date()) async throws -> MasterInsertionResult {
         guard !masters.isEmpty else { return MasterInsertionResult() }
         return try await database.write { db in
@@ -233,7 +252,11 @@ extension Catalog {
                     cameraMake: metadata.cameraMake, cameraModel: metadata.cameraModel,
                     lensModel: metadata.lensModel, iso: metadata.iso, exposureTime: metadata.exposureTime,
                     fNumber: metadata.fNumber, focalLength: metadata.focalLength, importedAt: importedAt,
-                    pairingKey: ImagePairing.key(forRelativePath: master.relativePath))
+                    pairingKey: ImagePairing.key(forRelativePath: master.relativePath), importRunId: importRunID,
+                    localDate: LocalDate.string(captureDate: metadata.captureDate, offset: metadata.captureOffsetSeconds,
+                                                fallback: master.modifiedAt),
+                    metadataRevision: ImageMetadata.revision)
+                image.applyExtendedMetadata(metadata)
                 try image.insert(db, onConflict: .ignore)
                 guard db.changesCount > 0, let imageID = image.id else {
                     let hashExists = try ImageRecord.filter(ImageRecord.Columns.contentHash == master.contentHash).fetchCount(db) > 0
@@ -261,6 +284,52 @@ extension Catalog {
             let keys = Set(masters.map { ImagePairing.key(forRelativePath: $0.relativePath) })
             result.pairsCreated = try ImagePairing.pair(db, volumeID: volumeID, projectID: projectID, keys: keys)
             return result
+        }
+    }
+}
+
+// MARK: - Metadata refresh
+
+/// A master whose metadata columns were filled by an older reader.
+public struct StaleMetadata: Hashable, Sendable {
+    public var imageID: Int64
+    public var url: URL
+}
+
+extension Catalog {
+    /// Up to `limit` masters on the given (mounted) volumes whose metadata was
+    /// read by an older `ImageMetadata.revision`.
+    public func staleMetadata(onVolumes volumeIDs: Set<Int64>, limit: Int = 64) async throws -> [StaleMetadata] {
+        guard !volumeIDs.isEmpty else { return [] }
+        return try await database.read { db in
+            let volumes = try VolumeRecord.fetchAll(db, keys: Array(volumeIDs))
+            let mountPaths = Dictionary(uniqueKeysWithValues: volumes.compactMap { volume in volume.id.map { ($0, volume) } })
+            let rows = try Row.fetchAll(db, sql: """
+                SELECT id, volumeId, relativePath FROM image
+                WHERE metadataRevision < ? AND volumeId IN (\(databaseQuestionMarks(count: volumeIDs.count)))
+                ORDER BY id LIMIT ?
+                """, arguments: StatementArguments([ImageMetadata.revision as (any DatabaseValueConvertible)?]
+                                                    + volumeIDs.map { $0 } + [limit]))
+            return rows.compactMap { row in
+                guard let volume = mountPaths[row["volumeId"]] else { return nil }
+                return StaleMetadata(imageID: row["id"], url: volume.url(forRelativePath: row["relativePath"]))
+            }
+        }
+    }
+
+    /// Stores freshly read metadata columns. Masters missing from `metadata`
+    /// (unreadable) are marked as read too, so they are not retried forever.
+    public func refreshMetadata(_ metadata: [Int64: ImageMetadata], checked imageIDs: [Int64]) async throws {
+        try await database.write { db in
+            for imageID in imageIDs {
+                guard var image = try ImageRecord.fetchOne(db, key: imageID) else { continue }
+                if let values = metadata[imageID] {
+                    image.applyExtendedMetadata(values)
+                } else {
+                    image.metadataRevision = ImageMetadata.revision
+                }
+                try image.update(db)
+            }
         }
     }
 }

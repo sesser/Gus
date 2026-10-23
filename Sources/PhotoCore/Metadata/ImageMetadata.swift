@@ -21,6 +21,31 @@ public struct ImageMetadata: Hashable, Sendable, Codable {
     /// Millimetres.
     public var focalLength: Double?
 
+    // Descriptive and technical values with their own columns since catalog v4.
+    // Readers set them after `init`.
+
+    public var artist: String?
+    public var copyright: String?
+    public var caption: String?
+    public var cameraSerial: String?
+    /// Degrees; north and east are positive.
+    public var latitude: Double?
+    public var longitude: Double?
+    public var flashFired: Bool?
+    /// EV.
+    public var exposureCompensation: Double?
+    /// EXIF WhiteBalance: 0 auto, 1 manual.
+    public var whiteBalance: Int?
+    /// EXIF ExposureProgram, 0–8 (1 manual, 2 program, 3 aperture priority, 4 shutter priority…).
+    public var exposureProgram: Int?
+    /// EXIF MeteringMode, 0–6 or 255.
+    public var meteringMode: Int?
+    public var focalLength35mm: Double?
+
+    /// What the readers fill in. Masters read with an older revision are read
+    /// again in the background so the newer columns fill in.
+    public static let revision = 2
+
     // Values another app (or the camera) stored in the file. They seed the
     // default version at import; the catalog does not keep them on `image`.
 

@@ -100,6 +100,23 @@ public struct ImageRecord: Codable, Hashable, Sendable, Identifiable, FetchableR
     /// Lowercased relative path without the extension; RAW and JPEG files that
     /// share it (on one volume, in one project) form a pair.
     public var pairingKey: String?
+    public var importRunId: Int64?
+    /// Capture day as `YYYY-MM-DD` in the capture's own time zone.
+    public var localDate: String?
+    public var artist: String?
+    public var copyright: String?
+    public var caption: String?
+    public var cameraSerial: String?
+    public var latitude: Double?
+    public var longitude: Double?
+    public var flashFired: Bool?
+    public var exposureCompensation: Double?
+    public var whiteBalance: Int?
+    public var exposureProgram: Int?
+    public var meteringMode: Int?
+    public var focalLength35mm: Double?
+    /// `ImageMetadata.revision` of the reader that filled the metadata columns.
+    public var metadataRevision: Int
 
     public enum Columns {
         public static let id = Column(CodingKeys.id)
@@ -114,10 +131,41 @@ public struct ImageRecord: Codable, Hashable, Sendable, Identifiable, FetchableR
     public mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
 
     public var metadata: ImageMetadata {
-        ImageMetadata(captureDate: captureDate, captureOffsetSeconds: captureOffsetSeconds,
-                      pixelWidth: pixelWidth, pixelHeight: pixelHeight, orientation: orientation,
-                      cameraMake: cameraMake, cameraModel: cameraModel, lensModel: lensModel,
-                      iso: iso, exposureTime: exposureTime, fNumber: fNumber, focalLength: focalLength)
+        var metadata = ImageMetadata(captureDate: captureDate, captureOffsetSeconds: captureOffsetSeconds,
+                                     pixelWidth: pixelWidth, pixelHeight: pixelHeight, orientation: orientation,
+                                     cameraMake: cameraMake, cameraModel: cameraModel, lensModel: lensModel,
+                                     iso: iso, exposureTime: exposureTime, fNumber: fNumber, focalLength: focalLength)
+        metadata.artist = artist
+        metadata.copyright = copyright
+        metadata.caption = caption
+        metadata.cameraSerial = cameraSerial
+        metadata.latitude = latitude
+        metadata.longitude = longitude
+        metadata.flashFired = flashFired
+        metadata.exposureCompensation = exposureCompensation
+        metadata.whiteBalance = whiteBalance
+        metadata.exposureProgram = exposureProgram
+        metadata.meteringMode = meteringMode
+        metadata.focalLength35mm = focalLength35mm
+        return metadata
+    }
+
+    /// Copies the descriptive and technical columns from `metadata` (not the
+    /// capture date, size or orientation, which are fixed at import).
+    mutating func applyExtendedMetadata(_ metadata: ImageMetadata) {
+        artist = metadata.artist
+        copyright = metadata.copyright
+        caption = metadata.caption
+        cameraSerial = metadata.cameraSerial
+        latitude = metadata.latitude
+        longitude = metadata.longitude
+        flashFired = metadata.flashFired
+        exposureCompensation = metadata.exposureCompensation
+        whiteBalance = metadata.whiteBalance
+        exposureProgram = metadata.exposureProgram
+        meteringMode = metadata.meteringMode
+        focalLength35mm = metadata.focalLength35mm
+        metadataRevision = ImageMetadata.revision
     }
 }
 
@@ -244,6 +292,34 @@ public struct VersionKeywordRecord: Codable, Hashable, Sendable, FetchableRecord
 
     public var versionId: Int64
     public var keywordId: Int64
+}
+
+/// One run of the importer: the masters it added share it, which is what
+/// "Last Import" shows.
+public struct ImportRunRecord: Codable, Hashable, Sendable, Identifiable, FetchableRecord, MutablePersistableRecord {
+    public static let databaseTableName = "importRun"
+
+    public var id: Int64?
+    public var startedAt: Date
+    public var sourcePath: String?
+    public var projectId: Int64?
+
+    public mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
+}
+
+/// A saved query over the library (or one project); `rules` is the JSON of
+/// `SmartAlbumRules`.
+public struct SmartAlbumRecord: Codable, Hashable, Sendable, Identifiable, FetchableRecord, MutablePersistableRecord {
+    public static let databaseTableName = "smartAlbum"
+
+    public var id: Int64?
+    public var uuid: String
+    public var name: String
+    public var projectId: Int64?
+    public var rules: String
+    public var createdAt: Date
+
+    public mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
 }
 
 /// A RAW master and the JPEG or HEIC shot with it. When pairs are grouped, the

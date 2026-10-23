@@ -8,6 +8,7 @@ enum CatalogSchema {
         migrator.registerMigration("v1", migrate: createInitialSchema)
         migrator.registerMigration("v2", migrate: addImagePairs)
         migrator.registerMigration("v3", migrate: addKeywordSuggestions)
+        migrator.registerMigration("v4", migrate: addMetadataAndAlbums)
         return migrator
     }
 
@@ -179,6 +180,63 @@ enum CatalogSchema {
             // a later analysis does not offer the same keyword again.
             t.column("state", .integer).notNull().defaults(to: 0)
             t.primaryKey(["imageId", "name"])
+        }
+    }
+
+    /// More metadata columns, import runs, local capture days, smart albums.
+    /// Existing masters get one import run per project and their local day here;
+    /// the new metadata columns fill in from a background re-read
+    /// (`metadataRevision` 1 means not read yet).
+    private static func addMetadataAndAlbums(_ db: Database) throws {
+        try db.create(table: "importRun") { t in
+            t.autoIncrementedPrimaryKey("id")
+            t.column("startedAt", .datetime).notNull()
+            t.column("sourcePath", .text)
+            t.column("projectId", .integer).indexed()
+                .references("project", onDelete: .setNull)
+        }
+        try db.alter(table: "image") { t in
+            t.add(column: "importRunId", .integer).references("importRun", onDelete: .setNull)
+            t.add(column: "localDate", .text)
+            t.add(column: "artist", .text)
+            t.add(column: "copyright", .text)
+            t.add(column: "caption", .text)
+            t.add(column: "cameraSerial", .text)
+            t.add(column: "latitude", .double)
+            t.add(column: "longitude", .double)
+            t.add(column: "flashFired", .boolean)
+            t.add(column: "exposureCompensation", .double)
+            t.add(column: "whiteBalance", .integer)
+            t.add(column: "exposureProgram", .integer)
+            t.add(column: "meteringMode", .integer)
+            t.add(column: "focalLength35mm", .double)
+            t.add(column: "metadataRevision", .integer).notNull().defaults(to: 1)
+        }
+        try db.create(index: "image_on_localDate", on: "image", columns: ["localDate"])
+        try db.create(index: "image_on_importRunId", on: "image", columns: ["importRunId"])
+        try db.create(table: "smartAlbum") { t in
+            t.autoIncrementedPrimaryKey("id")
+            t.column("uuid", .text).notNull().unique()
+            t.column("name", .text).notNull()
+            t.column("projectId", .integer).indexed()
+                .references("project", onDelete: .cascade)
+            t.column("rules", .text).notNull()
+            t.column("createdAt", .datetime).notNull()
+        }
+
+        try db.execute(sql: """
+            INSERT INTO importRun (startedAt, sourcePath, projectId)
+            SELECT createdAt, sourcePath, id FROM project ORDER BY createdAt, id
+            """)
+        try db.execute(sql: """
+            UPDATE image SET importRunId = (SELECT id FROM importRun WHERE importRun.projectId = image.projectId)
+            """)
+        let update = try db.makeStatement(sql: "UPDATE image SET localDate = ? WHERE id = ?")
+        let rows = try Row.fetchCursor(db, sql: "SELECT id, captureDate, captureOffsetSeconds, modifiedAt FROM image")
+        while let row = try rows.next() {
+            let day = LocalDate.string(captureDate: row["captureDate"], offset: row["captureOffsetSeconds"],
+                                       fallback: row["modifiedAt"])
+            try update.execute(arguments: [day, row["id"] as Int64])
         }
     }
 }
