@@ -48,7 +48,7 @@ public struct PreviewCacheKey: Hashable, Sendable, CustomStringConvertible {
         self.pipelineVersion = pipelineVersion
     }
 
-    public init?(item: LibraryItem, tier: PreviewTier) {
+    public init?(item: CatalogItem, tier: PreviewTier) {
         self.init(contentHash: item.contentHash, editStackHash: item.editStackHash, tier: tier)
     }
 

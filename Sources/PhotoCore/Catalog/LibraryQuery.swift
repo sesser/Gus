@@ -36,7 +36,7 @@ public struct LibraryFilter: Hashable, Sendable {
     }
 
     /// True when `item` passes the rating and flag rules (scope is not checked).
-    public func matchesCulling(_ item: LibraryItem) -> Bool {
+    public func matchesCulling(_ item: CatalogItem) -> Bool {
         let ratingOK: Bool = switch rating {
         case .any: true
         case .unrated: item.rating == .unrated
@@ -56,7 +56,7 @@ public struct LibraryFilter: Hashable, Sendable {
 
 /// A compact row for the browser: everything a grid cell and the preview pipeline
 /// need, nothing more, so that 50k of them stay cheap to fetch and hold.
-public struct LibraryItem: Hashable, Sendable, Identifiable {
+public struct CatalogItem: Hashable, Sendable, Identifiable {
     public let versionID: Int64
     public let imageID: Int64
     public let volumeID: Int64
@@ -85,7 +85,7 @@ public struct LibraryItem: Hashable, Sendable, Identifiable {
 
 extension Catalog {
     /// Versions matching `filter`, in capture order.
-    public func libraryItems(matching filter: LibraryFilter) async throws -> [LibraryItem] {
+    public func libraryItems(matching filter: LibraryFilter) async throws -> [CatalogItem] {
         var clauses: [String] = []
         var arguments = StatementArguments()
         switch filter.scope {
@@ -129,10 +129,10 @@ extension Catalog {
             """
         let finalArguments = arguments
         return try await database.read { db in
-            var items: [LibraryItem] = []
+            var items: [CatalogItem] = []
             let rows = try Row.fetchCursor(db, sql: sql, arguments: finalArguments)
             while let row = try rows.next() {
-                items.append(LibraryItem(
+                items.append(CatalogItem(
                     versionID: row[0], imageID: row[1], volumeID: row[2],
                     rating: Rating(clamping: row[3]),
                     flag: Flag(rawValue: row[4]) ?? .none,

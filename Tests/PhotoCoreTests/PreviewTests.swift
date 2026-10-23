@@ -44,8 +44,8 @@ struct PreviewCacheKeyTests {
         #expect(PreviewCacheKey(contentHash: hashA, editStackHash: hashA, tier: .thumbnail, pipelineVersion: 0) == nil)
     }
 
-    @Test func keysComeFromLibraryItems() throws {
-        let item = LibraryItem(versionID: 1, imageID: 1, volumeID: 1, rating: .unrated, flag: .none, colorLabel: .none,
+    @Test func keysComeFromCatalogItems() throws {
+        let item = CatalogItem(versionID: 1, imageID: 1, volumeID: 1, rating: .unrated, flag: .none, colorLabel: .none,
                                contentHash: hashA, editStackHash: hashB, relativePath: "a.jpg",
                                pixelWidth: 10, pixelHeight: 10, orientation: 1)
         #expect(PreviewCacheKey(item: item, tier: .preview)

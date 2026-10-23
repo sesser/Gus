@@ -1,13 +1,13 @@
 import CryptoKit
 import Foundation
 
-enum Digest {
+public enum Digest {
     /// Lowercase hex SHA-256 of `data`.
-    static func sha256Hex(_ data: some DataProtocol) -> String {
+    public static func sha256Hex(_ data: some DataProtocol) -> String {
         SHA256.hash(data: data).hexString
     }
 
-    static func sha256Hex(_ string: String) -> String {
+    public static func sha256Hex(_ string: String) -> String {
         sha256Hex(Data(string.utf8))
     }
 }

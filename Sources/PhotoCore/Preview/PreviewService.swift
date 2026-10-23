@@ -44,7 +44,8 @@ public final class PreviewService: Sendable {
 
         var taskPriority: TaskPriority {
             switch self {
-            case .background: .background
+            // Background QoS is throttled hard on macOS; utility still yields to the UI.
+            case .background: .utility
             case .prefetch: .utility
             case .visible: .userInitiated
             }
@@ -125,6 +126,7 @@ public final class PreviewService: Sendable {
     }
 
     /// Makes sure the rendition exists on disk, without decoding it for display.
+    /// Generating the loupe tier also writes the grid thumbnail from the same decode.
     public func prepare(_ request: PreviewRequest, priority: Priority = .background) async throws {
         if cache.contains(request.key) { return }
         guard let source = request.sourceURL else { throw Failure.sourceUnavailable }
@@ -138,8 +140,16 @@ public final class PreviewService: Sendable {
             if cache.contains(key) { return true }
             let stack = try await loadStack(versionID)
             try Task.checkCancellation()
-            let data = try generator.jpegData(source: source, stack: stack, tier: key.tier)
-            try cache.store(data, for: key)
+            var keys = [key.tier: key]
+            if key.tier == .preview,
+               let thumbnail = PreviewCacheKey(contentHash: key.contentHash, editStackHash: key.editStackHash,
+                                               tier: .thumbnail, pipelineVersion: key.pipelineVersion),
+               !cache.contains(thumbnail) {
+                keys[.thumbnail] = thumbnail
+            }
+            for (tier, data) in try generator.jpegData(source: source, stack: stack, tiers: Set(keys.keys)) {
+                if let tierKey = keys[tier] { try cache.store(data, for: tierKey) }
+            }
             return true
         }
     }

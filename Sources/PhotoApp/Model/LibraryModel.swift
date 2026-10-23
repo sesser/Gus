@@ -1,0 +1,443 @@
+import AppKit
+import Observation
+import PhotoCore
+import os
+
+/// Receives changes to the browser's item list. The grid uses this instead of
+/// SwiftUI diffing so that a rating change touches one cell, not 50k.
+@MainActor
+protocol LibraryItemsObserver: AnyObject {
+    /// The list was replaced (filter, scope or import).
+    func libraryItemsReloaded()
+    /// Items changed in place (culling values).
+    func libraryItemsChanged(at indices: IndexSet)
+    /// Focus or selection was moved by something other than the grid itself.
+    func libraryFocusChanged()
+    /// Volumes came or went.
+    func libraryAvailabilityChanged()
+}
+
+enum SidebarSelection: Hashable {
+    case allPhotos
+    case project(Int64)
+}
+
+enum BrowserMode: Hashable {
+    case grid
+    case loupe
+}
+
+/// State of the library window: what is shown, what is selected, and the work in
+/// flight (imports, preview warming, catalog writes).
+@MainActor
+@Observable
+final class LibraryModel {
+    let locations: LibraryLocations
+    let catalog: Catalog
+    let importer: Importer
+    let previews: PreviewService
+
+    // MARK: Sidebar and filters
+
+    private(set) var projects: [ProjectSummary] = []
+    private(set) var libraryCount = 0
+
+    var sidebarSelection: SidebarSelection = .allPhotos {
+        didSet { if oldValue != sidebarSelection { reloadItems(keepFocus: false) } }
+    }
+    var ratingRule: LibraryFilter.RatingRule = .any {
+        didSet { if oldValue != ratingRule { reloadItems(keepFocus: true) } }
+    }
+    var flagRule: LibraryFilter.FlagRule = .any {
+        didSet { if oldValue != flagRule { reloadItems(keepFocus: true) } }
+    }
+
+    var filter: LibraryFilter {
+        let scope: LibraryFilter.Scope = switch sidebarSelection {
+        case .allPhotos: .allPhotos
+        case .project(let id): .project(id)
+        }
+        return LibraryFilter(scope: scope, rating: ratingRule, flag: flagRule)
+    }
+
+    var isFiltered: Bool { ratingRule != .any || flagRule != .any }
+
+    // MARK: Items, focus, selection
+
+    /// Not observed: the grid is told about changes through `observer`.
+    @ObservationIgnored private(set) var items: [CatalogItem] = []
+    /// Observed stand-in for `items` for SwiftUI views (counts, titles).
+    private(set) var itemsRevision = 0
+    private(set) var focusIndex: Int?
+    @ObservationIgnored private(set) var selection = IndexSet()
+    var mode: BrowserMode = .grid
+
+    var focusedItem: CatalogItem? {
+        _ = itemsRevision
+        guard let focusIndex, items.indices.contains(focusIndex) else { return nil }
+        return items[focusIndex]
+    }
+
+    var itemCount: Int {
+        _ = itemsRevision
+        return items.count
+    }
+
+    // MARK: Preferences
+
+    var thumbnailSize: Double {
+        didSet { UserDefaults.standard.set(thumbnailSize, forKey: Self.thumbnailSizeKey) }
+    }
+    var autoAdvance: Bool {
+        didSet { UserDefaults.standard.set(autoAdvance, forKey: Self.autoAdvanceKey) }
+    }
+    static let thumbnailSizeRange = 80.0...360.0
+    private static let thumbnailSizeKey = "browser.thumbnailSize"
+    private static let autoAdvanceKey = "culling.autoAdvance"
+
+    // MARK: Background work
+
+    private(set) var importProgress: ImportProgress?
+    private(set) var warming: (done: Int, total: Int)?
+    var statusMessage: String?
+    private(set) var onlineVolumeIDs: Set<Int64> = []
+
+    @ObservationIgnored weak var observer: LibraryItemsObserver?
+    @ObservationIgnored private var volumesByID: [Int64: VolumeRecord] = [:]
+    @ObservationIgnored private var reloadTask: Task<Void, Never>?
+    @ObservationIgnored private var importTask: Task<Void, Never>?
+    @ObservationIgnored private var warmTask: Task<Void, Never>?
+    @ObservationIgnored private var writeChain: Task<Void, Never>?
+    @ObservationIgnored private var lastLiveRefresh = Date.distantPast
+    @ObservationIgnored private var started = false
+    @ObservationIgnored private var volumeObservers: [any NSObjectProtocol] = []
+
+    private static let log = Logger(subsystem: AppBranding.bundleIdentifier, category: "library")
+
+    init(locations: LibraryLocations, catalog: Catalog, importer: Importer, previews: PreviewService) {
+        self.locations = locations
+        self.catalog = catalog
+        self.importer = importer
+        self.previews = previews
+        let defaults = UserDefaults.standard
+        let size = defaults.double(forKey: Self.thumbnailSizeKey)
+        thumbnailSize = Self.thumbnailSizeRange.contains(size) ? size : 180
+        autoAdvance = defaults.bool(forKey: Self.autoAdvanceKey)
+    }
+
+    /// Opens the catalog at the standard location (or `--library-root`).
+    static func open(options: LaunchOptions = .current) throws -> LibraryModel {
+        let locations: LibraryLocations
+        if let root = options.libraryRoot {
+            locations = .rooted(at: root)
+        } else {
+            try DataDirectoryMigrator.migrateStandardLocations()
+            locations = try .standard()
+        }
+        try locations.createDirectories()
+        let catalog = try Catalog.open(at: locations.catalogFileURL)
+        let importer = Importer(catalog: catalog, metadataReader: MetadataReaders.makeDefault())
+        let previews = PreviewService(cacheDirectory: locations.previewCacheDirectory, catalog: catalog)
+        previews.cache.removeObsoletePipelineVersions()
+        return LibraryModel(locations: locations, catalog: catalog, importer: importer, previews: previews)
+    }
+
+    func start() async {
+        guard !started else { return }
+        started = true
+        observeVolumes()
+        await refreshVolumes()
+        await refreshProjects()
+        reloadItems(keepFocus: false)
+    }
+
+    // MARK: Loading
+
+    func reloadItems(keepFocus: Bool) {
+        reloadTask?.cancel()
+        let filter = self.filter
+        let catalog = self.catalog
+        reloadTask = Task {
+            do {
+                let items = try await catalog.libraryItems(matching: filter)
+                guard !Task.isCancelled else { return }
+                apply(items, keepFocus: keepFocus)
+            } catch is CancellationError {
+            } catch {
+                Self.log.error("Loading items failed: \(error.localizedDescription, privacy: .public)")
+                statusMessage = String(localized: "Could not load photos: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func apply(_ newItems: [CatalogItem], keepFocus: Bool) {
+        let previousID = keepFocus ? focusedItem?.versionID : nil
+        items = newItems
+        if let previousID, let index = newItems.firstIndex(where: { $0.versionID == previousID }) {
+            focusIndex = index
+        } else {
+            focusIndex = newItems.isEmpty ? nil : 0
+        }
+        selection = focusIndex.map { IndexSet(integer: $0) } ?? []
+        if items.isEmpty { mode = .grid }
+        itemsRevision += 1
+        observer?.libraryItemsReloaded()
+    }
+
+    func refreshProjects() async {
+        do {
+            projects = try await catalog.projectSummaries()
+            libraryCount = try await catalog.versionCount()
+        } catch {
+            Self.log.error("Loading projects failed: \(error.localizedDescription, privacy: .public)")
+        }
+        if case .project(let id) = sidebarSelection, !projects.contains(where: { $0.id == id }) {
+            sidebarSelection = .allPhotos
+        }
+    }
+
+    // MARK: Volumes
+
+    func refreshVolumes() async {
+        let mounted = await Task.detached(priority: .utility) { VolumeAvailability.mountedVolumes() }.value
+        do {
+            let online = try await catalog.refreshVolumeAvailability(mounted: mounted)
+            let volumes = try await catalog.volumes()
+            volumesByID = Dictionary(uniqueKeysWithValues: volumes.compactMap { volume in volume.id.map { ($0, volume) } })
+            if online != onlineVolumeIDs {
+                onlineVolumeIDs = online
+                observer?.libraryAvailabilityChanged()
+            }
+        } catch {
+            Self.log.error("Refreshing volumes failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private func observeVolumes() {
+        let center = NSWorkspace.shared.notificationCenter
+        for name in [NSWorkspace.didMountNotification, NSWorkspace.didUnmountNotification,
+                     NSWorkspace.didRenameVolumeNotification] {
+            volumeObservers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                Task { @MainActor in await self?.refreshVolumes() }
+            })
+        }
+    }
+
+    func isOffline(_ item: CatalogItem) -> Bool {
+        !onlineVolumeIDs.contains(item.volumeID)
+    }
+
+    /// The master's location, or nil while its volume is offline.
+    func sourceURL(for item: CatalogItem) -> URL? {
+        guard !isOffline(item), let volume = volumesByID[item.volumeID] else { return nil }
+        return volume.url(forRelativePath: item.relativePath)
+    }
+
+    func volumeName(for item: CatalogItem) -> String? {
+        volumesByID[item.volumeID]?.name
+    }
+
+    func previewRequest(for item: CatalogItem, tier: PreviewTier) -> PreviewRequest? {
+        guard let key = PreviewCacheKey(item: item, tier: tier) else { return nil }
+        return PreviewRequest(versionID: item.versionID, key: key, sourceURL: sourceURL(for: item))
+    }
+
+    // MARK: Focus and selection
+
+    /// Called by the grid when the person changes the selection with the mouse.
+    func gridSelectionChanged(_ newSelection: IndexSet, focus: Int?) {
+        selection = newSelection
+        if let focus {
+            focusIndex = focus
+        } else if let current = focusIndex, !newSelection.contains(current) {
+            focusIndex = newSelection.first
+        }
+    }
+
+    /// Moves focus and selection; `extend` grows the selection instead (shift).
+    func setFocus(_ index: Int, extend: Bool = false, notify: Bool = true) {
+        guard items.indices.contains(index) else { return }
+        if extend, let anchor = focusIndex {
+            selection.insert(integersIn: min(anchor, index)...max(anchor, index))
+        } else {
+            selection = IndexSet(integer: index)
+        }
+        focusIndex = index
+        if notify { observer?.libraryFocusChanged() }
+    }
+
+    func moveFocus(by delta: Int) {
+        guard !items.isEmpty else { return }
+        let current = focusIndex ?? 0
+        setFocus(min(max(current + delta, 0), items.count - 1))
+    }
+
+    func openLoupe(at index: Int? = nil) {
+        if let index { setFocus(index) }
+        guard focusIndex != nil else { return }
+        mode = .loupe
+    }
+
+    func closeLoupe() {
+        mode = .grid
+        observer?.libraryFocusChanged()
+    }
+
+    // MARK: Culling
+
+    /// Applies the action to the selection (grid) or the photo on screen (loupe)
+    /// and saves it right away. Saves are chained so they reach the catalog in
+    /// the order they were made.
+    func perform(_ action: CullingAction) {
+        let targets: IndexSet = if mode == .loupe || selection.isEmpty {
+            focusIndex.map { IndexSet(integer: $0) } ?? []
+        } else {
+            selection
+        }
+        guard !targets.isEmpty else { return }
+        let catalog = self.catalog
+
+        switch action {
+        case .setRating(let rating):
+            for index in targets { items[index].rating = rating }
+            let ids = targets.map { items[$0].versionID }
+            persist { try await catalog.setRating(rating, forVersions: ids) }
+        case .adjustRating(let delta):
+            var groups: [Rating: [Int64]] = [:]
+            for index in targets {
+                let rating = Rating(clamping: items[index].rating.rawValue + delta)
+                items[index].rating = rating
+                groups[rating, default: []].append(items[index].versionID)
+            }
+            let changes = groups
+            persist {
+                for (rating, ids) in changes { try await catalog.setRating(rating, forVersions: ids) }
+            }
+        case .setFlag(let flag):
+            for index in targets { items[index].flag = flag }
+            let ids = targets.map { items[$0].versionID }
+            persist { try await catalog.setFlag(flag, forVersions: ids) }
+        case .setColorLabel(let label):
+            for index in targets { items[index].colorLabel = label }
+            let ids = targets.map { items[$0].versionID }
+            persist { try await catalog.setColorLabel(label, forVersions: ids) }
+        }
+        itemsRevision += 1
+        observer?.libraryItemsChanged(at: targets)
+
+        if autoAdvance, targets.count == 1, let focusIndex, focusIndex + 1 < items.count {
+            setFocus(focusIndex + 1)
+        }
+    }
+
+    private func persist(_ work: @escaping @Sendable () async throws -> Void) {
+        let previous = writeChain
+        writeChain = Task {
+            await previous?.value
+            do {
+                try await work()
+            } catch {
+                Self.log.error("Saving failed: \(error.localizedDescription, privacy: .public)")
+                statusMessage = String(localized: "Could not save the change: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    // MARK: Import
+
+    var isImporting: Bool { importProgress != nil }
+
+    func importFolder(_ folder: URL) {
+        guard importTask == nil else { return }
+        importProgress = ImportProgress(phase: .scanning)
+        statusMessage = nil
+        let importer = self.importer
+        importTask = Task {
+            defer { importTask = nil }
+            do {
+                let summary = try await importer.importFolder(folder) { progress in
+                    Task { @MainActor in self.importDidProgress(progress) }
+                }
+                importProgress = nil
+                await finishImport(summary)
+            } catch is CancellationError {
+                importProgress = nil
+                statusMessage = String(localized: "Import cancelled.")
+                await refreshProjects()
+                reloadItems(keepFocus: true)
+            } catch {
+                importProgress = nil
+                Self.log.error("Import failed: \(error.localizedDescription, privacy: .public)")
+                statusMessage = String(localized: "Import failed: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    func cancelImport() {
+        importTask?.cancel()
+    }
+
+    private func importDidProgress(_ progress: ImportProgress) {
+        guard importTask != nil, progress.filesProcessed >= (importProgress?.filesProcessed ?? 0) else { return }
+        importProgress = progress
+        // Let the library fill in while a long import runs.
+        if Date().timeIntervalSince(lastLiveRefresh) > 1.5, progress.imported > 0 {
+            lastLiveRefresh = Date()
+            Task {
+                await refreshProjects()
+                if sidebarSelection == .allPhotos { reloadItems(keepFocus: true) }
+            }
+        }
+    }
+
+    private func finishImport(_ summary: ImportSummary) async {
+        await refreshVolumes()
+        await refreshProjects()
+        let progress = summary.progress
+        let skipped = progress.duplicates + progress.alreadyInCatalog
+        let failed = progress.failed + progress.changedOnDisk
+        statusMessage = failed > 0
+            ? String(localized: "Imported: \(progress.imported). Already in the library: \(skipped). Could not import: \(failed).")
+            : String(localized: "Imported: \(progress.imported). Already in the library: \(skipped).")
+        if let projectID = summary.project?.id {
+            if sidebarSelection == .project(projectID) {
+                reloadItems(keepFocus: true)
+            } else {
+                sidebarSelection = .project(projectID)
+            }
+            warmPreviews(projectID: projectID)
+        } else {
+            reloadItems(keepFocus: true)
+        }
+    }
+
+    /// Renders previews for a freshly imported project in the background. Visible
+    /// thumbnails still jump the queue.
+    func warmPreviews(projectID: Int64) {
+        warmTask?.cancel()
+        let catalog = self.catalog
+        let previews = self.previews
+        warmTask = Task {
+            guard let items = try? await catalog.libraryItems(matching: LibraryFilter(scope: .project(projectID))) else { return }
+            let requests = items.compactMap { previewRequest(for: $0, tier: .preview) }.filter { $0.sourceURL != nil }
+            warming = (0, requests.count)
+            var done = 0
+            await withTaskGroup(of: Void.self) { group in
+                var pending = requests.makeIterator()
+                for _ in 0..<4 {
+                    guard let request = pending.next() else { break }
+                    group.addTask { try? await previews.prepare(request, priority: .background) }
+                }
+                for await _ in group {
+                    done += 1
+                    if done.isMultiple(of: 8) || done == requests.count { warming = (done, requests.count) }
+                    if Task.isCancelled { group.cancelAll(); break }
+                    if let request = pending.next() {
+                        group.addTask { try? await previews.prepare(request, priority: .background) }
+                    }
+                }
+            }
+            warming = nil
+        }
+    }
+}

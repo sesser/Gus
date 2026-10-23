@@ -267,6 +267,11 @@ extension Catalog {
         }
     }
 
+    /// Every master, for tooling. The app never needs all of them at once.
+    public func allImages() async throws -> [ImageRecord] {
+        try await database.read { db in try ImageRecord.fetchAll(db) }
+    }
+
     public func details(forVersion id: Int64) async throws -> VersionDetails? {
         try await database.read { db in
             guard let version = try VersionRecord.fetchOne(db, key: id),

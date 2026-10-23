@@ -34,6 +34,10 @@ public struct ImportProgress: Sendable, Equatable {
     /// A catalogued path whose content changed on disk. Skipped in phase 1.
     public var changedOnDisk = 0
     public var failed = 0
+
+    public init(phase: Phase) {
+        self.phase = phase
+    }
 }
 
 public struct ImportFailure: Sendable, Equatable {

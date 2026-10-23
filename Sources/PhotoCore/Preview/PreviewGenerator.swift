@@ -33,9 +33,22 @@ public struct PreviewGenerator: Sendable {
 
     /// Encoded rendition for the disk cache.
     public func jpegData(source: URL, stack: EditStack, tier: PreviewTier) throws -> Data {
-        let image = try image(source: source, stack: stack, longEdge: tier.longEdge, draft: tier.allowsDraftDecode)
-        guard let data = engine.jpegData(image, quality: jpegQuality) else { throw Failure.renderFailed }
+        guard let data = try jpegData(source: source, stack: stack, tiers: [tier])[tier] else { throw Failure.renderFailed }
         return data
+    }
+
+    /// Several tiers from a single decode at the largest tier's size.
+    public func jpegData(source: URL, stack: EditStack, tiers: Set<PreviewTier>) throws -> [PreviewTier: Data] {
+        guard let largest = tiers.max(by: { $0.longEdge < $1.longEdge }) else { return [:] }
+        let base = try image(source: source, stack: stack, longEdge: largest.longEdge,
+                             draft: tiers.allSatisfy(\.allowsDraftDecode))
+        var result: [PreviewTier: Data] = [:]
+        for tier in tiers {
+            let scaled = tier == largest ? base : base.scaledToFit(longEdge: tier.longEdge)
+            guard let data = engine.jpegData(scaled, quality: jpegQuality) else { throw Failure.renderFailed }
+            result[tier] = data
+        }
+        return result
     }
 
     /// Full-resolution (or capped) rendition for 1:1 viewing.
