@@ -28,6 +28,10 @@ let package = Package(
         ),
         .executableTarget(
             name: "PhotoBench",
+            dependencies: ["PhotoCore", "PhotoFixtures"]
+        ),
+        .target(
+            name: "PhotoFixtures",
             dependencies: ["PhotoCore"]
         ),
         .executableTarget(
@@ -35,7 +39,7 @@ let package = Package(
         ),
         .testTarget(
             name: "PhotoCoreTests",
-            dependencies: ["PhotoCore"]
+            dependencies: ["PhotoCore", "PhotoFixtures"]
         ),
     ]
 )
