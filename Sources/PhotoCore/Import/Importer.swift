@@ -129,6 +129,21 @@ public final class Importer: Sendable {
                              insertedVersionIDs: run.insertedVersionIDs, timings: timings)
     }
 
+    /// The sidecar next to a master (`IMG_1.xmp` or `IMG_1.CR3.xmp`), if it
+    /// exists and parses.
+    static func readSidecar(for url: URL) -> SidecarRead? {
+        let name = url.lastPathComponent
+        let names = SidecarFiles.candidateNames(forMaster: name,
+                                                preferred: SidecarFiles.preferredName(forMaster: name, stemIsShared: false))
+        guard let found = SidecarFiles.locate(in: url.deletingLastPathComponent(), names: names) else { return nil }
+        do {
+            return try SidecarFiles.read(found.url)
+        } catch {
+            log.error("Ignoring unreadable sidecar \(found.url.path, privacy: .public): \(String(describing: error), privacy: .public)")
+            return nil
+        }
+    }
+
     static func defaultProjectName(for folder: URL) -> String {
         let name = folder.lastPathComponent
         return name.isEmpty || name == "/" ? folder.path : name
@@ -233,7 +248,7 @@ public final class Importer: Sendable {
             let masters = newMasters.map { candidate in
                 NewMaster(relativePath: candidate.relativePath, fileSize: candidate.file.fileSize,
                           modifiedAt: candidate.file.modifiedAt, contentHash: candidate.hash,
-                          metadata: metadata[candidate.file.url] ?? .empty)
+                          metadata: metadata[candidate.file.url] ?? .empty, sidecar: Self.readSidecar(for: candidate.file.url))
             }
             let result = try await catalog.insertMasters(masters, volumeID: volumeID, projectID: run.project!.id!,
                                                          importRunID: run.importRun?.id)

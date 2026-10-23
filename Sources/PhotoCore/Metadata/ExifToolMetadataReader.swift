@@ -18,6 +18,8 @@ public actor ExifToolMetadataReader: MetadataReader {
         "Artist", "Creator", "Copyright", "Rights", "ImageDescription", "Description", "Caption-Abstract",
         "SerialNumber", "InternalSerialNumber", "Composite:GPSLatitude", "Composite:GPSLongitude",
         "Flash", "ExposureCompensation", "WhiteBalance", "ExposureProgram", "MeteringMode", "FocalLengthIn35mmFormat",
+        "UsageTerms", "CreatorWorkEmail", "CreatorWorkTelephone", "CreatorWorkURL", "CreatorAddress", "CreatorCity",
+        "CreatorRegion", "CreatorPostalCode", "CreatorCountry",
     ]
 
     public enum Failure: Error {
@@ -188,6 +190,12 @@ public actor ExifToolMetadataReader: MetadataReader {
         metadata.exposureProgram = int("ExposureProgram")
         metadata.meteringMode = int("MeteringMode")
         metadata.focalLength35mm = double("FocalLengthIn35mmFormat")
+        metadata.usageTerms = string("UsageTerms")
+        let contact = CreatorContact(email: string("CreatorWorkEmail"), phone: string("CreatorWorkTelephone"),
+                                     url: string("CreatorWorkURL"), address: string("CreatorAddress"),
+                                     city: string("CreatorCity"), region: string("CreatorRegion"),
+                                     postalCode: string("CreatorPostalCode"), country: string("CreatorCountry"))
+        metadata.creatorContact = contact.isEmpty ? nil : contact
         return metadata
     }
 }

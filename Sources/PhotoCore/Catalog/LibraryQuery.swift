@@ -14,6 +14,8 @@ public struct LibraryFilter: Hashable, Sendable {
         case importRun(Int64)
         /// Capture days from `start` up to, not including, `end` (`YYYY-MM-DD`).
         case captureDays(start: String, end: String)
+        /// Photos whose sidecar or file another app changed, waiting for review.
+        case changedOnDisk
     }
 
     public enum RatingRule: Hashable, Sendable {
@@ -143,6 +145,9 @@ extension Catalog {
         case .captureDays(let start, let end):
             clauses.append("image.localDate >= ? AND image.localDate < ?")
             arguments += [start, end]
+        case .changedOnDisk:
+            let owners = "SELECT imageId FROM metadataSync WHERE status = \(MetadataSyncRecord.Status.changedOnDisk.rawValue)"
+            clauses.append("(image.id IN (\(owners)) OR image.id IN (SELECT companionImageId FROM imagePair WHERE rawImageId IN (\(owners))))")
         }
         switch filter.rating {
         case .any:

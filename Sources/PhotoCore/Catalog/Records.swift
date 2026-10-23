@@ -117,6 +117,9 @@ public struct ImageRecord: Codable, Hashable, Sendable, Identifiable, FetchableR
     public var focalLength35mm: Double?
     /// `ImageMetadata.revision` of the reader that filled the metadata columns.
     public var metadataRevision: Int
+    /// JSON of `CreatorContact`.
+    public var creatorContact: String?
+    public var usageTerms: String?
 
     public enum Columns {
         public static let id = Column(CodingKeys.id)
@@ -129,6 +132,13 @@ public struct ImageRecord: Codable, Hashable, Sendable, Identifiable, FetchableR
     }
 
     public mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
+
+    static func contactJSON(_ contact: CreatorContact) -> String? {
+        guard !contact.isEmpty else { return nil }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return (try? encoder.encode(contact)).map { String(decoding: $0, as: UTF8.self) }
+    }
 
     public var metadata: ImageMetadata {
         var metadata = ImageMetadata(captureDate: captureDate, captureOffsetSeconds: captureOffsetSeconds,
@@ -147,6 +157,8 @@ public struct ImageRecord: Codable, Hashable, Sendable, Identifiable, FetchableR
         metadata.exposureProgram = exposureProgram
         metadata.meteringMode = meteringMode
         metadata.focalLength35mm = focalLength35mm
+        metadata.creatorContact = creatorContact.flatMap { try? JSONDecoder().decode(CreatorContact.self, from: Data($0.utf8)) }
+        metadata.usageTerms = usageTerms
         return metadata
     }
 
@@ -165,6 +177,8 @@ public struct ImageRecord: Codable, Hashable, Sendable, Identifiable, FetchableR
         exposureProgram = metadata.exposureProgram
         meteringMode = metadata.meteringMode
         focalLength35mm = metadata.focalLength35mm
+        creatorContact = metadata.creatorContact.flatMap(Self.contactJSON)
+        usageTerms = metadata.usageTerms
         metadataRevision = ImageMetadata.revision
     }
 }
@@ -320,6 +334,36 @@ public struct SmartAlbumRecord: Codable, Hashable, Sendable, Identifiable, Fetch
     public var createdAt: Date
 
     public mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
+}
+
+/// Sidecar bookkeeping for one master (see the v5 migration).
+public struct MetadataSyncRecord: Codable, Hashable, Sendable, FetchableRecord, PersistableRecord {
+    public static let databaseTableName = "metadataSync"
+
+    public enum Status: Int, Codable, Sendable {
+        case inStep = 0
+        case changedOnDisk = 1
+        case writeFailed = 2
+    }
+
+    public enum Source: Int, Codable, Sendable {
+        case sidecar = 0
+        case embedded = 1
+    }
+
+    public var imageId: Int64
+    public var sidecarName: String?
+    public var sidecarSize: Int64?
+    public var sidecarModifiedAt: Date?
+    public var sidecarDigest: String?
+    /// JSON of the `SidecarValues` last read or written.
+    public var baseline: String
+    public var status: Status
+    /// JSON of the `SidecarValues` found on disk, while `status` is `changedOnDisk`.
+    public var diskValues: String?
+    public var diskSource: Source
+    public var checkedAt: Date?
+    public var error: String?
 }
 
 /// A RAW master and the JPEG or HEIC shot with it. When pairs are grouped, the

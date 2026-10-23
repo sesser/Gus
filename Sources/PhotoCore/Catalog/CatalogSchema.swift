@@ -9,6 +9,7 @@ enum CatalogSchema {
         migrator.registerMigration("v2", migrate: addImagePairs)
         migrator.registerMigration("v3", migrate: addKeywordSuggestions)
         migrator.registerMigration("v4", migrate: addMetadataAndAlbums)
+        migrator.registerMigration("v5", migrate: addSidecarSync)
         return migrator
     }
 
@@ -238,5 +239,71 @@ enum CatalogSchema {
                                        fallback: row["modifiedAt"])
             try update.execute(arguments: [day, row["id"] as Int64])
         }
+    }
+
+    /// XMP sidecar bookkeeping.
+    ///
+    /// `metadataSync` holds, per master that owns a sidecar (a pair's RAW, or a
+    /// single master), what the file looked like when the app last read or
+    /// wrote it, the values at that moment (the baseline), and a status.
+    /// `sidecarQueue` lists masters whose values changed since; triggers fill
+    /// it, so every path that changes culling, keywords or descriptive fields
+    /// (including undo) is covered.
+    private static func addSidecarSync(_ db: Database) throws {
+        try db.alter(table: "image") { t in
+            t.add(column: "creatorContact", .text)
+            t.add(column: "usageTerms", .text)
+        }
+        try db.create(table: "metadataSync") { t in
+            t.primaryKey("imageId", .integer)
+                .references("image", onDelete: .cascade)
+            t.column("sidecarName", .text)
+            t.column("sidecarSize", .integer)
+            t.column("sidecarModifiedAt", .datetime)
+            t.column("sidecarDigest", .text)
+            t.column("baseline", .text).notNull()
+            // 0 in step, 1 changed outside the app (waiting for review), 2 write failed.
+            t.column("status", .integer).notNull().defaults(to: 0)
+            t.column("diskValues", .text)
+            // 0 the sidecar, 1 metadata embedded in the master.
+            t.column("diskSource", .integer).notNull().defaults(to: 0)
+            t.column("checkedAt", .datetime)
+            t.column("error", .text)
+        }
+        try db.create(index: "metadataSync_on_status", on: "metadataSync", columns: ["status"])
+        try db.create(table: "sidecarQueue") { t in
+            t.primaryKey("imageId", .integer)
+        }
+        try db.execute(sql: """
+            CREATE TRIGGER sidecar_culling AFTER UPDATE OF rating, flag, colorLabel ON version
+            WHEN NEW.isDefault AND (OLD.rating IS NOT NEW.rating OR OLD.flag IS NOT NEW.flag
+                                    OR OLD.colorLabel IS NOT NEW.colorLabel)
+            BEGIN INSERT OR IGNORE INTO sidecarQueue (imageId) VALUES (NEW.imageId); END;
+
+            CREATE TRIGGER sidecar_keyword_added AFTER INSERT ON versionKeyword
+            BEGIN
+                INSERT OR IGNORE INTO sidecarQueue (imageId)
+                SELECT imageId FROM version WHERE id = NEW.versionId AND isDefault;
+            END;
+
+            CREATE TRIGGER sidecar_keyword_removed AFTER DELETE ON versionKeyword
+            BEGIN
+                INSERT OR IGNORE INTO sidecarQueue (imageId)
+                SELECT imageId FROM version WHERE id = OLD.versionId AND isDefault;
+            END;
+
+            CREATE TRIGGER sidecar_keyword_renamed AFTER UPDATE OF name ON keyword
+            WHEN OLD.name IS NOT NEW.name
+            BEGIN
+                INSERT OR IGNORE INTO sidecarQueue (imageId)
+                SELECT version.imageId FROM versionKeyword JOIN version ON version.id = versionKeyword.versionId
+                WHERE versionKeyword.keywordId = NEW.id AND version.isDefault;
+            END;
+
+            CREATE TRIGGER sidecar_description AFTER UPDATE OF artist, copyright, caption, usageTerms, creatorContact ON image
+            WHEN OLD.artist IS NOT NEW.artist OR OLD.copyright IS NOT NEW.copyright OR OLD.caption IS NOT NEW.caption
+                 OR OLD.usageTerms IS NOT NEW.usageTerms OR OLD.creatorContact IS NOT NEW.creatorContact
+            BEGIN INSERT OR IGNORE INTO sidecarQueue (imageId) VALUES (NEW.id); END;
+            """)
     }
 }

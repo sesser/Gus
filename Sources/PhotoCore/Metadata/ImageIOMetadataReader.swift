@@ -99,6 +99,7 @@ public struct ImageIOMetadataReader: MetadataReader {
         metadata.exposureProgram = (exif[kCGImagePropertyExifExposureProgram] as? NSNumber)?.intValue
         metadata.meteringMode = (exif[kCGImagePropertyExifMeteringMode] as? NSNumber)?.intValue
         metadata.focalLength35mm = (exif[kCGImagePropertyExifFocalLenIn35mmFilm] as? NSNumber)?.doubleValue
+        metadata.usageTerms = xmpText("xmpRights:UsageTerms")
         return metadata
     }
 

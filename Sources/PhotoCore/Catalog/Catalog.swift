@@ -171,13 +171,33 @@ public struct NewMaster: Hashable, Sendable {
     public var modifiedAt: Date
     public var contentHash: String
     public var metadata: ImageMetadata
+    /// The sidecar found next to the file, if any. Its values take precedence
+    /// over the ones embedded in the file.
+    public var sidecar: SidecarRead?
 
-    public init(relativePath: String, fileSize: Int64, modifiedAt: Date, contentHash: String, metadata: ImageMetadata) {
+    public init(relativePath: String, fileSize: Int64, modifiedAt: Date, contentHash: String, metadata: ImageMetadata,
+                sidecar: SidecarRead? = nil) {
         self.relativePath = relativePath
         self.fileSize = fileSize
         self.modifiedAt = modifiedAt
         self.contentHash = contentHash
         self.metadata = metadata
+        self.sidecar = sidecar
+    }
+
+    /// Metadata with the sidecar's values in place of the embedded ones.
+    var effectiveMetadata: ImageMetadata {
+        guard let values = sidecar?.values else { return metadata }
+        var merged = metadata
+        merged.rating = values.flag == .rejected ? -1 : values.rating.rawValue
+        merged.label = values.colorLabel.xmpName
+        if !values.keywords.isEmpty { merged.keywords = values.keywords }
+        merged.artist = values.creator ?? metadata.artist
+        merged.copyright = values.rights ?? metadata.copyright
+        merged.caption = values.caption ?? metadata.caption
+        merged.usageTerms = values.usageTerms ?? metadata.usageTerms
+        merged.creatorContact = values.contact ?? metadata.creatorContact
+        return merged
     }
 }
 
@@ -236,8 +256,9 @@ extension Catalog {
         guard !masters.isEmpty else { return MasterInsertionResult() }
         return try await database.write { db in
             var result = MasterInsertionResult()
+            var insertedMasters: [NewMaster] = []
             for master in masters {
-                let metadata = master.metadata
+                let metadata = master.effectiveMetadata
                 var image = ImageRecord(
                     id: nil, volumeId: volumeID, projectId: projectID,
                     relativePath: master.relativePath,
@@ -269,8 +290,13 @@ extension Catalog {
                 }
                 var version = VersionRecord.makeDefault(imageId: imageID, at: importedAt)
                 (version.rating, version.flag, version.colorLabel) = metadata.embeddedCulling
+                // A sidecar can hold a rating and a reject at once.
+                if let values = master.sidecar?.values {
+                    (version.rating, version.flag, version.colorLabel) = (values.rating, values.flag, values.colorLabel)
+                }
                 try version.insert(db)
                 result.insertedImageIDs.append(imageID)
+                insertedMasters.append(master)
                 guard let versionID = version.id else { continue }
                 result.insertedVersionIDs.append(versionID)
                 for name in metadata.keywords {
@@ -280,9 +306,22 @@ extension Catalog {
                     }
                 }
             }
+            // What the files say now is the sidecar baseline: values only change
+            // the files once the library's values differ from it.
+            for (imageID, master) in zip(result.insertedImageIDs, insertedMasters) {
+                guard let image = try ImageRecord.fetchOne(db, key: imageID) else { continue }
+                let values = try Self.sidecarValues(db, image: image)
+                let file = master.sidecar?.file
+                try MetadataSyncRecord(
+                    imageId: imageID, sidecarName: file?.name, sidecarSize: file?.size, sidecarModifiedAt: file?.modifiedAt,
+                    sidecarDigest: file?.digest, baseline: try values.jsonString(), status: .inStep, diskValues: nil,
+                    diskSource: file == nil ? .embedded : .sidecar, checkedAt: importedAt, error: nil).insert(db)
+            }
             // Partners may have come in an earlier batch or an earlier import.
             let keys = Set(masters.map { ImagePairing.key(forRelativePath: $0.relativePath) })
             result.pairsCreated = try ImagePairing.pair(db, volumeID: volumeID, projectID: projectID, keys: keys)
+            // A pair's sidecar belongs to its RAW.
+            try db.execute(sql: "DELETE FROM metadataSync WHERE imageId IN (SELECT companionImageId FROM imagePair)")
             return result
         }
     }

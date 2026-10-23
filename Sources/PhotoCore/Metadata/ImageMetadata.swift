@@ -41,10 +41,12 @@ public struct ImageMetadata: Hashable, Sendable, Codable {
     /// EXIF MeteringMode, 0–6 or 255.
     public var meteringMode: Int?
     public var focalLength35mm: Double?
+    public var creatorContact: CreatorContact?
+    public var usageTerms: String?
 
     /// What the readers fill in. Masters read with an older revision are read
     /// again in the background so the newer columns fill in.
-    public static let revision = 2
+    public static let revision = 3
 
     // Values another app (or the camera) stored in the file. They seed the
     // default version at import; the catalog does not keep them on `image`.
