@@ -22,8 +22,9 @@ let package = Package(
         .executableTarget(
             name: "PhotoApp",
             dependencies: ["PhotoCore"],
-            // The String Catalog is compiled by Scripts/build-app.sh (the Command Line
-            // Tools ship without xcstringstool), so SwiftPM must not try to process it.
+            // The String Catalog is compiled into the app bundle by Scripts/build-app.sh.
+            // Processing it here would put the strings in Bundle.module, where SwiftUI
+            // and String(localized:) do not look by default (they use Bundle.main).
             exclude: ["Resources/Localizable.xcstrings"]
         ),
         .executableTarget(
