@@ -10,6 +10,7 @@ enum CatalogSchema {
         migrator.registerMigration("v3", migrate: addKeywordSuggestions)
         migrator.registerMigration("v4", migrate: addMetadataAndAlbums)
         migrator.registerMigration("v5", migrate: addSidecarSync)
+        migrator.registerMigration("v6", migrate: addImportPresets)
         return migrator
     }
 
@@ -238,6 +239,18 @@ enum CatalogSchema {
             let day = LocalDate.string(captureDate: row["captureDate"], offset: row["captureOffsetSeconds"],
                                        fallback: row["modifiedAt"])
             try update.execute(arguments: [day, row["id"] as Int64])
+        }
+    }
+
+    /// Saved metadata presets for imports (creator, copyright, contact…).
+    private static func addImportPresets(_ db: Database) throws {
+        try db.create(table: "importPreset") { t in
+            t.autoIncrementedPrimaryKey("id")
+            t.column("uuid", .text).notNull().unique()
+            t.column("name", .text).notNull()
+            t.column("kind", .text).notNull()
+            t.column("settings", .text).notNull()
+            t.column("createdAt", .datetime).notNull()
         }
     }
 

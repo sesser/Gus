@@ -28,6 +28,13 @@ struct PhotoApplication: App {
             LibraryCommands(model: library.model)
         }
 
+        Window(String(localized: "Import"), id: "import") {
+            if let model = library.model {
+                ImportWindow(model: model.cardImport, library: model)
+            }
+        }
+        .defaultSize(width: 1200, height: 780)
+
         Settings {
             if let model = library.model {
                 SettingsView(model: model)
@@ -92,9 +99,16 @@ private struct LibraryErrorView: View {
 
 struct LibraryCommands: Commands {
     let model: LibraryModel?
+    @Environment(\.openWindow) private var openWindow
 
     var body: some Commands {
         CommandGroup(after: .newItem) {
+            Button("Import from Card or Folder…") {
+                model?.cardImport.refreshSources()
+                openWindow(id: "import")
+            }
+            .keyboardShortcut("i", modifiers: .command)
+            .disabled(model == nil)
             Button("New Album…") { model?.sidebarSheet = .newAlbum(projectID: model?.selectedProjectID) }
                 .keyboardShortcut("n", modifiers: .command)
                 .disabled(model == nil)

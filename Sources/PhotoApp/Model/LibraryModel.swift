@@ -63,6 +63,7 @@ final class LibraryModel {
     let previews: PreviewService
     let suggester: any KeywordSuggester = VisionKeywordSuggester()
     let sidecars: SidecarSync
+    let cardImport = CardImportModel()
 
     // MARK: Sidebar and filters
 
@@ -89,6 +90,12 @@ final class LibraryModel {
     /// Bumped when outside changes are found or settled.
     var diskChangeRevision = 0
     var isCheckingDisk = false
+    /// Set when a card mounts and the import window should open for it.
+    var requestsImportWindow = false
+    /// Open the import window when a card is inserted (Settings).
+    var opensImportOnCard: Bool {
+        didSet { UserDefaults.standard.set(opensImportOnCard, forKey: Self.opensImportOnCardKey) }
+    }
     /// Write XMP sidecars when photos change (Settings).
     var writesSidecars: Bool {
         didSet {
@@ -199,6 +206,7 @@ final class LibraryModel {
     private static let groupPairsKey = "browser.groupPairs"
     private static let showsInspectorKey = "browser.showsInspector"
     private static let writesSidecarsKey = "sidecars.write"
+    private static let opensImportOnCardKey = "import.openOnCard"
 
     // MARK: Background work
 
@@ -245,6 +253,8 @@ final class LibraryModel {
         showsInspector = defaults.bool(forKey: Self.showsInspectorKey)
         writesSidecars = defaults.object(forKey: Self.writesSidecarsKey) as? Bool ?? true
         sidecars = SidecarSync(catalog: catalog, metadataReader: importer.metadataReader)
+        opensImportOnCard = defaults.object(forKey: Self.opensImportOnCardKey) as? Bool ?? true
+        cardImport.library = self
     }
 
     /// Opens the catalog at the standard location (or `--library-root`).
@@ -408,8 +418,13 @@ final class LibraryModel {
         let center = NSWorkspace.shared.notificationCenter
         for name in [NSWorkspace.didMountNotification, NSWorkspace.didUnmountNotification,
                      NSWorkspace.didRenameVolumeNotification] {
-            volumeObservers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-                Task { @MainActor in await self?.refreshVolumes() }
+            volumeObservers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] notification in
+                let mounted = name == NSWorkspace.didMountNotification
+                    ? notification.userInfo?[NSWorkspace.volumeURLUserInfoKey] as? URL : nil
+                Task { @MainActor in
+                    await self?.refreshVolumes()
+                    if let mounted { self?.volumeDidMount(mounted) }
+                }
             })
         }
     }
@@ -436,6 +451,30 @@ final class LibraryModel {
                 }
             }
             metadataTask = nil
+        }
+    }
+
+    /// A card (a volume with a DCIM folder) opens the import window.
+    private func volumeDidMount(_ url: URL) {
+        guard opensImportOnCard, ImportSource.hasDCIM(url) else { return }
+        cardImport.refreshSources(preferring: url)
+        requestsImportWindow = true
+    }
+
+    /// After a copying import: show the new photos and start the background work.
+    func didFinishCopyImport(_ result: CopyImportResult) async {
+        await refreshVolumes()
+        await refreshProjects()
+        await refreshKeywords()
+        scheduleSidecarSync()
+        if let projectID = result.project?.id {
+            if sidebarSelection == .project(projectID) {
+                reloadItems(keepFocus: true)
+            } else {
+                sidebarSelection = .project(projectID)
+            }
+            warmPreviews(projectID: projectID)
+            suggestKeywords(for: result.insertedVersionIDs)
         }
     }
 

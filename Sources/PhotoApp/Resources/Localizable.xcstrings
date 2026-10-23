@@ -1,6 +1,28 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "%@  %@" : {
+      "comment" : "Template token menu item: the token's name, then the token",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@  %@"
+          }
+        }
+      }
+    },
+    "%@ could not be ejected. It may still be in use." : {
+      "comment" : "Import window; the argument is a card name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ could not be ejected. It may still be in use."
+          }
+        }
+      }
+    },
     "%@ or better" : {
       "comment" : "Rating filter. The argument is a row of stars.",
       "localizations" : {
@@ -34,6 +56,29 @@
         }
       }
     },
+    "%lld files could not be deleted from %@." : {
+      "comment" : "Import window",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld file could not be deleted from %@."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld files could not be deleted from %@."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld mm" : {
       "comment" : "Focal length",
       "localizations" : {
@@ -56,6 +101,40 @@
         }
       }
     },
+    "%lld of %lld files · %@ of %@" : {
+      "comment" : "Import progress: files and bytes copied",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld of %lld files · %@ of %@"
+          }
+        }
+      }
+    },
+    "%lld of %lld selected" : {
+      "comment" : "Import window selection count",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld of %lld selected"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld of %lld selected"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld photos" : {
       "comment" : "Window subtitle",
       "localizations" : {
@@ -72,6 +151,29 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "%lld photos"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld photos are already in the library and are not imported." : {
+      "comment" : "Import window",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photo is already in the library and is not imported."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photos are already in the library and are not imported."
                 }
               }
             }
@@ -155,6 +257,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld × %lld px"
+          }
+        }
+      }
+    },
+    "A new project" : {
+      "comment" : "Import window project picker",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A new project"
           }
         }
       }
@@ -293,6 +406,17 @@
         }
       }
     },
+    "Add to" : {
+      "comment" : "Import window project picker label",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add to"
+          }
+        }
+      }
+    },
     "Add to Album" : {
       "comment" : "Undo action name and Photo menu submenu",
       "localizations" : {
@@ -315,12 +439,34 @@
         }
       }
     },
+    "Address" : {
+      "comment" : "Contact field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Address"
+          }
+        }
+      }
+    },
     "Advance After Rating" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Advance After Rating"
+          }
+        }
+      }
+    },
+    "After Importing" : {
+      "comment" : "Import window section",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After Importing"
           }
         }
       }
@@ -336,12 +482,34 @@
         }
       }
     },
+    "All" : {
+      "comment" : "Import window: select all",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All"
+          }
+        }
+      }
+    },
     "All Photos" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "All Photos"
+          }
+        }
+      }
+    },
+    "Already in the library" : {
+      "comment" : "Import window tile help",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Already in the library"
           }
         }
       }
@@ -422,6 +590,17 @@
         }
       }
     },
+    "Apply" : {
+      "comment" : "Import window metadata preset picker label",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apply"
+          }
+        }
+      }
+    },
     "Apply Choices" : {
       "comment" : "Inspector button",
       "localizations" : {
@@ -487,6 +666,39 @@
         }
       }
     },
+    "Camera make" : {
+      "comment" : "Template token",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Camera make"
+          }
+        }
+      }
+    },
+    "Camera model" : {
+      "comment" : "Template token",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Camera model"
+          }
+        }
+      }
+    },
+    "Camera serial number" : {
+      "comment" : "Template token",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Camera serial number"
+          }
+        }
+      }
+    },
     "Cancel" : {
       "comment" : "Alert button",
       "localizations" : {
@@ -530,6 +742,50 @@
         }
       }
     },
+    "Capture date" : {
+      "comment" : "Template token",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Capture date"
+          }
+        }
+      }
+    },
+    "Capture month name" : {
+      "comment" : "Template token",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Capture month name"
+          }
+        }
+      }
+    },
+    "Capture time" : {
+      "comment" : "Template token",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Capture time"
+          }
+        }
+      }
+    },
+    "Capture year" : {
+      "comment" : "Template token",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Capture year"
+          }
+        }
+      }
+    },
     "Captured" : {
       "comment" : "Inspector info row",
       "localizations" : {
@@ -563,12 +819,78 @@
         }
       }
     },
+    "Choose" : {
+      "comment" : "Open panel button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose"
+          }
+        }
+      }
+    },
+    "Choose Folder…" : {
+      "comment" : "Import window: import from a folder",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose Folder…"
+          }
+        }
+      }
+    },
+    "Choose a folder to import from. Its photos are copied into the library's folders." : {
+      "comment" : "Open panel message",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a folder to import from. Its photos are copied into the library's folders."
+          }
+        }
+      }
+    },
     "Choose a folder. Photos inside it, including subfolders, are added to a new project." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Choose a folder. Photos inside it, including subfolders, are added to a new project."
+          }
+        }
+      }
+    },
+    "Choose where imported photos are copied to." : {
+      "comment" : "Open panel message",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose where imported photos are copied to."
+          }
+        }
+      }
+    },
+    "Choose…" : {
+      "comment" : "Import window: pick the destination folder",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose…"
+          }
+        }
+      }
+    },
+    "City" : {
+      "comment" : "Contact field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "City"
           }
         }
       }
@@ -626,6 +948,17 @@
         }
       }
     },
+    "Copying %@" : {
+      "comment" : "Import progress; the argument is a file name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copying %@"
+          }
+        }
+      }
+    },
     "Copyright" : {
       "comment" : "Smart album rule field",
       "localizations" : {
@@ -643,6 +976,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Could not load photos: %@"
+          }
+        }
+      }
+    },
+    "Could not read %@: %@" : {
+      "comment" : "Import window; a source name and an error",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not read %@: %@"
           }
         }
       }
@@ -676,6 +1020,28 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "Counter across imports" : {
+      "comment" : "Template token",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Counter across imports"
+          }
+        }
+      }
+    },
+    "Country" : {
+      "comment" : "Contact field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Country"
           }
         }
       }
@@ -735,6 +1101,29 @@
         }
       }
     },
+    "Delete %lld files from %@?" : {
+      "comment" : "Delete-from-card confirmation title",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Delete %lld file from %@?"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Delete %lld files from %@?"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "Delete Album" : {
       "comment" : "Undo action name",
       "localizations" : {
@@ -757,6 +1146,17 @@
         }
       }
     },
+    "Delete Preset" : {
+      "comment" : "Preset editor button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Preset"
+          }
+        }
+      }
+    },
     "Delete Smart Album" : {
       "comment" : "Undo action name",
       "localizations" : {
@@ -764,6 +1164,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Delete Smart Album"
+          }
+        }
+      }
+    },
+    "Delete originals from the source" : {
+      "comment" : "Import window option",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete originals from the source"
           }
         }
       }
@@ -812,6 +1223,28 @@
         }
       }
     },
+    "Description" : {
+      "comment" : "Preset editor section",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Description"
+          }
+        }
+      }
+    },
+    "Destination" : {
+      "comment" : "Import window section",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Destination"
+          }
+        }
+      }
+    },
     "Don't suggest this keyword for these photos again" : {
       "comment" : "Suggestion chip dismiss help",
       "localizations" : {
@@ -852,6 +1285,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Edit…"
+          }
+        }
+      }
+    },
+    "Eject the card" : {
+      "comment" : "Import window option",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eject the card"
+          }
+        }
+      }
+    },
+    "Email" : {
+      "comment" : "Contact field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Email"
+          }
+        }
+      }
+    },
+    "Every one of them was copied and checked. Photos that were already in the library are not deleted." : {
+      "comment" : "Delete-from-card confirmation",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every one of them was copied and checked. Photos that were already in the library are not deleted."
           }
         }
       }
@@ -922,6 +1388,17 @@
         }
       }
     },
+    "File names" : {
+      "comment" : "Import window: file name template",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "File names"
+          }
+        }
+      }
+    },
     "Filter" : {
       "localizations" : {
         "en" : {
@@ -960,6 +1437,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Focal Length"
+          }
+        }
+      }
+    },
+    "From" : {
+      "comment" : "Import window source picker",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "From"
           }
         }
       }
@@ -1059,6 +1547,29 @@
         }
       }
     },
+    "Import %lld Photos" : {
+      "comment" : "Import window button",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Import %lld Photo"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Import %lld Photos"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "Import Date" : {
       "comment" : "Smart album rule field",
       "localizations" : {
@@ -1121,12 +1632,91 @@
         }
       }
     },
+    "Import cancelled. Photos copied so far are in the library." : {
+      "comment" : "Import window",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import cancelled. Photos copied so far are in the library."
+          }
+        }
+      }
+    },
+    "Import date" : {
+      "comment" : "Template token",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import date"
+          }
+        }
+      }
+    },
     "Import failed: %@" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Import failed: %@"
+          }
+        }
+      }
+    },
+    "Import from Card or Folder…" : {
+      "comment" : "File menu (⌘I)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import from Card or Folder…"
+          }
+        }
+      }
+    },
+    "Imported %lld files." : {
+      "comment" : "Import window result",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Imported %lld file."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Imported %lld files."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Imported %lld files. %lld could not be copied." : {
+      "comment" : "Import window result",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Imported %lld file. %lld could not be copied."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Imported %lld files. %lld could not be copied."
+                }
+              }
+            }
           }
         }
       }
@@ -1147,6 +1737,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Imported: %lld. Already in the library: %lld. Could not import: %lld."
+          }
+        }
+      }
+    },
+    "Importing" : {
+      "comment" : "Settings section",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importing"
           }
         }
       }
@@ -1179,6 +1780,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Info"
+          }
+        }
+      }
+    },
+    "Insert a card or choose a folder" : {
+      "comment" : "Import window, no source",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Insert a card or choose a folder"
+          }
+        }
+      }
+    },
+    "Insert a token" : {
+      "comment" : "Template field help",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Insert a token"
           }
         }
       }
@@ -1217,6 +1840,17 @@
         }
       }
     },
+    "Job code" : {
+      "comment" : "Import window field and template token",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Job code"
+          }
+        }
+      }
+    },
     "Keep Library Values" : {
       "comment" : "Inspector button",
       "localizations" : {
@@ -1224,6 +1858,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Keep Library Values"
+          }
+        }
+      }
+    },
+    "Keep Them" : {
+      "comment" : "Delete-from-card confirmation: keep the originals",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep Them"
           }
         }
       }
@@ -1322,6 +1967,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Location"
+          }
+        }
+      }
+    },
+    "Look at the source again" : {
+      "comment" : "Import window help",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Look at the source again"
           }
         }
       }
@@ -1456,6 +2112,17 @@
         }
       }
     },
+    "New Preset…" : {
+      "comment" : "Import window button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Preset…"
+          }
+        }
+      }
+    },
     "New Smart Album" : {
       "comment" : "Undo action name and editor title",
       "localizations" : {
@@ -1520,6 +2187,17 @@
         }
       }
     },
+    "No card connected" : {
+      "comment" : "Import window source picker",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No card connected"
+          }
+        }
+      }
+    },
     "No keywords" : {
       "comment" : "Inspector, selection has no keywords",
       "localizations" : {
@@ -1527,6 +2205,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No keywords"
+          }
+        }
+      }
+    },
+    "No metadata" : {
+      "comment" : "Import window preset picker",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No metadata"
+          }
+        }
+      }
+    },
+    "No photos found" : {
+      "comment" : "Import window, empty source",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No photos found"
           }
         }
       }
@@ -1594,6 +2294,17 @@
         }
       }
     },
+    "Number in the original name" : {
+      "comment" : "Template token",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Number in the original name"
+          }
+        }
+      }
+    },
     "Offline" : {
       "localizations" : {
         "en" : {
@@ -1615,12 +2326,34 @@
         }
       }
     },
+    "Open the import window when a card is inserted" : {
+      "comment" : "Settings toggle",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open the import window when a card is inserted"
+          }
+        }
+      }
+    },
     "Orange" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Orange"
+          }
+        }
+      }
+    },
+    "Original name" : {
+      "comment" : "Template token",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Original name"
           }
         }
       }
@@ -1664,6 +2397,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Path"
+          }
+        }
+      }
+    },
+    "Phone" : {
+      "comment" : "Contact field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Phone"
           }
         }
       }
@@ -1717,6 +2461,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Picks"
+          }
+        }
+      }
+    },
+    "Postal code" : {
+      "comment" : "Contact field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Postal code"
+          }
+        }
+      }
+    },
+    "Preset name" : {
+      "comment" : "Preset editor field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preset name"
           }
         }
       }
@@ -1806,12 +2572,45 @@
         }
       }
     },
+    "Reading…" : {
+      "comment" : "Import window while scanning the source",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reading…"
+          }
+        }
+      }
+    },
+    "Recent job codes" : {
+      "comment" : "Import window help",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recent job codes"
+          }
+        }
+      }
+    },
     "Red" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Red"
+          }
+        }
+      }
+    },
+    "Region" : {
+      "comment" : "Contact field: state or province",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Region"
           }
         }
       }
@@ -1967,6 +2766,28 @@
         }
       }
     },
+    "Select every photo" : {
+      "comment" : "Import window help",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select every photo"
+          }
+        }
+      }
+    },
+    "Select no photos" : {
+      "comment" : "Import window help",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select no photos"
+          }
+        }
+      }
+    },
     "Select photos and press ⌘K to add keywords." : {
       "comment" : "Sidebar, no keywords yet",
       "localizations" : {
@@ -1985,6 +2806,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Select photos to see and change their keywords."
+          }
+        }
+      }
+    },
+    "Sequence in this import" : {
+      "comment" : "Template token",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sequence in this import"
           }
         }
       }
@@ -2086,6 +2918,17 @@
         }
       }
     },
+    "Show them" : {
+      "comment" : "Import window toggle: show photos already in the library",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show them"
+          }
+        }
+      }
+    },
     "Shutter Speed" : {
       "comment" : "Smart album rule field",
       "localizations" : {
@@ -2125,6 +2968,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Stars"
+          }
+        }
+      }
+    },
+    "Stop" : {
+      "comment" : "Import window: cancel the import",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop"
+          }
+        }
+      }
+    },
+    "Subfolders" : {
+      "comment" : "Import window: folder template",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Subfolders"
           }
         }
       }
@@ -2261,6 +3126,17 @@
         }
       }
     },
+    "Text can use the same tokens as templates, such as {capture:yyyy}." : {
+      "comment" : "Preset editor note",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Text can use the same tokens as templates, such as {capture:yyyy}."
+          }
+        }
+      }
+    },
     "The library could not be opened." : {
       "localizations" : {
         "en" : {
@@ -2354,6 +3230,17 @@
         }
       }
     },
+    "Untitled Preset" : {
+      "comment" : "Default preset name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Untitled Preset"
+          }
+        }
+      }
+    },
     "Untitled Smart Album" : {
       "comment" : "Default smart album name",
       "localizations" : {
@@ -2372,6 +3259,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Usage Terms"
+          }
+        }
+      }
+    },
+    "Usage terms" : {
+      "comment" : "Preset editor field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usage terms"
           }
         }
       }
@@ -2441,6 +3339,17 @@
         }
       }
     },
+    "Website" : {
+      "comment" : "Contact field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Website"
+          }
+        }
+      }
+    },
     "White Balance" : {
       "comment" : "Smart album rule field",
       "localizations" : {
@@ -2481,6 +3390,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Write the library's values to the file"
+          }
+        }
+      }
+    },
+    "Written to sidecar files next to the copies; the copies stay identical to the originals." : {
+      "comment" : "Import window note",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Written to sidecar files next to the copies; the copies stay identical to the originals."
           }
         }
       }
@@ -2601,6 +3521,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "does not contain"
+          }
+        }
+      }
+    },
+    "e.g. Smith wedding" : {
+      "comment" : "Job code field placeholder",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "e.g. Smith wedding"
           }
         }
       }
@@ -2799,6 +3730,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "seconds"
+          }
+        }
+      }
+    },
+    "© {capture:yyyy} Your Name" : {
+      "comment" : "Copyright field placeholder; keep the token",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "© {capture:yyyy} Your Name"
           }
         }
       }

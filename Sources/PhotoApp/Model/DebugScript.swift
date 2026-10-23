@@ -17,6 +17,8 @@ import UniformTypeIdentifiers
 ///     album <name>          (from the selection)    smartalbum <name>  (rating ≥ 3)     remove
 ///     sidebar album|smart|month <n> | builtin <name> | changed | all  sheet smart|album|none
 ///     checkdisk             (looks for outside changes and waits)   resolvedisk library|file
+///     import open | source <path> | dest <path> | job <text> | delete on|off | eject on|off
+///            | run (waits) | confirm yes|no | snapshot <file>
 ///
 /// Keys are characters ("3", "p") or names (left, right, up, down, home, end,
 /// pageup, pagedown, return, escape, space); prefix "opt+" or "shift+" for modifiers. Key events go through
@@ -49,7 +51,9 @@ enum DebugScript {
     }
 
     private static var window: NSWindow? {
-        NSApp.windows.first { $0.isVisible && $0.contentView != nil && $0.className.contains("Window") }
+        // The library window, not the import window.
+        NSApp.windows.first { $0.isVisible && $0.contentView != nil && $0.className.contains("Window")
+            && $0.title != String(localized: "Import") }
     }
 
     private static func run(_ command: String, model: LibraryModel) async {
@@ -149,12 +153,50 @@ enum DebugScript {
         case "resolvedisk":
             let changes = (try? await model.catalog.diskChanges(forVersions: model.actionTargetVersionIDs)) ?? []
             model.resolveDiskChanges(changes, with: rest.first == "file" ? .useFile : .keepLibrary)
+        case "import":
+            await runImportCommand(rest, model: model.cardImport, library: model)
         case "print":
             printState(rest.first ?? "", model: model)
         case "quit":
             NSApp.terminate(nil)
         default:
             print("debug-script: unknown command \(verb)")
+        }
+    }
+
+    /// import open | source <path> | dest <path> | job <text> | delete on|off |
+    /// eject on|off | run | confirm yes|no | snapshot <file>
+    private static func runImportCommand(_ words: [String], model: CardImportModel, library: LibraryModel) async {
+        let argument = words.dropFirst().joined(separator: " ")
+        switch words.first {
+        case "open":
+            model.refreshSources()
+            library.requestsImportWindow = true
+        case "source":
+            model.source = ImportSource.describe(URL(fileURLWithPath: argument))
+            try? await Task.sleep(for: .milliseconds(100))
+            while model.isScanning { try? await Task.sleep(for: .milliseconds(100)) }
+        case "dest":
+            model.destination = URL(fileURLWithPath: argument)
+        case "job":
+            model.jobCode = argument
+        case "delete":
+            model.deletesOriginals = argument == "on"
+        case "eject":
+            model.ejectsWhenDone = argument == "on"
+        case "run":
+            model.startImport()
+            try? await Task.sleep(for: .milliseconds(100))
+            while model.isImporting { try? await Task.sleep(for: .milliseconds(100)) }
+            try? await Task.sleep(for: .milliseconds(500))
+        case "confirm":
+            model.confirmDeletion(argument == "yes")
+            try? await Task.sleep(for: .seconds(1))
+        case "snapshot":
+            let importWindow = NSApp.windows.first { $0.isVisible && $0.title == String(localized: "Import") }
+            if let importWindow { snapshot(importWindow, to: URL(fileURLWithPath: argument)) }
+        default:
+            print("debug-script: unknown import command")
         }
     }
 
@@ -210,6 +252,11 @@ enum DebugScript {
                   + " | " + counts.joined(separator: " ") + " | showing \(model.items.count)")
         case "disk":
             print("debug-script: changed on disk \(model.diskChangeCount), writes \(model.writesSidecars)")
+        case "import":
+            let card = model.cardImport
+            print("debug-script: import source \(card.source?.name ?? "-") card \(card.source?.isCard == true) "
+                  + "shots \(card.shots.count) duplicates \(card.duplicateCount) selected \(card.selectedShots.count) "
+                  + "deletion \(card.pendingDeletion?.count ?? 0) message \(card.message ?? "-")")
         case "items":
             print("debug-script: items " + model.items.prefix(12).map { "\($0.baseName):\($0.rating.rawValue)" }.joined(separator: " "))
         default:
@@ -252,8 +299,17 @@ enum DebugScript {
     /// Renders the window's layer tree, which includes layer contents that
     /// `cacheDisplay` would miss.
     private static func snapshot(to url: URL) {
+        guard let window else {
+            print("debug-script: no window to snapshot")
+            return
+        }
+        snapshot(window, to: url)
+    }
+
+    private static func snapshot(_ window: NSWindow, to url: URL) {
         // An open sheet is its own window; show it rather than the dimmed window behind.
-        guard let window = window.map({ $0.attachedSheet ?? $0 }), let view = window.contentView?.superview ?? window.contentView, let layer = view.layer else {
+        let window = window.attachedSheet ?? window
+        guard let view = window.contentView?.superview ?? window.contentView, let layer = view.layer else {
             print("debug-script: no window to snapshot")
             return
         }

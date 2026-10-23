@@ -4,6 +4,7 @@ import SwiftUI
 
 struct MainView: View {
     @Bindable var model: LibraryModel
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         NavigationSplitView {
@@ -22,6 +23,11 @@ struct MainView: View {
         // Photos are judged against neutral dark surroundings.
         .preferredColorScheme(.dark)
         .task { await model.start() }
+        .onChange(of: model.requestsImportWindow) {
+            guard model.requestsImportWindow else { return }
+            model.requestsImportWindow = false
+            openWindow(id: "import")
+        }
     }
 
     private var title: String {

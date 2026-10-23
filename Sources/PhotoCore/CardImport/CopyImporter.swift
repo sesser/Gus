@@ -40,6 +40,8 @@ public struct CopyImportProgress: Sendable, Equatable {
     public var bytesDone: Int64 = 0
     public var bytesTotal: Int64 = 0
     public var currentName = ""
+
+    public init() {}
 }
 
 public struct CopyImportResult: Sendable {

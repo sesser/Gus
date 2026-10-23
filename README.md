@@ -43,7 +43,23 @@ for a debug build.
 
 ## Using it
 
-Choose **File ▸ Import Folder…** (⇧⌘I) and pick a folder. Photos in it and its
+**Importing from a card**: **File ▸ Import from Card or Folder…** (⌘I) opens the
+import window; it also opens by itself when a card (any volume with a `DCIM`
+folder) is inserted, unless that is turned off in **Settings**. Pick photos
+(click, shift-click, All, None; RAW+JPEG pairs are one tile, photos already in
+the library are hidden and never imported), choose the destination folder and
+the subfolder and file name templates (tokens such as `{capture:yyyy-MM-dd}`,
+`{import:yyyy}`, `{model}`, `{lens}`, `{name}`, `{number}`, `{seq:4}`,
+`{counter:5}`, `{job}`; the ⊕ menu inserts them and an example shows the
+result), the project (a new one named from a template, or an existing one), a
+job code and a metadata preset (creator, copyright such as
+`© {capture:yyyy} Your Name`, usage terms, contact; written to sidecars, the
+copies stay identical to the originals). Every copy is read back and compared
+by hash before it counts. Optionally, the originals that were copied and checked
+are deleted from the card (after a confirmation) and the card is ejected.
+
+Choose **File ▸ Import Folder…** (⇧⌘I) to add photos where they are, without
+copying: pick a folder. Photos in it and its
 subfolders (CR3, CR2, NEF, ARW, DNG, RAF, ORF, RW2, HEIC, JPEG, TIFF, PNG) are
 added to a new project named after the folder. Duplicates (same content
 anywhere in the library) are skipped, and so are files already imported from
@@ -63,6 +79,7 @@ the same place. Originals are never moved, copied or modified.
 | ⌘= and ⌘− | thumbnail size | |
 | ⌘Return | switch grid / loupe | switch grid / loupe |
 | ⌘K | add keywords | add keywords |
+| ⌘I | import from a card or folder | |
 | ⌘N, ⌥⌘N | new album, new smart album | |
 | ⌫ | remove from the album on screen | |
 | ⌘Z, ⇧⌘Z | undo, redo | undo, redo |

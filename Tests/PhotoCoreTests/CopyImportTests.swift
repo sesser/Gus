@@ -160,3 +160,19 @@ struct CopyImportTests {
         }
     }
 }
+
+@Suite("Metadata presets")
+struct MetadataPresetTests {
+    @Test func presetsAreSavedUpdatedAndDeleted() async throws {
+        let catalog = try Catalog.makeInMemory()
+        var preset = try await catalog.saveMetadataPreset(
+            MetadataPreset(name: "Studio", values: SidecarValues(creator: "Pat", rights: "© {capture:yyyy} Pat")))
+        preset.values.usageTerms = "Editorial use"
+        _ = try await catalog.saveMetadataPreset(preset)
+        _ = try await catalog.saveMetadataPreset(MetadataPreset(name: "Agency", values: SidecarValues(creator: "Agency")))
+        #expect(try await catalog.metadataPresets().map(\.name) == ["Agency", "Studio"])
+        #expect(try await catalog.metadataPresets().last?.values.usageTerms == "Editorial use")
+        try await catalog.deleteMetadataPreset(id: preset.id!)
+        #expect(try await catalog.metadataPresets().map(\.name) == ["Agency"])
+    }
+}
