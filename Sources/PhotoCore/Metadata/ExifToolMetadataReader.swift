@@ -4,9 +4,9 @@ import os
 /// Reads metadata through one long-lived `exiftool -stay_open` subprocess, so the
 /// Perl start-up cost is paid once rather than per file.
 ///
-/// Commands are written from the actor and responses are read on a private serial
-/// queue in the same order, so overlapping calls stay matched to their responses
-/// without blocking Swift's cooperative threads.
+/// Commands are written from the actor and their responses are read on a private
+/// serial queue, queued in the same actor turn as the write, so overlapping calls
+/// stay matched to their responses without blocking Swift's cooperative threads.
 public actor ExifToolMetadataReader: MetadataReader {
     static let tags = [
         "SubSecDateTimeOriginal", "DateTimeOriginal", "CreateDate", "OffsetTimeOriginal",
@@ -65,7 +65,12 @@ public actor ExifToolMetadataReader: MetadataReader {
 
         let response: Data
         do {
-            response = try await session.readResponse(marker: Data("{ready\(number)}\n".utf8))
+            // The read is queued in this same actor turn as the write, so reads are
+            // queued in command order even when calls overlap.
+            let marker = Data("{ready\(number)}\n".utf8)
+            response = try await withCheckedThrowingContinuation { continuation in
+                session.enqueueRead(until: marker) { continuation.resume(with: $0) }
+            }
         } catch {
             self.session = nil
             Self.log.error("exiftool session ended: \(String(describing: error), privacy: .public)")
@@ -153,8 +158,11 @@ extension ExifToolMetadataReader {
 
         init(executableURL: URL) throws {
             let process = Process()
-            process.executableURL = executableURL
-            process.arguments = ["-stay_open", "True", "-@", "-"]
+            // exiftool keeps polling its argument file after EOF, so it would outlive
+            // a crashed app. A small sh watchdog stops it once this process is gone.
+            process.executableURL = URL(fileURLWithPath: "/bin/sh")
+            process.arguments = ["-c", Self.watchdogScript, "sh", executableURL.path,
+                                 String(ProcessInfo.processInfo.processIdentifier)]
             let inputPipe = Pipe()
             let outputPipe = Pipe()
             process.standardInput = inputPipe
@@ -167,23 +175,32 @@ extension ExifToolMetadataReader {
             self.output = outputPipe.fileHandleForReading
         }
 
-        func readResponse(marker: Data) async throws -> Data {
-            try await withCheckedThrowingContinuation { continuation in
-                readQueue.async { [self] in
-                    while true {
-                        if let range = buffer.range(of: marker) {
-                            let response = buffer[buffer.startIndex..<range.lowerBound]
-                            buffer.removeSubrange(buffer.startIndex..<range.upperBound)
-                            continuation.resume(returning: Data(response))
-                            return
-                        }
-                        let chunk = output.availableData
-                        if chunk.isEmpty {
-                            continuation.resume(throwing: Failure.processExited)
-                            return
-                        }
-                        buffer.append(chunk)
+        static let watchdogScript = """
+            exec 3<&0
+            "$1" -stay_open True -@ - <&3 &
+            child=$!
+            trap 'kill $child 2>/dev/null; exit 0' TERM INT
+            while kill -0 "$2" 2>/dev/null && kill -0 $child 2>/dev/null; do sleep 2; done
+            kill $child 2>/dev/null
+            """
+
+        /// Reads on the private queue until `marker`, then calls `completion` with
+        /// everything before it. Calls are served in the order they are made.
+        func enqueueRead(until marker: Data, completion: @escaping @Sendable (Result<Data, any Error>) -> Void) {
+            readQueue.async { [self] in
+                while true {
+                    if let range = buffer.range(of: marker) {
+                        let response = Data(buffer[buffer.startIndex..<range.lowerBound])
+                        buffer.removeSubrange(buffer.startIndex..<range.upperBound)
+                        completion(.success(response))
+                        return
                     }
+                    let chunk = output.availableData
+                    if chunk.isEmpty {
+                        completion(.failure(Failure.processExited))
+                        return
+                    }
+                    buffer.append(chunk)
                 }
             }
         }

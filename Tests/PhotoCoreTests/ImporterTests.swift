@@ -260,12 +260,20 @@ struct MetadataTests {
             }
             let missing = root.appending(path: "missing.jpg")
             let reader = ExifToolMetadataReader(executableURL: ExifToolMetadataReader.locateExecutable()!)
-            // Two overlapping calls must each get their own answer.
-            let firstBatch = Array(files[0..<3]) + [missing]
-            let secondBatch = Array(files[3...])
-            async let first = reader.metadata(for: firstBatch)
-            async let second = reader.metadata(for: secondBatch)
-            let combined = try await first.merging(try await second) { a, _ in a }
+            // Many overlapping calls must each get their own answer.
+            let batches = (0..<12).map { index in [files[index % files.count], missing] }
+            let combined = try await withThrowingTaskGroup(of: [URL: ImageMetadata].self) { group in
+                for batch in batches {
+                    group.addTask {
+                        let result = try await reader.metadata(for: batch)
+                        #expect(Set(result.keys) == [batch[0]])
+                        return result
+                    }
+                }
+                var all: [URL: ImageMetadata] = [:]
+                for try await result in group { all.merge(result) { a, _ in a } }
+                return all
+            }
             await reader.shutdown()
 
             #expect(combined[missing] == nil)
