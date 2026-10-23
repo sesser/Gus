@@ -395,7 +395,11 @@ enum FileKindText {
         }
     }
 
+    /// A grouped pair shows both types, the one on screen first ("RAW+JPEG").
     static func badge(for item: CatalogItem) -> String? {
-        item.fileKind.map(badge)
+        guard let kind = item.fileKind else { return nil }
+        guard item.representsPair, let partner = item.partnerKind else { return badge(kind) }
+        return String(localized: "\(badge(kind))+\(badge(partner))",
+                      comment: "Grid badge for a RAW+JPEG pair; the first type is the file shown")
     }
 }

@@ -9,6 +9,7 @@ import UniformTypeIdentifiers
 ///     loupe | grid          size <points>           focus <index>
 ///     zoom                  project <n>|all         rating any|unrated|<1-5>
 ///     flag any|picked|rejected|unflagged|notrejected                 quit
+///     pairs grouped|separate  pairfile raw|jpeg     advance on|off
 ///
 /// Keys are characters ("3", "p") or names (left, right, up, down, home, end,
 /// pageup, pagedown, return, escape, space); prefix "opt+" or "shift+" for modifiers. Key events go through
@@ -75,6 +76,12 @@ enum DebugScript {
                 "picked": .picked, "rejected": .rejected, "unflagged": .unflagged, "notrejected": .notRejected,
             ]
             model.flagRule = rules[rest.first ?? ""] ?? .any
+        case "pairs":
+            model.groupPairs = rest.first != "separate"
+        case "pairfile":
+            model.showPairFile(raw: rest.first != "jpeg")
+        case "advance":
+            model.autoAdvance = rest.first == "on"
         case "quit":
             NSApp.terminate(nil)
         default:

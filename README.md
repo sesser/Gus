@@ -69,6 +69,13 @@ each change. Rating and flag filters live at the bottom of the sidebar; photos
 that stop matching stay visible until the filter changes, so they do not jump
 away while you cull.
 
+A RAW file and a JPEG or HEIC with the same name in the same folder are a
+pair. **View ▸ Group RAW+JPEG Pairs** shows each pair once, as the RAW unless
+**Photo ▸ RAW+JPEG Pair** says otherwise; its badge reads `RAW+JPEG` (the file on
+screen first). Ratings, flags, labels, keywords and albums always apply to both
+files. **View ▸ Show File Names** toggles the name and type badge under each
+thumbnail.
+
 Photos on a volume that is not connected show an offline badge. Their cached
 previews still display, and nothing is removed from the catalog.
 

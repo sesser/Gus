@@ -23,6 +23,17 @@
         }
       }
     },
+    "%@+%@" : {
+      "comment" : "Grid badge for a RAW+JPEG pair; the first type is the file shown",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@+%@"
+          }
+        }
+      }
+    },
     "%lld mm" : {
       "comment" : "Focal length",
       "localizations" : {
@@ -258,6 +269,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Grid"
+          }
+        }
+      }
+    },
+    "Group RAW+JPEG Pairs" : {
+      "comment" : "View menu toggle: show one item per RAW+JPEG pair",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Group RAW+JPEG Pairs"
           }
         }
       }
@@ -602,6 +624,17 @@
         }
       }
     },
+    "RAW+JPEG Pair" : {
+      "comment" : "Photo menu submenu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RAW+JPEG Pair"
+          }
+        }
+      }
+    },
     "Raise Rating" : {
       "localizations" : {
         "en" : {
@@ -689,6 +722,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Show Loupe"
+          }
+        }
+      }
+    },
+    "Show the JPEG or HEIC File" : {
+      "comment" : "Photo > RAW+JPEG Pair: the JPEG or HEIC represents the pair in the grid",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show the JPEG or HEIC File"
+          }
+        }
+      }
+    },
+    "Show the RAW File" : {
+      "comment" : "Photo > RAW+JPEG Pair: the RAW represents the pair in the grid",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show the RAW File"
           }
         }
       }

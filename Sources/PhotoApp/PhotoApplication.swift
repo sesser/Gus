@@ -116,6 +116,11 @@ struct LibraryCommands: Commands {
                     Button(ColorLabelText.name(label)) { model?.perform(.setColorLabel(label)) }
                 }
             }
+            Menu("RAW+JPEG Pair") {
+                Button("Show the RAW File") { model?.showPairFile(raw: true) }
+                Button("Show the JPEG or HEIC File") { model?.showPairFile(raw: false) }
+            }
+            .disabled(model?.groupPairs != true)
             Divider()
             Toggle("Advance After Rating", isOn: Binding(
                 get: { model?.autoAdvance ?? false },
@@ -137,6 +142,10 @@ struct LibraryCommands: Commands {
             Toggle("Show File Names", isOn: Binding(
                 get: { model?.showFileInfo ?? true },
                 set: { model?.showFileInfo = $0 }
+            ))
+            Toggle("Group RAW+JPEG Pairs", isOn: Binding(
+                get: { model?.groupPairs ?? true },
+                set: { model?.groupPairs = $0 }
             ))
             Divider()
         }

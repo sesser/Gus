@@ -3,23 +3,26 @@ import PhotoFixtures
 import UniformTypeIdentifiers
 
 /// Writes a synthetic shoot: JPEGs, Bayer DNGs and HEICs spread over folders,
-/// with increasing capture times and unique pixels per file.
+/// with increasing capture times and unique pixels per file, plus optional
+/// RAW+JPEG pairs (a DNG and a JPEG with the same name and capture time).
 enum Generate {
     static func run(_ arguments: Arguments) async throws -> [String: any Sendable] {
         let output = try arguments.url("output")
         let jpegCount = arguments.int("jpeg", default: 9_800)
         let dngCount = arguments.int("dng", default: 100)
         let heicCount = arguments.int("heic", default: 100)
+        let pairCount = arguments.int("pairs", default: 0)
         let perFolder = max(1, arguments.int("per-folder", default: 500))
         let jpegSize = arguments.size("jpeg-size", default: (2048, 1365))
         let dngSize = arguments.size("dng-size", default: (6000, 4000))
         let heicSize = arguments.size("heic-size", default: (4032, 3024))
 
-        enum Kind { case jpeg, dng, heic }
+        enum Kind { case jpeg, dng, heic, pair }
         var plan: [(Kind, Int)] = []
         plan += (0..<jpegCount).map { (.jpeg, $0) }
         plan += (0..<dngCount).map { (.dng, $0) }
         plan += (0..<heicCount).map { (.heic, $0) }
+        plan += (0..<pairCount).map { (.pair, $0) }
         let jobs = plan
 
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
@@ -57,6 +60,14 @@ enum Generate {
                         }
                         try SyntheticImages.write(image, to: url, type: .heic,
                                                   exif: .init(dateTimeOriginal: dates[index]), quality: 0.8)
+                    case .pair:
+                        let stem = String(format: "PAIR_%05d", index + 1)
+                        try SyntheticDNG.write(to: folder.appending(path: stem + ".DNG"),
+                                               options: .init(width: dngSize.0, height: dngSize.1, seed: seed,
+                                                              dateTimeOriginal: dates[index]))
+                        try SyntheticImages.writeJPEG(to: folder.appending(path: stem + ".JPG"),
+                                                      width: jpegSize.0, height: jpegSize.1, seed: seed,
+                                                      exif: .init(dateTimeOriginal: dates[index]), quality: 0.85)
                     }
                 } catch {
                     failures.increment()
@@ -64,9 +75,10 @@ enum Generate {
             }
         }
         let bytes = folderSize(output)
-        print("Generated \(jobs.count - failures.value) files (\(jpegCount) JPEG, \(dngCount) DNG, \(heicCount) HEIC) in \(String(format: "%.1f", elapsed.seconds)) s, \(formatBytes(bytes))")
+        print("Generated \(jobs.count - failures.value) jobs (\(jpegCount) JPEG, \(dngCount) DNG, \(heicCount) HEIC, \(pairCount) RAW+JPEG pairs) in \(String(format: "%.1f", elapsed.seconds)) s, \(formatBytes(bytes))")
         if failures.value > 0 { print("  \(failures.value) files failed") }
-        return ["files": jobs.count - failures.value, "jpeg": jpegCount, "dng": dngCount, "heic": heicCount,
+        return ["files": jobs.count - failures.value + pairCount, "jpeg": jpegCount, "dng": dngCount, "heic": heicCount,
+                "pairs": pairCount,
                 "seconds": elapsed.seconds, "bytes": bytes]
     }
 

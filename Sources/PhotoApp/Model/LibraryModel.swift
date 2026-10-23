@@ -57,7 +57,7 @@ final class LibraryModel {
         case .allPhotos: .allPhotos
         case .project(let id): .project(id)
         }
-        return LibraryFilter(scope: scope, rating: ratingRule, flag: flagRule)
+        return LibraryFilter(scope: scope, rating: ratingRule, flag: flagRule, groupsPairs: groupPairs)
     }
 
     var isFiltered: Bool { ratingRule != .any || flagRule != .any }
@@ -66,6 +66,7 @@ final class LibraryModel {
 
     /// Not observed: the grid is told about changes through `observer`.
     @ObservationIgnored private(set) var items: [CatalogItem] = []
+    @ObservationIgnored private var indexByVersionID: [Int64: Int] = [:]
     /// Observed stand-in for `items` for SwiftUI views (counts, titles).
     private(set) var itemsRevision = 0
     private(set) var focusIndex: Int?
@@ -95,10 +96,20 @@ final class LibraryModel {
     var showFileInfo: Bool {
         didSet { UserDefaults.standard.set(showFileInfo, forKey: Self.showFileInfoKey) }
     }
+    /// One item per RAW+JPEG pair instead of both files.
+    var groupPairs: Bool {
+        didSet {
+            guard oldValue != groupPairs else { return }
+            UserDefaults.standard.set(groupPairs, forKey: Self.groupPairsKey)
+            reloadItems(keepFocus: true)
+            Task { await refreshProjects() }
+        }
+    }
     static let thumbnailSizeRange = 80.0...360.0
     private static let thumbnailSizeKey = "browser.thumbnailSize"
     private static let autoAdvanceKey = "culling.autoAdvance"
     private static let showFileInfoKey = "browser.showFileInfo"
+    private static let groupPairsKey = "browser.groupPairs"
 
     // MARK: Background work
 
@@ -129,6 +140,7 @@ final class LibraryModel {
         thumbnailSize = Self.thumbnailSizeRange.contains(size) ? size : 180
         autoAdvance = defaults.bool(forKey: Self.autoAdvanceKey)
         showFileInfo = defaults.object(forKey: Self.showFileInfoKey) as? Bool ?? true
+        groupPairs = defaults.object(forKey: Self.groupPairsKey) as? Bool ?? true
     }
 
     /// Opens the catalog at the standard location (or `--library-root`).
@@ -159,15 +171,19 @@ final class LibraryModel {
 
     // MARK: Loading
 
-    func reloadItems(keepFocus: Bool) {
+    /// Reloads the list. With `keepFocus` the focused version stays focused, or
+    /// `focusVersionID` when given (for instance the other half of a pair, after
+    /// switching which file represents it).
+    func reloadItems(keepFocus: Bool, focusVersionID: Int64? = nil) {
         reloadTask?.cancel()
         let filter = self.filter
         let catalog = self.catalog
+        let focusID = focusVersionID ?? (keepFocus ? focusedItem?.versionID : nil)
         reloadTask = Task {
             do {
                 let items = try await catalog.libraryItems(matching: filter)
                 guard !Task.isCancelled else { return }
-                apply(items, keepFocus: keepFocus)
+                apply(items, focusVersionID: focusID)
             } catch is CancellationError {
             } catch {
                 Self.log.error("Loading items failed: \(error.localizedDescription, privacy: .public)")
@@ -176,10 +192,10 @@ final class LibraryModel {
         }
     }
 
-    private func apply(_ newItems: [CatalogItem], keepFocus: Bool) {
-        let previousID = keepFocus ? focusedItem?.versionID : nil
+    private func apply(_ newItems: [CatalogItem], focusVersionID: Int64?) {
         items = newItems
-        if let previousID, let index = newItems.firstIndex(where: { $0.versionID == previousID }) {
+        indexByVersionID = Dictionary(newItems.enumerated().map { ($1.versionID, $0) }, uniquingKeysWith: { first, _ in first })
+        if let focusVersionID, let index = indexByVersionID[focusVersionID] {
             focusIndex = index
         } else {
             focusIndex = newItems.isEmpty ? nil : 0
@@ -192,8 +208,8 @@ final class LibraryModel {
 
     func refreshProjects() async {
         do {
-            projects = try await catalog.projectSummaries()
-            libraryCount = try await catalog.versionCount()
+            projects = try await catalog.projectSummaries(groupingPairs: groupPairs)
+            libraryCount = try await catalog.versionCount(groupingPairs: groupPairs)
         } catch {
             Self.log.error("Loading projects failed: \(error.localizedDescription, privacy: .public)")
         }
@@ -295,24 +311,30 @@ final class LibraryModel {
     /// and saves it right away. Saves are chained so they reach the catalog in
     /// the order they were made.
     func perform(_ action: CullingAction) {
-        let targets: IndexSet = if mode == .loupe || selection.isEmpty {
-            focusIndex.map { IndexSet(integer: $0) } ?? []
-        } else {
-            selection
-        }
+        let targets = actionTargets
         guard !targets.isEmpty else { return }
         let catalog = self.catalog
+        // The catalog applies each change to both halves of a pair; when they are
+        // shown separately, the partner's cell changes with it.
+        var changed = targets
+        func update(_ index: Int, _ change: (inout CatalogItem) -> Void) {
+            change(&items[index])
+            if let partner = items[index].partnerVersionID, let partnerIndex = indexByVersionID[partner] {
+                change(&items[partnerIndex])
+                changed.insert(partnerIndex)
+            }
+        }
 
         switch action {
         case .setRating(let rating):
-            for index in targets { items[index].rating = rating }
+            for index in targets { update(index) { $0.rating = rating } }
             let ids = targets.map { items[$0].versionID }
             persist { try await catalog.setRating(rating, forVersions: ids) }
         case .adjustRating(let delta):
             var groups: [Rating: [Int64]] = [:]
             for index in targets {
                 let rating = Rating(clamping: items[index].rating.rawValue + delta)
-                items[index].rating = rating
+                update(index) { $0.rating = rating }
                 groups[rating, default: []].append(items[index].versionID)
             }
             let changes = groups
@@ -320,19 +342,51 @@ final class LibraryModel {
                 for (rating, ids) in changes { try await catalog.setRating(rating, forVersions: ids) }
             }
         case .setFlag(let flag):
-            for index in targets { items[index].flag = flag }
+            for index in targets { update(index) { $0.flag = flag } }
             let ids = targets.map { items[$0].versionID }
             persist { try await catalog.setFlag(flag, forVersions: ids) }
         case .setColorLabel(let label):
-            for index in targets { items[index].colorLabel = label }
+            for index in targets { update(index) { $0.colorLabel = label } }
             let ids = targets.map { items[$0].versionID }
             persist { try await catalog.setColorLabel(label, forVersions: ids) }
         }
         itemsRevision += 1
-        observer?.libraryItemsChanged(at: targets)
+        observer?.libraryItemsChanged(at: changed)
 
         if autoAdvance, targets.count == 1, let focusIndex, focusIndex + 1 < items.count {
             setFocus(focusIndex + 1)
+        }
+    }
+
+    /// The selection in the grid, or the photo on screen in the loupe.
+    var actionTargets: IndexSet {
+        if mode == .loupe || selection.isEmpty {
+            return focusIndex.map { IndexSet(integer: $0) } ?? []
+        }
+        return selection
+    }
+
+    // MARK: Pairs
+
+    /// Makes the RAW (`raw`) or the JPEG/HEIC represent the targeted pairs while
+    /// pairs are grouped. The focused pair stays focused through the switch.
+    func showPairFile(raw: Bool) {
+        let pairs = actionTargets.filter { items[$0].partnerVersionID != nil }
+        guard !pairs.isEmpty else { return }
+        let ids = pairs.map { items[$0].versionID }
+        let showsCompanion = !raw
+        // Whichever half is in the list now, the other one may be the new cover.
+        let focusID: Int64? = focusedItem.flatMap { item -> Int64? in
+            guard let partner = item.partnerVersionID else { return item.versionID }
+            let isRaw = item.fileKind == .raw
+            return isRaw == raw ? item.versionID : partner
+        }
+        let catalog = self.catalog
+        persist { try await catalog.setPairsShowCompanion(showsCompanion, forVersions: ids) }
+        let previous = writeChain
+        Task {
+            await previous?.value
+            reloadItems(keepFocus: true, focusVersionID: focusID)
         }
     }
 

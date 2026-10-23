@@ -8,7 +8,7 @@ import PhotoCore
 let usage = """
     usage: photobench <command> [options]
 
-      generate   --output DIR [--jpeg N] [--dng N] [--heic N] [--per-folder N]
+      generate   --output DIR [--jpeg N] [--dng N] [--heic N] [--pairs N] [--per-folder N]
                  [--jpeg-size WxH] [--dng-size WxH] [--heic-size WxH]
                  Writes a synthetic library with unique pixels and EXIF dates.
 

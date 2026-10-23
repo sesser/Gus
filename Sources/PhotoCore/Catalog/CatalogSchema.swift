@@ -6,6 +6,7 @@ enum CatalogSchema {
     static var migrator: DatabaseMigrator {
         var migrator = DatabaseMigrator()
         migrator.registerMigration("v1", migrate: createInitialSchema)
+        migrator.registerMigration("v2", migrate: addImagePairs)
         return migrator
     }
 
@@ -135,5 +136,30 @@ enum CatalogSchema {
                 .references("keyword", onDelete: .cascade)
             t.primaryKey(["versionId", "keywordId"])
         }
+    }
+
+    /// RAW+JPEG pairs. Existing masters get their pairing keys and are paired here;
+    /// culling values, keywords and albums of the two halves are merged.
+    private static func addImagePairs(_ db: Database) throws {
+        try db.alter(table: "image") { t in
+            t.add(column: "pairingKey", .text)
+        }
+        try db.create(index: "image_on_pairingKey", on: "image", columns: ["volumeId", "pairingKey"])
+        try db.create(table: "imagePair") { t in
+            t.autoIncrementedPrimaryKey("id")
+            t.column("rawImageId", .integer).notNull().unique()
+                .references("image", onDelete: .cascade)
+            t.column("companionImageId", .integer).notNull().unique()
+                .references("image", onDelete: .cascade)
+            t.column("showsCompanion", .boolean).notNull().defaults(to: false)
+        }
+
+        let update = try db.makeStatement(sql: "UPDATE image SET pairingKey = ? WHERE id = ?")
+        let rows = try Row.fetchCursor(db, sql: "SELECT id, relativePath FROM image")
+        while let row = try rows.next() {
+            let path: String = row["relativePath"]
+            try update.execute(arguments: [ImagePairing.key(forRelativePath: path), row["id"] as Int64])
+        }
+        try ImagePairing.pairAll(db)
     }
 }

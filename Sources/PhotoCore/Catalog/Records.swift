@@ -97,6 +97,9 @@ public struct ImageRecord: Codable, Hashable, Sendable, Identifiable, FetchableR
     public var fNumber: Double?
     public var focalLength: Double?
     public var importedAt: Date
+    /// Lowercased relative path without the extension; RAW and JPEG files that
+    /// share it (on one volume, in one project) form a pair.
+    public var pairingKey: String?
 
     public enum Columns {
         public static let id = Column(CodingKeys.id)
@@ -105,6 +108,7 @@ public struct ImageRecord: Codable, Hashable, Sendable, Identifiable, FetchableR
         public static let relativePath = Column(CodingKeys.relativePath)
         public static let contentHash = Column(CodingKeys.contentHash)
         public static let sortDate = Column(CodingKeys.sortDate)
+        public static let pairingKey = Column(CodingKeys.pairingKey)
     }
 
     public mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
@@ -240,4 +244,23 @@ public struct VersionKeywordRecord: Codable, Hashable, Sendable, FetchableRecord
 
     public var versionId: Int64
     public var keywordId: Int64
+}
+
+/// A RAW master and the JPEG or HEIC shot with it. When pairs are grouped, the
+/// browser shows one of the two (the RAW unless `showsCompanion`).
+public struct ImagePairRecord: Codable, Hashable, Sendable, Identifiable, FetchableRecord, MutablePersistableRecord {
+    public static let databaseTableName = "imagePair"
+
+    public var id: Int64?
+    public var rawImageId: Int64
+    public var companionImageId: Int64
+    public var showsCompanion: Bool
+
+    public enum Columns {
+        public static let rawImageId = Column(CodingKeys.rawImageId)
+        public static let companionImageId = Column(CodingKeys.companionImageId)
+        public static let showsCompanion = Column(CodingKeys.showsCompanion)
+    }
+
+    public mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
 }

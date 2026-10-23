@@ -108,8 +108,9 @@ extension Catalog {
         }
     }
 
-    /// Projects, newest first, with the number of versions in each.
-    public func projectSummaries() async throws -> [ProjectSummary] {
+    /// Projects, newest first, with the number of versions in each. With
+    /// `groupingPairs`, a RAW+JPEG pair counts once.
+    public func projectSummaries(groupingPairs: Bool = true) async throws -> [ProjectSummary] {
         try await database.read { db in
             let rows = try Row.fetchAll(db, sql: """
                 SELECT project.*, COUNT(version.id) AS versionCount
@@ -119,8 +120,12 @@ extension Catalog {
                 GROUP BY project.id
                 ORDER BY project.createdAt DESC, project.id DESC
                 """)
+            // Both halves of a pair are in one project, and grouping hides one.
+            let pairs = groupingPairs ? try ImagePairing.pairCountsByProject(db) : [:]
             return try rows.map { row in
-                ProjectSummary(project: try ProjectRecord(row: row), versionCount: row["versionCount"])
+                let project = try ProjectRecord(row: row)
+                let count: Int = row["versionCount"]
+                return ProjectSummary(project: project, versionCount: count - (pairs[project.id ?? 0] ?? 0))
             }
         }
     }
@@ -172,6 +177,8 @@ public struct MasterInsertionResult: Hashable, Sendable {
     public var duplicateHashes: [String] = []
     /// Paths that are already registered with different content.
     public var conflictingPaths: [String] = []
+    /// RAW+JPEG pairs formed with the inserted masters.
+    public var pairsCreated = 0
 }
 
 extension Catalog {
@@ -225,7 +232,8 @@ extension Catalog {
                     orientation: metadata.orientation,
                     cameraMake: metadata.cameraMake, cameraModel: metadata.cameraModel,
                     lensModel: metadata.lensModel, iso: metadata.iso, exposureTime: metadata.exposureTime,
-                    fNumber: metadata.fNumber, focalLength: metadata.focalLength, importedAt: importedAt)
+                    fNumber: metadata.fNumber, focalLength: metadata.focalLength, importedAt: importedAt,
+                    pairingKey: ImagePairing.key(forRelativePath: master.relativePath))
                 try image.insert(db, onConflict: .ignore)
                 guard db.changesCount > 0, let imageID = image.id else {
                     let hashExists = try ImageRecord.filter(ImageRecord.Columns.contentHash == master.contentHash).fetchCount(db) > 0
@@ -241,6 +249,9 @@ extension Catalog {
                 result.insertedImageIDs.append(imageID)
                 if let versionID = version.id { result.insertedVersionIDs.append(versionID) }
             }
+            // Partners may have come in an earlier batch or an earlier import.
+            let keys = Set(masters.map { ImagePairing.key(forRelativePath: $0.relativePath) })
+            result.pairsCreated = try ImagePairing.pair(db, volumeID: volumeID, projectID: projectID, keys: keys)
             return result
         }
     }
@@ -298,10 +309,13 @@ extension Catalog {
         guard !ids.isEmpty else { return }
         let keys = Array(ids)
         try await database.write { db in
-            _ = try VersionRecord.filter(keys: keys).updateAll(db, [
-                column.set(to: value),
-                VersionRecord.Columns.modifiedAt.set(to: date),
-            ])
+            let targets = keys + (try ImagePairing.partnerVersionIDs(db, of: keys))
+            for chunk in targets.chunked(into: 10_000) {
+                _ = try VersionRecord.filter(keys: chunk).updateAll(db, [
+                    column.set(to: value),
+                    VersionRecord.Columns.modifiedAt.set(to: date),
+                ])
+            }
         }
     }
 
@@ -353,13 +367,14 @@ extension Catalog {
         }
     }
 
-    /// Appends versions to an album, ignoring ones already in it.
+    /// Appends versions (and their pair partners) to an album, ignoring ones
+    /// already in it.
     public func addVersions(_ versionIDs: [Int64], toAlbum albumID: Int64) async throws {
         try await database.write { db in
             var position = try Int.fetchOne(db, AlbumMemberRecord
                 .select(max(AlbumMemberRecord.Columns.position))
                 .filter(AlbumMemberRecord.Columns.albumId == albumID)) ?? -1
-            for versionID in versionIDs {
+            for versionID in versionIDs + (try ImagePairing.partnerVersionIDs(db, of: versionIDs)) {
                 position += 1
                 try AlbumMemberRecord(albumId: albumID, versionId: versionID, position: position)
                     .insert(db, onConflict: .ignore)
@@ -414,7 +429,7 @@ extension Catalog {
 
     public func assignKeyword(_ keywordID: Int64, toVersions versionIDs: [Int64]) async throws {
         try await database.write { db in
-            for versionID in versionIDs {
+            for versionID in versionIDs + (try ImagePairing.partnerVersionIDs(db, of: versionIDs)) {
                 try VersionKeywordRecord(versionId: versionID, keywordId: keywordID).insert(db, onConflict: .ignore)
             }
         }
