@@ -109,6 +109,19 @@ speed, focal length, exposure compensation, flash, white balance, location,
 artist, copyright and caption, with a live count. Right-click albums to rename,
 edit or delete them.
 
+**XMP sidecars**: ratings, flags, labels, keywords, creator, copyright, caption,
+usage terms and contact details are written to an `.xmp` file next to each
+original a moment after they change (`IMG_0412.xmp`; a RAW+JPEG pair shares
+one), so other apps can read them. Existing sidecars are edited in place and
+keep everything other apps put in them. Sidecars present at import, or
+`IMG_0412.CR3.xmp` ones, are read. Originals are never written, JPEG, HEIC and
+DNG included. The library is the source of truth, but nothing another app
+changed is overwritten: at launch, when a volume mounts and with **Photo ▸ Check
+for Changes on Disk**, sidecars and originals changed outside the app are listed
+under **Library ▸ Changed on Disk**, and the inspector compares the library's
+values with the file's so you can keep either, or choose per field (keywords can
+be merged). Writing can be turned off in **Settings**.
+
 **Undo**: ⌘Z and ⇧⌘Z undo and redo culling, keyword, album and pair changes, including
 changes made to many photos at once.
 

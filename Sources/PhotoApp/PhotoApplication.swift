@@ -27,6 +27,12 @@ struct PhotoApplication: App {
         .commands {
             LibraryCommands(model: library.model)
         }
+
+        Settings {
+            if let model = library.model {
+                SettingsView(model: model)
+            }
+        }
     }
 }
 
@@ -141,6 +147,9 @@ struct LibraryCommands: Commands {
             .disabled(model?.albums.isEmpty ?? true)
             Button("Remove from Album") { model?.removeFromCurrentAlbum() }
                 .disabled(model?.currentAlbumID == nil)
+            Divider()
+            Button("Check for Changes on Disk") { model?.checkForDiskChanges() }
+                .disabled(model == nil || model?.isCheckingDisk == true)
             Divider()
             Menu("RAW+JPEG Pair") {
                 Button("Show the RAW File") { model?.showPairFile(raw: true) }

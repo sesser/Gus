@@ -8,10 +8,15 @@ struct InspectorView: View {
     @State private var targetCount = 0
     @State private var details: VersionDetails?
     @State private var suggestions = SuggestionSummary()
+    @State private var diskChanges: [DiskChange] = []
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
+                if !diskChanges.isEmpty {
+                    DiskChangeSection(model: model, changes: diskChanges)
+                    Divider()
+                }
                 keywordsSection
                 if targetCount > 0 {
                     suggestionsSection
@@ -25,7 +30,8 @@ struct InspectorView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .task(id: Reload(selection: model.selectionRevision, keywords: model.keywordRevision,
-                         suggestions: model.suggestionRevision, focus: model.focusedItem?.versionID)) {
+                         suggestions: model.suggestionRevision, disk: model.diskChangeRevision,
+                         focus: model.focusedItem?.versionID)) {
             // Coalesces bursts of selection changes (shift-arrowing through a shoot).
             try? await Task.sleep(for: .milliseconds(60))
             guard !Task.isCancelled else { return }
@@ -33,7 +39,9 @@ struct InspectorView: View {
             let loaded = (try? await model.catalog.keywordUsage(forVersions: ids)) ?? []
             let loadedDetails = try? await model.catalog.details(forVersion: model.focusedItem?.versionID ?? -1)
             let loadedSuggestions = (try? await model.catalog.suggestionSummary(forVersions: ids)) ?? SuggestionSummary()
+            let loadedChanges = model.diskChangeCount > 0 ? ((try? await model.catalog.diskChanges(forVersions: ids)) ?? []) : []
             guard !Task.isCancelled else { return }
+            diskChanges = loadedChanges
             usage = loaded
             suggestions = loadedSuggestions
             targetCount = ids.count
@@ -45,6 +53,7 @@ struct InspectorView: View {
         var selection: Int
         var keywords: Int
         var suggestions: Int
+        var disk: Int
         var focus: Int64?
     }
 

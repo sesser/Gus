@@ -55,8 +55,11 @@ final class XMPDocument {
         return try! XMPDocument(data: Data(text.utf8))
     }
 
+    /// The packet's processing instructions and root element, without an XML
+    /// declaration: sidecars written by other apps start with the packet itself.
     func data() -> Data {
-        document.xmlData(options: [.nodePrettyPrint, .nodeCompactEmptyElement])
+        let parts = (document.children ?? []).map { $0.xmlString(options: [.nodePrettyPrint, .nodeCompactEmptyElement]) }
+        return Data((parts.joined(separator: "\n") + "\n").utf8)
     }
 
     // MARK: Reading

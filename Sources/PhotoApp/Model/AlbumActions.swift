@@ -14,6 +14,7 @@ extension LibraryModel {
         case .album(let id): albums.first { $0.id == id }?.album.name ?? AppBranding.displayName
         case .smartAlbum(let id): smartAlbums.first { $0.id == id }?.name ?? AppBranding.displayName
         case .keyword(let id): keywords.first { $0.id == id }?.name ?? AppBranding.displayName
+        case .changedOnDisk: String(localized: "Changed on Disk")
         }
     }
 

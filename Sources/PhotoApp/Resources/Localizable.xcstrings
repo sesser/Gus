@@ -346,6 +346,51 @@
         }
       }
     },
+    "Another app changed the metadata inside %@. The original is not written; keeping the library's values only updates the sidecar." : {
+      "comment" : "Inspector; the argument is a file name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Another app changed the metadata inside %@. The original is not written; keeping the library's values only updates the sidecar."
+          }
+        }
+      }
+    },
+    "Another app changed the sidecar of %@." : {
+      "comment" : "Inspector; the argument is a file name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Another app changed the sidecar of %@."
+          }
+        }
+      }
+    },
+    "Another app changed the sidecars or files of %lld selected photos. The values shown are the first photo's; your choice applies to all of them." : {
+      "comment" : "Inspector",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Another app changed the sidecar or file of %lld selected photo."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Another app changed the sidecars or files of %lld selected photos. The values shown are the first photo's; your choice applies to all of them."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "Any flag" : {
       "localizations" : {
         "en" : {
@@ -373,6 +418,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aperture"
+          }
+        }
+      }
+    },
+    "Apply Choices" : {
+      "comment" : "Inspector button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apply Choices"
           }
         }
       }
@@ -485,6 +541,28 @@
         }
       }
     },
+    "Changed on Disk" : {
+      "comment" : "Sidebar item and inspector section: photos whose sidecar or file another app changed",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Changed on Disk"
+          }
+        }
+      }
+    },
+    "Check for Changes on Disk" : {
+      "comment" : "Photo menu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check for Changes on Disk"
+          }
+        }
+      }
+    },
     "Choose a folder. Photos inside it, including subfolders, are added to a new project." : {
       "localizations" : {
         "en" : {
@@ -537,6 +615,17 @@
         }
       }
     },
+    "Contact" : {
+      "comment" : "Metadata field: creator contact information",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Contact"
+          }
+        }
+      }
+    },
     "Copyright" : {
       "comment" : "Smart album rule field",
       "localizations" : {
@@ -568,6 +657,29 @@
         }
       }
     },
+    "Could not write %lld sidecar files." : {
+      "comment" : "Status bar",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Could not write %lld sidecar file."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Could not write %lld sidecar files."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "Create" : {
       "comment" : "Sheet button",
       "localizations" : {
@@ -575,6 +687,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Create"
+          }
+        }
+      }
+    },
+    "Creator" : {
+      "comment" : "Metadata field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Creator"
           }
         }
       }
@@ -762,6 +885,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Field"
+          }
+        }
+      }
+    },
+    "File" : {
+      "comment" : "Inspector column: the value in the sidecar or file",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "File"
           }
         }
       }
@@ -1083,6 +1217,28 @@
         }
       }
     },
+    "Keep Library Values" : {
+      "comment" : "Inspector button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep Library Values"
+          }
+        }
+      }
+    },
+    "Keep the keywords from both" : {
+      "comment" : "Inspector option when keywords differ",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep the keywords from both"
+          }
+        }
+      }
+    },
     "Keyword" : {
       "comment" : "Smart album rule field and keyword picker label",
       "localizations" : {
@@ -1241,6 +1397,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Merged “%@” into “%@”."
+          }
+        }
+      }
+    },
+    "Metadata" : {
+      "comment" : "Settings section",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Metadata"
           }
         }
       }
@@ -1406,6 +1573,17 @@
         }
       }
     },
+    "None" : {
+      "comment" : "No value in a metadata comparison",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "None"
+          }
+        }
+      }
+    },
     "Not rejected" : {
       "localizations" : {
         "en" : {
@@ -1497,6 +1675,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Photo"
+          }
+        }
+      }
+    },
+    "Photos whose sidecar or file another app changed. Review them in the inspector." : {
+      "comment" : "Sidebar help",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photos whose sidecar or file another app changed. Review them in the inspector."
           }
         }
       }
@@ -1602,6 +1791,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Rating"
+          }
+        }
+      }
+    },
+    "Ratings, labels, keywords and copyright go into an .xmp file next to each original, so other apps can read them. Originals are never changed. Sidecars another app changed are listed under Changed on Disk instead of being overwritten." : {
+      "comment" : "Settings explanation",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ratings, labels, keywords and copyright go into an .xmp file next to each original, so other apps can read them. Originals are never changed. Sidecars another app changed are listed under Changed on Disk instead of being overwritten."
           }
         }
       }
@@ -2017,6 +2217,39 @@
         }
       }
     },
+    "Take every value from the file" : {
+      "comment" : "Inspector help",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Take every value from the file"
+          }
+        }
+      }
+    },
+    "Take the checked values from the file and keep the others" : {
+      "comment" : "Inspector help",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Take the checked values from the file and keep the others"
+          }
+        }
+      }
+    },
+    "Take this value from the file" : {
+      "comment" : "Inspector help on a field checkbox",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Take this value from the file"
+          }
+        }
+      }
+    },
     "Text" : {
       "comment" : "Smart album rule text field placeholder",
       "localizations" : {
@@ -2132,6 +2365,28 @@
         }
       }
     },
+    "Usage Terms" : {
+      "comment" : "Metadata field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usage Terms"
+          }
+        }
+      }
+    },
+    "Use File Values" : {
+      "comment" : "Inspector button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use File Values"
+          }
+        }
+      }
+    },
     "Use File ▸ New Album to make one." : {
       "comment" : "Sidebar, no albums yet",
       "localizations" : {
@@ -2204,6 +2459,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Whole library"
+          }
+        }
+      }
+    },
+    "Write XMP sidecar files when photos change" : {
+      "comment" : "Settings toggle",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Write XMP sidecar files when photos change"
+          }
+        }
+      }
+    },
+    "Write the library's values to the file" : {
+      "comment" : "Inspector help",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Write the library's values to the file"
           }
         }
       }

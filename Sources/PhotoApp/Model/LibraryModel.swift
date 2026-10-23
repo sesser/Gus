@@ -26,6 +26,8 @@ enum SidebarSelection: Hashable {
     case album(Int64)
     case smartAlbum(Int64)
     case keyword(Int64)
+    /// Photos whose sidecar or file another app changed.
+    case changedOnDisk
 }
 
 /// The smart albums every library has.
@@ -60,6 +62,7 @@ final class LibraryModel {
     let importer: Importer
     let previews: PreviewService
     let suggester: any KeywordSuggester = VisionKeywordSuggester()
+    let sidecars: SidecarSync
 
     // MARK: Sidebar and filters
 
@@ -81,6 +84,18 @@ final class LibraryModel {
     var sidebarCounts: [SidebarSelection: Int] = [:]
     /// A sheet asked for by the sidebar or a menu command.
     var sidebarSheet: SidebarSheet?
+    /// Photos whose sidecar or file another app changed, waiting for review.
+    var diskChangeCount = 0
+    /// Bumped when outside changes are found or settled.
+    var diskChangeRevision = 0
+    var isCheckingDisk = false
+    /// Write XMP sidecars when photos change (Settings).
+    var writesSidecars: Bool {
+        didSet {
+            UserDefaults.standard.set(writesSidecars, forKey: Self.writesSidecarsKey)
+            if writesSidecars { scheduleSidecarSync() }
+        }
+    }
 
     var sidebarSelection: SidebarSelection = .allPhotos {
         didSet { if oldValue != sidebarSelection { reloadItems(keepFocus: false) } }
@@ -113,6 +128,7 @@ final class LibraryModel {
         case .album(let id): .album(id)
         case .smartAlbum(let id): smartAlbums.first { $0.id == id }?.scope ?? .album(-1)
         case .keyword(let id): .keyword(id)
+        case .changedOnDisk: .changedOnDisk
         }
     }
 
@@ -182,6 +198,7 @@ final class LibraryModel {
     private static let showFileInfoKey = "browser.showFileInfo"
     private static let groupPairsKey = "browser.groupPairs"
     private static let showsInspectorKey = "browser.showsInspector"
+    private static let writesSidecarsKey = "sidecars.write"
 
     // MARK: Background work
 
@@ -200,11 +217,14 @@ final class LibraryModel {
     /// undo:/redo: with it, so text fields keep their own undo.
     @ObservationIgnored var undoManager = UndoManager()
     @ObservationIgnored private var lastLiveRefresh = Date.distantPast
-    @ObservationIgnored private var started = false
+    @ObservationIgnored private(set) var started = false
     @ObservationIgnored private var volumeObservers: [any NSObjectProtocol] = []
     @ObservationIgnored var pendingAnalysis: [Int64] = []
     @ObservationIgnored private var metadataTask: Task<Void, Never>?
     @ObservationIgnored private var sidebarRefreshTask: Task<Void, Never>?
+    @ObservationIgnored var sidecarSyncTask: Task<Void, Never>?
+    @ObservationIgnored var sidecarSyncPending = false
+    @ObservationIgnored var diskCheckTask: Task<Void, Never>?
     /// Version ids being dragged from the grid, for drops on the sidebar.
     @ObservationIgnored var draggedVersionIDs: [Int64] = []
     @ObservationIgnored var analysisTask: Task<Void, Never>?
@@ -223,6 +243,8 @@ final class LibraryModel {
         showFileInfo = defaults.object(forKey: Self.showFileInfoKey) as? Bool ?? true
         groupPairs = defaults.object(forKey: Self.groupPairsKey) as? Bool ?? true
         showsInspector = defaults.bool(forKey: Self.showsInspectorKey)
+        writesSidecars = defaults.object(forKey: Self.writesSidecarsKey) as? Bool ?? true
+        sidecars = SidecarSync(catalog: catalog, metadataReader: importer.metadataReader)
     }
 
     /// Opens the catalog at the standard location (or `--library-root`).
@@ -250,6 +272,10 @@ final class LibraryModel {
         await refreshProjects()
         await refreshKeywords()
         reloadItems(keepFocus: false)
+        scheduleSidecarSync()
+        await refreshDiskChanges()
+        // Changes other apps made while this one was not running.
+        checkForDiskChanges(delay: .seconds(5))
     }
 
     // MARK: Loading
@@ -368,6 +394,10 @@ final class LibraryModel {
                 onlineVolumeIDs = online
                 observer?.libraryAvailabilityChanged()
                 refreshStaleMetadata()
+                if started {
+                    scheduleSidecarSync()
+                    checkForDiskChanges(delay: .seconds(2))
+                }
             }
         } catch {
             Self.log.error("Refreshing volumes failed: \(error.localizedDescription, privacy: .public)")
@@ -616,6 +646,7 @@ final class LibraryModel {
                 Self.log.error("Saving failed: \(error.localizedDescription, privacy: .public)")
                 statusMessage = String(localized: "Could not save the change: \(error.localizedDescription)")
             }
+            scheduleSidecarSync()
         }
     }
 
@@ -679,6 +710,7 @@ final class LibraryModel {
         await refreshVolumes()
         await refreshProjects()
         await refreshKeywords()
+        scheduleSidecarSync()
         let progress = summary.progress
         let skipped = progress.duplicates + progress.alreadyInCatalog
         let failed = progress.failed + progress.changedOnDisk

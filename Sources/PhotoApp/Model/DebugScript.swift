@@ -15,7 +15,8 @@ import UniformTypeIdentifiers
 ///     print <what>          (state for checks: selection, keywords, undo, suggestions, items)
 ///     suggest               (analyzes the selection and waits)      accept <keyword>
 ///     album <name>          (from the selection)    smartalbum <name>  (rating ≥ 3)     remove
-///     sidebar album|smart|month <n> | builtin <name> | all            sheet smart|album|none
+///     sidebar album|smart|month <n> | builtin <name> | changed | all  sheet smart|album|none
+///     checkdisk             (looks for outside changes and waits)   resolvedisk library|file
 ///
 /// Keys are characters ("3", "p") or names (left, right, up, down, home, end,
 /// pageup, pagedown, return, escape, space); prefix "opt+" or "shift+" for modifiers. Key events go through
@@ -141,6 +142,13 @@ enum DebugScript {
             case "album": model.sidebarSheet = .newAlbum(projectID: nil)
             default: model.sidebarSheet = nil
             }
+        case "checkdisk":
+            model.checkForDiskChanges()
+            try? await Task.sleep(for: .milliseconds(200))
+            while model.diskCheckTask != nil { try? await Task.sleep(for: .milliseconds(100)) }
+        case "resolvedisk":
+            let changes = (try? await model.catalog.diskChanges(forVersions: model.actionTargetVersionIDs)) ?? []
+            model.resolveDiskChanges(changes, with: rest.first == "file" ? .useFile : .keepLibrary)
         case "print":
             printState(rest.first ?? "", model: model)
         case "quit":
@@ -156,6 +164,7 @@ enum DebugScript {
         case "album" where model.albums.indices.contains(index): model.sidebarSelection = .album(model.albums[index].id)
         case "smart" where model.smartAlbums.indices.contains(index):
             model.sidebarSelection = .smartAlbum(model.smartAlbums[index].id)
+        case "changed": model.sidebarSelection = .changedOnDisk
         case "builtin":
             model.sidebarSelection = BuiltInAlbum(rawValue: words.dropFirst().first ?? "").map { .builtIn($0) } ?? .allPhotos
         case "month" where model.captureMonths.indices.contains(index):
@@ -199,6 +208,8 @@ enum DebugScript {
             print("debug-script: albums " + model.albums.map { "\($0.album.name)=\($0.count)" }.joined(separator: " ")
                   + " | months " + model.captureMonths.map { "\($0.id)=\($0.count)" }.joined(separator: " ")
                   + " | " + counts.joined(separator: " ") + " | showing \(model.items.count)")
+        case "disk":
+            print("debug-script: changed on disk \(model.diskChangeCount), writes \(model.writesSidecars)")
         case "items":
             print("debug-script: items " + model.items.prefix(12).map { "\($0.baseName):\($0.rating.rawValue)" }.joined(separator: " "))
         default:

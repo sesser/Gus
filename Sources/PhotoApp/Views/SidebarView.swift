@@ -59,6 +59,12 @@ struct SidebarView: View {
                     SidebarRow(title: album.title, symbol: album.symbol, count: model.sidebarCounts[.builtIn(album)])
                         .tag(SidebarSelection.builtIn(album))
                 }
+                if model.diskChangeCount > 0 {
+                    SidebarRow(title: String(localized: "Changed on Disk"), symbol: "exclamationmark.arrow.triangle.2.circlepath",
+                               count: model.diskChangeCount)
+                        .tag(SidebarSelection.changedOnDisk)
+                        .help("Photos whose sidecar or file another app changed. Review them in the inspector.")
+                }
             }
             if !model.captureMonths.isEmpty {
                 Section("Dates", isExpanded: $datesExpanded) {
