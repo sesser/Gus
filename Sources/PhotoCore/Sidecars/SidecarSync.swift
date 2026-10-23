@@ -139,6 +139,10 @@ public actor SidecarSync {
         return SidecarFiles.locate(in: target.folder, names: names)
     }
 
+    func syncWriting(_ target: SidecarTarget) async throws -> Report {
+        try await sync(target, writing: true)
+    }
+
     /// Compares baseline, library and file for one master; writes when
     /// `writing` and the file has not changed since the baseline.
     private func sync(_ target: SidecarTarget, writing: Bool) async throws -> Report {
@@ -308,5 +312,31 @@ public actor SidecarSync {
         }
         // The library changes above queued these masters; they are settled now.
         try await catalog.dequeueSidecarWork(changes.map(\.imageID))
+    }
+}
+
+extension SidecarSync {
+    /// Writes sidecars for these masters now, whatever the queue holds (used
+    /// for metadata applied at import, which always goes into sidecars).
+    public func writeSidecars(forImages imageIDs: [Int64], mountedVolumes: Set<Int64>) async throws -> Report {
+        let owners = Array(Set(try await catalog.database.read { db in
+            try Catalog.sidecarOwners(db, images: imageIDs).values
+        })).sorted()
+        var report = Report()
+        for chunk in owners.chunked(into: 256) {
+            for target in try await catalog.sidecarTargets(owners: Array(chunk)) where mountedVolumes.contains(target.volumeID) {
+                report.add(try await syncForced(target))
+            }
+        }
+        try await catalog.dequeueSidecarWork(owners)
+        return report
+    }
+
+    /// The new master has values its (absent) sidecar lacks: write it.
+    private func syncForced(_ target: SidecarTarget) async throws -> Report {
+        var forced = target
+        // A fresh baseline of "nothing" makes the library's values differ.
+        forced.sync = nil
+        return try await syncWriting(forced)
     }
 }

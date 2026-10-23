@@ -40,7 +40,7 @@ struct SidecarSyncTests {
         for (index, name) in files.enumerated() {
             let url = folder.appending(path: name)
             if FileKind(pathExtension: url.pathExtension) == .raw {
-                try SyntheticDNG.write(to: url, options: .init(width: 64, height: 48, seed: UInt64(index + 1)))
+                try SyntheticDNG.write(to: url, options: .init(width: 400, height: 300, seed: UInt64(index + 1)))
             } else {
                 try SyntheticImages.writeJPEG(to: url, width: 64, height: 48, seed: UInt64(index + 1),
                                               exif: .init(dateTimeOriginal: "2024:05:01 10:00:0\(index)"))
