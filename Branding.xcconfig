@@ -1,0 +1,8 @@
+// Brand-dependent build settings. This is the only build-settings file that names
+// the product. Keep it in sync with Sources/PhotoCore/Branding/AppBranding.swift;
+// BrandingTests fails if the two disagree. See RENAMING.md.
+
+PRODUCT_NAME = Gus
+PRODUCT_DISPLAY_NAME = Gus
+PRODUCT_BUNDLE_IDENTIFIER = me.sesser.gus
+PRODUCT_URL_SCHEME = gus
