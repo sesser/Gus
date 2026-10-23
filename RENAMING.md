@@ -66,4 +66,7 @@ Things a rename does **not** carry over automatically:
   keep `sidecarNamespace` unchanged across renames (it is an opaque URI, not a
   display string), or add the old URI to a legacy-read list when sidecar reading lands.
 
+The app icon, `Support/AppIcon.png`, contains no name or letter, so a rename
+does not require new artwork; replace it only if the new brand calls for it.
+
 The repository folder name is not referenced by the build and can be anything.

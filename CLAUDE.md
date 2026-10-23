@@ -54,6 +54,8 @@ compatible and never put `#` comment lines inside pasted command snippets.
 - `Sources/PhotoFixtures` — synthetic JPEG/HEIC and Bayer DNG writers (tests, benchmarks).
 - `Sources/PhotoBench` — synthetic library generator and headless profiling.
 - `Sources/StringCatalogCompiler` — `.xcstrings` to `.strings`/`.stringsdict`.
+- `Sources/AppIconCompiler` — `Support/AppIcon.png` to an `.iconset` (masked to the
+  macOS icon shape); `build-app.sh` turns it into `AppIcon.icns` with `iconutil`.
 - `Tests/PhotoCoreTests` — Swift Testing suites.
 - `docs/PHASE1_PLAN.md` — schema, module and pipeline decisions for phase 1.
 

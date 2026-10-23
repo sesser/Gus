@@ -37,6 +37,7 @@ done
 cd "$ROOT"
 swift build -c "$CONFIGURATION" --product PhotoApp
 swift build -c "$CONFIGURATION" --product catalog-strings
+swift build -c "$CONFIGURATION" --product app-icon
 BIN=$(swift build -c "$CONFIGURATION" --show-bin-path)
 
 APP="$ROOT/build/$PRODUCT_NAME.app"
@@ -72,5 +73,12 @@ printf 'APPL????' > "$APP/Contents/PkgInfo"
 
 "$BIN/catalog-strings" "$ROOT/Sources/PhotoApp/Resources/Localizable.xcstrings" "$APP/Contents/Resources"
 
+ICONSET="$ROOT/build/AppIcon.iconset"
+"$BIN/app-icon" "$ROOT/Support/AppIcon.png" "$ICONSET"
+iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
+rm -rf "$ICONSET"
+
 codesign --force --sign - --timestamp=none "$APP"
+# Finder and the Dock cache icons by bundle; a fresh date makes them look again.
+touch "$APP"
 echo "$APP"

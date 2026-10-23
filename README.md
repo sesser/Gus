@@ -36,7 +36,9 @@ open build/*.app
 
 `Scripts/build-app.sh` builds in release mode and assembles the `.app` bundle in
 `build/`. It fills `Support/Info.plist` from `Branding.xcconfig`, compiles the
-String Catalog, and signs ad hoc. Use `CONFIGURATION=debug Scripts/build-app.sh`
+String Catalog, builds the app icon from `Support/AppIcon.png`, and signs ad hoc.
+To change the icon, replace that file with any square image (1024 × 1024 is
+best) and rebuild; the `app-icon` tool fits it to the macOS icon shape. Use `CONFIGURATION=debug Scripts/build-app.sh`
 for a debug build.
 
 ## Using it
@@ -79,9 +81,10 @@ previews still display, and nothing is removed from the catalog.
 | `Sources/PhotoFixtures` | synthetic JPEG/HEIC and Bayer DNG writers for tests and benchmarks |
 | `Sources/PhotoBench` | synthetic library generator and profiling (`photobench`) |
 | `Sources/StringCatalogCompiler` | String Catalog compiler used by the build script |
+| `Sources/AppIconCompiler` | turns `Support/AppIcon.png` into the app's `.icns` |
 | `Tests/PhotoCoreTests` | Swift Testing suites |
 | `Branding.xcconfig` | brand-dependent build settings |
-| `Support/` | Info.plist template, version numbers |
+| `Support/` | Info.plist template, version numbers, icon artwork |
 | `docs/PHASE1_PLAN.md` | schema and architecture decisions |
 | `docs/PROFILING.md` | timings with a 10k/50k synthetic library |
 

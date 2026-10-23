@@ -10,6 +10,7 @@ let package = Package(
         .executable(name: "PhotoApp", targets: ["PhotoApp"]),
         .executable(name: "photobench", targets: ["PhotoBench"]),
         .executable(name: "catalog-strings", targets: ["StringCatalogCompiler"]),
+        .executable(name: "app-icon", targets: ["AppIconCompiler"]),
     ],
     dependencies: [
         .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.9.0"),
@@ -37,6 +38,9 @@ let package = Package(
         ),
         .executableTarget(
             name: "StringCatalogCompiler"
+        ),
+        .executableTarget(
+            name: "AppIconCompiler"
         ),
         .testTarget(
             name: "PhotoCoreTests",
