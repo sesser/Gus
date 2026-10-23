@@ -462,21 +462,6 @@ extension Catalog {
         }
     }
 
-    /// Appends versions (and their pair partners) to an album, ignoring ones
-    /// already in it.
-    public func addVersions(_ versionIDs: [Int64], toAlbum albumID: Int64) async throws {
-        try await database.write { db in
-            var position = try Int.fetchOne(db, AlbumMemberRecord
-                .select(max(AlbumMemberRecord.Columns.position))
-                .filter(AlbumMemberRecord.Columns.albumId == albumID)) ?? -1
-            for versionID in versionIDs + (try ImagePairing.partnerVersionIDs(db, of: versionIDs)) {
-                position += 1
-                try AlbumMemberRecord(albumId: albumID, versionId: versionID, position: position)
-                    .insert(db, onConflict: .ignore)
-            }
-        }
-    }
-
     public func versionIDs(inAlbum albumID: Int64) async throws -> [Int64] {
         try await database.read { db in
             try Int64.fetchAll(db, AlbumMemberRecord

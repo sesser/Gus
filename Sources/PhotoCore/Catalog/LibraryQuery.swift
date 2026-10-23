@@ -9,6 +9,11 @@ public struct LibraryFilter: Hashable, Sendable {
         case project(Int64)
         case album(Int64)
         case keyword(Int64)
+        /// A smart album's rules, optionally limited to one project.
+        case rules(SmartAlbumRules, projectID: Int64?)
+        case importRun(Int64)
+        /// Capture days from `start` up to, not including, `end` (`YYYY-MM-DD`).
+        case captureDays(start: String, end: String)
     }
 
     public enum RatingRule: Hashable, Sendable {
@@ -106,8 +111,9 @@ public struct CatalogItem: Hashable, Sendable, Identifiable {
 }
 
 extension Catalog {
-    /// Versions matching `filter`, in capture order.
-    public func libraryItems(matching filter: LibraryFilter) async throws -> [CatalogItem] {
+    /// `WHERE …` for `filter` over `version` joined with `image` (empty when it
+    /// matches everything).
+    static func whereClause(for filter: LibraryFilter, now: Date = Date()) -> (sql: String, arguments: StatementArguments) {
         var clauses: [String] = []
         var arguments = StatementArguments()
         switch filter.scope {
@@ -122,6 +128,21 @@ extension Catalog {
         case .keyword(let id):
             clauses.append("version.id IN (SELECT versionId FROM versionKeyword WHERE keywordId = ?)")
             arguments += [id]
+        case .rules(let rules, let projectID):
+            if let projectID {
+                clauses.append("image.projectId = ?")
+                arguments += [projectID]
+            }
+            if let condition = rules.sqlCondition(now: now) {
+                clauses.append(condition.sql)
+                arguments += condition.arguments
+            }
+        case .importRun(let id):
+            clauses.append("image.importRunId = ?")
+            arguments += [id]
+        case .captureDays(let start, let end):
+            clauses.append("image.localDate >= ? AND image.localDate < ?")
+            arguments += [start, end]
         }
         switch filter.rating {
         case .any:
@@ -142,8 +163,12 @@ extension Catalog {
         case .unflagged: clauses.append("version.flag = 0")
         case .notRejected: clauses.append("version.flag >= 0")
         }
+        return (clauses.isEmpty ? "" : "WHERE " + clauses.joined(separator: " AND "), arguments)
+    }
 
-        let whereClause = clauses.isEmpty ? "" : "WHERE " + clauses.joined(separator: " AND ")
+    /// Versions matching `filter`, in capture order.
+    public func libraryItems(matching filter: LibraryFilter) async throws -> [CatalogItem] {
+        let (whereClause, arguments) = Self.whereClause(for: filter)
         let sql = """
             SELECT version.id, version.imageId, image.volumeId, version.rating, version.flag,
                    version.colorLabel, image.contentHash, version.editStackHash, image.relativePath,
@@ -236,6 +261,30 @@ extension Catalog {
             contentHash: row[6], editStackHash: row[7], relativePath: row[8],
             pixelWidth: (row[9] as Int?) ?? 0, pixelHeight: (row[10] as Int?) ?? 0,
             orientation: row[11])
+    }
+
+    /// How many items `libraryItems(matching:)` would return, without building them.
+    public func itemCount(matching filter: LibraryFilter) async throws -> Int {
+        let (whereClause, arguments) = Self.whereClause(for: filter)
+        return try await database.read { db in
+            let rows = try Row.fetchCursor(db, sql: """
+                SELECT version.imageId, version.isDefault FROM version JOIN image ON image.id = version.imageId
+                \(whereClause)
+                """, arguments: arguments)
+            var count = 0
+            var defaults: Set<Int64> = []
+            while let row = try rows.next() {
+                count += 1
+                if filter.groupsPairs, row[1] as Bool { defaults.insert(row[0]) }
+            }
+            guard filter.groupsPairs, !defaults.isEmpty else { return count }
+            // A grouped pair shows once when both halves match.
+            let pairs = try Row.fetchCursor(db, sql: "SELECT rawImageId, companionImageId FROM imagePair")
+            while let pair = try pairs.next() {
+                if defaults.contains(pair[0]) && defaults.contains(pair[1]) { count -= 1 }
+            }
+            return count
+        }
     }
 
     /// Number of versions in the whole library; with `groupingPairs` a RAW+JPEG
