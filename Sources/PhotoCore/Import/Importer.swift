@@ -129,17 +129,26 @@ public final class Importer: Sendable {
                              insertedVersionIDs: run.insertedVersionIDs, timings: timings)
     }
 
+    /// `.xmp` files in a folder, by lowercased name. One listing per folder is
+    /// much cheaper than looking for several names next to every master.
+    static func sidecarNames(in folder: URL) -> [String: String] {
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
+        return Dictionary(names.filter { $0.lowercased().hasSuffix(".xmp") }.map { ($0.lowercased(), $0) },
+                          uniquingKeysWith: { first, _ in first })
+    }
+
     /// The sidecar next to a master (`IMG_1.xmp` or `IMG_1.CR3.xmp`), if it
     /// exists and parses.
-    static func readSidecar(for url: URL) -> SidecarRead? {
+    static func readSidecar(for url: URL, in sidecars: [String: String]) -> SidecarRead? {
         let name = url.lastPathComponent
         let names = SidecarFiles.candidateNames(forMaster: name,
                                                 preferred: SidecarFiles.preferredName(forMaster: name, stemIsShared: false))
-        guard let found = SidecarFiles.locate(in: url.deletingLastPathComponent(), names: names) else { return nil }
+        guard let found = names.lazy.compactMap({ sidecars[$0.lowercased()] }).first else { return nil }
+        let sidecarURL = url.deletingLastPathComponent().appending(path: found, directoryHint: .notDirectory)
         do {
-            return try SidecarFiles.read(found.url)
+            return try SidecarFiles.read(sidecarURL)
         } catch {
-            log.error("Ignoring unreadable sidecar \(found.url.path, privacy: .public): \(String(describing: error), privacy: .public)")
+            log.error("Ignoring unreadable sidecar \(sidecarURL.path, privacy: .public): \(String(describing: error), privacy: .public)")
             return nil
         }
     }
@@ -156,6 +165,8 @@ public final class Importer: Sendable {
         var project: ProjectRecord?
         var importRun: ImportRunRecord?
         var seenHashes: Set<String> = []
+        /// Sidecar names per folder (lowercased name → name), listed once.
+        var sidecarsByFolder: [String: [String: String]] = [:]
         var failures: [ImportFailure] = []
         var insertedVersionIDs: [Int64] = []
     }
@@ -245,10 +256,17 @@ public final class Importer: Sendable {
                 run.project = try await catalog.createProject(name: run.projectName, sourcePath: run.sourcePath)
                 run.importRun = try await catalog.createImportRun(sourcePath: run.sourcePath, projectID: run.project?.id)
             }
-            let masters = newMasters.map { candidate in
-                NewMaster(relativePath: candidate.relativePath, fileSize: candidate.file.fileSize,
-                          modifiedAt: candidate.file.modifiedAt, contentHash: candidate.hash,
-                          metadata: metadata[candidate.file.url] ?? .empty, sidecar: Self.readSidecar(for: candidate.file.url))
+            var masters: [NewMaster] = []
+            for candidate in newMasters {
+                let folder = candidate.file.url.deletingLastPathComponent()
+                if run.sidecarsByFolder[folder.path] == nil {
+                    run.sidecarsByFolder[folder.path] = Self.sidecarNames(in: folder)
+                }
+                let sidecars = run.sidecarsByFolder[folder.path] ?? [:]
+                masters.append(NewMaster(relativePath: candidate.relativePath, fileSize: candidate.file.fileSize,
+                                         modifiedAt: candidate.file.modifiedAt, contentHash: candidate.hash,
+                                         metadata: metadata[candidate.file.url] ?? .empty,
+                                         sidecar: sidecars.isEmpty ? nil : Self.readSidecar(for: candidate.file.url, in: sidecars)))
             }
             let result = try await catalog.insertMasters(masters, volumeID: volumeID, projectID: run.project!.id!,
                                                          importRunID: run.importRun?.id)

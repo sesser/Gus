@@ -28,6 +28,12 @@ let usage = """
       suggest    --library-root ROOT [--limit N]
                  Runs on-device keyword analysis and reports per-stage timings.
 
+      sidecars   --library-root ROOT [--limit N]
+                 Writes sidecars for N photos, checks the library for outside changes, cleans up.
+
+      copy       --source DIR --dest DIR [--limit N]
+                 Copies N shots with verification and compares with a plain copy.
+
       synthesize --library-root ROOT --count N
                  Grows the catalog to N versions by cloning existing rows with new content
                  hashes and hard-linking their cached thumbnails (grid-scale testing).
@@ -90,6 +96,8 @@ do {
     case "query": report = try await QueryBenchmark.run(arguments)
     case "synthesize": report = try await Synthesize.run(arguments)
     case "suggest": report = try await SuggestionBenchmark.run(arguments)
+    case "sidecars": report = try await SidecarBenchmark.run(arguments)
+    case "copy": report = try await CopyBenchmark.run(arguments)
     default:
         print(usage)
         exit(arguments.command == "help" || arguments.flags.contains("help") ? 0 : 64)

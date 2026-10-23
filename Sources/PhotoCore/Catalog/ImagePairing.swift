@@ -29,9 +29,9 @@ enum ImagePairing {
     }
 
     /// Pairs unpaired masters with the given keys in one project. Returns the
-    /// number of pairs created.
-    static func pair(_ db: Database, volumeID: Int64, projectID: Int64, keys: Set<String>) throws -> Int {
-        var created = 0
+    /// companions of the pairs created.
+    static func pair(_ db: Database, volumeID: Int64, projectID: Int64, keys: Set<String>) throws -> [Int64] {
+        var created: [Int64] = []
         for chunk in Array(keys).chunked(into: 500) {
             let placeholders = databaseQuestionMarks(count: chunk.count)
             var values: [(any DatabaseValueConvertible)?] = [volumeID, projectID]
@@ -62,7 +62,7 @@ enum ImagePairing {
               AND id NOT IN (SELECT companionImageId FROM imagePair)
             ORDER BY id
             """)
-        return try makePairs(db, from: candidates)
+        return try makePairs(db, from: candidates).count
     }
 
     /// Default versions of the partners of `versionIDs` (default versions only),
@@ -109,11 +109,11 @@ enum ImagePairing {
 
     /// Candidates are in id order, so the earliest RAW pairs with the earliest JPEG
     /// (or HEIC when there is no JPEG).
-    private static func makePairs(_ db: Database, from candidates: [Candidate]) throws -> Int {
+    private static func makePairs(_ db: Database, from candidates: [Candidate]) throws -> [Int64] {
         let groups = Dictionary(grouping: candidates) {
             GroupKey(volumeId: $0.volumeId, projectId: $0.projectId, pairingKey: $0.pairingKey)
         }
-        var created = 0
+        var created: [Int64] = []
         for members in groups.values where members.count > 1 {
             guard let raw = members.first(where: { $0.kind == .raw }),
                   let companion = members.first(where: { $0.kind == .jpeg }) ?? members.first(where: { $0.kind == .heic })
@@ -121,7 +121,7 @@ enum ImagePairing {
             var pair = ImagePairRecord(id: nil, rawImageId: raw.id, companionImageId: companion.id, showsCompanion: false)
             try pair.insert(db)
             try mergeDefaultVersions(db, raw: raw.id, companion: companion.id)
-            created += 1
+            created.append(companion.id)
         }
         return created
     }

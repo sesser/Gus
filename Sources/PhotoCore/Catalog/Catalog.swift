@@ -256,7 +256,6 @@ extension Catalog {
         guard !masters.isEmpty else { return MasterInsertionResult() }
         return try await database.write { db in
             var result = MasterInsertionResult()
-            var insertedMasters: [NewMaster] = []
             for master in masters {
                 let metadata = master.effectiveMetadata
                 var image = ImageRecord(
@@ -297,7 +296,6 @@ extension Catalog {
                 }
                 try version.insert(db)
                 result.insertedImageIDs.append(imageID)
-                insertedMasters.append(master)
                 guard let versionID = version.id else { continue }
                 result.insertedVersionIDs.append(versionID)
                 for name in metadata.keywords {
@@ -306,12 +304,12 @@ extension Catalog {
                         try VersionKeywordRecord(versionId: versionID, keywordId: keywordID).insert(db, onConflict: .ignore)
                     }
                 }
-            }
-            // What the files say now is the sidecar baseline: values only change
-            // the files once the library's values differ from it.
-            for (imageID, master) in zip(result.insertedImageIDs, insertedMasters) {
-                guard let image = try ImageRecord.fetchOne(db, key: imageID) else { continue }
-                let values = try Self.sidecarValues(db, image: image)
+                // What the files say now is the sidecar baseline: values only change
+                // the files once the library's values differ from it.
+                let values = SidecarValues(rating: version.rating, flag: version.flag, colorLabel: version.colorLabel,
+                                           keywords: metadata.keywords, creator: image.artist, rights: image.copyright,
+                                           caption: image.caption, usageTerms: image.usageTerms,
+                                           contact: metadata.creatorContact)
                 let file = master.sidecar?.file
                 try MetadataSyncRecord(
                     imageId: imageID, sidecarName: file?.name, sidecarSize: file?.size, sidecarModifiedAt: file?.modifiedAt,
@@ -320,9 +318,13 @@ extension Catalog {
             }
             // Partners may have come in an earlier batch or an earlier import.
             let keys = Set(masters.map { ImagePairing.key(forRelativePath: $0.relativePath) })
-            result.pairsCreated = try ImagePairing.pair(db, volumeID: volumeID, projectID: projectID, keys: keys)
+            let companions = try ImagePairing.pair(db, volumeID: volumeID, projectID: projectID, keys: keys)
+            result.pairsCreated = companions.count
             // A pair's sidecar belongs to its RAW.
-            try db.execute(sql: "DELETE FROM metadataSync WHERE imageId IN (SELECT companionImageId FROM imagePair)")
+            for chunk in companions.chunked(into: 10_000) {
+                try db.execute(sql: "DELETE FROM metadataSync WHERE imageId IN (\(databaseQuestionMarks(count: chunk.count)))",
+                               arguments: StatementArguments(Array(chunk)))
+            }
             return result
         }
     }

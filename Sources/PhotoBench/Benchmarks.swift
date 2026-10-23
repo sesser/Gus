@@ -219,6 +219,42 @@ enum QueryBenchmark {
         print(String(format: "  project summaries          %.1f ms", summaryTime.milliseconds))
         report["project_summaries_ms"] = summaryTime.milliseconds
 
+        // Phase 2: keywords on a third of the library (20 keywords), a smart
+        // album, the Dates tree, sidebar counts.
+        for index in 0..<20 {
+            let ids = stride(from: index, to: all.count, by: 60).map { all[$0].versionID }
+            try await catalog.addKeywords(named: ["keyword \(index)"], toVersions: ids)
+        }
+        let keyword = try await catalog.keywordSummaries().first
+        let smart = SmartAlbumRules(match: .all, rules: [
+            SmartRule(field: .rating, comparison: .atLeast, value: RuleValue(number: 3)),
+            SmartRule(field: .camera, comparison: .contains, value: RuleValue(text: "generator")),
+        ])
+        var timed: [(String, () async throws -> Int)] = [
+            ("keyword summaries", { try await catalog.keywordSummaries().count }),
+            ("capture months", { try await catalog.captureMonths().count }),
+            ("album summaries", { try await catalog.albumSummaries().count }),
+            ("smart album items", { try await catalog.libraryItems(matching: LibraryFilter(scope: .rules(smart, projectID: nil))).count }),
+            ("smart album count", { try await catalog.itemCount(matching: LibraryFilter(scope: .rules(smart, projectID: nil))) }),
+            ("no keywords count", { try await catalog.itemCount(matching: LibraryFilter(scope: .rules(
+                SmartAlbumRules(rules: [SmartRule(field: .hasKeywords, comparison: .isFalse)]), projectID: nil))) }),
+        ]
+        if let keyword {
+            timed.append(("one keyword items", { try await catalog.libraryItems(matching: LibraryFilter(scope: .keyword(keyword.id))).count }))
+        }
+        for (name, work) in timed {
+            var times: [Double] = []
+            var result = 0
+            for _ in 0..<5 {
+                let (value, duration) = try await measure { try await work() }
+                result = value
+                times.append(duration.milliseconds)
+            }
+            let stats = Stats(times)
+            print(String(format: "  %-22@ %6d   median %.1f ms", name as NSString, result, stats.percentile(0.5)))
+            report[name] = ["result": result, "median_ms": stats.percentile(0.5)] as [String: any Sendable]
+        }
+
         var writes: [Double] = []
         for index in 0..<300 {
             let id = all[(index * 31) % all.count].versionID
@@ -228,9 +264,14 @@ enum QueryBenchmark {
         let writeStats = Stats(writes)
         print("  single rating write:       \(writeStats.line)")
         report["rating_write"] = writeStats.dictionary
-        // Leave the library the way it was.
+        // Leave the library the way it was, and do not leave sidecar writes queued
+        // for these synthetic changes.
         try await catalog.setRating(.unrated, forVersions: all.map(\.versionID))
         try await catalog.setFlag(.none, forVersions: all.map(\.versionID))
+        for summary in try await catalog.keywordSummaries() where summary.name.hasPrefix("keyword ") {
+            _ = try await catalog.deleteKeyword(id: summary.id)
+        }
+        try await catalog.database.write { db in try db.execute(sql: "DELETE FROM sidecarQueue") }
         return report
     }
 }
@@ -326,5 +367,88 @@ enum SuggestionBenchmark {
         return ["machine": machineDescription(), "count": candidates.count, "per_second": perSecond,
                 "thumbnail": Stats(load).dictionary, "classify": Stats(classify).dictionary,
                 "store": Stats(store).dictionary]
+    }
+}
+
+/// Times sidecar writing and checking: rates photos, writes their sidecars,
+/// checks the library for outside changes, then removes the sidecars it wrote
+/// and puts the ratings back.
+enum SidecarBenchmark {
+    static func run(_ arguments: Arguments) async throws -> [String: any Sendable] {
+        let library = try BenchLibrary(arguments)
+        let catalog = library.catalog
+        let limit = arguments.int("limit", default: 2000)
+        let online = try await catalog.refreshVolumeAvailability()
+        let sync = SidecarSync(catalog: catalog, metadataReader: ImageIOMetadataReader())
+        let items = try await library.itemsWithSources().filter { $0.1 != nil }.prefix(limit)
+        print("Writing sidecars for \(items.count) photos")
+        // Sidecars that exist already stay; only new ones are removed afterwards.
+        let candidates = items.compactMap { $0.1 }.map { $0.deletingPathExtension().appendingPathExtension("xmp") }
+        let existing = Set(candidates.filter { FileManager.default.fileExists(atPath: $0.path) })
+
+        try await catalog.setRating(Rating(clamping: 4), forVersions: items.map(\.0.versionID))
+        let (written, writeTime) = try await measure { try await sync.processQueue(mountedVolumes: online) }
+        print(String(format: "  write: %d sidecars in %.2f s (%.0f/s)", written.written, writeTime.seconds,
+                     Double(written.written) / max(writeTime.seconds, 0.001)))
+        let (checked, checkTime) = try await measure { try await sync.checkForChanges(mountedVolumes: online) }
+        print(String(format: "  check: %d masters in %.2f s (%.0f/s), %d changed", checked.checked, checkTime.seconds,
+                     Double(checked.checked) / max(checkTime.seconds, 0.001), checked.changedOnDisk))
+
+        try await catalog.setRating(.unrated, forVersions: items.map(\.0.versionID))
+        let (_, restoreTime) = try await measure { try await sync.processQueue(mountedVolumes: online) }
+        print(String(format: "  rewrite after a second change: %.2f s", restoreTime.seconds))
+        for url in candidates where !existing.contains(url) {
+            try? FileManager.default.removeItem(at: url)
+        }
+        try await catalog.database.write { db in try db.execute(sql: "DELETE FROM metadataSync WHERE sidecarName IS NOT NULL") }
+        return ["machine": machineDescription(), "count": items.count, "write_seconds": writeTime.seconds,
+                "check_seconds": checkTime.seconds, "checked": checked.checked]
+    }
+}
+
+/// Times copying with verification against a plain copy of the same files.
+enum CopyBenchmark {
+    static func run(_ arguments: Arguments) async throws -> [String: any Sendable] {
+        let source = try arguments.url("source")
+        let destination = try arguments.url("dest")
+        let limit = arguments.int("limit", default: 1000)
+        let catalog = try Catalog.makeInMemory()
+        let (shots, scanTime) = try await measure {
+            Array(try await SourceScanner.scan(source, reader: ImageIOMetadataReader()).prefix(limit))
+        }
+        let bytes = shots.map(\.byteCount).reduce(0, +)
+        print(String(format: "Scanned %d shots (%@) in %.2f s", shots.count, formatBytes(bytes) as NSString, scanTime.seconds))
+
+        let plain = destination.appending(path: "plain")
+        try? FileManager.default.removeItem(at: plain)
+        try FileManager.default.createDirectory(at: plain, withIntermediateDirectories: true)
+        let (_, plainTime) = try await measure {
+            // Streamed rather than FileManager.copyItem, which clones on APFS
+            // instead of copying.
+            for (index, file) in shots.flatMap(\.files).enumerated() {
+                let target = plain.appending(path: "\(index)-\(file.name)")
+                FileManager.default.createFile(atPath: target.path, contents: nil)
+                let input = try FileHandle(forReadingFrom: file.url)
+                let output = try FileHandle(forWritingTo: target)
+                while let chunk = try input.read(upToCount: 4 << 20), !chunk.isEmpty { try output.write(contentsOf: chunk) }
+                try input.close()
+                try output.close()
+            }
+        }
+        let verified = destination.appending(path: "verified")
+        try? FileManager.default.removeItem(at: verified)
+        let (result, copyTime) = try await measure {
+            try await CopyImporter(catalog: catalog).run(shots: shots, sourceRoot: source,
+                                                         options: CopyImportOptions(destination: verified))
+        }
+        let plainRate = Double(bytes) / max(plainTime.seconds, 0.001)
+        let verifiedRate = Double(bytes) / max(copyTime.seconds, 0.001)
+        print(String(format: "  plain copy:              %.2f s  %@/s", plainTime.seconds, formatBytes(Int64(plainRate)) as NSString))
+        print(String(format: "  copy, verify, catalog:   %.2f s  %@/s  (%d files verified)", copyTime.seconds,
+                     formatBytes(Int64(verifiedRate)) as NSString, result.verifiedSources.count))
+        try? FileManager.default.removeItem(at: plain)
+        try? FileManager.default.removeItem(at: verified)
+        return ["machine": machineDescription(), "shots": shots.count, "bytes": bytes, "plain_seconds": plainTime.seconds,
+                "verified_seconds": copyTime.seconds]
     }
 }

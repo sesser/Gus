@@ -1,6 +1,7 @@
-# Phase 1 profiling
+# Profiling
 
-Measured on 2026-10-23 with release builds.
+Phase 1 measurements come first; phase 2 has its own section below. Measured
+on 2026-10-23 with release builds.
 
 **Machine:** Apple M4 Pro (14 cores), 24 GB, macOS 27.0.1.
 **Display:** external, 60 Hz, 2× scale. The library window was 1320 × 860 pt.
@@ -116,6 +117,81 @@ Not measured: a 120 Hz ProMotion display, cold-disk reads (needs `sudo purge`),
 real camera RAW files (no embedded-preview fast path yet; compressed RAW decode
 costs differ from the synthetic DNGs).
 
+## Phase 2
+
+Measured on 2026-10-23 on the same machine, release builds, with the same 10k
+synthetic library (50k versions for queries and scrolling) unless noted.
+
+### Import with the extra metadata
+
+Phase 2 reads about 30 more tags (keywords, rating, label, creator, copyright,
+caption, serial, GPS, flash, exposure, white balance, contact, usage terms),
+looks for sidecars, and records each master's sidecar baseline.
+
+| metadata reader | phase 1 | phase 2 | metadata | catalog |
+|---|---|---|---|---|
+| ExifTool pool (default) | 5.54 s | 7.42 s (1,347 files/s) | 3.06 → 4.37 s | 0.62 → 1.18 s |
+| ImageIO | 2.01 s | 2.59 s (3,856 files/s) | 0.47 → 0.53 s | 0.61 → 1.12 s |
+
+The extra ExifTool time is spread over the new tags (each group of a few tags
+adds 3–7 % on its own; none stands out). In the catalog stage, building the
+sidecar baseline from the values being inserted instead of reading them back
+took it from 2.35 s to 1.37 s, and listing each folder's `.xmp` files once
+instead of checking four names per master took it to 1.18 s.
+
+### Queries (50k versions)
+
+| query | time |
+|---|---|
+| all photos, no pairs | 29.0 ms (24.6 in phase 1) |
+| all photos, 25k pairs grouped (25k rows out of 50k) | 47.6 ms |
+| keyword summaries (20 keywords on a third of the library) | 0.7 ms |
+| one keyword's photos (834) | 0.9 ms |
+| smart album, rating ≥ 3 and camera contains … (7,143 rows) | 14.6 ms; count only 11.0 ms |
+| No Keywords count (33,320) | 15.8 ms |
+| capture months (Dates tree) | 14.3 ms |
+| project summaries, pairs counted once | 7.5 ms (6.7 in phase 1) |
+
+Pairs are resolved in memory from the small pair table: joining them into the
+grid query had doubled its time (55 ms without any pairs). Sidebar counts are
+refreshed in the background 300 ms after the last change.
+
+### Grid scrolling with labels (warm cache)
+
+| library | cell size | speed | frames | hitches | visible cells filled |
+|---|---|---|---|---|---|
+| 50k | 120 / 200 / 320 pt | 3,000 pt/s | 360 each | 0 | 100 % |
+| 50k | 160 pt | 8,000 pt/s | 357 | 1 | 100 % |
+| 50k with 25k pairs grouped (25k items) | 120 / 200 pt | 3,000 pt/s | 360 each | 0 | 100 % |
+
+File names and type badges cost nothing measurable: badges are pre-rendered
+per label and positioned without a layout pass.
+
+### Background work
+
+| work | result |
+|---|---|
+| keyword suggestions (Vision, cached 512 px thumbnail) | 142 photos/s one at a time: 0.8 ms thumbnail, 6.2 ms classify |
+| writing sidecars after a change to 10,000 photos | 7.1 s (1,407/s) |
+| checking 10,000 masters and sidecars for outside changes | 0.92 s (10,893/s) |
+
+### Copying imports
+
+Copying from the library's SSD to itself, with each copy written, renamed,
+re-read around the file cache and hashed:
+
+| files | plain streamed copy | copy, verify, catalog |
+|---|---|---|
+| 1,000 small JPEGs (122 MB) | 763 MB/s | 206 MB/s (per-file costs dominate) |
+| 24 RAW+JPEG pairs and 48 more files (350 MB, 12 MB DNGs) | 1.27 GB/s | 976 MB/s |
+
+SD cards read at 90–300 MB/s, so the card is the limit in practice. Before an
+import only files whose size matches a master already in the library are
+hashed (to hide duplicates); on a card of new photos that is none.
+
+Not measured in phase 2: real camera cards and RAW files, PTP cameras (not
+supported), videos at scale.
+
 ## Reproducing
 
 Build the tools:
@@ -160,6 +236,24 @@ export SRC=/tmp/photolib-src LIB=/tmp/photolib
 
 ```bash
 .build/out/Products/Release/photobench synthesize --library-root $LIB --count 50000
+```
+
+Phase 2 additions (`--pairs` writes RAW+JPEG pairs, `--videos` short clips):
+
+```bash
+.build/out/Products/Release/photobench generate --output $SRC --jpeg 40 --dng 4 --heic 4 --pairs 24 --videos 2
+```
+
+```bash
+.build/out/Products/Release/photobench suggest --library-root $LIB --limit 1000
+```
+
+```bash
+.build/out/Products/Release/photobench sidecars --library-root $LIB --limit 10000
+```
+
+```bash
+.build/out/Products/Release/photobench copy --source $SRC --dest /tmp/copy-bench --limit 1000
 ```
 
 Scroll benchmark (opens the window for about 40 s, then quits):

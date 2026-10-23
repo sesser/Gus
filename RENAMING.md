@@ -62,9 +62,18 @@ Things a rename does **not** carry over automatically:
 
 - **Privacy permissions** (Files and Folders, removable volumes) are tied to the
   bundle identifier and will be asked for again.
-- **XMP namespace**: phase 1 writes no sidecars. Once sidecars exist in the wild,
-  keep `sidecarNamespace` unchanged across renames (it is an opaque URI, not a
-  display string), or add the old URI to a legacy-read list when sidecar reading lands.
+- **XMP namespace**: sidecars written by the app carry exact copies of rating,
+  flag and label under `sidecarNamespace` (prefix `sidecarNamespacePrefix`).
+  Keep that URI unchanged across renames: it is an opaque identifier in files
+  already out in the world, not a display string. (The prefix may change; XMP
+  readers go by the URI.) Changing the URI would only lose those copies; the
+  standard properties (`xmp:Rating`, `xmp:Label`, `dc:subject`…) still carry
+  the values.
+- **Import settings** (destination, templates, job codes, counter, eject) are
+  preferences and move with the `defaults` command above. Metadata presets live
+  in the catalog and carry over.
+- **Drag type**: photos dragged within the app use the type
+  `<bundle id>.versions`, declared in Info.plist; it follows the bundle id.
 
 The app icon, `Support/AppIcon.png`, contains no name or letter, so a rename
 does not require new artwork; replace it only if the new brand calls for it.

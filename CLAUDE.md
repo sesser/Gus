@@ -39,9 +39,16 @@ bundle (Info.plist from `Branding.xcconfig`, String Catalog compiled by the
 
 To check UI changes without screen recording permission, run the bundle's
 executable with `--library-root <folder> --debug-script "wait 2; snapshot /tmp/a.png; quit"`
-(see `Sources/PhotoApp/Model/DebugScript.swift`). App launch options must always
-take a value: AppKit treats a stray argument as a document and then does not
-open the main window. `docs/PROFILING.md` has the benchmark commands.
+(see `Sources/PhotoApp/Model/DebugScript.swift` for every command: keywords,
+albums, sidecars, the import window…). App launch options must always take a
+value: AppKit treats a stray argument as a document and then does not open the
+main window. A process started from a shell is not the active app, so it has
+no key window: scripted keys go straight to the window, and local event
+monitors (the video loupe's) never see them. To test those, launch with
+`open -W -n --stdout <log> build/*.app --args …`, which activates the app.
+A FAT32 disk image (`hdiutil create -fs "MS-DOS FAT32" …`, then `hdiutil
+attach`) stands in for a camera card. `docs/PROFILING.md` has the benchmark
+commands.
 
 Commands meant for the user to paste run in zsh: keep scripts POSIX sh or zsh
 compatible and never put `#` comment lines inside pasted command snippets.
@@ -49,15 +56,18 @@ compatible and never put `#` comment lines inside pasted command snippets.
 ## Layout
 
 - `Sources/PhotoCore` — library with no AppKit/SwiftUI: branding, catalog
-  (GRDB), import, metadata, edit stack, preview pipeline. Everything testable lives here.
-- `Sources/PhotoApp` — SwiftUI app shell, AppKit grid (`NSCollectionView`) and loupe.
+  (GRDB), import, metadata, edit stack, preview pipeline, `Sidecars/` (XMP),
+  `CardImport/` (templates, copying), `Suggestions/` (Vision), `Video/`.
+  Everything testable lives here.
+- `Sources/PhotoApp` — SwiftUI app shell, AppKit grid (`NSCollectionView`) and
+  loupe, inspector, sidebar, smart album editor, `Import/` (the import window).
 - `Sources/PhotoFixtures` — synthetic JPEG/HEIC and Bayer DNG writers (tests, benchmarks).
 - `Sources/PhotoBench` — synthetic library generator and headless profiling.
 - `Sources/StringCatalogCompiler` — `.xcstrings` to `.strings`/`.stringsdict`.
 - `Sources/AppIconCompiler` — `Support/AppIcon.png` to an `.iconset` (masked to the
   macOS icon shape); `build-app.sh` turns it into `AppIcon.icns` with `iconutil`.
 - `Tests/PhotoCoreTests` — Swift Testing suites.
-- `docs/PHASE1_PLAN.md` — schema, module and pipeline decisions for phase 1.
+- `docs/PHASE1_PLAN.md`, `docs/PHASE2_PLAN.md` — design decisions per phase.
 
 ## Naming rules
 
@@ -106,12 +116,34 @@ compatible and never put `#` comment lines inside pasted command snippets.
   layers, otherwise Core Animation converts them on the main thread at commit.
 - **Metadata** goes through the `MetadataReader` protocol. ExifTool
   (`-stay_open` subprocess) is the default when installed; ImageIO is the
-  in-process fallback.
-- **Dependencies**: GRDB only. Ask before adding anything else.
+  in-process fallback; videos always go through AVFoundation.
+- **RAW+JPEG pairs** share culling, keywords and albums: every catalog write on a
+  pair's default version also reaches the partner (`ImagePairing`). Grid
+  queries resolve pairs in memory, never by joining `imagePair`.
+- **XMP sidecars**: the catalog is the source of truth. Originals are never
+  written, sidecars only (`IMG_1.xmp`, shared by a pair, owned by its RAW).
+  SQLite triggers queue every change to synced values in `sidecarQueue`;
+  `SidecarSync` writes when the file is unchanged since its baseline and
+  otherwise flags it for review. Never overwrite a sidecar another app changed.
+- **Undo** uses the window's undo manager. Each step records exactly what it
+  changed and runs on the model's ordered write chain (`persist`), so an undo
+  runs after the change it reverses.
+- **Copying imports** verify every copy (re-read around the file cache, hash
+  compared) before it counts; only verified sources may be deleted.
+- **Dependencies**: GRDB only. Ask before adding anything else. Apple frameworks
+  (Vision, AVFoundation, AVKit) are fine.
 
-## Phase 1 scope
+## Scope so far
 
-In: importer, grid, loupe, culling (rating, flag, label), sidebar filters
-(rating, flag, project), catalog/importer/cache/branding tests, profiling.
-Out: adjustments, brushes, healing, export, stacks UI, keywords UI, smart albums,
-XMP sidecar writing.
+Phase 1: importer, grid, loupe, culling (rating, flag, label), sidebar filters,
+tests, profiling.
+
+Phase 2: file names and type badges in the grid, RAW+JPEG pairs, keywords
+(entry with autocomplete, inspector, sidebar, on-device suggestions), undo,
+more metadata columns, albums, smart albums and the Dates tree, XMP sidecars
+with review of outside changes, copying imports from cards and folders, videos
+(catalogued and played).
+
+Not yet: adjustments, brushes, healing, export, general (hand-made or burst)
+stacks, hierarchical keywords, PTP cameras, a second backup destination,
+writing metadata into originals.

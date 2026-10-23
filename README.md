@@ -5,9 +5,10 @@ masters, projects and albums, non-destructive versions, fast culling. The
 current working name is defined in `Sources/PhotoCore/Branding/AppBranding.swift`
 and is easy to change (see [RENAMING.md](RENAMING.md)).
 
-Status: **phase 1**. It covers the catalog, importer, thumbnail grid, loupe,
-culling and basic filters. Adjustments, export, the stacks and keywords UI, and
-sidecars come later.
+Status: **phase 2**. Phase 1 brought the catalog, importer, thumbnail grid,
+loupe, culling and filters. Phase 2 adds RAW+JPEG pairs, keywords with
+on-device suggestions, undo, albums and smart albums, XMP sidecars, importing
+from cards with copy and verify, and videos. Adjustments and export come later.
 
 ## Requirements
 
@@ -165,7 +166,7 @@ previews still display, and nothing is removed from the catalog.
 | `Tests/PhotoCoreTests` | Swift Testing suites |
 | `Branding.xcconfig` | brand-dependent build settings |
 | `Support/` | Info.plist template, version numbers, icon artwork |
-| `docs/PHASE1_PLAN.md` | schema and architecture decisions |
+| `docs/PHASE1_PLAN.md`, `docs/PHASE2_PLAN.md` | design decisions per phase |
 | `docs/PROFILING.md` | timings with a 10k/50k synthetic library |
 
 ## Data locations

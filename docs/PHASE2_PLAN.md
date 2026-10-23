@@ -1,5 +1,8 @@
 # Phase 2 plan
 
+Status: **done** (all eight steps). See the end of this file for how the
+result differs from the plan, and `docs/PROFILING.md` for measurements.
+
 Design record for phase 2: grid labels, RAW+JPEG pairs, keywords, smart albums
 and albums, XMP, and importing from cards. The architecture rules in `CLAUDE.md`
 still apply; this file records the decisions made for phase 2 and why.
@@ -226,3 +229,34 @@ corrupted copy), XMP reading (embedded and sidecar), XMP writing that preserves
 foreign content, and the three-way comparison. App behavior is checked with
 `--debug-script` snapshots. Profiling repeats the 10k/50k runs for the grid with
 labels and pairs, keyword and smart album queries, and the card import.
+
+## As built
+
+Where the implementation settled details the plan left open, or differs:
+
+- **Migrations**: v2 pairs, v3 keyword suggestions, v4 metadata columns,
+  import runs, local days and smart albums, v5 sidecar sync (with triggers),
+  v6 metadata presets, v7 video duration. Each backfills what it can; metadata
+  columns for older masters fill in from a background re-read.
+- **Pairs in queries**: the grid query does not join `imagePair` (that doubled
+  its time); pairs are matched in memory from the pair table. A half whose
+  partner does not match the current filter stands alone, so a "JPEG only"
+  smart album still shows JPEGs of pairs shown as RAW.
+- **Undo** covers culling, keywords (including keywords an addition created),
+  suggestions, pair switches, albums and smart albums. Settling an outside
+  change in Changed on Disk is not undoable; it is an explicit review choice.
+- **Suggestions**: confidence floor 0.3, at most 8 labels, calibrated on the
+  macOS sample pictures (Vision's precision filters rejected almost every label).
+- **Sidecars**: baselines are recorded at import (from the sidecar if there is
+  one, otherwise from the embedded values), so importing never writes sidecars
+  unless something changes. A sidecar whose values match the library after an
+  outside edit (another app re-saving it) is accepted quietly. Masters whose
+  bytes change are re-hashed; their embedded values are compared but never
+  written back. Sidecars do not start with an XML declaration.
+- **Card import**: duplicates are hidden by hashing only size-matched files;
+  copies are fsynced, renamed into place and re-read with `F_NOCACHE`. Metadata
+  presets are stored in the catalog; other import settings are preferences.
+  Deleting from the card is never remembered between imports.
+- **Videos**: MOV, MP4 and M4V. MTS/M2TS (AVCHD) are left out until they can
+  be tried with AVFoundation on real files. Their kind follows from the
+  extension, so only a duration column was added.
