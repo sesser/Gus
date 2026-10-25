@@ -17,6 +17,10 @@ import UniformTypeIdentifiers
 ///     album <name>          (from the selection)    smartalbum <name>  (rating ≥ 3)     remove
 ///     sidebar album|smart|month <n> | builtin <name> | changed | all  sheet smart|album|none
 ///     checkdisk             (looks for outside changes and waits)   resolvedisk library|file
+///     click <x> <y>         (mouse down and up through the event queue, in window points
+///                           from the top left; launch with `open` so the window is key)
+///     hit <x> <y>           (prints the view under a point)
+///     buttons               (prints the window's AppKit buttons and where they are)
 ///     import open | source <path> | dest <path> | job <text> | delete on|off | eject on|off
 ///            | run (waits) | confirm yes|no | snapshot <file>
 ///
@@ -30,6 +34,8 @@ enum DebugScript {
     static func startIfRequested(model: LibraryModel) {
         guard let script = LaunchOptions.current.debugScript, !started else { return }
         started = true
+        // Line by line, so output reaches a log file even when the app quits.
+        setvbuf(stdout, nil, _IOLBF, 0)
         let commands = script.split(separator: ";").map { $0.trimmingCharacters(in: .whitespaces) }
         Task {
             // Give the window and the first items time to appear.
@@ -155,6 +161,25 @@ enum DebugScript {
             model.resolveDiskChanges(changes, with: rest.first == "file" ? .useFile : .keepLibrary)
         case "import":
             await runImportCommand(rest, model: model.cardImport, library: model)
+        case "click":
+            if let window, let point = windowPoint(rest, in: window) {
+                printHit(window, at: point)
+                // Both events at once: a control's tracking loop waits for the mouse up.
+                // SwiftUI buttons inside a scroll view ignore these synthetic clicks.
+                for (index, type) in [NSEvent.EventType.leftMouseDown, .leftMouseUp].enumerated() {
+                    guard let event = NSEvent.mouseEvent(
+                        with: type, location: point, modifierFlags: [],
+                        timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber,
+                        context: nil, eventNumber: index + 1, clickCount: 1,
+                        pressure: type == .leftMouseDown ? 1 : 0) else { continue }
+                    NSApp.postEvent(event, atStart: false)
+                }
+                try? await Task.sleep(for: .milliseconds(300))
+            }
+        case "hit":
+            if let window, let point = windowPoint(rest, in: window) { printHit(window, at: point) }
+        case "buttons":
+            if let window, let root = window.contentView?.superview { printButtons(in: root, window: window) }
         case "print":
             printState(rest.first ?? "", model: model)
         case "quit":
@@ -214,6 +239,32 @@ enum DebugScript {
             model.sidebarSelection = .month(year: month.year, month: month.month)
         default: model.sidebarSelection = .allPhotos
         }
+    }
+
+    /// `x y` in points from the window's top-left corner, as in a 1x snapshot.
+    private static func windowPoint(_ words: [String], in window: NSWindow) -> NSPoint? {
+        guard words.count >= 2, let x = Double(words[0]), let y = Double(words[1]) else { return nil }
+        return NSPoint(x: x, y: window.frame.height - y)
+    }
+
+    private static func printHit(_ window: NSWindow, at point: NSPoint) {
+        guard let frameView = window.contentView?.superview else { return }
+        var hit = frameView.hitTest(frameView.convert(point, from: nil))
+        var chain: [String] = []
+        while let view = hit, chain.count < 4 {
+            chain.append(String(describing: type(of: view)))
+            hit = view.superview
+        }
+        print("debug-script: \(Int(point.x)),\(Int(window.frame.height - point.y)) hits " + chain.joined(separator: " < "))
+    }
+
+    private static func printButtons(in view: NSView, window: NSWindow) {
+        if let button = view as? NSButton, !view.isHiddenOrHasHiddenAncestor {
+            let frame = button.convert(button.bounds, to: nil)
+            let name = button.title.isEmpty ? (button.toolTip ?? "") : button.title
+            print("debug-script: button '\(name)' at \(Int(frame.midX)),\(Int(window.frame.height - frame.midY))")
+        }
+        for subview in view.subviews { printButtons(in: subview, window: window) }
     }
 
     /// Sends an action up the responder chain from the window's first responder,
