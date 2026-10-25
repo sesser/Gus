@@ -54,18 +54,20 @@ struct DiskChangeSection: View {
                 }
             }
             HStack {
-                Button("Keep Library Values") { model.resolveDiskChanges(changes, with: .keepLibrary) }
-                    .help("Write the library's values to the file")
-                Button("Use File Values") { model.resolveDiskChanges(changes, with: .useFile) }
-                    .help("Take every value from the file")
+                AppKitButton(title: String(localized: "Keep Library Values"),
+                             help: String(localized: "Write the library's values to the file")) {
+                    model.resolveDiskChanges(changes, with: .keepLibrary)
+                }
+                AppKitButton(title: String(localized: "Use File Values"),
+                             help: String(localized: "Take every value from the file")) {
+                    model.resolveDiskChanges(changes, with: .useFile)
+                }
             }
-            .controlSize(.small)
-            Button("Apply Choices") {
+            AppKitButton(title: String(localized: "Apply Choices"),
+                         help: String(localized: "Take the checked values from the file and keep the others"),
+                         isEnabled: !useFile.isEmpty || (mergeKeywords && fields.contains(.keywords))) {
                 model.resolveDiskChanges(changes, with: .fields(useFile, mergeKeywords: mergeKeywords && !useFile.contains(.keywords)))
             }
-            .controlSize(.small)
-            .disabled(useFile.isEmpty && !(mergeKeywords && fields.contains(.keywords)))
-            .help("Take the checked values from the file and keep the others")
         }
         .onChange(of: changes.map(\.imageID)) {
             useFile = []

@@ -1,3 +1,4 @@
+import AppKit
 import PhotoCore
 import SwiftUI
 
@@ -11,7 +12,7 @@ struct InspectorView: View {
     @State private var diskChanges: [DiskChange] = []
 
     var body: some View {
-        ScrollView {
+        AppKitScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 if !diskChanges.isEmpty {
                     DiskChangeSection(model: model, changes: diskChanges)
@@ -81,10 +82,9 @@ struct InspectorView: View {
                 }
             }
             if suggestions.unanalyzedCount > 0, model.suggestionProgress == nil {
-                Button("Suggest Keywords for \(suggestions.unanalyzedCount) Photos") {
+                AppKitButton(title: String(localized: "Suggest Keywords for \(suggestions.unanalyzedCount) Photos")) {
                     model.suggestKeywords(for: model.actionTargetVersionIDs)
                 }
-                .controlSize(.small)
             }
         }
     }
@@ -128,33 +128,17 @@ private struct SuggestionChip: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            Button {
+            AppKitButton(title: suggestion.name, detail: total > 1 ? suggestion.count.formatted() : nil,
+                         symbol: "plus", symbolWeight: .bold, style: .borderless,
+                         help: String(localized: "Add this keyword to the selected photos it was suggested for")) {
                 model.acceptSuggestion(suggestion.name)
-            } label: {
-                HStack(spacing: 3) {
-                    Image(systemName: "plus")
-                        .font(.caption2.weight(.bold))
-                    Text(suggestion.name)
-                    if total > 1 {
-                        Text(suggestion.count, format: .number)
-                            .foregroundStyle(.secondary)
-                            .monospacedDigit()
-                    }
-                }
             }
-            .buttonStyle(.plain)
-            .help("Add this keyword to the selected photos it was suggested for")
-            Button {
+            AppKitButton(symbol: "xmark", symbolWeight: .bold, style: .borderless,
+                         font: .preferredFont(forTextStyle: .caption2), tint: .secondaryLabelColor,
+                         help: String(localized: "Don't suggest this keyword for these photos again")) {
                 model.dismissSuggestion(suggestion.name)
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(.secondary)
             }
-            .buttonStyle(.plain)
-            .help("Don't suggest this keyword for these photos again")
         }
-        .font(.callout)
         .padding(.horizontal, 8)
         .padding(.vertical, 3)
         .background(.quaternary, in: Capsule())
@@ -228,22 +212,15 @@ private struct KeywordRow: View {
             }
             Spacer()
             if entry.count < total {
-                Button {
+                AppKitButton(symbol: "plus.circle", style: .borderless, tint: .controlAccentColor,
+                             help: String(localized: "Add to all selected photos")) {
                     model.addKeywords([entry.keyword.name])
-                } label: {
-                    Image(systemName: "plus.circle")
                 }
-                .buttonStyle(.borderless)
-                .help("Add to all selected photos")
             }
-            Button {
+            AppKitButton(symbol: "xmark.circle.fill", style: .borderless, tint: .secondaryLabelColor,
+                         help: String(localized: "Remove from the selected photos")) {
                 if let id = entry.keyword.id { model.removeKeyword(id) }
-            } label: {
-                Image(systemName: "xmark.circle.fill")
             }
-            .buttonStyle(.borderless)
-            .foregroundStyle(.secondary)
-            .help("Remove from the selected photos")
         }
         .font(.callout)
     }

@@ -114,6 +114,10 @@ compatible and never put `#` comment lines inside pasted command snippets.
   and cancellable; no image decoding on the main thread. Images are fully
   decoded and converted to the window's color space (BGRA) before they reach
   layers, otherwise Core Animation converts them on the main thread at commit.
+- **No SwiftUI `ScrollView` under the toolbar.** Because the app supports macOS 15,
+  macOS 26+ runs it in the earlier design, where such a scroll view (the
+  inspector's) swallows every click. Use `AppKitScrollView`; inspector buttons
+  are `AppKitButton`s, which the debug script's `click` can drive.
 - **Metadata** goes through the `MetadataReader` protocol. ExifTool
   (`-stay_open` subprocess) is the default when installed; ImageIO is the
   in-process fallback; videos always go through AVFoundation.
