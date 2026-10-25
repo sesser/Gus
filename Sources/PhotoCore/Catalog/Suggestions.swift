@@ -90,8 +90,12 @@ extension Catalog {
                     usage[name] = entry
                 }
             }
+            // Names break ties, so chips keep their places between reloads.
             summary.suggestions = usage.values.sorted {
-                ($0.count, $0.confidence) > ($1.count, $1.confidence)
+                if ($0.count, $0.confidence) != ($1.count, $1.confidence) {
+                    return ($0.count, $0.confidence) > ($1.count, $1.confidence)
+                }
+                return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
             }
             return summary
         }
