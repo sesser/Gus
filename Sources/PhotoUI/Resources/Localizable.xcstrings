@@ -1037,6 +1037,17 @@
         }
       }
     },
+    "Click to add a point, drag to move it, double-click to remove it." : {
+      "comment" : "Help under the tone curve",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Click to add a point, drag to move it, double-click to remove it."
+          }
+        }
+      }
+    },
     "Cloudy" : {
       "comment" : "White balance preset",
       "localizations" : {
@@ -2992,6 +3003,17 @@
         }
       }
     },
+    "RGB" : {
+      "comment" : "Tone curve channel: all three together",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RGB"
+          }
+        }
+      }
+    },
     "Raise Rating" : {
       "localizations" : {
         "en" : {
@@ -3246,6 +3268,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Reset All"
+          }
+        }
+      }
+    },
+    "Reset Channel" : {
+      "comment" : "Button under the tone curve: resets the channel shown",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset Channel"
           }
         }
       }
@@ -3844,6 +3877,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tone"
+          }
+        }
+      }
+    },
+    "Tone Curve" : {
+      "comment" : "Undo action name; also the curve's accessibility label",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tone Curve"
           }
         }
       }

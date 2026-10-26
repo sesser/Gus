@@ -32,6 +32,10 @@ struct AdjustView: View {
                         AdjustSection(.develop, editor: editor) {
                             DevelopControls(editor: editor)
                         }
+                        Divider()
+                        AdjustSection(.tone, editor: editor) {
+                            ToneCurveControls(editor: editor)
+                        }
                     }
                     .padding(14)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -234,6 +238,47 @@ private struct DevelopControls: View {
             editor.change(name, phase: .committed) { $0.whiteBalance.preset = .custom }
         default:
             editor.change(name, phase: .committed) { $0.whiteBalance = .raw(preset) }
+        }
+    }
+}
+
+/// The point curve, on the composite or one channel.
+private struct ToneCurveControls: View {
+    let editor: AdjustmentEditor
+    @State private var channel = ToneCurve.Channel.rgb
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            AppKitSegmented(labels: ToneCurve.Channel.allCases.map(Self.title),
+                            selection: ToneCurve.Channel.allCases.firstIndex(of: channel) ?? 0) { index in
+                channel = ToneCurve.Channel.allCases[index]
+            }
+            CurveEditor(points: editor.adjustments.toneCurve[channel], channel: channel,
+                        histogram: editor.histogram) { points, phase in
+                editor.change(String(localized: "Tone Curve"), phase: phase) { $0.toneCurve[channel] = points }
+            }
+            HStack {
+                Text("Click to add a point, drag to move it, double-click to remove it.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer()
+                AppKitButton(title: String(localized: "Reset Channel"), style: .push,
+                             isEnabled: editor.adjustments.toneCurve[channel] != ToneCurve.identityPoints) {
+                    editor.change(String(localized: "Tone Curve"), phase: .committed) {
+                        $0.toneCurve[channel] = ToneCurve.identityPoints
+                    }
+                }
+            }
+        }
+    }
+
+    static func title(_ channel: ToneCurve.Channel) -> String {
+        switch channel {
+        case .rgb: String(localized: "RGB", comment: "Tone curve channel")
+        case .red: String(localized: "Red", comment: "Tone curve channel")
+        case .green: String(localized: "Green", comment: "Tone curve channel")
+        case .blue: String(localized: "Blue", comment: "Tone curve channel")
         }
     }
 }
