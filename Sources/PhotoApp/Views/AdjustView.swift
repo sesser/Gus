@@ -40,6 +40,10 @@ struct AdjustView: View {
                         AdjustSection(.details, editor: editor) {
                             DetailControls(editor: editor)
                         }
+                        Divider()
+                        AdjustSection(.colorGrading, editor: editor) {
+                            ColorGradeControls(editor: editor)
+                        }
                     }
                     .padding(14)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -242,6 +246,51 @@ private struct DevelopControls: View {
             editor.change(name, phase: .committed) { $0.whiteBalance.preset = .custom }
         default:
             editor.change(name, phase: .committed) { $0.whiteBalance = .raw(preset) }
+        }
+    }
+}
+
+/// Shadows, midtones and highlights wheels, one shown at a time.
+private struct ColorGradeControls: View {
+    let editor: AdjustmentEditor
+    @State private var range = ColorGrade.Range.midtones
+
+    var body: some View {
+        let wheel = editor.adjustments.colorGrade[range]
+        let name = String(localized: "Color Grading")
+        VStack(alignment: .leading, spacing: 8) {
+            AppKitSegmented(labels: ColorGrade.Range.allCases.map(Self.title),
+                            selection: ColorGrade.Range.allCases.firstIndex(of: range) ?? 1) { index in
+                range = ColorGrade.Range.allCases[index]
+            }
+            ColorWheel(hue: wheel.hue, amount: wheel.amount) { hue, amount, phase in
+                editor.change(name, phase: phase) {
+                    $0.colorGrade[range].hue = hue
+                    $0.colorGrade[range].amount = amount
+                }
+            }
+            HStack {
+                Text("Hue \(Int(wheel.hue))°  Amount \(Int(wheel.amount))")
+                    .font(.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+            AdjustSlider(title: String(localized: "Luminance"), value: wheel.luminance, range: -100...100,
+                         defaultValue: 0) { value, phase in
+                editor.change(name, phase: phase) { $0.colorGrade[range].luminance = value }
+            }
+            adjustSlider(editor, String(localized: "Balance"), \.colorGrade.balance)
+            adjustSlider(editor, String(localized: "Blending"), \.colorGrade.blending, range: 0...100,
+                         defaultValue: 50, format: .plain)
+        }
+    }
+
+    static func title(_ range: ColorGrade.Range) -> String {
+        switch range {
+        case .shadows: String(localized: "Shadows")
+        case .midtones: String(localized: "Midtones", comment: "Color grading range")
+        case .highlights: String(localized: "Highlights")
         }
     }
 }

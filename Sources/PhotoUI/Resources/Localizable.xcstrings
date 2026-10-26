@@ -733,6 +733,17 @@
         }
       }
     },
+    "Balance" : {
+      "comment" : "Color grading slider: moves the split between shadows and highlights; also its undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Balance"
+          }
+        }
+      }
+    },
     "Blacks" : {
       "comment" : "Adjustment slider; also its undo action name",
       "localizations" : {
@@ -740,6 +751,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Blacks"
+          }
+        }
+      }
+    },
+    "Blending" : {
+      "comment" : "Color grading slider: how much the tonal ranges overlap; also its undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blending"
           }
         }
       }
@@ -1109,6 +1131,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Color Label"
+          }
+        }
+      }
+    },
+    "Color wheel" : {
+      "comment" : "Accessibility label of a color grading wheel",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color wheel"
           }
         }
       }
@@ -1878,6 +1911,17 @@
         }
       }
     },
+    "Hue %lld°  Amount %lld" : {
+      "comment" : "Values of the color grading wheel shown",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hue %lld°  Amount %lld"
+          }
+        }
+      }
+    },
     "ISO" : {
       "comment" : "Smart album rule field",
       "localizations" : {
@@ -2493,6 +2537,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Metadata"
+          }
+        }
+      }
+    },
+    "Midtones" : {
+      "comment" : "Color grading range",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Midtones"
           }
         }
       }

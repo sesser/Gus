@@ -309,7 +309,9 @@ struct AdjustSection<Content: View>: View {
         self.section = section
         self.editor = editor
         self.content = content()
-        _isExpanded = State(initialValue: UserDefaults.standard.object(forKey: Self.key(section)) as? Bool ?? true)
+        let defaults = UserDefaults.standard
+        _isExpanded = State(initialValue: defaults.object(forKey: Self.key(section)) == nil
+            || defaults.bool(forKey: Self.key(section)))
     }
 
     static func key(_ section: Adjustments.Section) -> String { "adjust.section.\(section.rawValue)" }
