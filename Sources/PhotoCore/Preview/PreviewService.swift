@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import Synchronization
 import os
 
 /// `CGImage` is immutable and thread-safe; this box makes that explicit for
@@ -66,6 +67,9 @@ public final class PreviewService: Sendable {
     private let loadLane: WorkLane<DecodedImage>
     private let generateLane: WorkLane<Bool>
     private let fullLane: WorkLane<DecodedImage>
+    private let hdrLane: WorkLane<DecodedImage?>
+    /// HDR requests whose master turned out to have no HDR content.
+    private let standardRange = Mutex<Set<String>>([])
     private static let log = Logger(subsystem: AppBranding.bundleIdentifier, category: "previews")
 
     /// - Parameters:
@@ -82,6 +86,7 @@ public final class PreviewService: Sendable {
         self.loadLane = WorkLane(concurrency: loadConcurrency)
         self.generateLane = WorkLane(concurrency: generateConcurrency)
         self.fullLane = WorkLane(concurrency: 1)
+        self.hdrLane = WorkLane(concurrency: 2)
     }
 
     /// Rendering scales with cores up to about eight jobs (RAW decodes measured on
@@ -203,6 +208,43 @@ public final class PreviewService: Sendable {
             return DecodedImage(cgImage: image)
         }
         memory.insertFullResolution(decoded, forKey: memoryKey)
+        return decoded.cgImage
+    }
+
+    /// The HDR rendition at the request's tier size, if one is in memory.
+    public func memoryCachedHDRImage(for request: PreviewRequest) -> CGImage? {
+        memory.image(forKey: Self.memoryKey(request.key, bucket: request.key.tier.longEdge) + "#hdr")
+    }
+
+    /// An HDR rendition of the master at the request's tier size (full resolution
+    /// with `fullResolution`), for displays with extended dynamic range. Nil when
+    /// the master has nothing above SDR white, is a video, or is offline.
+    /// Rendered from the master each time it is not in memory; never cached on disk.
+    public func hdrImage(for request: PreviewRequest, fullResolution: Bool = false,
+                         priority: Priority = .visible) async throws -> CGImage? {
+        let memoryKey = Self.memoryKey(request.key, bucket: fullResolution ? 0 : request.key.tier.longEdge) + "#hdr"
+        if let image = memory.image(forKey: memoryKey) { return image }
+        if standardRange.withLock({ $0.contains(memoryKey) }) { return nil }
+        guard let source = request.sourceURL else { return nil }
+        let generator = self.generator
+        let loadStack = self.editStack
+        let versionID = request.versionID
+        let longEdge = fullResolution ? nil : request.key.tier.longEdge
+        let decoded = try await hdrLane.run(key: memoryKey, priority: priority.rawValue,
+                                            taskPriority: priority.taskPriority) {
+            let stack = try await loadStack(versionID)
+            try Task.checkCancellation()
+            return try generator.hdrImage(source: source, stack: stack, longEdge: longEdge).map(DecodedImage.init)
+        }
+        guard let decoded else {
+            standardRange.withLock { _ = $0.insert(memoryKey) }
+            return nil
+        }
+        if fullResolution {
+            memory.insertFullResolution(decoded, forKey: memoryKey)
+        } else {
+            memory.insert(decoded, forKey: memoryKey)
+        }
         return decoded.cgImage
     }
 

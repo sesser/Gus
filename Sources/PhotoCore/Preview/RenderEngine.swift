@@ -1,3 +1,4 @@
+import Accelerate
 import CoreImage
 import CoreImage.CIFilterBuiltins
 import ImageIO
@@ -14,6 +15,10 @@ public final class RenderEngine: @unchecked Sendable {
 
     public static let workingColorSpace = CGColorSpace(name: CGColorSpace.extendedLinearITUR_2020)!
     public static let outputColorSpace = CGColorSpace(name: CGColorSpace.displayP3)!
+    /// HDR renditions keep values above 1.0, SDR white, in extended linear Display P3.
+    public static let hdrColorSpace = CGColorSpace(name: CGColorSpace.extendedLinearDisplayP3)!
+    /// Renditions whose brightest component stays below this are treated as SDR.
+    public static let minimumHDRHeadroom: Float = 1.05
 
     public let context: CIContext
     public let device: (any MTLDevice)?
@@ -42,6 +47,41 @@ public final class RenderEngine: @unchecked Sendable {
     public func makeCGImage(_ image: CIImage, colorSpace: CGColorSpace? = nil) -> CGImage? {
         let space = colorSpace.flatMap { $0.model == .rgb ? $0 : nil } ?? Self.outputColorSpace
         return context.createCGImage(image, from: image.extent.integral, format: .BGRA8, colorSpace: space)
+    }
+
+    /// Renders to a half-float `CGImage` in extended linear Display P3, tagged with
+    /// its content headroom: the brightest component relative to SDR white, which
+    /// Core Animation needs to tone map the image to what the display can show.
+    public func makeHDRCGImage(_ image: CIImage) -> CGImage? {
+        guard let rendered = context.createCGImage(image, from: image.extent.integral, format: .RGBAh,
+                                                   colorSpace: Self.hdrColorSpace),
+              let headroom = Self.maximumComponent(of: rendered)
+        else { return nil }
+        return CGImageCreateCopyWithContentHeadroom(max(headroom, 1), rendered) ?? rendered
+    }
+
+    /// The largest component (alpha included, which is at most 1) of a
+    /// half-float image, scanned row by row.
+    static func maximumComponent(of image: CGImage) -> Float? {
+        guard image.bitsPerComponent == 16, image.bitsPerPixel == 64,
+              image.bitmapInfo.contains(.floatComponents),
+              let data = image.dataProvider?.data, let bytes = CFDataGetBytePtr(data)
+        else { return nil }
+        let count = image.width * 4
+        var row = [Float](repeating: 0, count: count)
+        var maximum: Float = 0
+        for y in 0..<image.height {
+            var source = vImage_Buffer(data: UnsafeMutableRawPointer(mutating: bytes + y * image.bytesPerRow),
+                                       height: 1, width: vImagePixelCount(count), rowBytes: count * 2)
+            let rowMaximum = row.withUnsafeMutableBufferPointer { buffer -> Float in
+                var destination = vImage_Buffer(data: buffer.baseAddress, height: 1, width: vImagePixelCount(count),
+                                                rowBytes: count * 4)
+                vImageConvert_Planar16FtoPlanarF(&source, &destination, vImage_Flags(kvImageNoFlags))
+                return vDSP.maximum(buffer)
+            }
+            maximum = max(maximum, rowMaximum)
+        }
+        return maximum
     }
 
     /// Renders and encodes as JPEG with an embedded Display P3 profile.

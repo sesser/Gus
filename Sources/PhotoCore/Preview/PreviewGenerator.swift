@@ -63,6 +63,24 @@ public struct PreviewGenerator: Sendable {
         return result
     }
 
+    /// An HDR rendition for displays with extended dynamic range, no larger than
+    /// `longEdge` pixels (nil for full resolution): a half-float image in
+    /// `RenderEngine.hdrColorSpace`, tagged with its content headroom. Nil when the
+    /// master has nothing brighter than SDR white.
+    ///
+    /// RAW files are decoded with the decoder's standard amount of extended range:
+    /// midtones match the SDR rendering and highlights continue above white.
+    /// Other images count only when they carry a gain map or are encoded HLG or PQ.
+    public func hdrImage(source: URL, stack: EditStack, longEdge: Int?) throws -> CGImage? {
+        guard var image = try Self.decodeHDR(source, longEdge: longEdge) else { return nil }
+        image = try renderer.apply(stack, to: image)
+        if let longEdge {
+            image = image.scaledToFit(longEdge: longEdge)
+        }
+        guard let rendered = engine.makeHDRCGImage(image) else { throw Failure.renderFailed }
+        return rendered.contentHeadroom >= RenderEngine.minimumHDRHeadroom ? rendered : nil
+    }
+
     /// Full-resolution (or capped) rendition for 1:1 viewing, in `colorSpace`
     /// (Display P3 when nil).
     public func cgImage(source: URL, stack: EditStack, longEdge: Int? = nil,
@@ -79,8 +97,11 @@ public struct PreviewGenerator: Sendable {
     /// RAW files go through `CIRAWFilter`, which can demosaic at a reduced scale
     /// (and in draft mode) for small targets. Everything else is decoded by ImageIO,
     /// which downsamples during decode when a size is given.
-    static func decode(_ url: URL, longEdge: Int?, draft: Bool) throws -> CIImage {
+    static func decode(_ url: URL, longEdge: Int?, draft: Bool, extendedRange: Bool = false) throws -> CIImage {
         if SupportedFormats.isRaw(pathExtension: url.pathExtension), let raw = CIRAWFilter(imageURL: url) {
+            if extendedRange {
+                raw.extendedDynamicRangeAmount = 1
+            }
             let native = raw.nativeSize
             if let longEdge, native.width > 0, native.height > 0 {
                 let scale = Double(longEdge) / Double(max(native.width, native.height))
@@ -115,6 +136,28 @@ public struct PreviewGenerator: Sendable {
             return CIImage(cgImage: thumbnail)
         }
         guard let image = CIImage(contentsOf: url, options: [.applyOrientationProperty: true]) else {
+            throw Failure.undecodable(url)
+        }
+        return image
+    }
+
+    /// Decodes with extended range, or returns nil for a non-RAW image that has no
+    /// HDR content (no gain map, not HLG or PQ). Videos are never decoded here.
+    static func decodeHDR(_ url: URL, longEdge: Int?) throws -> CIImage? {
+        if SupportedFormats.isRaw(pathExtension: url.pathExtension) {
+            return try decode(url, longEdge: longEdge, draft: false, extendedRange: true)
+        }
+        guard FileKind(pathExtension: url.pathExtension) != .video,
+              let source = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
+              CGImageSourceGetCount(source) > 0
+        else { return nil }
+        let hasGainMap = [kCGImageAuxiliaryDataTypeISOGainMap, kCGImageAuxiliaryDataTypeHDRGainMap].contains {
+            CGImageSourceCopyAuxiliaryDataInfoAtIndex(source, 0, $0) != nil
+        }
+        // Creating the image only reads its header; the pixels are not decoded.
+        let isHLGOrPQ = CGImageSourceCreateImageAtIndex(source, 0, nil)?.colorSpace.map(CGColorSpaceUsesITUR_2100TF) ?? false
+        guard hasGainMap || isHLGOrPQ else { return nil }
+        guard let image = CIImage(contentsOf: url, options: [.applyOrientationProperty: true, .expandToHDR: true]) else {
             throw Failure.undecodable(url)
         }
         return image

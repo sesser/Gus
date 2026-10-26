@@ -148,6 +148,38 @@ struct PreviewPipelineTests {
         }
     }
 
+    @Test func hdrRenditionsKeepHighlightsAboveWhite() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let generator = PreviewGenerator()
+            let plain = root.appending(path: "plain.jpg")
+            try writeJPEG(plain, width: 800, height: 600)
+            #expect(try generator.hdrImage(source: plain, stack: .identity, longEdge: 512) == nil)
+
+            // A JPEG with a gain map whose HDR rendition has a patch at four times SDR white.
+            let engine = generator.engine
+            let sdr = try #require(CIImage(contentsOf: plain))
+            let patch = CIImage(color: CIColor(red: 4, green: 4, blue: 4, colorSpace: RenderEngine.hdrColorSpace)!)
+                .cropped(to: CGRect(x: 100, y: 100, width: 200, height: 150))
+            let hdr = patch.composited(over: sdr)
+            let data = try #require(engine.context.jpegRepresentation(
+                of: sdr, colorSpace: RenderEngine.outputColorSpace, options: [.hdrImage: hdr]))
+            let gainMapped = root.appending(path: "gain-map.jpg")
+            try data.write(to: gainMapped)
+
+            let image = try #require(try generator.hdrImage(source: gainMapped, stack: .identity, longEdge: 512))
+            #expect((image.width, image.height) == (512, 384))
+            #expect(image.bitsPerComponent == 16 && image.bitmapInfo.contains(.floatComponents))
+            #expect(image.colorSpace?.name == CGColorSpace.extendedLinearDisplayP3)
+            #expect(image.contentHeadroom > 2)
+
+            let dng = root.appending(path: "synthetic.dng")
+            try SyntheticDNG.write(to: dng, options: .init(width: 1200, height: 800, seed: 5))
+            // RAW highlights continue above white.
+            let raw = try #require(try generator.hdrImage(source: dng, stack: .identity, longEdge: 512))
+            #expect(raw.width == 512 && raw.contentHeadroom >= RenderEngine.minimumHDRHeadroom)
+        }
+    }
+
     @Test func dngLayoutFindsReducedLinearRawCopies() async throws {
         try await RepositoryFiles.withTemporaryDirectory { root in
             func probe(_ name: String, _ subIFDs: [(subfileType: UInt32, photometric: UInt16)]) throws -> Bool {
