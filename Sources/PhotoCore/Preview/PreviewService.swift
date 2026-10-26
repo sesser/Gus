@@ -248,6 +248,13 @@ public final class PreviewService: Sendable {
         return decoded.cgImage
     }
 
+    /// Puts an image rendered elsewhere (the loupe's live edit) in the memory
+    /// cache as the rendition for `request`, so showing it again needs no work.
+    /// The image must be fully decoded and in the display color space.
+    public func insertIntoMemory(_ image: CGImage, for request: PreviewRequest) {
+        memory.insert(DecodedImage(cgImage: image), forKey: Self.memoryKey(request.key, bucket: request.key.tier.longEdge))
+    }
+
     public func clearMemory() {
         memory.removeAll()
     }

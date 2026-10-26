@@ -12,6 +12,17 @@
         }
       }
     },
+    "%@ (default)" : {
+      "comment" : "RAW decoder version menu item; the argument is a version name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ (default)"
+          }
+        }
+      }
+    },
     "%@ - %@" : {
       "comment" : "Import status bar: camera make and model, then its shutter count",
       "localizations" : {
@@ -63,6 +74,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@+%@"
+          }
+        }
+      }
+    },
+    "%lld K" : {
+      "comment" : "Color temperature in kelvin",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld K"
           }
         }
       }
@@ -461,6 +483,28 @@
         }
       }
     },
+    "Adjust" : {
+      "comment" : "Inspector tab with the photo's adjustments",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adjust"
+          }
+        }
+      }
+    },
+    "Adjustments are not available for videos." : {
+      "comment" : "Adjust tab, when a video is shown",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adjustments are not available for videos."
+          }
+        }
+      }
+    },
     "Advance After Rating" : {
       "localizations" : {
         "en" : {
@@ -634,6 +678,17 @@
         }
       }
     },
+    "As Shot" : {
+      "comment" : "White balance preset",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "As Shot"
+          }
+        }
+      }
+    },
     "Auto" : {
       "comment" : "White balance",
       "localizations" : {
@@ -641,6 +696,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Auto"
+          }
+        }
+      }
+    },
+    "Auto Exposure" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto Exposure"
+          }
+        }
+      }
+    },
+    "Auto White Balance" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto White Balance"
+          }
+        }
+      }
+    },
+    "Blacks" : {
+      "comment" : "Adjustment slider; also its undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blacks"
           }
         }
       }
@@ -917,6 +1005,17 @@
         }
       }
     },
+    "Clarity" : {
+      "comment" : "Adjustment slider; also its undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clarity"
+          }
+        }
+      }
+    },
     "Clear" : {
       "comment" : "Clears the rating and flag filters",
       "localizations" : {
@@ -938,12 +1037,56 @@
         }
       }
     },
+    "Cloudy" : {
+      "comment" : "White balance preset",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cloudy"
+          }
+        }
+      }
+    },
+    "Collapse" : {
+      "comment" : "Adjust tab heading button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collapse"
+          }
+        }
+      }
+    },
+    "Color Grading" : {
+      "comment" : "Adjust tab heading",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color Grading"
+          }
+        }
+      }
+    },
     "Color Label" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Color Label"
+          }
+        }
+      }
+    },
+    "Compare with the original (\\)" : {
+      "comment" : "Adjust tab button tooltip; the key in parentheses toggles it",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compare with the original (\\)"
           }
         }
       }
@@ -966,6 +1109,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Contact"
+          }
+        }
+      }
+    },
+    "Contrast" : {
+      "comment" : "Adjustment slider; also its undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Contrast"
           }
         }
       }
@@ -1090,6 +1244,17 @@
         }
       }
     },
+    "Custom" : {
+      "comment" : "White balance preset",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Custom"
+          }
+        }
+      }
+    },
     "Dates" : {
       "comment" : "Sidebar section: photos by capture month",
       "localizations" : {
@@ -1108,6 +1273,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Day"
+          }
+        }
+      }
+    },
+    "Daylight" : {
+      "comment" : "White balance preset",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daylight"
+          }
+        }
+      }
+    },
+    "Decoder" : {
+      "comment" : "RAW decoder version menu; also its undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Decoder"
+          }
+        }
+      }
+    },
+    "Dehaze" : {
+      "comment" : "Adjustment slider; also its undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dehaze"
           }
         }
       }
@@ -1267,6 +1465,28 @@
         }
       }
     },
+    "Details" : {
+      "comment" : "Adjust tab heading: sharpening and noise reduction",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Details"
+          }
+        }
+      }
+    },
+    "Develop" : {
+      "comment" : "Adjust tab heading: profile, white balance, exposure and tone",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Develop"
+          }
+        }
+      }
+    },
     "Don't suggest this keyword for these photos again" : {
       "comment" : "Suggestion chip dismiss help",
       "localizations" : {
@@ -1351,6 +1571,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Every one of them was copied and checked. Photos that were already in the library are not deleted."
+          }
+        }
+      }
+    },
+    "Expand" : {
+      "comment" : "Adjust tab heading button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expand"
           }
         }
       }
@@ -1463,6 +1694,28 @@
         }
       }
     },
+    "Flat" : {
+      "comment" : "RAW profile: no base contrast",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flat"
+          }
+        }
+      }
+    },
+    "Fluorescent" : {
+      "comment" : "White balance preset",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fluorescent"
+          }
+        }
+      }
+    },
     "Focal Length" : {
       "comment" : "Smart album rule field",
       "localizations" : {
@@ -1555,6 +1808,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Hide Suggestion"
+          }
+        }
+      }
+    },
+    "Highlights" : {
+      "comment" : "Adjustment slider; also its undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Highlights"
           }
         }
       }
@@ -2048,6 +2312,17 @@
         }
       }
     },
+    "Light" : {
+      "comment" : "Adjust tab group of exposure and tone sliders",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Light"
+          }
+        }
+      }
+    },
     "Location" : {
       "comment" : "Smart album rule field",
       "localizations" : {
@@ -2163,6 +2438,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Name"
+          }
+        }
+      }
+    },
+    "Neutral" : {
+      "comment" : "RAW profile: half the base contrast",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neutral"
           }
         }
       }
@@ -2308,6 +2594,17 @@
         }
       }
     },
+    "No photo" : {
+      "comment" : "Adjust tab, when nothing is shown",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No photo"
+          }
+        }
+      }
+    },
     "No photos found" : {
       "comment" : "Import window, empty source",
       "localizations" : {
@@ -2414,6 +2711,17 @@
         }
       }
     },
+    "Open a photo in the loupe to adjust it." : {
+      "comment" : "Adjust tab in the grid",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open a photo in the loupe to adjust it."
+          }
+        }
+      }
+    },
     "Open the import window when a card is inserted" : {
       "comment" : "Settings toggle",
       "localizations" : {
@@ -2431,6 +2739,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Orange"
+          }
+        }
+      }
+    },
+    "Original" : {
+      "comment" : "Loupe badge while the photo is shown without adjustments",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Original"
           }
         }
       }
@@ -2474,6 +2793,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Pair"
+          }
+        }
+      }
+    },
+    "Panel" : {
+      "comment" : "Accessibility label of the inspector's Info/Adjust switch",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Panel"
           }
         }
       }
@@ -2564,6 +2894,28 @@
         }
       }
     },
+    "Presence" : {
+      "comment" : "Adjust tab group of clarity, dehaze, vibrance and saturation",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Presence"
+          }
+        }
+      }
+    },
+    "Preset" : {
+      "comment" : "White balance preset menu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preset"
+          }
+        }
+      }
+    },
     "Preset name" : {
       "comment" : "Preset editor field",
       "localizations" : {
@@ -2571,6 +2923,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Preset name"
+          }
+        }
+      }
+    },
+    "Profile" : {
+      "comment" : "RAW profile menu; also its undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Profile"
           }
         }
       }
@@ -2756,6 +3119,17 @@
         }
       }
     },
+    "Remove every adjustment from this photo" : {
+      "comment" : "Reset All button tooltip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove every adjustment from this photo"
+          }
+        }
+      }
+    },
     "Remove from Album" : {
       "comment" : "Undo action name and Photo menu item",
       "localizations" : {
@@ -2843,6 +3217,39 @@
         }
       }
     },
+    "Reset %@" : {
+      "comment" : "Undo action name and tooltip; the argument is an Adjust tab heading",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset %@"
+          }
+        }
+      }
+    },
+    "Reset Adjustments" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset Adjustments"
+          }
+        }
+      }
+    },
+    "Reset All" : {
+      "comment" : "Adjust tab button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset All"
+          }
+        }
+      }
+    },
     "Return adds them. Tab completes, Esc closes." : {
       "comment" : "Keyword panel hint",
       "localizations" : {
@@ -2850,6 +3257,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Return adds them. Tab completes, Esc closes."
+          }
+        }
+      }
+    },
+    "Saturation" : {
+      "comment" : "Adjustment slider; also its undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saturation"
           }
         }
       }
@@ -2953,6 +3371,50 @@
         }
       }
     },
+    "Set the exposure from the photo's brightness" : {
+      "comment" : "Auto exposure button tooltip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set the exposure from the photo's brightness"
+          }
+        }
+      }
+    },
+    "Shade" : {
+      "comment" : "White balance preset",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shade"
+          }
+        }
+      }
+    },
+    "Shadows" : {
+      "comment" : "Adjustment slider; also its undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shadows"
+          }
+        }
+      }
+    },
+    "Show Edit" : {
+      "comment" : "Adjust tab button while the original is shown",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Edit"
+          }
+        }
+      }
+    },
     "Show File Names" : {
       "comment" : "View menu toggle: file name and type badge under each thumbnail",
       "localizations" : {
@@ -3006,6 +3468,17 @@
         }
       }
     },
+    "Show Original" : {
+      "comment" : "Adjust tab button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Original"
+          }
+        }
+      }
+    },
     "Show the JPEG or HEIC File" : {
       "comment" : "Photo > RAW+JPEG Pair: the JPEG or HEIC represents the pair in the grid",
       "localizations" : {
@@ -3039,6 +3512,17 @@
         }
       }
     },
+    "Showing the photo without adjustments. Press \\ to show them again." : {
+      "comment" : "Tooltip of the loupe's Original badge",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Showing the photo without adjustments. Press \\ to show them again."
+          }
+        }
+      }
+    },
     "Shutter Speed" : {
       "comment" : "Smart album rule field",
       "localizations" : {
@@ -3067,6 +3551,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Smaller Thumbnails"
+          }
+        }
+      }
+    },
+    "Standard" : {
+      "comment" : "RAW profile: the decoder's default rendering",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Standard"
           }
         }
       }
@@ -3225,6 +3720,17 @@
         }
       }
     },
+    "Temperature" : {
+      "comment" : "White balance slider; also its undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Temperature"
+          }
+        }
+      }
+    },
     "Text" : {
       "comment" : "Smart album rule text field placeholder",
       "localizations" : {
@@ -3253,6 +3759,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The library could not be opened."
+          }
+        }
+      }
+    },
+    "The original is offline. Connect its volume to adjust this photo." : {
+      "comment" : "Adjust tab, when the master's volume is offline",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The original is offline. Connect its volume to adjust this photo."
           }
         }
       }
@@ -3305,6 +3822,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Thumbnail size"
+          }
+        }
+      }
+    },
+    "Tint" : {
+      "comment" : "White balance slider (green to magenta); also its undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tint"
+          }
+        }
+      }
+    },
+    "Tone" : {
+      "comment" : "Adjust tab heading: the tone curve",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tone"
+          }
+        }
+      }
+    },
+    "Tungsten" : {
+      "comment" : "White balance preset",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tungsten"
           }
         }
       }
@@ -3439,6 +3989,17 @@
         }
       }
     },
+    "Vibrance" : {
+      "comment" : "Adjustment slider; also its undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vibrance"
+          }
+        }
+      }
+    },
     "Videos" : {
       "comment" : "Import window section",
       "localizations" : {
@@ -3500,6 +4061,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "White Balance"
+          }
+        }
+      }
+    },
+    "Whites" : {
+      "comment" : "Adjustment slider; also its undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whites"
           }
         }
       }

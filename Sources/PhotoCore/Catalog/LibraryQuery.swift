@@ -75,7 +75,8 @@ public struct CatalogItem: Hashable, Sendable, Identifiable {
     public var flag: Flag
     public var colorLabel: ColorLabel
     public let contentHash: String
-    public let editStackHash: String
+    /// Changes when the version is edited.
+    public var editStackHash: String
     public let relativePath: String
     public let pixelWidth: Int
     public let pixelHeight: Int

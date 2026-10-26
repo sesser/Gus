@@ -10,7 +10,7 @@ import os
 protocol LibraryItemsObserver: AnyObject {
     /// The list was replaced (filter, scope or import).
     func libraryItemsReloaded()
-    /// Items changed in place (culling values).
+    /// Items changed in place (culling values, edits).
     func libraryItemsChanged(at indices: IndexSet)
     /// Focus or selection was moved by something other than the grid itself.
     func libraryFocusChanged()
@@ -53,6 +53,12 @@ enum BrowserMode: Hashable {
     case loupe
 }
 
+/// What the right-hand panel shows.
+enum InspectorTab: String, Hashable {
+    case info
+    case adjust
+}
+
 /// State of the library window: what is shown, what is selected, and the work in
 /// flight (imports, preview warming, catalog writes).
 @MainActor
@@ -65,6 +71,8 @@ final class LibraryModel {
     let suggester: any KeywordSuggester = VisionKeywordSuggester()
     let sidecars: SidecarSync
     let cardImport: CardImportModel
+    let editor = AdjustmentEditor()
+    let lookTables: LookTableStore
 
     // MARK: Sidebar and filters
 
@@ -164,6 +172,19 @@ final class LibraryModel {
     var showsInspector: Bool {
         didSet { UserDefaults.standard.set(showsInspector, forKey: Self.showsInspectorKey) }
     }
+    /// The inspector's tab, remembered separately for the grid and the loupe.
+    var inspectorTab: InspectorTab {
+        get { mode == .loupe ? loupeInspectorTab : gridInspectorTab }
+        set {
+            if mode == .loupe { loupeInspectorTab = newValue } else { gridInspectorTab = newValue }
+        }
+    }
+    private var gridInspectorTab: InspectorTab {
+        didSet { UserDefaults.standard.set(gridInspectorTab.rawValue, forKey: Self.gridInspectorTabKey) }
+    }
+    private var loupeInspectorTab: InspectorTab {
+        didSet { UserDefaults.standard.set(loupeInspectorTab.rawValue, forKey: Self.loupeInspectorTabKey) }
+    }
 
     var focusedItem: CatalogItem? {
         _ = itemsRevision
@@ -215,6 +236,8 @@ final class LibraryModel {
     private static let groupPairsKey = "browser.groupPairs"
     private static let showsHDRKey = "loupe.showsHDR"
     private static let showsInspectorKey = "browser.showsInspector"
+    private static let gridInspectorTabKey = "browser.inspectorTab"
+    private static let loupeInspectorTabKey = "loupe.inspectorTab"
     private static let writesSidecarsKey = "sidecars.write"
     private static let opensImportOnCardKey = "import.openOnCard"
 
@@ -249,11 +272,13 @@ final class LibraryModel {
 
     private static let log = Logger(subsystem: AppBranding.bundleIdentifier, category: "library")
 
-    init(locations: LibraryLocations, catalog: Catalog, importer: Importer, previews: PreviewService) {
+    init(locations: LibraryLocations, catalog: Catalog, importer: Importer, previews: PreviewService,
+         lookTables: LookTableStore) {
         self.locations = locations
         self.catalog = catalog
         self.importer = importer
         self.previews = previews
+        self.lookTables = lookTables
         let defaults = UserDefaults.standard
         let size = defaults.double(forKey: Self.thumbnailSizeKey)
         thumbnailSize = Self.thumbnailSizeRange.contains(size) ? size : 180
@@ -262,11 +287,15 @@ final class LibraryModel {
         groupPairs = defaults.object(forKey: Self.groupPairsKey) as? Bool ?? true
         showsHDR = defaults.object(forKey: Self.showsHDRKey) as? Bool ?? true
         showsInspector = defaults.bool(forKey: Self.showsInspectorKey)
+        gridInspectorTab = defaults.string(forKey: Self.gridInspectorTabKey).flatMap(InspectorTab.init(rawValue:)) ?? .info
+        loupeInspectorTab = defaults.string(forKey: Self.loupeInspectorTabKey).flatMap(InspectorTab.init(rawValue:))
+            ?? .adjust
         writesSidecars = defaults.object(forKey: Self.writesSidecarsKey) as? Bool ?? true
         sidecars = SidecarSync(catalog: catalog, metadataReader: importer.metadataReader)
         cardImport = CardImportModel(metadataReader: importer.metadataReader, presets: catalog)
         opensImportOnCard = defaults.object(forKey: Self.opensImportOnCardKey) as? Bool ?? true
         cardImport.library = self
+        editor.library = self
     }
 
     /// Opens the catalog at the standard location (or `--library-root`).
@@ -281,9 +310,13 @@ final class LibraryModel {
         try locations.createDirectories()
         let catalog = try Catalog.open(at: locations.catalogFileURL)
         let importer = Importer(catalog: catalog, metadataReader: MetadataReaders.makeDefault())
-        let previews = PreviewService(cacheDirectory: locations.previewCacheDirectory, catalog: catalog)
+        let lookTables = LookTableStore(locations: locations)
+        let generator = PreviewGenerator(renderer: AdjustmentRenderer(lookTables: lookTables))
+        let previews = PreviewService(cacheDirectory: locations.previewCacheDirectory, catalog: catalog,
+                                      generator: generator)
         previews.cache.removeObsoletePipelineVersions()
-        return LibraryModel(locations: locations, catalog: catalog, importer: importer, previews: previews)
+        return LibraryModel(locations: locations, catalog: catalog, importer: importer, previews: previews,
+                            lookTables: lookTables)
     }
 
     func start() async {
@@ -640,6 +673,17 @@ final class LibraryModel {
 
     var actionTargetVersionIDs: [Int64] {
         actionTargets.map { items[$0].versionID }
+    }
+
+    // MARK: Edits
+
+    /// Shows a version's new edit hash: the grid and loupe load renditions for it.
+    /// Edits are per file; unlike culling they do not reach a pair's partner.
+    func setEditStackHash(_ hash: String, forVersion versionID: Int64) {
+        guard let index = indexByVersionID[versionID], items[index].editStackHash != hash else { return }
+        items[index].editStackHash = hash
+        itemsRevision += 1
+        observer?.libraryItemsChanged(at: IndexSet(integer: index))
     }
 
     // MARK: Pairs

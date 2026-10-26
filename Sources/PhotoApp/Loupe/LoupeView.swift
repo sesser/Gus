@@ -39,6 +39,7 @@ struct LoupeCanvas: NSViewRepresentable {
         _ = model.itemsRevision
         context.coordinator.hdrSetting = model.showsHDR
         context.coordinator.show(index: model.focusIndex)
+        context.coordinator.showLiveFrame(revision: model.editor.frameRevision, active: model.editor.showsLive)
     }
 
     static func dismantleNSView(_ view: LoupeHostView, coordinator: LoupeController) {
@@ -53,14 +54,18 @@ struct LoupeCanvas: NSViewRepresentable {
 /// On a display with extended dynamic range, an HDR rendition rendered from the
 /// master replaces the (SDR) cached preview once it is ready, and 1:1 renders
 /// in HDR too.
+///
+/// While adjustments are being changed, the editor's live frames replace all of
+/// these; once the change is saved the loupe loads the new edit's renditions.
 @MainActor
 final class LoupeController: NSObject {
     enum Zoom { case fit, actualSize }
 
     /// What the image view shows, from least to most detailed. A load only
     /// replaces a lesser rendition, so a slow SDR preview never hides an HDR one.
+    /// Live frames of an edit in progress outrank them all.
     private enum Rendition: Int, Comparable {
-        case placeholder, preview, hdrPreview, full, hdrFull
+        case placeholder, preview, hdrPreview, full, hdrFull, live
 
         static func < (lhs: Rendition, rhs: Rendition) -> Bool { lhs.rawValue < rhs.rawValue }
         var isHDR: Bool { self == .hdrPreview || self == .hdrFull }
@@ -70,7 +75,15 @@ final class LoupeController: NSObject {
     let hostView = LoupeHostView()
     private let scrollView = NSScrollView()
     private let imageView = LoupeImageView()
-    private var shownVersionID: Int64?
+    /// The version and edit shown; a new edit hash loads new renditions.
+    private var shownKey: ShownKey?
+    private struct ShownKey: Equatable {
+        var versionID: Int64
+        var editStackHash: String
+    }
+    private var shownFrameRevision: Int?
+    /// Loads the shown version's renditions again on the next `show`.
+    private var reloadsSameKey = false
     private var shownIndex: Int?
     private var zoom: Zoom = .fit
     private var rendition = Rendition.placeholder
@@ -79,7 +92,7 @@ final class LoupeController: NSObject {
     private var fullTask: Task<Void, Never>?
     /// The model's HDR setting as last applied; changing it reloads the photo.
     var hdrSetting = true {
-        didSet { if hdrSetting != oldValue { shownVersionID = nil } }
+        didSet { if hdrSetting != oldValue { shownKey = nil } }
     }
     private var neighborTasks: [Task<Void, Never>] = []
     private var frameObserver: (any NSObjectProtocol)?
@@ -131,6 +144,7 @@ final class LoupeController: NSObject {
         hdrTask?.cancel()
         fullTask?.cancel()
         model.loupeHDRHeadroom = nil
+        model.editor.follow(nil)
         neighborTasks.forEach { $0.cancel() }
         if let frameObserver { NotificationCenter.default.removeObserver(frameObserver) }
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
@@ -154,7 +168,7 @@ final class LoupeController: NSObject {
 
     private func reload() {
         guard let index = shownIndex else { return }
-        shownVersionID = nil
+        shownKey = nil
         show(index: index)
     }
 
@@ -162,34 +176,47 @@ final class LoupeController: NSObject {
 
     func show(index: Int?) {
         guard let index, model.items.indices.contains(index) else {
-            shownVersionID = nil
+            shownKey = nil
             rendition = .placeholder
             display(nil, as: .placeholder)
+            model.editor.follow(nil)
             return
         }
         let item = model.items[index]
         shownIndex = index
-        guard item.versionID != shownVersionID else { return }
-        shownVersionID = item.versionID
+        model.editor.follow(item)
+        let key = ShownKey(versionID: item.versionID, editStackHash: item.editStackHash)
+        guard key != shownKey || reloadsSameKey else { return }
+        let sameVersion = key.versionID == shownKey?.versionID
+        shownKey = key
+        reloadsSameKey = false
         loadTask?.cancel()
         hdrTask?.cancel()
         fullTask?.cancel()
-        rendition = .placeholder
 
         let backing = hostView.window?.backingScaleFactor ?? 2
-        if let size = item.orientedSize {
+        if let size = item.orientedSize, !sameVersion {
             imageView.setFrameSize(NSSize(width: size.width / backing, height: size.height / backing))
         }
-        let immediate = immediateImage(for: item)
-        display(immediate?.image, as: immediate?.rendition ?? .placeholder)
-        applyZoom(animated: false)
+        if rendition == .live, sameVersion {
+            // The edit being shown live was saved; its frame stays until the
+            // editor hands back to the cached renditions.
+            rendition = .live
+        } else {
+            rendition = .placeholder
+            let immediate = immediateImage(for: item)
+            // After an edit, the old rendition stays until the new one is there.
+            if immediate != nil || !sameVersion {
+                display(immediate?.image, as: immediate?.rendition ?? .placeholder)
+            }
+        }
+        if !sameVersion { applyZoom(animated: false) }
 
         if let request = model.previewRequest(for: item, tier: .preview) {
             let previews = model.previews
-            let versionID = item.versionID
             loadTask = Task { [weak self] in
                 guard let image = try? await previews.image(for: request, priority: .visible),
-                      let self, self.shownVersionID == versionID, self.rendition <= .preview else { return }
+                      let self, self.shownKey == key, self.rendition <= .preview else { return }
                 if item.orientedSize == nil {
                     self.imageView.setFrameSize(NSSize(width: CGFloat(image.width) / backing,
                                                        height: CGFloat(image.height) / backing))
@@ -200,7 +227,7 @@ final class LoupeController: NSObject {
             if hdrAllowed {
                 hdrTask = Task { [weak self] in
                     guard let image = try? await previews.hdrImage(for: request, priority: .visible),
-                          let self, self.shownVersionID == versionID else { return }
+                          let self, self.shownKey == key else { return }
                     self.display(image, as: .hdrPreview)
                 }
             }
@@ -224,6 +251,29 @@ final class LoupeController: NSObject {
             if let image = model.previews.memoryCachedImage(for: request, maxPixelSize: size) { return (image, .placeholder) }
         }
         return nil
+    }
+
+    /// Shows the editor's newest frame while an edit is live, and goes back to
+    /// the cached renditions when it is not.
+    func showLiveFrame(revision: Int, active: Bool) {
+        let editor = model.editor
+        guard active, let frame = editor.frame, editor.item?.versionID == shownKey?.versionID else {
+            shownFrameRevision = nil
+            if rendition == .live {
+                rendition = .placeholder
+                reloadsSameKey = true
+                show(index: shownIndex)
+            }
+            return
+        }
+        guard revision != shownFrameRevision else { return }
+        shownFrameRevision = revision
+        loadTask?.cancel()
+        hdrTask?.cancel()
+        fullTask?.cancel()
+        rendition = .live
+        imageView.setImage(frame.image.cgImage, extendedRange: false)
+        if model.loupeHDRHeadroom != nil { model.loupeHDRHeadroom = nil }
     }
 
     /// Shows `image` unless something more detailed is already showing.
@@ -263,15 +313,16 @@ final class LoupeController: NSObject {
         guard let request = model.previewRequest(for: item, tier: .preview), request.sourceURL != nil else { return }
         let previews = model.previews
         let hdr = hdrAllowed
+        let key = shownKey
         fullTask?.cancel()
         fullTask = Task { [weak self] in
             if hdr, let image = try? await previews.hdrImage(for: request, fullResolution: true) {
-                guard let self, self.shownVersionID == item.versionID else { return }
+                guard let self, self.shownKey == key else { return }
                 self.display(image, as: .hdrFull)
                 return
             }
             guard let image = try? await previews.fullResolutionImage(for: request),
-                  let self, self.shownVersionID == item.versionID else { return }
+                  let self, self.shownKey == key else { return }
             self.display(image, as: .full)
         }
     }
@@ -326,6 +377,10 @@ final class LoupeController: NSObject {
     func handle(_ event: NSEvent) -> Bool {
         if let action = CullingKeymap.action(for: event) {
             model.perform(action)
+            return true
+        }
+        if event.charactersIgnoringModifiers == "\\", event.modifierFlags.intersection(.deviceIndependentFlagsMask).isEmpty {
+            model.editor.toggleOriginal()
             return true
         }
         switch NavigationKey.from(event) {
@@ -457,6 +512,14 @@ struct LoupeInfoBar: View {
                     }
                 }
                 Spacer()
+                if model.editor.showsOriginal {
+                    Text("Original")
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(RoundedRectangle(cornerRadius: 3).fill(.white.opacity(0.2)))
+                        .help("Showing the photo without adjustments. Press \\ to show them again.")
+                }
                 if let headroom = model.loupeHDRHeadroom {
                     Text("HDR")
                         .font(.caption.weight(.semibold))

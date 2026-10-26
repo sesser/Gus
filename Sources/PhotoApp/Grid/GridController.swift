@@ -194,8 +194,8 @@ final class GridController: NSObject, NSCollectionViewDataSource, NSCollectionVi
     func libraryItemsChanged(at indices: IndexSet) {
         for indexPath in collectionView.indexPathsForVisibleItems() where indices.contains(indexPath.item) {
             guard let cell = collectionView.item(at: indexPath) as? PhotoCell else { continue }
-            let item = model.items[indexPath.item]
-            cell.updateBadges(with: item, offline: model.isOffline(item))
+            // Updates the badges, and loads a new thumbnail after an edit.
+            cell.configure(with: model.items[indexPath.item], model: model, pixelSize: pixelSize)
         }
     }
 

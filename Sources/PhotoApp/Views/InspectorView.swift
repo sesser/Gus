@@ -3,8 +3,31 @@ import PhotoCore
 import PhotoUI
 import SwiftUI
 
-/// Right-hand panel: keywords of the selection and details of the focused photo.
+/// Right-hand panel: Info (keywords and details) or Adjust (the loupe's photo).
 struct InspectorView: View {
+    @Bindable var model: LibraryModel
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Picker("Panel", selection: $model.inspectorTab) {
+                Text("Info").tag(InspectorTab.info)
+                Text("Adjust").tag(InspectorTab.adjust)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            Divider()
+            switch model.inspectorTab {
+            case .info: InfoInspector(model: model)
+            case .adjust: AdjustView(model: model)
+            }
+        }
+    }
+}
+
+/// Keywords of the selection and details of the focused photo.
+private struct InfoInspector: View {
     let model: LibraryModel
     @State private var usage: [KeywordUsage] = []
     @State private var targetCount = 0

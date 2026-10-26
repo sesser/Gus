@@ -24,6 +24,7 @@ import PhotoUI
 ///     hdr on|off            (the View menu's Show HDR; snapshots show HDR clipped at white)
 ///     import open | source <path> | dest <path> | job <text> | delete on|off | eject on|off
 ///            | run (waits) | confirm yes|no | snapshot <file> | print   (see ImportDebugCommands)
+///     adjust …  original on|off  tab info|adjust   (see DebugAdjustCommands)
 ///
 /// Keys are characters ("3", "p") or names (left, right, up, down, home, end,
 /// pageup, pagedown, return, escape, space); prefix "opt+" or "shift+" for modifiers. Key events go through
@@ -47,7 +48,8 @@ enum DebugScript {
             undoManager.groupsByEvent = false
             // Only commands that can change photos get a group; empty groups
             // would otherwise become undo steps that do nothing.
-            let changing: Set<String> = ["key", "addkeywords", "text", "pairfile", "accept", "album", "smartalbum", "remove"]
+            let changing: Set<String> = ["key", "addkeywords", "text", "pairfile", "accept", "album", "smartalbum", "remove",
+                                         "adjust"]
             for command in commands where !command.isEmpty {
                 let grouped = changing.contains(String(command.prefix { $0 != " " }))
                 if grouped { undoManager.beginUndoGrouping() }
@@ -179,6 +181,12 @@ enum DebugScript {
             }
         case "hdr":
             model.showsHDR = rest.first != "off"
+        case "adjust":
+            await DebugAdjustCommands.run(rest, editor: model.editor)
+        case "original":
+            model.editor.showsOriginal = rest.first != "off"
+        case "tab":
+            model.inspectorTab = rest.first == "info" ? .info : .adjust
         case "hit":
             if let window, let point = windowPoint(rest, in: window) { printHit(window, at: point) }
         case "buttons":
@@ -289,6 +297,8 @@ enum DebugScript {
             print("debug-script: changed on disk \(model.diskChangeCount), writes \(model.writesSidecars)")
         case "import":
             ImportDebugCommands.printState(model.cardImport)
+        case "adjustments":
+            DebugAdjustCommands.printState(model.editor)
         case "items":
             print("debug-script: items " + model.items.prefix(12).map { "\($0.baseName):\($0.rating.rawValue)" }.joined(separator: " "))
         default:

@@ -10,6 +10,7 @@ final class PhotoCell: NSCollectionViewItem {
     private let cellView = PhotoCellView()
     private var loadTask: Task<Void, Never>?
     private(set) var versionID: Int64?
+    private var editStackHash: String?
     var onDoubleClick: (() -> Void)?
 
     override func loadView() {
@@ -26,16 +27,20 @@ final class PhotoCell: NSCollectionViewItem {
         loadTask?.cancel()
         loadTask = nil
         versionID = nil
+        editStackHash = nil
         cellView.setImage(nil, animated: false)
     }
 
     /// Shows `item`, starting an asynchronous thumbnail load if it is not in memory.
+    /// After an edit the previous thumbnail stays until the new one is ready.
     func configure(with item: CatalogItem, model: LibraryModel, pixelSize: Int) {
         let isNewItem = versionID != item.versionID
+        let isNewRendition = isNewItem || editStackHash != item.editStackHash
         versionID = item.versionID
+        editStackHash = item.editStackHash
         cellView.showsInfo = model.showFileInfo
         cellView.apply(item, offline: model.isOffline(item))
-        guard isNewItem || cellView.image == nil else { return }
+        guard isNewRendition || cellView.image == nil else { return }
 
         loadTask?.cancel()
         guard let request = model.previewRequest(for: item, tier: .thumbnail) else { return }
@@ -43,24 +48,21 @@ final class PhotoCell: NSCollectionViewItem {
             cellView.setImage(image, animated: false)
             return
         }
-        cellView.setImage(nil, animated: false)
+        if isNewItem { cellView.setImage(nil, animated: false) }
         let previews = model.previews
         let versionID = item.versionID
+        let editStackHash = item.editStackHash
         loadTask = Task { [weak self] in
             do {
                 let image = try await previews.image(for: request, maxPixelSize: pixelSize, priority: .visible)
-                guard let self, self.versionID == versionID else { return }
+                guard let self, self.versionID == versionID, self.editStackHash == editStackHash else { return }
                 self.cellView.setImage(image, animated: true)
             } catch {
-                guard let self, self.versionID == versionID, !(error is CancellationError) else { return }
+                guard let self, self.versionID == versionID, self.editStackHash == editStackHash,
+                      !(error is CancellationError) else { return }
                 self.cellView.showUnavailable()
             }
         }
-    }
-
-    /// Refreshes badges only (after a rating or flag change).
-    func updateBadges(with item: CatalogItem, offline: Bool) {
-        cellView.apply(item, offline: offline)
     }
 
     var hasImage: Bool { cellView.image != nil }
