@@ -245,6 +245,23 @@ struct CubeLUTTests {
         }
     }
 
+    @Test func browsingListsCubeFilesAndPreviewsThem() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let folder = root.appending(path: "LUTs")
+            try FileManager.default.createDirectory(at: folder.appending(path: "Film"), withIntermediateDirectories: true)
+            try Self.swapCube().write(to: folder.appending(path: "b swap.cube"), atomically: true, encoding: .utf8)
+            try Self.identityCube(size: 2).write(to: folder.appending(path: "Film/a.CUBE"), atomically: true, encoding: .utf8)
+            try "x".write(to: folder.appending(path: "notes.txt"), atomically: true, encoding: .utf8)
+            let files = LookTableBrowsing.files(in: folder)
+            #expect(files.map(\.lastPathComponent) == ["a.CUBE", "b swap.cube"])
+
+            let base = try #require(SyntheticImages.makeImage(width: 400, height: 200, seed: 1))
+            let cube = try CubeLUT(contentsOf: files[1]).colorCube()
+            let preview = try #require(LookTableBrowsing.preview(of: base, with: cube, engine: RenderEngine()))
+            #expect(max(preview.width, preview.height) == 192)
+        }
+    }
+
     @Test func storeCopiesTablesByContent() async throws {
         try await RepositoryFiles.withTemporaryDirectory { root in
             let source = root.appending(path: "Warm Film.cube")

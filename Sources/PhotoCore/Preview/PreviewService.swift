@@ -7,6 +7,11 @@ import os
 /// crossing concurrency domains.
 public struct DecodedImage: @unchecked Sendable {
     public let cgImage: CGImage
+
+    public init(cgImage: CGImage) {
+        self.cgImage = cgImage
+    }
+
     public var byteCount: Int { cgImage.bytesPerRow * cgImage.height }
 }
 

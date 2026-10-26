@@ -72,6 +72,7 @@ final class LibraryModel {
     let sidecars: SidecarSync
     let cardImport: CardImportModel
     let editor = AdjustmentEditor()
+    let lookTableBrowser = LookTableBrowser()
     let lookTables: LookTableStore
 
     // MARK: Sidebar and filters
@@ -296,6 +297,7 @@ final class LibraryModel {
         opensImportOnCard = defaults.object(forKey: Self.opensImportOnCardKey) as? Bool ?? true
         cardImport.library = self
         editor.library = self
+        lookTableBrowser.library = self
     }
 
     /// Opens the catalog at the standard location (or `--library-root`).

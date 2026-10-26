@@ -274,6 +274,22 @@ final class AdjustmentEditor {
         }
     }
 
+    /// The photo with its saved adjustments but no look-up table, at the loupe's
+    /// size, for previewing tables on it.
+    func lookTablePreviewBase() async -> DecodedImage? {
+        guard let session else { return nil }
+        var values = committed
+        values.lookTable = LookTable()
+        return try? await session.render(values).image
+    }
+
+    /// Identifies what `lookTablePreviewBase` would render.
+    var lookTablePreviewKey: String {
+        var values = adjustments
+        values.lookTable = LookTable()
+        return "\(item?.versionID ?? 0)-\(values.editStack.renderHash)"
+    }
+
     // MARK: Auto
 
     func autoExposure() {

@@ -43,6 +43,7 @@ struct AdjustView: View {
                         Divider()
                         AdjustSection(.colorGrading, editor: editor) {
                             ColorGradeControls(editor: editor)
+                            LookTableControls(model: model)
                         }
                     }
                     .padding(14)
@@ -291,6 +292,77 @@ private struct ColorGradeControls: View {
         case .shadows: String(localized: "Shadows")
         case .midtones: String(localized: "Midtones", comment: "Color grading range")
         case .highlights: String(localized: "Highlights")
+        }
+    }
+}
+
+/// The applied look-up table, its intensity, and the browser of a folder of tables.
+private struct LookTableControls: View {
+    let model: LibraryModel
+
+    private var editor: AdjustmentEditor { model.editor }
+    private var browser: LookTableBrowser { model.lookTableBrowser }
+
+    var body: some View {
+        let table = editor.adjustments.lookTable
+        VStack(alignment: .leading, spacing: 8) {
+            ControlGroupLabel(text: String(localized: "Look-Up Table"))
+            if let identifier = table.identifier {
+                HStack {
+                    Text(table.name)
+                        .font(.callout)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    if !model.lookTables.contains(identifier) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .foregroundStyle(.orange)
+                            .help("This table is missing from the library, so it is not applied.")
+                    }
+                    Spacer()
+                    AppKitButton(title: String(localized: "Remove"), style: .push) {
+                        editor.change(String(localized: "Look-Up Table"), phase: .committed) { $0.lookTable = LookTable() }
+                    }
+                }
+                adjustSlider(editor, String(localized: "Intensity"), \.lookTable.intensity, range: 0...100,
+                             defaultValue: 100, format: .plain)
+            }
+            HStack {
+                Text(browser.folder?.lastPathComponent ?? String(localized: "No folder chosen"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .help(browser.folder?.path ?? "")
+                Spacer()
+                AppKitButton(title: String(localized: "Choose Folder…"), style: .push,
+                             help: String(localized: "Choose a folder of .cube look-up tables to browse")) {
+                    browser.chooseFolder()
+                }
+            }
+            if browser.folder != nil, browser.entries.isEmpty {
+                Text("No .cube files in this folder.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
+                ForEach(browser.entries) { entry in
+                    ImageTile(image: browser.previews[entry.url]?.cgImage, title: entry.name,
+                              isSelected: table.identifier != nil && browser.identifiers[entry.url] == table.identifier,
+                              help: browser.failures.contains(entry.url)
+                                  ? String(localized: "\(entry.name) is not a look-up table this app can read.") : nil) {
+                        browser.apply(entry, editor: editor)
+                    }
+                    .opacity(browser.failures.contains(entry.url) ? 0.4 : 1)
+                }
+            }
+        }
+        .padding(.top, 6)
+        .task(id: "\(editor.lookTablePreviewKey)|\(browser.entries.count)|\(browser.folder?.path ?? "")") {
+            guard !browser.entries.isEmpty else { return }
+            // Wait for the edit to settle before rendering every table.
+            try? await Task.sleep(for: .milliseconds(400))
+            guard !Task.isCancelled, let base = await editor.lookTablePreviewBase() else { return }
+            await browser.refreshPreviews(base: base, key: editor.lookTablePreviewKey + (browser.folder?.path ?? ""))
         }
     }
 }

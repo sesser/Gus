@@ -25,6 +25,7 @@ import PhotoUI
 ///     import open | source <path> | dest <path> | job <text> | delete on|off | eject on|off
 ///            | run (waits) | confirm yes|no | snapshot <file> | print   (see ImportDebugCommands)
 ///     adjust …  original on|off  tab info|adjust   (see DebugAdjustCommands)
+///     lutfolder <path>      lut <name>|none        (the Adjust tab's look-up table browser)
 ///
 /// Keys are characters ("3", "p") or names (left, right, up, down, home, end,
 /// pageup, pagedown, return, escape, space); prefix "opt+" or "shift+" for modifiers. Key events go through
@@ -49,7 +50,7 @@ enum DebugScript {
             // Only commands that can change photos get a group; empty groups
             // would otherwise become undo steps that do nothing.
             let changing: Set<String> = ["key", "addkeywords", "text", "pairfile", "accept", "album", "smartalbum", "remove",
-                                         "adjust"]
+                                         "adjust", "lut"]
             for command in commands where !command.isEmpty {
                 let grouped = changing.contains(String(command.prefix { $0 != " " }))
                 if grouped { undoManager.beginUndoGrouping() }
@@ -183,6 +184,19 @@ enum DebugScript {
             model.showsHDR = rest.first != "off"
         case "adjust":
             await DebugAdjustCommands.run(rest, editor: model.editor)
+        case "lutfolder":
+            let path = (rest.joined(separator: " ") as NSString).expandingTildeInPath
+            model.lookTableBrowser.setFolder(URL(fileURLWithPath: path, isDirectory: true))
+            try? await Task.sleep(for: .milliseconds(300))
+        case "lut":
+            let name = rest.joined(separator: " ")
+            if name == "none" {
+                model.editor.change("Debug lut", phase: .committed) { $0.lookTable = LookTable() }
+            } else if let entry = model.lookTableBrowser.entries.first(where: { $0.name == name }) {
+                model.lookTableBrowser.apply(entry, editor: model.editor)
+            } else {
+                print("debug-script: no look-up table named \(name)")
+            }
         case "original":
             model.editor.showsOriginal = rest.first != "off"
         case "tab":

@@ -351,3 +351,47 @@ enum AdjustText {
         }
     }
 }
+
+/// A clickable picture with a caption under it, outlined when selected.
+struct ImageTile: NSViewRepresentable {
+    var image: CGImage?
+    var title: String
+    var isSelected: Bool
+    var help: String?
+    let action: () -> Void
+
+    func makeCoordinator() -> AppKitButton.Coordinator { AppKitButton.Coordinator() }
+
+    func makeNSView(context: Context) -> NSButton {
+        let button = NSButton()
+        button.isBordered = false
+        button.imagePosition = .imageAbove
+        button.imageScaling = .scaleProportionallyUpOrDown
+        button.wantsLayer = true
+        button.layer?.cornerRadius = 4
+        button.target = context.coordinator
+        button.action = #selector(AppKitButton.Coordinator.click)
+        return button
+    }
+
+    func updateNSView(_ button: NSButton, context: Context) {
+        context.coordinator.action = action
+        if let image {
+            button.image = NSImage(cgImage: image, size: NSSize(width: 104, height: 104 * CGFloat(image.height) / CGFloat(max(image.width, 1))))
+        } else {
+            button.image = NSImage(systemSymbolName: "photo", accessibilityDescription: nil)
+        }
+        button.attributedTitle = NSAttributedString(string: title, attributes: [
+            .font: NSFont.preferredFont(forTextStyle: .caption1),
+            .foregroundColor: isSelected ? NSColor.controlAccentColor : NSColor.secondaryLabelColor,
+        ])
+        button.lineBreakMode = .byTruncatingMiddle
+        button.layer?.borderWidth = isSelected ? 2 : 0
+        button.layer?.borderColor = NSColor.controlAccentColor.cgColor
+        button.toolTip = help ?? title
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSButton, context: Context) -> CGSize? {
+        CGSize(width: proposal.width ?? 110, height: 100)
+    }
+}

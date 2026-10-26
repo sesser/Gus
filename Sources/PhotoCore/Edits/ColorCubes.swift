@@ -1,3 +1,4 @@
+import CoreImage
 import Foundation
 import Synchronization
 import simd
@@ -281,5 +282,34 @@ public final class LookTableStore: Sendable {
     /// Identifiers are lowercase hex, which also keeps paths inside the store.
     static func isValid(_ identifier: String) -> Bool {
         identifier.count == 64 && PreviewCacheKey.isHex(identifier)
+    }
+}
+
+/// Finding `.cube` files in a folder and previewing them on a photo.
+public enum LookTableBrowsing {
+    /// At most this many files are listed.
+    public static let fileLimit = 300
+
+    /// `.cube` files in `folder` and its subfolders, sorted by name.
+    public static func files(in folder: URL) -> [URL] {
+        guard let enumerator = FileManager.default.enumerator(
+            at: folder, includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles, .skipsPackageDescendants]) else { return [] }
+        var found: [URL] = []
+        for case let url as URL in enumerator where url.pathExtension.lowercased() == LookTableStore.fileExtension {
+            found.append(url)
+            if found.count >= fileLimit { break }
+        }
+        return found.sorted {
+            $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending
+        }
+    }
+
+    /// `base` (a rendered photo) with the table applied, at most `longEdge` pixels.
+    public static func preview(of base: CGImage, with table: ColorCube, engine: RenderEngine,
+                               longEdge: Int = 192) -> CGImage? {
+        let image = CIImage(cgImage: base).scaledToFit(longEdge: longEdge)
+        return engine.makeCGImage(AdjustmentRenderer.lookTable(image, table, intensity: 1),
+                                  colorSpace: base.colorSpace)
     }
 }

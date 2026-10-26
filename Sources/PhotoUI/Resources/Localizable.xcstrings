@@ -45,6 +45,17 @@
         }
       }
     },
+    "%@ is not a look-up table this app can read." : {
+      "comment" : "Status message and tooltip; the argument is a file name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ is not a look-up table this app can read."
+          }
+        }
+      }
+    },
     "%@ or better" : {
       "comment" : "Rating filter. The argument is a row of stars.",
       "localizations" : {
@@ -969,6 +980,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Choose Folder…"
+          }
+        }
+      }
+    },
+    "Choose a folder of .cube look-up tables to browse" : {
+      "comment" : "Tooltip of the look-up table folder button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a folder of .cube look-up tables to browse"
+          }
+        }
+      }
+    },
+    "Choose a folder of .cube look-up tables." : {
+      "comment" : "Open panel message",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a folder of .cube look-up tables."
           }
         }
       }
@@ -2235,6 +2268,17 @@
         }
       }
     },
+    "Intensity" : {
+      "comment" : "Look-up table slider: how strongly it applies; also its undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Intensity"
+          }
+        }
+      }
+    },
     "It is removed from %lld photos. The photos stay in the library." : {
       "comment" : "Delete keyword confirmation",
       "localizations" : {
@@ -2429,6 +2473,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Look at the source again"
+          }
+        }
+      }
+    },
+    "Look-Up Table" : {
+      "comment" : "Adjust tab group; also an undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Look-Up Table"
           }
         }
       }
@@ -2651,6 +2706,17 @@
         }
       }
     },
+    "No .cube files in this folder." : {
+      "comment" : "Look-up table browser, empty folder",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No .cube files in this folder."
+          }
+        }
+      }
+    },
     "No Keywords" : {
       "comment" : "Built-in album: photos without keywords",
       "localizations" : {
@@ -2689,6 +2755,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No card connected"
+          }
+        }
+      }
+    },
+    "No folder chosen" : {
+      "comment" : "Look-up table browser before a folder is chosen",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No folder chosen"
           }
         }
       }
@@ -3258,6 +3335,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Rejects"
+          }
+        }
+      }
+    },
+    "Remove" : {
+      "comment" : "Button removing the photo's look-up table",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove"
           }
         }
       }
@@ -3989,6 +4077,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The volume holding this original is not connected."
+          }
+        }
+      }
+    },
+    "This table is missing from the library, so it is not applied." : {
+      "comment" : "Warning next to a look-up table whose copy in the library is gone",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This table is missing from the library, so it is not applied."
           }
         }
       }
