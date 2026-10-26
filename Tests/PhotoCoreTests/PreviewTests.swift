@@ -148,6 +148,29 @@ struct PreviewPipelineTests {
         }
     }
 
+    @Test func dngLayoutFindsReducedLinearRawCopies() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            func probe(_ name: String, _ subIFDs: [(subfileType: UInt32, photometric: UInt16)]) throws -> Bool {
+                let url = root.appending(path: name)
+                try SyntheticDNG.structureData(subIFDs: subIFDs).write(to: url)
+                return DNGLayout.hasReducedLinearRaw(at: url)
+            }
+            // A Lightroom merge: full linear raw, transparency mask, preview, reduced linear raw.
+            #expect(try probe("merge.dng", [(0, 34892), (4, 32844), (1, 2), (1, 34892)]))
+            #expect(try probe("single.dng", [(1, 34892)]))
+            #expect(try !probe("linear.dng", [(0, 34892), (1, 2)]))
+            #expect(try !probe("bayer.dng", [(0, 32803), (1, 6)]))
+            #expect(try !probe("merge.tif", [(0, 34892), (1, 34892)]))
+
+            let bayer = root.appending(path: "synthetic.dng")
+            try SyntheticDNG.write(to: bayer, options: .init(width: 64, height: 64, seed: 1))
+            #expect(!DNGLayout.hasReducedLinearRaw(at: bayer))
+            let truncated = root.appending(path: "truncated.dng")
+            try Data(SyntheticDNG.structureData(subIFDs: [(0, 34892), (1, 34892)]).prefix(20)).write(to: truncated)
+            #expect(!DNGLayout.hasReducedLinearRaw(at: truncated))
+        }
+    }
+
     @Test func serviceGeneratesOnceThenServesFromCache() async throws {
         try await RepositoryFiles.withTemporaryDirectory { root in
             let source = root.appending(path: "a.jpg")

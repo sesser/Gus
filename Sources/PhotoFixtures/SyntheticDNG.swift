@@ -76,6 +76,24 @@ public enum SyntheticDNG {
         return tiff.write(ifd)
     }
 
+    /// The TIFF structure of a DNG without image data: an IFD0 preview and
+    /// SubIFDs with the given NewSubfileType and PhotometricInterpretation values
+    /// (34892 is linear raw, 32803 a color filter array, 2 RGB).
+    public static func structureData(subIFDs: [(subfileType: UInt32, photometric: UInt16)]) -> Data {
+        var ifd = TIFFWriter.IFD()
+        ifd.long(254, [1])                         // NewSubfileType: reduced-resolution preview
+        ifd.short(262, [2])                        // PhotometricInterpretation: RGB
+        ifd.bytes(50706, [1, 7, 0, 0])             // DNGVersion
+        ifd.subIFDs(330, subIFDs.map { image in
+            var sub = TIFFWriter.IFD()
+            sub.long(254, [image.subfileType])
+            sub.short(262, [image.photometric])
+            return sub
+        })
+        var tiff = TIFFWriter()
+        return tiff.write(ifd)
+    }
+
     /// Samples the scene through an RGGB color filter array as 16-bit linear values.
     static func mosaic(_ scene: CGImage, width: Int, height: Int) throws -> Data {
         var rgba = [UInt8](repeating: 0, count: width * height * 4)
@@ -131,6 +149,7 @@ struct TIFFWriter {
         case value(Data)
         case image(Data, byteCountTag: UInt16)
         case ifd(IFD)
+        case ifds([IFD])
     }
 
     struct IFD {
@@ -184,6 +203,12 @@ struct TIFFWriter {
         mutating func subIFD(_ tag: UInt16, _ ifd: IFD) {
             entries.append(Entry(tag: tag, type: .long, count: 1, payload: .ifd(ifd)))
         }
+
+        /// Several IFDs under one tag, such as SubIFDs.
+        mutating func subIFDs(_ tag: UInt16, _ ifds: [IFD]) {
+            let payload: Payload = ifds.count == 1 ? .ifd(ifds[0]) : .ifds(ifds)
+            entries.append(Entry(tag: tag, type: .long, count: ifds.count, payload: payload))
+        }
     }
 
     private var output = Data()
@@ -235,6 +260,14 @@ struct TIFFWriter {
             case .ifd(let subIFD):
                 output.replace(at: slot, littleEndian: UInt32(output.count))
                 writeIFD(subIFD, nextOffset: 0)
+            case .ifds(let subIFDs):
+                let table = output.count
+                output.replace(at: slot, littleEndian: UInt32(table))
+                output.append(Data(count: subIFDs.count * 4))
+                for (index, subIFD) in subIFDs.enumerated() {
+                    output.replace(at: table + index * 4, littleEndian: UInt32(output.count))
+                    writeIFD(subIFD, nextOffset: 0)
+                }
             }
         }
         return UInt32(start)

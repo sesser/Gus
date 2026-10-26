@@ -84,7 +84,9 @@ public struct PreviewGenerator: Sendable {
             let native = raw.nativeSize
             if let longEdge, native.width > 0, native.height > 0 {
                 let scale = Double(longEdge) / Double(max(native.width, native.height))
-                if scale < 1 {
+                // Scaled decodes of DNGs with reduced linear raw copies come out
+                // cyan; those decode at full size and are scaled afterwards.
+                if scale < 1, !DNGLayout.hasReducedLinearRaw(at: url) {
                     // Ask for a little more than needed so the final resample is a downscale.
                     raw.scaleFactor = Float(min(1, scale * 1.25))
                 }
