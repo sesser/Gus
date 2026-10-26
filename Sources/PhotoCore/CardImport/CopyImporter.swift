@@ -59,24 +59,36 @@ public struct CopyImportResult: Sendable {
 }
 
 /// Copies shots from a card or folder into the library's folders, verifies each
-/// copy, and catalogs the copies as referenced masters.
+/// copy, and catalogs the copies as referenced masters. Without a catalog it
+/// only copies (the standalone importer).
 ///
 /// Each file is read once while being written to a hidden temporary name and
 /// hashed, renamed into place, given the original's modification date, then
 /// read back without the file cache and hashed again. Only when both hashes
 /// match is the file verified (and later deletable from the card).
 public final class CopyImporter: Sendable {
-    public let catalog: Catalog
+    public let catalog: Catalog?
     public let sidecars: SidecarSync?
     private static let log = Logger(subsystem: AppBranding.bundleIdentifier, category: "copy-import")
 
-    public init(catalog: Catalog, sidecars: SidecarSync? = nil) {
+    /// `catalog` nil: copy only. Preset metadata then goes into new sidecars
+    /// next to the copies.
+    public init(catalog: Catalog?, sidecars: SidecarSync? = nil) {
         self.catalog = catalog
         self.sidecars = sidecars
     }
 
     public struct VerificationFailed: Error, CustomStringConvertible {
         public var description: String { "the copy does not match the original" }
+    }
+
+    /// The volume, project and import run copies are catalogued under.
+    private struct CatalogTarget {
+        var catalog: Catalog
+        var volume: VolumeRecord
+        var volumeID: Int64
+        var project: ProjectRecord
+        var runID: Int64?
     }
 
     public func run(shots: [SourceShot], sourceRoot: URL, options: CopyImportOptions,
@@ -90,29 +102,18 @@ public final class CopyImporter: Sendable {
         guard let first = shots.first else { return result }
 
         try FileManager.default.createDirectory(at: options.destination, withIntermediateDirectories: true)
-        let volumeURL = try options.destination.resourceValues(forKeys: [.volumeURLKey]).volume ?? URL(fileURLWithPath: "/")
-        let volume = try await catalog.registerVolume(try VolumeResolver.descriptor(forVolumeAt: volumeURL))
-        guard let volumeID = volume.id else { return result }
-
         let importDate = Date()
-        let project: ProjectRecord
-        switch options.project {
-        case .existing(let id):
-            guard let existing = try await catalog.projectSummaries(groupingPairs: false).first(where: { $0.id == id })?.project
-            else { throw CocoaError(.fileNoSuchFile) }
-            project = existing
-        case .new(let nameTemplate):
-            let context = Self.context(first, file: first.primary, sequence: 1, counter: options.firstCounter,
-                                       importDate: importDate, job: options.jobCode)
-            var name = ImportTemplate.sanitize(ImportTemplate.expand(nameTemplate, context))
-            if name.isEmpty { name = sourceRoot.lastPathComponent }
-            project = try await catalog.createProject(name: name, sourcePath: options.destination.path)
+        var target: CatalogTarget?
+        if let catalog {
+            target = try await catalogTarget(catalog, first: first, sourceRoot: sourceRoot, options: options,
+                                             importDate: importDate)
+            guard target != nil else { return result }
+            result.project = target?.project
         }
-        result.project = project
-        let run = try await catalog.createImportRun(sourcePath: sourceRoot.path, projectID: project.id)
 
         var pending: [NewMaster] = []
         var forcedSidecars: [Int64] = []
+        var writtenSidecars: Set<URL> = []
         for (index, shot) in shots.enumerated() {
             try Task.checkCancellation()
             let sequence = index + 1
@@ -127,6 +128,7 @@ public final class CopyImporter: Sendable {
             let stem = (rendered.fileName as NSString).deletingPathExtension
             let files = shot.files.filter { !$0.isDuplicate }
             let destinations = try Self.freeNames(stem: stem, files: files, in: folder)
+            var copiedPrimary: URL?
 
             for (file, destination) in zip(files, destinations) {
                 progress.currentName = file.name
@@ -144,17 +146,21 @@ public final class CopyImporter: Sendable {
                         result.copied += 1
                     }
                     result.verifiedSources.append(file.url)
-                    guard let relative = VolumeResolver.relativePath(of: destination.url, inVolumeAt: volume.mountPath) else {
-                        throw CocoaError(.fileWriteInvalidFileName)
+                    if file == files.first { copiedPrimary = destination.url }
+                    if let target {
+                        guard let relative = VolumeResolver.relativePath(of: destination.url,
+                                                                         inVolumeAt: target.volume.mountPath) else {
+                            throw CocoaError(.fileWriteInvalidFileName)
+                        }
+                        var metadata = file.metadata
+                        if let preset = options.metadata {
+                            let fileContext = Self.context(shot, file: file, sequence: sequence, counter: counter,
+                                                           importDate: importDate, job: options.jobCode)
+                            Self.apply(preset, to: &metadata, context: fileContext)
+                        }
+                        pending.append(NewMaster(relativePath: relative, fileSize: file.size, modifiedAt: file.modifiedAt,
+                                                 contentHash: hash, metadata: metadata))
                     }
-                    var metadata = file.metadata
-                    if let preset = options.metadata {
-                        let fileContext = Self.context(shot, file: file, sequence: sequence, counter: counter,
-                                                       importDate: importDate, job: options.jobCode)
-                        Self.apply(preset, to: &metadata, context: fileContext)
-                    }
-                    pending.append(NewMaster(relativePath: relative, fileSize: file.size, modifiedAt: file.modifiedAt,
-                                             contentHash: hash, metadata: metadata))
                 } catch is CancellationError {
                     throw CancellationError()
                 } catch {
@@ -164,19 +170,53 @@ public final class CopyImporter: Sendable {
                 progress.filesDone += 1
                 report(progress)
             }
-            if pending.count >= 64 || index == shots.count - 1 {
-                let inserted = try await catalog.insertMasters(pending, volumeID: volumeID, projectID: project.id!,
-                                                               importRunID: run.id, importedAt: importDate)
+            if let target, pending.count >= 64 || index == shots.count - 1 {
+                let inserted = try await target.catalog.insertMasters(pending, volumeID: target.volumeID,
+                                                                      projectID: target.project.id!,
+                                                                      importRunID: target.runID, importedAt: importDate)
                 result.insertedVersionIDs += inserted.insertedVersionIDs
                 if options.metadata != nil { forcedSidecars += inserted.insertedImageIDs }
                 pending = []
             }
+            if target == nil, let preset = options.metadata, let copy = copiedPrimary, let file = files.first {
+                var metadata = file.metadata
+                Self.apply(preset, to: &metadata, context: context)
+                do {
+                    try Self.writeNewSidecar(SidecarSync.values(from: metadata), forCopy: copy, written: &writtenSidecars)
+                } catch {
+                    Self.log.error("Writing a sidecar for \(copy.path, privacy: .public) failed: \(String(describing: error), privacy: .public)")
+                }
+            }
         }
         // Metadata given at import always goes into sidecars.
-        if let sidecars, !forcedSidecars.isEmpty {
-            _ = try await sidecars.writeSidecars(forImages: forcedSidecars, mountedVolumes: [volumeID])
+        if let sidecars, let target, !forcedSidecars.isEmpty {
+            _ = try await sidecars.writeSidecars(forImages: forcedSidecars, mountedVolumes: [target.volumeID])
         }
         return result
+    }
+
+    /// Registers the destination's volume and creates the project and import run.
+    private func catalogTarget(_ catalog: Catalog, first: SourceShot, sourceRoot: URL, options: CopyImportOptions,
+                               importDate: Date) async throws -> CatalogTarget? {
+        let volumeURL = try options.destination.resourceValues(forKeys: [.volumeURLKey]).volume ?? URL(fileURLWithPath: "/")
+        let volume = try await catalog.registerVolume(try VolumeResolver.descriptor(forVolumeAt: volumeURL))
+        guard let volumeID = volume.id else { return nil }
+
+        let project: ProjectRecord
+        switch options.project {
+        case .existing(let id):
+            guard let existing = try await catalog.projectSummaries(groupingPairs: false).first(where: { $0.id == id })?.project
+            else { throw CocoaError(.fileNoSuchFile) }
+            project = existing
+        case .new(let nameTemplate):
+            let context = Self.context(first, file: first.primary, sequence: 1, counter: options.firstCounter,
+                                       importDate: importDate, job: options.jobCode)
+            var name = ImportTemplate.sanitize(ImportTemplate.expand(nameTemplate, context))
+            if name.isEmpty { name = sourceRoot.lastPathComponent }
+            project = try await catalog.createProject(name: name, sourcePath: options.destination.path)
+        }
+        let run = try await catalog.createImportRun(sourcePath: sourceRoot.path, projectID: project.id)
+        return CatalogTarget(catalog: catalog, volume: volume, volumeID: volumeID, project: project, runID: run.id)
     }
 
     /// Deletes source files (after the person confirmed). Returns the ones that
@@ -206,6 +246,25 @@ public final class CopyImporter: Sendable {
         if let usage = expand(preset.usageTerms) { metadata.usageTerms = usage }
         if let caption = expand(preset.caption) { metadata.caption = caption }
         if let contact = preset.contact, !contact.isEmpty { metadata.creatorContact = contact }
+    }
+
+    /// Writes `values` into a new sidecar for `copy` (a pair's sidecar is named
+    /// after its RAW and shared). A sidecar already there belongs to another app
+    /// or an earlier import and is left alone. `written` holds this import's
+    /// sidecars, so a photo and a video with the same stem each get their own.
+    static func writeNewSidecar(_ values: SidecarValues, forCopy copy: URL, written: inout Set<URL>) throws {
+        let folder = copy.deletingLastPathComponent()
+        var name = SidecarFiles.preferredName(forMaster: copy.lastPathComponent, stemIsShared: false)
+        if written.contains(folder.appending(path: name, directoryHint: .notDirectory)) {
+            name = SidecarFiles.preferredName(forMaster: copy.lastPathComponent, stemIsShared: true)
+        } else if SidecarFiles.locate(in: folder, names: SidecarFiles.candidateNames(forMaster: copy.lastPathComponent,
+                                                                                    preferred: name)) != nil {
+            return
+        }
+        let url = folder.appending(path: name, directoryHint: .notDirectory)
+        guard !FileManager.default.fileExists(atPath: url.path) else { return }
+        _ = try SidecarFiles.write(values, previous: nil, to: url)
+        written.insert(url)
     }
 
     struct Destination {

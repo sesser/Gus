@@ -1,6 +1,6 @@
 import AppKit
 import PhotoCore
-import UniformTypeIdentifiers
+import PhotoUI
 
 /// `--debug-script "<commands>"`: drives the UI for development checks without
 /// screen recording permission. Commands are separated by ";":
@@ -23,7 +23,7 @@ import UniformTypeIdentifiers
 ///     buttons               (prints the window's AppKit buttons and where they are)
 ///     hdr on|off            (the View menu's Show HDR; snapshots show HDR clipped at white)
 ///     import open | source <path> | dest <path> | job <text> | delete on|off | eject on|off
-///            | run (waits) | confirm yes|no | snapshot <file>
+///            | run (waits) | confirm yes|no | snapshot <file> | print   (see ImportDebugCommands)
 ///
 /// Keys are characters ("3", "p") or names (left, right, up, down, home, end,
 /// pageup, pagedown, return, escape, space); prefix "opt+" or "shift+" for modifiers. Key events go through
@@ -192,38 +192,15 @@ enum DebugScript {
         }
     }
 
-    /// import open | source <path> | dest <path> | job <text> | delete on|off |
-    /// eject on|off | run | confirm yes|no | snapshot <file>
+    /// import open, or one of the shared import commands.
     private static func runImportCommand(_ words: [String], model: CardImportModel, library: LibraryModel) async {
-        let argument = words.dropFirst().joined(separator: " ")
-        switch words.first {
-        case "open":
+        if words.first == "open" {
             model.refreshSources()
             library.requestsImportWindow = true
-        case "source":
-            model.source = ImportSource.describe(URL(fileURLWithPath: argument))
-            try? await Task.sleep(for: .milliseconds(100))
-            while model.isScanning { try? await Task.sleep(for: .milliseconds(100)) }
-        case "dest":
-            model.destination = URL(fileURLWithPath: argument)
-        case "job":
-            model.jobCode = argument
-        case "delete":
-            model.deletesOriginals = argument == "on"
-        case "eject":
-            model.ejectsWhenDone = argument == "on"
-        case "run":
-            model.startImport()
-            try? await Task.sleep(for: .milliseconds(100))
-            while model.isImporting { try? await Task.sleep(for: .milliseconds(100)) }
-            try? await Task.sleep(for: .milliseconds(500))
-        case "confirm":
-            model.confirmDeletion(argument == "yes")
-            try? await Task.sleep(for: .seconds(1))
-        case "snapshot":
-            let importWindow = NSApp.windows.first { $0.isVisible && $0.title == String(localized: "Import") }
-            if let importWindow { snapshot(importWindow, to: URL(fileURLWithPath: argument)) }
-        default:
+            return
+        }
+        let importWindow = NSApp.windows.first { $0.isVisible && $0.title == String(localized: "Import") }
+        if !(await ImportDebugCommands.run(words, model: model, window: importWindow)) {
             print("debug-script: unknown import command")
         }
     }
@@ -311,10 +288,7 @@ enum DebugScript {
         case "disk":
             print("debug-script: changed on disk \(model.diskChangeCount), writes \(model.writesSidecars)")
         case "import":
-            let card = model.cardImport
-            print("debug-script: import source \(card.source?.name ?? "-") card \(card.source?.isCard == true) "
-                  + "shots \(card.shots.count) duplicates \(card.duplicateCount) selected \(card.selectedShots.count) "
-                  + "deletion \(card.pendingDeletion?.count ?? 0) message \(card.message ?? "-")")
+            ImportDebugCommands.printState(model.cardImport)
         case "items":
             print("debug-script: items " + model.items.prefix(12).map { "\($0.baseName):\($0.rating.rawValue)" }.joined(separator: " "))
         default:
@@ -363,34 +337,6 @@ enum DebugScript {
             print("debug-script: no window to snapshot")
             return
         }
-        snapshot(window, to: url)
-    }
-
-    private static func snapshot(_ window: NSWindow, to url: URL) {
-        // An open sheet is its own window; show it rather than the dimmed window behind.
-        let window = window.attachedSheet ?? window
-        guard let view = window.contentView?.superview ?? window.contentView, let layer = view.layer else {
-            print("debug-script: no window to snapshot")
-            return
-        }
-        let scale = window.backingScaleFactor
-        let size = view.bounds.size
-        guard let context = CGContext(data: nil, width: Int(size.width * scale), height: Int(size.height * scale),
-                                      bitsPerComponent: 8, bytesPerRow: 0,
-                                      space: CGColorSpace(name: CGColorSpace.sRGB)!,
-                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
-        else { return }
-        context.scaleBy(x: scale, y: scale)
-        if layer.isGeometryFlipped {
-            context.translateBy(x: 0, y: size.height)
-            context.scaleBy(x: 1, y: -1)
-        }
-        layer.render(in: context)
-        guard let image = context.makeImage(),
-              let destination = CGImageDestinationCreateWithURL(url as CFURL, UTType.png.identifier as CFString, 1, nil)
-        else { return }
-        CGImageDestinationAddImage(destination, image, nil)
-        CGImageDestinationFinalize(destination)
-        print("debug-script: wrote \(url.path)")
+        WindowSnapshot.write(window, to: url)
     }
 }

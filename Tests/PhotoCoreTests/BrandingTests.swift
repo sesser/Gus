@@ -131,6 +131,11 @@ struct BrandingTests {
         #expect(settings["PRODUCT_URL_SCHEME"] == AppBranding.urlScheme)
         let productName = try #require(settings["PRODUCT_NAME"])
         #expect(!productName.isEmpty && !productName.contains("/"))
+        #expect(settings["IMPORTER_PRODUCT_DISPLAY_NAME"] == AppBranding.importerDisplayName)
+        #expect(settings["IMPORTER_PRODUCT_BUNDLE_IDENTIFIER"] == AppBranding.importerBundleIdentifier)
+        let importerName = try #require(settings["IMPORTER_PRODUCT_NAME"])
+        #expect(!importerName.isEmpty && !importerName.contains("/") && importerName != productName)
+        #expect(AppBranding.importerBundleIdentifier != AppBranding.bundleIdentifier)
     }
 
     @Test("Info.plist template is driven by build variables")
@@ -140,11 +145,15 @@ struct BrandingTests {
                          "$(PRODUCT_URL_SCHEME)", "$(EXECUTABLE_NAME)"] {
             #expect(template.contains(variable), "Info.plist should reference \(variable)")
         }
+        let importer = try String(contentsOf: RepositoryFiles.url("Support/Importer-Info.plist"), encoding: .utf8)
+        for variable in ["$(PRODUCT_NAME)", "$(PRODUCT_DISPLAY_NAME)", "$(PRODUCT_BUNDLE_IDENTIFIER)", "$(EXECUTABLE_NAME)"] {
+            #expect(importer.contains(variable), "Importer-Info.plist should reference \(variable)")
+        }
     }
 
     @Test("String Catalog refers to the product name only through arguments")
     func stringCatalogUsesArguments() throws {
-        let data = try Data(contentsOf: RepositoryFiles.url("Sources/PhotoApp/Resources/Localizable.xcstrings"))
+        let data = try Data(contentsOf: RepositoryFiles.url("Sources/PhotoUI/Resources/Localizable.xcstrings"))
         let catalog = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
         let strings = try #require(catalog["strings"] as? [String: Any])
         let text = String(decoding: data, as: UTF8.self)

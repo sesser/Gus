@@ -29,13 +29,18 @@ Scripts/build-app.sh
 ```
 
 ```bash
+Scripts/build-app.sh importer
+```
+
+```bash
 swift run -c release photobench help
 ```
 
 The build does not depend on Xcode: everything goes through SwiftPM, and tests
 use Swift Testing (not XCTest). `Scripts/build-app.sh` assembles the `.app`
 bundle (Info.plist from `Branding.xcconfig`, String Catalog compiled by the
-`catalog-strings` tool, ad-hoc signature).
+`catalog-strings` tool, ad-hoc signature); `importer` builds the standalone
+importer and `all` builds both.
 
 To check UI changes without screen recording permission, run the bundle's
 executable with `--library-root <folder> --debug-script "wait 2; snapshot /tmp/a.png; quit"`
@@ -59,8 +64,13 @@ compatible and never put `#` comment lines inside pasted command snippets.
   (GRDB), import, metadata, edit stack, preview pipeline, `Sidecars/` (XMP),
   `CardImport/` (templates, copying), `Suggestions/` (Vision), `Video/`.
   Everything testable lives here.
+- `Sources/PhotoUI` — UI shared by both apps: `Import/` (the import window, its
+  model and its debug-script commands), `Palette`, `LaunchOptions`, and the
+  String Catalog (`Resources/Localizable.xcstrings`).
 - `Sources/PhotoApp` — SwiftUI app shell, AppKit grid (`NSCollectionView`) and
-  loupe, inspector, sidebar, smart album editor, `Import/` (the import window).
+  loupe, inspector, sidebar, smart album editor.
+- `Sources/PhotoImporter` — the standalone importer: the same import window
+  with no library (copies only; presets and options in its own preferences).
 - `Sources/PhotoFixtures` — synthetic JPEG/HEIC and Bayer DNG writers (tests, benchmarks).
 - `Sources/PhotoBench` — synthetic library generator and headless profiling.
 - `Sources/StringCatalogCompiler` — `.xcstrings` to `.strings`/`.stringsdict`.
@@ -77,7 +87,7 @@ compatible and never put `#` comment lines inside pasted command snippets.
   contain brand values. `Branding.xcconfig` holds the build-setting copies
   (`PRODUCT_NAME`, `PRODUCT_DISPLAY_NAME`, `PRODUCT_BUNDLE_IDENTIFIER`,
   `PRODUCT_URL_SCHEME`). `BrandingTests` enforces both and fails on any leak.
-- User-facing strings go through `Sources/PhotoApp/Resources/Localizable.xcstrings`
+- User-facing strings go through `Sources/PhotoUI/Resources/Localizable.xcstrings`
   and refer to the product name only via a `%@` argument filled from
   `AppBranding.displayName`. Nothing extracts strings automatically: add new
   keys to the catalog by hand; `LocalizationTests` fails on any UI literal
@@ -139,6 +149,10 @@ compatible and never put `#` comment lines inside pasted command snippets.
   runs after the change it reverses.
 - **Copying imports** verify every copy (re-read around the file cache, hash
   compared) before it counts; only verified sources may be deleted.
+- **Standalone importer** shares the import window, model and `CopyImporter`
+  with the library app; never fork them. Without a catalog (`CardImportModel.library`
+  nil) it copies only, writes preset metadata into new sidecars (never into
+  existing ones), and does not mark duplicates.
 - **Dependencies**: GRDB only. Ask before adding anything else. Apple frameworks
   (Vision, AVFoundation, AVKit) are fine.
 

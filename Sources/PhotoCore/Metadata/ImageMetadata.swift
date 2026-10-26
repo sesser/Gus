@@ -60,6 +60,11 @@ public struct ImageMetadata: Hashable, Sendable, Codable {
     /// XMP label, usually a color name.
     public var label: String?
 
+    /// Shutter actuations the camera had made when it took the photo, from its
+    /// maker notes (Sony, Nikon, Pentax, some Canon bodies). Shown when
+    /// importing from a card; the catalog does not keep it.
+    public var shutterCount: Int?
+
     public init(captureDate: Date? = nil, captureOffsetSeconds: Int? = nil,
                 pixelWidth: Int? = nil, pixelHeight: Int? = nil, orientation: Int = 1,
                 cameraMake: String? = nil, cameraModel: String? = nil, lensModel: String? = nil,

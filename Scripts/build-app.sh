@@ -1,14 +1,40 @@
 #!/bin/sh
-# Builds the app with SwiftPM and assembles an ad-hoc signed .app bundle in build/.
+# Builds an app with SwiftPM and assembles an ad-hoc signed .app bundle in build/.
 # Every brand-dependent value comes from Branding.xcconfig, the same way an Xcode
 # project would use it, so this script never names the product.
 #
+#   Scripts/build-app.sh                       the library app
+#   Scripts/build-app.sh importer              the standalone importer
+#   Scripts/build-app.sh all                   both
 #   CONFIGURATION=debug Scripts/build-app.sh   builds a debug bundle
 
 set -eu
 
 ROOT=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 CONFIGURATION=${CONFIGURATION:-release}
+KIND=${1:-library}
+
+case $KIND in
+    all)
+        "$0" library
+        "$0" importer
+        exit 0
+        ;;
+    library)
+        PREFIX=
+        SWIFT_PRODUCT=PhotoApp
+        INFO_TEMPLATE="$ROOT/Support/Info.plist"
+        ;;
+    importer)
+        PREFIX=IMPORTER_
+        SWIFT_PRODUCT=PhotoImporter
+        INFO_TEMPLATE="$ROOT/Support/Importer-Info.plist"
+        ;;
+    *)
+        echo "usage: $0 [library|importer|all]" >&2
+        exit 2
+        ;;
+esac
 
 # setting KEY FILE: prints the last "KEY = value" assignment in an xcconfig file.
 setting() {
@@ -17,9 +43,9 @@ setting() {
 
 BRANDING="$ROOT/Branding.xcconfig"
 VERSIONS="$ROOT/Support/Version.xcconfig"
-PRODUCT_NAME=$(setting PRODUCT_NAME "$BRANDING")
-PRODUCT_DISPLAY_NAME=$(setting PRODUCT_DISPLAY_NAME "$BRANDING")
-PRODUCT_BUNDLE_IDENTIFIER=$(setting PRODUCT_BUNDLE_IDENTIFIER "$BRANDING")
+PRODUCT_NAME=$(setting "${PREFIX}PRODUCT_NAME" "$BRANDING")
+PRODUCT_DISPLAY_NAME=$(setting "${PREFIX}PRODUCT_DISPLAY_NAME" "$BRANDING")
+PRODUCT_BUNDLE_IDENTIFIER=$(setting "${PREFIX}PRODUCT_BUNDLE_IDENTIFIER" "$BRANDING")
 PRODUCT_URL_SCHEME=$(setting PRODUCT_URL_SCHEME "$BRANDING")
 MARKETING_VERSION=$(setting MARKETING_VERSION "$VERSIONS")
 CURRENT_PROJECT_VERSION=$(setting CURRENT_PROJECT_VERSION "$VERSIONS")
@@ -35,7 +61,7 @@ for name in PRODUCT_NAME PRODUCT_DISPLAY_NAME PRODUCT_BUNDLE_IDENTIFIER PRODUCT_
 done
 
 cd "$ROOT"
-swift build -c "$CONFIGURATION" --product PhotoApp
+swift build -c "$CONFIGURATION" --product "$SWIFT_PRODUCT"
 swift build -c "$CONFIGURATION" --product catalog-strings
 swift build -c "$CONFIGURATION" --product app-icon
 BIN=$(swift build -c "$CONFIGURATION" --show-bin-path)
@@ -43,7 +69,7 @@ BIN=$(swift build -c "$CONFIGURATION" --show-bin-path)
 APP="$ROOT/build/$PRODUCT_NAME.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp "$BIN/PhotoApp" "$APP/Contents/MacOS/$EXECUTABLE_NAME"
+cp "$BIN/$SWIFT_PRODUCT" "$APP/Contents/MacOS/$EXECUTABLE_NAME"
 for bundle in "$BIN"/*.bundle "$BIN"/*.resources; do
     if [ -d "$bundle" ]; then
         cp -R "$bundle" "$APP/Contents/Resources/"
@@ -62,7 +88,7 @@ sed -e 's|\$(PRODUCT_NAME)|'"$(escape "$PRODUCT_NAME")"'|g' \
     -e 's|\$(EXECUTABLE_NAME)|'"$(escape "$EXECUTABLE_NAME")"'|g' \
     -e 's|\$(MARKETING_VERSION)|'"$(escape "$MARKETING_VERSION")"'|g' \
     -e 's|\$(CURRENT_PROJECT_VERSION)|'"$(escape "$CURRENT_PROJECT_VERSION")"'|g' \
-    "$ROOT/Support/Info.plist" > "$APP/Contents/Info.plist"
+    "$INFO_TEMPLATE" > "$APP/Contents/Info.plist"
 if grep -q '\$(' "$APP/Contents/Info.plist"; then
     echo "error: unresolved build variable in Info.plist:" >&2
     grep '\$(' "$APP/Contents/Info.plist" >&2
@@ -71,9 +97,9 @@ fi
 plutil -lint -s "$APP/Contents/Info.plist"
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 
-"$BIN/catalog-strings" "$ROOT/Sources/PhotoApp/Resources/Localizable.xcstrings" "$APP/Contents/Resources"
+"$BIN/catalog-strings" "$ROOT/Sources/PhotoUI/Resources/Localizable.xcstrings" "$APP/Contents/Resources"
 
-ICONSET="$ROOT/build/AppIcon.iconset"
+ICONSET="$ROOT/build/$SWIFT_PRODUCT.iconset"
 "$BIN/app-icon" "$ROOT/Support/AppIcon.png" "$ICONSET"
 iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
 rm -rf "$ICONSET"

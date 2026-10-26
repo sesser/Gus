@@ -5,21 +5,21 @@ import os
 
 /// A place to import from by copying: a card (or camera mounted as a disk) or
 /// any folder.
-struct ImportSource: Hashable, Identifiable {
-    var url: URL
-    var name: String
+public struct ImportSource: Hashable, Identifiable {
+    public var url: URL
+    public var name: String
     /// Has a DCIM folder.
-    var isCard: Bool
-    var isEjectable: Bool
+    public var isCard: Bool
+    public var isEjectable: Bool
 
-    var id: URL { url }
+    public var id: URL { url }
 
     /// Cards are scanned from their DCIM folder.
-    var scanRoot: URL {
+    public var scanRoot: URL {
         isCard ? url.appending(path: "DCIM", directoryHint: .isDirectory) : url
     }
 
-    static func describe(_ url: URL) -> ImportSource {
+    public static func describe(_ url: URL) -> ImportSource {
         let values = try? url.resourceValues(forKeys: [.volumeIsEjectableKey, .volumeIsRemovableKey, .volumeLocalizedNameKey,
                                                        .isVolumeKey])
         let isVolume = values?.isVolume == true
@@ -28,34 +28,54 @@ struct ImportSource: Hashable, Identifiable {
                             isCard: hasDCIM(url), isEjectable: isEjectable)
     }
 
-    static func hasDCIM(_ url: URL) -> Bool {
+    public static func hasDCIM(_ url: URL) -> Bool {
         var isDirectory: ObjCBool = false
         return FileManager.default.fileExists(atPath: url.appending(path: "DCIM").path, isDirectory: &isDirectory)
             && isDirectory.boolValue
     }
 
     /// Mounted volumes that look like cards or removable disks.
-    static func mountedCards() -> [ImportSource] {
+    public static func mountedCards() -> [ImportSource] {
         let keys: [URLResourceKey] = [.volumeIsEjectableKey, .volumeIsRemovableKey, .volumeLocalizedNameKey, .isVolumeKey]
         let volumes = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: keys, options: [.skipHiddenVolumes]) ?? []
         return volumes.map(describe).filter { $0.isCard || $0.isEjectable }.sorted { $0.name < $1.name }
     }
 }
 
+/// The library a copying import adds to. The standalone importer has none and
+/// only copies.
+@MainActor
+public protocol CardImportLibrary: AnyObject {
+    var catalog: Catalog { get }
+    var sidecars: SidecarSync { get }
+    var projects: [ProjectSummary] { get }
+    func refreshProjects() async
+    func didFinishCopyImport(_ result: CopyImportResult) async
+}
+
 /// State of the import window.
 @MainActor
 @Observable
-final class CardImportModel {
-    @ObservationIgnored weak var library: LibraryModel?
+public final class CardImportModel {
+    /// Nil in the standalone importer: copies are not catalogued, nothing is
+    /// marked as already in the library, and there is no project to choose.
+    @ObservationIgnored public weak var library: (any CardImportLibrary)?
+    @ObservationIgnored private let metadataReader: any MetadataReader
+    @ObservationIgnored private let presetStore: any MetadataPresetStore
+    @ObservationIgnored private var volumeObservers: [any NSObjectProtocol] = []
+
+    public var copiesOnly: Bool { library == nil }
 
     // MARK: Source
 
-    private(set) var sources: [ImportSource] = []
-    var source: ImportSource? {
+    public private(set) var sources: [ImportSource] = []
+    public var source: ImportSource? {
         didSet { if oldValue != source { rescan() } }
     }
-    private(set) var shots: [SourceShot] = []
-    private(set) var isScanning = false
+    public private(set) var shots: [SourceShot] = []
+    /// The newest photo's camera, for the status bar.
+    public private(set) var camera: CameraSummary?
+    public private(set) var isScanning = false
     var selection: Set<URL> = []
     var showsDuplicates = false
     @ObservationIgnored private var scanTask: Task<Void, Never>?
@@ -65,15 +85,15 @@ final class CardImportModel {
         showsDuplicates ? shots : shots.filter { !$0.isDuplicate }
     }
 
-    var duplicateCount: Int { shots.filter(\.isDuplicate).count }
+    public var duplicateCount: Int { shots.filter(\.isDuplicate).count }
 
-    var selectedShots: [SourceShot] {
+    public var selectedShots: [SourceShot] {
         shots.filter { selection.contains($0.id) && !$0.isDuplicate }
     }
 
     // MARK: Options (remembered)
 
-    var destination: URL {
+    public var destination: URL {
         didSet { defaults.set(destination.path, forKey: Keys.destination) }
     }
     var folderTemplate: String {
@@ -87,7 +107,7 @@ final class CardImportModel {
     }
     /// nil: a new project.
     var existingProjectID: Int64?
-    var jobCode = ""
+    public var jobCode = ""
     var recentJobCodes: [String] {
         didSet { defaults.set(recentJobCodes, forKey: Keys.jobCodes) }
     }
@@ -95,7 +115,7 @@ final class CardImportModel {
     var presetID: Int64? {
         didSet { defaults.set(presetID.map { Int($0) } ?? 0, forKey: Keys.preset) }
     }
-    var ejectsWhenDone: Bool {
+    public var ejectsWhenDone: Bool {
         didSet { defaults.set(ejectsWhenDone, forKey: Keys.eject) }
     }
     var includesVideos: Bool {
@@ -105,7 +125,7 @@ final class CardImportModel {
         }
     }
     /// Not remembered: deleting from the card is decided each time.
-    var deletesOriginals = false
+    public var deletesOriginals = false
     var counter: Int {
         didSet { defaults.set(counter, forKey: Keys.counter) }
     }
@@ -117,13 +137,13 @@ final class CardImportModel {
     private(set) var progress: CopyImportProgress?
     private(set) var lastResult: CopyImportResult?
     /// Verified files waiting for the person to confirm their deletion.
-    var pendingDeletion: [URL]?
-    var message: String?
+    public var pendingDeletion: [URL]?
+    public var message: String?
     @ObservationIgnored private var importTask: Task<Void, Never>?
 
-    var isImporting: Bool { importTask != nil }
+    public var isImporting: Bool { importTask != nil }
 
-    private let defaults = UserDefaults.standard
+    private let defaults: UserDefaults
     private static let log = Logger(subsystem: AppBranding.bundleIdentifier, category: "card-import")
 
     private enum Keys {
@@ -138,7 +158,12 @@ final class CardImportModel {
         static let videos = "import.includeVideos"
     }
 
-    init() {
+    /// `presets`: the catalog in the library app, preferences in the
+    /// standalone importer. `defaults` holds the remembered options.
+    public init(metadataReader: any MetadataReader, presets: any MetadataPresetStore, defaults: UserDefaults = .standard) {
+        self.metadataReader = metadataReader
+        presetStore = presets
+        self.defaults = defaults
         let pictures = FileManager.default.urls(for: .picturesDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory()).appending(path: "Pictures")
         destination = defaults.string(forKey: Keys.destination).map { URL(fileURLWithPath: $0) } ?? pictures
@@ -157,7 +182,7 @@ final class CardImportModel {
 
     /// Lists mounted cards; picks `preferred` (a card that just mounted) or keeps
     /// the current source.
-    func refreshSources(preferring preferred: URL? = nil) {
+    public func refreshSources(preferring preferred: URL? = nil) {
         var found = ImportSource.mountedCards()
         if let current = source, !current.isEjectable, !found.contains(current) { found.append(current) }
         sources = found
@@ -170,12 +195,36 @@ final class CardImportModel {
         Task { await loadPresets() }
     }
 
+    /// Follows cards as they come and go, switching to a card when it mounts.
+    /// The standalone importer uses this; the library app opens the window
+    /// itself when a card mounts.
+    public func followCards() {
+        guard volumeObservers.isEmpty else { return }
+        let center = NSWorkspace.shared.notificationCenter
+        for name in [NSWorkspace.didMountNotification, NSWorkspace.didUnmountNotification] {
+            volumeObservers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] notification in
+                let mounted = name == NSWorkspace.didMountNotification
+                    ? notification.userInfo?[NSWorkspace.volumeURLUserInfoKey] as? URL : nil
+                Task { @MainActor in
+                    guard let self, !self.isImporting else { return }
+                    if let mounted, ImportSource.hasDCIM(mounted) {
+                        self.refreshSources(preferring: mounted)
+                    } else {
+                        self.refreshSources()
+                    }
+                }
+            })
+        }
+    }
+
     func chooseFolder() {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.prompt = String(localized: "Choose")
-        panel.message = String(localized: "Choose a folder to import from. Its photos are copied into the library's folders.")
+        panel.message = copiesOnly
+            ? String(localized: "Choose a folder to import from. Its photos are copied to the destination folder.")
+            : String(localized: "Choose a folder to import from. Its photos are copied into the library's folders.")
         guard panel.runModal() == .OK, let url = panel.url else { return }
         let chosen = ImportSource.describe(url)
         if !sources.contains(chosen) { sources.append(chosen) }
@@ -194,21 +243,23 @@ final class CardImportModel {
         destination = url
     }
 
-    func rescan() {
+    public func rescan() {
         scanTask?.cancel()
         shots = []
+        camera = nil
         selection = []
-        guard let source, let library else { return }
-        let reader = library.importer.metadataReader
-        let catalog = library.catalog
+        guard let source else { return }
+        let reader = metadataReader
+        let catalog = library?.catalog
         let videos = includesVideos
         isScanning = true
         scanTask = Task {
             do {
                 let found = try await SourceScanner.scan(source.scanRoot, reader: reader, includingVideos: videos)
-                let marked = try await SourceScanner.markDuplicates(in: found, catalog: catalog)
+                let marked = if let catalog { try await SourceScanner.markDuplicates(in: found, catalog: catalog) } else { found }
                 guard !Task.isCancelled else { return }
                 shots = marked
+                camera = CameraSummary(newestOf: marked)
                 selection = Set(marked.filter { !$0.isDuplicate }.map(\.id))
             } catch is CancellationError {
             } catch {
@@ -244,23 +295,23 @@ final class CardImportModel {
     // MARK: Presets
 
     func loadPresets() async {
-        presets = (try? await library?.catalog.metadataPresets()) ?? []
+        presets = (try? await presetStore.metadataPresets()) ?? []
         if let presetID, !presets.contains(where: { $0.id == presetID }) { self.presetID = nil }
     }
 
     func savePreset(_ preset: MetadataPreset) {
-        guard let catalog = library?.catalog else { return }
+        let store = presetStore
         Task {
-            let saved = try? await catalog.saveMetadataPreset(preset)
+            let saved = try? await store.saveMetadataPreset(preset)
             await loadPresets()
             if let id = saved?.id { presetID = id }
         }
     }
 
     func deletePreset(_ id: Int64) {
-        guard let catalog = library?.catalog else { return }
+        let store = presetStore
         Task {
-            try? await catalog.deleteMetadataPreset(id: id)
+            try? await store.deleteMetadataPreset(id: id)
             await loadPresets()
         }
     }
@@ -278,8 +329,8 @@ final class CardImportModel {
         return template.example(context)
     }
 
-    func startImport() {
-        guard let library, let source, importTask == nil else { return }
+    public func startImport() {
+        guard let source, importTask == nil else { return }
         let shots = selectedShots
         guard !shots.isEmpty else { return }
         let job = jobCode.trimmingCharacters(in: .whitespaces)
@@ -291,7 +342,7 @@ final class CardImportModel {
             project: existingProjectID.map(ProjectChoice.existing) ?? .new(nameTemplate: projectNameTemplate),
             jobCode: job, firstCounter: counter,
             metadata: presets.first { $0.id == presetID }?.values)
-        let importer = CopyImporter(catalog: library.catalog, sidecars: library.sidecars)
+        let importer = CopyImporter(catalog: library?.catalog, sidecars: library?.sidecars)
         message = nil
         lastResult = nil
         progress = CopyImportProgress()
@@ -315,21 +366,26 @@ final class CardImportModel {
             } catch {
                 importTask = nil
                 progress = nil
-                message = error is CancellationError
-                    ? String(localized: "Import cancelled. Photos copied so far are in the library.")
-                    : String(localized: "Import failed: \(error.localizedDescription)")
-                await library.refreshProjects()
+                message = switch error {
+                case is CancellationError where copiesOnly:
+                    String(localized: "Import cancelled. Photos copied so far are in the destination folder.")
+                case is CancellationError:
+                    String(localized: "Import cancelled. Photos copied so far are in the library.")
+                default:
+                    String(localized: "Import failed: \(error.localizedDescription)")
+                }
+                await library?.refreshProjects()
                 rescan()
             }
         }
     }
 
-    func cancelImport() {
+    public func cancelImport() {
         importTask?.cancel()
     }
 
     /// After the person answered the deletion question.
-    func confirmDeletion(_ delete: Bool) {
+    public func confirmDeletion(_ delete: Bool) {
         guard let urls = pendingDeletion, let source, let result = lastResult else { return }
         pendingDeletion = nil
         if delete {

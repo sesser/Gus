@@ -3,21 +3,28 @@ import PhotoCore
 import SwiftUI
 
 /// The import window: pick a source, choose photos, set where and how they are
-/// copied, and import.
-struct ImportWindow: View {
+/// copied, and import. The library app and the standalone importer both show it.
+public struct ImportWindow: View {
     @Bindable var model: CardImportModel
-    let library: LibraryModel
 
-    var body: some View {
-        HSplitView {
-            VStack(spacing: 0) {
-                SourceBar(model: model)
-                Divider()
-                ShotGrid(model: model)
+    public init(model: CardImportModel) {
+        self.model = model
+    }
+
+    public var body: some View {
+        VStack(spacing: 0) {
+            HSplitView {
+                VStack(spacing: 0) {
+                    SourceBar(model: model)
+                    Divider()
+                    ShotGrid(model: model)
+                }
+                .frame(minWidth: 520)
+                ImportOptionsPanel(model: model)
+                    .frame(minWidth: 320, idealWidth: 360, maxWidth: 440)
             }
-            .frame(minWidth: 520)
-            ImportOptionsPanel(model: model, library: library)
-                .frame(minWidth: 320, idealWidth: 360, maxWidth: 440)
+            Divider()
+            CameraStatusBar(camera: model.camera)
         }
         .frame(minWidth: 900, minHeight: 600)
         .preferredColorScheme(.dark)
@@ -27,12 +34,46 @@ struct ImportWindow: View {
             Button("Delete", role: .destructive) { model.confirmDeletion(true) }
             Button("Keep Them", role: .cancel) { model.confirmDeletion(false) }
         } message: {
-            Text("Every one of them was copied and checked. Photos that were already in the library are not deleted.")
+            if model.copiesOnly {
+                Text("Every one of them was copied and checked.")
+            } else {
+                Text("Every one of them was copied and checked. Photos that were already in the library are not deleted.")
+            }
         }
     }
 
     private var deletionTitle: String {
         String(localized: "Delete \(model.pendingDeletion?.count ?? 0) files from \(model.source?.name ?? "")?")
+    }
+}
+
+/// The newest photo's camera and its shutter count, centered at the bottom of
+/// the window: "Sony ILCE-7M3 - 12,345".
+private struct CameraStatusBar: View {
+    let camera: CameraSummary?
+
+    var body: some View {
+        Group {
+            if let camera {
+                Text(Self.text(camera))
+                    .help(String(localized: "Read from \(camera.fileName), the newest photo"))
+            } else {
+                Text(verbatim: " ")
+            }
+        }
+        .font(.callout)
+        .monospacedDigit()
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 4)
+        .background(.bar)
+    }
+
+    static func text(_ camera: CameraSummary) -> String {
+        guard let count = camera.shutterCount else { return camera.name }
+        return String(localized: "\(camera.name) - \(count.formatted(.number))",
+                      comment: "Import status bar: camera make and model, then its shutter count")
     }
 }
 
@@ -188,7 +229,6 @@ private struct ShotTile: View {
 
 private struct ImportOptionsPanel: View {
     @Bindable var model: CardImportModel
-    let library: LibraryModel
     @State private var editingPreset: MetadataPreset?
 
     var body: some View {
@@ -216,15 +256,17 @@ private struct ImportOptionsPanel: View {
                         }
                     }
                 }
-                Section("Project") {
-                    Picker("Add to", selection: $model.existingProjectID) {
-                        Text("A new project").tag(Int64?.none)
-                        ForEach(library.projects) { summary in
-                            Text(summary.project.name).tag(Int64?.some(summary.id))
+                Section(model.copiesOnly ? String(localized: "Job") : String(localized: "Project")) {
+                    if let library = model.library {
+                        Picker("Add to", selection: $model.existingProjectID) {
+                            Text("A new project").tag(Int64?.none)
+                            ForEach(library.projects) { summary in
+                                Text(summary.project.name).tag(Int64?.some(summary.id))
+                            }
                         }
-                    }
-                    if model.existingProjectID == nil {
-                        TemplateField(title: String(localized: "Name"), text: $model.projectNameTemplate, folders: false)
+                        if model.existingProjectID == nil {
+                            TemplateField(title: String(localized: "Name"), text: $model.projectNameTemplate, folders: false)
+                        }
                     }
                     HStack {
                         TextField("Job code", text: $model.jobCode, prompt: Text("e.g. Smith wedding"))
@@ -267,9 +309,11 @@ private struct ImportOptionsPanel: View {
                 }
                 Section("Videos") {
                     Toggle("Include videos", isOn: $model.includesVideos)
-                    Text("Videos are copied and catalogued like photos and play in the loupe. They cannot be edited.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    if !model.copiesOnly {
+                        Text("Videos are copied and catalogued like photos and play in the loupe. They cannot be edited.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 Section("After Importing") {
                     Toggle("Delete originals from the source", isOn: $model.deletesOriginals)

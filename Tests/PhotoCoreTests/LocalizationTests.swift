@@ -3,8 +3,9 @@ import Testing
 
 /// Keeps the String Catalog in step with the UI code. The Command Line Tools
 /// cannot extract strings the way Xcode does, so this test does the checking:
-/// every literal passed to a localizing API in Sources/PhotoApp must have a
-/// catalog entry with an English value.
+/// every literal passed to a localizing API in the app targets (the library
+/// app, the shared UI and the standalone importer) must have a catalog entry
+/// with an English value.
 @Suite("Localization")
 struct LocalizationTests {
     /// Calls whose string-literal argument is a `LocalizedStringKey` or `String.LocalizationValue`.
@@ -104,7 +105,7 @@ struct LocalizationTests {
     }
 
     static func catalog() throws -> [String: Any] {
-        let data = try Data(contentsOf: RepositoryFiles.url("Sources/PhotoApp/Resources/Localizable.xcstrings"))
+        let data = try Data(contentsOf: RepositoryFiles.url("Sources/PhotoUI/Resources/Localizable.xcstrings"))
         let root = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
         return try #require(root["strings"] as? [String: Any])
     }
@@ -120,7 +121,8 @@ struct LocalizationTests {
         let keys = Array(try Self.catalog().keys)
         var missing: [Literal] = []
         var count = 0
-        for path in RepositoryFiles.files(under: "Sources/PhotoApp") where path.hasSuffix(".swift") {
+        let paths = ["Sources/PhotoApp", "Sources/PhotoUI", "Sources/PhotoImporter"].flatMap(RepositoryFiles.files(under:))
+        for path in paths where path.hasSuffix(".swift") {
             let source = try String(contentsOf: RepositoryFiles.url(path), encoding: .utf8)
             for literal in Self.literals(in: source, file: path) {
                 count += 1

@@ -100,6 +100,10 @@ public struct ImageIOMetadataReader: MetadataReader {
         metadata.meteringMode = (exif[kCGImagePropertyExifMeteringMode] as? NSNumber)?.intValue
         metadata.focalLength35mm = (exif[kCGImagePropertyExifFocalLenIn35mmFilm] as? NSNumber)?.doubleValue
         metadata.usageTerms = xmpText("xmpRights:UsageTerms")
+        // ImageIO decodes Nikon's count only; ExifTool reads the other makes.
+        let nikon = properties[kCGImagePropertyMakerNikonDictionary] as? [CFString: Any] ?? [:]
+        metadata.shutterCount = (nikon[kCGImagePropertyMakerNikonShutterCount] as? NSNumber)
+            .map(\.intValue).flatMap { $0 > 0 ? $0 : nil }
         return metadata
     }
 

@@ -1,5 +1,6 @@
 import AppKit
 import PhotoCore
+import PhotoUI
 import SwiftUI
 
 /// Single-photo view: the AppKit canvas with an info bar underneath.

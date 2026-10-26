@@ -29,6 +29,14 @@ public enum AppBranding {
     /// Custom URL scheme registered in Info.plist via `PRODUCT_URL_SCHEME`.
     public static let urlScheme = "gus"
 
+    /// Name of the standalone importer, which copies from cards and folders
+    /// without a library. Must match `IMPORTER_PRODUCT_DISPLAY_NAME`.
+    public static let importerDisplayName = "Gus Importer"
+
+    /// Must match `IMPORTER_PRODUCT_BUNDLE_IDENTIFIER` in Branding.xcconfig. Its
+    /// preferences (import options, presets, counter) are kept under this id.
+    public static let importerBundleIdentifier = "me.sesser.gus.importer"
+
     /// Earlier values of `appSupportDirectoryName`, newest first. On launch the
     /// data directory is moved from the first one that exists to the current name.
     public static let previousAppSupportDirectoryNames: [String] = []

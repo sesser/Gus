@@ -1,6 +1,7 @@
 import AppKit
 import Observation
 import PhotoCore
+import PhotoUI
 import os
 
 /// Receives changes to the browser's item list. The grid uses this instead of
@@ -63,7 +64,7 @@ final class LibraryModel {
     let previews: PreviewService
     let suggester: any KeywordSuggester = VisionKeywordSuggester()
     let sidecars: SidecarSync
-    let cardImport = CardImportModel()
+    let cardImport: CardImportModel
 
     // MARK: Sidebar and filters
 
@@ -263,6 +264,7 @@ final class LibraryModel {
         showsInspector = defaults.bool(forKey: Self.showsInspectorKey)
         writesSidecars = defaults.object(forKey: Self.writesSidecarsKey) as? Bool ?? true
         sidecars = SidecarSync(catalog: catalog, metadataReader: importer.metadataReader)
+        cardImport = CardImportModel(metadataReader: importer.metadataReader, presets: catalog)
         opensImportOnCard = defaults.object(forKey: Self.opensImportOnCardKey) as? Bool ?? true
         cardImport.library = self
     }
@@ -809,3 +811,5 @@ final class LibraryModel {
         }
     }
 }
+
+extension LibraryModel: CardImportLibrary {}

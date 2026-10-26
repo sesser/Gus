@@ -1,5 +1,6 @@
 import AppKit
 import PhotoCore
+import PhotoUI
 import SwiftUI
 
 @main
@@ -30,7 +31,7 @@ struct PhotoApplication: App {
 
         Window(String(localized: "Import"), id: "import") {
             if let model = library.model {
-                ImportWindow(model: model.cardImport, library: model)
+                ImportWindow(model: model.cardImport)
             }
         }
         .defaultSize(width: 1200, height: 780)

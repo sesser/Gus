@@ -20,6 +20,7 @@ public actor ExifToolMetadataReader: MetadataReader {
         "Flash", "ExposureCompensation", "WhiteBalance", "ExposureProgram", "MeteringMode", "FocalLengthIn35mmFormat",
         "UsageTerms", "CreatorWorkEmail", "CreatorWorkTelephone", "CreatorWorkURL", "CreatorAddress", "CreatorCity",
         "CreatorRegion", "CreatorPostalCode", "CreatorCountry",
+        "ShutterCount", "ShutterCount2", "ShutterCount3",
     ]
 
     public enum Failure: Error {
@@ -196,6 +197,9 @@ public actor ExifToolMetadataReader: MetadataReader {
                                      city: string("CreatorCity"), region: string("CreatorRegion"),
                                      postalCode: string("CreatorPostalCode"), country: string("CreatorCountry"))
         metadata.creatorContact = contact.isEmpty ? nil : contact
+        // Sony bodies record the count in up to three places, not all of them on every model.
+        metadata.shutterCount = [int("ShutterCount"), int("ShutterCount2"), int("ShutterCount3")]
+            .lazy.compactMap { $0 }.first { $0 > 0 }
         return metadata
     }
 }

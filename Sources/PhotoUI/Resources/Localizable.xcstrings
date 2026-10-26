@@ -12,6 +12,17 @@
         }
       }
     },
+    "%@ - %@" : {
+      "comment" : "Import status bar: camera make and model, then its shutter count",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ - %@"
+          }
+        }
+      }
+    },
     "%@ could not be ejected. It may still be in use." : {
       "comment" : "Import window; the argument is a card name",
       "localizations" : {
@@ -852,6 +863,17 @@
         }
       }
     },
+    "Choose a folder to import from. Its photos are copied to the destination folder." : {
+      "comment" : "Open panel message in the standalone importer, which has no library",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a folder to import from. Its photos are copied to the destination folder."
+          }
+        }
+      }
+    },
     "Choose a folder. Photos inside it, including subfolders, are added to a new project." : {
       "localizations" : {
         "en" : {
@@ -1311,6 +1333,17 @@
         }
       }
     },
+    "Every one of them was copied and checked." : {
+      "comment" : "Standalone importer: message of the alert asking to delete originals from the card",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every one of them was copied and checked."
+          }
+        }
+      }
+    },
     "Every one of them was copied and checked. Photos that were already in the library are not deleted." : {
       "comment" : "Delete-from-card confirmation",
       "localizations" : {
@@ -1654,6 +1687,17 @@
         }
       }
     },
+    "Import cancelled. Photos copied so far are in the destination folder." : {
+      "comment" : "Standalone importer, after the person stopped an import",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import cancelled. Photos copied so far are in the destination folder."
+          }
+        }
+      }
+    },
     "Import cancelled. Photos copied so far are in the library." : {
       "comment" : "Import window",
       "localizations" : {
@@ -1869,6 +1913,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "JPEG"
+          }
+        }
+      }
+    },
+    "Job" : {
+      "comment" : "Import window section title in the standalone importer (holds the job code)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Job"
           }
         }
       }
@@ -2601,6 +2656,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ratings, labels, keywords and copyright go into an .xmp file next to each original, so other apps can read them. Originals are never changed. Sidecars another app changed are listed under Changed on Disk instead of being overwritten."
+          }
+        }
+      }
+    },
+    "Read from %@, the newest photo" : {
+      "comment" : "Import status bar tooltip; the argument is a file name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read from %@, the newest photo"
           }
         }
       }

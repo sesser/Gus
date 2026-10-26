@@ -6,3 +6,8 @@ PRODUCT_NAME = Gus
 PRODUCT_DISPLAY_NAME = Gus
 PRODUCT_BUNDLE_IDENTIFIER = me.sesser.gus
 PRODUCT_URL_SCHEME = gus
+
+// The standalone importer (Scripts/build-app.sh importer).
+IMPORTER_PRODUCT_NAME = Gus Importer
+IMPORTER_PRODUCT_DISPLAY_NAME = Gus Importer
+IMPORTER_PRODUCT_BUNDLE_IDENTIFIER = me.sesser.gus.importer

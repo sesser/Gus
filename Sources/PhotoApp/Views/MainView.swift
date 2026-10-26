@@ -1,5 +1,6 @@
 import AppKit
 import PhotoCore
+import PhotoUI
 import SwiftUI
 
 struct MainView: View {

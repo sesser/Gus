@@ -1,5 +1,6 @@
 import AppKit
 import PhotoCore
+import PhotoUI
 import SwiftUI
 
 /// Right-hand panel: keywords of the selection and details of the focused photo.

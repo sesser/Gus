@@ -1,6 +1,7 @@
 import Foundation
 
-/// Command-line switches, used for development and profiling.
+/// Command-line switches, used for development and profiling. The standalone
+/// importer reads `--debug-script` only.
 ///
 ///     --library-root <folder>          keep catalog and previews in <folder> instead
 ///                                      of the standard per-user locations
@@ -11,16 +12,16 @@ import Foundation
 /// Every switch takes exactly one value. AppKit reads launch arguments as
 /// "-key value" pairs and treats any leftover argument as a document to open,
 /// which suppresses the main window.
-struct LaunchOptions {
-    var libraryRoot: URL?
-    var benchmarkReport: URL?
-    var debugScript: String?
+public struct LaunchOptions: Sendable {
+    public var libraryRoot: URL?
+    public var benchmarkReport: URL?
+    public var debugScript: String?
 
-    var benchmarkScroll: Bool { benchmarkReport != nil }
+    public var benchmarkScroll: Bool { benchmarkReport != nil }
 
-    static let current = LaunchOptions(arguments: CommandLine.arguments)
+    public static let current = LaunchOptions(arguments: CommandLine.arguments)
 
-    init(arguments: [String]) {
+    public init(arguments: [String]) {
         var iterator = arguments.dropFirst().makeIterator()
         while let argument = iterator.next() {
             switch argument {

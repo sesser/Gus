@@ -17,6 +17,57 @@ public struct MetadataPreset: Codable, Hashable, Sendable, Identifiable {
     }
 }
 
+/// Where metadata presets are kept: the catalog, or the preferences of an app
+/// that imports without one.
+public protocol MetadataPresetStore: Sendable {
+    func metadataPresets() async throws -> [MetadataPreset]
+    /// Creates or updates a preset; returns it with its id.
+    func saveMetadataPreset(_ preset: MetadataPreset) async throws -> MetadataPreset
+    func deleteMetadataPreset(id: Int64) async throws
+}
+
+extension Catalog: MetadataPresetStore {}
+
+/// Presets kept as JSON in user defaults, for importing without a catalog.
+public struct DefaultsMetadataPresetStore: MetadataPresetStore {
+    public var suiteName: String?
+    public var key: String
+
+    /// `suiteName` nil: the app's standard defaults.
+    public init(suiteName: String? = nil, key: String = "import.metadataPresets") {
+        self.suiteName = suiteName
+        self.key = key
+    }
+
+    private var defaults: UserDefaults { suiteName.flatMap(UserDefaults.init(suiteName:)) ?? .standard }
+
+    public func metadataPresets() async throws -> [MetadataPreset] {
+        load().sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    public func saveMetadataPreset(_ preset: MetadataPreset) async throws -> MetadataPreset {
+        var presets = load()
+        var saved = preset
+        if let index = presets.firstIndex(where: { $0.id != nil && $0.id == preset.id }) {
+            presets[index] = saved
+        } else {
+            saved.id = (presets.compactMap(\.id).max() ?? 0) + 1
+            presets.append(saved)
+        }
+        defaults.set(try JSONEncoder().encode(presets), forKey: key)
+        return saved
+    }
+
+    public func deleteMetadataPreset(id: Int64) async throws {
+        let presets = load().filter { $0.id != id }
+        defaults.set(try JSONEncoder().encode(presets), forKey: key)
+    }
+
+    private func load() -> [MetadataPreset] {
+        defaults.data(forKey: key).flatMap { try? JSONDecoder().decode([MetadataPreset].self, from: $0) } ?? []
+    }
+}
+
 struct ImportPresetRecord: Codable, FetchableRecord, MutablePersistableRecord {
     static let databaseTableName = "importPreset"
     static let metadataKind = "metadata"

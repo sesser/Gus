@@ -128,6 +128,31 @@ struct CopyImportTests {
         }
     }
 
+    @Test func withoutACatalogCopiesOnlyAndWritesPresetSidecars() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let card = try makeCard(root)
+            let destination = root.appending(path: "Photos")
+            let folder = destination.appending(path: "in")
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            // Another app already has a sidecar where c's would go.
+            _ = try SidecarFiles.write(SidecarValues(creator: "Someone else"), previous: nil, to: folder.appending(path: "c.xmp"))
+            let shots = try await SourceScanner.scan(card, reader: ImageIOMetadataReader())
+            let preset = SidecarValues(creator: "Pat Doe", rights: "© {capture:yyyy} Pat Doe")
+            let result = try await CopyImporter(catalog: nil).run(
+                shots: shots, sourceRoot: card,
+                options: CopyImportOptions(destination: destination, template: ImportTemplate(folder: "in", fileName: "{name}"),
+                                           metadata: preset))
+            #expect(result.failures.isEmpty && result.copied == 4)
+            #expect(result.project == nil && result.insertedVersionIDs.isEmpty)
+            #expect(result.verifiedSources.count == 4)
+            let names = try FileManager.default.contentsOfDirectory(atPath: folder.path).sorted()
+            #expect(names == ["a.JPG", "a.xmp", "b.DNG", "b.JPG", "b.xmp", "c.HEIC", "c.xmp"])
+            let sidecar = try SidecarFiles.read(folder.appending(path: "a.xmp")).values
+            #expect(sidecar.creator == "Pat Doe" && sidecar.rights == "© 2024 Pat Doe")
+            #expect(try SidecarFiles.read(folder.appending(path: "c.xmp")).values.creator == "Someone else")
+        }
+    }
+
     @Test func onlyVerifiedSourcesAreDeleted() async throws {
         try await RepositoryFiles.withTemporaryDirectory { root in
             let card = try makeCard(root)
@@ -174,5 +199,20 @@ struct MetadataPresetTests {
         #expect(try await catalog.metadataPresets().last?.values.usageTerms == "Editorial use")
         try await catalog.deleteMetadataPreset(id: preset.id!)
         #expect(try await catalog.metadataPresets().map(\.name) == ["Agency"])
+    }
+
+    @Test func presetsCanLiveInPreferences() async throws {
+        let suite = "photocore-tests-\(UUID().uuidString)"
+        defer { UserDefaults().removePersistentDomain(forName: suite) }
+        let store = DefaultsMetadataPresetStore(suiteName: suite)
+        var studio = try await store.saveMetadataPreset(MetadataPreset(name: "Studio", values: SidecarValues(creator: "Pat")))
+        let agency = try await store.saveMetadataPreset(MetadataPreset(name: "agency", values: SidecarValues(creator: "Agency")))
+        #expect(studio.id != nil && agency.id != nil && agency.id != studio.id)
+        studio.values.usageTerms = "Editorial use"
+        _ = try await store.saveMetadataPreset(studio)
+        #expect(try await store.metadataPresets().map(\.name) == ["agency", "Studio"])
+        #expect(try await store.metadataPresets().last?.values.usageTerms == "Editorial use")
+        try await store.deleteMetadataPreset(id: agency.id!)
+        #expect(try await store.metadataPresets().map(\.name) == ["Studio"])
     }
 }

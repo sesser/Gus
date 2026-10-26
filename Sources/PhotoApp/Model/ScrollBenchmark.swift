@@ -1,5 +1,6 @@
 import AppKit
 import PhotoCore
+import PhotoUI
 import QuartzCore
 
 /// `--benchmark-scroll <report.json>`: scrolls the grid at fixed speeds and cell sizes, records

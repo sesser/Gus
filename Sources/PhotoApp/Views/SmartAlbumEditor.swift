@@ -1,4 +1,5 @@
 import PhotoCore
+import PhotoUI
 import SwiftUI
 
 /// Shows the right sheet for a `SidebarSheet`.
