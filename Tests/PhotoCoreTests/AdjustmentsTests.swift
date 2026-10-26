@@ -532,3 +532,53 @@ extension PixelSample {
         return sum / Double(max(count, 1))
     }
 }
+
+@Suite("Adjustment presets and pasting")
+struct AdjustmentPresetTests {
+    @Test func presetsAreSavedReplacedByNameAndDeleted() async throws {
+        let fixture = try await CatalogFixture.make()
+        var warm = Adjustments()
+        warm.whiteBalance.relativeTemperature = 30
+        warm.preserved = [EditOperation(kind: "brush")]
+        let saved = try await fixture.catalog.saveAdjustmentPreset(AdjustmentPreset(name: "Warm", adjustments: warm))
+        #expect(saved.id != nil)
+        #expect(saved.adjustments.preserved.isEmpty)
+
+        var warmer = warm
+        warmer.whiteBalance.relativeTemperature = 50
+        _ = try await fixture.catalog.saveAdjustmentPreset(AdjustmentPreset(name: "Warm", adjustments: warmer))
+        _ = try await fixture.catalog.saveAdjustmentPreset(AdjustmentPreset(name: "a cool one", adjustments: .none))
+        let presets = try await fixture.catalog.adjustmentPresets()
+        #expect(presets.map(\.name) == ["a cool one", "Warm"])
+        #expect(presets[1].adjustments.whiteBalance.relativeTemperature == 50)
+        #expect(presets[1].id == saved.id)
+
+        try await fixture.catalog.deleteAdjustmentPreset(id: try #require(saved.id))
+        #expect(try await fixture.catalog.adjustmentPresets().map(\.name) == ["a cool one"])
+    }
+
+    @Test func editStacksAreReadAndWrittenInBatches() async throws {
+        let fixture = try await CatalogFixture.make()
+        let ids = try await fixture.addMasters([CatalogFixture.master(1), CatalogFixture.master(2)])
+        var bright = Adjustments()
+        bright.exposure.ev = 1
+        try await fixture.catalog.setEditStacks([ids[0]: bright.editStack, ids[1]: .identity])
+        let stacks = try await fixture.catalog.editStacks(forVersions: ids)
+        #expect(Adjustments(stack: try #require(stacks[ids[0]])) == bright)
+        #expect(stacks[ids[1]] == .identity)
+        let version = try #require(try await fixture.catalog.version(id: ids[0]))
+        #expect(version.editStackHash == bright.editStack.renderHash)
+    }
+
+    @Test func pastingKeepsTheTargetsUnknownOperations() {
+        var copied = Adjustments()
+        copied.tone.contrast = 20
+        var target = Adjustments()
+        target.exposure.ev = 2
+        target.preserved = [EditOperation(kind: "brush")]
+        let result = copied.pasted(onto: target)
+        #expect(result.tone.contrast == 20)
+        #expect(result.exposure.ev == 0)
+        #expect(result.preserved.map(\.kind.rawValue) == ["brush"])
+    }
+}

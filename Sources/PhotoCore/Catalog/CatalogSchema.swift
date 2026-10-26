@@ -12,6 +12,7 @@ enum CatalogSchema {
         migrator.registerMigration("v5", migrate: addSidecarSync)
         migrator.registerMigration("v6", migrate: addImportPresets)
         migrator.registerMigration("v7", migrate: addVideos)
+        migrator.registerMigration("v8", migrate: addAdjustmentPresets)
         return migrator
     }
 
@@ -240,6 +241,17 @@ enum CatalogSchema {
             let day = LocalDate.string(captureDate: row["captureDate"], offset: row["captureOffsetSeconds"],
                                        fallback: row["modifiedAt"])
             try update.execute(arguments: [day, row["id"] as Int64])
+        }
+    }
+
+    /// Saved adjustments; `settings` is edit stack JSON.
+    private static func addAdjustmentPresets(_ db: Database) throws {
+        try db.create(table: "adjustmentPreset") { t in
+            t.autoIncrementedPrimaryKey("id")
+            t.column("uuid", .text).notNull().unique()
+            t.column("name", .text).notNull()
+            t.column("settings", .text).notNull()
+            t.column("createdAt", .datetime).notNull()
         }
     }
 

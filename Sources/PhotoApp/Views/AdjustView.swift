@@ -12,7 +12,15 @@ struct AdjustView: View {
 
     var body: some View {
         if model.mode != .loupe {
-            message(String(localized: "Open a photo in the loupe to adjust it."))
+            VStack(spacing: 12) {
+                PresetsMenu(model: model)
+                Text("Open a photo in the loupe to adjust it. Paste Adjustments and presets change every selected photo.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(20)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             switch editor.state {
             case .idle:
@@ -28,7 +36,7 @@ struct AdjustView: View {
             case .ready:
                 AppKitScrollView {
                     VStack(alignment: .leading, spacing: 18) {
-                        AdjustToolbar(editor: editor)
+                        AdjustToolbar(model: model)
                         AdjustSection(.develop, editor: editor) {
                             DevelopControls(editor: editor)
                         }
@@ -63,12 +71,39 @@ struct AdjustView: View {
     }
 }
 
-/// Original toggle and reset for everything.
+/// Presets, copy and paste, for the photo on screen or the selection.
+private struct PresetsMenu: View {
+    let model: LibraryModel
+
+    var body: some View {
+        let presets = model.adjustmentPresets
+        AppKitMenuButton(title: String(localized: "Presets"), entries: [
+            .item(String(localized: "Copy Adjustments"), isEnabled: model.focusedItem != nil) { model.copyAdjustments() },
+            .item(String(localized: "Paste Adjustments"), isEnabled: model.copiedAdjustments != nil) {
+                model.pasteAdjustments()
+            },
+            .separator,
+        ] + presets.map { preset in .item(preset.name) { model.applyAdjustmentPreset(preset) } }
+          + (presets.isEmpty ? [] : [.separator]) + [
+            .item(String(localized: "Save Adjustments as Preset…"), isEnabled: model.focusedItem != nil) {
+                model.promptForAdjustmentPreset()
+            },
+            .submenu(String(localized: "Delete Preset"), presets.map { preset in
+                .item(preset.name) { model.deleteAdjustmentPreset(preset) }
+            }),
+        ], help: String(localized: "Apply, save and share adjustments"))
+    }
+}
+
+/// Presets, the original toggle and reset for everything.
 private struct AdjustToolbar: View {
-    let editor: AdjustmentEditor
+    let model: LibraryModel
+
+    private var editor: AdjustmentEditor { model.editor }
 
     var body: some View {
         HStack(spacing: 8) {
+            PresetsMenu(model: model)
             AppKitButton(title: editor.showsOriginal ? String(localized: "Show Edit") : String(localized: "Show Original"),
                          symbol: "square.split.2x1", style: .borderless,
                          help: String(localized: "Compare with the original (\\)")) {

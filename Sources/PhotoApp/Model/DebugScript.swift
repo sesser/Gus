@@ -26,6 +26,7 @@ import PhotoUI
 ///            | run (waits) | confirm yes|no | snapshot <file> | print   (see ImportDebugCommands)
 ///     adjust …  original on|off  tab info|adjust   (see DebugAdjustCommands)
 ///     lutfolder <path>      lut <name>|none        (the Adjust tab's look-up table browser)
+///     copyadjust            pasteadjust            preset save|apply|delete <name> | preset (prints them)
 ///
 /// Keys are characters ("3", "p") or names (left, right, up, down, home, end,
 /// pageup, pagedown, return, escape, space); prefix "opt+" or "shift+" for modifiers. Key events go through
@@ -50,7 +51,7 @@ enum DebugScript {
             // Only commands that can change photos get a group; empty groups
             // would otherwise become undo steps that do nothing.
             let changing: Set<String> = ["key", "addkeywords", "text", "pairfile", "accept", "album", "smartalbum", "remove",
-                                         "adjust", "lut"]
+                                         "adjust", "lut", "pasteadjust", "preset"]
             for command in commands where !command.isEmpty {
                 let grouped = changing.contains(String(command.prefix { $0 != " " }))
                 if grouped { undoManager.beginUndoGrouping() }
@@ -196,6 +197,27 @@ enum DebugScript {
                 model.lookTableBrowser.apply(entry, editor: model.editor)
             } else {
                 print("debug-script: no look-up table named \(name)")
+            }
+        case "copyadjust":
+            model.copyAdjustments()
+            try? await Task.sleep(for: .milliseconds(200))
+        case "pasteadjust":
+            model.pasteAdjustments()
+        case "preset":
+            let name = rest.dropFirst().joined(separator: " ")
+            switch rest.first {
+            case "save":
+                model.saveAdjustmentPreset(named: name)
+                try? await Task.sleep(for: .milliseconds(300))
+            case "apply":
+                if let preset = model.adjustmentPresets.first(where: { $0.name == name }) { model.applyAdjustmentPreset(preset) }
+            case "delete":
+                if let preset = model.adjustmentPresets.first(where: { $0.name == name }) {
+                    model.deleteAdjustmentPreset(preset)
+                    try? await Task.sleep(for: .milliseconds(300))
+                }
+            default:
+                print("debug-script: presets " + model.adjustmentPresets.map(\.name).joined(separator: ", "))
             }
         case "original":
             model.editor.showsOriginal = rest.first != "off"

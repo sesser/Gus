@@ -234,6 +234,19 @@ final class AdjustmentEditor {
         library.undoManager.setActionName(actionName)
     }
 
+    /// A stack saved for a version by something else (paste, a preset, their undo).
+    func catalogChanged(_ stack: EditStack, forVersion versionID: Int64) {
+        guard versionID == item?.versionID, state == .ready else { return }
+        let values = Adjustments(stack: stack)
+        committed = values
+        adjustments = values
+        item?.editStackHash = stack.renderHash
+        showsOriginal = false
+        showsLive = false
+        // For the histogram; the loupe loads the new edit's renditions itself.
+        requestRender(interactive: false)
+    }
+
     /// Once the frame on screen shows the saved values, it becomes the cached
     /// preview of the new edit hash and the loupe goes back to its renditions.
     private func seedPreviewIfRendered() {

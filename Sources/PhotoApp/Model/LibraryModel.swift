@@ -73,6 +73,9 @@ final class LibraryModel {
     let cardImport: CardImportModel
     let editor = AdjustmentEditor()
     let lookTableBrowser = LookTableBrowser()
+    /// Adjustments taken by Copy Adjustments.
+    var copiedAdjustments: Adjustments?
+    var adjustmentPresets: [AdjustmentPreset] = []
     let lookTables: LookTableStore
 
     // MARK: Sidebar and filters
@@ -330,6 +333,7 @@ final class LibraryModel {
         await refreshKeywords()
         reloadItems(keepFocus: false)
         scheduleSidecarSync()
+        await refreshAdjustmentPresets()
         await refreshDiskChanges()
         // Changes other apps made while this one was not running.
         checkForDiskChanges(delay: .seconds(5))

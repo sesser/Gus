@@ -163,6 +163,21 @@ struct LibraryCommands: Commands {
             Button("Remove from Album") { model?.removeFromCurrentAlbum() }
                 .disabled(model?.currentAlbumID == nil)
             Divider()
+            Button("Copy Adjustments") { model?.copyAdjustments() }
+                .keyboardShortcut("c", modifiers: [.command, .shift])
+                .disabled(model?.focusedItem == nil)
+            Button("Paste Adjustments") { model?.pasteAdjustments() }
+                .keyboardShortcut("v", modifiers: [.command, .shift])
+                .disabled(model?.copiedAdjustments == nil || model?.itemCount == 0)
+            Menu("Apply Preset") {
+                ForEach(model?.adjustmentPresets ?? []) { preset in
+                    Button(preset.name) { model?.applyAdjustmentPreset(preset) }
+                }
+            }
+            .disabled(model?.adjustmentPresets.isEmpty ?? true)
+            Button("Save Adjustments as Preset…") { model?.promptForAdjustmentPreset() }
+                .disabled(model?.focusedItem == nil)
+            Divider()
             Button("Check for Changes on Disk") { model?.checkForDiskChanges() }
                 .disabled(model == nil || model?.isCheckingDisk == true)
             Divider()

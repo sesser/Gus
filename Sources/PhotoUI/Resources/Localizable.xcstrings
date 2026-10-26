@@ -689,6 +689,39 @@
         }
       }
     },
+    "Apply Preset" : {
+      "comment" : "Photo menu: submenu of saved adjustment presets",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apply Preset"
+          }
+        }
+      }
+    },
+    "Apply Preset %@" : {
+      "comment" : "Undo action name; the argument is the preset's name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apply Preset %@"
+          }
+        }
+      }
+    },
+    "Apply, save and share adjustments" : {
+      "comment" : "Tooltip of the Adjust tab's Presets menu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apply, save and share adjustments"
+          }
+        }
+      }
+    },
     "Artist" : {
       "comment" : "Smart album rule field",
       "localizations" : {
@@ -1223,6 +1256,17 @@
         }
       }
     },
+    "Copy Adjustments" : {
+      "comment" : "Photo menu and Presets menu item",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy Adjustments"
+          }
+        }
+      }
+    },
     "Copying %@" : {
       "comment" : "Import progress; the argument is a file name",
       "localizations" : {
@@ -1272,6 +1316,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Could not save the change: %@"
+          }
+        }
+      }
+    },
+    "Could not save the preset: %@" : {
+      "comment" : "Status message; the argument is the error",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not save the preset: %@"
           }
         }
       }
@@ -2920,13 +2975,13 @@
         }
       }
     },
-    "Open a photo in the loupe to adjust it." : {
+    "Open a photo in the loupe to adjust it. Paste Adjustments and presets change every selected photo." : {
       "comment" : "Adjust tab in the grid",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Open a photo in the loupe to adjust it."
+            "value" : "Open a photo in the loupe to adjust it. Paste Adjustments and presets change every selected photo."
           }
         }
       }
@@ -3013,6 +3068,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Panel"
+          }
+        }
+      }
+    },
+    "Paste Adjustments" : {
+      "comment" : "Photo menu and Presets menu item; also its undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paste Adjustments"
           }
         }
       }
@@ -3132,6 +3198,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Preset name"
+          }
+        }
+      }
+    },
+    "Presets" : {
+      "comment" : "Adjust tab menu of adjustment presets",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Presets"
           }
         }
       }
@@ -3532,6 +3609,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Save"
+          }
+        }
+      }
+    },
+    "Save Adjustments as Preset…" : {
+      "comment" : "Photo menu and Presets menu item",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save Adjustments as Preset…"
+          }
+        }
+      }
+    },
+    "Save Preset" : {
+      "comment" : "Title of the dialog naming a new adjustment preset",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save Preset"
           }
         }
       }
@@ -4045,6 +4144,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The original is offline. Connect its volume to adjust this photo."
+          }
+        }
+      }
+    },
+    "The photo's adjustments are saved under this name. A preset with the same name is replaced." : {
+      "comment" : "Save Preset dialog text",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The photo's adjustments are saved under this name. A preset with the same name is replaced."
           }
         }
       }

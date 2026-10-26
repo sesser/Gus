@@ -395,3 +395,70 @@ struct ImageTile: NSViewRepresentable {
         CGSize(width: proposal.width ?? 110, height: 100)
     }
 }
+
+/// A pull-down menu drawn by AppKit.
+struct AppKitMenuButton: NSViewRepresentable {
+    enum Entry {
+        case item(String, isEnabled: Bool = true, () -> Void)
+        case submenu(String, [Entry])
+        case separator
+    }
+
+    var title: String
+    var entries: [Entry]
+    var help: String?
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeNSView(context: Context) -> NSPopUpButton {
+        let button = NSPopUpButton(frame: .zero, pullsDown: true)
+        button.controlSize = .small
+        button.font = .systemFont(ofSize: NSFont.systemFontSize(for: .small))
+        button.setContentHuggingPriority(.required, for: .horizontal)
+        return button
+    }
+
+    func updateNSView(_ button: NSPopUpButton, context: Context) {
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        // A pull-down shows its first item as the title.
+        menu.addItem(withTitle: title, action: nil, keyEquivalent: "")
+        context.coordinator.actions = []
+        add(entries, to: menu, coordinator: context.coordinator)
+        button.menu = menu
+        button.toolTip = help
+    }
+
+    private func add(_ entries: [Entry], to menu: NSMenu, coordinator: Coordinator) {
+        for entry in entries {
+            switch entry {
+            case .item(let title, let isEnabled, let action):
+                let item = NSMenuItem(title: title, action: #selector(Coordinator.perform(_:)), keyEquivalent: "")
+                item.target = coordinator
+                item.tag = coordinator.actions.count
+                item.isEnabled = isEnabled
+                coordinator.actions.append(action)
+                menu.addItem(item)
+            case .submenu(let title, let children):
+                let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+                let submenu = NSMenu()
+                submenu.autoenablesItems = false
+                add(children, to: submenu, coordinator: coordinator)
+                item.submenu = submenu
+                item.isEnabled = !children.isEmpty
+                menu.addItem(item)
+            case .separator:
+                menu.addItem(.separator())
+            }
+        }
+    }
+
+    @MainActor
+    final class Coordinator: NSObject {
+        var actions: [() -> Void] = []
+
+        @objc func perform(_ sender: NSMenuItem) {
+            if actions.indices.contains(sender.tag) { actions[sender.tag]() }
+        }
+    }
+}
