@@ -1,6 +1,6 @@
 # Profiling
 
-Phase 1 measurements come first; phase 2 has its own section below. Measured
+Phase 1 measurements come first; phases 2 and 3 have their own sections below. Measured
 on 2026-10-23 with release builds.
 
 **Machine:** Apple M4 Pro (14 cores), 24 GB, macOS 27.0.1.
@@ -192,6 +192,31 @@ hashed (to hide duplicates); on a card of new photos that is none.
 Not measured in phase 2: real camera cards and RAW files, PTP cameras (not
 supported), videos at scale.
 
+## Phase 3: adjustments
+
+Measured on 2026-10-26, same machine, release build, with `photobench edits`
+on 6 files per format (DNG 6000 × 4000, HEIC 4032 × 3024, JPEG 2048 × 1365).
+The "typical" stack has exposure, all five tone sliders, clarity, dehaze,
+vibrance, saturation, a 4-point curve, two grading wheels and sharpening with
+masking: nearly the whole graph.
+
+| format | preview, identity | preview, typical stack | live, first frame | live, next frame | live, RAW white balance |
+|---|---|---|---|---|---|
+| DNG | 104 ms | 125 ms | 119 ms | 36 ms (p95 43) | 87 ms (p95 104) |
+| HEIC | 87 ms | 106 ms | 115 ms | 25 ms (p95 30) | — |
+| JPEG | 29 ms | 42 ms | 47 ms | 16 ms (p95 17) | — |
+
+- A typical stack adds about 15–20 ms to a 2560 px preview: the cost is in
+  decoding, not in the adjustments.
+- **Live frames** reuse the decoded master (a half-float copy at 2560 px), so a
+  slider drag costs one pass of the graph, the readback and the histogram:
+  25–60 frames per second.
+- **RAW decode settings** (white balance, profile, noise reduction) decode again,
+  at half size in draft mode while dragging: about 11 frames per second on a
+  24 MP file. The full-size decode follows on release.
+- First frames include the decode of the base; the editor starts one 250 ms
+  after a photo is shown, so it is usually ready before the first drag.
+
 ## Reproducing
 
 Build the tools:
@@ -254,6 +279,12 @@ Phase 2 additions (`--pairs` writes RAW+JPEG pairs, `--videos` short clips):
 
 ```bash
 .build/out/Products/Release/photobench copy --source $SRC --dest /tmp/copy-bench --limit 1000
+```
+
+Phase 3 (adjustments; renders previews and live frames for up to `--limit` files per format):
+
+```bash
+.build/out/Products/Release/photobench edits --library-root $LIB --limit 6
 ```
 
 Scroll benchmark (opens the window for about 40 s, then quits):

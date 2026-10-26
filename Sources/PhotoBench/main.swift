@@ -34,6 +34,9 @@ let usage = """
       copy       --source DIR --dest DIR [--limit N]
                  Copies N shots with verification and compares with a plain copy.
 
+      edits      --library-root ROOT [--limit N] [--frames N]
+                 Renders previews with a typical set of adjustments and times the loupe's live frames.
+
       synthesize --library-root ROOT --count N
                  Grows the catalog to N versions by cloning existing rows with new content
                  hashes and hard-linking their cached thumbnails (grid-scale testing).
@@ -98,6 +101,7 @@ do {
     case "suggest": report = try await SuggestionBenchmark.run(arguments)
     case "sidecars": report = try await SidecarBenchmark.run(arguments)
     case "copy": report = try await CopyBenchmark.run(arguments)
+    case "edits": report = try await EditBenchmark.run(arguments)
     default:
         print(usage)
         exit(arguments.command == "help" || arguments.flags.contains("help") ? 0 : 64)

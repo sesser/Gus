@@ -74,6 +74,8 @@ final class AdjustmentEditor {
     @ObservationIgnored private var renderTask: Task<Void, Never>?
     @ObservationIgnored private var pendingRender: (values: Adjustments, interactive: Bool)?
     @ObservationIgnored private var lastFrameWasInteractive = false
+    /// The frame being rendered is a draft.
+    @ObservationIgnored private var renderingInteractive = false
     @ObservationIgnored private var isChanging = false
     /// Hashes saved while this photo was open; their renditions are deleted
     /// when it closes, except the last one.
@@ -174,7 +176,9 @@ final class AdjustmentEditor {
             adjustments = next
             showsLive = true
             requestRender(interactive: phase == .changing)
-        } else if phase == .committed, lastFrameWasInteractive {
+        } else if phase == .committed, lastFrameWasInteractive || renderingInteractive
+                    || pendingRender?.interactive == true {
+            // The drag's frames were drafts: render the final one at full quality.
             requestRender(interactive: false)
         }
         if phase == .committed { commit(actionName) }
@@ -269,6 +273,8 @@ final class AdjustmentEditor {
         renderTask = Task {
             while let next = pendingRender, !Task.isCancelled {
                 pendingRender = nil
+                renderingInteractive = next.interactive
+                defer { renderingInteractive = false }
                 do {
                     let rendered = try await session.render(next.values, interactive: next.interactive)
                     guard !Task.isCancelled, session === self.session else { break }

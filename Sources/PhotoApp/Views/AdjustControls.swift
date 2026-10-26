@@ -429,6 +429,13 @@ struct AppKitMenuButton: NSViewRepresentable {
         button.toolTip = help
     }
 
+    /// As wide as the title: a pull-down would otherwise size itself to its longest item.
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSPopUpButton, context: Context) -> CGSize? {
+        let font = nsView.font ?? .systemFont(ofSize: NSFont.systemFontSize(for: .small))
+        let titleWidth = (title as NSString).size(withAttributes: [.font: font]).width
+        return CGSize(width: ceil(titleWidth) + 36, height: nsView.intrinsicContentSize.height)
+    }
+
     private func add(_ entries: [Entry], to menu: NSMenu, coordinator: Coordinator) {
         for entry in entries {
             switch entry {

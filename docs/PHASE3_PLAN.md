@@ -1,6 +1,7 @@
 # Phase 3 plan, first pass: adjustments
 
-Status: **in progress**.
+Status: **first pass done** (all nine steps). See the end of this file for how
+the result differs from the plan, and `docs/PROFILING.md` for measurements.
 
 Design record for the first pass of editing: global adjustments, edited from an
 **Adjust** tab in the loupe's right sidebar. The architecture rules in
@@ -116,3 +117,26 @@ moves. Input is taken as sRGB-encoded, the usual convention for creative LUTs.
 
 Migration `v8`: `adjustmentPreset` (`uuid`, `name`, `settings` as edit stack
 JSON, `createdAt`). Edits are not synced to XMP sidecars.
+
+## As built
+
+Where the implementation settled details the plan left open, or differs:
+
+- **Commits**: steps 2 and 3 (live editing and the Develop heading) landed
+  together; the others each have their own.
+- **Live frames** are rendered at the preview tier's size (2560 px). Zoomed to
+  1:1 the loupe shows the live frame while a slider moves and the
+  full-resolution render of the saved edit once the gesture ends, rather than
+  rendering the visible rectangle live.
+- **Cached renditions** of intermediate edits are deleted when the photo
+  closes in the loupe (all but the saved edit and the original); undoing past
+  them regenerates from the master.
+- **Highlights/shadows**: negative highlights and shadows use
+  `CIHighlightShadowAdjust` on linear values; positive highlights are part of
+  the tone table, which that filter cannot brighten.
+- **Auto white balance** is a preset entry rather than a button: picking Auto
+  measures once and stores the result as plain numbers.
+- **Look-up table previews** render the photo with its saved adjustments and
+  without its own table, from the live session, whenever the saved edit changes.
+- **Debug script**: `adjust …`, `original`, `tab`, `lutfolder`, `lut`,
+  `copyadjust`, `pasteadjust`, `preset` and `print adjustments` drive all of it.

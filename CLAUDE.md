@@ -61,14 +61,15 @@ compatible and never put `#` comment lines inside pasted command snippets.
 ## Layout
 
 - `Sources/PhotoCore` — library with no AppKit/SwiftUI: branding, catalog
-  (GRDB), import, metadata, edit stack, preview pipeline, `Sidecars/` (XMP),
+  (GRDB), import, metadata, `Edits/` (edit stack, adjustments, renderer, live
+  render session, look-up tables), preview pipeline, `Sidecars/` (XMP),
   `CardImport/` (templates, copying), `Suggestions/` (Vision), `Video/`.
   Everything testable lives here.
 - `Sources/PhotoUI` — UI shared by both apps: `Import/` (the import window, its
   model and its debug-script commands), `Palette`, `LaunchOptions`, and the
   String Catalog (`Resources/Localizable.xcstrings`).
 - `Sources/PhotoApp` — SwiftUI app shell, AppKit grid (`NSCollectionView`) and
-  loupe, inspector, sidebar, smart album editor.
+  loupe, inspector (Info and Adjust tabs), sidebar, smart album editor.
 - `Sources/PhotoImporter` — the standalone importer: the same import window
   with no library (copies only; presets and options in its own preferences).
 - `Sources/PhotoFixtures` — synthetic JPEG/HEIC and Bayer DNG writers (tests, benchmarks).
@@ -77,7 +78,8 @@ compatible and never put `#` comment lines inside pasted command snippets.
 - `Sources/AppIconCompiler` — `Support/AppIcon.png` to an `.iconset` (masked to the
   macOS icon shape); `build-app.sh` turns it into `AppIcon.icns` with `iconutil`.
 - `Tests/PhotoCoreTests` — Swift Testing suites.
-- `docs/PHASE1_PLAN.md`, `docs/PHASE2_PLAN.md` — design decisions per phase.
+- `docs/PHASE1_PLAN.md`, `docs/PHASE2_PLAN.md`, `docs/PHASE3_PLAN.md` — design
+  decisions per phase.
 
 ## Naming rules
 
@@ -112,8 +114,20 @@ compatible and never put `#` comment lines inside pasted command snippets.
   (-1 reject, 0 none, 1 pick) and color labels (0–7) live on versions.
   Never edit an existing migration; add a new one.
 - **Edit stack**: each version stores an ordered, versioned JSON list of
-  operations. The render hash covers enabled operations only. Phase 1 renders
-  with `PassThroughRenderer`.
+  operations. The render hash covers enabled operations only. `Adjustments`
+  is the typed view of it: one operation per module, defaults left out (so a
+  reset gives back the identity hash), unknown or disabled operations kept.
+  `AdjustmentRenderer` renders in a fixed order with built-in Core Image filters
+  and generated tables (no custom kernels: SwiftPM has no Metal step). RAW
+  decode settings go to `CIRAWFilter` only when set, so an identity stack
+  renders exactly as before; changing that, or any rendering of an existing
+  stack, needs a `PreviewCacheKey.currentPipelineVersion` bump.
+- **Editing** happens in the loupe: `AdjustmentEditor` renders live frames
+  through a `LiveRenderSession` (decoded master reused per frame), saves once
+  per gesture as one undo step, and hands the last frame to the memory cache
+  as the new edit's preview. Edits are per file (not shared by a RAW+JPEG
+  pair) and are not written to XMP sidecars. Look-up tables are copied into
+  `Library/LUTs/<sha256>.cube`.
 - **Preview cache** is tiered (`thumbnail` for the grid, `preview` for the loupe),
   lives under the Caches folder on the local disk, is keyed by
   content hash + edit-stack render hash + tier + pipeline version, is generated on
@@ -167,6 +181,12 @@ more metadata columns, albums, smart albums and the Dates tree, XMP sidecars
 with review of outside changes, copying imports from cards and folders, videos
 (catalogued and played).
 
-Not yet: adjustments, brushes, healing, export, general (hand-made or burst)
-stacks, hierarchical keywords, PTP cameras, a second backup destination,
-writing metadata into originals.
+Phase 3, first pass: global adjustments in the loupe's Adjust tab (profile,
+white balance, exposure with Auto, tone, presence, tone curve with histogram,
+sharpening, noise reduction, color grading, look-up tables), before/after,
+copy/paste and presets.
+
+Not yet: brushes and masks, healing, cropping, lens corrections, export, ML
+denoising, `.dcp` profiles, general (hand-made or burst) stacks, hierarchical
+keywords, PTP cameras, a second backup destination, writing metadata into
+originals.

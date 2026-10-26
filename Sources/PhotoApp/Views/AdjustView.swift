@@ -102,18 +102,20 @@ private struct AdjustToolbar: View {
     private var editor: AdjustmentEditor { model.editor }
 
     var body: some View {
-        HStack(spacing: 8) {
-            PresetsMenu(model: model)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                PresetsMenu(model: model)
+                Spacer()
+                AppKitButton(title: String(localized: "Reset All"), style: .push,
+                             help: String(localized: "Remove every adjustment from this photo"),
+                             isEnabled: !editor.adjustments.isDefault) {
+                    editor.resetAll()
+                }
+            }
             AppKitButton(title: editor.showsOriginal ? String(localized: "Show Edit") : String(localized: "Show Original"),
                          symbol: "square.split.2x1", style: .borderless,
                          help: String(localized: "Compare with the original (\\)")) {
                 editor.toggleOriginal()
-            }
-            Spacer()
-            AppKitButton(title: String(localized: "Reset All"), style: .push,
-                         help: String(localized: "Remove every adjustment from this photo"),
-                         isEnabled: !editor.adjustments.isDefault) {
-                editor.resetAll()
             }
         }
     }
