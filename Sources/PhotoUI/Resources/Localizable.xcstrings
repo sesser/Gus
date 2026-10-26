@@ -569,6 +569,17 @@
         }
       }
     },
+    "Amount" : {
+      "comment" : "Slider: strength of sharpening or of a color grading wheel; also its undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Amount"
+          }
+        }
+      }
+    },
     "Another app changed the metadata inside %@. The original is not written; keeping the library's values only updates the sidecar." : {
       "comment" : "Inspector; the argument is a file name",
       "localizations" : {
@@ -1070,6 +1081,17 @@
         }
       }
     },
+    "Color" : {
+      "comment" : "Noise reduction slider for color noise; also its undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color"
+          }
+        }
+      }
+    },
     "Color Grading" : {
       "comment" : "Adjust tab heading",
       "localizations" : {
@@ -1472,6 +1494,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Destination"
+          }
+        }
+      }
+    },
+    "Detail" : {
+      "comment" : "Sharpening slider: how much fine detail is sharpened; also its undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Detail"
           }
         }
       }
@@ -2398,6 +2431,17 @@
         }
       }
     },
+    "Luminance" : {
+      "comment" : "Slider for luminance noise or a color grading wheel's brightness; also its undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Luminance"
+          }
+        }
+      }
+    },
     "Manual" : {
       "comment" : "White balance",
       "localizations" : {
@@ -2405,6 +2449,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Manual"
+          }
+        }
+      }
+    },
+    "Masking" : {
+      "comment" : "Sharpening slider: limits sharpening to edges; also its undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Masking"
           }
         }
       }
@@ -2665,6 +2720,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No suggestions"
+          }
+        }
+      }
+    },
+    "Noise Reduction" : {
+      "comment" : "Adjust tab group of noise reduction sliders",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noise Reduction"
           }
         }
       }
@@ -3010,6 +3076,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "RGB"
+          }
+        }
+      }
+    },
+    "Radius" : {
+      "comment" : "Sharpening slider; also its undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Radius"
           }
         }
       }
@@ -3433,6 +3510,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Shadows"
+          }
+        }
+      }
+    },
+    "Sharpening" : {
+      "comment" : "Adjust tab group of sharpening sliders",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sharpening"
+          }
+        }
+      }
+    },
+    "Sharpening is easiest to judge at 1:1 (Z), once the change is saved." : {
+      "comment" : "Hint in the Details heading",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sharpening is easiest to judge at 1:1 (Z), once the change is saved."
           }
         }
       }

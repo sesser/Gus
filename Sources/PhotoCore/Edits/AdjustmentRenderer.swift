@@ -16,9 +16,12 @@ public struct AdjustmentRenderer: EditStackRenderer {
     static let lookTableSpace = CGColorSpace(name: CGColorSpace.sRGB)!
 
     public let lookTables: LookTableStore?
+    /// Noise reduction for files the RAW decoder does not handle.
+    public let denoiser: any Denoiser
 
-    public init(lookTables: LookTableStore? = nil) {
+    public init(lookTables: LookTableStore? = nil, denoiser: any Denoiser = CoreImageDenoiser()) {
         self.lookTables = lookTables
+        self.denoiser = denoiser
     }
 
     public func decodeSettings(for stack: EditStack) -> RAWDecodeSettings {
@@ -93,11 +96,7 @@ public struct AdjustmentRenderer: EditStackRenderer {
             image = Self.lookTable(image, cube, intensity: adjustments.lookTable.intensity / 100)
         }
         if !context.isRaw, let luminance = adjustments.noiseReduction.luminance, luminance > 0 {
-            let filter = CIFilter.noiseReduction()
-            filter.inputImage = image.clampedToExtent()
-            filter.noiseLevel = Float(luminance / 100 * 0.04)
-            filter.sharpness = 0.4
-            image = filter.outputImage?.cropped(to: extent) ?? image
+            image = denoiser.denoise(image, amount: luminance / 100, context: context).cropped(to: extent)
         }
         if adjustments.sharpen.amount > 0 {
             image = Self.sharpen(image, adjustments.sharpen, scale: context.scale, extent: extent)
@@ -305,5 +304,25 @@ extension Adjustments {
         settings.luminanceNoiseReduction = noiseReduction.luminance.map { Float($0 / 100) }
         settings.colorNoiseReduction = noiseReduction.color.map { Float($0 / 100) }
         return settings
+    }
+}
+
+/// Reduces luminance noise in an image that did not come from the RAW decoder
+/// (which has its own). A protocol so a learned denoiser can replace it.
+public protocol Denoiser: Sendable {
+    /// `amount` is 0 … 1.
+    func denoise(_ image: CIImage, amount: Double, context: RenderContext) -> CIImage
+}
+
+/// Core Image's noise reduction: smooths flat areas, keeps edges above a threshold.
+public struct CoreImageDenoiser: Denoiser {
+    public init() {}
+
+    public func denoise(_ image: CIImage, amount: Double, context: RenderContext) -> CIImage {
+        let filter = CIFilter.noiseReduction()
+        filter.inputImage = image.clampedToExtent()
+        filter.noiseLevel = Float(amount * 0.04)
+        filter.sharpness = 0.4
+        return filter.outputImage ?? image
     }
 }

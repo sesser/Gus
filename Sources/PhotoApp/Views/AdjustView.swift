@@ -36,6 +36,10 @@ struct AdjustView: View {
                         AdjustSection(.tone, editor: editor) {
                             ToneCurveControls(editor: editor)
                         }
+                        Divider()
+                        AdjustSection(.details, editor: editor) {
+                            DetailControls(editor: editor)
+                        }
                     }
                     .padding(14)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -238,6 +242,46 @@ private struct DevelopControls: View {
             editor.change(name, phase: .committed) { $0.whiteBalance.preset = .custom }
         default:
             editor.change(name, phase: .committed) { $0.whiteBalance = .raw(preset) }
+        }
+    }
+}
+
+/// Sharpening and noise reduction.
+private struct DetailControls: View {
+    let editor: AdjustmentEditor
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ControlGroupLabel(text: String(localized: "Sharpening"))
+            adjustSlider(editor, String(localized: "Amount"), \.sharpen.amount, range: Sharpen.amountRange,
+                         format: .plain)
+            adjustSlider(editor, String(localized: "Radius"), \.sharpen.radius, range: Sharpen.radiusRange,
+                         defaultValue: 1, format: .decimal)
+            adjustSlider(editor, String(localized: "Detail"), \.sharpen.detail, range: 0...100, defaultValue: 25,
+                         format: .plain)
+            adjustSlider(editor, String(localized: "Masking"), \.sharpen.masking, range: 0...100, format: .plain)
+            Text("Sharpening is easiest to judge at 1:1 (Z), once the change is saved.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            ControlGroupLabel(text: String(localized: "Noise Reduction"))
+            let defaults = editor.rawDefaults
+            noiseSlider(String(localized: "Luminance"), \.noiseReduction.luminance,
+                        defaultValue: editor.isRaw ? defaults?.luminanceNoiseReduction ?? 0 : 0)
+            if editor.isRaw, let color = defaults?.colorNoiseReduction {
+                noiseSlider(String(localized: "Color"), \.noiseReduction.color, defaultValue: color)
+            }
+        }
+    }
+
+    /// Noise reduction left at nil follows the decoder's default for the camera.
+    private func noiseSlider(_ title: String, _ keyPath: WritableKeyPath<Adjustments, Double?>,
+                             defaultValue: Double) -> AdjustSlider {
+        AdjustSlider(title: title, value: editor.adjustments[keyPath: keyPath] ?? defaultValue, range: 0...100,
+                     defaultValue: defaultValue, format: .plain) { value, phase in
+            editor.change(title, phase: phase) {
+                $0[keyPath: keyPath] = abs(value - defaultValue) < 0.5 ? nil : value
+            }
         }
     }
 }
