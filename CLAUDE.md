@@ -112,7 +112,9 @@ compatible and never put `#` comment lines inside pasted command snippets.
   extended linear Rec. 2020 working space, output converted to Display P3.
   Caches are SDR. On EDR displays the loupe swaps in an HDR render from the
   master (half-float extended linear Display P3, tagged with its content
-  headroom), memory-only; the layer enables extended range only while it shows one.
+  headroom), memory-only, for HDR content only: floating-point DNGs, gain maps,
+  HLG/PQ. Camera raws stay SDR. The layer enables extended range only while it
+  shows an HDR image.
 - **Concurrency**: Swift 6 strict concurrency. Import and preview work is async
   and cancellable; no image decoding on the main thread. Images are fully
   decoded and converted to the window's color space (BGRA) before they reach

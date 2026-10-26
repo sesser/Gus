@@ -1,36 +1,63 @@
 import Foundation
 
-/// Facts about a DNG's TIFF structure that ImageIO does not report.
-enum DNGLayout {
-    /// Whether the DNG keeps reduced-resolution copies of a linear (demosaiced)
-    /// raw image next to the full one, as Lightroom's HDR merges do.
+/// Facts about a DNG's TIFF structure that ImageIO does not report: what each
+/// image in IFD0 and its SubIFDs is.
+struct DNGLayout {
+    struct Image: Equatable {
+        /// NewSubfileType: 0 for the main image, bit 0 set for a reduced-resolution copy.
+        var subfileType: UInt32
+        var photometric: UInt32?
+        /// SampleFormat: 1 unsigned integer, 3 floating point.
+        var sampleFormat: UInt32
+    }
+
+    var images: [Image]
+
+    /// Nil unless `url` is a readable DNG.
+    init?(contentsOf url: URL) {
+        guard url.pathExtension.lowercased() == "dng",
+              let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? handle.close() }
+        guard let reader = TIFFReader(handle: handle),
+              let ifd0 = reader.entries(at: reader.firstIFDOffset) else { return nil }
+        func image(_ entries: [TIFFReader.Entry]) -> Image {
+            func first(_ tag: UInt16) -> UInt32? { entries.first { $0.tag == tag }.flatMap { reader.values($0).first } }
+            return Image(subfileType: first(Tag.newSubfileType) ?? 0, photometric: first(Tag.photometricInterpretation),
+                         sampleFormat: first(Tag.sampleFormat) ?? 1)
+        }
+        let subIFDs = ifd0.first { $0.tag == Tag.subIFDs }.map(reader.values) ?? []
+        images = [image(ifd0)] + subIFDs.prefix(64).compactMap { reader.entries(at: $0).map(image) }
+    }
+
+    /// Reduced-resolution copies of a linear (demosaiced) raw image next to the
+    /// full one, as Lightroom's HDR merges keep.
     ///
     /// `CIRAWFilter` decodes from such a copy when asked for a small scale and
     /// renders it with almost no red, so these files are decoded at full size.
-    static func hasReducedLinearRaw(at url: URL) -> Bool {
-        guard url.pathExtension.lowercased() == "dng",
-              let handle = try? FileHandle(forReadingFrom: url) else { return false }
-        defer { try? handle.close() }
-        guard let reader = TIFFReader(handle: handle),
-              let ifd0 = reader.entries(at: reader.firstIFDOffset) else { return false }
-        let subIFDs = ifd0.first { $0.tag == Tag.subIFDs }.map(reader.values) ?? []
-        for offset in subIFDs.prefix(64) {
-            guard let entries = reader.entries(at: offset) else { continue }
-            let subfileType = entries.first { $0.tag == Tag.newSubfileType }.flatMap { reader.values($0).first } ?? 0
-            let photometric = entries.first { $0.tag == Tag.photometricInterpretation }.flatMap { reader.values($0).first }
-            if subfileType & 1 != 0, photometric == Tag.linearRaw {
-                return true
-            }
+    var hasReducedLinearRaw: Bool {
+        images.dropFirst().contains { $0.subfileType & 1 != 0 && $0.photometric == Tag.linearRaw }
+    }
+
+    /// The main raw image holds floating-point samples: an HDR merge, whose
+    /// highlights are meant to go above white, unlike a camera's integer raw.
+    var hasFloatingPointRaw: Bool {
+        images.contains { image in
+            image.subfileType == 0 && image.sampleFormat == Tag.floatingPoint
+                && (image.photometric == Tag.linearRaw || image.photometric == Tag.colorFilterArray)
         }
-        return false
     }
 
     private enum Tag {
         static let newSubfileType: UInt16 = 254
         static let photometricInterpretation: UInt16 = 262
         static let subIFDs: UInt16 = 330
-        /// PhotometricInterpretation value of demosaiced DNG raw data.
+        static let sampleFormat: UInt16 = 339
+        /// PhotometricInterpretation of demosaiced DNG raw data.
         static let linearRaw: UInt32 = 34892
+        /// PhotometricInterpretation of mosaiced (Bayer) raw data.
+        static let colorFilterArray: UInt32 = 32803
+        /// SampleFormat of IEEE floating-point samples.
+        static let floatingPoint: UInt32 = 3
     }
 }
 

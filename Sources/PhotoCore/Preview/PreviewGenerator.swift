@@ -68,9 +68,10 @@ public struct PreviewGenerator: Sendable {
     /// `RenderEngine.hdrColorSpace`, tagged with its content headroom. Nil when the
     /// master has nothing brighter than SDR white.
     ///
-    /// RAW files are decoded with the decoder's standard amount of extended range:
-    /// midtones match the SDR rendering and highlights continue above white.
-    /// Other images count only when they carry a gain map or are encoded HLG or PQ.
+    /// Only HDR content counts: floating-point DNGs (HDR merges), decoded with the
+    /// RAW decoder's standard amount of extended range, and images with a gain map
+    /// or HLG or PQ encoding. Camera raws stay SDR, although their highlights
+    /// would also go above white with extended range.
     public func hdrImage(source: URL, stack: EditStack, longEdge: Int?) throws -> CGImage? {
         guard var image = try Self.decodeHDR(source, longEdge: longEdge) else { return nil }
         image = try renderer.apply(stack, to: image)
@@ -107,7 +108,7 @@ public struct PreviewGenerator: Sendable {
                 let scale = Double(longEdge) / Double(max(native.width, native.height))
                 // Scaled decodes of DNGs with reduced linear raw copies come out
                 // cyan; those decode at full size and are scaled afterwards.
-                if scale < 1, !DNGLayout.hasReducedLinearRaw(at: url) {
+                if scale < 1, DNGLayout(contentsOf: url)?.hasReducedLinearRaw != true {
                     // Ask for a little more than needed so the final resample is a downscale.
                     raw.scaleFactor = Float(min(1, scale * 1.25))
                 }
@@ -141,10 +142,11 @@ public struct PreviewGenerator: Sendable {
         return image
     }
 
-    /// Decodes with extended range, or returns nil for a non-RAW image that has no
-    /// HDR content (no gain map, not HLG or PQ). Videos are never decoded here.
+    /// Decodes with extended range, or returns nil for an image without HDR content
+    /// (see `hdrImage`). Videos are never decoded here.
     static func decodeHDR(_ url: URL, longEdge: Int?) throws -> CIImage? {
         if SupportedFormats.isRaw(pathExtension: url.pathExtension) {
+            guard DNGLayout(contentsOf: url)?.hasFloatingPointRaw == true else { return nil }
             return try decode(url, longEdge: longEdge, draft: false, extendedRange: true)
         }
         guard FileKind(pathExtension: url.pathExtension) != .video,

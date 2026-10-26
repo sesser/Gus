@@ -174,32 +174,42 @@ struct PreviewPipelineTests {
 
             let dng = root.appending(path: "synthetic.dng")
             try SyntheticDNG.write(to: dng, options: .init(width: 1200, height: 800, seed: 5))
-            // RAW highlights continue above white.
-            let raw = try #require(try generator.hdrImage(source: dng, stack: .identity, longEdge: 512))
-            #expect(raw.width == 512 && raw.contentHeadroom >= RenderEngine.minimumHDRHeadroom)
+            // A camera's integer raw stays SDR; only floating-point DNGs (HDR merges) count.
+            #expect(try generator.hdrImage(source: dng, stack: .identity, longEdge: 512) == nil)
         }
     }
 
-    @Test func dngLayoutFindsReducedLinearRawCopies() async throws {
+    @Test func dngLayoutDescribesRawImages() async throws {
         try await RepositoryFiles.withTemporaryDirectory { root in
-            func probe(_ name: String, _ subIFDs: [(subfileType: UInt32, photometric: UInt16)]) throws -> Bool {
+            typealias Image = SyntheticDNG.SubImage
+            func layout(_ name: String, _ subIFDs: [Image]) throws -> DNGLayout? {
                 let url = root.appending(path: name)
                 try SyntheticDNG.structureData(subIFDs: subIFDs).write(to: url)
-                return DNGLayout.hasReducedLinearRaw(at: url)
+                return DNGLayout(contentsOf: url)
             }
-            // A Lightroom merge: full linear raw, transparency mask, preview, reduced linear raw.
-            #expect(try probe("merge.dng", [(0, 34892), (4, 32844), (1, 2), (1, 34892)]))
-            #expect(try probe("single.dng", [(1, 34892)]))
-            #expect(try !probe("linear.dng", [(0, 34892), (1, 2)]))
-            #expect(try !probe("bayer.dng", [(0, 32803), (1, 6)]))
-            #expect(try !probe("merge.tif", [(0, 34892), (1, 34892)]))
+            // A Lightroom HDR merge: full float linear raw, transparency mask, preview, reduced linear raw.
+            let merge = try #require(try layout("merge.dng", [Image(0, 34892, sampleFormat: 3), Image(4, 32844),
+                                                              Image(1, 2), Image(1, 34892, sampleFormat: 3)]))
+            #expect(merge.images.count == 5)
+            #expect(merge.hasReducedLinearRaw && merge.hasFloatingPointRaw)
+            let reducedOnly = try #require(try layout("single.dng", [Image(1, 34892)]))
+            #expect(reducedOnly.hasReducedLinearRaw && !reducedOnly.hasFloatingPointRaw)
+            let linear = try #require(try layout("linear.dng", [Image(0, 34892), Image(1, 2)]))
+            #expect(!linear.hasReducedLinearRaw && !linear.hasFloatingPointRaw)
+            let floatBayer = try #require(try layout("float-bayer.dng", [Image(0, 32803, sampleFormat: 3), Image(1, 6)]))
+            #expect(!floatBayer.hasReducedLinearRaw && floatBayer.hasFloatingPointRaw)
+            // A floating-point preview does not make the raw an HDR one.
+            let floatPreview = try #require(try layout("float-preview.dng", [Image(0, 32803), Image(1, 2, sampleFormat: 3)]))
+            #expect(!floatPreview.hasFloatingPointRaw)
+            #expect(try layout("merge.tif", [Image(0, 34892, sampleFormat: 3)]) == nil)
 
             let bayer = root.appending(path: "synthetic.dng")
             try SyntheticDNG.write(to: bayer, options: .init(width: 64, height: 64, seed: 1))
-            #expect(!DNGLayout.hasReducedLinearRaw(at: bayer))
+            let camera = try #require(DNGLayout(contentsOf: bayer))
+            #expect(camera.images.count == 1 && !camera.hasReducedLinearRaw && !camera.hasFloatingPointRaw)
             let truncated = root.appending(path: "truncated.dng")
-            try Data(SyntheticDNG.structureData(subIFDs: [(0, 34892), (1, 34892)]).prefix(20)).write(to: truncated)
-            #expect(!DNGLayout.hasReducedLinearRaw(at: truncated))
+            try Data(SyntheticDNG.structureData(subIFDs: [Image(0, 34892), Image(1, 34892)]).prefix(20)).write(to: truncated)
+            #expect(DNGLayout(contentsOf: truncated) == nil)
         }
     }
 

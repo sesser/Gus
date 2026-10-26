@@ -76,10 +76,25 @@ public enum SyntheticDNG {
         return tiff.write(ifd)
     }
 
+    /// One image of `structureData`.
+    public struct SubImage: Sendable {
+        public var subfileType: UInt32
+        /// 34892 is linear raw, 32803 a color filter array, 2 RGB.
+        public var photometric: UInt16
+        /// 1 unsigned integer, 3 floating point.
+        public var sampleFormat: UInt16
+
+        public init(_ subfileType: UInt32, _ photometric: UInt16, sampleFormat: UInt16 = 1) {
+            self.subfileType = subfileType
+            self.photometric = photometric
+            self.sampleFormat = sampleFormat
+        }
+    }
+
     /// The TIFF structure of a DNG without image data: an IFD0 preview and
-    /// SubIFDs with the given NewSubfileType and PhotometricInterpretation values
-    /// (34892 is linear raw, 32803 a color filter array, 2 RGB).
-    public static func structureData(subIFDs: [(subfileType: UInt32, photometric: UInt16)]) -> Data {
+    /// SubIFDs with the given NewSubfileType, PhotometricInterpretation and
+    /// SampleFormat values.
+    public static func structureData(subIFDs: [SubImage]) -> Data {
         var ifd = TIFFWriter.IFD()
         ifd.long(254, [1])                         // NewSubfileType: reduced-resolution preview
         ifd.short(262, [2])                        // PhotometricInterpretation: RGB
@@ -88,6 +103,7 @@ public enum SyntheticDNG {
             var sub = TIFFWriter.IFD()
             sub.long(254, [image.subfileType])
             sub.short(262, [image.photometric])
+            sub.short(339, [image.sampleFormat, image.sampleFormat, image.sampleFormat])
             return sub
         })
         var tiff = TIFFWriter()
