@@ -36,6 +36,7 @@ struct LoupeCanvas: NSViewRepresentable {
         // Reading these registers observation, so focus changes from the keyboard,
         // auto-advance or the grid all land here.
         _ = model.itemsRevision
+        context.coordinator.hdrSetting = model.showsHDR
         context.coordinator.show(index: model.focusIndex)
     }
 
@@ -47,9 +48,22 @@ struct LoupeCanvas: NSViewRepresentable {
 /// Shows one version at fit or 1:1, loading the cached preview first and the full
 /// resolution render when zoomed in. Neighbors are preloaded so stepping through
 /// a shoot does not wait on decoding.
+///
+/// On a display with extended dynamic range, an HDR rendition rendered from the
+/// master replaces the (SDR) cached preview once it is ready, and 1:1 renders
+/// in HDR too.
 @MainActor
 final class LoupeController: NSObject {
     enum Zoom { case fit, actualSize }
+
+    /// What the image view shows, from least to most detailed. A load only
+    /// replaces a lesser rendition, so a slow SDR preview never hides an HDR one.
+    private enum Rendition: Int, Comparable {
+        case placeholder, preview, hdrPreview, full, hdrFull
+
+        static func < (lhs: Rendition, rhs: Rendition) -> Bool { lhs.rawValue < rhs.rawValue }
+        var isHDR: Bool { self == .hdrPreview || self == .hdrFull }
+    }
 
     let model: LibraryModel
     let hostView = LoupeHostView()
@@ -58,11 +72,17 @@ final class LoupeController: NSObject {
     private var shownVersionID: Int64?
     private var shownIndex: Int?
     private var zoom: Zoom = .fit
-    private var hasFullResolution = false
+    private var rendition = Rendition.placeholder
     private var loadTask: Task<Void, Never>?
+    private var hdrTask: Task<Void, Never>?
     private var fullTask: Task<Void, Never>?
+    /// The model's HDR setting as last applied; changing it reloads the photo.
+    var hdrSetting = true {
+        didSet { if hdrSetting != oldValue { shownVersionID = nil } }
+    }
     private var neighborTasks: [Task<Void, Never>] = []
     private var frameObserver: (any NSObjectProtocol)?
+    private var screenObserver: (any NSObjectProtocol)?
 
     init(model: LibraryModel) {
         self.model = model
@@ -107,10 +127,34 @@ final class LoupeController: NSObject {
 
     func tearDown() {
         loadTask?.cancel()
+        hdrTask?.cancel()
         fullTask?.cancel()
+        model.loupeHDRHeadroom = nil
         neighborTasks.forEach { $0.cancel() }
         if let frameObserver { NotificationCenter.default.removeObserver(frameObserver) }
+        if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
         NotificationCenter.default.removeObserver(self)
+    }
+
+    /// The view joined a window: whether HDR can be shown depends on its screen,
+    /// so the photo shown before then, and after every move to another screen,
+    /// is loaded again.
+    func windowDidChange() {
+        if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
+        screenObserver = nil
+        guard let window = hostView.window else { return }
+        screenObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didChangeScreenNotification, object: window, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.reload() }
+        }
+        reload()
+    }
+
+    private func reload() {
+        guard let index = shownIndex else { return }
+        shownVersionID = nil
+        show(index: index)
     }
 
     // MARK: Showing a version
@@ -118,7 +162,8 @@ final class LoupeController: NSObject {
     func show(index: Int?) {
         guard let index, model.items.indices.contains(index) else {
             shownVersionID = nil
-            imageView.setImage(nil)
+            rendition = .placeholder
+            display(nil, as: .placeholder)
             return
         }
         let item = model.items[index]
@@ -126,14 +171,16 @@ final class LoupeController: NSObject {
         guard item.versionID != shownVersionID else { return }
         shownVersionID = item.versionID
         loadTask?.cancel()
+        hdrTask?.cancel()
         fullTask?.cancel()
-        hasFullResolution = false
+        rendition = .placeholder
 
         let backing = hostView.window?.backingScaleFactor ?? 2
         if let size = item.orientedSize {
             imageView.setFrameSize(NSSize(width: size.width / backing, height: size.height / backing))
         }
-        imageView.setImage(immediateImage(for: item))
+        let immediate = immediateImage(for: item)
+        display(immediate?.image, as: immediate?.rendition ?? .placeholder)
         applyZoom(animated: false)
 
         if let request = model.previewRequest(for: item, tier: .preview) {
@@ -141,55 +188,90 @@ final class LoupeController: NSObject {
             let versionID = item.versionID
             loadTask = Task { [weak self] in
                 guard let image = try? await previews.image(for: request, priority: .visible),
-                      let self, self.shownVersionID == versionID, !self.hasFullResolution else { return }
+                      let self, self.shownVersionID == versionID, self.rendition <= .preview else { return }
                 if item.orientedSize == nil {
                     self.imageView.setFrameSize(NSSize(width: CGFloat(image.width) / backing,
                                                        height: CGFloat(image.height) / backing))
                     self.applyZoom(animated: false)
                 }
-                self.imageView.setImage(image)
+                self.display(image, as: .preview)
+            }
+            if hdrAllowed {
+                hdrTask = Task { [weak self] in
+                    guard let image = try? await previews.hdrImage(for: request, priority: .visible),
+                          let self, self.shownVersionID == versionID else { return }
+                    self.display(image, as: .hdrPreview)
+                }
             }
         }
         if zoom == .actualSize { loadFullResolution() }
         preloadNeighbors(of: index)
     }
 
-    /// Whatever is already decoded: the preview, or an enlarged thumbnail.
-    private func immediateImage(for item: CatalogItem) -> CGImage? {
-        if let request = model.previewRequest(for: item, tier: .preview),
-           let image = model.previews.memoryCachedImage(for: request) {
-            return image
+    /// Whatever is already decoded: the HDR or SDR preview, or an enlarged thumbnail.
+    private func immediateImage(for item: CatalogItem) -> (image: CGImage, rendition: Rendition)? {
+        if let request = model.previewRequest(for: item, tier: .preview) {
+            if hdrAllowed, let image = model.previews.memoryCachedHDRImage(for: request) {
+                return (image, .hdrPreview)
+            }
+            if let image = model.previews.memoryCachedImage(for: request) {
+                return (image, .preview)
+            }
         }
         guard let request = model.previewRequest(for: item, tier: .thumbnail) else { return nil }
         for size in [512, 384, 256, 128] {
-            if let image = model.previews.memoryCachedImage(for: request, maxPixelSize: size) { return image }
+            if let image = model.previews.memoryCachedImage(for: request, maxPixelSize: size) { return (image, .placeholder) }
         }
         return nil
+    }
+
+    /// Shows `image` unless something more detailed is already showing.
+    private func display(_ image: CGImage?, as kind: Rendition) {
+        guard kind >= rendition else { return }
+        rendition = kind
+        imageView.setImage(image, extendedRange: kind.isHDR)
+        let headroom = kind.isHDR ? image?.contentHeadroom : nil
+        if model.loupeHDRHeadroom != headroom { model.loupeHDRHeadroom = headroom }
+    }
+
+    /// HDR is shown when the setting is on and the window's display has extended
+    /// dynamic range (its potential, not the headroom available right now).
+    private var hdrAllowed: Bool {
+        guard model.showsHDR, let screen = hostView.window?.screen else { return false }
+        return screen.maximumPotentialExtendedDynamicRangeColorComponentValue > 1
     }
 
     private func preloadNeighbors(of index: Int) {
         neighborTasks.forEach { $0.cancel() }
         neighborTasks = []
         let previews = model.previews
+        let hdr = hdrAllowed
         for neighbor in [index + 1, index - 1, index + 2] where model.items.indices.contains(neighbor) {
             guard let request = model.previewRequest(for: model.items[neighbor], tier: .preview) else { continue }
+            let rendersHDR = hdr && neighbor != index + 2
             neighborTasks.append(Task {
                 _ = try? await previews.image(for: request, priority: .prefetch)
+                if rendersHDR { _ = try? await previews.hdrImage(for: request, priority: .prefetch) }
             })
         }
     }
 
     private func loadFullResolution() {
-        guard let index = shownIndex, model.items.indices.contains(index), !hasFullResolution else { return }
+        guard let index = shownIndex, model.items.indices.contains(index), rendition < .full else { return }
         let item = model.items[index]
         guard let request = model.previewRequest(for: item, tier: .preview), request.sourceURL != nil else { return }
         let previews = model.previews
+        let hdr = hdrAllowed
         fullTask?.cancel()
         fullTask = Task { [weak self] in
+            if hdr, let image = try? await previews.hdrImage(for: request, fullResolution: true) {
+                guard let self, self.shownVersionID == item.versionID else { return }
+                self.display(image, as: .hdrFull)
+                return
+            }
             guard let image = try? await previews.fullResolutionImage(for: request),
                   let self, self.shownVersionID == item.versionID else { return }
-            self.hasFullResolution = true
-            self.imageView.setImage(image)
+            self.display(image, as: .full)
         }
     }
 
@@ -270,6 +352,7 @@ final class LoupeHostView: NSView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         window?.makeFirstResponder(self)
+        controller?.windowDidChange()
     }
 }
 
@@ -297,10 +380,19 @@ final class LoupeImageView: NSView {
 
     override var wantsUpdateLayer: Bool { true }
 
-    func setImage(_ image: CGImage?) {
+    /// `extendedRange` lets the layer show values above SDR white; it costs power,
+    /// so it is only on while an HDR image is shown.
+    func setImage(_ image: CGImage?, extendedRange: Bool = false) {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         layer?.contents = image
+        if let layer {
+            if #available(macOS 26.0, *) {
+                layer.preferredDynamicRange = extendedRange ? .high : .standard
+            } else {
+                layer.wantsExtendedDynamicRangeContent = extendedRange
+            }
+        }
         CATransaction.commit()
     }
 
@@ -364,6 +456,14 @@ struct LoupeInfoBar: View {
                     }
                 }
                 Spacer()
+                if let headroom = model.loupeHDRHeadroom {
+                    Text("HDR")
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .overlay(RoundedRectangle(cornerRadius: 3).stroke(.secondary))
+                        .help("Highlights up to \(headroom.formatted(.number.precision(.fractionLength(1))))× SDR white are shown with the display's extended range")
+                }
                 if let details {
                     Text(Self.exposureLine(details.image))
                         .font(.callout)

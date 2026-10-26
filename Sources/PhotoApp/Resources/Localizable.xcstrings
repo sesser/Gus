@@ -1493,6 +1493,17 @@
         }
       }
     },
+    "HDR" : {
+      "comment" : "Loupe info bar badge: the photo is shown in high dynamic range",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HDR"
+          }
+        }
+      }
+    },
     "HEIC" : {
       "comment" : "Grid badge: HEIC or HEIF file",
       "localizations" : {
@@ -1511,6 +1522,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Hide Suggestion"
+          }
+        }
+      }
+    },
+    "Highlights up to %@× SDR white are shown with the display's extended range" : {
+      "comment" : "Tooltip of the loupe's HDR badge. The argument is a number such as 2.6",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Highlights up to %@× SDR white are shown with the display's extended range"
           }
         }
       }
@@ -2882,6 +2904,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Show Grid"
+          }
+        }
+      }
+    },
+    "Show HDR" : {
+      "comment" : "View menu toggle: the loupe shows highlights above SDR white on displays with extended dynamic range",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show HDR"
           }
         }
       }

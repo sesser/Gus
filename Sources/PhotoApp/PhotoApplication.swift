@@ -201,6 +201,10 @@ struct LibraryCommands: Commands {
                 get: { model?.groupPairs ?? true },
                 set: { model?.groupPairs = $0 }
             ))
+            Toggle("Show HDR", isOn: Binding(
+                get: { model?.showsHDR ?? true },
+                set: { model?.showsHDR = $0 }
+            ))
             Divider()
         }
     }

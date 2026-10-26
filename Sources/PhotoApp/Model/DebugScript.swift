@@ -12,7 +12,7 @@ import UniformTypeIdentifiers
 ///     pairs grouped|separate  pairfile raw|jpeg     advance on|off
 ///     selectall             addkeywords <a, b>      keyentry      text <typed text>
 ///     undo | redo           inspector on|off        keyword <n>   (sidebar keyword n, 0-based)
-///     print <what>          (state for checks: selection, keywords, undo, suggestions, items)
+///     print <what>          (state for checks: selection, keywords, undo, suggestions, items, hdr)
 ///     suggest               (analyzes the selection and waits)      accept <keyword>
 ///     album <name>          (from the selection)    smartalbum <name>  (rating ≥ 3)     remove
 ///     sidebar album|smart|month <n> | builtin <name> | changed | all  sheet smart|album|none
@@ -21,6 +21,7 @@ import UniformTypeIdentifiers
 ///                           from the top left; launch with `open` so the window is key)
 ///     hit <x> <y>           (prints the view under a point)
 ///     buttons               (prints the window's AppKit buttons and where they are)
+///     hdr on|off            (the View menu's Show HDR; snapshots show HDR clipped at white)
 ///     import open | source <path> | dest <path> | job <text> | delete on|off | eject on|off
 ///            | run (waits) | confirm yes|no | snapshot <file>
 ///
@@ -176,6 +177,8 @@ enum DebugScript {
                 }
                 try? await Task.sleep(for: .milliseconds(300))
             }
+        case "hdr":
+            model.showsHDR = rest.first != "off"
         case "hit":
             if let window, let point = windowPoint(rest, in: window) { printHit(window, at: point) }
         case "buttons":
@@ -279,6 +282,10 @@ enum DebugScript {
 
     private static func printState(_ what: String, model: LibraryModel) {
         switch what {
+        case "hdr":
+            let potential = window?.screen?.maximumPotentialExtendedDynamicRangeColorComponentValue ?? 1
+            let headroom = model.loupeHDRHeadroom.map { String(format: "%.2f", $0) } ?? "none"
+            print("debug-script: hdr setting \(model.showsHDR) screen potential \(potential) loupe headroom \(headroom)")
         case "selection":
             print("debug-script: selection \(model.selection.count), focus \(model.focusIndex.map(String.init) ?? "-")")
         case "keywords":

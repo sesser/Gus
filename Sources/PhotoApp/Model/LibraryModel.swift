@@ -187,6 +187,14 @@ final class LibraryModel {
     var showFileInfo: Bool {
         didSet { UserDefaults.standard.set(showFileInfo, forKey: Self.showFileInfoKey) }
     }
+    /// The loupe shows highlights above SDR white on displays with extended
+    /// dynamic range.
+    var showsHDR: Bool {
+        didSet { UserDefaults.standard.set(showsHDR, forKey: Self.showsHDRKey) }
+    }
+    /// Headroom of the HDR image the loupe is showing (brightest value relative to
+    /// SDR white), or nil while it shows an SDR image.
+    var loupeHDRHeadroom: Float?
     /// One item per RAW+JPEG pair instead of both files.
     var groupPairs: Bool {
         didSet {
@@ -204,6 +212,7 @@ final class LibraryModel {
     private static let autoAdvanceKey = "culling.autoAdvance"
     private static let showFileInfoKey = "browser.showFileInfo"
     private static let groupPairsKey = "browser.groupPairs"
+    private static let showsHDRKey = "loupe.showsHDR"
     private static let showsInspectorKey = "browser.showsInspector"
     private static let writesSidecarsKey = "sidecars.write"
     private static let opensImportOnCardKey = "import.openOnCard"
@@ -250,6 +259,7 @@ final class LibraryModel {
         autoAdvance = defaults.bool(forKey: Self.autoAdvanceKey)
         showFileInfo = defaults.object(forKey: Self.showFileInfoKey) as? Bool ?? true
         groupPairs = defaults.object(forKey: Self.groupPairsKey) as? Bool ?? true
+        showsHDR = defaults.object(forKey: Self.showsHDRKey) as? Bool ?? true
         showsInspector = defaults.bool(forKey: Self.showsInspectorKey)
         writesSidecars = defaults.object(forKey: Self.writesSidecarsKey) as? Bool ?? true
         sidecars = SidecarSync(catalog: catalog, metadataReader: importer.metadataReader)

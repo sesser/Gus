@@ -147,6 +147,12 @@ thumbnail, the grid shows their length, and the loupe plays them (space plays
 and pauses; the arrow and culling keys still move between and rate items). They
 take ratings, keywords, albums and sidecars. There is no video editing or export.
 
+**HDR**: on a display with extended dynamic range, the loupe shows highlights
+above white for RAW files and for HEIC and JPEG files with a gain map (or HLG or
+PQ encoding); an **HDR** badge in the info bar says so. It first shows the cached
+preview, then the HDR render from the original, so offline originals stay SDR.
+Thumbnails and cached previews are always SDR. **View ▸ Show HDR** turns it off.
+
 **Undo**: ⌘Z and ⇧⌘Z undo and redo culling, keyword, album and pair changes, including
 changes made to many photos at once.
 
