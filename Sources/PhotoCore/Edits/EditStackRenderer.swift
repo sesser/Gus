@@ -24,15 +24,19 @@ public struct RAWDecodeSettings: Sendable, Hashable {
     public var decoderVersion: String?
     public var luminanceNoiseReduction: Float?
     public var colorNoiseReduction: Float?
+    /// `extendedDynamicRangeAmount`: values above white are kept instead of rolled off.
+    public var extendedDynamicRange: Float?
 
     public init(temperature: Float? = nil, tint: Float? = nil, boostAmount: Float? = nil, decoderVersion: String? = nil,
-                luminanceNoiseReduction: Float? = nil, colorNoiseReduction: Float? = nil) {
+                luminanceNoiseReduction: Float? = nil, colorNoiseReduction: Float? = nil,
+                extendedDynamicRange: Float? = nil) {
         self.temperature = temperature
         self.tint = tint
         self.boostAmount = boostAmount
         self.decoderVersion = decoderVersion
         self.luminanceNoiseReduction = luminanceNoiseReduction
         self.colorNoiseReduction = colorNoiseReduction
+        self.extendedDynamicRange = extendedDynamicRange
     }
 
     public static let none = RAWDecodeSettings()
@@ -41,6 +45,7 @@ public struct RAWDecodeSettings: Sendable, Hashable {
         if let temperature { raw.neutralTemperature = temperature }
         if let tint { raw.neutralTint = tint }
         if let boostAmount { raw.boostAmount = boostAmount }
+        if let extendedDynamicRange { raw.extendedDynamicRangeAmount = max(raw.extendedDynamicRangeAmount, extendedDynamicRange) }
         if let decoderVersion {
             let version = CIRAWDecoderVersion(rawValue: decoderVersion)
             if raw.supportedDecoderVersions.contains(version) { raw.decoderVersion = version }

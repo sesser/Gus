@@ -174,3 +174,68 @@ public struct ToneTable: Sendable {
         return t * t * (3 - 2 * t)
     }
 }
+
+/// Gain for the Shadows slider and for negative Highlights, as a function of
+/// the local (smoothed) linear luminance.
+///
+/// Both work in stops around 18 % grey. Recovering highlights lowers the slope
+/// of tones above a knee a stop over mid grey, so values well above white (kept
+/// by the RAW decoder) come back into range; shadows lift tones below a knee
+/// half a stop under mid grey, by at most `maximumShadowStops`. The slope never
+/// drops below 0.3, so the mapping stays monotone.
+public struct LocalToneCurve: Sendable, Hashable {
+    /// −1 … 1 (lift or deepen).
+    public var shadows: Double
+    /// 0 … 1, how much to recover (the slider's negative values).
+    public var recovery: Double
+
+    static let middleGrey = 0.18
+    static let highlightKnee = 1.0
+    static let shadowKnee = -0.5
+    static let strength = 0.7
+    static let maximumShadowStops = 3.0
+    /// Gain table input is luminance to this power, for even resolution in the shadows.
+    public static let encodingPower = 0.25
+    public static let domainMaximum = 2.0
+    public static let entryCount = 1024
+
+    public init(shadows: Double, recovery: Double) {
+        self.shadows = shadows
+        self.recovery = recovery
+    }
+
+    public var isIdentity: Bool { shadows == 0 && recovery == 0 }
+
+    /// Change in stops for a local luminance (linear).
+    public func stops(luminance: Double) -> Double {
+        let s = log2(max(luminance, 1e-6) / Self.middleGrey)
+        var stops = -recovery * Self.strength * Self.softplus(s - Self.highlightKnee)
+        if shadows != 0 {
+            let lift = Self.strength * Self.softplus(Self.shadowKnee - s)
+            stops += shadows * Self.maximumShadowStops * tanh(lift / Self.maximumShadowStops)
+        }
+        return stops
+    }
+
+    public func gain(luminance: Double) -> Double {
+        exp2(stops(luminance: luminance))
+    }
+
+    /// `entryCount` RGB triplets of gain over encoded luminance 0 … `domainMaximum`.
+    public func gainTable() -> [Float] {
+        var table = [Float](repeating: 0, count: Self.entryCount * 3)
+        for i in 0..<Self.entryCount {
+            let encoded = Self.domainMaximum * Double(i) / Double(Self.entryCount - 1)
+            let value = Float(gain(luminance: pow(encoded, 1 / Self.encodingPower)))
+            table[i * 3] = value
+            table[i * 3 + 1] = value
+            table[i * 3 + 2] = value
+        }
+        return table
+    }
+
+    /// ln(1 + eˣ), in stops: a smooth ramp from 0 to x.
+    static func softplus(_ x: Double) -> Double {
+        x > 30 ? x : log1p(exp(x))
+    }
+}

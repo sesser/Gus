@@ -52,13 +52,9 @@ public struct AdjustmentRenderer: EditStackRenderer {
             image = filter.outputImage ?? image
         }
         let tone = adjustments.tone
-        if tone.shadows != 0 || tone.highlights < 0 {
-            let filter = CIFilter.highlightShadowAdjust()
-            filter.inputImage = image
-            filter.shadowAmount = Float(tone.shadows / 100 * 0.6)
-            filter.highlightAmount = Float(1 + min(tone.highlights, 0) / 100 * 0.6)
-            filter.radius = 0
-            image = filter.outputImage ?? image
+        let local = LocalToneCurve(shadows: tone.shadows / 100, recovery: max(-tone.highlights, 0) / 100)
+        if !local.isIdentity {
+            image = Self.localTone(image, local, extent: extent)
         }
         let presence = adjustments.presence
         if presence.dehaze != 0 {
@@ -117,6 +113,54 @@ public struct AdjustmentRenderer: EditStackRenderer {
         // The filter's positive tint is greener; ours is more magenta.
         filter.targetNeutral = CIVector(x: 1_000_000 / mired, y: -balance.relativeTint / 100 * 50)
         return filter.outputImage ?? image
+    }
+
+    /// Shadows and highlight recovery: a gain per pixel from an edge-aware,
+    /// smoothed luminance, so tones move by region and local detail is kept.
+    /// The smoothing is done on a fixed-size copy, so every tier looks the same.
+    static func localTone(_ image: CIImage, _ curve: LocalToneCurve, extent: CGRect) -> CIImage {
+        let longest = max(extent.width, extent.height)
+        guard longest > 0 else { return image }
+        let luminance = CIFilter.colorMatrix()
+        luminance.inputImage = image
+        let row = CIVector(x: 0.2627, y: 0.6780, z: 0.0593, w: 0)
+        luminance.rVector = row
+        luminance.gVector = row
+        luminance.bVector = row
+        luminance.aVector = CIVector(x: 0, y: 0, z: 0, w: 0)
+        luminance.biasVector = CIVector(x: 0, y: 0, z: 0, w: 1)
+        let clamp = CIFilter.colorClamp()
+        clamp.inputImage = luminance.outputImage
+        clamp.minComponents = CIVector(x: 0, y: 0, z: 0, w: 1)
+        clamp.maxComponents = CIVector(x: 16, y: 16, z: 16, w: 1)
+        // Luminance to a low power: averages are not pulled up by bright areas.
+        let encode = CIFilter.gammaAdjust()
+        encode.inputImage = clamp.outputImage
+        encode.power = Float(LocalToneCurve.encodingPower)
+        // The bias makes the matrix's output infinite.
+        guard let guide = encode.outputImage?.cropped(to: extent) else { return image }
+
+        let reduce = CIFilter.lanczosScaleTransform()
+        reduce.inputImage = guide
+        reduce.scale = Float(min(1, 256 / longest))
+        reduce.aspectRatio = 1
+        guard let small = reduce.outputImage else { return image }
+        let upsample = CIFilter.edgePreserveUpsample()
+        upsample.inputImage = guide
+        upsample.smallImage = small
+        upsample.spatialSigma = 3
+        upsample.lumaSigma = 0.12
+
+        let gain = CIFilter.colorCurves()
+        gain.inputImage = upsample.outputImage
+        gain.curvesData = curve.gainTable().withUnsafeBytes { Data($0) }
+        gain.curvesDomain = CIVector(x: 0, y: CGFloat(LocalToneCurve.domainMaximum))
+        gain.colorSpace = RenderEngine.workingColorSpace
+        let multiply = CIFilter.multiplyCompositing()
+        multiply.inputImage = gain.outputImage
+        multiply.backgroundImage = image
+        // The upsampled mask's alpha is a hair under one.
+        return multiply.outputImage?.settingAlphaOne(in: extent).cropped(to: extent) ?? image
     }
 
     /// Positive amounts subtract an estimated veil (the darkest level of each
@@ -300,6 +344,10 @@ extension Adjustments {
             settings.tint = whiteBalance.tint.map(Float.init)
         }
         settings.boostAmount = decode.look.boostAmount
+        // Keep what the sensor recorded above white, for recovery to bring back.
+        if tone.highlights < 0 || exposure.ev < 0 {
+            settings.extendedDynamicRange = 1
+        }
         settings.decoderVersion = decode.decoderVersion
         settings.luminanceNoiseReduction = noiseReduction.luminance.map { Float($0 / 100) }
         settings.colorNoiseReduction = noiseReduction.color.map { Float($0 / 100) }

@@ -115,6 +115,10 @@ struct AdjustmentsModelTests {
         #expect(settings.boostAmount == 0)
         #expect(settings.colorNoiseReduction == 0.3)
         #expect(settings.luminanceNoiseReduction == nil)
+        #expect(settings.extendedDynamicRange == nil)
+        // Recovery needs what the sensor recorded above white.
+        adjustments.tone.highlights = -40
+        #expect(adjustments.decodeSettings.extendedDynamicRange == 1)
     }
 
     @Test func extendedRangeOnlyWithoutClampingTables() {
@@ -178,6 +182,29 @@ struct ToneTableTests {
         #expect(ToneTable(blacks: 1).tone(0) > 0.1)
         #expect(ToneTable(blacks: -1).tone(0.05) == 0)
         #expect(ToneTable(whites: -1).tone(1) < 0.9)
+    }
+
+    @Test func localToneCurveRecoversAndLiftsMonotonically() {
+        let curves = [LocalToneCurve(shadows: 1, recovery: 1), LocalToneCurve(shadows: -1, recovery: 0),
+                      LocalToneCurve(shadows: 0, recovery: 1)]
+        for curve in curves {
+            var previous = -Double.infinity
+            for i in 0...400 {
+                let luminance = exp2(Double(i) / 20 - 14)
+                let output = luminance * curve.gain(luminance: luminance)
+                #expect(output > previous)
+                previous = output
+            }
+        }
+        let recover = LocalToneCurve(shadows: 0, recovery: 1)
+        // Two stops above white come back below it; mid grey barely moves.
+        #expect(4 * recover.gain(luminance: 4) < 1)
+        #expect(recover.stops(luminance: 0.18) > -0.25)
+        let lift = LocalToneCurve(shadows: 1, recovery: 0)
+        #expect(lift.stops(luminance: 0.01) > 1.5)
+        #expect(lift.stops(luminance: 1e-5) <= 3)
+        #expect(lift.stops(luminance: 1) < 0.05)
+        #expect(LocalToneCurve(shadows: 0, recovery: 0).gainTable().allSatisfy { $0 == 1 })
     }
 }
 
@@ -341,7 +368,9 @@ struct AdjustmentRendererTests {
         #expect(try tone({ $0.contrast = 50 }, dark) < 0.05)
         #expect(try tone({ $0.contrast = 50 }, bright) > 0.7)
         #expect(try tone({ $0.shadows = 50 }, dark) > 0.06)
-        #expect(try tone({ $0.highlights = -50 }, bright) < 0.69)
+        #expect(try tone({ $0.highlights = -50 }, bright) < 0.62)
+        #expect(try tone({ $0.highlights = -100 }, solid(0.95, 0.95, 0.95)) < 0.75)
+        #expect(try tone({ $0.shadows = 100 }, dark) > 0.1)
         #expect(try tone({ $0.highlights = 50 }, bright) > 0.71)
         #expect(try tone({ $0.blacks = -50 }, dark) < 0.045)
         #expect(try tone({ $0.whites = 50 }, bright) > 0.71)
