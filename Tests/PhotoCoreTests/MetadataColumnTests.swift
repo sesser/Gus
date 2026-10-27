@@ -69,6 +69,12 @@ struct MetadataColumnTests {
         }
     }
 
+    @Test func flashCompensationComesFromTheMakerNotes() {
+        #expect(ExifToolMetadataReader.metadata(from: ["FlashExposureComp": -0.3333333]).flashCompensation == -0.3333333)
+        #expect(ExifToolMetadataReader.metadata(from: ["FlashBias": 0.7]).flashCompensation == 0.7)
+        #expect(ExifToolMetadataReader.metadata(from: ["Flash": 16]).flashCompensation == nil)
+    }
+
     @Test func importsRecordTheirRunAndColumns() async throws {
         try await RepositoryFiles.withTemporaryDirectory { root in
             let folder = root.appending(path: "Shoot")
@@ -99,10 +105,12 @@ struct MetadataColumnTests {
 
         var fresh = ImageMetadata()
         fresh.artist = "Someone"
+        fresh.flashCompensation = -0.7
         try await catalog.refreshMetadata([stale[0].imageID: fresh], checked: stale.map(\.imageID))
         #expect(try await catalog.staleMetadata(onVolumes: [fixture.volume.id!]).isEmpty)
         let images = try await catalog.allImages().sorted { $0.id! < $1.id! }
         #expect(images.map(\.artist) == ["Someone", nil])
+        #expect(images.map(\.flashCompensation) == [-0.7, nil])
         // The capture date and size are not touched by a refresh.
         #expect(images[0].pixelWidth == 6000)
     }

@@ -34,6 +34,8 @@ public struct ImageMetadata: Hashable, Sendable, Codable {
     public var flashFired: Bool?
     /// EV.
     public var exposureCompensation: Double?
+    /// EV, from the maker notes (since catalog v9).
+    public var flashCompensation: Double?
     /// EXIF WhiteBalance: 0 auto, 1 manual.
     public var whiteBalance: Int?
     /// EXIF ExposureProgram, 0–8 (1 manual, 2 program, 3 aperture priority, 4 shutter priority…).
@@ -48,7 +50,7 @@ public struct ImageMetadata: Hashable, Sendable, Codable {
 
     /// What the readers fill in. Masters read with an older revision are read
     /// again in the background so the newer columns fill in.
-    public static let revision = 3
+    public static let revision = 4
 
     // Values another app (or the camera) stored in the file. They seed the
     // default version at import; the catalog does not keep them on `image`.

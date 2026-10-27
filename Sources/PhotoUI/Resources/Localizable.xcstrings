@@ -327,6 +327,17 @@
         }
       }
     },
+    "35 mm Eq." : {
+      "comment" : "Info tab: 35 mm equivalent focal length tile",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "35 mm Eq."
+          }
+        }
+      }
+    },
     "A new project" : {
       "comment" : "Import window project picker",
       "localizations" : {
@@ -1762,6 +1773,17 @@
         }
       }
     },
+    "Exp. Comp" : {
+      "comment" : "Info tab: exposure compensation tile, in EV",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exp. Comp"
+          }
+        }
+      }
+    },
     "Expand" : {
       "comment" : "Adjust tab heading button",
       "localizations" : {
@@ -1795,13 +1817,13 @@
         }
       }
     },
-    "Exposure compensation" : {
-      "comment" : "Info tab: tooltip of the exposure compensation indicator",
+    "Exposure compensation, in stops (EV)" : {
+      "comment" : "Info tab: tooltip of the exposure compensation tile",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Exposure compensation"
+            "value" : "Exposure compensation, in stops (EV)"
           }
         }
       }
@@ -1903,17 +1925,6 @@
         }
       }
     },
-    "Flash fired" : {
-      "comment" : "Info tab: the camera's flash fired for this photo",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Flash fired"
-          }
-        }
-      }
-    },
     "Flat" : {
       "comment" : "RAW profile: no base contrast",
       "localizations" : {
@@ -1943,6 +1954,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Focal Length"
+          }
+        }
+      }
+    },
+    "Focal length in 35 mm terms; the lens was at %@" : {
+      "comment" : "Info tab: tooltip of the focal length tile; the argument is the lens's focal length, such as 13 mm",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Focal length in 35 mm terms; the lens was at %@"
           }
         }
       }
@@ -2880,17 +2902,6 @@
         }
       }
     },
-    "No flash" : {
-      "comment" : "Info tab: the camera's flash did not fire for this photo",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No flash"
-          }
-        }
-      }
-    },
     "No folder chosen" : {
       "comment" : "Look-up table browser before a folder is chosen",
       "localizations" : {
@@ -3031,12 +3042,34 @@
         }
       }
     },
+    "Off" : {
+      "comment" : "Info tab: the flash did not fire",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Off"
+          }
+        }
+      }
+    },
     "Offline" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Offline"
+          }
+        }
+      }
+    },
+    "On" : {
+      "comment" : "Info tab: the flash fired",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On"
           }
         }
       }
@@ -4523,6 +4556,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Website"
+          }
+        }
+      }
+    },
+    "Whether the flash fired, and its compensation" : {
+      "comment" : "Info tab: tooltip of the flash tile",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whether the flash fired, and its compensation"
           }
         }
       }

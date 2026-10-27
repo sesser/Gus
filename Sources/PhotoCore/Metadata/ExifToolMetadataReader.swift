@@ -18,6 +18,7 @@ public actor ExifToolMetadataReader: MetadataReader {
         "Artist", "Creator", "Copyright", "Rights", "ImageDescription", "Description", "Caption-Abstract",
         "SerialNumber", "InternalSerialNumber", "Composite:GPSLatitude", "Composite:GPSLongitude",
         "Flash", "ExposureCompensation", "WhiteBalance", "ExposureProgram", "MeteringMode", "FocalLengthIn35mmFormat",
+        "FlashExposureComp", "FlashBias",
         "UsageTerms", "CreatorWorkEmail", "CreatorWorkTelephone", "CreatorWorkURL", "CreatorAddress", "CreatorCity",
         "CreatorRegion", "CreatorPostalCode", "CreatorCountry",
         "ShutterCount", "ShutterCount2", "ShutterCount3",
@@ -187,6 +188,8 @@ public actor ExifToolMetadataReader: MetadataReader {
         metadata.longitude = double("GPSLongitude")
         metadata.flashFired = int("Flash").map { $0 & 1 == 1 }
         metadata.exposureCompensation = double("ExposureCompensation")
+        // Maker notes: most makes call it FlashExposureComp, Panasonic FlashBias.
+        metadata.flashCompensation = double("FlashExposureComp") ?? double("FlashBias")
         metadata.whiteBalance = int("WhiteBalance")
         metadata.exposureProgram = int("ExposureProgram")
         metadata.meteringMode = int("MeteringMode")

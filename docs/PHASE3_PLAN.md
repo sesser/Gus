@@ -142,8 +142,12 @@ Where the implementation settled details the plan left open, or differs:
   is something above white to recover. Positive highlights stay in the tone
   table. (The first version used `CIHighlightShadowAdjust`, which was too weak.)
 - **Info tab**: histogram (live while the loupe edits the photo, otherwise
-  from its cached thumbnail), camera and lens, shutter / aperture / ISO tiles,
-  focal length and size, capture date, file name and folder, then keywords.
+  from its cached thumbnail), camera and lens, two rows of tiles (shutter,
+  aperture, ISO; exposure compensation, 35 mm equivalent focal length, flash
+  with its compensation, faint at 0 EV or when the flash did not fire), size,
+  capture date, file name and folder, then keywords. Flash compensation comes
+  from maker notes: migration `v9` adds `image.flashCompensation`, and
+  `ImageMetadata.revision` 4 makes existing masters be read again.
 - **Auto white balance** is a preset entry rather than a button: picking Auto
   measures once and stores the result as plain numbers.
 - **Look-up table previews** render the photo with its saved adjustments and

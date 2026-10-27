@@ -13,6 +13,7 @@ enum CatalogSchema {
         migrator.registerMigration("v6", migrate: addImportPresets)
         migrator.registerMigration("v7", migrate: addVideos)
         migrator.registerMigration("v8", migrate: addAdjustmentPresets)
+        migrator.registerMigration("v9", migrate: addFlashCompensation)
         return migrator
     }
 
@@ -252,6 +253,14 @@ enum CatalogSchema {
             t.column("name", .text).notNull()
             t.column("settings", .text).notNull()
             t.column("createdAt", .datetime).notNull()
+        }
+    }
+
+    /// Flash compensation, from maker notes. Masters fill it in when their
+    /// metadata is read again for `ImageMetadata.revision` 4.
+    private static func addFlashCompensation(_ db: Database) throws {
+        try db.alter(table: "image") { t in
+            t.add(column: "flashCompensation", .double)
         }
     }
 

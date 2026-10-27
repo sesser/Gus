@@ -111,6 +111,7 @@ public struct ImageRecord: Codable, Hashable, Sendable, Identifiable, FetchableR
     public var longitude: Double?
     public var flashFired: Bool?
     public var exposureCompensation: Double?
+    public var flashCompensation: Double?
     public var whiteBalance: Int?
     public var exposureProgram: Int?
     public var meteringMode: Int?
@@ -155,6 +156,7 @@ public struct ImageRecord: Codable, Hashable, Sendable, Identifiable, FetchableR
         metadata.longitude = longitude
         metadata.flashFired = flashFired
         metadata.exposureCompensation = exposureCompensation
+        metadata.flashCompensation = flashCompensation
         metadata.whiteBalance = whiteBalance
         metadata.exposureProgram = exposureProgram
         metadata.meteringMode = meteringMode
@@ -175,6 +177,7 @@ public struct ImageRecord: Codable, Hashable, Sendable, Identifiable, FetchableR
         longitude = metadata.longitude
         flashFired = metadata.flashFired
         exposureCompensation = metadata.exposureCompensation
+        flashCompensation = metadata.flashCompensation
         whiteBalance = metadata.whiteBalance
         exposureProgram = metadata.exposureProgram
         meteringMode = metadata.meteringMode

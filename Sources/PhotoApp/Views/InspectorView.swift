@@ -346,20 +346,19 @@ private struct InfoSection: View {
                         ExposureTile(label: String(localized: "Aperture"), value: aperture)
                         ExposureTile(label: String(localized: "ISO"), value: image.iso.map { "\($0)" })
                     }
-                    if image.exposureCompensation != nil || image.flashFired != nil {
+                    if hasSecondRow {
                         HStack(spacing: 6) {
-                            if let compensation = image.exposureCompensation {
-                                InfoIndicator(symbol: "plusminus", text: Self.compensationText(compensation),
-                                              isActive: compensation != 0,
-                                              help: String(localized: "Exposure compensation"))
-                            }
-                            if let fired = image.flashFired {
-                                InfoIndicator(symbol: fired ? "bolt.fill" : "bolt.slash",
-                                              text: fired ? String(localized: "Flash fired") : String(localized: "No flash"),
-                                              isActive: fired, help: nil)
-                            }
+                            ExposureTile(label: String(localized: "Exp. Comp", comment: "Info tab: exposure compensation tile, in EV"),
+                                         value: image.exposureCompensation.map(Self.signed),
+                                         isDimmed: (image.exposureCompensation ?? 0) == 0,
+                                         help: String(localized: "Exposure compensation, in stops (EV)"))
+                            focalTile
+                            ExposureTile(label: String(localized: "Flash"),
+                                         detail: image.flashCompensation.map(Self.compensationText),
+                                         value: image.flashFired.map { $0 ? String(localized: "On") : String(localized: "Off") },
+                                         isDimmed: image.flashFired != true,
+                                         help: String(localized: "Whether the flash fired, and its compensation"))
                         }
-                        .frame(maxWidth: .infinity)
                     }
                     if let size = sizeLine {
                         Text(size)
@@ -416,16 +415,43 @@ private struct InfoSection: View {
 
     private var hasExposure: Bool {
         let image = details.image
-        return image.exposureTime != nil || image.fNumber != nil || image.iso != nil
-            || image.exposureCompensation != nil || image.flashFired != nil
+        return image.exposureTime != nil || image.fNumber != nil || image.iso != nil || hasSecondRow
+    }
+
+    private var hasSecondRow: Bool {
+        let image = details.image
+        return image.exposureCompensation != nil || image.flashFired != nil || image.focalLength != nil
+            || image.focalLength35mm != nil
+    }
+
+    /// The 35 mm equivalent focal length, or the lens's when the file has no equivalent.
+    @ViewBuilder private var focalTile: some View {
+        let image = details.image
+        if let equivalent = image.focalLength35mm, equivalent > 0 {
+            ExposureTile(label: String(localized: "35 mm Eq.", comment: "Info tab: 35 mm equivalent focal length tile"),
+                         value: Self.millimetres(equivalent),
+                         help: image.focalLength.map {
+                             String(localized: "Focal length in 35 mm terms; the lens was at \(Self.millimetres($0))")
+                         })
+        } else {
+            ExposureTile(label: String(localized: "Focal Length"), value: image.focalLength.map(Self.millimetres))
+        }
+    }
+
+    static func millimetres(_ value: Double) -> String {
+        String(localized: "\(Int(value.rounded())) mm", comment: "Focal length")
+    }
+
+    /// "+0.7", "−1.3", "0".
+    static func signed(_ value: Double) -> String {
+        let rounded = (value * 10).rounded() / 10
+        let magnitude = abs(rounded).formatted(.number.precision(.fractionLength(0...1)))
+        return rounded > 0 ? "+" + magnitude : rounded < 0 ? "−" + magnitude : magnitude
     }
 
     /// "+0.7 EV", "−1.3 EV", "0 EV".
     static func compensationText(_ value: Double) -> String {
-        let rounded = (value * 10).rounded() / 10
-        let magnitude = abs(rounded).formatted(.number.precision(.fractionLength(0...1)))
-        let signed = rounded > 0 ? "+" + magnitude : rounded < 0 ? "−" + magnitude : magnitude
-        return String(localized: "\(signed) EV", comment: "Exposure compensation; the argument is a signed number")
+        String(localized: "\(signed(value)) EV", comment: "Exposure compensation; the argument is a signed number")
     }
 
     private var shutter: String? {
@@ -437,19 +463,13 @@ private struct InfoSection: View {
         details.image.fNumber.map { $0.formatted(.number.precision(.fractionLength(0...1))) }
     }
 
-    /// "51 mm – 24 MP (6,048 × 4,024 px)"
+    /// "24 MP (6,048 × 4,024 px)"
     private var sizeLine: String? {
         let image = details.image
-        var parts: [String] = []
-        if let focal = image.focalLength {
-            parts.append(String(localized: "\(Int(focal.rounded())) mm", comment: "Focal length"))
-        }
-        if let width = image.pixelWidth, let height = image.pixelHeight, width > 0, height > 0 {
-            let megapixels = (Double(width * height) / 1_000_000).rounded()
-            parts.append(String(localized: "\(Int(megapixels).formatted()) MP (\(width.formatted()) × \(height.formatted()) px)",
-                                comment: "Megapixels, then width and height in pixels"))
-        }
-        return parts.isEmpty ? nil : parts.joined(separator: " – ")
+        guard let width = image.pixelWidth, let height = image.pixelHeight, width > 0, height > 0 else { return nil }
+        let megapixels = (Double(width * height) / 1_000_000).rounded()
+        return String(localized: "\(Int(megapixels).formatted()) MP (\(width.formatted()) × \(height.formatted()) px)",
+                      comment: "Megapixels, then width and height in pixels")
     }
 
     /// The folder on its volume, as "Users/name/Pictures/".
@@ -459,48 +479,43 @@ private struct InfoSection: View {
     }
 }
 
-/// A small capsule for a capture setting; dimmed when it had no effect.
-private struct InfoIndicator: View {
-    let symbol: String
-    let text: String
-    let isActive: Bool
-    let help: String?
-
-    var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: symbol)
-                .imageScale(.small)
-            Text(text)
-                .monospacedDigit()
-        }
-        .font(.caption.weight(.medium))
-        .foregroundStyle(isActive ? .primary : .secondary)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 3)
-        .background(.quaternary, in: Capsule())
-        .help(help ?? "")
-    }
-}
-
 private struct ExposureTile: View {
     let label: String
+    /// Small text after the label.
+    var detail: String?
     let value: String?
+    /// Shown fainter when the setting had no effect (0 EV, flash off).
+    var isDimmed = false
+    var help: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            HStack(alignment: .firstTextBaseline, spacing: 2) {
+                Text(label)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+                if let detail {
+                    Text(detail)
+                        .font(.caption2)
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
             Text(value ?? "–")
                 .font(.title2)
                 .monospacedDigit()
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
+                .foregroundStyle(isDimmed || value == nil ? .tertiary : .primary)
                 .frame(maxWidth: .infinity)
         }
         .padding(.horizontal, 7)
         .padding(.vertical, 5)
         .frame(maxWidth: .infinity)
         .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
+        .help(help ?? "")
     }
 }
