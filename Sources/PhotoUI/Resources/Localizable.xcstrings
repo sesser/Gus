@@ -34,6 +34,28 @@
         }
       }
     },
+    "%@ EV" : {
+      "comment" : "Info tab: exposure compensation; the argument is a signed number such as +0.7",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ EV"
+          }
+        }
+      }
+    },
+    "%@ MP (%@ × %@ px)" : {
+      "comment" : "Info tab: megapixels, then width and height in pixels",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ MP (%@ × %@ px)"
+          }
+        }
+      }
+    },
     "%@ could not be ejected. It may still be in use." : {
       "comment" : "Import window; the argument is a card name",
       "localizations" : {
@@ -1773,6 +1795,17 @@
         }
       }
     },
+    "Exposure compensation" : {
+      "comment" : "Info tab: tooltip of the exposure compensation indicator",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exposure compensation"
+          }
+        }
+      }
+    },
     "Field" : {
       "comment" : "Smart album rule field picker (accessibility label)",
       "localizations" : {
@@ -1828,6 +1861,17 @@
         }
       }
     },
+    "Filename" : {
+      "comment" : "Info tab: label above the file's name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filename"
+          }
+        }
+      }
+    },
     "Filter" : {
       "localizations" : {
         "en" : {
@@ -1855,6 +1899,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Flash"
+          }
+        }
+      }
+    },
+    "Flash fired" : {
+      "comment" : "Info tab: the camera's flash fired for this photo",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flash fired"
           }
         }
       }
@@ -1995,6 +2050,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Highlights up to %@× SDR white are shown with the display's extended range"
+          }
+        }
+      }
+    },
+    "Histogram" : {
+      "comment" : "Accessibility label of the Info tab's histogram",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Histogram"
           }
         }
       }
@@ -2814,6 +2880,17 @@
         }
       }
     },
+    "No flash" : {
+      "comment" : "Info tab: the camera's flash did not fire for this photo",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No flash"
+          }
+        }
+      }
+    },
     "No folder chosen" : {
       "comment" : "Look-up table browser before a folder is chosen",
       "localizations" : {
@@ -2964,6 +3041,17 @@
         }
       }
     },
+    "On %@" : {
+      "comment" : "Info tab: the disk a photo's file is on; the argument is the disk's name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On %@"
+          }
+        }
+      }
+    },
     "Only the album is deleted, not its photos." : {
       "comment" : "Delete smart album confirmation",
       "localizations" : {
@@ -3050,17 +3138,6 @@
         }
       }
     },
-    "Pair" : {
-      "comment" : "Inspector info row: the file types of a RAW+JPEG pair",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pair"
-          }
-        }
-      }
-    },
     "Panel" : {
       "comment" : "Accessibility label of the inspector's Info/Adjust switch",
       "localizations" : {
@@ -3079,17 +3156,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Paste Adjustments"
-          }
-        }
-      }
-    },
-    "Path" : {
-      "comment" : "Inspector info row",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Path"
           }
         }
       }
@@ -3897,6 +3963,28 @@
         }
       }
     },
+    "Shown as one photo with its partner file" : {
+      "comment" : "Info tab: tooltip of the RAW+JPEG pair badge",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shown as one photo with its partner file"
+          }
+        }
+      }
+    },
+    "Shutter" : {
+      "comment" : "Info tab: exposure time tile",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shutter"
+          }
+        }
+      }
+    },
     "Shutter Speed" : {
       "comment" : "Smart album rule field",
       "localizations" : {
@@ -3904,17 +3992,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Shutter Speed"
-          }
-        }
-      }
-    },
-    "Size" : {
-      "comment" : "Inspector info row: pixel dimensions",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Size"
           }
         }
       }
@@ -4435,17 +4512,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "View"
-          }
-        }
-      }
-    },
-    "Volume" : {
-      "comment" : "Inspector info row",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Volume"
           }
         }
       }

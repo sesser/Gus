@@ -83,7 +83,7 @@ sharpening.
   pipeline version does not change.
 - **Built-in filters only**: SwiftPM has no Metal build step and the string
   kernel API is deprecated. Exposure is `CIExposureAdjust` in linear light;
-  shadows and negative highlights `CIHighlightShadowAdjust`; contrast, whites,
+  shadows and negative highlights a local gain (below); contrast, whites,
   blacks, positive highlights and the curves fold into one table per channel for
   `CIColorCurves`, in Rec. 2020 with the sRGB transfer curve, over 0 … 2 so
   values above white pass through; color grading is a generated 33³ cube.
@@ -131,9 +131,19 @@ Where the implementation settled details the plan left open, or differs:
 - **Cached renditions** of intermediate edits are deleted when the photo
   closes in the loupe (all but the saved edit and the original); undoing past
   them regenerates from the master.
-- **Highlights/shadows**: negative highlights and shadows use
-  `CIHighlightShadowAdjust` on linear values; positive highlights are part of
-  the tone table, which that filter cannot brighten.
+- **Highlights/shadows**: shadows and negative highlights are a gain per
+  pixel (`LocalToneCurve`, in stops around mid grey) looked up from a smoothed
+  luminance: a 256 px copy of luminance to the power ¼, brought back to full
+  size with `CIEdgePreserveUpsample` guided by the image, so tones move by
+  region without halos at strong edges and local detail is kept. Recovery
+  lowers the slope above a knee a stop over mid grey, so two stops over white
+  come back below it; shadows lift by at most three stops. With negative
+  highlights or exposure, RAW files are decoded with extended range so there
+  is something above white to recover. Positive highlights stay in the tone
+  table. (The first version used `CIHighlightShadowAdjust`, which was too weak.)
+- **Info tab**: histogram (live while the loupe edits the photo, otherwise
+  from its cached thumbnail), camera and lens, shutter / aperture / ISO tiles,
+  focal length and size, capture date, file name and folder, then keywords.
 - **Auto white balance** is a preset entry rather than a button: picking Auto
   measures once and stores the result as plain numbers.
 - **Look-up table previews** render the photo with its saved adjustments and

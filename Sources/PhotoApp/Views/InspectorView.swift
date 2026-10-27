@@ -26,7 +26,7 @@ struct InspectorView: View {
     }
 }
 
-/// Keywords of the selection and details of the focused photo.
+/// Histogram and details of the focused photo, then keywords of the selection.
 private struct InfoInspector: View {
     let model: LibraryModel
     @State private var usage: [KeywordUsage] = []
@@ -38,6 +38,13 @@ private struct InfoInspector: View {
     var body: some View {
         AppKitScrollView {
             VStack(alignment: .leading, spacing: 18) {
+                if model.focusedItem?.isVideo != true {
+                    InfoHistogram(model: model)
+                }
+                if let details {
+                    InfoSection(details: details, item: model.focusedItem)
+                    Divider()
+                }
                 if !diskChanges.isEmpty {
                     DiskChangeSection(model: model, changes: diskChanges)
                     Divider()
@@ -45,10 +52,6 @@ private struct InfoInspector: View {
                 keywordsSection
                 if targetCount > 0 {
                     suggestionsSection
-                }
-                if let details {
-                    Divider()
-                    InfoSection(details: details, item: model.focusedItem)
                 }
             }
             .padding(14)
@@ -250,64 +253,254 @@ private struct KeywordRow: View {
     }
 }
 
-/// File and capture details of the focused photo.
+/// Histogram of the focused photo: live while the loupe edits it, otherwise
+/// counted from its cached thumbnail (which shows its saved adjustments).
+private struct InfoHistogram: View {
+    let model: LibraryModel
+    @State private var loaded: Histogram?
+
+    var body: some View {
+        HistogramView(histogram: liveHistogram ?? loaded)
+            .frame(height: 110)
+            .task(id: Key(versionID: model.focusedItem?.versionID, editStackHash: model.focusedItem?.editStackHash)) {
+                loaded = nil
+                try? await Task.sleep(for: .milliseconds(60))
+                guard !Task.isCancelled, let item = model.focusedItem,
+                      let request = model.previewRequest(for: item, tier: .thumbnail),
+                      let image = try? await model.previews.image(for: request)
+                else { return }
+                let decoded = DecodedImage(cgImage: image)
+                let counted = await Task.detached(priority: .utility) { Histogram(image: decoded.cgImage) }.value
+                guard !Task.isCancelled else { return }
+                loaded = counted
+            }
+    }
+
+    private struct Key: Equatable {
+        var versionID: Int64?
+        var editStackHash: String?
+    }
+
+    private var liveHistogram: Histogram? {
+        let editor = model.editor
+        guard editor.state == .ready, editor.item?.versionID == model.focusedItem?.versionID else { return nil }
+        return editor.histogram
+    }
+}
+
+/// Red, green and blue counts drawn over each other; where they overlap the
+/// colors add up to white.
+struct HistogramView: View {
+    let histogram: Histogram?
+
+    var body: some View {
+        Canvas { context, size in
+            guard let histogram else { return }
+            let plot = CGRect(origin: .zero, size: size).insetBy(dx: 6, dy: 6)
+            // Clipped ends would flatten everything else; scale to the tallest inner bin.
+            let channels: [([UInt32], Color)] = [(histogram.red, .red), (histogram.green, .green), (histogram.blue, .blue)]
+            let peak = max(Double(channels.compactMap { $0.0.dropFirst().dropLast().max() }.max() ?? 1), 1)
+            context.blendMode = .plusLighter
+            for (bins, color) in channels {
+                var path = Path()
+                path.move(to: CGPoint(x: plot.minX, y: plot.maxY))
+                for (index, count) in bins.enumerated() {
+                    let x = plot.minX + CGFloat(index) / CGFloat(bins.count - 1) * plot.width
+                    let height = min(Double(count) / peak, 1) * plot.height
+                    path.addLine(to: CGPoint(x: x, y: plot.maxY - height))
+                }
+                path.addLine(to: CGPoint(x: plot.maxX, y: plot.maxY))
+                path.closeSubpath()
+                context.fill(path, with: .color(color.opacity(0.55)))
+            }
+        }
+        .background(Color.black.opacity(0.82), in: RoundedRectangle(cornerRadius: 6))
+        .accessibilityLabel(Text("Histogram"))
+    }
+}
+
+/// Camera, exposure, capture date and file of the focused photo.
 private struct InfoSection: View {
     let details: VersionDetails
     let item: CatalogItem?
 
     var body: some View {
         let image = details.image
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Info")
-                .font(.headline)
-            Text(image.fileName)
-                .font(.callout.weight(.medium))
-                .textSelection(.enabled)
-                .lineLimit(2)
-                .truncationMode(.middle)
-            Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 4) {
-                ForEach(rows, id: \.label) { row in
-                    GridRow {
-                        Text(row.label)
-                            .foregroundStyle(.secondary)
-                        Text(row.value)
+        VStack(alignment: .leading, spacing: 14) {
+            if let camera = CameraSummary.displayName(make: image.cameraMake, model: image.cameraModel) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(camera)
+                        .font(.title3.weight(.bold))
+                        .textSelection(.enabled)
+                    if let lens = image.lensModel {
+                        Text(lens)
+                            .font(.callout)
                             .textSelection(.enabled)
-                            .lineLimit(2)
                     }
                 }
             }
-            .font(.caption)
+            if hasExposure {
+                VStack(spacing: 6) {
+                    HStack(spacing: 6) {
+                        ExposureTile(label: String(localized: "Shutter"), value: shutter)
+                        ExposureTile(label: String(localized: "Aperture"), value: aperture)
+                        ExposureTile(label: String(localized: "ISO"), value: image.iso.map { "\($0)" })
+                    }
+                    if image.exposureCompensation != nil || image.flashFired != nil {
+                        HStack(spacing: 6) {
+                            if let compensation = image.exposureCompensation {
+                                InfoIndicator(symbol: "plusminus", text: Self.compensationText(compensation),
+                                              isActive: compensation != 0,
+                                              help: String(localized: "Exposure compensation"))
+                            }
+                            if let fired = image.flashFired {
+                                InfoIndicator(symbol: fired ? "bolt.fill" : "bolt.slash",
+                                              text: fired ? String(localized: "Flash fired") : String(localized: "No flash"),
+                                              isActive: fired, help: nil)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    if let size = sizeLine {
+                        Text(size)
+                            .font(.caption)
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+            } else if let size = sizeLine {
+                Text(size)
+                    .font(.caption)
+            }
+            if let date = LoupeInfoBar.captureDateText(image) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Captured")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(date)
+                        .font(.title3)
+                        .textSelection(.enabled)
+                }
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Filename")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(image.fileName)
+                        .font(.headline)
+                        .textSelection(.enabled)
+                        .lineLimit(2)
+                        .truncationMode(.middle)
+                    if let partner = item?.partnerKind, let kind = item?.fileKind {
+                        Text(verbatim: "\(FileKindText.badge(kind)) + \(FileKindText.badge(partner))")
+                            .font(.caption2.weight(.semibold))
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(.quaternary, in: Capsule())
+                            .help("Shown as one photo with its partner file")
+                    }
+                }
+                Text(folder)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                if details.volume.mountPath != "/" {
+                    Text("On \(details.volume.name)", comment: "The disk a photo's file is on")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private struct Row {
-        var label: String
-        var value: String
-    }
-
-    private var rows: [Row] {
+    private var hasExposure: Bool {
         let image = details.image
-        var rows: [Row] = []
-        if let date = LoupeInfoBar.captureDateText(image) {
-            rows.append(Row(label: String(localized: "Captured"), value: date))
+        return image.exposureTime != nil || image.fNumber != nil || image.iso != nil
+            || image.exposureCompensation != nil || image.flashFired != nil
+    }
+
+    /// "+0.7 EV", "−1.3 EV", "0 EV".
+    static func compensationText(_ value: Double) -> String {
+        let rounded = (value * 10).rounded() / 10
+        let magnitude = abs(rounded).formatted(.number.precision(.fractionLength(0...1)))
+        let signed = rounded > 0 ? "+" + magnitude : rounded < 0 ? "−" + magnitude : magnitude
+        return String(localized: "\(signed) EV", comment: "Exposure compensation; the argument is a signed number")
+    }
+
+    private var shutter: String? {
+        guard let time = details.image.exposureTime, time > 0 else { return nil }
+        return time < 1 ? "1/\(Int((1 / time).rounded()))" : time.formatted(.number.precision(.fractionLength(0...1)))
+    }
+
+    private var aperture: String? {
+        details.image.fNumber.map { $0.formatted(.number.precision(.fractionLength(0...1))) }
+    }
+
+    /// "51 mm – 24 MP (6,048 × 4,024 px)"
+    private var sizeLine: String? {
+        let image = details.image
+        var parts: [String] = []
+        if let focal = image.focalLength {
+            parts.append(String(localized: "\(Int(focal.rounded())) mm", comment: "Focal length"))
         }
-        if let camera = [image.cameraMake, image.cameraModel].compactMap({ $0 }).joined(separator: " ").nilIfEmpty {
-            rows.append(Row(label: String(localized: "Camera"), value: camera))
+        if let width = image.pixelWidth, let height = image.pixelHeight, width > 0, height > 0 {
+            let megapixels = (Double(width * height) / 1_000_000).rounded()
+            parts.append(String(localized: "\(Int(megapixels).formatted()) MP (\(width.formatted()) × \(height.formatted()) px)",
+                                comment: "Megapixels, then width and height in pixels"))
         }
-        if let lens = image.lensModel {
-            rows.append(Row(label: String(localized: "Lens"), value: lens))
+        return parts.isEmpty ? nil : parts.joined(separator: " – ")
+    }
+
+    /// The folder on its volume, as "Users/name/Pictures/".
+    private var folder: String {
+        let directory = (details.image.relativePath as NSString).deletingLastPathComponent
+        return directory.isEmpty ? "/" : directory + "/"
+    }
+}
+
+/// A small capsule for a capture setting; dimmed when it had no effect.
+private struct InfoIndicator: View {
+    let symbol: String
+    let text: String
+    let isActive: Bool
+    let help: String?
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: symbol)
+                .imageScale(.small)
+            Text(text)
+                .monospacedDigit()
         }
-        if let width = image.pixelWidth, let height = image.pixelHeight {
-            rows.append(Row(label: String(localized: "Size"), value: String(localized: "\(width) × \(height) px")))
+        .font(.caption.weight(.medium))
+        .foregroundStyle(isActive ? .primary : .secondary)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .background(.quaternary, in: Capsule())
+        .help(help ?? "")
+    }
+}
+
+private struct ExposureTile: View {
+    let label: String
+    let value: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(value ?? "–")
+                .font(.title2)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                .frame(maxWidth: .infinity)
         }
-        let exposure = LoupeInfoBar.exposureLine(image)
-        if !exposure.isEmpty { rows.append(Row(label: String(localized: "Exposure"), value: exposure)) }
-        if let partner = item?.partnerKind, let kind = item?.fileKind {
-            rows.append(Row(label: String(localized: "Pair"),
-                            value: "\(FileKindText.badge(kind)) + \(FileKindText.badge(partner))"))
-        }
-        rows.append(Row(label: String(localized: "Volume"), value: details.volume.name))
-        rows.append(Row(label: String(localized: "Path"), value: image.relativePath))
-        return rows
+        .padding(.horizontal, 7)
+        .padding(.vertical, 5)
+        .frame(maxWidth: .infinity)
+        .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
     }
 }
