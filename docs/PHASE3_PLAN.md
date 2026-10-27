@@ -23,7 +23,7 @@ Each step lands as its own commits, with tests, before the next starts.
 4. Tone heading: curve with histogram
 5. Details heading: sharpening and noise reduction
 6. Color Grading heading: wheels
-7. Look-up tables: browser, import, intensity
+7. Look-up tables: browser, import, intensity (revised: collections, Effects heading)
 8. Copy/paste adjustments and presets
 9. Profiling and docs
 
@@ -31,7 +31,7 @@ Each step lands as its own commits, with tests, before the next starts.
 
 The inspector gets an **Info | Adjust** switch at the top. The loupe opens on
 Adjust and the grid on Info; each mode remembers its last choice. Adjust shows
-four collapsible headings, each with a reset button:
+five collapsible headings, each with a reset button:
 
 - **Develop**: profile (RAW), white balance (preset, temperature, tint),
   exposure with Auto, contrast, highlights, shadows, whites, blacks, clarity,
@@ -40,7 +40,19 @@ four collapsible headings, each with a reset button:
 - **Details**: sharpening (amount, radius, detail, masking) and noise reduction
   (luminance; color for RAW files).
 - **Color Grading**: shadows, midtones and highlights wheels (hue, amount,
-  luminance), balance and blending; a look-up table browser with intensity.
+  luminance), balance and blending.
+- **Effects**: look-up table (a menu of collections, intensity, color space,
+  Browse/Import/Manage), vignette (amount, size, roundness) and grain
+  (strength, amount for shadows, midtones and highlights, roughness, color,
+  size).
+
+Each group of controls (Profile, White Balance, Light, Presence, Tone Curve,
+Sharpening, Noise Reduction, Color Grading, Look-Up Table, Vignette, Grain)
+has a round check box, in its caption or, for single-group headings, in the
+heading. It checks itself when the group has edits; unchecking it turns the
+group's edits off without losing them (its controls fade), so the photo can be
+compared with and without them. Changing a control of a group that is off
+turns it back on. Each toggle is an undo step.
 
 Double-clicking a slider resets it. `\` shows the original while editing.
 Edits apply to the focused photo only; copy/paste and presets reach the
@@ -60,22 +72,28 @@ selection. Videos have no Adjust tab content.
 | `presence` | `clarity`, `dehaze`, `vibrance`, `saturation` |
 | `toneCurve` | `rgb`, `red`, `green`, `blue`: flat `[x0, y0, x1, y1, …]` lists |
 | `colorGrade` | `<range>Hue`, `<range>Amount`, `<range>Luminance` for shadows, midtones, highlights; `balance`, `blending` |
-| `lookTable` | `identifier` (SHA-256 of the file), `name`, `intensity` |
+| `lookTable` | `identifier` (SHA-256 of the file), `name`, `intensity`, `colorSpace` (`sRGB`, `displayP3`, `adobeRGB`, `proPhoto`) |
+| `vignette` | `amount`, `size`, `roundness` |
 | `noiseReduction` | `luminance`, `color` |
 | `sharpen` | `amount`, `radius`, `detail`, `masking` |
+| `grain` | `strength`, `shadows`, `midtones`, `highlights`, `roughness`, `color`, `size` |
 
 Modules and parameters at their defaults are left out, so resetting everything
 gives back `EditStack.identity` and shares the original's cached previews.
-Operations of unknown kinds or newer kind versions, and disabled ones, are kept
-and written back unchanged. All kinds are `kindVersion` 1.
+A group that is turned off keeps its operations with `isEnabled` false:
+`Adjustments.disabled` records them and `effective` (what renders, what the
+decoder gets) puts them at their defaults. Disabled operations are not in the
+render hash, so turning a group off shares the cached previews of the edit
+without it. Operations of unknown kinds or newer kind versions are kept and
+written back unchanged. All kinds are `kindVersion` 1.
 
 ## Rendering
 
 `AdjustmentRenderer` replaces `PassThroughRenderer` as the default. The order is
 fixed whatever the order of operations: decode, white balance (non-RAW),
 exposure, highlights/shadows, dehaze, clarity, the tone table, vibrance and
-saturation, color grading, look-up table, noise reduction (non-RAW),
-sharpening.
+saturation, color grading, look-up table, vignette, noise reduction (non-RAW),
+sharpening, grain.
 
 - **Decode settings** (white balance, look, decoder version, noise reduction
   for RAW files) go to `CIRAWFilter` before demosaicing. Only values that are
@@ -100,7 +118,18 @@ sharpening.
   where the camera has several.
 - **HDR**: renditions keep values above white for exposure, white balance,
   profile, noise reduction, sharpening, saturation and clarity. While the tone
-  table, grading cube or a look-up table is active the loupe shows SDR.
+  table, grading cube, a look-up table or grain is active the loupe shows SDR.
+- **Vignette** is an exposure falloff (up to two stops) multiplied in linear
+  light: an ellipse through the corners with the frame's proportions, blended
+  toward a circle (positive roundness) or toward the frame's rectangle
+  (negative). It keeps HDR.
+- **Grain** is `CIRandomGenerator` noise grown to the grain size (about 1/2400
+  of the long edge at size 1, so every tier shows the same grain relative to
+  the frame; below a pixel it is drawn weaker), mixed with a coarser octave and
+  softened as roughness drops, monochrome mixed with per-channel noise by
+  Color, weighted by a luminance table from the three tonal amounts, and added
+  with a linear-light blend in the sRGB encoding. The generator is
+  deterministic, so renders are reproducible.
 - **Auto** exposure and white balance measure a 256 px render and write plain
   numbers: exposure aims the geometric mean at mid grey, held back by at most a
   stop to keep the brightest 0.5 % below white; white balance solves for a grey
@@ -108,15 +137,37 @@ sharpening.
 
 ## Look-up tables
 
-`.cube` files (3-D up to 65³, 1-D, `DOMAIN_MIN/MAX`, `TITLE`) are browsed from a
-folder chosen in the Adjust tab (remembered in preferences). Applying one copies
-it into `Library/LUTs/<sha256>.cube`, so the edit keeps rendering when the folder
-moves. Input is taken as sRGB-encoded, the usual convention for creative LUTs.
+`.cube` files (3-D up to 65³, 1-D, `DOMAIN_MIN/MAX`, `TITLE`) live in
+collections: a built-in one (a few looks generated in code as `.cube` text,
+see `BuiltInLookTables`) and the ones the person imports. Collections are flat
+(no nesting). Every table file is copied into `Library/LUTs/<sha256>.cube`, so
+edits keep rendering when the source folder moves, and removing a table or a
+collection from the library never deletes its file.
+
+- **Import** reads a folder (or files), names each table from its header (a
+  `TITLE`, a `# Title:`/`# Name:` comment, or a short first-line comment that
+  is not a tool's credit) or else from its file name (separators as spaces,
+  a prefix every file shares removed, all-lowercase names capitalized), and
+  adds it to a new collection or an existing one, with a color space for the
+  batch. Names can be changed before importing.
+- **Browse** opens the Look-Up Tables window: a collection pop-up (or all),
+  one pane per collection, only the first expanded; only expanded panes render
+  previews, on a 360 px copy of the photo with its saved adjustments and no
+  effects. Click picks, Apply or a double-click applies.
+- **Manage** renames collections and tables, changes a table's default color
+  space, and removes tables and collections.
+- **Color space**: each table is applied in its color space (sRGB by default;
+  Display P3, Adobe RGB or ProPhoto RGB for tables made for them). Applying
+  takes the table's default; the Adjust tab changes it per photo.
 
 ## Catalog changes
 
 Migration `v8`: `adjustmentPreset` (`uuid`, `name`, `settings` as edit stack
 JSON, `createdAt`). Edits are not synced to XMP sidecars.
+
+Migration `v10`: `lookTableCollection` (`uuid`, `name`, `createdAt`) and
+`lookTableEntry` (`collectionId`, `identifier`, `name`, `colorSpace`,
+`fileName`, `position`, `createdAt`; unique per collection and identifier).
 
 ## As built
 
@@ -155,5 +206,6 @@ Where the implementation settled details the plan left open, or differs:
   measures once and stores the result as plain numbers.
 - **Look-up table previews** render the photo with its saved adjustments and
   without its own table, from the live session, whenever the saved edit changes.
-- **Debug script**: `adjust …`, `original`, `tab`, `lutfolder`, `lut`,
-  `copyadjust`, `pasteadjust`, `preset` and `print adjustments` drive all of it.
+- **Debug script**: `adjust …` (including `adjust off|on <group>`), `original`,
+  `tab`, `lut`, `lutimport`, `luts`, `lutwindow …`, `scroll`, `copyadjust`,
+  `pasteadjust`, `preset` and `print adjustments` drive all of it.

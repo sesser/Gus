@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 /// The global adjustments of one version, as typed values over its `EditStack`.
@@ -5,8 +6,10 @@ import Foundation
 /// Each module maps to one operation with a generic, persisted kind. Modules at
 /// their defaults are left out of the stack, and so are parameters at their
 /// defaults, so resetting everything gives back `EditStack.identity` (and the
-/// original's cached previews). Operations this build does not understand, or
-/// that are disabled, are kept as they are and written back after the modules.
+/// original's cached previews). A module can be turned off without losing its
+/// values: its operation is kept with `isEnabled` false, and `effective` (what
+/// renders) leaves it out. Operations this build does not understand are kept
+/// as they are and written back after the modules.
 public struct Adjustments: Hashable, Sendable {
     public var decode = RawDecode()
     public var whiteBalance = WhiteBalance()
@@ -16,9 +19,14 @@ public struct Adjustments: Hashable, Sendable {
     public var toneCurve = ToneCurve()
     public var colorGrade = ColorGrade()
     public var lookTable = LookTable()
+    public var vignette = Vignette()
     public var noiseReduction = NoiseReduction()
     public var sharpen = Sharpen()
-    /// Operations of unknown kinds or newer kind versions, and disabled ones.
+    public var grain = Grain()
+    /// Modules that keep their values but are turned off. Change it through
+    /// `setEnabled(_:_:)`, which only records modules away from their defaults.
+    public private(set) var disabled: Set<EditOperationKind> = []
+    /// Operations of unknown kinds or newer kind versions, and repeated kinds.
     public var preserved: [EditOperation] = []
 
     public init() {}
@@ -29,13 +37,14 @@ public struct Adjustments: Hashable, Sendable {
     public init(stack: EditStack) {
         var seen = Set<EditOperationKind>()
         for operation in stack.operations {
-            guard operation.isEnabled, operation.kindVersion == 1, !seen.contains(operation.kind),
-                  read(operation)
-            else {
+            guard operation.kindVersion == 1, !seen.contains(operation.kind), read(operation) else {
                 preserved.append(operation)
                 continue
             }
             seen.insert(operation.kind)
+            if !operation.isEnabled, !parameters(of: operation.kind).isEmpty {
+                disabled.insert(operation.kind)
+            }
         }
     }
 
@@ -45,7 +54,8 @@ public struct Adjustments: Hashable, Sendable {
         func add<Module: AdjustmentModule>(_ module: Module) {
             let parameters = module.parameters
             if !parameters.isEmpty {
-                operations.append(EditOperation(kind: Module.kind, parameters: parameters))
+                operations.append(EditOperation(kind: Module.kind, isEnabled: !disabled.contains(Module.kind),
+                                                parameters: parameters))
             }
         }
         add(decode)
@@ -56,8 +66,10 @@ public struct Adjustments: Hashable, Sendable {
         add(toneCurve)
         add(colorGrade)
         add(lookTable)
+        add(vignette)
         add(noiseReduction)
         add(sharpen)
+        add(grain)
         return EditStack(operations: operations + preserved)
     }
 
@@ -75,37 +87,135 @@ public struct Adjustments: Hashable, Sendable {
         case ToneCurve.kind: toneCurve = ToneCurve(values)
         case ColorGrade.kind: colorGrade = ColorGrade(values)
         case LookTable.kind: lookTable = LookTable(values)
+        case Vignette.kind: vignette = Vignette(values)
         case NoiseReduction.kind: noiseReduction = NoiseReduction(values)
         case Sharpen.kind: sharpen = Sharpen(values)
+        case Grain.kind: grain = Grain(values)
         default: return false
         }
         return true
     }
 
-    /// The sidebar's headings, used to reset or copy a group of modules.
+    /// The parameters a module writes (empty at its defaults, or for unknown kinds).
+    public func parameters(of kind: EditOperationKind) -> [String: EditParameter] {
+        switch kind {
+        case RawDecode.kind: decode.parameters
+        case WhiteBalance.kind: whiteBalance.parameters
+        case Exposure.kind: exposure.parameters
+        case Tone.kind: tone.parameters
+        case Presence.kind: presence.parameters
+        case ToneCurve.kind: toneCurve.parameters
+        case ColorGrade.kind: colorGrade.parameters
+        case LookTable.kind: lookTable.parameters
+        case Vignette.kind: vignette.parameters
+        case NoiseReduction.kind: noiseReduction.parameters
+        case Sharpen.kind: sharpen.parameters
+        case Grain.kind: grain.parameters
+        default: [:]
+        }
+    }
+
+    /// Puts one module back at its defaults (and on).
+    private mutating func resetModule(_ kind: EditOperationKind) {
+        switch kind {
+        case RawDecode.kind: decode = RawDecode()
+        case WhiteBalance.kind: whiteBalance = WhiteBalance()
+        case Exposure.kind: exposure = Exposure()
+        case Tone.kind: tone = Tone()
+        case Presence.kind: presence = Presence()
+        case ToneCurve.kind: toneCurve = ToneCurve()
+        case ColorGrade.kind: colorGrade = ColorGrade()
+        case LookTable.kind: lookTable = LookTable()
+        case Vignette.kind: vignette = Vignette()
+        case NoiseReduction.kind: noiseReduction = NoiseReduction()
+        case Sharpen.kind: sharpen = Sharpen()
+        case Grain.kind: grain = Grain()
+        default: break
+        }
+        disabled.remove(kind)
+    }
+
+    /// What renders: these adjustments with the modules that are off at their defaults.
+    public var effective: Adjustments {
+        guard !disabled.isEmpty else { return self }
+        var copy = self
+        for kind in disabled { copy.resetModule(kind) }
+        return copy
+    }
+
+    /// The Adjust tab's headings, used to reset a group of modules.
     public enum Section: String, CaseIterable, Sendable {
-        case develop, tone, details, colorGrading
+        case develop, tone, details, colorGrading, effects
+
+        public var groups: [Group] {
+            switch self {
+            case .develop: [.profile, .whiteBalance, .light, .presence]
+            case .tone: [.toneCurve]
+            case .details: [.sharpening, .noiseReduction]
+            case .colorGrading: [.colorGrade]
+            case .effects: [.lookTable, .vignette, .grain]
+            }
+        }
+    }
+
+    /// The controls under a heading that are turned on and off together.
+    public enum Group: String, CaseIterable, Sendable {
+        case profile, whiteBalance, light, presence, toneCurve, sharpening, noiseReduction, colorGrade
+        case lookTable, vignette, grain
+
+        public var kinds: [EditOperationKind] {
+            switch self {
+            case .profile: [RawDecode.kind]
+            case .whiteBalance: [WhiteBalance.kind]
+            case .light: [Exposure.kind, Tone.kind]
+            case .presence: [Presence.kind]
+            case .toneCurve: [ToneCurve.kind]
+            case .sharpening: [Sharpen.kind]
+            case .noiseReduction: [NoiseReduction.kind]
+            case .colorGrade: [ColorGrade.kind]
+            case .lookTable: [LookTable.kind]
+            case .vignette: [Vignette.kind]
+            case .grain: [Grain.kind]
+            }
+        }
+    }
+
+    /// True when a group has values away from its defaults (on or off).
+    public func isModified(_ group: Group) -> Bool {
+        group.kinds.contains { !parameters(of: $0).isEmpty }
+    }
+
+    /// False when a group's edits are turned off.
+    public func isEnabled(_ group: Group) -> Bool {
+        !group.kinds.contains(where: disabled.contains)
+    }
+
+    /// Turns a group's edits off (kept, not rendered) or back on.
+    public mutating func setEnabled(_ group: Group, _ isEnabled: Bool) {
+        for kind in group.kinds {
+            if isEnabled || parameters(of: kind).isEmpty {
+                disabled.remove(kind)
+            } else {
+                disabled.insert(kind)
+            }
+        }
+    }
+
+    /// Turns back on every module whose values differ from `previous`: editing
+    /// a control that is off turns it on.
+    public mutating func enableModules(changedFrom previous: Adjustments) {
+        for kind in disabled where parameters(of: kind) != previous.parameters(of: kind) {
+            disabled.remove(kind)
+        }
+        for kind in disabled where parameters(of: kind).isEmpty {
+            disabled.remove(kind)
+        }
     }
 
     /// Returns these adjustments with one heading's modules back at their defaults.
     public func resetting(_ section: Section) -> Adjustments {
         var copy = self
-        switch section {
-        case .develop:
-            copy.decode = RawDecode()
-            copy.whiteBalance = WhiteBalance()
-            copy.exposure = Exposure()
-            copy.tone = Tone()
-            copy.presence = Presence()
-        case .tone:
-            copy.toneCurve = ToneCurve()
-        case .details:
-            copy.noiseReduction = NoiseReduction()
-            copy.sharpen = Sharpen()
-        case .colorGrading:
-            copy.colorGrade = ColorGrade()
-            copy.lookTable = LookTable()
-        }
+        for kind in section.groups.flatMap(\.kinds) { copy.resetModule(kind) }
         return copy
     }
 
@@ -115,12 +225,13 @@ public struct Adjustments: Hashable, Sendable {
     }
 
     /// Operations that work on values above SDR white. Curve tables, the
-    /// grading cube and LUTs clamp at white, so an HDR rendition is not offered
-    /// while any of them is active.
+    /// grading cube, LUTs and grain clamp at white, so an HDR rendition is not
+    /// offered while any of them is active.
     public var preservesExtendedRange: Bool {
-        tone.contrast == 0 && tone.whites == 0 && tone.blacks == 0 && tone.highlights <= 0
-            && toneCurve.isIdentity && colorGrade == ColorGrade() && lookTable.identifier == nil
-            && presence.dehaze == 0
+        let values = effective
+        return values.tone.contrast == 0 && values.tone.whites == 0 && values.tone.blacks == 0
+            && values.tone.highlights <= 0 && values.toneCurve.isIdentity && values.colorGrade == ColorGrade()
+            && values.lookTable.identifier == nil && values.presence.dehaze == 0 && values.grain.isIdentity
     }
 }
 
@@ -503,23 +614,43 @@ public struct ColorGrade: AdjustmentModule {
 public struct LookTable: AdjustmentModule {
     public static let kind: EditOperationKind = "lookTable"
 
+    /// The encoding a table expects its input in, and writes its output in.
+    /// Creative tables are usually made for sRGB; some for wider spaces.
+    public enum ColorSpace: String, CaseIterable, Sendable {
+        case sRGB, displayP3, adobeRGB, proPhoto
+
+        public var cgColorSpace: CGColorSpace {
+            switch self {
+            case .sRGB: CGColorSpace(name: CGColorSpace.sRGB)!
+            case .displayP3: CGColorSpace(name: CGColorSpace.displayP3)!
+            case .adobeRGB: CGColorSpace(name: CGColorSpace.adobeRGB1998)!
+            // ROMM RGB is ProPhoto RGB.
+            case .proPhoto: CGColorSpace(name: CGColorSpace.rommrgb)!
+            }
+        }
+    }
+
     /// SHA-256 of the file, which names its copy in the library.
     public var identifier: String?
-    /// File name without extension, for display.
+    /// The table's name when it was applied, for display.
     public var name: String = ""
     /// 0 … 100.
     public var intensity: Double = 100
+    public var colorSpace = ColorSpace.sRGB
 
-    public init(identifier: String? = nil, name: String = "", intensity: Double = 100) {
+    public init(identifier: String? = nil, name: String = "", intensity: Double = 100,
+                colorSpace: ColorSpace = .sRGB) {
         self.identifier = identifier
         self.name = name
         self.intensity = intensity
+        self.colorSpace = colorSpace
     }
 
     init(_ values: ParameterValues) {
         identifier = values.string("identifier")
         name = values.string("name") ?? ""
         intensity = values.number("intensity", default: 100)
+        colorSpace = values.string("colorSpace").flatMap(ColorSpace.init(rawValue:)) ?? .sRGB
     }
 
     public var parameters: [String: EditParameter] {
@@ -527,6 +658,101 @@ public struct LookTable: AdjustmentModule {
         out.set("identifier", identifier)
         out.set("name", name, default: "")
         out.set("intensity", intensity, default: 100)
+        out.set("colorSpace", colorSpace.rawValue, default: ColorSpace.sRGB.rawValue)
+        return out.values
+    }
+}
+
+/// Darkens (or lightens) toward the frame's edges, as an exposure falloff.
+public struct Vignette: AdjustmentModule {
+    public static let kind: EditOperationKind = "vignette"
+
+    /// −100 (dark edges) … +100 (light edges).
+    public var amount: Double = 0
+    /// 0 (reaches the center) … 100 (only the corners).
+    public var size: Double = 50
+    /// −100 (follows the frame's rectangle) … 0 (an ellipse of the frame's
+    /// proportions) … +100 (a circle).
+    public var roundness: Double = 0
+
+    public init(amount: Double = 0, size: Double = 50, roundness: Double = 0) {
+        self.amount = amount
+        self.size = size
+        self.roundness = roundness
+    }
+
+    init(_ values: ParameterValues) {
+        amount = values.number("amount", default: 0)
+        size = values.number("size", default: 50)
+        roundness = values.number("roundness", default: 0)
+    }
+
+    public var isIdentity: Bool { amount == 0 }
+
+    public var parameters: [String: EditParameter] {
+        var out = ParameterBuilder()
+        out.set("amount", amount, default: 0)
+        out.set("size", size, default: 50)
+        out.set("roundness", roundness, default: 0)
+        return out.values
+    }
+}
+
+/// Film-like grain, added last. Its size follows the frame, so every rendition
+/// of a photo shows the same grain relative to the picture.
+public struct Grain: AdjustmentModule {
+    public static let kind: EditOperationKind = "grain"
+
+    public static let strengthRange: ClosedRange<Double> = 0...200
+    public static let sizeRange: ClosedRange<Double> = 0.5...3
+
+    /// 0 … 200: scales the three tonal amounts. Zero renders nothing.
+    public var strength: Double = 0
+    /// 0 … 100, how much grain the dark, middle and light tones get.
+    public var shadows: Double = 30
+    public var midtones: Double = 40
+    public var highlights: Double = 15
+    /// 0 (soft, even) … 100 (sharp, clumped).
+    public var roughness: Double = 50
+    /// 0 (monochrome) … 100 (independent per channel).
+    public var color: Double = 0
+    /// 0.5 … 3, relative to fine grain on a 35 mm frame.
+    public var size: Double = 1
+
+    public init(strength: Double = 0, shadows: Double = 30, midtones: Double = 40, highlights: Double = 15,
+                roughness: Double = 50, color: Double = 0, size: Double = 1) {
+        self.strength = strength
+        self.shadows = shadows
+        self.midtones = midtones
+        self.highlights = highlights
+        self.roughness = roughness
+        self.color = color
+        self.size = size
+    }
+
+    init(_ values: ParameterValues) {
+        strength = values.number("strength", default: 0)
+        shadows = values.number("shadows", default: 30)
+        midtones = values.number("midtones", default: 40)
+        highlights = values.number("highlights", default: 15)
+        roughness = values.number("roughness", default: 50)
+        color = values.number("color", default: 0)
+        size = values.number("size", default: 1)
+    }
+
+    public var isIdentity: Bool {
+        strength == 0 || (shadows == 0 && midtones == 0 && highlights == 0)
+    }
+
+    public var parameters: [String: EditParameter] {
+        var out = ParameterBuilder()
+        out.set("strength", strength, default: 0)
+        out.set("shadows", shadows, default: 30)
+        out.set("midtones", midtones, default: 40)
+        out.set("highlights", highlights, default: 15)
+        out.set("roughness", roughness, default: 50)
+        out.set("color", color, default: 0)
+        out.set("size", size, default: 1)
         return out.values
     }
 }

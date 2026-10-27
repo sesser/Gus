@@ -20,12 +20,18 @@ import PhotoUI
 ///     click <x> <y>         (mouse down and up through the event queue, in window points
 ///                           from the top left; launch with `open` so the window is key)
 ///     hit <x> <y>           (prints the view under a point)
+///     menukey <key> […]     (posts keys to the event queue, where an open menu reads them)
+///     menupick <x> <y> <item>[/<submenu item>]   (picks from the menu of the menu button at a point)
 ///     buttons               (prints the window's AppKit buttons and where they are)
+///     scroll <y>|bottom     (scrolls the inspector's Adjust tab to a point from its top)
 ///     hdr on|off            (the View menu's Show HDR; snapshots show HDR clipped at white)
 ///     import open | source <path> | dest <path> | job <text> | delete on|off | eject on|off
 ///            | run (waits) | confirm yes|no | snapshot <file> | print   (see ImportDebugCommands)
 ///     adjust …  original on|off  tab info|adjust   (see DebugAdjustCommands)
-///     lutfolder <path>      lut <name>|none        (the Adjust tab's look-up table browser)
+///     lut <name>|none       (the first table of that name in any collection)
+///     lutimport <folder> [<collection>]   (into a new collection, or an existing one of that name)
+///     luts                  (prints the collections)
+///     lutwindow open|close|all|collection <name>|expand <name>|select <name>|apply|manage|snapshot <file>
 ///     copyadjust            pasteadjust            preset save|apply|delete <name> | preset (prints them)
 ///
 /// Keys are characters ("3", "p") or names (left, right, up, down, home, end,
@@ -51,7 +57,7 @@ enum DebugScript {
             // Only commands that can change photos get a group; empty groups
             // would otherwise become undo steps that do nothing.
             let changing: Set<String> = ["key", "addkeywords", "text", "pairfile", "accept", "album", "smartalbum", "remove",
-                                         "adjust", "lut", "pasteadjust", "preset"]
+                                         "adjust", "lut", "pasteadjust", "preset", "menupick", "lutwindow"]
             for command in commands where !command.isEmpty {
                 let grouped = changing.contains(String(command.prefix { $0 != " " }))
                 if grouped { undoManager.beginUndoGrouping() }
@@ -62,9 +68,9 @@ enum DebugScript {
     }
 
     private static var window: NSWindow? {
-        // The library window, not the import window.
+        // The library window, not the import or look-up table window.
         NSApp.windows.first { $0.isVisible && $0.contentView != nil && $0.className.contains("Window")
-            && $0.title != String(localized: "Import") }
+            && $0.title != String(localized: "Import") && $0.title != String(localized: "Look-Up Tables") }
     }
 
     private static func run(_ command: String, model: LibraryModel) async {
@@ -181,23 +187,40 @@ enum DebugScript {
                 }
                 try? await Task.sleep(for: .milliseconds(300))
             }
+        case "menupick":
+            guard let window, let point = windowPoint(rest, in: window),
+                  let hit = window.contentView?.superview?.hitTest(point) else { break }
+            var view: NSView? = hit
+            while let current = view, !(current is AppKitMenuButton.MenuPopUpButton) { view = current.superview }
+            guard let button = view as? AppKitMenuButton.MenuPopUpButton, let menu = button.makeMenu?() else {
+                print("debug-script: no menu button at that point")
+                break
+            }
+            var target = menu
+            let path = rest.dropFirst(2).joined(separator: " ").split(separator: "/").map(String.init)
+            for (depth, title) in path.enumerated() {
+                guard let index = target.items.firstIndex(where: { $0.title == title }) else {
+                    print("debug-script: no menu item \(title)")
+                    break
+                }
+                if depth == path.count - 1 {
+                    target.performActionForItem(at: index)
+                } else if let submenu = target.items[index].submenu {
+                    target = submenu
+                }
+            }
+            try? await Task.sleep(for: .milliseconds(300))
+        case "menukey":
+            for key in rest {
+                send(key, posted: true)
+                try? await Task.sleep(for: .milliseconds(150))
+            }
         case "hdr":
             model.showsHDR = rest.first != "off"
         case "adjust":
             await DebugAdjustCommands.run(rest, editor: model.editor)
-        case "lutfolder":
-            let path = (rest.joined(separator: " ") as NSString).expandingTildeInPath
-            model.lookTableBrowser.setFolder(URL(fileURLWithPath: path, isDirectory: true))
-            try? await Task.sleep(for: .milliseconds(300))
-        case "lut":
-            let name = rest.joined(separator: " ")
-            if name == "none" {
-                model.editor.change("Debug lut", phase: .committed) { $0.lookTable = LookTable() }
-            } else if let entry = model.lookTableBrowser.entries.first(where: { $0.name == name }) {
-                model.lookTableBrowser.apply(entry, editor: model.editor)
-            } else {
-                print("debug-script: no look-up table named \(name)")
-            }
+        case "lut", "lutimport", "luts", "lutwindow":
+            await DebugLookTableCommands.run(verb, rest, model: model)
         case "copyadjust":
             model.copyAdjustments()
             try? await Task.sleep(for: .milliseconds(200))
@@ -223,6 +246,9 @@ enum DebugScript {
             model.editor.showsOriginal = rest.first != "off"
         case "tab":
             model.inspectorTab = rest.first == "info" ? .info : .adjust
+        case "scroll":
+            if let root = window?.contentView?.superview { scrollInspector(rest.first ?? "0", in: root) }
+            try? await Task.sleep(for: .milliseconds(200))
         case "hit":
             if let window, let point = windowPoint(rest, in: window) { printHit(window, at: point) }
         case "buttons":
@@ -230,6 +256,10 @@ enum DebugScript {
         case "print":
             printState(rest.first ?? "", model: model)
         case "quit":
+            // An open sheet would keep the app from quitting.
+            for window in NSApp.windows {
+                if let sheet = window.attachedSheet { window.endSheet(sheet) }
+            }
             NSApp.terminate(nil)
         default:
             print("debug-script: unknown command \(verb)")
@@ -266,6 +296,19 @@ enum DebugScript {
     }
 
     /// `x y` in points from the window's top-left corner, as in a 1x snapshot.
+    /// The inspector's scroll view is the one whose document is a flipped clip's host.
+    private static func scrollInspector(_ target: String, in view: NSView) {
+        if let scrollView = view as? NSScrollView, scrollView.contentView is FlippedClipView,
+           let document = scrollView.documentView {
+            let maximum = max(0, document.frame.height - scrollView.contentView.bounds.height)
+            let y = target == "bottom" ? maximum : min(maximum, Double(target) ?? 0)
+            scrollView.contentView.scroll(to: NSPoint(x: 0, y: y))
+            scrollView.reflectScrolledClipView(scrollView.contentView)
+            return
+        }
+        for subview in view.subviews { scrollInspector(target, in: subview) }
+    }
+
     private static func windowPoint(_ words: [String], in window: NSWindow) -> NSPoint? {
         guard words.count >= 2, let x = Double(words[0]), let y = Double(words[1]) else { return nil }
         return NSPoint(x: x, y: window.frame.height - y)
@@ -342,7 +385,7 @@ enum DebugScript {
         }
     }
 
-    private static func send(_ spec: String) {
+    private static func send(_ spec: String, posted: Bool = false) {
         guard let window else { return }
         var flags: NSEvent.ModifierFlags = []
         var key = spec
@@ -372,7 +415,13 @@ enum DebugScript {
             else { continue }
             // Through the application when it is active, so local event monitors see
             // the key as they would a real one; a scripted launch often is not.
-            if NSApp.isActive, NSApp.keyWindow === window { NSApp.sendEvent(event) } else { window.sendEvent(event) }
+            if posted {
+                NSApp.postEvent(event, atStart: false)
+            } else if NSApp.isActive, NSApp.keyWindow === window {
+                NSApp.sendEvent(event)
+            } else {
+                window.sendEvent(event)
+            }
         }
     }
 

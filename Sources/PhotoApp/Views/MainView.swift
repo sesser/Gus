@@ -29,6 +29,11 @@ struct MainView: View {
             model.requestsImportWindow = false
             openWindow(id: "import")
         }
+        .onChange(of: model.requestsLookTableWindow) {
+            guard model.requestsLookTableWindow else { return }
+            model.requestsLookTableWindow = false
+            openWindow(id: "lookTables")
+        }
     }
 
     private var title: String {

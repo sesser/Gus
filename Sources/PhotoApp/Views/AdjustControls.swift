@@ -319,6 +319,9 @@ struct AdjustSection<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 4) {
+                if section.groups.count == 1, let group = section.groups.first {
+                    GroupToggle(group: group, editor: editor)
+                }
                 AppKitButton(title: AdjustText.title(section), symbol: isExpanded ? "chevron.down" : "chevron.right",
                              symbolWeight: .semibold, style: .borderless,
                              font: .preferredFont(forTextStyle: .headline),
@@ -340,14 +343,81 @@ struct AdjustSection<Content: View>: View {
     }
 }
 
+/// The round check box of a group: checked while its edits apply. It checks
+/// itself when a control of the group changes; unchecking it shows the photo
+/// without that group's edits (they are kept).
+struct GroupToggle: View {
+    let group: Adjustments.Group
+    let editor: AdjustmentEditor
+
+    var body: some View {
+        let isModified = editor.adjustments.isModified(group)
+        let isOn = isModified && editor.adjustments.isEnabled(group)
+        let title = AdjustText.title(group)
+        AppKitButton(symbol: isOn ? "checkmark.circle.fill" : "circle", style: .borderless,
+                     tint: isOn ? .controlAccentColor : .tertiaryLabelColor,
+                     help: !isModified ? String(localized: "\(title) has no edits")
+                         : isOn ? String(localized: "Turn off \(title) to compare")
+                         : String(localized: "Turn on \(title)"),
+                     isEnabled: isModified) {
+            editor.setEnabled(group, !isOn)
+        }
+    }
+}
+
+/// A group's caption with its round check box.
+struct GroupLabel<Trailing: View>: View {
+    let group: Adjustments.Group
+    let editor: AdjustmentEditor
+    @ViewBuilder let trailing: Trailing
+
+    init(_ group: Adjustments.Group, editor: AdjustmentEditor, @ViewBuilder trailing: () -> Trailing) {
+        self.group = group
+        self.editor = editor
+        self.trailing = trailing()
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 6) {
+            GroupToggle(group: group, editor: editor)
+            ControlGroupLabel(text: AdjustText.title(group))
+            Spacer()
+            trailing
+        }
+    }
+}
+
+extension GroupLabel where Trailing == EmptyView {
+    init(_ group: Adjustments.Group, editor: AdjustmentEditor) {
+        self.init(group, editor: editor) { EmptyView() }
+    }
+}
+
 /// Names of the Adjust tab's headings and controls.
 enum AdjustText {
+    static func title(_ group: Adjustments.Group) -> String {
+        switch group {
+        case .profile: String(localized: "Profile")
+        case .whiteBalance: String(localized: "White Balance")
+        case .light: String(localized: "Light")
+        case .presence: String(localized: "Presence")
+        case .toneCurve: String(localized: "Tone Curve")
+        case .sharpening: String(localized: "Sharpening")
+        case .noiseReduction: String(localized: "Noise Reduction")
+        case .colorGrade: String(localized: "Color Grading", comment: "Adjust tab heading")
+        case .lookTable: String(localized: "Look-Up Table")
+        case .vignette: String(localized: "Vignette", comment: "Adjust tab group")
+        case .grain: String(localized: "Grain", comment: "Adjust tab group")
+        }
+    }
+
     static func title(_ section: Adjustments.Section) -> String {
         switch section {
         case .develop: String(localized: "Develop", comment: "Adjust tab heading")
         case .tone: String(localized: "Tone", comment: "Adjust tab heading")
         case .details: String(localized: "Details", comment: "Adjust tab heading")
         case .colorGrading: String(localized: "Color Grading", comment: "Adjust tab heading")
+        case .effects: String(localized: "Effects", comment: "Adjust tab heading")
         }
     }
 }
@@ -400,6 +470,8 @@ struct ImageTile: NSViewRepresentable {
 struct AppKitMenuButton: NSViewRepresentable {
     enum Entry {
         case item(String, isEnabled: Bool = true, () -> Void)
+        /// An item with a check mark when `isOn`.
+        case check(String, isOn: Bool, () -> Void)
         case submenu(String, [Entry])
         case separator
     }
@@ -411,7 +483,8 @@ struct AppKitMenuButton: NSViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeNSView(context: Context) -> NSPopUpButton {
-        let button = NSPopUpButton(frame: .zero, pullsDown: true)
+        let button = MenuPopUpButton(frame: .zero, pullsDown: true)
+        (button.cell as? NSPopUpButtonCell)?.lineBreakMode = .byTruncatingTail
         button.controlSize = .small
         button.font = .systemFont(ofSize: NSFont.systemFontSize(for: .small))
         button.setContentHuggingPriority(.required, for: .horizontal)
@@ -419,31 +492,49 @@ struct AppKitMenuButton: NSViewRepresentable {
     }
 
     func updateNSView(_ button: NSPopUpButton, context: Context) {
-        let menu = NSMenu()
-        menu.autoenablesItems = false
-        // A pull-down shows its first item as the title.
-        menu.addItem(withTitle: title, action: nil, keyEquivalent: "")
-        context.coordinator.actions = []
-        add(entries, to: menu, coordinator: context.coordinator)
-        button.menu = menu
+        // The button's own menu only holds the title (a pull-down shows its first
+        // item); the real menu is built when it is clicked.
+        if button.menu?.items.first?.title != title {
+            let titleMenu = NSMenu()
+            titleMenu.addItem(withTitle: title, action: nil, keyEquivalent: "")
+            button.menu = titleMenu
+        }
+        let entries = entries
+        let coordinator = context.coordinator
+        (button as? MenuPopUpButton)?.makeMenu = {
+            let menu = NSMenu()
+            menu.autoenablesItems = false
+            coordinator.actions = []
+            add(entries, to: menu, coordinator: coordinator)
+            return menu
+        }
         button.toolTip = help
     }
 
-    /// As wide as the title: a pull-down would otherwise size itself to its longest item.
+    /// As wide as the title (a pull-down would otherwise size itself to its
+    /// longest item), but no wider than offered: a long title truncates.
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSPopUpButton, context: Context) -> CGSize? {
         let font = nsView.font ?? .systemFont(ofSize: NSFont.systemFontSize(for: .small))
-        let titleWidth = (title as NSString).size(withAttributes: [.font: font]).width
-        return CGSize(width: ceil(titleWidth) + 36, height: nsView.intrinsicContentSize.height)
+        let titleWidth = ceil((title as NSString).size(withAttributes: [.font: font]).width) + 36
+        let offered = proposal.width.map { $0.isFinite ? $0 : titleWidth } ?? titleWidth
+        return CGSize(width: max(min(titleWidth, offered), 60), height: nsView.intrinsicContentSize.height)
     }
 
     private func add(_ entries: [Entry], to menu: NSMenu, coordinator: Coordinator) {
         for entry in entries {
             switch entry {
             case .item(let title, let isEnabled, let action):
-                let item = NSMenuItem(title: title, action: #selector(Coordinator.perform(_:)), keyEquivalent: "")
+                let item = NSMenuItem(title: title, action: #selector(Coordinator.pick(_:)), keyEquivalent: "")
                 item.target = coordinator
                 item.tag = coordinator.actions.count
                 item.isEnabled = isEnabled
+                coordinator.actions.append(action)
+                menu.addItem(item)
+            case .check(let title, let isOn, let action):
+                let item = NSMenuItem(title: title, action: #selector(Coordinator.pick(_:)), keyEquivalent: "")
+                item.target = coordinator
+                item.tag = coordinator.actions.count
+                item.state = isOn ? .on : .off
                 coordinator.actions.append(action)
                 menu.addItem(item)
             case .submenu(let title, let children):
@@ -464,8 +555,36 @@ struct AppKitMenuButton: NSViewRepresentable {
     final class Coordinator: NSObject {
         var actions: [() -> Void] = []
 
-        @objc func perform(_ sender: NSMenuItem) {
+        // Not `perform(_:)`: #selector would pick NSObject's performSelector: and crash.
+        @objc func pick(_ sender: NSMenuItem) {
             if actions.indices.contains(sender.tag) { actions[sender.tag]() }
+        }
+    }
+
+    /// Pops up a menu made at click time with the standard menu tracking. A
+    /// pull-down's own tracking does not send the actions of items in its
+    /// submenus, and SwiftUI updates would replace a menu kept on the button.
+    final class MenuPopUpButton: NSPopUpButton {
+        var makeMenu: (() -> NSMenu)?
+
+        override func mouseDown(with event: NSEvent) {
+            showMenu()
+        }
+
+        override func performClick(_ sender: Any?) {
+            showMenu()
+        }
+
+        override func accessibilityPerformPress() -> Bool {
+            showMenu()
+            return true
+        }
+
+        private func showMenu() {
+            guard isEnabled, let menu = makeMenu?() else { return }
+            menu.font = font
+            let below = NSPoint(x: 0, y: isFlipped ? bounds.maxY + 4 : bounds.minY - 4)
+            menu.popUp(positioning: nil, at: below, in: self)
         }
     }
 }

@@ -6,12 +6,17 @@ import PhotoCore
 ///     adjust <name> <value>     (exposure, contrast, highlights, shadows, whites, blacks,
 ///                               clarity, dehaze, vibrance, saturation, temperature, tint,
 ///                               warmth, shift, amount, radius, detail, masking,
-///                               luminance-nr, color-nr, balance, blending, intensity)
+///                               luminance-nr, color-nr, balance, blending, intensity,
+///                               vignette, vignette-size, roundness, grain, grain-shadows,
+///                               grain-midtones, grain-highlights, roughness, grain-color, grain-size)
+///     adjust lutspace srgb|displayP3|adobeRGB|proPhoto
+///     adjust off|on <group>     (profile, whiteBalance, light, presence, toneCurve, sharpening,
+///                               noiseReduction, colorGrade, lookTable, vignette, grain)
 ///     adjust look standard|neutral|flat       adjust wb <preset>
 ///     adjust curve rgb|red|green|blue <x,y> <x,y> …
 ///     adjust grade shadows|midtones|highlights <hue> <amount> [<luminance>]
 ///     adjust auto exposure|wb   (waits for the measurement)
-///     adjust reset all|develop|tone|details|colorGrading
+///     adjust reset all|develop|tone|details|colorGrading|effects
 ///     original on|off           tab info|adjust          print adjustments
 @MainActor
 enum DebugAdjustCommands {
@@ -24,6 +29,10 @@ enum DebugAdjustCommands {
         "warmth": \.whiteBalance.relativeTemperature, "shift": \.whiteBalance.relativeTint,
         "amount": \.sharpen.amount, "radius": \.sharpen.radius, "detail": \.sharpen.detail, "masking": \.sharpen.masking,
         "balance": \.colorGrade.balance, "blending": \.colorGrade.blending, "intensity": \.lookTable.intensity,
+        "vignette": \.vignette.amount, "vignette-size": \.vignette.size, "roundness": \.vignette.roundness,
+        "grain": \.grain.strength, "grain-shadows": \.grain.shadows, "grain-midtones": \.grain.midtones,
+        "grain-highlights": \.grain.highlights, "roughness": \.grain.roughness, "grain-color": \.grain.color,
+        "grain-size": \.grain.size,
     ]
 
     static func run(_ words: [String], editor: AdjustmentEditor) async {
@@ -42,6 +51,12 @@ enum DebugAdjustCommands {
             } else {
                 editor.resetAll()
             }
+        case "off", "on":
+            guard let group = Adjustments.Group(rawValue: arguments.first ?? "") else { break }
+            editor.setEnabled(group, name == "on")
+        case "lutspace":
+            let space = LookTable.ColorSpace(rawValue: arguments.first ?? "") ?? .sRGB
+            editor.change(actionName, phase: .committed) { $0.lookTable.colorSpace = space }
         case "look":
             editor.change(actionName, phase: .committed) {
                 $0.decode.look = RawDecode.Look(rawValue: arguments.first ?? "") ?? .standard

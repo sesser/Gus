@@ -72,6 +72,6 @@ struct AppKitScrollView<Content: View>: NSViewRepresentable {
     }
 }
 
-private final class FlippedClipView: NSClipView {
+final class FlippedClipView: NSClipView {
     override var isFlipped: Bool { true }
 }

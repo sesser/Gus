@@ -43,6 +43,7 @@ struct AdjustView: View {
                         Divider()
                         AdjustSection(.tone, editor: editor) {
                             ToneCurveControls(editor: editor)
+                                .dimmedWhenOff(.toneCurve, editor: editor)
                         }
                         Divider()
                         AdjustSection(.details, editor: editor) {
@@ -51,7 +52,11 @@ struct AdjustView: View {
                         Divider()
                         AdjustSection(.colorGrading, editor: editor) {
                             ColorGradeControls(editor: editor)
-                            LookTableControls(model: model)
+                                .dimmedWhenOff(.colorGrade, editor: editor)
+                        }
+                        Divider()
+                        AdjustSection(.effects, editor: editor) {
+                            EffectsControls(model: model)
                         }
                     }
                     .padding(14)
@@ -121,6 +126,14 @@ private struct AdjustToolbar: View {
     }
 }
 
+extension View {
+    /// Shows a group's controls faded while its edits are turned off. They stay
+    /// usable: changing one turns the group back on.
+    func dimmedWhenOff(_ group: Adjustments.Group, editor: AdjustmentEditor) -> some View {
+        opacity(editor.adjustments.isEnabled(group) ? 1 : 0.45)
+    }
+}
+
 /// A small caption above a group of sliders.
 struct ControlGroupLabel: View {
     let text: String
@@ -150,29 +163,39 @@ private struct DevelopControls: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             if editor.isRaw {
+                GroupLabel(.profile, editor: editor)
                 profile
+                    .dimmedWhenOff(.profile, editor: editor)
             }
-            whiteBalance
-            HStack(alignment: .center) {
-                ControlGroupLabel(text: String(localized: "Light"))
-                Spacer()
+            GroupLabel(.whiteBalance, editor: editor)
+            VStack(alignment: .leading, spacing: 8) {
+                whiteBalance
+            }
+            .dimmedWhenOff(.whiteBalance, editor: editor)
+            GroupLabel(.light, editor: editor) {
                 AppKitButton(title: String(localized: "Auto"), style: .push,
                              help: String(localized: "Set the exposure from the photo's brightness"),
                              isEnabled: !editor.isMeasuring) {
                     editor.autoExposure()
                 }
             }
-            adjustSlider(editor, String(localized: "Exposure"), \.exposure.ev, range: Exposure.range, format: .stops)
-            adjustSlider(editor, String(localized: "Contrast"), \.tone.contrast)
-            adjustSlider(editor, String(localized: "Highlights"), \.tone.highlights)
-            adjustSlider(editor, String(localized: "Shadows"), \.tone.shadows)
-            adjustSlider(editor, String(localized: "Whites"), \.tone.whites)
-            adjustSlider(editor, String(localized: "Blacks"), \.tone.blacks)
-            ControlGroupLabel(text: String(localized: "Presence"))
-            adjustSlider(editor, String(localized: "Clarity"), \.presence.clarity)
-            adjustSlider(editor, String(localized: "Dehaze"), \.presence.dehaze)
-            adjustSlider(editor, String(localized: "Vibrance"), \.presence.vibrance)
-            adjustSlider(editor, String(localized: "Saturation"), \.presence.saturation)
+            VStack(alignment: .leading, spacing: 8) {
+                adjustSlider(editor, String(localized: "Exposure"), \.exposure.ev, range: Exposure.range, format: .stops)
+                adjustSlider(editor, String(localized: "Contrast"), \.tone.contrast)
+                adjustSlider(editor, String(localized: "Highlights"), \.tone.highlights)
+                adjustSlider(editor, String(localized: "Shadows"), \.tone.shadows)
+                adjustSlider(editor, String(localized: "Whites"), \.tone.whites)
+                adjustSlider(editor, String(localized: "Blacks"), \.tone.blacks)
+            }
+            .dimmedWhenOff(.light, editor: editor)
+            GroupLabel(.presence, editor: editor)
+            VStack(alignment: .leading, spacing: 8) {
+                adjustSlider(editor, String(localized: "Clarity"), \.presence.clarity)
+                adjustSlider(editor, String(localized: "Dehaze"), \.presence.dehaze)
+                adjustSlider(editor, String(localized: "Vibrance"), \.presence.vibrance)
+                adjustSlider(editor, String(localized: "Saturation"), \.presence.saturation)
+            }
+            .dimmedWhenOff(.presence, editor: editor)
         }
     }
 
@@ -228,7 +251,6 @@ private struct DevelopControls: View {
     private var whiteBalance: some View {
         let balance = editor.adjustments.whiteBalance
         let presets = editor.isRaw ? WhiteBalance.Preset.allCases : WhiteBalance.Preset.relativePresets
-        ControlGroupLabel(text: String(localized: "White Balance"))
         LabeledPopUp(title: String(localized: "Preset")) {
             AppKitPopUp(items: presets.map { .init(title: Self.presetTitle($0), tag: $0.rawValue) },
                         selection: balance.preset.rawValue, isEnabled: !editor.isMeasuring) { tag in
@@ -333,102 +355,37 @@ private struct ColorGradeControls: View {
     }
 }
 
-/// The applied look-up table, its intensity, and the browser of a folder of tables.
-private struct LookTableControls: View {
-    let model: LibraryModel
-
-    private var editor: AdjustmentEditor { model.editor }
-    private var browser: LookTableBrowser { model.lookTableBrowser }
-
-    var body: some View {
-        let table = editor.adjustments.lookTable
-        VStack(alignment: .leading, spacing: 8) {
-            ControlGroupLabel(text: String(localized: "Look-Up Table"))
-            if let identifier = table.identifier {
-                HStack {
-                    Text(table.name)
-                        .font(.callout)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    if !model.lookTables.contains(identifier) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .foregroundStyle(.orange)
-                            .help("This table is missing from the library, so it is not applied.")
-                    }
-                    Spacer()
-                    AppKitButton(title: String(localized: "Remove"), style: .push) {
-                        editor.change(String(localized: "Look-Up Table"), phase: .committed) { $0.lookTable = LookTable() }
-                    }
-                }
-                adjustSlider(editor, String(localized: "Intensity"), \.lookTable.intensity, range: 0...100,
-                             defaultValue: 100, format: .plain)
-            }
-            HStack {
-                Text(browser.folder?.lastPathComponent ?? String(localized: "No folder chosen"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .help(browser.folder?.path ?? "")
-                Spacer()
-                AppKitButton(title: String(localized: "Choose Folder…"), style: .push,
-                             help: String(localized: "Choose a folder of .cube look-up tables to browse")) {
-                    browser.chooseFolder()
-                }
-            }
-            if browser.folder != nil, browser.entries.isEmpty {
-                Text("No .cube files in this folder.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
-                ForEach(browser.entries) { entry in
-                    ImageTile(image: browser.previews[entry.url]?.cgImage, title: entry.name,
-                              isSelected: table.identifier != nil && browser.identifiers[entry.url] == table.identifier,
-                              help: browser.failures.contains(entry.url)
-                                  ? String(localized: "\(entry.name) is not a look-up table this app can read.") : nil) {
-                        browser.apply(entry, editor: editor)
-                    }
-                    .opacity(browser.failures.contains(entry.url) ? 0.4 : 1)
-                }
-            }
-        }
-        .padding(.top, 6)
-        .task(id: "\(editor.lookTablePreviewKey)|\(browser.entries.count)|\(browser.folder?.path ?? "")") {
-            guard !browser.entries.isEmpty else { return }
-            // Wait for the edit to settle before rendering every table.
-            try? await Task.sleep(for: .milliseconds(400))
-            guard !Task.isCancelled, let base = await editor.lookTablePreviewBase() else { return }
-            await browser.refreshPreviews(base: base, key: editor.lookTablePreviewKey + (browser.folder?.path ?? ""))
-        }
-    }
-}
-
 /// Sharpening and noise reduction.
 private struct DetailControls: View {
     let editor: AdjustmentEditor
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            ControlGroupLabel(text: String(localized: "Sharpening"))
-            adjustSlider(editor, String(localized: "Amount"), \.sharpen.amount, range: Sharpen.amountRange,
-                         format: .plain)
-            adjustSlider(editor, String(localized: "Radius"), \.sharpen.radius, range: Sharpen.radiusRange,
-                         defaultValue: 1, format: .decimal)
-            adjustSlider(editor, String(localized: "Detail"), \.sharpen.detail, range: 0...100, defaultValue: 25,
-                         format: .plain)
-            adjustSlider(editor, String(localized: "Masking"), \.sharpen.masking, range: 0...100, format: .plain)
+            GroupLabel(.sharpening, editor: editor)
+            VStack(alignment: .leading, spacing: 8) {
+                adjustSlider(editor, String(localized: "Amount"), \.sharpen.amount, range: Sharpen.amountRange,
+                             format: .plain)
+                adjustSlider(editor, String(localized: "Radius"), \.sharpen.radius, range: Sharpen.radiusRange,
+                             defaultValue: 1, format: .decimal)
+                adjustSlider(editor, String(localized: "Detail"), \.sharpen.detail, range: 0...100, defaultValue: 25,
+                             format: .plain)
+                adjustSlider(editor, String(localized: "Masking"), \.sharpen.masking, range: 0...100, format: .plain)
+            }
+            .dimmedWhenOff(.sharpening, editor: editor)
             Text("Sharpening is easiest to judge at 1:1 (Z), once the change is saved.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            ControlGroupLabel(text: String(localized: "Noise Reduction"))
+            GroupLabel(.noiseReduction, editor: editor)
             let defaults = editor.rawDefaults
-            noiseSlider(String(localized: "Luminance"), \.noiseReduction.luminance,
-                        defaultValue: editor.isRaw ? defaults?.luminanceNoiseReduction ?? 0 : 0)
-            if editor.isRaw, let color = defaults?.colorNoiseReduction {
-                noiseSlider(String(localized: "Color"), \.noiseReduction.color, defaultValue: color)
+            VStack(alignment: .leading, spacing: 8) {
+                noiseSlider(String(localized: "Luminance"), \.noiseReduction.luminance,
+                            defaultValue: editor.isRaw ? defaults?.luminanceNoiseReduction ?? 0 : 0)
+                if editor.isRaw, let color = defaults?.colorNoiseReduction {
+                    noiseSlider(String(localized: "Color"), \.noiseReduction.color, defaultValue: color)
+                }
             }
+            .dimmedWhenOff(.noiseReduction, editor: editor)
         }
     }
 

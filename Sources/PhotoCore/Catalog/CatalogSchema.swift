@@ -14,6 +14,7 @@ enum CatalogSchema {
         migrator.registerMigration("v7", migrate: addVideos)
         migrator.registerMigration("v8", migrate: addAdjustmentPresets)
         migrator.registerMigration("v9", migrate: addFlashCompensation)
+        migrator.registerMigration("v10", migrate: addLookTableLibrary)
         return migrator
     }
 
@@ -347,5 +348,28 @@ enum CatalogSchema {
                  OR OLD.usageTerms IS NOT NEW.usageTerms OR OLD.creatorContact IS NOT NEW.creatorContact
             BEGIN INSERT OR IGNORE INTO sidecarQueue (imageId) VALUES (NEW.id); END;
             """)
+    }
+
+    /// Collections of imported look-up tables. The files live in the library's
+    /// `LUTs` folder, named by content hash; entries point at them.
+    private static func addLookTableLibrary(_ db: Database) throws {
+        try db.create(table: "lookTableCollection") { t in
+            t.autoIncrementedPrimaryKey("id")
+            t.column("uuid", .text).notNull().unique()
+            t.column("name", .text).notNull()
+            t.column("createdAt", .datetime).notNull()
+        }
+        try db.create(table: "lookTableEntry") { t in
+            t.autoIncrementedPrimaryKey("id")
+            t.column("collectionId", .integer).notNull().indexed()
+                .references("lookTableCollection", onDelete: .cascade)
+            t.column("identifier", .text).notNull()
+            t.column("name", .text).notNull()
+            t.column("colorSpace", .text).notNull()
+            t.column("fileName", .text).notNull()
+            t.column("position", .integer).notNull()
+            t.column("createdAt", .datetime).notNull()
+            t.uniqueKey(["collectionId", "identifier"])
+        }
     }
 }

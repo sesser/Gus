@@ -110,13 +110,16 @@ compatible and never put `#` comment lines inside pasted command snippets.
   missing. Volumes are matched by identity (UUID) so a remount elsewhere is found.
 - **Catalog** is SQLite via GRDB with numbered migrations from day one. Tables:
   `volume`, `project`, `image` (master), `version`, `album`, `albumMember`,
-  `stack`, `stackMember`, `keyword`, `versionKeyword`. Ratings 0–5, flags
+  `stack`, `stackMember`, `keyword`, `versionKeyword`, `lookTableCollection`,
+  `lookTableEntry`. Ratings 0–5, flags
   (-1 reject, 0 none, 1 pick) and color labels (0–7) live on versions.
   Never edit an existing migration; add a new one.
 - **Edit stack**: each version stores an ordered, versioned JSON list of
   operations. The render hash covers enabled operations only. `Adjustments`
   is the typed view of it: one operation per module, defaults left out (so a
-  reset gives back the identity hash), unknown or disabled operations kept.
+  reset gives back the identity hash), unknown operations kept. A group of
+  controls turned off keeps its operations with `isEnabled` false;
+  `Adjustments.effective` is what renders.
   `AdjustmentRenderer` renders in a fixed order with built-in Core Image filters
   and generated tables (no custom kernels: SwiftPM has no Metal step). RAW
   decode settings go to `CIRAWFilter` only when set, so an identity stack
@@ -127,7 +130,8 @@ compatible and never put `#` comment lines inside pasted command snippets.
   per gesture as one undo step, and hands the last frame to the memory cache
   as the new edit's preview. Edits are per file (not shared by a RAW+JPEG
   pair) and are not written to XMP sidecars. Look-up tables are copied into
-  `Library/LUTs/<sha256>.cube`.
+  `Library/LUTs/<sha256>.cube` and listed in flat collections (built-in ones
+  generated in code); removing them from the library never deletes a file.
 - **Preview cache** is tiered (`thumbnail` for the grid, `preview` for the loupe),
   lives under the Caches folder on the local disk, is keyed by
   content hash + edit-stack render hash + tier + pipeline version, is generated on
@@ -183,8 +187,9 @@ with review of outside changes, copying imports from cards and folders, videos
 
 Phase 3, first pass: global adjustments in the loupe's Adjust tab (profile,
 white balance, exposure with Auto, tone, presence, tone curve with histogram,
-sharpening, noise reduction, color grading, look-up tables), before/after,
-copy/paste and presets.
+sharpening, noise reduction, color grading), an Effects heading (look-up table
+collections with a browser window, import and management; vignette; grain),
+per-group on/off check boxes, before/after, copy/paste and presets.
 
 Not yet: brushes and masks, healing, cropping, lens corrections, export, ML
 denoising, `.dcp` profiles, general (hand-made or burst) stacks, hierarchical

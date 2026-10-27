@@ -67,13 +67,24 @@
         }
       }
     },
-    "%@ is not a look-up table this app can read." : {
-      "comment" : "Status message and tooltip; the argument is a file name",
+    "%@ has no edits" : {
+      "comment" : "Tooltip of a group's check box; the argument is the group's name",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ is not a look-up table this app can read."
+            "value" : "%@ has no edits"
+          }
+        }
+      }
+    },
+    "%@ is missing from the library." : {
+      "comment" : "Status message; the argument is a look-up table's name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ is missing from the library."
           }
         }
       }
@@ -404,6 +415,28 @@
         }
       }
     },
+    "Add Tables…" : {
+      "comment" : "Look-up table manage sheet: adds files to a collection",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Tables…"
+          }
+        }
+      }
+    },
+    "Add a folder of .cube files as a collection" : {
+      "comment" : "Tooltip of the look-up table Import button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add a folder of .cube files as a collection"
+          }
+        }
+      }
+    },
     "Add keywords" : {
       "comment" : "Inspector field placeholder",
       "localizations" : {
@@ -549,6 +582,17 @@
         }
       }
     },
+    "Adobe RGB" : {
+      "comment" : "Color space",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adobe RGB"
+          }
+        }
+      }
+    },
     "Advance After Rating" : {
       "localizations" : {
         "en" : {
@@ -592,6 +636,17 @@
         }
       }
     },
+    "All Collections" : {
+      "comment" : "Look-up table window: collection pop-up item",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All Collections"
+          }
+        }
+      }
+    },
     "All Photos" : {
       "localizations" : {
         "en" : {
@@ -620,6 +675,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Amount"
+          }
+        }
+      }
+    },
+    "Amount by Tone" : {
+      "comment" : "Adjust tab: caption over the grain's shadows, midtones and highlights sliders",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Amount by Tone"
           }
         }
       }
@@ -696,6 +762,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aperture"
+          }
+        }
+      }
+    },
+    "Applied to this photo" : {
+      "comment" : "Look-up table window: tooltip of the check mark on the applied table",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Applied to this photo"
           }
         }
       }
@@ -832,6 +909,17 @@
         }
       }
     },
+    "Bleach" : {
+      "comment" : "Built-in look-up table",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bleach"
+          }
+        }
+      }
+    },
     "Blending" : {
       "comment" : "Color grading slider: how much the tonal ranges overlap; also its undo action name",
       "localizations" : {
@@ -849,6 +937,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Blue"
+          }
+        }
+      }
+    },
+    "Browse…" : {
+      "comment" : "Adjust tab, Effects heading: opens the look-up table window",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Browse…"
+          }
+        }
+      }
+    },
+    "Built-in" : {
+      "comment" : "Look-up table collection that comes with the app",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Built-in"
           }
         }
       }
@@ -1017,6 +1127,17 @@
         }
       }
     },
+    "Character" : {
+      "comment" : "Adjust tab: caption over the grain's roughness and color sliders",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Character"
+          }
+        }
+      }
+    },
     "Check for Changes on Disk" : {
       "comment" : "Photo menu",
       "localizations" : {
@@ -1050,24 +1171,13 @@
         }
       }
     },
-    "Choose a folder of .cube look-up tables to browse" : {
-      "comment" : "Tooltip of the look-up table folder button",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choose a folder of .cube look-up tables to browse"
-          }
-        }
-      }
-    },
-    "Choose a folder of .cube look-up tables." : {
+    "Choose a folder of .cube look-up tables, or the files themselves." : {
       "comment" : "Open panel message",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Choose a folder of .cube look-up tables."
+            "value" : "Choose a folder of .cube look-up tables, or the files themselves."
           }
         }
       }
@@ -1100,6 +1210,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Choose a folder. Photos inside it, including subfolders, are added to a new project."
+          }
+        }
+      }
+    },
+    "Choose a look-up table" : {
+      "comment" : "Adjust tab, Effects heading: tooltip of the table menu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a look-up table"
           }
         }
       }
@@ -1169,6 +1290,17 @@
         }
       }
     },
+    "Click a table to pick it, double-click to apply it." : {
+      "comment" : "Look-up table window",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Click a table to pick it, double-click to apply it."
+          }
+        }
+      }
+    },
     "Click to add a point, drag to move it, double-click to remove it." : {
       "comment" : "Help under the tone curve",
       "localizations" : {
@@ -1202,6 +1334,28 @@
         }
       }
     },
+    "Collection" : {
+      "comment" : "Look-up table window: pop-up label",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collection"
+          }
+        }
+      }
+    },
+    "Collection name" : {
+      "comment" : "Look-up table manage sheet: placeholder of a collection's name field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collection name"
+          }
+        }
+      }
+    },
     "Color" : {
       "comment" : "Noise reduction slider for color noise; also its undo action name",
       "localizations" : {
@@ -1230,6 +1384,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Color Label"
+          }
+        }
+      }
+    },
+    "Color Space" : {
+      "comment" : "Look-up table color space pop-up",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color Space"
           }
         }
       }
@@ -1289,6 +1454,17 @@
         }
       }
     },
+    "Cool" : {
+      "comment" : "Built-in look-up table",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cool"
+          }
+        }
+      }
+    },
     "Copy Adjustments" : {
       "comment" : "Photo menu and Presets menu item",
       "localizations" : {
@@ -1318,6 +1494,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Copyright"
+          }
+        }
+      }
+    },
+    "Could not import the look-up tables: %@" : {
+      "comment" : "Status message; the argument is the error",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not import the look-up tables: %@"
           }
         }
       }
@@ -1427,6 +1614,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Creator"
+          }
+        }
+      }
+    },
+    "Cross Process" : {
+      "comment" : "Built-in look-up table",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cross Process"
           }
         }
       }
@@ -1685,6 +1883,17 @@
         }
       }
     },
+    "Display P3" : {
+      "comment" : "Color space",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Display P3"
+          }
+        }
+      }
+    },
     "Don't suggest this keyword for these photos again" : {
       "comment" : "Suggestion chip dismiss help",
       "localizations" : {
@@ -1692,6 +1901,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Don't suggest this keyword for these photos again"
+          }
+        }
+      }
+    },
+    "Done" : {
+      "comment" : "Button that closes a sheet",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Done"
           }
         }
       }
@@ -1725,6 +1945,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Edit…"
+          }
+        }
+      }
+    },
+    "Effects" : {
+      "comment" : "Adjust tab heading",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Effects"
           }
         }
       }
@@ -1824,6 +2055,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Exposure compensation, in stops (EV)"
+          }
+        }
+      }
+    },
+    "Fade" : {
+      "comment" : "Built-in look-up table",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fade"
           }
         }
       }
@@ -1976,6 +2218,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "From"
+          }
+        }
+      }
+    },
+    "Grain" : {
+      "comment" : "Adjust tab group",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grain"
           }
         }
       }
@@ -2153,6 +2406,29 @@
         }
       }
     },
+    "Import %lld Tables" : {
+      "comment" : "Look-up table import sheet button",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Import %lld Table"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Import %lld Tables"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "Import Date" : {
       "comment" : "Smart album rule field",
       "localizations" : {
@@ -2170,6 +2446,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Import Folder…"
+          }
+        }
+      }
+    },
+    "Import Look-Up Tables" : {
+      "comment" : "Look-up table import sheet title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import Look-Up Tables"
+          }
+        }
+      }
+    },
+    "Import a folder of .cube files to start a collection." : {
+      "comment" : "Look-up table manage sheet, when there are no collections",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import a folder of .cube files to start a collection."
           }
         }
       }
@@ -2315,6 +2613,29 @@
         }
       }
     },
+    "Imported %lld look-up tables." : {
+      "comment" : "Status message",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Imported %lld look-up table."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Imported %lld look-up tables."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "Imported: %lld. Already in the library: %lld." : {
       "localizations" : {
         "en" : {
@@ -2352,6 +2673,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Importing %lld of %lld"
+          }
+        }
+      }
+    },
+    "Import…" : {
+      "comment" : "Button that imports look-up tables",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import…"
           }
         }
       }
@@ -2438,6 +2770,29 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "It is removed from %lld photos. The photos stay in the library."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Its %lld tables leave the list. Photos that use them keep their look." : {
+      "comment" : "Alert message when removing a look-up table collection",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Its %lld table leaves the list. Photos that use it keep their look."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Its %lld tables leave the list. Photos that use them keep their look."
                 }
               }
             }
@@ -2631,6 +2986,17 @@
         }
       }
     },
+    "Look-Up Tables" : {
+      "comment" : "Window title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Look-Up Tables"
+          }
+        }
+      }
+    },
     "Looking at photos for keyword suggestions" : {
       "comment" : "Inspector progress help",
       "localizations" : {
@@ -2680,6 +3046,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Luminance"
+          }
+        }
+      }
+    },
+    "Manage Look-Up Tables" : {
+      "comment" : "Look-up table manage sheet title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manage Look-Up Tables"
+          }
+        }
+      }
+    },
+    "Manage…" : {
+      "comment" : "Adjust tab, Effects heading: opens the look-up table manage sheet",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manage…"
           }
         }
       }
@@ -2750,6 +3138,17 @@
         }
       }
     },
+    "Mono" : {
+      "comment" : "Built-in look-up table",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mono"
+          }
+        }
+      }
+    },
     "Name" : {
       "comment" : "Rename alert text field",
       "localizations" : {
@@ -2757,6 +3156,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Name"
+          }
+        }
+      }
+    },
+    "Names come from each file's title, or its file name. Click a name to change it." : {
+      "comment" : "Look-up table import sheet",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Names come from each file's title, or its file name. Click a name to change it."
           }
         }
       }
@@ -2805,6 +3215,17 @@
         }
       }
     },
+    "New Collection" : {
+      "comment" : "Look-up table import sheet: destination pop-up item",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Collection"
+          }
+        }
+      }
+    },
     "New Preset…" : {
       "comment" : "Import window button",
       "localizations" : {
@@ -2849,13 +3270,24 @@
         }
       }
     },
-    "No .cube files in this folder." : {
-      "comment" : "Look-up table browser, empty folder",
+    "No .cube files were found." : {
+      "comment" : "Look-up table import sheet",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No .cube files in this folder."
+            "value" : "No .cube files were found."
+          }
+        }
+      }
+    },
+    "No Imported Collections" : {
+      "comment" : "Look-up table manage sheet, when there are no collections",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Imported Collections"
           }
         }
       }
@@ -2898,17 +3330,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No card connected"
-          }
-        }
-      }
-    },
-    "No folder chosen" : {
-      "comment" : "Look-up table browser before a folder is chosen",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No folder chosen"
           }
         }
       }
@@ -3021,6 +3442,17 @@
         }
       }
     },
+    "Not a readable table" : {
+      "comment" : "Look-up table import sheet: a file that cannot be imported",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not a readable table"
+          }
+        }
+      }
+    },
     "Not rejected" : {
       "localizations" : {
         "en" : {
@@ -3103,6 +3535,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Open a photo in the loupe to adjust it. Paste Adjustments and presets change every selected photo."
+          }
+        }
+      }
+    },
+    "Open a photo in the loupe to preview look-up tables on it." : {
+      "comment" : "Look-up table window",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open a photo in the loupe to preview look-up tables on it."
           }
         }
       }
@@ -3215,6 +3658,17 @@
         }
       }
     },
+    "Photos that use a removed table keep their look." : {
+      "comment" : "Look-up table manage sheet",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photos that use a removed table keep their look."
+          }
+        }
+      }
+    },
     "Photos whose sidecar or file another app changed. Review them in the inspector." : {
       "comment" : "Sidebar help",
       "localizations" : {
@@ -3312,6 +3766,17 @@
         }
       }
     },
+    "ProPhoto RGB" : {
+      "comment" : "Color space",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ProPhoto RGB"
+          }
+        }
+      }
+    },
     "Profile" : {
       "comment" : "RAW profile menu; also its undo action name",
       "localizations" : {
@@ -3405,6 +3870,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Raise Rating"
+          }
+        }
+      }
+    },
+    "Raise Strength to add grain. Grain is easiest to judge at 1:1 (Z)." : {
+      "comment" : "Adjust tab, grain",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Raise Strength to add grain. Grain is easiest to judge at 1:1 (Z)."
           }
         }
       }
@@ -3559,6 +4035,17 @@
         }
       }
     },
+    "Remove from Photo" : {
+      "comment" : "Look-up table window: removes the table from the photo being edited",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove from Photo"
+          }
+        }
+      }
+    },
     "Remove from the selected photos" : {
       "comment" : "Inspector: help for a keyword's remove button",
       "localizations" : {
@@ -3570,6 +4057,28 @@
         }
       }
     },
+    "Remove the collection %@?" : {
+      "comment" : "Alert title; the argument is a look-up table collection's name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove the collection %@?"
+          }
+        }
+      }
+    },
+    "Remove this collection" : {
+      "comment" : "Look-up table manage sheet: tooltip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove this collection"
+          }
+        }
+      }
+    },
     "Remove this rule" : {
       "comment" : "Smart album editor help",
       "localizations" : {
@@ -3577,6 +4086,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Remove this rule"
+          }
+        }
+      }
+    },
+    "Remove this table from the collection" : {
+      "comment" : "Look-up table manage sheet: tooltip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove this table from the collection"
           }
         }
       }
@@ -3610,6 +4130,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Rename Keyword"
+          }
+        }
+      }
+    },
+    "Rename or remove collections and tables" : {
+      "comment" : "Tooltip of the look-up table Manage button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rename or remove collections and tables"
           }
         }
       }
@@ -3690,6 +4221,28 @@
         }
       }
     },
+    "Roughness" : {
+      "comment" : "Grain slider: soft to sharp, clumped grain",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Roughness"
+          }
+        }
+      }
+    },
+    "Roundness" : {
+      "comment" : "Vignette slider: rectangle to circle",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Roundness"
+          }
+        }
+      }
+    },
     "Saturation" : {
       "comment" : "Adjustment slider; also its undo action name",
       "localizations" : {
@@ -3734,6 +4287,17 @@
         }
       }
     },
+    "See every table on this photo" : {
+      "comment" : "Tooltip of the look-up table Browse button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See every table on this photo"
+          }
+        }
+      }
+    },
     "Select every photo" : {
       "comment" : "Import window help",
       "localizations" : {
@@ -3774,6 +4338,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Select photos to see and change their keywords."
+          }
+        }
+      }
+    },
+    "Sepia" : {
+      "comment" : "Built-in look-up table",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sepia"
           }
         }
       }
@@ -4029,6 +4604,17 @@
         }
       }
     },
+    "Size" : {
+      "comment" : "Vignette or grain size",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Size"
+          }
+        }
+      }
+    },
     "Smaller Thumbnails" : {
       "localizations" : {
         "en" : {
@@ -4068,6 +4654,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Stop"
+          }
+        }
+      }
+    },
+    "Strength" : {
+      "comment" : "Grain slider",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Strength"
           }
         }
       }
@@ -4171,6 +4768,28 @@
         }
       }
     },
+    "Table" : {
+      "comment" : "Adjust tab: label of the look-up table menu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Table"
+          }
+        }
+      }
+    },
+    "Table name" : {
+      "comment" : "Look-up table manage sheet: placeholder of a table's name field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Table name"
+          }
+        }
+      }
+    },
     "Take every value from the file" : {
       "comment" : "Inspector help",
       "localizations" : {
@@ -4204,6 +4823,17 @@
         }
       }
     },
+    "Teal and Orange" : {
+      "comment" : "Built-in look-up table",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Teal and Orange"
+          }
+        }
+      }
+    },
     "Temperature" : {
       "comment" : "White balance slider; also its undo action name",
       "localizations" : {
@@ -4233,6 +4863,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Text can use the same tokens as templates, such as {capture:yyyy}."
+          }
+        }
+      }
+    },
+    "The color space the table is applied in. Change it in the Adjust tab or under Manage." : {
+      "comment" : "Look-up table window: tooltip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The color space the table is applied in. Change it in the Adjust tab or under Manage."
+          }
+        }
+      }
+    },
+    "The color space the tables were made for. Most creative tables expect sRGB." : {
+      "comment" : "Look-up table import sheet: tooltip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The color space the tables were made for. Most creative tables expect sRGB."
           }
         }
       }
@@ -4297,6 +4949,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The volume holding this original is not connected."
+          }
+        }
+      }
+    },
+    "This collection is empty." : {
+      "comment" : "Look-up table window",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This collection is empty."
           }
         }
       }
@@ -4376,6 +5039,50 @@
         }
       }
     },
+    "Turn Off %@" : {
+      "comment" : "Undo action name; the group's name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn Off %@"
+          }
+        }
+      }
+    },
+    "Turn On %@" : {
+      "comment" : "Undo action name; the group's name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn On %@"
+          }
+        }
+      }
+    },
+    "Turn off %@ to compare" : {
+      "comment" : "Tooltip of a group's check box; the argument is the group's name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn off %@ to compare"
+          }
+        }
+      }
+    },
+    "Turn on %@" : {
+      "comment" : "Tooltip of a group's check box; the argument is the group's name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn on %@"
+          }
+        }
+      }
+    },
     "Unflagged" : {
       "localizations" : {
         "en" : {
@@ -4403,6 +5110,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Untitled Album"
+          }
+        }
+      }
+    },
+    "Untitled Collection" : {
+      "comment" : "Name of a look-up table collection imported without a name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Untitled Collection"
           }
         }
       }
@@ -4545,6 +5263,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "View"
+          }
+        }
+      }
+    },
+    "Vignette" : {
+      "comment" : "Adjust tab group",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vignette"
+          }
+        }
+      }
+    },
+    "Warm" : {
+      "comment" : "Built-in look-up table",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Warm"
           }
         }
       }
@@ -4951,6 +5691,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "mm"
+          }
+        }
+      }
+    },
+    "sRGB" : {
+      "comment" : "Color space",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sRGB"
           }
         }
       }

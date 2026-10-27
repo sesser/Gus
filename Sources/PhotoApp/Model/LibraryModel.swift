@@ -72,7 +72,7 @@ final class LibraryModel {
     let sidecars: SidecarSync
     let cardImport: CardImportModel
     let editor = AdjustmentEditor()
-    let lookTableBrowser = LookTableBrowser()
+    let lookTableLibrary = LookTableLibraryModel()
     /// Adjustments taken by Copy Adjustments.
     var copiedAdjustments: Adjustments?
     var adjustmentPresets: [AdjustmentPreset] = []
@@ -105,6 +105,8 @@ final class LibraryModel {
     var isCheckingDisk = false
     /// Set when a card mounts and the import window should open for it.
     var requestsImportWindow = false
+    /// Set to open the look-up table browser.
+    var requestsLookTableWindow = false
     /// Open the import window when a card is inserted (Settings).
     var opensImportOnCard: Bool {
         didSet { UserDefaults.standard.set(opensImportOnCard, forKey: Self.opensImportOnCardKey) }
@@ -300,7 +302,7 @@ final class LibraryModel {
         opensImportOnCard = defaults.object(forKey: Self.opensImportOnCardKey) as? Bool ?? true
         cardImport.library = self
         editor.library = self
-        lookTableBrowser.library = self
+        lookTableLibrary.library = self
     }
 
     /// Opens the catalog at the standard location (or `--library-root`).
@@ -334,6 +336,9 @@ final class LibraryModel {
         reloadItems(keepFocus: false)
         scheduleSidecarSync()
         await refreshAdjustmentPresets()
+        await lookTableLibrary.reload()
+        let lookTables = self.lookTables
+        Task.detached(priority: .utility) { lookTables.installBuiltIns() }
         await refreshDiskChanges()
         // Changes other apps made while this one was not running.
         checkForDiskChanges(delay: .seconds(5))

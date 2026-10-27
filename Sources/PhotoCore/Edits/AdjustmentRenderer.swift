@@ -6,14 +6,13 @@ import CoreImage.CIFilterBuiltins
 /// The order is fixed, whatever the order of operations in the stack: white
 /// balance (non-RAW; RAW files get it from the decoder), exposure, highlights and
 /// shadows, dehaze, clarity, the tone table (contrast, whites, blacks, curves),
-/// vibrance and saturation, color grading, the look-up table, noise reduction
-/// (non-RAW) and sharpening.
+/// vibrance and saturation, color grading, the look-up table, the vignette,
+/// noise reduction (non-RAW), sharpening and grain. Modules that are turned off
+/// are rendered at their defaults.
 public struct AdjustmentRenderer: EditStackRenderer {
     /// Encoding for tone curves and the grading cube: Rec. 2020 primaries with the
     /// sRGB transfer curve, so curve points are spaced the way tones are seen.
     static let perceptualSpace = CGColorSpace(name: CGColorSpace.itur_2020_sRGBGamma)!
-    /// `.cube` files are made for display-referred sRGB input.
-    static let lookTableSpace = CGColorSpace(name: CGColorSpace.sRGB)!
 
     public let lookTables: LookTableStore?
     /// Noise reduction for files the RAW decoder does not handle.
@@ -37,7 +36,8 @@ public struct AdjustmentRenderer: EditStackRenderer {
     }
 
     /// The lazy graph for `adjustments` over a decoded image.
-    public func render(_ adjustments: Adjustments, to input: CIImage, context: RenderContext) -> CIImage {
+    public func render(_ values: Adjustments, to input: CIImage, context: RenderContext) -> CIImage {
+        let adjustments = values.effective
         guard !adjustments.isDefault else { return input }
         let extent = input.extent
         var image = input
@@ -63,11 +63,11 @@ public struct AdjustmentRenderer: EditStackRenderer {
         if presence.clarity != 0 {
             image = Self.clarity(image, amount: presence.clarity / 100, extent: extent)
         }
-        let table = ToneTable(contrast: tone.contrast / 100 + max(presence.dehaze, 0) / 100 * 0.15,
+        let toneTable = ToneTable(contrast: tone.contrast / 100 + max(presence.dehaze, 0) / 100 * 0.15,
                               highlights: max(tone.highlights, 0) / 100, whites: tone.whites / 100,
                               blacks: tone.blacks / 100, curve: adjustments.toneCurve)
-        if !table.isIdentity {
-            image = Self.curves(image, table)
+        if !toneTable.isIdentity {
+            image = Self.curves(image, toneTable)
         }
         if presence.vibrance != 0 {
             let filter = CIFilter.vibrance()
@@ -87,15 +87,21 @@ public struct AdjustmentRenderer: EditStackRenderer {
         if !adjustments.colorGrade.isIdentity {
             image = Self.cube(image, ColorGradeCube.make(adjustments.colorGrade), colorSpace: Self.perceptualSpace)
         }
-        if let identifier = adjustments.lookTable.identifier, adjustments.lookTable.intensity > 0,
-           let cube = lookTables?.cube(for: identifier) {
-            image = Self.lookTable(image, cube, intensity: adjustments.lookTable.intensity / 100)
+        let table = adjustments.lookTable
+        if let identifier = table.identifier, table.intensity > 0, let cube = lookTables?.cube(for: identifier) {
+            image = Self.lookTable(image, cube, intensity: table.intensity / 100, colorSpace: table.colorSpace)
+        }
+        if !adjustments.vignette.isIdentity {
+            image = Self.vignette(image, adjustments.vignette, extent: extent)
         }
         if !context.isRaw, let luminance = adjustments.noiseReduction.luminance, luminance > 0 {
             image = denoiser.denoise(image, amount: luminance / 100, context: context).cropped(to: extent)
         }
         if adjustments.sharpen.amount > 0 {
             image = Self.sharpen(image, adjustments.sharpen, scale: context.scale, extent: extent)
+        }
+        if !adjustments.grain.isIdentity {
+            image = Self.grain(image, adjustments.grain, extent: extent)
         }
         return image.cropped(to: extent)
     }
@@ -248,15 +254,202 @@ public struct AdjustmentRenderer: EditStackRenderer {
         return filter.outputImage ?? image
     }
 
-    /// Applies a look-up table, mixed with the input by `intensity` (0 … 1).
-    public static func lookTable(_ image: CIImage, _ table: ColorCube, intensity: Double) -> CIImage {
-        let looked = cube(image, table, colorSpace: lookTableSpace)
+    /// Applies a look-up table made for `colorSpace`, mixed with the input by
+    /// `intensity` (0 … 1).
+    public static func lookTable(_ image: CIImage, _ table: ColorCube, intensity: Double,
+                                 colorSpace: LookTable.ColorSpace = .sRGB) -> CIImage {
+        let looked = cube(image, table, colorSpace: colorSpace.cgColorSpace)
         guard intensity < 1 else { return looked }
         let mix = CIFilter.dissolveTransition()
         mix.inputImage = image
         mix.targetImage = looked
         mix.time = Float(intensity)
         return mix.outputImage ?? looked
+    }
+
+    /// An exposure falloff toward the edges: a gain map multiplied in linear
+    /// light. Distances are measured so that 1 is a corner, whatever the shape.
+    static func vignette(_ image: CIImage, _ settings: Vignette, extent: CGRect) -> CIImage {
+        guard extent.width > 0, extent.height > 0 else { return image }
+        let midpoint = 0.3 + settings.size / 100 * 0.6
+        let inner = max(0, midpoint - 0.35)
+        let outer = midpoint + 0.35
+        let roundness = settings.roundness / 100
+        guard var mask = ellipseMask(extent: extent, inner: inner, outer: outer, roundness: max(roundness, 0))
+        else { return image }
+        if roundness < 0, let rectangle = rectangleMask(extent: extent, inner: inner, outer: outer) {
+            let mix = CIFilter.dissolveTransition()
+            mix.inputImage = mask
+            mix.targetImage = rectangle
+            mix.time = Float(-roundness)
+            mask = mix.outputImage ?? mask
+        }
+
+        // Smoothstep of the mask to a gain of up to two stops at the edges.
+        let stops = settings.amount / 100 * 2
+        let count = 256
+        var table = [Float](repeating: 1, count: count * 3)
+        for i in 0..<count {
+            let x = Double(i) / Double(count - 1)
+            let value = Float(pow(2, stops * x * x * (3 - 2 * x)))
+            table[i * 3] = value
+            table[i * 3 + 1] = value
+            table[i * 3 + 2] = value
+        }
+        let gain = CIFilter.colorCurves()
+        gain.inputImage = mask.cropped(to: extent)
+        gain.curvesData = table.withUnsafeBytes { Data($0) }
+        gain.curvesDomain = CIVector(x: 0, y: 1)
+        gain.colorSpace = RenderEngine.workingColorSpace
+        let multiply = CIFilter.multiplyCompositing()
+        multiply.inputImage = gain.outputImage
+        multiply.backgroundImage = image
+        return multiply.outputImage?.settingAlphaOne(in: extent).cropped(to: extent) ?? image
+    }
+
+    /// Black inside, white outside: an ellipse through the corners with the
+    /// frame's proportions (roundness 0) or a circle (1).
+    static func ellipseMask(extent: CGRect, inner: Double, outer: Double, roundness: Double) -> CIImage? {
+        let halfWidth = extent.width / 2
+        let halfHeight = extent.height / 2
+        let diagonal = hypot(halfWidth, halfHeight)
+        let axisX = halfWidth * 2.squareRoot() * (1 - roundness) + diagonal * roundness
+        let axisY = halfHeight * 2.squareRoot() * (1 - roundness) + diagonal * roundness
+        // A unit gradient, stretched into the ellipse.
+        let unit = 1000.0
+        let gradient = CIFilter.radialGradient()
+        gradient.center = .zero
+        gradient.radius0 = Float(inner * unit)
+        gradient.radius1 = Float(outer * unit)
+        gradient.color0 = CIColor(red: 0, green: 0, blue: 0)
+        gradient.color1 = CIColor(red: 1, green: 1, blue: 1)
+        return gradient.outputImage?.transformed(by: CGAffineTransform(translationX: extent.midX, y: extent.midY)
+            .scaledBy(x: axisX / unit, y: axisY / unit))
+    }
+
+    /// Black inside, white outside: a rounded rectangle following the frame.
+    static func rectangleMask(extent: CGRect, inner: Double, outer: Double) -> CIImage? {
+        // Along each axis the ellipse through the corners crosses the edge's
+        // midpoint at 1/√2: scale so both shapes start falling off at the same place.
+        let reach = 2.squareRoot()
+        let center = CGPoint(x: extent.midX, y: extent.midY)
+        var inside: CIImage?
+        for (dx, dy) in [(1.0, 0.0), (-1.0, 0.0), (0.0, 1.0), (0.0, -1.0)] {
+            let half = dx != 0 ? extent.width / 2 : extent.height / 2
+            let gradient = CIFilter.smoothLinearGradient()
+            gradient.point0 = CGPoint(x: center.x + dx * half * inner * reach, y: center.y + dy * half * inner * reach)
+            gradient.point1 = CGPoint(x: center.x + dx * half * outer * reach, y: center.y + dy * half * outer * reach)
+            gradient.color0 = CIColor(red: 1, green: 1, blue: 1)
+            gradient.color1 = CIColor(red: 0, green: 0, blue: 0)
+            guard let side = gradient.outputImage else { return nil }
+            if let current = inside {
+                let multiply = CIFilter.multiplyCompositing()
+                multiply.inputImage = side
+                multiply.backgroundImage = current
+                inside = multiply.outputImage
+            } else {
+                inside = side
+            }
+        }
+        let invert = CIFilter.colorInvert()
+        invert.inputImage = inside
+        return invert.outputImage
+    }
+
+    /// Grain in the perceptual encoding: random noise grown to the grain size,
+    /// softened by low roughness, weighted by tone and added with a linear-light
+    /// blend (base + 2 × grain − 1, so mid grey adds nothing).
+    static func grain(_ image: CIImage, _ settings: Grain, extent: CGRect) -> CIImage {
+        let longest = max(extent.width, extent.height)
+        // The generator's alpha is random too: make it opaque before any color math.
+        guard longest > 0, let random = CIFilter.randomGenerator().outputImage?.settingAlphaOne(in: .infinite)
+        else { return image }
+        // Size 1 is about 1/2400 of the long edge: fine grain on a 35 mm frame.
+        let cell = settings.size * longest / 2400
+        // Grain smaller than a pixel averages out: render it at a pixel, weaker.
+        let pixelCell = max(cell, 1)
+        let roughness = settings.roughness / 100
+        let amplitude = settings.strength / 100 * 0.15 * min(cell, 1) * (1 + (1 - roughness) * 1.5)
+
+        func octave(_ size: Double, offset: Double) -> CIImage {
+            random.transformed(by: CGAffineTransform(translationX: extent.minX + offset, y: extent.minY + offset)
+                .scaledBy(x: size, y: size))
+        }
+        // Rough grain is fine and crisp; smooth grain mixes in larger, softer clumps.
+        let mix = CIFilter.dissolveTransition()
+        mix.inputImage = octave(pixelCell, offset: 0)
+        mix.targetImage = octave(pixelCell * 2.5, offset: 517)
+        mix.time = Float((1 - roughness) * 0.5)
+        guard var noise = mix.outputImage else { return image }
+        if roughness < 1 {
+            let blur = CIFilter.gaussianBlur()
+            blur.inputImage = noise
+            blur.radius = Float(pixelCell * 0.6 * (1 - roughness))
+            noise = blur.outputImage ?? noise
+        }
+
+        // Centered on 0.5, monochrome mixed with independent channels.
+        let color = CGFloat(settings.color / 100)
+        let a = CGFloat(amplitude)
+        let shape = CIFilter.colorMatrix()
+        shape.inputImage = noise
+        shape.rVector = CIVector(x: a, y: 0, z: 0, w: 0)
+        shape.gVector = CIVector(x: a * (1 - color), y: a * color, z: 0, w: 0)
+        shape.bVector = CIVector(x: a * (1 - color), y: 0, z: a * color, w: 0)
+        shape.aVector = CIVector(x: 0, y: 0, z: 0, w: 0)
+        shape.biasVector = CIVector(x: 0.5 - a / 2, y: 0.5 - a / 2, z: 0.5 - a / 2, w: 1)
+        let grey = CIFilter.colorMatrix()
+        grey.inputImage = noise
+        grey.rVector = CIVector(x: 0, y: 0, z: 0, w: 0)
+        grey.gVector = CIVector(x: 0, y: 0, z: 0, w: 0)
+        grey.bVector = CIVector(x: 0, y: 0, z: 0, w: 0)
+        grey.aVector = CIVector(x: 0, y: 0, z: 0, w: 0)
+        grey.biasVector = CIVector(x: 0.5, y: 0.5, z: 0.5, w: 1)
+
+        let encode = CIFilter.linearToSRGBToneCurve()
+        encode.inputImage = image
+        guard let perceptual = encode.outputImage else { return image }
+        // How much grain each tone gets.
+        let luminance = CIFilter.colorMatrix()
+        luminance.inputImage = perceptual
+        let row = CIVector(x: 0.2627, y: 0.6780, z: 0.0593, w: 0)
+        luminance.rVector = row
+        luminance.gVector = row
+        luminance.bVector = row
+        luminance.aVector = CIVector(x: 0, y: 0, z: 0, w: 1)
+        let weights = CIFilter.colorCurves()
+        weights.inputImage = luminance.outputImage
+        weights.curvesData = grainWeights(settings).withUnsafeBytes { Data($0) }
+        weights.curvesDomain = CIVector(x: 0, y: 1)
+        weights.colorSpace = RenderEngine.workingColorSpace
+        let weighted = CIFilter.blendWithMask()
+        weighted.inputImage = shape.outputImage
+        weighted.backgroundImage = grey.outputImage
+        weighted.maskImage = weights.outputImage
+        let blend = CIFilter.linearLightBlendMode()
+        blend.inputImage = weighted.outputImage?.cropped(to: extent)
+        blend.backgroundImage = perceptual
+        let decode = CIFilter.sRGBToneCurveToLinear()
+        decode.inputImage = blend.outputImage
+        return decode.outputImage?.settingAlphaOne(in: extent).cropped(to: extent) ?? image
+    }
+
+    /// Grain weight (0 … 1) over perceptual luminance, from the three tonal amounts.
+    static func grainWeights(_ settings: Grain) -> [Float] {
+        let count = 256
+        var table = [Float](repeating: 0, count: count * 3)
+        for i in 0..<count {
+            let luma = Double(i) / Double(count - 1)
+            let shadows = 1 - ToneTable.smoothstep(0.15, 0.45, luma)
+            let highlights = ToneTable.smoothstep(0.55, 0.85, luma)
+            let midtones = max(0, 1 - shadows - highlights)
+            let value = Float((shadows * settings.shadows + midtones * settings.midtones
+                + highlights * settings.highlights) / 100)
+            table[i * 3] = value
+            table[i * 3 + 1] = value
+            table[i * 3 + 2] = value
+        }
+        return table
     }
 
     /// Unsharp mask whose result can be held inside each pixel's neighborhood
@@ -336,8 +529,13 @@ public struct AdjustmentRenderer: EditStackRenderer {
 }
 
 extension Adjustments {
-    /// What the RAW decoder should apply for these adjustments.
+    /// What the RAW decoder should apply for these adjustments (modules that
+    /// are turned off leave the decoder's defaults).
     public var decodeSettings: RAWDecodeSettings {
+        effective.rawDecodeSettings
+    }
+
+    private var rawDecodeSettings: RAWDecodeSettings {
         var settings = RAWDecodeSettings()
         if whiteBalance.preset != .asShot {
             settings.temperature = whiteBalance.temperature.map(Float.init)

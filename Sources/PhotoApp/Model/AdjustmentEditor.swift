@@ -170,6 +170,7 @@ final class AdjustmentEditor {
         guard state == .ready else { return }
         var next = adjustments
         body(&next)
+        next.enableModules(changedFrom: adjustments)
         showsOriginal = false
         isChanging = phase == .changing
         if next != adjustments {
@@ -188,6 +189,14 @@ final class AdjustmentEditor {
     func reset(_ section: Adjustments.Section) {
         change(String(localized: "Reset \(AdjustText.title(section))", comment: "Undo action name; the heading's name"),
                phase: .committed) { $0 = $0.resetting(section) }
+    }
+
+    /// Turns a group's edits off (kept, not rendered) or back on, as one undo step.
+    func setEnabled(_ group: Adjustments.Group, _ isEnabled: Bool) {
+        let title = AdjustText.title(group)
+        change(isEnabled ? String(localized: "Turn On \(title)", comment: "Undo action name; the group's name")
+                         : String(localized: "Turn Off \(title)", comment: "Undo action name; the group's name"),
+               phase: .committed) { $0.setEnabled(group, isEnabled) }
     }
 
     func resetAll() {
@@ -293,20 +302,20 @@ final class AdjustmentEditor {
         }
     }
 
-    /// The photo with its saved adjustments but no look-up table, at the loupe's
-    /// size, for previewing tables on it.
+    /// The photo with its saved adjustments but no effects (look-up table,
+    /// vignette, grain), at the loupe's size, for previewing tables on it.
     func lookTablePreviewBase() async -> DecodedImage? {
         guard let session else { return nil }
-        var values = committed
-        values.lookTable = LookTable()
-        return try? await session.render(values).image
+        return try? await session.render(Self.withoutEffects(committed)).image
     }
 
     /// Identifies what `lookTablePreviewBase` would render.
     var lookTablePreviewKey: String {
-        var values = adjustments
-        values.lookTable = LookTable()
-        return "\(item?.versionID ?? 0)-\(values.editStack.renderHash)"
+        "\(item?.versionID ?? 0)-\(Self.withoutEffects(adjustments).editStack.renderHash)"
+    }
+
+    private static func withoutEffects(_ values: Adjustments) -> Adjustments {
+        values.effective.resetting(.effects)
     }
 
     // MARK: Auto

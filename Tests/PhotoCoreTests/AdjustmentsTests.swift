@@ -77,10 +77,15 @@ struct AdjustmentsModelTests {
         let disabled = EditOperation(kind: "tone", isEnabled: false, parameters: ["contrast": .number(50)])
         var adjustments = Adjustments(stack: EditStack(operations: [future, newer, disabled]))
         #expect(adjustments.exposure.ev == 0)
-        #expect(adjustments.tone.contrast == 0)
-        #expect(adjustments.preserved == [future, newer, disabled])
+        // A known operation that is off keeps its values, turned off.
+        #expect(adjustments.tone.contrast == 50)
+        #expect(!adjustments.isEnabled(.light))
+        #expect(adjustments.effective.tone.contrast == 0)
+        #expect(adjustments.preserved == [future, newer])
         adjustments.presence.vibrance = 10
-        #expect(adjustments.editStack.operations.map(\.kind.rawValue) == ["presence", "brush", "exposure", "tone"])
+        let operations = adjustments.editStack.operations
+        #expect(operations.map(\.kind.rawValue) == ["tone", "presence", "brush", "exposure"])
+        #expect(operations.map(\.isEnabled) == [false, true, true, true])
     }
 
     @Test func toleratesMistypedParameters() {

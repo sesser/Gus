@@ -245,10 +245,21 @@ public final class LookTableStore: Sendable {
     }
 
     /// Validates `url` as a `.cube` file and copies it into the store (once per
-    /// content). Returns the operation that applies it at full intensity.
+    /// content). Returns the operation that applies it at full intensity, named
+    /// from the file's header or its file name.
     public func importFile(at url: URL) throws -> LookTable {
         let data = try Data(contentsOf: url)
-        let lut = try CubeLUT(parsing: String(decoding: data, as: UTF8.self))
+        let text = String(decoding: data, as: UTF8.self)
+        let lut = try CubeLUT(parsing: text)
+        let identifier = try install(data)
+        cubes.withLock { $0[identifier] = lut.colorCube() }
+        let name = LookTableNaming.descriptiveName(in: text) ?? LookTableNaming.cleanedFileName(url.lastPathComponent)
+        return LookTable(identifier: identifier, name: name)
+    }
+
+    /// Writes a table's file unless the store has it; returns its identifier.
+    @discardableResult
+    public func install(_ data: Data) throws -> String {
         let identifier = Digest.sha256Hex(data)
         let destination = fileURL(for: identifier)
         let fileManager = FileManager.default
@@ -256,8 +267,15 @@ public final class LookTableStore: Sendable {
             try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
             try data.write(to: destination, options: .atomic)
         }
-        cubes.withLock { $0[identifier] = lut.colorCube() }
-        return LookTable(identifier: identifier, name: url.deletingPathExtension().lastPathComponent)
+        return identifier
+    }
+
+    /// Writes the built-in tables' files, so edits that use them keep their
+    /// file even after the looks change in a later build.
+    public func installBuiltIns() {
+        for table in BuiltInLookTables.all {
+            _ = try? install(table.data)
+        }
     }
 
     public func contains(_ identifier: String) -> Bool {
@@ -269,6 +287,9 @@ public final class LookTableStore: Sendable {
     public func cube(for identifier: String) -> ColorCube? {
         guard Self.isValid(identifier) else { return nil }
         if let cube = cubes.withLock({ $0[identifier] }) { return cube }
+        if !contains(identifier), let builtIn = BuiltInLookTables.table(identifier: identifier) {
+            _ = try? install(builtIn.data)
+        }
         guard let lut = try? CubeLUT(contentsOf: fileURL(for: identifier)) else { return nil }
         let cube = lut.colorCube()
         cubes.withLock { $0[identifier] = cube }
@@ -285,7 +306,7 @@ public final class LookTableStore: Sendable {
     }
 }
 
-/// Finding `.cube` files in a folder and previewing them on a photo.
+/// Finding `.cube` files in a folder and previewing tables on a photo.
 public enum LookTableBrowsing {
     /// At most this many files are listed.
     public static let fileLimit = 300
@@ -305,11 +326,16 @@ public enum LookTableBrowsing {
         }
     }
 
+    /// `base` reduced to at most `longEdge` pixels, to preview many tables on.
+    public static func reduced(_ base: CGImage, longEdge: Int, engine: RenderEngine) -> CGImage? {
+        engine.makeCGImage(CIImage(cgImage: base).scaledToFit(longEdge: longEdge), colorSpace: base.colorSpace)
+    }
+
     /// `base` (a rendered photo) with the table applied, at most `longEdge` pixels.
-    public static func preview(of base: CGImage, with table: ColorCube, engine: RenderEngine,
-                               longEdge: Int = 192) -> CGImage? {
+    public static func preview(of base: CGImage, with table: ColorCube, colorSpace: LookTable.ColorSpace = .sRGB,
+                               engine: RenderEngine, longEdge: Int = 192) -> CGImage? {
         let image = CIImage(cgImage: base).scaledToFit(longEdge: longEdge)
-        return engine.makeCGImage(AdjustmentRenderer.lookTable(image, table, intensity: 1),
+        return engine.makeCGImage(AdjustmentRenderer.lookTable(image, table, intensity: 1, colorSpace: colorSpace),
                                   colorSpace: base.colorSpace)
     }
 }

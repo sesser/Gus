@@ -36,6 +36,13 @@ struct PhotoApplication: App {
         }
         .defaultSize(width: 1200, height: 780)
 
+        Window(String(localized: "Look-Up Tables"), id: "lookTables") {
+            if let model = library.model {
+                LookTableBrowserWindow(model: model)
+            }
+        }
+        .defaultSize(width: 980, height: 720)
+
         Settings {
             if let model = library.model {
                 SettingsView(model: model)
