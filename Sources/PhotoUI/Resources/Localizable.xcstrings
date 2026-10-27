@@ -156,6 +156,28 @@
         }
       }
     },
+    "%lld folders. Imported: %lld. Already in the library: %lld." : {
+      "comment" : "Status bar, after several dropped folders were imported: folder count, then photo counts",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld folders. Imported: %lld. Already in the library: %lld."
+          }
+        }
+      }
+    },
+    "%lld folders. Imported: %lld. Already in the library: %lld. Could not import: %lld." : {
+      "comment" : "Status bar, after several dropped folders were imported: folder count, then photo counts",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld folders. Imported: %lld. Already in the library: %lld. Could not import: %lld."
+          }
+        }
+      }
+    },
     "%lld mm" : {
       "comment" : "Focal length",
       "localizations" : {
@@ -1509,6 +1531,17 @@
         }
       }
     },
+    "Could not import “%@”: %@" : {
+      "comment" : "Status bar: a folder's name, then the error",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not import “%@”: %@"
+          }
+        }
+      }
+    },
     "Could not load photos: %@" : {
       "localizations" : {
         "en" : {
@@ -1912,6 +1945,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Done"
+          }
+        }
+      }
+    },
+    "Drop folders to import each one as a project" : {
+      "comment" : "Shown over the browser while folders are dragged over it",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drop folders to import each one as a project"
           }
         }
       }
@@ -2372,6 +2416,29 @@
         }
       }
     },
+    "Ignored %lld items that are not folders." : {
+      "comment" : "Status bar, after a drop that included files",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Ignored %lld item that is not a folder."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Ignored %lld items that are not folders."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "Import" : {
       "comment" : "Toolbar button and open panel button",
       "localizations" : {
@@ -2482,23 +2549,13 @@
         }
       }
     },
-    "Import a folder of photos. Originals stay where they are; %@ only references them." : {
-      "comment" : "Empty library. The argument is the app name.",
+    "Import a folder of photos, or drag folders here. Originals stay where they are; %@ only references them." : {
+      "comment" : "Empty library; the argument is the app's name",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Import a folder of photos. Originals stay where they are; %@ only references them."
-          }
-        }
-      }
-    },
-    "Import a folder to create a project." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Import a folder to create a project."
+            "value" : "Import a folder of photos, or drag folders here. Originals stay where they are; %@ only references them."
           }
         }
       }
@@ -2563,6 +2620,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Import from Card or Folder…"
+          }
+        }
+      }
+    },
+    "Import or drop a folder here." : {
+      "comment" : "Sidebar, Projects section with no projects",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import or drop a folder here."
           }
         }
       }
@@ -3513,6 +3581,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "On %@"
+          }
+        }
+      }
+    },
+    "Only folders can be imported. Drag in a folder of photos." : {
+      "comment" : "Status bar, after a drop of files that are not folders",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only folders can be imported. Drag in a folder of photos."
           }
         }
       }
@@ -5735,6 +5814,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ƒ/%@"
+          }
+        }
+      }
+    },
+    "“%@” (%lld of %lld)" : {
+      "comment" : "Status bar during a batch of folder imports: the folder's name, its position and the folder count",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” (%lld of %lld)"
           }
         }
       }

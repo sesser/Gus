@@ -250,6 +250,10 @@ final class LibraryModel {
     // MARK: Background work
 
     private(set) var importProgress: ImportProgress?
+    /// The folder being imported, while a batch of several runs.
+    private(set) var importBatch: ImportBatchPosition?
+    /// Folders from Finder are being dragged over the browser.
+    var isFolderDropTargeted = false
     private(set) var warming: (done: Int, total: Int)?
     var statusMessage: String?
     private(set) var onlineVolumeIDs: Set<Int64> = []
@@ -258,6 +262,11 @@ final class LibraryModel {
     @ObservationIgnored private var volumesByID: [Int64: VolumeRecord] = [:]
     @ObservationIgnored private var reloadTask: Task<Void, Never>?
     @ObservationIgnored private var importTask: Task<Void, Never>?
+    @ObservationIgnored private var importQueue = FolderImportQueue()
+    /// Items dropped during the current batch that were not folders.
+    @ObservationIgnored private var ignoredDropCount = 0
+    /// Counts folder imports, so late progress reports of an earlier one are dropped.
+    @ObservationIgnored private var importGeneration = 0
     @ObservationIgnored private var warmTask: Task<Void, Never>?
     @ObservationIgnored private var writeChain: Task<Void, Never>?
     /// Undo for changes to photos and keywords. The grid and loupe answer
@@ -529,7 +538,7 @@ final class LibraryModel {
             } else {
                 sidebarSelection = .project(projectID)
             }
-            warmPreviews(projectID: projectID)
+            warmPreviews(projectIDs: [projectID])
             suggestKeywords(for: result.insertedVersionIDs)
         }
     }
@@ -768,30 +777,39 @@ final class LibraryModel {
     // MARK: Import
 
     var isImporting: Bool { importProgress != nil }
+    /// True until a batch of folder imports has finished, its status included.
+    var isImportRunning: Bool { importTask != nil }
 
+    /// Imports a folder in place as a new project named after it.
     func importFolder(_ folder: URL) {
-        guard importTask == nil else { return }
-        importProgress = ImportProgress(phase: .scanning)
-        statusMessage = nil
-        let importer = self.importer
-        importTask = Task {
-            defer { importTask = nil }
-            do {
-                let summary = try await importer.importFolder(folder) { progress in
-                    Task { @MainActor in self.importDidProgress(progress) }
-                }
-                importProgress = nil
-                await finishImport(summary)
-            } catch is CancellationError {
-                importProgress = nil
-                statusMessage = String(localized: "Import cancelled.")
-                await refreshProjects()
-                reloadItems(keepFocus: true)
-            } catch {
-                importProgress = nil
-                Self.log.error("Import failed: \(error.localizedDescription, privacy: .public)")
-                statusMessage = String(localized: "Import failed: \(error.localizedDescription)")
+        importFolders([folder])
+    }
+
+    /// Imports folders (chosen, dropped from Finder or scripted) one after
+    /// another, each in place as its own project; see `DroppedFolders` for what
+    /// counts. Folders added while a batch runs join it.
+    func importFolders(_ urls: [URL]) {
+        let dropped = DroppedFolders(urls)
+        let added = importQueue.enqueue(dropped.folders)
+        ignoredDropCount += dropped.ignored.count
+        guard importTask == nil else {
+            updateImportBatch()
+            return
+        }
+        guard !added.isEmpty else {
+            if !dropped.ignored.isEmpty {
+                statusMessage = String(localized: "Only folders can be imported. Drag in a folder of photos.")
             }
+            ignoredDropCount = 0
+            return
+        }
+        statusMessage = nil
+        importTask = Task {
+            // A drop that arrives while a finished batch reports starts another.
+            repeat {
+                await runImportBatch()
+            } while importQueue.isRunning && !Task.isCancelled
+            importTask = nil
         }
     }
 
@@ -799,8 +817,58 @@ final class LibraryModel {
         importTask?.cancel()
     }
 
-    private func importDidProgress(_ progress: ImportProgress) {
-        guard importTask != nil, progress.filesProcessed >= (importProgress?.filesProcessed ?? 0) else { return }
+    private func runImportBatch() async {
+        let importer = self.importer
+        var folderErrors: [(name: String, error: any Error)] = []
+        while let folder = importQueue.next() {
+            importGeneration += 1
+            let generation = importGeneration
+            importProgress = ImportProgress(phase: .scanning)
+            updateImportBatch()
+            do {
+                try Task.checkCancellation()
+                let summary = try await importer.importFolder(folder) { progress in
+                    Task { @MainActor in self.importDidProgress(progress, generation: generation) }
+                }
+                importQueue.record(summary)
+                await finishFolderImport(summary)
+            } catch is CancellationError {
+                importProgress = nil
+                importBatch = nil
+                let totals = importQueue.finish()
+                ignoredDropCount = 0
+                statusMessage = String(localized: "Import cancelled.")
+                await refreshProjects()
+                warmPreviews(projectIDs: totals.projectIDs)
+                reloadItems(keepFocus: true)
+                return
+            } catch {
+                Self.log.error("Import of \(folder.path, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
+                folderErrors.append((Importer.defaultProjectName(for: folder), error))
+            }
+        }
+        importProgress = nil
+        importBatch = nil
+        let folderCount = importQueue.started
+        let totals = importQueue.finish()
+        let ignored = ignoredDropCount
+        ignoredDropCount = 0
+        await finishImportBatch(totals, folderCount: folderCount, ignored: ignored, folderErrors: folderErrors)
+    }
+
+    private func updateImportBatch() {
+        guard let folder = importQueue.current, importQueue.count > 1 else {
+            importBatch = nil
+            return
+        }
+        importBatch = ImportBatchPosition(name: Importer.defaultProjectName(for: folder),
+                                          index: importQueue.started, count: importQueue.count)
+    }
+
+    private func importDidProgress(_ progress: ImportProgress, generation: Int) {
+        // Late reports of the previous folder in a batch are dropped.
+        guard importTask != nil, generation == importGeneration,
+              progress.filesProcessed >= (importProgress?.filesProcessed ?? 0) else { return }
         importProgress = progress
         // Let the library fill in while a long import runs.
         if Date().timeIntervalSince(lastLiveRefresh) > 1.5, progress.imported > 0 {
@@ -812,38 +880,61 @@ final class LibraryModel {
         }
     }
 
-    private func finishImport(_ summary: ImportSummary) async {
+    /// One folder of a batch is in: its project shows in the sidebar.
+    private func finishFolderImport(_ summary: ImportSummary) async {
         await refreshVolumes()
         await refreshProjects()
-        await refreshKeywords()
         scheduleSidecarSync()
-        let progress = summary.progress
-        let skipped = progress.duplicates + progress.alreadyInCatalog
-        let failed = progress.failed + progress.changedOnDisk
-        statusMessage = failed > 0
-            ? String(localized: "Imported: \(progress.imported). Already in the library: \(skipped). Could not import: \(failed).")
-            : String(localized: "Imported: \(progress.imported). Already in the library: \(skipped).")
-        if let projectID = summary.project?.id {
+        suggestKeywords(for: summary.insertedVersionIDs)
+    }
+
+    private func finishImportBatch(_ totals: FolderImportQueue.Totals, folderCount: Int, ignored: Int,
+                                   folderErrors: [(name: String, error: any Error)]) async {
+        await refreshKeywords()
+        var message: String
+        if let failure = folderErrors.first, folderCount == 1 {
+            message = String(localized: "Import failed: \(failure.error.localizedDescription)")
+        } else if folderCount > 1 {
+            message = totals.failed > 0
+                ? String(localized: "\(folderCount) folders. Imported: \(totals.imported). Already in the library: \(totals.alreadyInLibrary). Could not import: \(totals.failed).")
+                : String(localized: "\(folderCount) folders. Imported: \(totals.imported). Already in the library: \(totals.alreadyInLibrary).")
+            if let failure = folderErrors.first {
+                message += " " + String(localized: "Could not import “\(failure.name)”: \(failure.error.localizedDescription)")
+            }
+        } else {
+            message = totals.failed > 0
+                ? String(localized: "Imported: \(totals.imported). Already in the library: \(totals.alreadyInLibrary). Could not import: \(totals.failed).")
+                : String(localized: "Imported: \(totals.imported). Already in the library: \(totals.alreadyInLibrary).")
+        }
+        if ignored > 0 {
+            message += " " + String(localized: "Ignored \(ignored) items that are not folders.")
+        }
+        statusMessage = message
+        // The first new project opens; the rest are listed in the sidebar.
+        if let projectID = totals.projectIDs.first {
             if sidebarSelection == .project(projectID) {
                 reloadItems(keepFocus: true)
             } else {
                 sidebarSelection = .project(projectID)
             }
-            warmPreviews(projectID: projectID)
-            suggestKeywords(for: summary.insertedVersionIDs)
+            warmPreviews(projectIDs: totals.projectIDs)
         } else {
             reloadItems(keepFocus: true)
         }
     }
 
-    /// Renders previews for a freshly imported project in the background. Visible
+    /// Renders previews for freshly imported projects in the background. Visible
     /// thumbnails still jump the queue.
-    func warmPreviews(projectID: Int64) {
+    func warmPreviews(projectIDs: [Int64]) {
+        guard !projectIDs.isEmpty else { return }
         warmTask?.cancel()
         let catalog = self.catalog
         let previews = self.previews
         warmTask = Task {
-            guard let items = try? await catalog.libraryItems(matching: LibraryFilter(scope: .project(projectID))) else { return }
+            var items: [CatalogItem] = []
+            for projectID in projectIDs {
+                items += (try? await catalog.libraryItems(matching: LibraryFilter(scope: .project(projectID)))) ?? []
+            }
             let requests = items.compactMap { previewRequest(for: $0, tier: .preview) }.filter { $0.sourceURL != nil }
             warming = (0, requests.count)
             var done = 0
@@ -868,3 +959,12 @@ final class LibraryModel {
 }
 
 extension LibraryModel: CardImportLibrary {}
+
+/// Where a batch of folder imports stands, for the status bar.
+struct ImportBatchPosition: Equatable {
+    /// The folder being imported, as its project will be named.
+    var name: String
+    /// 1-based.
+    var index: Int
+    var count: Int
+}

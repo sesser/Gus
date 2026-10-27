@@ -92,11 +92,12 @@ struct SidebarView: View {
                 }
                 albumRows(albums, smart)
             }
-            Section("Projects") {
+            Section {
                 if model.projects.isEmpty {
-                    Text("Import a folder to create a project.")
+                    Text("Import or drop a folder here.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
+                        .onDrop(of: FolderDrop.types, isTargeted: nil) { FolderDrop.accept($0, model: model) }
                 }
                 ForEach(model.projects) { summary in
                     let albums = model.albums.filter { $0.album.projectId == summary.id }
@@ -111,6 +112,11 @@ struct SidebarView: View {
                         }
                     }
                 }
+            } header: {
+                // Folders dropped on the header or any project row each become
+                // a new project, as they do on the browser.
+                Text("Projects")
+                    .onDrop(of: FolderDrop.types, isTargeted: nil) { FolderDrop.accept($0, model: model) }
             }
             Section("Keywords", isExpanded: $keywordsExpanded) {
                 if model.keywords.isEmpty {
@@ -199,6 +205,7 @@ struct SidebarView: View {
         SidebarRow(title: summary.project.name, symbol: "folder", count: summary.versionCount)
             .tag(SidebarSelection.project(summary.id))
             .help(summary.project.sourcePath ?? summary.project.name)
+            .onDrop(of: FolderDrop.types, isTargeted: nil) { FolderDrop.accept($0, model: model) }
             .contextMenu {
                 Button("New Album in Project…") { model.sidebarSheet = .newAlbum(projectID: summary.id) }
                 Button("New Smart Album in Project…") { model.sidebarSheet = .smartAlbum(nil, projectID: summary.id) }

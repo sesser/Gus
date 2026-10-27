@@ -153,7 +153,7 @@ public final class Importer: Sendable {
         }
     }
 
-    static func defaultProjectName(for folder: URL) -> String {
+    public static func defaultProjectName(for folder: URL) -> String {
         let name = folder.lastPathComponent
         return name.isEmpty || name == "/" ? folder.path : name
     }

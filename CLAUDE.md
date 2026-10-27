@@ -45,7 +45,7 @@ importer and `all` builds both.
 To check UI changes without screen recording permission, run the bundle's
 executable with `--library-root <folder> --debug-script "wait 2; snapshot /tmp/a.png; quit"`
 (see `Sources/PhotoApp/Model/DebugScript.swift` for every command: keywords,
-albums, sidecars, the import window…). App launch options must always take a
+albums, sidecars, the import window, folder drops…). App launch options must always take a
 value: AppKit treats a stray argument as a document and then does not open the
 main window. A process started from a shell is not the active app, so it has
 no key window: scripted keys go straight to the window, and local event
@@ -190,6 +190,8 @@ white balance, exposure with Auto, tone, presence, tone curve with histogram,
 sharpening, noise reduction, color grading), an Effects heading (look-up table
 collections with a browser window, import and management; vignette; grain),
 per-group on/off check boxes, before/after, copy/paste and presets.
+Folders dragged from Finder onto the library window import in place, one
+project per folder, queued behind each other (`FolderImportQueue`).
 
 Not yet: brushes and masks, healing, cropping, lens corrections, export, ML
 denoising, `.dcp` profiles, general (hand-made or burst) stacks, hierarchical

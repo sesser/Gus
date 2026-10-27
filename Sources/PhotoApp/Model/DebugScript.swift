@@ -28,6 +28,9 @@ import PhotoUI
 ///     import open | source <path> | dest <path> | job <text> | delete on|off | eject on|off
 ///            | run (waits) | confirm yes|no | snapshot <file> | print   (see ImportDebugCommands)
 ///     adjust …  original on|off  tab info|adjust   (see DebugAdjustCommands)
+///     dropfolders <path>[, <path>…]   (imports dropped items the way a drop from Finder does)
+///     waitimport            (waits for folder imports to finish, then prints the projects and status)
+///     drophighlight on|off  (shows the browser's folder drop highlight)
 ///     lut <name>|none       (the first table of that name in any collection)
 ///     lutimport <folder> [<collection>]   (into a new collection, or an existing one of that name)
 ///     luts                  (prints the collections)
@@ -172,6 +175,18 @@ enum DebugScript {
             model.resolveDiskChanges(changes, with: rest.first == "file" ? .useFile : .keepLibrary)
         case "import":
             await runImportCommand(rest, model: model.cardImport, library: model)
+        case "dropfolders":
+            let paths = rest.joined(separator: " ").split(separator: ",")
+                .map { ($0.trimmingCharacters(in: .whitespaces) as NSString).expandingTildeInPath }
+            // Item providers like Finder's, read by the drop's own code.
+            let providers = paths.map { NSItemProvider(object: URL(fileURLWithPath: $0) as NSURL) }
+            model.importFolders(await FolderDrop.urls(from: providers))
+        case "waitimport":
+            while model.isImportRunning { try? await Task.sleep(for: .milliseconds(100)) }
+            print("debug-script: projects " + model.projects.map { "\($0.project.name)=\($0.versionCount)" }
+                .joined(separator: " ") + " | \(model.statusMessage ?? "")")
+        case "drophighlight":
+            model.isFolderDropTargeted = rest.first == "on"
         case "click":
             if let window, let point = windowPoint(rest, in: window) {
                 printHit(window, at: point)

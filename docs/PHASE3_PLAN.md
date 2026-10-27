@@ -209,3 +209,17 @@ Where the implementation settled details the plan left open, or differs:
 - **Debug script**: `adjust …` (including `adjust off|on <group>`), `original`,
   `tab`, `lut`, `lutimport`, `luts`, `lutwindow …`, `scroll`, `copyadjust`,
   `pasteadjust`, `preset` and `print adjustments` drive all of it.
+- **Folder drops**: folders dragged from Finder onto the browser or the
+  sidebar's Projects list (header and rows) import in place, one project per
+  folder, through the same queue as Import Folder… (`LibraryModel.importFolders`,
+  `FolderImportQueue` and `DroppedFolders` in `PhotoCore/Import`). Subfolders
+  join their folder's project; a dropped folder inside another dropped or
+  queued one is skipped; aliases resolve to their folder, symbolic links keep
+  their own name; files and packages are ignored and counted in the status. A
+  same-named project is never reused, as with Import Folder…. The first new
+  project opens and previews warm for all of them; Cancel stops the batch.
+  The browser shows its own highlight while folders hover; sidebar rows use
+  the list's drop highlight. Photos dragged out of the grid carry their own
+  type, so album and keyword drops are unchanged. `dropfolders` and
+  `waitimport` drive it from the debug script (the item providers are built
+  like Finder's and read by the drop's own code).

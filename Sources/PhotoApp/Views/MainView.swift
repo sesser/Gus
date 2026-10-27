@@ -66,9 +66,15 @@ struct BrowserView: View {
                     Spacer()
                 }
             }
-            if model.itemCount == 0, model.mode == .grid {
+            if model.itemCount == 0, model.mode == .grid, !model.isFolderDropTargeted {
                 EmptyLibraryView(model: model)
             }
+        }
+        .onDrop(of: FolderDrop.types, isTargeted: $model.isFolderDropTargeted) { providers in
+            FolderDrop.accept(providers, model: model)
+        }
+        .overlay {
+            if model.isFolderDropTargeted { FolderDropHighlight() }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             StatusBar(model: model)
@@ -89,7 +95,7 @@ private struct EmptyLibraryView: View {
             } else {
                 Text("No photos yet")
                     .font(.title3)
-                Text("Import a folder of photos. Originals stay where they are; \(AppBranding.displayName) only references them.")
+                Text("Import a folder of photos, or drag folders here. Originals stay where they are; \(AppBranding.displayName) only references them.")
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: 360)
@@ -109,6 +115,11 @@ struct StatusBar: View {
     var body: some View {
         HStack(spacing: 12) {
             if let progress = model.importProgress {
+                if let batch = model.importBatch {
+                    Text("“\(batch.name)” (\(batch.index) of \(batch.count))")
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
                 ProgressView(value: Double(progress.filesProcessed), total: Double(max(progress.filesFound, 1)))
                     .frame(width: 140)
                 Text(importText(progress))

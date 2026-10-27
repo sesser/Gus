@@ -67,6 +67,16 @@ added to a new project named after the folder. Duplicates (same content
 anywhere in the library) are skipped, and so are files already imported from
 the same place. Originals are never moved, copied or modified.
 
+You can also drag one or more folders from Finder onto the browser (grid or
+loupe) or the sidebar's Projects list. Each folder is imported the same way, in
+place, as its own project named after it; several import one after another,
+with the folder and its place in the batch shown in the status bar. Folders
+dropped while an import runs join the queue. Files and packages among the
+dropped items are ignored (the status bar says how many), and a folder inside
+another dropped folder is imported with it. A project of the same name already
+in the library is left alone: the import makes a new project holding only the
+photos the library does not have yet, and a folder with nothing new makes none.
+
 | key | grid | loupe |
 |---|---|---|
 | arrows | move selection (⇧ extends) | ← → previous / next photo |
