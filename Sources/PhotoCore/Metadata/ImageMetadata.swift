@@ -50,7 +50,7 @@ public struct ImageMetadata: Hashable, Sendable, Codable {
 
     /// What the readers fill in. Masters read with an older revision are read
     /// again in the background so the newer columns fill in.
-    public static let revision = 4
+    public static let revision = 5
 
     // Values another app (or the camera) stored in the file. They seed the
     // default version at import; the catalog does not keep them on `image`.

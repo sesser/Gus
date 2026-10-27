@@ -167,8 +167,10 @@ public struct ImageRecord: Codable, Hashable, Sendable, Identifiable, FetchableR
     }
 
     /// Copies the descriptive and technical columns from `metadata` (not the
-    /// capture date, size or orientation, which are fixed at import).
+    /// capture date, size or orientation, which are fixed at import). A lens
+    /// is only filled in, never cleared.
     mutating func applyExtendedMetadata(_ metadata: ImageMetadata) {
+        lensModel = metadata.lensModel ?? lensModel
         artist = metadata.artist
         copyright = metadata.copyright
         caption = metadata.caption

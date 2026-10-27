@@ -75,6 +75,16 @@ struct MetadataColumnTests {
         #expect(ExifToolMetadataReader.metadata(from: ["Flash": 16]).flashCompensation == nil)
     }
 
+    @Test func lensFallsBackToTheNameExifToolGivesMakerNoteCodes() {
+        let panasonic = "Lumix G Vario 12-32mm F3.5-5.6 Asph. Mega OIS"
+        #expect(ExifToolMetadataReader.metadata(from: ["LensID": panasonic]).lensModel == panasonic)
+        #expect(ExifToolMetadataReader.metadata(from: ["LensModel": "FE 35mm F2.8 ZA", "LensID": "Sony FE 35mm"])
+            .lensModel == "FE 35mm F2.8 ZA")
+        #expect(ExifToolMetadataReader.metadata(from: ["LensID": "2 20 10"]).lensModel == nil)
+        #expect(ExifToolMetadataReader.metadata(from: ["LensID": "Unknown (12 34)"]).lensModel == nil)
+        #expect(ExifToolMetadataReader.metadata(from: ["LensID": "None"]).lensModel == nil)
+    }
+
     @Test func importsRecordTheirRunAndColumns() async throws {
         try await RepositoryFiles.withTemporaryDirectory { root in
             let folder = root.appending(path: "Shoot")
@@ -106,11 +116,14 @@ struct MetadataColumnTests {
         var fresh = ImageMetadata()
         fresh.artist = "Someone"
         fresh.flashCompensation = -0.7
+        fresh.lensModel = "Lumix G Vario 12-32mm"
         try await catalog.refreshMetadata([stale[0].imageID: fresh], checked: stale.map(\.imageID))
         #expect(try await catalog.staleMetadata(onVolumes: [fixture.volume.id!]).isEmpty)
         let images = try await catalog.allImages().sorted { $0.id! < $1.id! }
         #expect(images.map(\.artist) == ["Someone", nil])
         #expect(images.map(\.flashCompensation) == [-0.7, nil])
+        // A lens found on a later read fills in; an unreadable master keeps its own.
+        #expect(images[0].lensModel == "Lumix G Vario 12-32mm")
         // The capture date and size are not touched by a refresh.
         #expect(images[0].pixelWidth == 6000)
     }

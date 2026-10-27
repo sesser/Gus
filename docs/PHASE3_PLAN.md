@@ -148,6 +148,9 @@ Where the implementation settled details the plan left open, or differs:
   capture date, file name and folder, then keywords. Flash compensation comes
   from maker notes: migration `v9` adds `image.flashCompensation`, and
   `ImageMetadata.revision` 4 makes existing masters be read again.
+  Revision 5 names lenses that only maker notes identify (Panasonic, older
+  bodies) from ExifTool's `LensID`, which is read printed while every other
+  tag is read as a raw number, and fills in a missing lens on existing masters.
 - **Auto white balance** is a preset entry rather than a button: picking Auto
   measures once and stores the result as plain numbers.
 - **Look-up table previews** render the photo with its saved adjustments and

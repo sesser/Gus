@@ -13,7 +13,7 @@ public actor ExifToolMetadataReader: MetadataReader {
     static let tags = [
         "SubSecDateTimeOriginal", "DateTimeOriginal", "CreateDate", "OffsetTimeOriginal",
         "ImageSize", "ImageWidth", "ImageHeight", "Orientation",
-        "Make", "Model", "LensModel", "ISO", "ExposureTime", "FNumber", "FocalLength",
+        "Make", "Model", "LensModel", "LensID", "ISO", "ExposureTime", "FNumber", "FocalLength",
         "Keywords", "Subject", "Rating", "Label",
         "Artist", "Creator", "Copyright", "Rights", "ImageDescription", "Description", "Caption-Abstract",
         "SerialNumber", "InternalSerialNumber", "Composite:GPSLatitude", "Composite:GPSLongitude",
@@ -23,6 +23,10 @@ public actor ExifToolMetadataReader: MetadataReader {
         "CreatorRegion", "CreatorPostalCode", "CreatorCountry",
         "ShutterCount", "ShutterCount2", "ShutterCount3",
     ]
+
+    /// Tags read as ExifTool prints them; every other tag is read as a raw
+    /// number (`#`). `LensID` turns lens codes in maker notes into names.
+    static let printedTags: Set<String> = ["LensID"]
 
     public enum Failure: Error {
         case processExited
@@ -76,8 +80,8 @@ public actor ExifToolMetadataReader: MetadataReader {
         for (slot, files) in groups.enumerated() {
             let session = try session(at: slot)
             commandNumber += 1
-            var arguments = ["-json", "-n", "-fast", "-charset", "filename=utf8"]
-            arguments += Self.tags.map { "-\($0)" }
+            var arguments = ["-json", "-fast", "-charset", "filename=utf8"]
+            arguments += Self.tags.map { Self.printedTags.contains($0) ? "-\($0)" : "-\($0)#" }
             arguments += files.map(\.path)
             arguments.append("-execute\(commandNumber)")
             do {
@@ -133,6 +137,15 @@ public actor ExifToolMetadataReader: MetadataReader {
         return result
     }
 
+    /// A lens identified from maker notes, or nil when ExifTool only has its
+    /// codes ("2 20 10"), does not know it ("Unknown (0)") or there is none.
+    static func lensName(_ value: String?) -> String? {
+        guard let value, value.contains(where: \.isLetter), !value.hasPrefix("Unknown"),
+              value.caseInsensitiveCompare("None") != .orderedSame
+        else { return nil }
+        return value
+    }
+
     static func metadata(from entry: [String: Any]) -> ImageMetadata {
         func string(_ key: String) -> String? {
             switch entry[key] {
@@ -175,7 +188,8 @@ public actor ExifToolMetadataReader: MetadataReader {
         var metadata = ImageMetadata(
             captureDate: parsed?.date, captureOffsetSeconds: parsed?.offsetSeconds,
             pixelWidth: width, pixelHeight: height, orientation: int("Orientation") ?? 1,
-            cameraMake: string("Make"), cameraModel: string("Model"), lensModel: string("LensModel"),
+            cameraMake: string("Make"), cameraModel: string("Model"),
+            lensModel: string("LensModel") ?? lensName(string("LensID")),
             iso: int("ISO"), exposureTime: double("ExposureTime"), fNumber: double("FNumber"),
             focalLength: double("FocalLength"), keywords: strings("Keywords") + strings("Subject"),
             rating: int("Rating"), label: string("Label"))
