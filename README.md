@@ -132,4 +132,9 @@ Everything goes through SwiftPM; GRDB is the only third-party dependency.
 
 ## License
 
-Gus is released under the [MIT License](LICENSE).
+Copyright © 2026 Randy Sesser.
+
+Gus is free software: you can redistribute it and/or modify it under the terms
+of the [GNU General Public License, version 3](LICENSE) or (at your option) any
+later version. It is distributed in the hope that it will be useful, but
+without any warranty; see the license for details.
