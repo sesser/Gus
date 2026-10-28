@@ -29,6 +29,14 @@ public enum AppBranding {
     /// Custom URL scheme registered in Info.plist via `PRODUCT_URL_SCHEME`.
     public static let urlScheme = "gus"
 
+    /// Extension of exported preset files, declared in Info.plist as a document
+    /// type the app opens. Must match `PRESET_FILE_EXTENSION`.
+    public static let presetFileExtension = "guspreset"
+
+    /// Earlier values of `presetFileExtension`, still read on import. Prepend
+    /// the old value on a rename: files already shared keep it.
+    public static let previousPresetFileExtensions = ["photopreset"]
+
     /// Name of the standalone importer, which copies from cards and folders
     /// without a library. Must match `IMPORTER_PRODUCT_DISPLAY_NAME`.
     public static let importerDisplayName = "Gus Importer"

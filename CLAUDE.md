@@ -62,7 +62,8 @@ compatible and never put `#` comment lines inside pasted command snippets.
 
 - `Sources/PhotoCore` — library with no AppKit/SwiftUI: branding, catalog
   (GRDB), import, metadata, `Edits/` (edit stack, adjustments, renderer, live
-  render session, look-up tables), preview pipeline, `Sidecars/` (XMP),
+  render session, look-up tables), `Presets/` (preset files, Lightroom preset
+  reading and mapping), preview pipeline, `Sidecars/` (XMP),
   `CardImport/` (templates, copying), `Suggestions/` (Vision), `Video/`.
   Everything testable lives here.
 - `Sources/PhotoUI` — UI shared by both apps: `Import/` (the import window, its
@@ -88,7 +89,8 @@ compatible and never put `#` comment lines inside pasted command snippets.
 - `Sources/PhotoCore/Branding/AppBranding.swift` is the only Swift file that may
   contain brand values. `Branding.xcconfig` holds the build-setting copies
   (`PRODUCT_NAME`, `PRODUCT_DISPLAY_NAME`, `PRODUCT_BUNDLE_IDENTIFIER`,
-  `PRODUCT_URL_SCHEME`). `BrandingTests` enforces both and fails on any leak.
+  `PRODUCT_URL_SCHEME`, `PRESET_FILE_EXTENSION`). `BrandingTests` enforces both
+  and fails on any leak.
 - User-facing strings go through `Sources/PhotoUI/Resources/Localizable.xcstrings`
   and refer to the product name only via a `%@` argument filled from
   `AppBranding.displayName`. Nothing extracts strings automatically: add new
@@ -110,7 +112,8 @@ compatible and never put `#` comment lines inside pasted command snippets.
   missing. Volumes are matched by identity (UUID) so a remount elsewhere is found.
 - **Catalog** is SQLite via GRDB with numbered migrations from day one. Tables:
   `volume`, `project`, `image` (master), `version`, `album`, `albumMember`,
-  `stack`, `stackMember`, `keyword`, `versionKeyword`, `lookTableCollection`,
+  `stack`, `stackMember`, `keyword`, `versionKeyword`, `adjustmentPreset`
+  (with `collection` and `groups`, null for all), `lookTableCollection`,
   `lookTableEntry`. Ratings 0–5, flags
   (-1 reject, 0 none, 1 pick) and color labels (0–7) live on versions.
   Never edit an existing migration; add a new one.
@@ -190,6 +193,14 @@ white balance, exposure with Auto, tone, presence, tone curve with histogram,
 sharpening, noise reduction, color grading), an Effects heading (look-up table
 collections with a browser window, import and management; vignette; grain),
 per-group on/off check boxes, before/after, copy/paste and presets.
+Presets, second pass: a Color Mixer (hue, saturation and luminance of eight
+hue bands), preset collections, presets that apply only some groups,
+preset files with their look-up tables embedded (`PresetFile`: xz-compressed
+JSON; the extension is a brand value, declared in Info.plist so the Finder
+opens them in the app, which imports them), and
+import of Lightroom `.lrtemplate`, `.xmp` and `.dng` presets
+(`Sources/PhotoCore/Presets/`: `CameraRawSettings` reads them,
+`CameraRawMapping` converts and reports what has no equivalent).
 Folders dragged from Finder onto the library window import in place, one
 project per folder, queued behind each other (`FolderImportQueue`).
 

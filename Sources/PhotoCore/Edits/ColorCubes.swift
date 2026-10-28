@@ -78,6 +78,77 @@ enum ColorGradeCube {
     }
 }
 
+/// The color mixer baked into a cube, in the same perceptual encoding as the
+/// tone table. Each color takes the shifts of the two bands around its hue,
+/// blended by where it falls between their centers; hue turns the color around
+/// the grey axis, saturation scales its distance from it, and luminance scales
+/// it as a whole. All three fade out toward grey.
+enum ColorMixerCube {
+    static let dimension = 33
+    /// Rotation at ±100, in degrees: about the distance to the next band.
+    static let maximumHueShift = 30.0
+    /// Gain at ±100, in stops of the encoded value (about one stop of light).
+    static let maximumLuminanceStops = 0.5
+    /// Chroma (max − min of the channels) from which a color gets the full change.
+    static let fullChroma = 0.2
+
+    static func make(_ mixer: ColorMixer) -> ColorCube {
+        let bands = ColorMixer.Band.allCases
+        let centers = bands.map(\.centerHue)
+        let shifts = bands.map { mixer[$0] }
+        let axis = SIMD3<Double>(repeating: 1 / 3.0.squareRoot())
+        return ColorCube.evaluating(dimension: dimension) { rgb in
+            let high = max(rgb.x, rgb.y, rgb.z)
+            let chroma = high - min(rgb.x, rgb.y, rgb.z)
+            guard chroma > 1e-6 else { return rgb }
+            let shift = blend(shifts, centers: centers, hue: hue(of: rgb, high: high, chroma: chroma))
+            let strength = ToneTable.smoothstep(0, fullChroma, chroma)
+            let mean = (rgb.x + rgb.y + rgb.z) / 3
+            var offset = rgb - SIMD3(repeating: mean)
+            // Rodrigues around the grey axis (the offset is perpendicular to it):
+            // positive angles go red → yellow → green, as hues increase.
+            let angle = shift.hue / 100 * maximumHueShift * strength * .pi / 180
+            offset = offset * cos(angle) + cross(axis, offset) * sin(angle)
+            offset *= max(0, 1 + shift.saturation / 100 * strength)
+            let gain = pow(2, shift.luminance / 100 * maximumLuminanceStops * strength)
+            let out = (SIMD3(repeating: mean) + offset) * gain
+            return SIMD3(max(out.x, 0), max(out.y, 0), max(out.z, 0))
+        }
+    }
+
+    /// HSV hue in degrees, 0 ..< 360.
+    static func hue(of rgb: SIMD3<Double>, high: Double, chroma: Double) -> Double {
+        let sector: Double
+        if high == rgb.x {
+            sector = ((rgb.y - rgb.z) / chroma).truncatingRemainder(dividingBy: 6)
+        } else if high == rgb.y {
+            sector = (rgb.z - rgb.x) / chroma + 2
+        } else {
+            sector = (rgb.x - rgb.y) / chroma + 4
+        }
+        let degrees = sector * 60
+        return degrees < 0 ? degrees + 360 : degrees
+    }
+
+    /// The shift at `hue`: the two neighboring bands' shifts, smoothly mixed.
+    static func blend(_ shifts: [ColorMixer.Shift], centers: [Double], hue: Double) -> ColorMixer.Shift {
+        var lower = centers.count - 1
+        for index in centers.indices where centers[index] <= hue { lower = index }
+        let upper = (lower + 1) % centers.count
+        let start = centers[lower]
+        var end = centers[upper]
+        if end <= start { end += 360 }
+        var position = hue
+        if position < start { position += 360 }
+        let t = ToneTable.smoothstep(0, 1, (position - start) / (end - start))
+        let a = shifts[lower]
+        let b = shifts[upper]
+        return ColorMixer.Shift(hue: a.hue + (b.hue - a.hue) * t,
+                                saturation: a.saturation + (b.saturation - a.saturation) * t,
+                                luminance: a.luminance + (b.luminance - a.luminance) * t)
+    }
+}
+
 extension SIMD3 where Scalar == Double {
     init(_ tuple: (Double, Double, Double)) {
         self.init(tuple.0, tuple.1, tuple.2)
@@ -294,6 +365,13 @@ public final class LookTableStore: Sendable {
         let cube = lut.colorCube()
         cubes.withLock { $0[identifier] = cube }
         return cube
+    }
+
+    /// A table's file as imported (built-in tables as generated), or nil.
+    public func fileData(for identifier: String) -> Data? {
+        guard Self.isValid(identifier) else { return nil }
+        if let data = try? Data(contentsOf: fileURL(for: identifier)) { return data }
+        return BuiltInLookTables.table(identifier: identifier)?.data
     }
 
     func fileURL(for identifier: String) -> URL {

@@ -17,6 +17,7 @@ public struct Adjustments: Hashable, Sendable {
     public var tone = Tone()
     public var presence = Presence()
     public var toneCurve = ToneCurve()
+    public var colorMixer = ColorMixer()
     public var colorGrade = ColorGrade()
     public var lookTable = LookTable()
     public var vignette = Vignette()
@@ -64,6 +65,7 @@ public struct Adjustments: Hashable, Sendable {
         add(tone)
         add(presence)
         add(toneCurve)
+        add(colorMixer)
         add(colorGrade)
         add(lookTable)
         add(vignette)
@@ -85,6 +87,7 @@ public struct Adjustments: Hashable, Sendable {
         case Tone.kind: tone = Tone(values)
         case Presence.kind: presence = Presence(values)
         case ToneCurve.kind: toneCurve = ToneCurve(values)
+        case ColorMixer.kind: colorMixer = ColorMixer(values)
         case ColorGrade.kind: colorGrade = ColorGrade(values)
         case LookTable.kind: lookTable = LookTable(values)
         case Vignette.kind: vignette = Vignette(values)
@@ -105,6 +108,7 @@ public struct Adjustments: Hashable, Sendable {
         case Tone.kind: tone.parameters
         case Presence.kind: presence.parameters
         case ToneCurve.kind: toneCurve.parameters
+        case ColorMixer.kind: colorMixer.parameters
         case ColorGrade.kind: colorGrade.parameters
         case LookTable.kind: lookTable.parameters
         case Vignette.kind: vignette.parameters
@@ -124,6 +128,7 @@ public struct Adjustments: Hashable, Sendable {
         case Tone.kind: tone = Tone()
         case Presence.kind: presence = Presence()
         case ToneCurve.kind: toneCurve = ToneCurve()
+        case ColorMixer.kind: colorMixer = ColorMixer()
         case ColorGrade.kind: colorGrade = ColorGrade()
         case LookTable.kind: lookTable = LookTable()
         case Vignette.kind: vignette = Vignette()
@@ -133,6 +138,44 @@ public struct Adjustments: Hashable, Sendable {
         default: break
         }
         disabled.remove(kind)
+    }
+
+    /// Takes one module's values, and whether it is on, from `source`.
+    private mutating func copyModule(_ kind: EditOperationKind, from source: Adjustments) {
+        switch kind {
+        case RawDecode.kind: decode = source.decode
+        case WhiteBalance.kind: whiteBalance = source.whiteBalance
+        case Exposure.kind: exposure = source.exposure
+        case Tone.kind: tone = source.tone
+        case Presence.kind: presence = source.presence
+        case ToneCurve.kind: toneCurve = source.toneCurve
+        case ColorMixer.kind: colorMixer = source.colorMixer
+        case ColorGrade.kind: colorGrade = source.colorGrade
+        case LookTable.kind: lookTable = source.lookTable
+        case Vignette.kind: vignette = source.vignette
+        case NoiseReduction.kind: noiseReduction = source.noiseReduction
+        case Sharpen.kind: sharpen = source.sharpen
+        case Grain.kind: grain = source.grain
+        default: return
+        }
+        if source.disabled.contains(kind) {
+            disabled.insert(kind)
+        } else {
+            disabled.remove(kind)
+        }
+    }
+
+    /// These adjustments with the modules of `groups` taken from `source`
+    /// (values and on/off); everything else, unknown operations included, stays.
+    public func replacing(_ groups: Set<Group>, from source: Adjustments) -> Adjustments {
+        var copy = self
+        for kind in groups.flatMap(\.kinds) { copy.copyModule(kind, from: source) }
+        return copy
+    }
+
+    /// The groups with values away from their defaults.
+    public var modifiedGroups: Set<Group> {
+        Set(Group.allCases.filter(isModified))
     }
 
     /// What renders: these adjustments with the modules that are off at their defaults.
@@ -145,13 +188,14 @@ public struct Adjustments: Hashable, Sendable {
 
     /// The Adjust tab's headings, used to reset a group of modules.
     public enum Section: String, CaseIterable, Sendable {
-        case develop, tone, details, colorGrading, effects
+        case develop, tone, details, colorMixer, colorGrading, effects
 
         public var groups: [Group] {
             switch self {
             case .develop: [.profile, .whiteBalance, .light, .presence]
             case .tone: [.toneCurve]
             case .details: [.sharpening, .noiseReduction]
+            case .colorMixer: [.colorMixer]
             case .colorGrading: [.colorGrade]
             case .effects: [.lookTable, .vignette, .grain]
             }
@@ -160,7 +204,7 @@ public struct Adjustments: Hashable, Sendable {
 
     /// The controls under a heading that are turned on and off together.
     public enum Group: String, CaseIterable, Sendable {
-        case profile, whiteBalance, light, presence, toneCurve, sharpening, noiseReduction, colorGrade
+        case profile, whiteBalance, light, presence, toneCurve, sharpening, noiseReduction, colorMixer, colorGrade
         case lookTable, vignette, grain
 
         public var kinds: [EditOperationKind] {
@@ -172,6 +216,7 @@ public struct Adjustments: Hashable, Sendable {
             case .toneCurve: [ToneCurve.kind]
             case .sharpening: [Sharpen.kind]
             case .noiseReduction: [NoiseReduction.kind]
+            case .colorMixer: [ColorMixer.kind]
             case .colorGrade: [ColorGrade.kind]
             case .lookTable: [LookTable.kind]
             case .vignette: [Vignette.kind]
@@ -225,12 +270,13 @@ public struct Adjustments: Hashable, Sendable {
     }
 
     /// Operations that work on values above SDR white. Curve tables, the
-    /// grading cube, LUTs and grain clamp at white, so an HDR rendition is not
-    /// offered while any of them is active.
+    /// mixer and grading cubes, LUTs and grain clamp at white, so an HDR
+    /// rendition is not offered while any of them is active.
     public var preservesExtendedRange: Bool {
         let values = effective
         return values.tone.contrast == 0 && values.tone.whites == 0 && values.tone.blacks == 0
-            && values.tone.highlights <= 0 && values.toneCurve.isIdentity && values.colorGrade == ColorGrade()
+            && values.tone.highlights <= 0 && values.toneCurve.isIdentity && values.colorMixer.isIdentity
+            && values.colorGrade == ColorGrade()
             && values.lookTable.identifier == nil && values.presence.dehaze == 0 && values.grain.isIdentity
     }
 }
@@ -526,6 +572,76 @@ public struct ToneCurve: AdjustmentModule {
         var out = ParameterBuilder()
         for channel in Channel.allCases where !Self.isIdentity(self[channel]) {
             out.values[channel.rawValue] = .list(self[channel].flatMap { [.number($0.x), .number($0.y)] })
+        }
+        return out.values
+    }
+}
+
+/// Hue, saturation and luminance of eight ranges of hues, each −100 … +100.
+/// Near-grey colors are left alone.
+public struct ColorMixer: AdjustmentModule {
+    public static let kind: EditOperationKind = "colorMixer"
+
+    public enum Band: String, CaseIterable, Sendable {
+        case red, orange, yellow, green, aqua, blue, purple, magenta
+
+        /// The hue the band is centered on, in degrees as in `GradeWheel`.
+        public var centerHue: Double {
+            switch self {
+            case .red: 0
+            case .orange: 30
+            case .yellow: 60
+            case .green: 120
+            case .aqua: 180
+            case .blue: 240
+            case .purple: 270
+            case .magenta: 300
+            }
+        }
+    }
+
+    /// The changes made to one band.
+    public struct Shift: Hashable, Sendable {
+        /// Negative toward the previous band's hue, positive toward the next.
+        public var hue: Double = 0
+        public var saturation: Double = 0
+        public var luminance: Double = 0
+
+        public init(hue: Double = 0, saturation: Double = 0, luminance: Double = 0) {
+            self.hue = hue
+            self.saturation = saturation
+            self.luminance = luminance
+        }
+
+        public var isZero: Bool { hue == 0 && saturation == 0 && luminance == 0 }
+    }
+
+    /// Bands that change anything; the others are left out.
+    private var shifts: [Band: Shift] = [:]
+
+    public init() {}
+
+    init(_ values: ParameterValues) {
+        for band in Band.allCases {
+            self[band] = Shift(hue: values.number("\(band.rawValue)Hue", default: 0),
+                               saturation: values.number("\(band.rawValue)Saturation", default: 0),
+                               luminance: values.number("\(band.rawValue)Luminance", default: 0))
+        }
+    }
+
+    public subscript(band: Band) -> Shift {
+        get { shifts[band] ?? Shift() }
+        set { shifts[band] = newValue.isZero ? nil : newValue }
+    }
+
+    public var isIdentity: Bool { shifts.isEmpty }
+
+    public var parameters: [String: EditParameter] {
+        var out = ParameterBuilder()
+        for (band, shift) in shifts {
+            out.set("\(band.rawValue)Hue", shift.hue, default: 0)
+            out.set("\(band.rawValue)Saturation", shift.saturation, default: 0)
+            out.set("\(band.rawValue)Luminance", shift.luminance, default: 0)
         }
         return out.values
     }

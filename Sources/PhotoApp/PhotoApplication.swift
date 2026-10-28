@@ -43,6 +43,13 @@ struct PhotoApplication: App {
         }
         .defaultSize(width: 980, height: 720)
 
+        Window(String(localized: "Presets"), id: "presets") {
+            if let model = library.model {
+                PresetManagerWindow(model: model)
+            }
+        }
+        .defaultSize(width: 640, height: 600)
+
         Settings {
             if let model = library.model {
                 SettingsView(model: model)
@@ -64,7 +71,9 @@ final class LibraryLoader {
 
     init() {
         do {
-            state = .ready(try LibraryModel.open())
+            let model = try LibraryModel.open()
+            state = .ready(model)
+            AppDelegate.library = model
         } catch {
             state = .failed(error.localizedDescription)
         }
@@ -76,10 +85,21 @@ final class LibraryLoader {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    /// The open library, for files opened from the Finder.
+    @MainActor static weak var library: LibraryModel?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Needed when run as a bare executable (swift run) rather than an app bundle.
         NSApp.setActivationPolicy(.regular)
         NSApp.activate()
+    }
+
+    /// Preset files opened from the Finder (double-click, or dropped on the
+    /// Dock icon) are imported into the library, with the usual summary.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        let presets = urls.filter { PresetFile.fileExtensions.contains($0.pathExtension.lowercased()) }
+        guard !presets.isEmpty, let library = Self.library else { return }
+        Task { _ = await library.importAdjustmentPresets(presets) }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -177,13 +197,27 @@ struct LibraryCommands: Commands {
                 .keyboardShortcut("v", modifiers: [.command, .shift])
                 .disabled(model?.copiedAdjustments == nil || model?.itemCount == 0)
             Menu("Apply Preset") {
-                ForEach(model?.adjustmentPresets ?? []) { preset in
-                    Button(preset.name) { model?.applyAdjustmentPreset(preset) }
+                ForEach(model?.adjustmentPresetCollections ?? []) { collection in
+                    if collection.name.isEmpty {
+                        ForEach(collection.presets) { preset in
+                            Button(preset.name) { model?.applyAdjustmentPreset(preset) }
+                        }
+                    } else {
+                        Menu(collection.name) {
+                            ForEach(collection.presets) { preset in
+                                Button(preset.name) { model?.applyAdjustmentPreset(preset) }
+                            }
+                        }
+                    }
                 }
             }
             .disabled(model?.adjustmentPresets.isEmpty ?? true)
             Button("Save Adjustments as Preset…") { model?.promptForAdjustmentPreset() }
                 .disabled(model?.focusedItem == nil)
+            Button("Import Presets…") { model?.chooseAdjustmentPresetImport() }
+                .disabled(model == nil)
+            Button("Manage Presets…") { model?.requestsPresetWindow = true }
+                .disabled(model == nil)
             Divider()
             Button("Check for Changes on Disk") { model?.checkForDiskChanges() }
                 .disabled(model == nil || model?.isCheckingDisk == true)

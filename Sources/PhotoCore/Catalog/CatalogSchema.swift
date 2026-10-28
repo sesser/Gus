@@ -15,6 +15,7 @@ enum CatalogSchema {
         migrator.registerMigration("v8", migrate: addAdjustmentPresets)
         migrator.registerMigration("v9", migrate: addFlashCompensation)
         migrator.registerMigration("v10", migrate: addLookTableLibrary)
+        migrator.registerMigration("v11", migrate: addPresetCollections)
         return migrator
     }
 
@@ -370,6 +371,15 @@ enum CatalogSchema {
             t.column("position", .integer).notNull()
             t.column("createdAt", .datetime).notNull()
             t.uniqueKey(["collectionId", "identifier"])
+        }
+    }
+
+    /// Preset collections, and the groups of controls a preset replaces when
+    /// it is applied (null for all of them, as every earlier preset did).
+    private static func addPresetCollections(_ db: Database) throws {
+        try db.alter(table: "adjustmentPreset") { t in
+            t.add(column: "collection", .text).notNull().defaults(to: "")
+            t.add(column: "groups", .text)
         }
     }
 }

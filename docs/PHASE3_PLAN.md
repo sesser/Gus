@@ -196,8 +196,7 @@ Where the implementation settled details the plan left open, or differs:
   highlights or exposure, RAW files are decoded with extended range so there
   is something above white to recover. Positive highlights stay in the tone
   table. (The first version used `CIHighlightShadowAdjust`, which was too weak.)
-- **Info tab**: histogram (live while the loupe edits the photo, otherwise
-  from its cached thumbnail), camera and lens, two rows of tiles (shutter,
+- **Info tab**: camera and lens, two rows of tiles (shutter,
   aperture, ISO; exposure compensation, 35 mm equivalent focal length, flash
   with its compensation, faint at 0 EV or when the flash did not fire), size,
   capture date, file name and folder, then keywords. Flash compensation comes
@@ -227,3 +226,71 @@ Where the implementation settled details the plan left open, or differs:
   type, so album and keyword drops are unchanged. `dropfolders` and
   `waitimport` drive it from the debug script (the item providers are built
   like Finder's and read by the drop's own code).
+
+## Presets, second pass
+
+- **Color Mixer** (`ColorMixer`, operation `colorMixer`): hue, saturation and
+  luminance (−100 … +100) of eight bands centered on 0, 30, 60, 120, 180, 240,
+  270 and 300°. Baked into a 33³ cube in the perceptual encoding, after the
+  tone table and before vibrance and saturation, so desaturating afterwards
+  makes its luminance changes a black-and-white mix. Each color blends the
+  two bands around its hue; hue turns the color around the grey axis (±30° at
+  ±100), saturation scales its distance from it, luminance scales the color
+  (±½ stop of the encoded value); all three fade out toward grey. New
+  operation only: existing stacks render as before, no pipeline bump.
+- **Partial presets**: a preset carries a set of `Adjustments.Group`s;
+  applying it replaces those groups (values and on/off) and keeps the rest,
+  unknown operations included (`Adjustments.replacing(_:from:)`). Saving checks
+  the groups the photo changes. Presets saved before keep replacing everything.
+- **Collections**: a name per preset (empty for none). Saving replaces a
+  preset with the same name in the same collection. Menus list presets in no
+  collection, then a submenu per collection; in the loupe, hovering one
+  previews it (`AdjustmentEditor.preview`).
+- **Preset files** (`PresetFile`): JSON with `format`,
+  `formatVersion`, the presets (name, collection, groups, edit stack) and the
+  `.cube` files their look-up tables use, base64, so the file renders the same
+  anywhere. Written compressed with Foundation's LZMA, which is the xz format
+  (about a seventh of the JSON; `xz -d` reads it); plain JSON is read too. The
+  extension is `AppBranding.presetFileExtension` (`PRESET_FILE_EXTENSION` in
+  `Branding.xcconfig`); earlier ones (`previousPresetFileExtensions`, first
+  `.photopreset`) are still read. Info.plist exports the type
+  `<bundle id>.preset` and claims it as its owner, so a double-click or a drop
+  on the Dock icon reaches `AppDelegate.application(_:open:)`, which imports
+  the files with the usual summary. Import installs each table by its own hash (remapping the presets
+  if a file lied), and lists tables the library did not have in a look-up
+  table collection named after the presets' collection.
+- **Lightroom presets**: `CameraRawSettings` reads `.lrtemplate` (a small Lua
+  table parser), `.xmp` (Camera Raw settings namespace; profiles and files
+  without preset markers are refused) and `.dng` presets (the XMP packet in
+  the file). `CameraRawMapping` converts by setting name: Process 2012 light
+  and presence, white balance (named lights, Kelvin and tint, incremental
+  shifts), point curves (0 … 255), the parametric curve sampled into 17 points
+  and composed with the point curve, HSL into the mixer, split toning and
+  color grading, sharpening, noise reduction, post-crop vignette, grain. A
+  group is included when the preset names any of its settings, as Lightroom
+  only changes named settings. Black and white becomes saturation −100 with
+  the grey mix as mixer luminance. Settings that change something but have
+  no equivalent are reported per kind (`CameraRawFeature`). A folder becomes a
+  collection unless its XMP presets name a group; copies of one preset in
+  several formats within a folder are imported once (this app's, XMP,
+  template, DNG).
+- **Manage Presets** window: rename and remove collections, rename, move,
+  export and delete presets, change the groups they include. Export All and
+  per-collection export write one file.
+- Migration `v11`: `adjustmentPreset.collection` (text, default empty) and
+  `groups` (comma-separated group names, null for all).
+- **Inspector**: the histogram (live while the loupe edits the photo,
+  otherwise from its cached thumbnail) sits above the Info and Adjust tabs.
+  Every heading reads chevron, check box, title; a heading with several
+  groups has a three-state box (all, some, none on) that turns its edited
+  groups off or on as one undo step (`AdjustmentEditor.setEnabled(_:_:)`).
+- **Presets heading** (collapsed by default): Save, Import and Manage
+  buttons, presets in no collection, then a collapsible sub-heading per
+  collection. Each preset is a picture of the focused photo with it
+  (`PresetPreviewModel`: a `LiveRenderSession` of its own at 320 pixels, so
+  the loupe's frames never wait; previews start from the editor's values in
+  the loupe, the saved ones in the grid, and only shown collections render).
+  Hovering a picture previews it in the loupe; moving straight to another
+  keeps previewing. A picture is outlined when the photo already has the
+  preset's settings. Copy and Paste Adjustments are buttons under the tab.
+- **Debug script**: `adjust mix …`, `preset import|export|preview|window|windowshot|summary`.

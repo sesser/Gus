@@ -17,7 +17,7 @@ struct CatalogTests {
                            "importRun", "smartAlbum", "metadataSync", "sidecarQueue", "importPreset",
                            "adjustmentPreset", "lookTableCollection", "lookTableEntry"])
         let applied = try await catalog.database.read { db in try CatalogSchema.migrator.appliedMigrations(db) }
-        #expect(applied == ["v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10"])
+        #expect(applied == ["v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11"])
     }
 
     @Test func schemaNamesDoNotEmbedTheProductName() async throws {

@@ -16,7 +16,7 @@ struct BrandScanner {
     /// leftovers of an old name are caught after a rename too.
     static let current = BrandScanner(
         literals: [AppBranding.displayName, AppBranding.bundleIdentifier,
-                   AppBranding.cacheDirectoryName, AppBranding.sidecarNamespace]
+                   AppBranding.cacheDirectoryName, AppBranding.sidecarNamespace, AppBranding.presetFileExtension]
             + AppBranding.previousAppSupportDirectoryNames + AppBranding.previousCacheDirectoryNames,
         wordTokens: Set(([AppBranding.displayName, AppBranding.appSupportDirectoryName,
                           AppBranding.urlScheme, AppBranding.sidecarNamespacePrefix]
@@ -129,6 +129,7 @@ struct BrandingTests {
         #expect(settings["PRODUCT_DISPLAY_NAME"] == AppBranding.displayName)
         #expect(settings["PRODUCT_BUNDLE_IDENTIFIER"] == AppBranding.bundleIdentifier)
         #expect(settings["PRODUCT_URL_SCHEME"] == AppBranding.urlScheme)
+        #expect(settings["PRESET_FILE_EXTENSION"] == AppBranding.presetFileExtension)
         let productName = try #require(settings["PRODUCT_NAME"])
         #expect(!productName.isEmpty && !productName.contains("/"))
         #expect(settings["IMPORTER_PRODUCT_DISPLAY_NAME"] == AppBranding.importerDisplayName)
@@ -142,7 +143,7 @@ struct BrandingTests {
     func infoPlistUsesBuildVariables() throws {
         let template = try String(contentsOf: RepositoryFiles.url("Support/Info.plist"), encoding: .utf8)
         for variable in ["$(PRODUCT_NAME)", "$(PRODUCT_DISPLAY_NAME)", "$(PRODUCT_BUNDLE_IDENTIFIER)",
-                         "$(PRODUCT_URL_SCHEME)", "$(EXECUTABLE_NAME)"] {
+                         "$(PRODUCT_URL_SCHEME)", "$(PRESET_FILE_EXTENSION)", "$(EXECUTABLE_NAME)"] {
             #expect(template.contains(variable), "Info.plist should reference \(variable)")
         }
         let importer = try String(contentsOf: RepositoryFiles.url("Support/Importer-Info.plist"), encoding: .utf8)

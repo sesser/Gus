@@ -208,6 +208,18 @@ final class AdjustmentEditor {
                phase: .committed) { $0.setEnabled(group, isEnabled) }
     }
 
+    /// Turns every edited group of a heading off or back on, as one undo step.
+    func setEnabled(_ section: Adjustments.Section, _ isEnabled: Bool) {
+        let title = AdjustText.title(section)
+        change(isEnabled ? String(localized: "Turn On \(title)", comment: "Undo action name; the group's name")
+                         : String(localized: "Turn Off \(title)", comment: "Undo action name; the group's name"),
+               phase: .committed) { values in
+            for group in section.groups where values.isModified(group) {
+                values.setEnabled(group, isEnabled)
+            }
+        }
+    }
+
     func resetAll() {
         change(String(localized: "Reset Adjustments", comment: "Undo action name"), phase: .committed) {
             $0 = Adjustments(stack: EditStack(operations: $0.preserved))

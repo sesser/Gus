@@ -11,6 +11,7 @@ The working name lives in exactly two files. Nothing else needs to change.
 | `appSupportDirectoryName` | `~/Library/Application Support/<name>/` (catalog location) |
 | `cacheDirectoryName` | `~/Library/Caches/<name>/` (preview cache location) |
 | `urlScheme` | custom URL scheme; must equal `PRODUCT_URL_SCHEME` |
+| `presetFileExtension` | extension of exported preset files; must equal `PRESET_FILE_EXTENSION` |
 | `importerDisplayName` | the standalone importer's name; must equal `IMPORTER_PRODUCT_DISPLAY_NAME` |
 | `importerBundleIdentifier` | the standalone importer's bundle id; must equal `IMPORTER_PRODUCT_BUNDLE_IDENTIFIER` |
 | `sidecarNamespace`, `sidecarNamespacePrefix` | custom XMP namespace (see note below) |
@@ -19,11 +20,13 @@ When renaming, also **prepend the old values** so existing data is carried over:
 
 - old `appSupportDirectoryName` → `previousAppSupportDirectoryNames`
 - old `cacheDirectoryName` → `previousCacheDirectoryNames`
+- old `presetFileExtension` → `previousPresetFileExtensions` (shared files keep
+  their extension, and import still reads them)
 
 ## 2. `Branding.xcconfig`
 
 Set `PRODUCT_NAME`, `PRODUCT_DISPLAY_NAME`, `PRODUCT_BUNDLE_IDENTIFIER` and
-`PRODUCT_URL_SCHEME`, and the importer's `IMPORTER_PRODUCT_NAME`,
+`PRODUCT_URL_SCHEME`, `PRESET_FILE_EXTENSION`, and the importer's `IMPORTER_PRODUCT_NAME`,
 `IMPORTER_PRODUCT_DISPLAY_NAME` and `IMPORTER_PRODUCT_BUNDLE_IDENTIFIER`. `Scripts/build-app.sh` fills `Support/Info.plist` and names
 the `.app` and its executable from these.
 

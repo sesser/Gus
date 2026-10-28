@@ -34,6 +34,18 @@ struct MainView: View {
             model.requestsLookTableWindow = false
             openWindow(id: "lookTables")
         }
+        .onChange(of: model.requestsPresetWindow) {
+            guard model.requestsPresetWindow else { return }
+            model.requestsPresetWindow = false
+            openWindow(id: "presets")
+        }
+        .alert(model.presetImportSummary?.title ?? "", isPresented: Binding(
+            get: { model.presetImportSummary != nil }, set: { if !$0 { model.presetImportSummary = nil } }
+        )) {
+            Button("OK") { model.presetImportSummary = nil }
+        } message: {
+            Text(model.presetImportSummary?.message ?? "")
+        }
     }
 
     private var title: String {

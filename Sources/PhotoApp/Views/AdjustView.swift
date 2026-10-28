@@ -11,16 +11,28 @@ struct AdjustView: View {
     private var editor: AdjustmentEditor { model.editor }
 
     var body: some View {
+        VStack(spacing: 0) {
+            content
+            Divider()
+            CopyPasteBar(model: model)
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
         if model.mode != .loupe {
-            VStack(spacing: 12) {
-                PresetsMenu(model: model)
-                Text("Open a photo in the loupe to adjust it. Paste Adjustments and presets change every selected photo.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
+            AppKitScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    Text("Open a photo in the loupe to adjust it. Paste Adjustments and presets change every selected photo.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Divider()
+                    PresetsSection(model: model)
+                }
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(20)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             switch editor.state {
             case .idle:
@@ -37,6 +49,8 @@ struct AdjustView: View {
                 AppKitScrollView {
                     VStack(alignment: .leading, spacing: 18) {
                         AdjustToolbar(model: model)
+                        PresetsSection(model: model)
+                        Divider()
                         AdjustSection(.develop, editor: editor) {
                             DevelopControls(editor: editor)
                         }
@@ -48,6 +62,11 @@ struct AdjustView: View {
                         Divider()
                         AdjustSection(.details, editor: editor) {
                             DetailControls(editor: editor)
+                        }
+                        Divider()
+                        AdjustSection(.colorMixer, editor: editor) {
+                            ColorMixerControls(editor: editor)
+                                .dimmedWhenOff(.colorMixer, editor: editor)
                         }
                         Divider()
                         AdjustSection(.colorGrading, editor: editor) {
@@ -76,53 +95,50 @@ struct AdjustView: View {
     }
 }
 
-/// Presets, copy and paste, for the photo on screen or the selection.
-private struct PresetsMenu: View {
-    let model: LibraryModel
-
-    var body: some View {
-        let presets = model.adjustmentPresets
-        AppKitMenuButton(title: String(localized: "Presets"), entries: [
-            .item(String(localized: "Copy Adjustments"), isEnabled: model.focusedItem != nil) { model.copyAdjustments() },
-            .item(String(localized: "Paste Adjustments"), isEnabled: model.copiedAdjustments != nil) {
-                model.pasteAdjustments()
-            },
-            .separator,
-        ] + presets.map { preset in .item(preset.name) { model.applyAdjustmentPreset(preset) } }
-          + (presets.isEmpty ? [] : [.separator]) + [
-            .item(String(localized: "Save Adjustments as Preset…"), isEnabled: model.focusedItem != nil) {
-                model.promptForAdjustmentPreset()
-            },
-            .submenu(String(localized: "Delete Preset"), presets.map { preset in
-                .item(preset.name) { model.deleteAdjustmentPreset(preset) }
-            }),
-        ], help: String(localized: "Apply, save and share adjustments"))
-    }
-}
-
-/// Presets, the original toggle and reset for everything.
+/// The original toggle and reset for everything.
 private struct AdjustToolbar: View {
     let model: LibraryModel
 
     private var editor: AdjustmentEditor { model.editor }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                PresetsMenu(model: model)
-                Spacer()
-                AppKitButton(title: String(localized: "Reset All"), style: .push,
-                             help: String(localized: "Remove every adjustment from this photo"),
-                             isEnabled: !editor.adjustments.isDefault) {
-                    editor.resetAll()
-                }
-            }
+        HStack(spacing: 8) {
             AppKitButton(title: editor.showsOriginal ? String(localized: "Show Edit") : String(localized: "Show Original"),
                          symbol: "square.split.2x1", style: .borderless,
                          help: String(localized: "Compare with the original (\\)")) {
                 editor.toggleOriginal()
             }
+            Spacer()
+            AppKitButton(title: String(localized: "Reset All"), style: .push,
+                         help: String(localized: "Remove every adjustment from this photo"),
+                         isEnabled: !editor.adjustments.isDefault) {
+                editor.resetAll()
+            }
         }
+    }
+}
+
+/// Copy and Paste Adjustments, under the Adjust tab: for the photo on screen
+/// or the selection.
+private struct CopyPasteBar: View {
+    let model: LibraryModel
+
+    var body: some View {
+        HStack(spacing: 6) {
+            AppKitButton(title: String(localized: "Copy Adjustments"), style: .push,
+                         help: String(localized: "Copy this photo's adjustments"),
+                         isEnabled: model.focusedItem != nil) {
+                model.copyAdjustments()
+            }
+            AppKitButton(title: String(localized: "Paste Adjustments"), style: .push,
+                         help: String(localized: "Give the copied adjustments to the photo on screen or the selection"),
+                         isEnabled: model.copiedAdjustments != nil && model.focusedItem != nil) {
+                model.pasteAdjustments()
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
     }
 }
 
@@ -351,6 +367,57 @@ private struct ColorGradeControls: View {
         case .shadows: String(localized: "Shadows")
         case .midtones: String(localized: "Midtones", comment: "Color grading range")
         case .highlights: String(localized: "Highlights")
+        }
+    }
+}
+
+/// One band of hues picked from a row of swatches, with its three sliders.
+private struct ColorMixerControls: View {
+    let editor: AdjustmentEditor
+    @State private var band = ColorMixer.Band.red
+
+    var body: some View {
+        let mixer = editor.adjustments.colorMixer
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 2) {
+                ForEach(ColorMixer.Band.allCases, id: \.self) { item in
+                    AppKitButton(symbol: Self.symbol(item, selected: item == band, edited: !mixer[item].isZero),
+                                 symbolWeight: .semibold, style: .borderless, tint: Self.swatch(item),
+                                 help: Self.title(item)) {
+                        band = item
+                    }
+                }
+                Spacer()
+            }
+            Text(Self.title(band))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            adjustSlider(editor, String(localized: "Hue"), \.colorMixer[band].hue)
+            adjustSlider(editor, String(localized: "Saturation"), \.colorMixer[band].saturation)
+            adjustSlider(editor, String(localized: "Luminance"), \.colorMixer[band].luminance)
+        }
+    }
+
+    /// The picked band is a ring with a dot; bands with changes are filled.
+    static func symbol(_ band: ColorMixer.Band, selected: Bool, edited: Bool) -> String {
+        if selected { return "circle.inset.filled" }
+        return edited ? "circle.fill" : "circle"
+    }
+
+    static func swatch(_ band: ColorMixer.Band) -> NSColor {
+        NSColor(hue: band.centerHue / 360, saturation: 0.8, brightness: 0.95, alpha: 1)
+    }
+
+    static func title(_ band: ColorMixer.Band) -> String {
+        switch band {
+        case .red: String(localized: "Reds", comment: "Color mixer band")
+        case .orange: String(localized: "Oranges", comment: "Color mixer band")
+        case .yellow: String(localized: "Yellows", comment: "Color mixer band")
+        case .green: String(localized: "Greens", comment: "Color mixer band")
+        case .aqua: String(localized: "Aquas", comment: "Color mixer band")
+        case .blue: String(localized: "Blues", comment: "Color mixer band")
+        case .purple: String(localized: "Purples", comment: "Color mixer band")
+        case .magenta: String(localized: "Magentas", comment: "Color mixer band")
         }
     }
 }

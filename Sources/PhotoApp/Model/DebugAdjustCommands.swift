@@ -11,12 +11,13 @@ import PhotoCore
 ///                               grain-midtones, grain-highlights, roughness, grain-color, grain-size)
 ///     adjust lutspace srgb|displayP3|adobeRGB|proPhoto
 ///     adjust off|on <group>     (profile, whiteBalance, light, presence, toneCurve, sharpening,
-///                               noiseReduction, colorGrade, lookTable, vignette, grain)
+///                               noiseReduction, colorMixer, colorGrade, lookTable, vignette, grain)
 ///     adjust look standard|neutral|flat       adjust wb <preset>
 ///     adjust curve rgb|red|green|blue <x,y> <x,y> …
 ///     adjust grade shadows|midtones|highlights <hue> <amount> [<luminance>]
+///     adjust mix red|orange|yellow|green|aqua|blue|purple|magenta <hue> <saturation> <luminance>
 ///     adjust auto exposure|wb   (waits for the measurement)
-///     adjust reset all|develop|tone|details|colorGrading|effects
+///     adjust reset all|develop|tone|details|colorMixer|colorGrading|effects
 ///     original on|off           tab info|adjust          print adjustments
 @MainActor
 enum DebugAdjustCommands {
@@ -76,6 +77,13 @@ enum DebugAdjustCommands {
             editor.change(actionName, phase: .committed) { $0.noiseReduction.luminance = value }
         case "color-nr":
             editor.change(actionName, phase: .committed) { $0.noiseReduction.color = value }
+        case "mix":
+            guard let band = ColorMixer.Band(rawValue: arguments.first ?? "") else { break }
+            let values = arguments.dropFirst().compactMap(Double.init)
+            guard values.count == 3 else { break }
+            editor.change(actionName, phase: .committed) {
+                $0.colorMixer[band] = .init(hue: values[0], saturation: values[1], luminance: values[2])
+            }
         case "curve":
             guard let channel = ToneCurve.Channel(rawValue: arguments.first ?? "") else { break }
             let points = arguments.dropFirst().compactMap { pair -> CurvePoint? in

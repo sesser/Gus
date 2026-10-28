@@ -3,12 +3,18 @@ import PhotoCore
 import PhotoUI
 import SwiftUI
 
-/// Right-hand panel: Info (keywords and details) or Adjust (the loupe's photo).
+/// Right-hand panel: the focused photo's histogram, then Info (keywords and
+/// details) or Adjust (the loupe's photo).
 struct InspectorView: View {
     @Bindable var model: LibraryModel
 
     var body: some View {
         VStack(spacing: 0) {
+            if let item = model.focusedItem, !item.isVideo {
+                InfoHistogram(model: model)
+                    .padding(.horizontal, 14)
+                    .padding(.top, 10)
+            }
             Picker("Panel", selection: $model.inspectorTab) {
                 Text("Info").tag(InspectorTab.info)
                 Text("Adjust").tag(InspectorTab.adjust)
@@ -26,7 +32,7 @@ struct InspectorView: View {
     }
 }
 
-/// Histogram and details of the focused photo, then keywords of the selection.
+/// Details of the focused photo, then keywords of the selection.
 private struct InfoInspector: View {
     let model: LibraryModel
     @State private var usage: [KeywordUsage] = []
@@ -38,9 +44,6 @@ private struct InfoInspector: View {
     var body: some View {
         AppKitScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                if model.focusedItem?.isVideo != true {
-                    InfoHistogram(model: model)
-                }
                 if let details {
                     InfoSection(details: details, item: model.focusedItem)
                     Divider()
