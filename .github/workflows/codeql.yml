@@ -1,8 +1,12 @@
 name: CodeQL
 
+# Not on pushes to develop: every merge there was already analyzed as a pull
+# request, and the second macOS runner requested next to the build job's often
+# goes unassigned until GitHub cancels it. The weekly run analyzes develop (the
+# default branch) for the code scanning baseline.
 on:
   push:
-    branches: [develop, master]
+    branches: [master]
   pull_request:
   schedule:
     - cron: "17 6 * * 1"
