@@ -6,7 +6,7 @@ import CoreImage.CIFilterBuiltins
 /// The order is fixed, whatever the order of operations in the stack: white
 /// balance (non-RAW; RAW files get it from the decoder), exposure, highlights and
 /// shadows, dehaze, clarity, the tone table (contrast, whites, blacks, curves),
-/// vibrance and saturation, color grading, the look-up table, the vignette,
+/// the color mixer, vibrance and saturation, color grading, the look-up table, the vignette,
 /// noise reduction (non-RAW), sharpening and grain. Modules that are turned off
 /// are rendered at their defaults.
 public struct AdjustmentRenderer: EditStackRenderer {
@@ -68,6 +68,11 @@ public struct AdjustmentRenderer: EditStackRenderer {
                               blacks: tone.blacks / 100, curve: adjustments.toneCurve)
         if !toneTable.isIdentity {
             image = Self.curves(image, toneTable)
+        }
+        // Before saturation, so a black-and-white conversion (saturation at −100)
+        // takes the mixer's luminance changes as its mix.
+        if !adjustments.colorMixer.isIdentity {
+            image = Self.cube(image, ColorMixerCube.make(adjustments.colorMixer), colorSpace: Self.perceptualSpace)
         }
         if presence.vibrance != 0 {
             let filter = CIFilter.vibrance()

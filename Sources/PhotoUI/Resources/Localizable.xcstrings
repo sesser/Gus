@@ -12,6 +12,17 @@
         }
       }
     },
+    "%@ (%lld)" : {
+      "comment" : "Preset import summary: a kind of setting and how many presets had it",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ (%lld)"
+          }
+        }
+      }
+    },
     "%@ (default)" : {
       "comment" : "RAW decoder version menu item; the argument is a version name",
       "localizations" : {
@@ -504,6 +515,17 @@
         }
       }
     },
+    "Add presets from files or folders (.%@, .lrtemplate, .xmp or .dng)" : {
+      "comment" : "Tooltip of the Presets heading's Import button; the argument is this app's preset file extension",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add presets from files or folders (.%@, .lrtemplate, .xmp or .dng)"
+          }
+        }
+      }
+    },
     "Add the %lld selected photos" : {
       "comment" : "New album sheet toggle",
       "localizations" : {
@@ -675,6 +697,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "All Photos"
+          }
+        }
+      }
+    },
+    "All settings" : {
+      "comment" : "What a preset applies: every group of controls",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All settings"
           }
         }
       }
@@ -854,13 +887,35 @@
         }
       }
     },
-    "Apply, save and share adjustments" : {
-      "comment" : "Tooltip of the Adjust tab's Presets menu",
+    "Applying a preset replaces only the settings it includes." : {
+      "comment" : "Preset manager footnote",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Apply, save and share adjustments"
+            "value" : "Applying a preset replaces only the settings it includes."
+          }
+        }
+      }
+    },
+    "Applying the preset replaces the checked groups and leaves the others as they are. A preset with the same name in the collection is replaced." : {
+      "comment" : "Save Preset dialog text",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Applying the preset replaces the checked groups and leaves the others as they are. A preset with the same name in the collection is replaced."
+          }
+        }
+      }
+    },
+    "Aquas" : {
+      "comment" : "Color mixer band",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aquas"
           }
         }
       }
@@ -920,6 +975,17 @@
         }
       }
     },
+    "Auto white balance and auto tone" : {
+      "comment" : "Imported preset setting with no equivalent",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto white balance and auto tone"
+          }
+        }
+      }
+    },
     "Balance" : {
       "comment" : "Color grading slider: moves the split between shadows and highlights; also its undo action name",
       "localizations" : {
@@ -927,6 +993,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Balance"
+          }
+        }
+      }
+    },
+    "Black and white (approximated)" : {
+      "comment" : "Imported preset setting, converted approximately",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Black and white (approximated)"
           }
         }
       }
@@ -974,6 +1051,17 @@
         }
       }
     },
+    "Blues" : {
+      "comment" : "Color mixer band",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blues"
+          }
+        }
+      }
+    },
     "Browse…" : {
       "comment" : "Adjust tab, Effects heading: opens the look-up table window",
       "localizations" : {
@@ -992,6 +1080,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Built-in"
+          }
+        }
+      }
+    },
+    "Calibration" : {
+      "comment" : "Imported preset setting",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Calibration"
           }
         }
       }
@@ -1149,6 +1248,17 @@
         }
       }
     },
+    "Change, export or delete this preset" : {
+      "comment" : "Preset manager tooltip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Change, export or delete this preset"
+          }
+        }
+      }
+    },
     "Changed on Disk" : {
       "comment" : "Sidebar item and inspector section: photos whose sidecar or file another app changed",
       "localizations" : {
@@ -1254,6 +1364,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Choose a look-up table"
+          }
+        }
+      }
+    },
+    "Choose presets (.%@, .lrtemplate, .xmp or .dng), or folders of them." : {
+      "comment" : "Open panel message when importing presets; the argument is this app's preset file extension",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose presets (.%@, .lrtemplate, .xmp or .dng), or folders of them."
           }
         }
       }
@@ -1389,6 +1510,17 @@
         }
       }
     },
+    "Collections: %@" : {
+      "comment" : "Preset import summary; the argument lists collection names",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collections: %@"
+          }
+        }
+      }
+    },
     "Color" : {
       "comment" : "Noise reduction slider for color noise; also its undo action name",
       "localizations" : {
@@ -1417,6 +1549,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Color Label"
+          }
+        }
+      }
+    },
+    "Color Mixer" : {
+      "comment" : "Adjust tab heading",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color Mixer"
           }
         }
       }
@@ -1509,6 +1652,17 @@
         }
       }
     },
+    "Copy this photo's adjustments" : {
+      "comment" : "Tooltip of the Copy Adjustments button under the Adjust tab",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy this photo's adjustments"
+          }
+        }
+      }
+    },
     "Copying %@" : {
       "comment" : "Import progress; the argument is a file name",
       "localizations" : {
@@ -1531,6 +1685,17 @@
         }
       }
     },
+    "Could not export the presets: %@" : {
+      "comment" : "Status message; the argument is the error",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not export the presets: %@"
+          }
+        }
+      }
+    },
     "Could not import the look-up tables: %@" : {
       "comment" : "Status message; the argument is the error",
       "localizations" : {
@@ -1538,6 +1703,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Could not import the look-up tables: %@"
+          }
+        }
+      }
+    },
+    "Could not import the presets: %@" : {
+      "comment" : "Status message; the argument is the error",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not import the presets: %@"
           }
         }
       }
@@ -1662,6 +1838,17 @@
         }
       }
     },
+    "Crop" : {
+      "comment" : "Imported preset setting",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Crop"
+          }
+        }
+      }
+    },
     "Cross Process" : {
       "comment" : "Built-in look-up table",
       "localizations" : {
@@ -1724,6 +1911,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Decoder"
+          }
+        }
+      }
+    },
+    "Defringe" : {
+      "comment" : "Imported preset setting",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Defringe"
           }
         }
       }
@@ -2081,6 +2279,39 @@
         }
       }
     },
+    "Export All…" : {
+      "comment" : "Preset manager button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export All…"
+          }
+        }
+      }
+    },
+    "Export this collection as one preset file" : {
+      "comment" : "Preset manager tooltip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export this collection as one preset file"
+          }
+        }
+      }
+    },
+    "Export…" : {
+      "comment" : "Preset manager menu item",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export…"
+          }
+        }
+      }
+    },
     "Exposure" : {
       "comment" : "Inspector info row",
       "localizations" : {
@@ -2191,6 +2422,17 @@
         }
       }
     },
+    "Files that could not be read: %@" : {
+      "comment" : "Preset import summary; the argument lists file names and reasons",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Files that could not be read: %@"
+          }
+        }
+      }
+    },
     "Filter" : {
       "localizations" : {
         "en" : {
@@ -2277,6 +2519,28 @@
         }
       }
     },
+    "Give the copied adjustments to the photo on screen or the selection" : {
+      "comment" : "Tooltip of the Paste Adjustments button under the Adjust tab",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Give the copied adjustments to the photo on screen or the selection"
+          }
+        }
+      }
+    },
+    "Global color grading" : {
+      "comment" : "Imported preset setting with no equivalent",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Global color grading"
+          }
+        }
+      }
+    },
     "Grain" : {
       "comment" : "Adjust tab group",
       "localizations" : {
@@ -2304,6 +2568,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Green"
+          }
+        }
+      }
+    },
+    "Greens" : {
+      "comment" : "Color mixer band",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Greens"
           }
         }
       }
@@ -2391,6 +2666,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Histogram"
+          }
+        }
+      }
+    },
+    "Hue" : {
+      "comment" : "Color mixer slider",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hue"
           }
         }
       }
@@ -2535,6 +2821,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Import Look-Up Tables"
+          }
+        }
+      }
+    },
+    "Import Presets…" : {
+      "comment" : "Photo menu and Presets menu item",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import Presets…"
           }
         }
       }
@@ -2757,7 +3054,7 @@
       }
     },
     "Import…" : {
-      "comment" : "Button that imports look-up tables",
+      "comment" : "Button that imports look-up tables or presets",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2774,6 +3071,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "In"
+          }
+        }
+      }
+    },
+    "Include" : {
+      "comment" : "Save Preset dialog caption and preset manager submenu: groups of controls a preset applies",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Include"
           }
         }
       }
@@ -2875,6 +3183,17 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "Its presets are removed. Photos keep the adjustments they were given." : {
+      "comment" : "Remove collection alert text in the preset manager",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Its presets are removed. Photos keep the adjustments they were given."
           }
         }
       }
@@ -3010,6 +3329,17 @@
         }
       }
     },
+    "Lens corrections" : {
+      "comment" : "Imported preset setting with no equivalent",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lens corrections"
+          }
+        }
+      }
+    },
     "Library" : {
       "comment" : "Sidebar section",
       "localizations" : {
@@ -3076,6 +3406,28 @@
         }
       }
     },
+    "Look-up tables added to the library: %lld" : {
+      "comment" : "Preset import summary",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Look-up tables added to the library: %lld"
+          }
+        }
+      }
+    },
+    "Look-up tables the presets use are saved in the file." : {
+      "comment" : "Export Presets save panel message",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Look-up tables the presets use are saved in the file."
+          }
+        }
+      }
+    },
     "Looking at photos for keyword suggestions" : {
       "comment" : "Inspector progress help",
       "localizations" : {
@@ -3129,6 +3481,17 @@
         }
       }
     },
+    "Magentas" : {
+      "comment" : "Color mixer band",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Magentas"
+          }
+        }
+      }
+    },
     "Manage Look-Up Tables" : {
       "comment" : "Look-up table manage sheet title",
       "localizations" : {
@@ -3140,8 +3503,19 @@
         }
       }
     },
+    "Manage Presets…" : {
+      "comment" : "Photo menu and Presets menu item",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manage Presets…"
+          }
+        }
+      }
+    },
     "Manage…" : {
-      "comment" : "Adjust tab, Effects heading: opens the look-up table manage sheet",
+      "comment" : "Button that opens the look-up table or preset manager",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3169,6 +3543,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Masking"
+          }
+        }
+      }
+    },
+    "Masks and local adjustments" : {
+      "comment" : "Imported preset setting with no equivalent",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Masks and local adjustments"
           }
         }
       }
@@ -3224,6 +3609,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mono"
+          }
+        }
+      }
+    },
+    "Move" : {
+      "comment" : "New Collection dialog button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move"
+          }
+        }
+      }
+    },
+    "Move To" : {
+      "comment" : "Preset manager submenu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move To"
           }
         }
       }
@@ -3305,6 +3712,17 @@
         }
       }
     },
+    "New Collection…" : {
+      "comment" : "Preset manager: Move To item",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Collection…"
+          }
+        }
+      }
+    },
     "New Preset…" : {
       "comment" : "Import window button",
       "localizations" : {
@@ -3360,6 +3778,17 @@
         }
       }
     },
+    "No Collection" : {
+      "comment" : "Preset manager: heading of presets in no collection; Move To item",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Collection"
+          }
+        }
+      }
+    },
     "No Imported Collections" : {
       "comment" : "Look-up table manage sheet, when there are no collections",
       "localizations" : {
@@ -3392,6 +3821,17 @@
         }
       }
     },
+    "No Presets Imported" : {
+      "comment" : "Preset import summary title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Presets Imported"
+          }
+        }
+      }
+    },
     "No Rating" : {
       "localizations" : {
         "en" : {
@@ -3409,6 +3849,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No card connected"
+          }
+        }
+      }
+    },
+    "No collection" : {
+      "comment" : "Save Preset dialog: placeholder of the collection field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No collection"
           }
         }
       }
@@ -3473,6 +3924,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No photos yet"
+          }
+        }
+      }
+    },
+    "No settings" : {
+      "comment" : "What a preset applies: nothing",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No settings"
           }
         }
       }
@@ -3553,6 +4015,17 @@
         }
       }
     },
+    "OK" : {
+      "comment" : "Button closing an alert",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        }
+      }
+    },
     "Off" : {
       "comment" : "Info tab: the flash did not fire",
       "localizations" : {
@@ -3570,6 +4043,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Offline"
+          }
+        }
+      }
+    },
+    "Older process versions (approximated)" : {
+      "comment" : "Imported preset setting, converted approximately",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Older process versions (approximated)"
           }
         }
       }
@@ -3661,6 +4145,17 @@
         }
       }
     },
+    "Oranges" : {
+      "comment" : "Color mixer band",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oranges"
+          }
+        }
+      }
+    },
     "Original" : {
       "comment" : "Loupe badge while the photo is shown without adjustments",
       "localizations" : {
@@ -3722,6 +4217,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Paste Adjustments"
+          }
+        }
+      }
+    },
+    "Perspective corrections" : {
+      "comment" : "Imported preset setting with no equivalent",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Perspective corrections"
           }
         }
       }
@@ -3801,6 +4307,17 @@
         }
       }
     },
+    "Point color" : {
+      "comment" : "Imported preset setting with no equivalent",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Point color"
+          }
+        }
+      }
+    },
     "Postal code" : {
       "comment" : "Contact field",
       "localizations" : {
@@ -3856,6 +4373,17 @@
         }
       }
     },
+    "Presets imported: %lld" : {
+      "comment" : "Preset import summary title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Presets imported: %lld"
+          }
+        }
+      }
+    },
     "ProPhoto RGB" : {
       "comment" : "Color space",
       "localizations" : {
@@ -3874,6 +4402,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Profile"
+          }
+        }
+      }
+    },
+    "Profiles and creative looks" : {
+      "comment" : "Imported preset setting with no equivalent",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Profiles and creative looks"
           }
         }
       }
@@ -3906,6 +4445,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Purple"
+          }
+        }
+      }
+    },
+    "Purples" : {
+      "comment" : "Color mixer band",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purples"
           }
         }
       }
@@ -4035,6 +4585,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Red"
+          }
+        }
+      }
+    },
+    "Reds" : {
+      "comment" : "Color mixer band",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reds"
           }
         }
       }
@@ -4169,6 +4730,17 @@
         }
       }
     },
+    "Remove this collection and its presets" : {
+      "comment" : "Preset manager tooltip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove this collection and its presets"
+          }
+        }
+      }
+    },
     "Remove this rule" : {
       "comment" : "Smart album editor help",
       "localizations" : {
@@ -4235,6 +4807,17 @@
         }
       }
     },
+    "Rename, move, export and delete presets" : {
+      "comment" : "Tooltip of the Presets heading's Manage button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rename, move, export and delete presets"
+          }
+        }
+      }
+    },
     "Rename…" : {
       "comment" : "Sidebar keyword context menu",
       "localizations" : {
@@ -4296,6 +4879,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Reset Channel"
+          }
+        }
+      }
+    },
+    "Retouching" : {
+      "comment" : "Imported preset setting with no equivalent",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retouching"
           }
         }
       }
@@ -4373,6 +4967,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Save Preset"
+          }
+        }
+      }
+    },
+    "Save a photo's adjustments as a preset, or import presets (.%@, .lrtemplate, .xmp or .dng)." : {
+      "comment" : "Preset manager, when there are no presets; the argument is this app's preset file extension",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save a photo's adjustments as a preset, or import presets (.%@, .lrtemplate, .xmp or .dng)."
+          }
+        }
+      }
+    },
+    "Save this photo's adjustments as a preset" : {
+      "comment" : "Tooltip of the Presets heading's Save button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save this photo's adjustments as a preset"
+          }
+        }
+      }
+    },
+    "Save…" : {
+      "comment" : "Button of the Adjust tab's Presets heading that saves a preset",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save…"
           }
         }
       }
@@ -4715,6 +5342,17 @@
         }
       }
     },
+    "Some settings have no equivalent here and were left out or approximated (number of presets): %@." : {
+      "comment" : "Preset import summary; the argument lists kinds of settings",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Some settings have no equivalent here and were left out or approximated (number of presets): %@."
+          }
+        }
+      }
+    },
     "Standard" : {
       "comment" : "RAW profile: the decoder's default rendering",
       "localizations" : {
@@ -4957,6 +5595,17 @@
         }
       }
     },
+    "Texture" : {
+      "comment" : "Imported preset setting",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Texture"
+          }
+        }
+      }
+    },
     "The color space the table is applied in. Change it in the Adjust tab or under Manage." : {
       "comment" : "Look-up table window: tooltip",
       "localizations" : {
@@ -4996,17 +5645,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The original is offline. Connect its volume to adjust this photo."
-          }
-        }
-      }
-    },
-    "The photo's adjustments are saved under this name. A preset with the same name is replaced." : {
-      "comment" : "Save Preset dialog text",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The photo's adjustments are saved under this name. A preset with the same name is replaced."
           }
         }
       }
@@ -5368,6 +6006,17 @@
         }
       }
     },
+    "Vignette feather and style" : {
+      "comment" : "Imported preset setting with no equivalent",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vignette feather and style"
+          }
+        }
+      }
+    },
     "Warm" : {
       "comment" : "Built-in look-up table",
       "localizations" : {
@@ -5473,6 +6122,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Yellow"
+          }
+        }
+      }
+    },
+    "Yellows" : {
+      "comment" : "Color mixer band",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yellows"
           }
         }
       }

@@ -125,6 +125,26 @@ badge in the info bar says so. Camera raws stay SDR. The loupe first shows the
 cached preview, then the HDR render from the original, so offline originals stay
 SDR. Thumbnails and cached previews are always SDR. **View ▸ Show HDR** turns it off.
 
+**Presets** (the Adjust tab's **Presets** heading and **Photo ▸ Apply Preset**)
+apply saved adjustments to the photo in the loupe or to every selected photo.
+The heading shows the focused photo with each preset, by collection; in the
+loupe, hovering a picture shows the photo with that preset, and clicking it
+applies the preset. Its **Save…**, **Import…** and **Manage…** buttons match
+the menu commands below. **Copy Adjustments** and **Paste Adjustments** sit
+at the bottom of the Adjust tab. **Save Adjustments as
+Preset…** asks for a name, a collection and the groups of controls to include
+(those the photo changes are checked): applying the preset replaces only those
+and leaves the photo's other settings alone. **Import Presets…** reads this
+app's preset files and Lightroom presets (`.lrtemplate`, `.xmp`, and
+`.dng` mobile presets), or folders of them. A folder becomes a collection unless
+its presets name their own, and a pack that holds a preset in several formats
+gives one copy. Lightroom settings with no equivalent here (calibration,
+masks, texture, crop, lens corrections and the like) are left out, and the
+import lists them. **Manage Presets…** renames, moves, exports and deletes
+presets and collections, and changes what each includes. An exported preset
+file carries the look-up tables its presets use, so it looks the same in
+another library; double-clicking one in the Finder imports it.
+
 **Undo**: ⌘Z and ⇧⌘Z undo and redo culling, keyword, album and pair changes, including
 changes made to many photos at once.
 

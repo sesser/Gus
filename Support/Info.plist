@@ -45,6 +45,39 @@
 			<key>UTTypeDescription</key>
 			<string>Photos dragged within the app</string>
 		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>$(PRODUCT_BUNDLE_IDENTIFIER).preset</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+				<string>public.content</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>$(PRODUCT_DISPLAY_NAME) Preset</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>$(PRESET_FILE_EXTENSION)</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>$(PRODUCT_DISPLAY_NAME) Preset</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>$(PRODUCT_BUNDLE_IDENTIFIER).preset</string>
+			</array>
+		</dict>
 	</array>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.photography</string>

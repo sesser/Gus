@@ -298,7 +298,7 @@ struct AppKitPopUp: NSViewRepresentable {
     }
 }
 
-/// A collapsible heading of the Adjust tab, with a reset button.
+/// A collapsible heading of the Adjust tab, with its check box and a reset button.
 struct AdjustSection<Content: View>: View {
     let section: Adjustments.Section
     let editor: AdjustmentEditor
@@ -309,27 +309,16 @@ struct AdjustSection<Content: View>: View {
         self.section = section
         self.editor = editor
         self.content = content()
-        let defaults = UserDefaults.standard
-        _isExpanded = State(initialValue: defaults.object(forKey: Self.key(section)) == nil
-            || defaults.bool(forKey: Self.key(section)))
+        _isExpanded = State(initialValue: SectionHeaderState.isExpanded(key: Self.key(section), default: true))
     }
 
     static func key(_ section: Adjustments.Section) -> String { "adjust.section.\(section.rawValue)" }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 4) {
-                if section.groups.count == 1, let group = section.groups.first {
-                    GroupToggle(group: group, editor: editor)
-                }
-                AppKitButton(title: AdjustText.title(section), symbol: isExpanded ? "chevron.down" : "chevron.right",
-                             symbolWeight: .semibold, style: .borderless,
-                             font: .preferredFont(forTextStyle: .headline),
-                             help: isExpanded ? String(localized: "Collapse") : String(localized: "Expand")) {
-                    isExpanded.toggle()
-                    UserDefaults.standard.set(isExpanded, forKey: Self.key(section))
-                }
-                Spacer()
+            SectionHeader(title: AdjustText.title(section), isExpanded: $isExpanded, key: Self.key(section)) {
+                SectionToggle(section: section, editor: editor)
+            } trailing: {
                 AppKitButton(symbol: "arrow.counterclockwise", style: .borderless, tint: .secondaryLabelColor,
                              help: String(localized: "Reset \(AdjustText.title(section))"),
                              isEnabled: editor.adjustments.isModified(section)) {
@@ -338,6 +327,80 @@ struct AdjustSection<Content: View>: View {
             }
             if isExpanded {
                 content
+            }
+        }
+    }
+}
+
+/// A heading's row: the disclosure chevron, a check box (or the room for
+/// one, so every title lines up), the title, then trailing controls. The
+/// chevron and the title both expand and collapse it; `key` remembers which.
+struct SectionHeader<Check: View, Trailing: View>: View {
+    let title: String
+    @Binding var isExpanded: Bool
+    let key: String
+    @ViewBuilder let check: Check
+    @ViewBuilder let trailing: Trailing
+
+    var body: some View {
+        let help = isExpanded ? String(localized: "Collapse") : String(localized: "Expand")
+        HStack(spacing: 4) {
+            AppKitButton(symbol: isExpanded ? "chevron.down" : "chevron.right", symbolWeight: .semibold,
+                         style: .borderless, font: .systemFont(ofSize: 10), tint: .secondaryLabelColor,
+                         help: help, action: flip)
+                .frame(width: 14)
+            check
+                .frame(width: 18)
+            AppKitButton(title: title, style: .borderless, font: .preferredFont(forTextStyle: .headline),
+                         help: help, action: flip)
+            Spacer()
+            trailing
+        }
+    }
+
+    private func flip() {
+        isExpanded.toggle()
+        UserDefaults.standard.set(isExpanded, forKey: key)
+    }
+}
+
+extension SectionHeader where Check == Color {
+    /// A heading with nothing to turn off.
+    init(title: String, isExpanded: Binding<Bool>, key: String, @ViewBuilder trailing: () -> Trailing) {
+        self.init(title: title, isExpanded: isExpanded, key: key, check: { Color.clear }, trailing: trailing)
+    }
+}
+
+/// Whether a heading is expanded, remembered across launches.
+enum SectionHeaderState {
+    static func isExpanded(key: String, default value: Bool) -> Bool {
+        UserDefaults.standard.object(forKey: key) == nil ? value : UserDefaults.standard.bool(forKey: key)
+    }
+}
+
+/// The round check box of a heading: checked while all its edits apply, a dash
+/// while only some do. Unchecking it shows the photo without the heading's
+/// edits (they are kept).
+struct SectionToggle: View {
+    let section: Adjustments.Section
+    let editor: AdjustmentEditor
+
+    var body: some View {
+        if section.groups.count == 1, let group = section.groups.first {
+            GroupToggle(group: group, editor: editor)
+        } else {
+            let values = editor.adjustments
+            let modified = section.groups.filter { values.isModified($0) }
+            let enabled = modified.filter { values.isEnabled($0) }
+            let isOn = !modified.isEmpty && enabled.count == modified.count
+            let title = AdjustText.title(section)
+            AppKitButton(symbol: isOn ? "checkmark.circle.fill" : enabled.isEmpty ? "circle" : "minus.circle.fill",
+                         style: .borderless, tint: enabled.isEmpty ? .tertiaryLabelColor : .controlAccentColor,
+                         help: modified.isEmpty ? String(localized: "\(title) has no edits")
+                             : isOn ? String(localized: "Turn off \(title) to compare")
+                             : String(localized: "Turn on \(title)"),
+                         isEnabled: !modified.isEmpty) {
+                editor.setEnabled(section, !isOn)
             }
         }
     }
@@ -404,6 +467,7 @@ enum AdjustText {
         case .toneCurve: String(localized: "Tone Curve")
         case .sharpening: String(localized: "Sharpening")
         case .noiseReduction: String(localized: "Noise Reduction")
+        case .colorMixer: String(localized: "Color Mixer", comment: "Adjust tab heading")
         case .colorGrade: String(localized: "Color Grading", comment: "Adjust tab heading")
         case .lookTable: String(localized: "Look-Up Table")
         case .vignette: String(localized: "Vignette", comment: "Adjust tab group")
@@ -416,24 +480,31 @@ enum AdjustText {
         case .develop: String(localized: "Develop", comment: "Adjust tab heading")
         case .tone: String(localized: "Tone", comment: "Adjust tab heading")
         case .details: String(localized: "Details", comment: "Adjust tab heading")
+        case .colorMixer: String(localized: "Color Mixer", comment: "Adjust tab heading")
         case .colorGrading: String(localized: "Color Grading", comment: "Adjust tab heading")
         case .effects: String(localized: "Effects", comment: "Adjust tab heading")
         }
     }
 }
 
-/// A clickable picture with a caption under it, outlined when selected.
+/// A clickable picture with a caption under it, outlined when selected, as
+/// wide as offered. `onHover` hears the pointer come and go.
 struct ImageTile: NSViewRepresentable {
     var image: CGImage?
     var title: String
     var isSelected: Bool
     var help: String?
+    var onHover: ((Bool) -> Void)?
     let action: () -> Void
+
+    /// Width over height while there is no picture yet.
+    static let placeholderAspect: CGFloat = 1.5
+    static let captionHeight: CGFloat = 18
 
     func makeCoordinator() -> AppKitButton.Coordinator { AppKitButton.Coordinator() }
 
-    func makeNSView(context: Context) -> NSButton {
-        let button = NSButton()
+    func makeNSView(context: Context) -> HoverButton {
+        let button = HoverButton()
         button.isBordered = false
         button.imagePosition = .imageAbove
         button.imageScaling = .scaleProportionallyUpOrDown
@@ -444,12 +515,17 @@ struct ImageTile: NSViewRepresentable {
         return button
     }
 
-    func updateNSView(_ button: NSButton, context: Context) {
+    func updateNSView(_ button: HoverButton, context: Context) {
         context.coordinator.action = action
+        button.onHover = onHover
         if let image {
-            button.image = NSImage(cgImage: image, size: NSSize(width: 104, height: 104 * CGFloat(image.height) / CGFloat(max(image.width, 1))))
+            button.image = NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))
+            button.contentTintColor = nil
         } else {
-            button.image = NSImage(systemSymbolName: "photo", accessibilityDescription: nil)
+            let configuration = NSImage.SymbolConfiguration(pointSize: 22, weight: .light)
+            button.image = NSImage(systemSymbolName: "photo", accessibilityDescription: nil)?
+                .withSymbolConfiguration(configuration)
+            button.contentTintColor = .tertiaryLabelColor
         }
         button.attributedTitle = NSAttributedString(string: title, attributes: [
             .font: NSFont.preferredFont(forTextStyle: .caption1),
@@ -459,10 +535,49 @@ struct ImageTile: NSViewRepresentable {
         button.layer?.borderWidth = isSelected ? 2 : 0
         button.layer?.borderColor = NSColor.controlAccentColor.cgColor
         button.toolTip = help ?? title
+        button.setAccessibilityLabel(title)
     }
 
-    func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSButton, context: Context) -> CGSize? {
-        CGSize(width: proposal.width ?? 110, height: 100)
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: HoverButton, context: Context) -> CGSize? {
+        let width = proposal.width.flatMap { $0.isFinite ? $0 : nil } ?? 120
+        let aspect = image.map { CGFloat($0.width) / CGFloat(max($0.height, 1)) } ?? Self.placeholderAspect
+        return CGSize(width: width, height: (width / max(aspect, 0.5)).rounded() + Self.captionHeight)
+    }
+
+    /// Reports the pointer entering and leaving.
+    final class HoverButton: NSButton {
+        var onHover: ((Bool) -> Void)?
+        private var area: NSTrackingArea?
+        private var isHovered = false
+
+        override func updateTrackingAreas() {
+            super.updateTrackingAreas()
+            if let area { removeTrackingArea(area) }
+            let area = NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
+                                      owner: self, userInfo: nil)
+            addTrackingArea(area)
+            self.area = area
+        }
+
+        override func mouseEntered(with event: NSEvent) {
+            isHovered = true
+            onHover?(true)
+        }
+
+        override func mouseExited(with event: NSEvent) {
+            guard isHovered else { return }
+            isHovered = false
+            onHover?(false)
+        }
+
+        override func viewWillMove(toWindow newWindow: NSWindow?) {
+            super.viewWillMove(toWindow: newWindow)
+            // Leaving the window (a collapsed heading) sends no exit of its own.
+            if newWindow == nil, isHovered {
+                isHovered = false
+                onHover?(false)
+            }
+        }
     }
 }
 

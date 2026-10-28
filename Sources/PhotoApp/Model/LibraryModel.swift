@@ -73,6 +73,7 @@ final class LibraryModel {
     let cardImport: CardImportModel
     let editor = AdjustmentEditor()
     let lookTableLibrary = LookTableLibraryModel()
+    let presetPreviews = PresetPreviewModel()
     /// Adjustments taken by Copy Adjustments.
     var copiedAdjustments: Adjustments?
     var adjustmentPresets: [AdjustmentPreset] = []
@@ -107,6 +108,10 @@ final class LibraryModel {
     var requestsImportWindow = false
     /// Set to open the look-up table browser.
     var requestsLookTableWindow = false
+    /// Set to open the preset manager.
+    var requestsPresetWindow = false
+    /// What the last preset import did, shown in an alert.
+    var presetImportSummary: PresetImportSummary?
     /// Open the import window when a card is inserted (Settings).
     var opensImportOnCard: Bool {
         didSet { UserDefaults.standard.set(opensImportOnCard, forKey: Self.opensImportOnCardKey) }
@@ -312,6 +317,7 @@ final class LibraryModel {
         cardImport.library = self
         editor.library = self
         lookTableLibrary.library = self
+        presetPreviews.library = self
     }
 
     /// Opens the catalog at the standard location (or `--library-root`).

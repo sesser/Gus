@@ -63,6 +63,8 @@ struct AdjustmentsModelTests {
 
     @Test func resettingEverySectionGivesBackTheIdentity() {
         var adjustments = full()
+        // Not in `full()`, whose render hash is a golden value.
+        adjustments.colorMixer[.blue] = .init(hue: 10)
         for section in Adjustments.Section.allCases {
             #expect(adjustments.isModified(section))
             adjustments = adjustments.resetting(section)

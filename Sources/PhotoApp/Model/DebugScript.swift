@@ -36,7 +36,9 @@ import PhotoUI
 ///     lutimport <folder> [<collection>]   (into a new collection, or an existing one of that name)
 ///     luts                  (prints the collections)
 ///     lutwindow open|close|all|collection <name>|expand <name>|select <name>|apply|manage|snapshot <file>
-///     copyadjust            pasteadjust            preset save|apply|delete <name> | preset (prints them)
+///     copyadjust            pasteadjust            preset save|apply|delete|preview <name> | preset (prints them)
+///     preset import <path>…  (prints the summary)   preset summary <path>… (imports, shows the alert)
+///     preset export <file> [<name>]                 preset window | windowshot <png>
 ///
 /// Keys are characters ("3", "p") or names (left, right, up, down, home, end,
 /// pageup, pagedown, return, escape, space); prefix "opt+" or "shift+" for modifiers. Key events go through
@@ -240,6 +242,42 @@ enum DebugScript {
             case "save":
                 model.saveAdjustmentPreset(named: name)
                 try? await Task.sleep(for: .milliseconds(300))
+            case "import":
+                let urls = rest.dropFirst().map { URL(fileURLWithPath: $0) }
+                if let result = await model.importAdjustmentPresets(urls, showsSummary: false) {
+                    let summary = LibraryModel.summary(of: result)
+                    print("debug-script: \(summary.title)\n\(summary.message)")
+                }
+            case "export":
+                // preset export <file> [name]: every preset, or the one named.
+                let url = URL(fileURLWithPath: rest.dropFirst().first ?? "")
+                let named = rest.dropFirst(2).joined(separator: " ")
+                let presets = model.adjustmentPresets.filter { named.isEmpty || $0.name == named }
+                do {
+                    try model.writeAdjustmentPresets(presets, to: url)
+                } catch {
+                    print("debug-script: export failed: \(error)")
+                }
+            case "preview":
+                if let preset = model.adjustmentPresets.first(where: { $0.name == name }) {
+                    model.previewAdjustmentPreset(preset)
+                    try? await Task.sleep(for: .milliseconds(600))
+                }
+            case "window":
+                model.requestsPresetWindow = true
+                try? await Task.sleep(for: .milliseconds(500))
+            case "windowshot":
+                guard let window = NSApp.windows.first(where: { $0.isVisible && $0.title == String(localized: "Presets") })
+                else {
+                    print("debug-script: the presets window is not open")
+                    break
+                }
+                WindowSnapshot.write(window, to: URL(fileURLWithPath: (name as NSString).expandingTildeInPath))
+            case "summary":
+                if let result = await model.importAdjustmentPresets(rest.dropFirst().map { URL(fileURLWithPath: $0) }) {
+                    print("debug-script: imported \(result.imported.count)")
+                }
+                try? await Task.sleep(for: .milliseconds(500))
             case "apply":
                 if let preset = model.adjustmentPresets.first(where: { $0.name == name }) { model.applyAdjustmentPreset(preset) }
             case "delete":
@@ -248,7 +286,9 @@ enum DebugScript {
                     try? await Task.sleep(for: .milliseconds(300))
                 }
             default:
-                print("debug-script: presets " + model.adjustmentPresets.map(\.name).joined(separator: ", "))
+                print("debug-script: presets " + model.adjustmentPresets.map {
+                    ($0.collection.isEmpty ? "" : "\($0.collection)/") + $0.name + " [\(PresetText.groups($0))]"
+                }.joined(separator: ", "))
             }
         case "original":
             model.editor.showsOriginal = rest.first != "off"
