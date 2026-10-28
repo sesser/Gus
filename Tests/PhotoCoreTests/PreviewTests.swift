@@ -269,6 +269,17 @@ struct PreviewPipelineTests {
     }
 }
 
+/// A mutex held by reference: Swift 6.3 rejects capturing a local `Mutex` in a closure sent to a task.
+final class Locked<Value: Sendable>: Sendable {
+    private let mutex: Mutex<Value>
+
+    init(_ value: Value) { mutex = Mutex(value) }
+
+    func withLock<Result: Sendable>(_ body: (inout Value) -> Result) -> Result {
+        mutex.withLock { body(&$0) }
+    }
+}
+
 /// Opens once; everyone waiting is released.
 actor Gate {
     private var isOpen = false
@@ -290,7 +301,7 @@ actor Gate {
 struct WorkLaneTests {
     @Test func requestsForTheSameKeyShareOneJob() async throws {
         let lane = WorkLane<Int>(concurrency: 2)
-        let runs = Mutex(0)
+        let runs = Locked(0)
         let gate = Gate()
         try await withThrowingTaskGroup(of: Int.self) { group in
             for _ in 0..<5 {
@@ -311,7 +322,7 @@ struct WorkLaneTests {
 
     @Test func higherPriorityAndNewerRequestsRunFirst() async throws {
         let lane = WorkLane<String>(concurrency: 1)
-        let order = Mutex<[String]>([])
+        let order = Locked<[String]>([])
         let gate = Gate()
         let blocker = Task { try await lane.run(key: "blocker", priority: 2) { await gate.wait(); return "blocker" } }
         try await Task.sleep(for: .milliseconds(20))
