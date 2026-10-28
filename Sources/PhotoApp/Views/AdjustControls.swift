@@ -470,8 +470,8 @@ struct ImageTile: NSViewRepresentable {
 struct AppKitMenuButton: NSViewRepresentable {
     enum Entry {
         case item(String, isEnabled: Bool = true, () -> Void)
-        /// An item with a check mark when `isOn`.
-        case check(String, isOn: Bool, () -> Void)
+        /// An item with a check mark when `isOn`; `preview` runs while it is highlighted.
+        case check(String, isOn: Bool, preview: (() -> Void)? = nil, () -> Void)
         case submenu(String, [Entry])
         case separator
     }
@@ -479,6 +479,9 @@ struct AppKitMenuButton: NSViewRepresentable {
     var title: String
     var entries: [Entry]
     var help: String?
+    /// Ends the items' previews: with false when the highlight moves to an item
+    /// without one, with true when the menu closes.
+    var endPreview: ((_ menuClosed: Bool) -> Void)?
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -501,10 +504,14 @@ struct AppKitMenuButton: NSViewRepresentable {
         }
         let entries = entries
         let coordinator = context.coordinator
+        coordinator.endPreview = endPreview
         (button as? MenuPopUpButton)?.makeMenu = {
             let menu = NSMenu()
             menu.autoenablesItems = false
             coordinator.actions = []
+            coordinator.previews = [:]
+            coordinator.rootMenu = menu
+            menu.delegate = coordinator
             add(entries, to: menu, coordinator: coordinator)
             return menu
         }
@@ -530,17 +537,19 @@ struct AppKitMenuButton: NSViewRepresentable {
                 item.isEnabled = isEnabled
                 coordinator.actions.append(action)
                 menu.addItem(item)
-            case .check(let title, let isOn, let action):
+            case .check(let title, let isOn, let preview, let action):
                 let item = NSMenuItem(title: title, action: #selector(Coordinator.pick(_:)), keyEquivalent: "")
                 item.target = coordinator
                 item.tag = coordinator.actions.count
                 item.state = isOn ? .on : .off
+                if let preview { coordinator.previews[item.tag] = preview }
                 coordinator.actions.append(action)
                 menu.addItem(item)
             case .submenu(let title, let children):
                 let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
                 let submenu = NSMenu()
                 submenu.autoenablesItems = false
+                submenu.delegate = coordinator
                 add(children, to: submenu, coordinator: coordinator)
                 item.submenu = submenu
                 item.isEnabled = !children.isEmpty
@@ -552,12 +561,36 @@ struct AppKitMenuButton: NSViewRepresentable {
     }
 
     @MainActor
-    final class Coordinator: NSObject {
+    final class Coordinator: NSObject, NSMenuDelegate {
         var actions: [() -> Void] = []
+        /// Previews by item tag.
+        var previews: [Int: () -> Void] = [:]
+        var endPreview: ((Bool) -> Void)?
+        weak var rootMenu: NSMenu?
+        private var isPreviewing = false
 
         // Not `perform(_:)`: #selector would pick NSObject's performSelector: and crash.
         @objc func pick(_ sender: NSMenuItem) {
             if actions.indices.contains(sender.tag) { actions[sender.tag]() }
+        }
+
+        func menu(_ menu: NSMenu, willHighlight item: NSMenuItem?) {
+            if let item, item.action != nil, let preview = previews[item.tag] {
+                isPreviewing = true
+                preview()
+            } else if isPreviewing, item?.submenu == nil {
+                // A submenu's own item stays highlighted while its items are.
+                isPreviewing = false
+                endPreview?(false)
+            }
+        }
+
+        func menuDidClose(_ menu: NSMenu) {
+            guard menu === rootMenu, !previews.isEmpty else { return }
+            isPreviewing = false
+            // After the picked item's action, which comes once the menu is closed.
+            let endPreview = endPreview
+            Task { @MainActor in endPreview?(true) }
         }
     }
 

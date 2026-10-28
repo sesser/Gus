@@ -810,6 +810,17 @@
         }
       }
     },
+    "Apply & Close" : {
+      "comment" : "Look-up table window button: applies the picked table and closes the window",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apply & Close"
+          }
+        }
+      }
+    },
     "Apply Choices" : {
       "comment" : "Inspector button",
       "localizations" : {
@@ -4366,13 +4377,13 @@
         }
       }
     },
-    "See every table on this photo" : {
+    "See every table on this photo, import and manage tables" : {
       "comment" : "Tooltip of the look-up table Browse button",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "See every table on this photo"
+            "value" : "See every table on this photo, import and manage tables"
           }
         }
       }

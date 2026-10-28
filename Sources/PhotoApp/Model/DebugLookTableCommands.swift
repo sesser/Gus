@@ -62,7 +62,10 @@ enum DebugLookTableCommands {
         case "select":
             library.selection = entry(named: argument, in: library)
         case "apply":
-            if let selection = library.selection { library.apply(selection, editor: model.editor) }
+            // As the window's Apply & Close button.
+            guard let selection = library.selection else { return }
+            library.apply(selection, editor: model.editor)
+            browserWindow?.close()
         case "manage":
             library.sheet = .manage
             try? await Task.sleep(for: .milliseconds(300))

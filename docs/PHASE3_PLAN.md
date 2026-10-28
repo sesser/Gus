@@ -41,8 +41,8 @@ five collapsible headings, each with a reset button:
   (luminance; color for RAW files).
 - **Color Grading**: shadows, midtones and highlights wheels (hue, amount,
   luminance), balance and blending.
-- **Effects**: look-up table (a menu of collections, intensity, color space,
-  Browse/Import/Manage), vignette (amount, size, roundness) and grain
+- **Effects**: look-up table (a menu of collections that previews the hovered
+  table on the photo, intensity, color space, Browse), vignette (amount, size, roundness) and grain
   (strength, amount for shadows, midtones and highlights, roughness, color,
   size).
 
@@ -150,10 +150,14 @@ collection from the library never deletes its file.
   a prefix every file shares removed, all-lowercase names capitalized), and
   adds it to a new collection or an existing one, with a color space for the
   batch. Names can be changed before importing.
-- **Browse** opens the Look-Up Tables window: a collection pop-up (or all),
-  one pane per collection, only the first expanded; only expanded panes render
-  previews, on a 360 px copy of the photo with its saved adjustments and no
-  effects. Click picks, Apply or a double-click applies.
+- **Menu**: hovering a table renders the photo with it in the loupe
+  (`AdjustmentEditor.preview`: nothing is saved); closing the menu without a
+  pick goes back to the cached rendition.
+- **Browse** opens the Look-Up Tables window, which also holds Import and
+  Manage: a collection pop-up (or all), one pane per collection, only the
+  first expanded; only expanded panes render previews, on a 360 px copy of the
+  photo with its saved adjustments and no effects. Click picks; Apply & Close
+  applies and closes the window, a double-click applies and keeps it open.
 - **Manage** renames collections and tables, changes a table's default color
   space, and removes tables and collections.
 - **Color space**: each table is applied in its color space (sRGB by default;

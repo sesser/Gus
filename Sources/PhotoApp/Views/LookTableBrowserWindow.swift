@@ -179,6 +179,7 @@ private struct LookTableTile: View {
 /// The picked table and Apply.
 private struct ApplyBar: View {
     let model: LibraryModel
+    @Environment(\.dismissWindow) private var dismissWindow
 
     private var library: LookTableLibraryModel { model.lookTableLibrary }
     private var editor: AdjustmentEditor { model.editor }
@@ -200,8 +201,10 @@ private struct ApplyBar: View {
                 editor.change(String(localized: "Look-Up Table"), phase: .committed) { $0.lookTable = LookTable() }
             }
             .disabled(editor.state != .ready || editor.adjustments.lookTable.identifier == nil)
-            Button("Apply") {
-                if let selection = library.selection { library.apply(selection, editor: editor) }
+            Button("Apply & Close") {
+                guard let selection = library.selection else { return }
+                library.apply(selection, editor: editor)
+                dismissWindow(id: "lookTables")
             }
             .keyboardShortcut(.defaultAction)
             .disabled(editor.state != .ready || library.selection == nil)
