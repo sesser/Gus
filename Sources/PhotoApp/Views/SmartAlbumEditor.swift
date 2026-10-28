@@ -205,7 +205,8 @@ private struct RuleRow: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Picker("Field", selection: Binding(get: { rule.field }, set: changeField)) {
+            // A closure, not the bare method: Swift 6.3 crashes in IRGen on the method reference's thunk.
+            Picker("Field", selection: Binding(get: { rule.field }, set: { changeField($0) })) {
                 ForEach(SmartRule.Field.allCases, id: \.self) { field in
                     Text(RuleText.field(field)).tag(field)
                 }
