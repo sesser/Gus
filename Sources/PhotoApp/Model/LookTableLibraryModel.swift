@@ -109,18 +109,35 @@ final class LookTableLibraryModel {
     /// Applies a table to the photo being edited, keeping the intensity of the
     /// table it replaces.
     func apply(_ entry: LookTableEntry, editor: AdjustmentEditor) {
-        guard let store = library?.lookTables else { return }
-        if let builtIn = BuiltInLookTables.table(identifier: entry.identifier) {
-            _ = try? store.install(builtIn.data)
-        }
-        guard store.contains(entry.identifier) else {
+        guard isAvailable(entry) else {
             library?.statusMessage = String(localized: "\(entry.name) is missing from the library.")
             return
         }
-        let current = editor.adjustments.lookTable
-        editor.change(String(localized: "Look-Up Table"), phase: .committed) {
-            $0.lookTable = entry.lookTable(intensity: current.identifier == nil ? 100 : current.intensity)
+        let table = lookTable(entry, replacing: editor.adjustments.lookTable)
+        editor.change(String(localized: "Look-Up Table"), phase: .committed) { $0.lookTable = table }
+    }
+
+    /// Shows a table on the photo being edited without applying it.
+    func preview(_ entry: LookTableEntry, editor: AdjustmentEditor) {
+        guard isAvailable(entry) else {
+            editor.preview(nil)
+            return
         }
+        let table = lookTable(entry, replacing: editor.adjustments.lookTable)
+        editor.preview { $0.lookTable = table }
+    }
+
+    /// The table is in the store (built-ins are installed on demand).
+    private func isAvailable(_ entry: LookTableEntry) -> Bool {
+        guard let store = library?.lookTables else { return false }
+        if let builtIn = BuiltInLookTables.table(identifier: entry.identifier), !store.contains(entry.identifier) {
+            _ = try? store.install(builtIn.data)
+        }
+        return store.contains(entry.identifier)
+    }
+
+    private func lookTable(_ entry: LookTableEntry, replacing current: LookTable) -> LookTable {
+        entry.lookTable(intensity: current.identifier == nil ? 100 : current.intensity)
     }
 
     // MARK: Previews

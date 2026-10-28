@@ -20,6 +20,7 @@ import PhotoUI
 ///     click <x> <y>         (mouse down and up through the event queue, in window points
 ///                           from the top left; launch with `open` so the window is key)
 ///     hit <x> <y>           (prints the view under a point)
+///     menuhover <x> <y> <item>[/<sub>] | end   (highlights a menu item; end closes the menu)
 ///     menukey <key> […]     (posts keys to the event queue, where an open menu reads them)
 ///     menupick <x> <y> <item>[/<submenu item>]   (picks from the menu of the menu button at a point)
 ///     buttons               (prints the window's AppKit buttons and where they are)
@@ -203,28 +204,20 @@ enum DebugScript {
                 try? await Task.sleep(for: .milliseconds(300))
             }
         case "menupick":
-            guard let window, let point = windowPoint(rest, in: window),
-                  let hit = window.contentView?.superview?.hitTest(point) else { break }
-            var view: NSView? = hit
-            while let current = view, !(current is AppKitMenuButton.MenuPopUpButton) { view = current.superview }
-            guard let button = view as? AppKitMenuButton.MenuPopUpButton, let menu = button.makeMenu?() else {
-                print("debug-script: no menu button at that point")
-                break
-            }
-            var target = menu
-            let path = rest.dropFirst(2).joined(separator: " ").split(separator: "/").map(String.init)
-            for (depth, title) in path.enumerated() {
-                guard let index = target.items.firstIndex(where: { $0.title == title }) else {
-                    print("debug-script: no menu item \(title)")
-                    break
-                }
-                if depth == path.count - 1 {
-                    target.performActionForItem(at: index)
-                } else if let submenu = target.items[index].submenu {
-                    target = submenu
-                }
-            }
+            guard let (menu, index) = menuItem(rest) else { break }
+            menu.performActionForItem(at: index)
             try? await Task.sleep(for: .milliseconds(300))
+        case "menuhover":
+            // Highlights an item as the pointer would, so its preview shows;
+            // "end" closes the menu without a pick.
+            if rest.first == "end" {
+                if let menu = hoveredMenu { menu.delegate?.menuDidClose?(menu) }
+                hoveredMenu = nil
+            } else if let (menu, index) = menuItem(rest) {
+                menu.delegate?.menu?(menu, willHighlight: menu.items[index])
+                hoveredMenu = menuRoot
+            }
+            try? await Task.sleep(for: .milliseconds(600))
         case "menukey":
             for key in rest {
                 send(key, posted: true)
@@ -322,6 +315,36 @@ enum DebugScript {
             return
         }
         for subview in view.subviews { scrollInspector(target, in: subview) }
+    }
+
+    /// The menu of the menu button at `<x> <y>`, kept for `menuhover end`.
+    private static var menuRoot: NSMenu?
+    private static var hoveredMenu: NSMenu?
+
+    /// The item at `<x> <y> <item>[/<sub>]`: the menu button there, then the
+    /// item's path in its menu.
+    private static func menuItem(_ words: [String]) -> (NSMenu, Int)? {
+        guard let window, let point = windowPoint(words, in: window),
+              let hit = window.contentView?.superview?.hitTest(point) else { return nil }
+        var view: NSView? = hit
+        while let current = view, !(current is AppKitMenuButton.MenuPopUpButton) { view = current.superview }
+        guard let button = view as? AppKitMenuButton.MenuPopUpButton, let menu = button.makeMenu?() else {
+            print("debug-script: no menu button at that point")
+            return nil
+        }
+        menuRoot = menu
+        var target = menu
+        let path = words.dropFirst(2).joined(separator: " ").split(separator: "/").map(String.init)
+        for (depth, title) in path.enumerated() {
+            guard let index = target.items.firstIndex(where: { $0.title == title }) else {
+                print("debug-script: no menu item \(title)")
+                return nil
+            }
+            if depth == path.count - 1 { return (target, index) }
+            guard let submenu = target.items[index].submenu else { return nil }
+            target = submenu
+        }
+        return nil
     }
 
     private static func windowPoint(_ words: [String], in window: NSWindow) -> NSPoint? {

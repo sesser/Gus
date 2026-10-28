@@ -77,6 +77,11 @@ final class AdjustmentEditor {
     /// The frame being rendered is a draft.
     @ObservationIgnored private var renderingInteractive = false
     @ObservationIgnored private var isChanging = false
+    /// Values shown without being applied (a table hovered in a menu).
+    @ObservationIgnored private var previewValues: Adjustments?
+    @ObservationIgnored private var isPreviewing = false
+    /// The loupe showed its cached rendition when the preview began.
+    @ObservationIgnored private var previewRestoresCache = false
     /// Hashes saved while this photo was open; their renditions are deleted
     /// when it closes, except the last one.
     @ObservationIgnored private var sessionHashes: Set<String> = []
@@ -93,6 +98,8 @@ final class AdjustmentEditor {
         }
         finishSession()
         item = newItem
+        isPreviewing = false
+        previewValues = nil
         guard let newItem, let library else {
             state = .idle
             return
@@ -171,6 +178,8 @@ final class AdjustmentEditor {
         var next = adjustments
         body(&next)
         next.enableModules(changedFrom: adjustments)
+        isPreviewing = false
+        previewValues = nil
         showsOriginal = false
         isChanging = phase == .changing
         if next != adjustments {
@@ -272,12 +281,46 @@ final class AdjustmentEditor {
         showsLive = false
     }
 
+    // MARK: Previewing
+
+    /// Shows the photo with `body` applied, without changing or saving
+    /// anything; nil shows the applied values again while previewing goes on.
+    func preview(_ body: ((inout Adjustments) -> Void)?) {
+        guard state == .ready else { return }
+        if !isPreviewing {
+            isPreviewing = true
+            previewRestoresCache = !showsLive
+        }
+        if let body {
+            var values = adjustments
+            body(&values)
+            values.enableModules(changedFrom: adjustments)
+            previewValues = values
+            showsLive = true
+        } else {
+            previewValues = nil
+        }
+        requestRender(interactive: false)
+    }
+
+    /// Back to the applied values (the menu closed without a pick).
+    func endPreview() {
+        guard isPreviewing else { return }
+        isPreviewing = false
+        previewValues = nil
+        if previewRestoresCache, adjustments == committed, !showsOriginal {
+            // The cached rendition shows the saved values: no need to wait for a frame.
+            showsLive = false
+        }
+        requestRender(interactive: false)
+    }
+
     // MARK: Rendering
 
     /// Renders the latest values; requests made while a frame renders collapse
     /// into one.
     private func requestRender(interactive: Bool) {
-        pendingRender = (showsOriginal ? .none : adjustments, interactive)
+        pendingRender = (previewValues ?? (showsOriginal ? .none : adjustments), interactive)
         guard renderTask == nil, let session else { return }
         renderTask = Task {
             while let next = pendingRender, !Task.isCancelled {

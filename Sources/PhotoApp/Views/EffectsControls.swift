@@ -30,8 +30,8 @@ struct EffectsControls: View {
     }
 }
 
-/// The applied table (picked from a menu of collections), its intensity and
-/// color space, and the browser, import and management windows.
+/// The applied table (picked from a menu of collections, which previews the
+/// hovered table on the photo), its intensity and color space, and the browser.
 private struct LookTableControls: View {
     let model: LibraryModel
 
@@ -41,16 +41,19 @@ private struct LookTableControls: View {
     var body: some View {
         let table = editor.adjustments.lookTable
         VStack(alignment: .leading, spacing: 8) {
-            LabeledPopUp(title: String(localized: "Table")) {
-                HStack(spacing: 4) {
-                    AppKitMenuButton(title: library.displayName(for: table), entries: menu(selected: table.identifier),
-                                     help: String(localized: "Choose a look-up table"))
-                    if let identifier = table.identifier, !model.lookTables.contains(identifier) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .foregroundStyle(.orange)
-                            .help("This table is missing from the library, so it is not applied.")
+            // The Browse button sits beside the menu, or under it when the
+            // inspector is too narrow for both.
+            ViewThatFits(in: .horizontal) {
+                LabeledPopUp(title: String(localized: "Table")) {
+                    HStack(spacing: 6) {
+                        tableMenu(table)
+                        browseButton
                     }
-                    Spacer(minLength: 0)
+                }
+                VStack(alignment: .leading, spacing: 6) {
+                    LabeledPopUp(title: String(localized: "Table")) { tableMenu(table) }
+                    browseButton
+                        .padding(.leading, 80)
                 }
             }
             if table.identifier != nil {
@@ -65,58 +68,45 @@ private struct LookTableControls: View {
                     }
                 }
             }
-            // Push buttons do not shrink: wrap them when the inspector is narrow,
-            // or they would widen the whole column and eat its padding.
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 6) {
-                    browseButton
-                    importButton
-                    manageButton
-                }
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 6) {
-                        browseButton
-                        importButton
-                    }
-                    manageButton
-                }
+        }
+    }
+
+    private func tableMenu(_ table: LookTable) -> some View {
+        HStack(spacing: 4) {
+            AppKitMenuButton(title: library.displayName(for: table), entries: menu(selected: table.identifier),
+                             help: String(localized: "Choose a look-up table"),
+                             endPreview: { [editor] menuClosed in
+                                 if menuClosed { editor.endPreview() } else { editor.preview(nil) }
+                             })
+            if let identifier = table.identifier, !model.lookTables.contains(identifier) {
+                Image(systemName: "exclamationmark.triangle")
+                    .foregroundStyle(.orange)
+                    .help("This table is missing from the library, so it is not applied.")
             }
         }
     }
 
     private var browseButton: AppKitButton {
         AppKitButton(title: String(localized: "Browse…"), style: .push,
-                     help: String(localized: "See every table on this photo")) {
+                     help: String(localized: "See every table on this photo, import and manage tables")) {
             model.requestsLookTableWindow = true
-        }
-    }
-
-    private var importButton: AppKitButton {
-        AppKitButton(title: String(localized: "Import…"), style: .push,
-                     help: String(localized: "Add a folder of .cube files as a collection")) {
-            model.requestsLookTableWindow = true
-            library.chooseImportSource()
-        }
-    }
-
-    private var manageButton: AppKitButton {
-        AppKitButton(title: String(localized: "Manage…"), style: .push,
-                     help: String(localized: "Rename or remove collections and tables")) {
-            model.requestsLookTableWindow = true
-            library.sheet = .manage
         }
     }
 
     private func menu(selected: String?) -> [AppKitMenuButton.Entry] {
         var entries: [AppKitMenuButton.Entry] = [
-            .check(String(localized: "None", comment: "No look-up table"), isOn: selected == nil) {
+            .check(String(localized: "None", comment: "No look-up table"), isOn: selected == nil,
+                   preview: { [editor] in editor.preview { $0.lookTable = LookTable() } }) {
                 editor.change(String(localized: "Look-Up Table"), phase: .committed) { $0.lookTable = LookTable() }
             },
             .separator,
         ]
         for collection in library.collections {
             entries.append(.submenu(collection.name, collection.entries.map { entry in
-                .check(entry.name, isOn: entry.identifier == selected) { library.apply(entry, editor: editor) }
+                .check(entry.name, isOn: entry.identifier == selected,
+                       preview: { [library, editor] in library.preview(entry, editor: editor) }) {
+                    library.apply(entry, editor: editor)
+                }
             }))
         }
         return entries
