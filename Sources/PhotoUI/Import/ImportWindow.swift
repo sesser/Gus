@@ -244,8 +244,10 @@ private struct ImportOptionsPanel: View {
                             Button("Choose…") { model.chooseDestination() }
                         }
                     }
-                    TemplateField(title: String(localized: "Subfolders"), text: $model.folderTemplate, folders: true)
-                    TemplateField(title: String(localized: "File names"), text: $model.fileTemplate, folders: false)
+                    TemplateField(title: String(localized: "Subfolders"), text: $model.folderTemplate,
+                                  tokens: TemplateField.importFolderTokens, folders: true)
+                    TemplateField(title: String(localized: "File names"), text: $model.fileTemplate,
+                                  tokens: TemplateField.importFileTokens)
                     if let example = model.example {
                         LabeledContent("Example") {
                             Text(example)
@@ -265,7 +267,8 @@ private struct ImportOptionsPanel: View {
                             }
                         }
                         if model.existingProjectID == nil {
-                            TemplateField(title: String(localized: "Name"), text: $model.projectNameTemplate, folders: false)
+                            TemplateField(title: String(localized: "Name"), text: $model.projectNameTemplate,
+                                          tokens: TemplateField.importFileTokens)
                         }
                     }
                     HStack {
@@ -328,57 +331,6 @@ private struct ImportOptionsPanel: View {
         }
         .sheet(item: $editingPreset) { preset in
             PresetEditor(preset: preset, onSave: model.savePreset, onDelete: { model.deletePreset($0) })
-        }
-    }
-}
-
-/// A template text field with a menu of tokens to insert.
-private struct TemplateField: View {
-    let title: String
-    @Binding var text: String
-    let folders: Bool
-
-    private var tokens: [(String, String)] {
-        var list: [(String, String)] = [
-            (String(localized: "Capture year"), "{capture:yyyy}"),
-            (String(localized: "Capture date"), "{capture:yyyy-MM-dd}"),
-            (String(localized: "Capture month name"), "{capture:MMMM}"),
-            (String(localized: "Capture time"), "{capture:HHmmss}"),
-            (String(localized: "Import date"), "{import:yyyy-MM-dd}"),
-            (String(localized: "Job code"), "{job}"),
-            (String(localized: "Camera model"), "{model}"),
-            (String(localized: "Camera make"), "{make}"),
-            (String(localized: "Camera serial number"), "{serial}"),
-            (String(localized: "Lens"), "{lens}"),
-        ]
-        if !folders {
-            list += [
-                (String(localized: "Original name"), "{name}"),
-                (String(localized: "Number in the original name"), "{number}"),
-                (String(localized: "Sequence in this import"), "{seq:4}"),
-                (String(localized: "Counter across imports"), "{counter:5}"),
-            ]
-        }
-        return list
-    }
-
-    var body: some View {
-        LabeledContent(title) {
-            HStack(spacing: 4) {
-                TextField(title, text: $text)
-                    .labelsHidden()
-                    .font(.body.monospaced())
-                Menu {
-                    ForEach(tokens, id: \.1) { name, token in
-                        Button("\(name)  \(token)") { text += (folders && !text.isEmpty && !text.hasSuffix("/") ? "/" : "") + token }
-                    }
-                } label: {
-                    Image(systemName: "plus.circle")
-                }
-                .menuStyle(.borderlessButton)
-                .fixedSize()
-                .help("Insert a token")
-            }
         }
     }
 }

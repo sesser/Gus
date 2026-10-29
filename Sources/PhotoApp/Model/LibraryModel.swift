@@ -74,6 +74,7 @@ final class LibraryModel {
     let editor = AdjustmentEditor()
     let lookTableLibrary = LookTableLibraryModel()
     let presetPreviews = PresetPreviewModel()
+    let export = ExportModel()
     /// Adjustments taken by Copy Adjustments.
     var copiedAdjustments: Adjustments?
     var adjustmentPresets: [AdjustmentPreset] = []
@@ -110,6 +111,8 @@ final class LibraryModel {
     var requestsLookTableWindow = false
     /// Set to open the preset manager.
     var requestsPresetWindow = false
+    /// Set to open the export window (the menu command and debug scripts).
+    var requestsExportWindow = false
     /// What the last preset import did, shown in an alert.
     var presetImportSummary: PresetImportSummary?
     /// Open the import window when a card is inserted (Settings).
@@ -318,6 +321,7 @@ final class LibraryModel {
         editor.library = self
         lookTableLibrary.library = self
         presetPreviews.library = self
+        export.library = self
     }
 
     /// Opens the catalog at the standard location (or `--library-root`).

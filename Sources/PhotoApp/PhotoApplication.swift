@@ -43,6 +43,13 @@ struct PhotoApplication: App {
         }
         .defaultSize(width: 980, height: 720)
 
+        Window(String(localized: "Export"), id: "export") {
+            if let model = library.model {
+                ExportWindow(model: model)
+            }
+        }
+        .defaultSize(width: 980, height: 760)
+
         Window(String(localized: "Presets"), id: "presets") {
             if let model = library.model {
                 PresetManagerWindow(model: model)
@@ -149,6 +156,10 @@ struct LibraryCommands: Commands {
             }
             .keyboardShortcut("i", modifiers: [.command, .shift])
             .disabled(model == nil || model?.isImporting == true)
+            Divider()
+            Button("Export…") { model?.export.begin() }
+                .keyboardShortcut("e", modifiers: [.command, .shift])
+                .disabled(model == nil || model?.itemCount == 0 || model?.export.isExporting == true)
         }
 
         CommandMenu("Photo") {

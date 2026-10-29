@@ -64,7 +64,8 @@ compatible and never put `#` comment lines inside pasted command snippets.
   (GRDB), import, metadata, `Edits/` (edit stack, adjustments, renderer, live
   render session, look-up tables), `Presets/` (preset files, Lightroom preset
   reading and mapping), preview pipeline, `Sidecars/` (XMP),
-  `CardImport/` (templates, copying), `Suggestions/` (Vision), `Video/`.
+  `CardImport/` (templates, copying), `Export/` (rendering, naming, metadata
+  and watermarks for exports), `Suggestions/` (Vision), `Video/`.
   Everything testable lives here.
 - `Sources/PhotoUI` — UI shared by both apps: `Import/` (the import window, its
   model and its debug-script commands), `Palette`, `LaunchOptions`, and the
@@ -79,8 +80,8 @@ compatible and never put `#` comment lines inside pasted command snippets.
 - `Sources/AppIconCompiler` — `Support/AppIcon.png` to an `.iconset` (masked to the
   macOS icon shape); `build-app.sh` turns it into `AppIcon.icns` with `iconutil`.
 - `Tests/PhotoCoreTests` — Swift Testing suites.
-- `docs/PHASE1_PLAN.md`, `docs/PHASE2_PLAN.md`, `docs/PHASE3_PLAN.md` — design
-  decisions per phase.
+- `docs/PHASE1_PLAN.md`, `docs/PHASE2_PLAN.md`, `docs/PHASE3_PLAN.md`,
+  `docs/PHASE4_PLAN.md` — design decisions per phase.
 
 ## Naming rules
 
@@ -170,6 +171,11 @@ compatible and never put `#` comment lines inside pasted command snippets.
   runs after the change it reverses.
 - **Copying imports** verify every copy (re-read around the file cache, hash
   compared) before it counts; only verified sources may be deleted.
+- **Export** renders through the same `PreviewGenerator` at full resolution,
+  then resizes, sharpens and watermarks. The library's descriptive fields and
+  keywords win over the master's; ratings and labels are never written. File
+  names are decided for the whole batch before anything is written, and each
+  file is moved into place only when it is complete.
 - **Standalone importer** shares the import window, model and `CopyImporter`
   with the library app; never fork them. Without a catalog (`CardImportModel.library`
   nil) it copies only, writes preset metadata into new sidecars (never into
@@ -204,7 +210,14 @@ import of Lightroom `.lrtemplate`, `.xmp` and `.dng` presets
 Folders dragged from Finder onto the library window import in place, one
 project per folder, queued behind each other (`FolderImportQueue`).
 
-Not yet: brushes and masks, healing, cropping, lens corrections, export, ML
+Phase 4, first pass: export (File ▸ Export…, ⇧⌘E) of the selection to a
+folder as JPEG or 8/16-bit TIFF in sRGB, Display P3, Adobe RGB or ProPhoto
+RGB; templated names; full size, fit, long or short edge or percentage with
+output sharpening and PPI; four metadata levels; a PNG watermark placed by
+anchor; export presets (`exportPreset` table); background export with
+progress.
+
+Not yet: brushes and masks, healing, cropping, lens corrections, DNG export, ML
 denoising, `.dcp` profiles, general (hand-made or burst) stacks, hierarchical
 keywords, PTP cameras, a second backup destination, writing metadata into
 originals.

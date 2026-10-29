@@ -16,6 +16,7 @@ enum CatalogSchema {
         migrator.registerMigration("v9", migrate: addFlashCompensation)
         migrator.registerMigration("v10", migrate: addLookTableLibrary)
         migrator.registerMigration("v11", migrate: addPresetCollections)
+        migrator.registerMigration("v12", migrate: addExportPresets)
         return migrator
     }
 
@@ -380,6 +381,17 @@ enum CatalogSchema {
         try db.alter(table: "adjustmentPreset") { t in
             t.add(column: "collection", .text).notNull().defaults(to: "")
             t.add(column: "groups", .text)
+        }
+    }
+
+    /// Saved export settings (format, size, metadata, watermark…), as JSON.
+    private static func addExportPresets(_ db: Database) throws {
+        try db.create(table: "exportPreset") { t in
+            t.autoIncrementedPrimaryKey("id")
+            t.column("uuid", .text).notNull().unique()
+            t.column("name", .text).notNull()
+            t.column("settings", .text).notNull()
+            t.column("createdAt", .datetime).notNull()
         }
     }
 }

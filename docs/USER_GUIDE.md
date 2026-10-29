@@ -145,6 +145,31 @@ presets and collections, and changes what each includes. An exported preset
 file carries the look-up tables its presets use, so it looks the same in
 another library; double-clicking one in the Finder imports it.
 
+**Export** (**File ▸ Export…**, ⇧⌘E) writes the selected photos, or the one in
+the loupe, to a folder with their adjustments. A RAW+JPEG pair is exported once,
+from its RAW; videos are not exported. The window sets:
+
+- **File names**: the original name, or a template with the import tokens, plus
+  `{export:yyyy-MM-dd}` for today and `{seq:4}` for the position in the export.
+- **File type**: JPEG with a quality setting, or TIFF at 8 or 16 bits per
+  channel with no compression, LZW or ZIP. Color space: sRGB (the default),
+  Display P3, Adobe RGB (1998) or ProPhoto RGB.
+- **Size**: full size, fit within a box, long edge, short edge or a percentage.
+  Photos are never enlarged. Pixels per inch only change the print size. Resized
+  exports can get output sharpening for screen or print.
+- **Metadata**: all of it, all except location (GPS and place names), copyright
+  and contact only, or none. Keywords, caption, creator and copyright come from
+  the library. Ratings and labels are never included.
+- **Watermark**: a PNG (transparent areas stay see-through), placed in one of
+  nine positions with a margin, size and opacity, with a preview of the first photo.
+
+Settings can be saved as **presets**. When files with the same names are
+already in the folder, the window asks once whether to keep both (the new files
+get numbered names), replace them or skip them. The export runs in the
+background, with progress and a stop button in the status bar. If anything
+could not be exported (an offline volume, for instance), an alert says why. The
+Finder can show the files when it is done.
+
 **Undo**: ⌘Z and ⇧⌘Z undo and redo culling, keyword, album and pair changes, including
 changes made to many photos at once.
 

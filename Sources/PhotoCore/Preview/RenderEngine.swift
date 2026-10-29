@@ -49,6 +49,13 @@ public final class RenderEngine: @unchecked Sendable {
         return context.createCGImage(image, from: image.extent.integral, format: .BGRA8, colorSpace: space)
     }
 
+    /// Renders to an RGBA `CGImage` with 8 or 16 bits per component in
+    /// `colorSpace`, for writing to a file.
+    public func makeCGImage(_ image: CIImage, colorSpace: CGColorSpace, bitsPerComponent: Int) -> CGImage? {
+        context.createCGImage(image, from: image.extent.integral, format: bitsPerComponent == 16 ? .RGBA16 : .RGBA8,
+                              colorSpace: colorSpace)
+    }
+
     /// Renders to a half-float `CGImage` in extended linear Display P3, tagged with
     /// its content headroom: the brightest component relative to SDR white, which
     /// Core Animation needs to tone map the image to what the display can show.
