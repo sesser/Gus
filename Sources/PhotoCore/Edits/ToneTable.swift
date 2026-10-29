@@ -239,3 +239,32 @@ public struct LocalToneCurve: Sendable, Hashable {
         x > 30 ? x : log1p(exp(x))
     }
 }
+
+/// Dehaze's per-pixel gain g = 1/t and offset g − 1, over the dark channel
+/// relative to the airlight (0 … 1), with transmission t = 1 − ω·haze.
+struct DehazeTables {
+    /// ω at the slider's maximum: t stays above 1 − this.
+    static let strength = 0.9
+    /// ω rises faster over the first half of the slider.
+    static let response = 0.75
+    static let entryCount = 256
+
+    let gain: [Float]
+    let offset: [Float]
+
+    init(amount: Double) {
+        let omega = pow(min(max(amount, 0), 1), Self.response) * Self.strength
+        var gain = [Float](repeating: 0, count: Self.entryCount * 3)
+        var offset = gain
+        for i in 0..<Self.entryCount {
+            let haze = Double(i) / Double(Self.entryCount - 1)
+            let g = 1 / (1 - omega * haze)
+            for c in 0..<3 {
+                gain[i * 3 + c] = Float(g)
+                offset[i * 3 + c] = Float(g - 1)
+            }
+        }
+        self.gain = gain
+        self.offset = offset
+    }
+}

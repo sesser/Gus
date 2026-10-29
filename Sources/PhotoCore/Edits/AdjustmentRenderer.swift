@@ -58,12 +58,12 @@ public struct AdjustmentRenderer: EditStackRenderer {
         }
         let presence = adjustments.presence
         if presence.dehaze != 0 {
-            image = Self.dehaze(image, amount: presence.dehaze / 100)
+            image = Self.dehaze(image, amount: presence.dehaze / 100, extent: extent)
         }
         if presence.clarity != 0 {
             image = Self.clarity(image, amount: presence.clarity / 100, extent: extent)
         }
-        let toneTable = ToneTable(contrast: tone.contrast / 100 + max(presence.dehaze, 0) / 100 * 0.15,
+        let toneTable = ToneTable(contrast: tone.contrast / 100,
                               highlights: max(tone.highlights, 0) / 100, whites: tone.whites / 100,
                               blacks: tone.blacks / 100, curve: adjustments.toneCurve)
         if !toneTable.isIdentity {
@@ -80,7 +80,7 @@ public struct AdjustmentRenderer: EditStackRenderer {
             filter.amount = Float(presence.vibrance / 100)
             image = filter.outputImage ?? image
         }
-        let saturation = presence.saturation / 100 + max(presence.dehaze, 0) / 100 * 0.2
+        let saturation = presence.saturation / 100
         if saturation != 0 {
             let filter = CIFilter.colorControls()
             filter.inputImage = image
@@ -131,25 +131,7 @@ public struct AdjustmentRenderer: EditStackRenderer {
     /// The smoothing is done on a fixed-size copy, so every tier looks the same.
     static func localTone(_ image: CIImage, _ curve: LocalToneCurve, extent: CGRect) -> CIImage {
         let longest = max(extent.width, extent.height)
-        guard longest > 0 else { return image }
-        let luminance = CIFilter.colorMatrix()
-        luminance.inputImage = image
-        let row = CIVector(x: 0.2627, y: 0.6780, z: 0.0593, w: 0)
-        luminance.rVector = row
-        luminance.gVector = row
-        luminance.bVector = row
-        luminance.aVector = CIVector(x: 0, y: 0, z: 0, w: 0)
-        luminance.biasVector = CIVector(x: 0, y: 0, z: 0, w: 1)
-        let clamp = CIFilter.colorClamp()
-        clamp.inputImage = luminance.outputImage
-        clamp.minComponents = CIVector(x: 0, y: 0, z: 0, w: 1)
-        clamp.maxComponents = CIVector(x: 16, y: 16, z: 16, w: 1)
-        // Luminance to a low power: averages are not pulled up by bright areas.
-        let encode = CIFilter.gammaAdjust()
-        encode.inputImage = clamp.outputImage
-        encode.power = Float(LocalToneCurve.encodingPower)
-        // The bias makes the matrix's output infinite.
-        guard let guide = encode.outputImage?.cropped(to: extent) else { return image }
+        guard longest > 0, let guide = luminanceGuide(image, extent: extent) else { return image }
 
         let reduce = CIFilter.lanczosScaleTransform()
         reduce.inputImage = guide
@@ -174,9 +156,35 @@ public struct AdjustmentRenderer: EditStackRenderer {
         return multiply.outputImage?.settingAlphaOne(in: extent).cropped(to: extent) ?? image
     }
 
-    /// Positive amounts subtract an estimated veil (the darkest level of each
-    /// channel in a reduced copy) and rescale; negative ones add a grey veil.
-    static func dehaze(_ image: CIImage, amount: Double) -> CIImage {
+    /// Luminance to a low power, as a grey image: the guide for edge-aware upsampling.
+    static func luminanceGuide(_ image: CIImage, extent: CGRect) -> CIImage? {
+        let luminance = CIFilter.colorMatrix()
+        luminance.inputImage = image
+        let row = CIVector(x: 0.2627, y: 0.6780, z: 0.0593, w: 0)
+        luminance.rVector = row
+        luminance.gVector = row
+        luminance.bVector = row
+        luminance.aVector = CIVector(x: 0, y: 0, z: 0, w: 0)
+        luminance.biasVector = CIVector(x: 0, y: 0, z: 0, w: 1)
+        let clamp = CIFilter.colorClamp()
+        clamp.inputImage = luminance.outputImage
+        clamp.minComponents = CIVector(x: 0, y: 0, z: 0, w: 1)
+        clamp.maxComponents = CIVector(x: 16, y: 16, z: 16, w: 1)
+        // Luminance to a low power: averages are not pulled up by bright areas.
+        let encode = CIFilter.gammaAdjust()
+        encode.inputImage = clamp.outputImage
+        encode.power = Float(LocalToneCurve.encodingPower)
+        // The bias makes the matrix's output infinite.
+        return encode.outputImage?.cropped(to: extent)
+    }
+
+    /// Positive amounts invert the haze model I = J·t + A·(1 − t), as J = I·g − A·(g − 1)
+    /// with g = 1/t. The airlight A is the brightest level of the dark channel (each
+    /// pixel's lowest component, at its minimum over a small neighborhood), and t
+    /// falls as the dark channel nears A, so bright, colorless regions lose the most
+    /// veil. The dark channel is found on a fixed-size copy, so every tier looks the
+    /// same, and upsampled along the image's edges. Negative amounts add a grey veil.
+    static func dehaze(_ image: CIImage, amount: Double, extent: CGRect) -> CIImage {
         if amount < 0 {
             let k = CGFloat(-amount * 0.5)
             let filter = CIFilter.colorMatrix()
@@ -187,43 +195,108 @@ public struct AdjustmentRenderer: EditStackRenderer {
             filter.biasVector = CIVector(x: k * 0.3, y: k * 0.3, z: k * 0.3, w: 0)
             return filter.outputImage ?? image
         }
-        let extent = image.extent
+        guard let guide = luminanceGuide(image, extent: extent),
+              let (haze, airlight) = hazeEstimate(image, extent: extent)
+        else { return image }
+        let upsample = CIFilter.edgePreserveUpsample()
+        upsample.inputImage = guide
+        upsample.smallImage = haze
+        upsample.spatialSigma = 3
+        upsample.lumaSigma = 0.12
+        let tables = DehazeTables(amount: amount)
+        func lookUp(_ values: [Float]) -> CIImage? {
+            let filter = CIFilter.colorCurves()
+            filter.inputImage = upsample.outputImage
+            filter.curvesData = values.withUnsafeBytes { Data($0) }
+            filter.curvesDomain = CIVector(x: 0, y: 1)
+            filter.colorSpace = RenderEngine.workingColorSpace
+            return filter.outputImage
+        }
+        let gained = CIFilter.multiplyCompositing()
+        gained.inputImage = lookUp(tables.gain)
+        gained.backgroundImage = image
+        let offset = CIFilter.multiplyCompositing()
+        offset.inputImage = lookUp(tables.offset)
+        offset.backgroundImage = airlight
+        // The subtract blend mode clamps to 0 … 1. Addition works on premultiplied
+        // values, so each term is doubled at half opacity: the sum is opaque.
+        func halfOpacity(_ term: CIImage?, scale: CGFloat) -> CIImage? {
+            let filter = CIFilter.colorMatrix()
+            filter.inputImage = term
+            filter.rVector = CIVector(x: scale, y: 0, z: 0, w: 0)
+            filter.gVector = CIVector(x: 0, y: scale, z: 0, w: 0)
+            filter.bVector = CIVector(x: 0, y: 0, z: scale, w: 0)
+            filter.aVector = CIVector(x: 0, y: 0, z: 0, w: 0.5)
+            return filter.outputImage
+        }
+        let subtract = CIFilter.additionCompositing()
+        subtract.inputImage = halfOpacity(offset.outputImage, scale: -2)
+        subtract.backgroundImage = halfOpacity(gained.outputImage, scale: 2)
+        let clamp = CIFilter.colorClamp()
+        clamp.inputImage = subtract.outputImage
+        clamp.minComponents = CIVector(x: 0, y: 0, z: 0, w: 0)
+        clamp.maxComponents = CIVector(x: 64, y: 64, z: 64, w: 1)
+        // The upsampled haze's alpha is a hair under one.
+        return clamp.outputImage?.settingAlphaOne(in: extent).cropped(to: extent) ?? image
+    }
+
+    /// The dark channel relative to the airlight (0 … 1) on a reduced copy, and the
+    /// airlight as an infinite grey image.
+    static func hazeEstimate(_ image: CIImage, extent: CGRect) -> (haze: CIImage, airlight: CIImage)? {
         let longest = max(extent.width, extent.height)
-        guard longest > 0 else { return image }
+        guard longest > 0 else { return nil }
         let reduce = CIFilter.lanczosScaleTransform()
         reduce.inputImage = image
-        reduce.scale = Float(min(1, 64 / longest))
+        reduce.scale = Float(min(1, 256 / longest))
         reduce.aspectRatio = 1
-        guard let small = reduce.outputImage else { return image }
-        let minimum = CIFilter.areaMinimum()
-        minimum.inputImage = small
-        minimum.extent = small.extent
-        guard let veil = minimum.outputImage?.clampedToExtent() else { return image }
+        guard let small = reduce.outputImage else { return nil }
+        let smallExtent = small.extent
 
-        let k = CGFloat(amount * 0.9)
-        let scaled = CIFilter.colorMatrix()
-        scaled.inputImage = veil
-        scaled.rVector = CIVector(x: k, y: 0, z: 0, w: 0)
-        scaled.gVector = CIVector(x: 0, y: k, z: 0, w: 0)
-        scaled.bVector = CIVector(x: 0, y: 0, z: k, w: 0)
-        scaled.aVector = CIVector(x: 0, y: 0, z: 0, w: 0)
-        scaled.biasVector = CIVector(x: 0, y: 0, z: 0, w: 1)
-        let remaining = CIFilter.colorMatrix()
-        remaining.inputImage = veil
-        remaining.rVector = CIVector(x: -k, y: 0, z: 0, w: 0)
-        remaining.gVector = CIVector(x: 0, y: -k, z: 0, w: 0)
-        remaining.bVector = CIVector(x: 0, y: 0, z: -k, w: 0)
-        remaining.aVector = CIVector(x: 0, y: 0, z: 0, w: 0)
-        remaining.biasVector = CIVector(x: 1, y: 1, z: 1, w: 1)
+        // The lowest of the three components, never below zero (resampling rings).
+        func component(_ vector: CIVector) -> CIImage? {
+            let filter = CIFilter.colorMatrix()
+            filter.inputImage = small
+            filter.rVector = vector
+            filter.gVector = vector
+            filter.bVector = vector
+            filter.aVector = CIVector(x: 0, y: 0, z: 0, w: 1)
+            return filter.outputImage
+        }
+        let lowest = CIFilter.minimumCompositing()
+        lowest.inputImage = component(CIVector(x: 1, y: 0, z: 0, w: 0))
+        lowest.backgroundImage = component(CIVector(x: 0, y: 1, z: 0, w: 0))
+        let lowestOfThree = CIFilter.minimumCompositing()
+        lowestOfThree.inputImage = lowest.outputImage
+        lowestOfThree.backgroundImage = component(CIVector(x: 0, y: 0, z: 1, w: 0))
+        let floor = CIFilter.colorClamp()
+        floor.inputImage = lowestOfThree.outputImage
+        floor.minComponents = CIVector(x: 0, y: 0, z: 0, w: 1)
+        floor.maxComponents = CIVector(x: 16, y: 16, z: 16, w: 1)
+        let patch = CIFilter.morphologyMinimum()
+        // The clamp's alpha floor makes its output infinite.
+        patch.inputImage = floor.outputImage?.cropped(to: smallExtent).clampedToExtent()
+        patch.radius = 3
+        let smooth = CIFilter.gaussianBlur()
+        smooth.inputImage = patch.outputImage
+        smooth.radius = 3
+        guard let dark = smooth.outputImage?.cropped(to: smallExtent) else { return nil }
 
-        // Blend modes compute background − input and background ÷ input.
-        let subtract = CIFilter.subtractBlendMode()
-        subtract.inputImage = scaled.outputImage
-        subtract.backgroundImage = image
-        let divide = CIFilter.divideBlendMode()
-        divide.inputImage = remaining.outputImage
-        divide.backgroundImage = subtract.outputImage
-        return divide.outputImage?.cropped(to: extent) ?? image
+        let brightest = CIFilter.areaMaximum()
+        brightest.inputImage = dark
+        brightest.extent = smallExtent
+        let airlightFloor = CIFilter.colorClamp()
+        airlightFloor.inputImage = brightest.outputImage
+        airlightFloor.minComponents = CIVector(x: 0.02, y: 0.02, z: 0.02, w: 1)
+        airlightFloor.maxComponents = CIVector(x: 16, y: 16, z: 16, w: 1)
+        guard let level = brightest.outputImage?.extent,
+              let airlight = airlightFloor.outputImage?.cropped(to: level).clampedToExtent()
+        else { return nil }
+        // Background ÷ input, at most one.
+        let relative = CIFilter.divideBlendMode()
+        relative.inputImage = airlight
+        relative.backgroundImage = dark
+        guard let haze = relative.outputImage?.cropped(to: smallExtent) else { return nil }
+        return (haze, airlight)
     }
 
     /// Large-radius unsharp mask in the perceptual encoding. The radius follows
@@ -457,59 +530,78 @@ public struct AdjustmentRenderer: EditStackRenderer {
         return table
     }
 
-    /// Unsharp mask whose result can be held inside each pixel's neighborhood
-    /// (low Detail: no halos) and limited to edges (Masking).
+    /// Unsharp mask in the perceptual encoding. Below 100, Detail limits how far a
+    /// pixel may overshoot the range of its neighborhood (the halos at strong
+    /// edges) without touching texture inside that range; Masking limits it to edges.
     static func sharpen(_ image: CIImage, _ settings: Sharpen, scale: Double, extent: CGRect) -> CIImage {
         // Sharpening for full-resolution pixels has no visible effect on small renditions.
         guard scale >= 0.2 else { return image }
-        let radius = max(settings.radius * scale, 0.25)
-        let clamped = image.clampedToExtent()
+        let radius = sharpeningRadius(settings.radius, scale: scale)
+        let encode = CIFilter.linearToSRGBToneCurve()
+        encode.inputImage = image.clampedToExtent()
+        guard let base = encode.outputImage else { return image }
         let mask = CIFilter.unsharpMask()
-        mask.inputImage = clamped
+        mask.inputImage = base
         mask.radius = Float(radius)
         mask.intensity = Float(settings.amount / 100)
         guard var sharpened = mask.outputImage else { return image }
 
-        let detail = settings.detail / 100
-        if detail < 1 {
-            let neighborhood = Float(max(1, radius))
+        if settings.detail < 100 {
+            let margin = CGFloat(haloMargin(detail: settings.detail / 100))
             let low = CIFilter.morphologyMinimum()
-            low.inputImage = clamped
-            low.radius = neighborhood
+            low.inputImage = base
+            low.radius = Float(max(1, radius))
             let high = CIFilter.morphologyMaximum()
-            high.inputImage = clamped
-            high.radius = neighborhood
+            high.inputImage = base
+            high.radius = Float(max(1, radius))
             let floor = CIFilter.maximumCompositing()
             floor.inputImage = sharpened
-            floor.backgroundImage = low.outputImage
+            floor.backgroundImage = shifted(low.outputImage, by: -margin)
             let ceiling = CIFilter.minimumCompositing()
             ceiling.inputImage = floor.outputImage
-            ceiling.backgroundImage = high.outputImage
-            if let held = ceiling.outputImage {
-                let mix = CIFilter.dissolveTransition()
-                mix.inputImage = held
-                mix.targetImage = sharpened
-                mix.time = Float(detail)
-                sharpened = mix.outputImage ?? held
-            }
+            ceiling.backgroundImage = shifted(high.outputImage, by: margin)
+            sharpened = ceiling.outputImage ?? sharpened
         }
 
-        if settings.masking > 0, let edgeMask = edgeMask(clamped, masking: settings.masking / 100, radius: radius) {
+        if settings.masking > 0, let edgeMask = edgeMask(base, masking: settings.masking / 100, radius: radius) {
             let blend = CIFilter.blendWithMask()
             blend.inputImage = sharpened
-            blend.backgroundImage = clamped
+            blend.backgroundImage = base
             blend.maskImage = edgeMask
             sharpened = blend.outputImage ?? sharpened
         }
-        return sharpened.cropped(to: extent)
+        let decode = CIFilter.sRGBToneCurveToLinear()
+        decode.inputImage = sharpened
+        return decode.outputImage?.cropped(to: extent) ?? image
     }
 
-    /// White where the image has edges stronger than the threshold `masking` sets.
+    /// The blur radius in rendered pixels for `radius` full-resolution pixels. A
+    /// reduced rendition is already softened by its resampling, which a radius
+    /// scaled down with it would not reach: the two add like Gaussians.
+    static func sharpeningRadius(_ radius: Double, scale: Double) -> Double {
+        guard scale < 1 else { return radius }
+        let resampling = 0.5 * (1 - scale)
+        return max((radius * scale * radius * scale + resampling * resampling).squareRoot(), 0.25)
+    }
+
+    /// How far past its neighborhood's range Detail (0 … 1) lets a pixel go, in
+    /// the perceptual encoding.
+    static func haloMargin(detail: Double) -> Double {
+        0.01 + 0.25 * pow(detail, 1.5)
+    }
+
+    /// `image` with `offset` added to its color components.
+    static func shifted(_ image: CIImage?, by offset: CGFloat) -> CIImage? {
+        let filter = CIFilter.colorMatrix()
+        filter.inputImage = image
+        filter.biasVector = CIVector(x: offset, y: offset, z: offset, w: 0)
+        return filter.outputImage
+    }
+
+    /// White where the image (perceptually encoded) has edges stronger than the threshold `masking` sets.
     static func edgeMask(_ image: CIImage, masking: Double, radius: Double) -> CIImage? {
-        let encode = CIFilter.linearToSRGBToneCurve()
-        encode.inputImage = image
         let edges = CIFilter.edges()
-        edges.inputImage = encode.outputImage
+        edges.inputImage = image
         edges.intensity = 1
         let threshold = CGFloat(masking * 0.25)
         let gain = CGFloat(1 / max(0.02, masking * 0.25)) / 3
