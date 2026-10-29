@@ -9,7 +9,7 @@ public struct PreviewGenerator: Sendable {
         case renderFailed
     }
 
-    public let engine: RenderEngine
+    public private(set) var engine: RenderEngine
     public let renderer: any EditStackRenderer
     public var jpegQuality: Double
 
@@ -18,6 +18,13 @@ public struct PreviewGenerator: Sendable {
         self.engine = engine
         self.renderer = renderer
         self.jpegQuality = jpegQuality
+    }
+
+    /// The same renderer and quality, rendering through `engine`.
+    public func withEngine(_ engine: RenderEngine) -> PreviewGenerator {
+        var copy = self
+        copy.engine = engine
+        return copy
     }
 
     /// The lazy Core Image graph for `source` rendered with `stack`, no larger than

@@ -72,8 +72,9 @@ public actor LiveRenderSession {
         let decoded = try PreviewGenerator.decode(source, longEdge: size, draft: key.draft, settings: key.settings)
         let extent = decoded.image.extent.integral
         guard !extent.isInfinite,
-              let image = generator.engine.context.createCGImage(decoded.image, from: extent, format: .RGBAh,
-                                                                 colorSpace: RenderEngine.workingColorSpace)
+              let image = generator.engine.withContext({
+                  $0.createCGImage(decoded.image, from: extent, format: .RGBAh, colorSpace: RenderEngine.workingColorSpace)
+              })
         else { throw PreviewGenerator.Failure.renderFailed }
         return touch(key, Base(image: image, context: decoded.context))
     }

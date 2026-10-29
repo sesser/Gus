@@ -3,15 +3,22 @@ import CoreImage
 import CoreImage.CIFilterBuiltins
 import ImageIO
 import Metal
+import Synchronization
 
-/// The single Core Image context everything renders through.
+/// The Core Image contexts everything renders through.
 ///
 /// Metal-backed, working in extended linear Rec. 2020 at half float so that edits
 /// operate on linear light with headroom and a gamut wide enough for camera
 /// colors. Output is converted to Display P3 when encoded or turned into a
 /// `CGImage`; Core Animation color-matches that to the actual display.
+///
+/// A `CIContext` runs one render at a time, and a camera RAW file is decoded
+/// lazily inside the render that first needs its pixels, so one context would
+/// run every RAW decode one after the other. An engine keeps a pool of
+/// contexts and gives each render the least busy one.
 public final class RenderEngine: @unchecked Sendable {
-    // @unchecked: CIContext is documented as thread-safe and is immutable here.
+    // @unchecked: CIContext is documented as thread-safe; the contexts are
+    // immutable here and the busy counts are guarded by a mutex.
 
     public static let workingColorSpace = CGColorSpace(name: CGColorSpace.extendedLinearITUR_2020)!
     public static let outputColorSpace = CGColorSpace(name: CGColorSpace.displayP3)!
@@ -20,23 +27,48 @@ public final class RenderEngine: @unchecked Sendable {
     /// Renditions whose brightest component stays below this are treated as SDR.
     public static let minimumHDRHeadroom: Float = 1.05
 
-    public let context: CIContext
     public let device: (any MTLDevice)?
+    private let contexts: [CIContext]
+    /// Renders in progress per context.
+    private let busy: Mutex<[Int]>
 
-    public init(device: (any MTLDevice)? = MTLCreateSystemDefaultDevice()) {
+    /// - Parameter contextCount: Renders that can run at once; one context each.
+    public init(device: (any MTLDevice)? = MTLCreateSystemDefaultDevice(),
+                contextCount: Int = PreviewService.defaultGenerateConcurrency, name: String = "preview-pipeline") {
         self.device = device
-        let options: [CIContextOption: Any] = [
-            .workingColorSpace: Self.workingColorSpace,
-            .workingFormat: CIFormat.RGBAh,
-            // Previews are rendered once each; caching intermediates only costs memory.
-            .cacheIntermediates: false,
-            .name: "preview-pipeline",
-        ]
-        if let device {
-            context = CIContext(mtlDevice: device, options: options)
-        } else {
-            context = CIContext(options: options)
+        contexts = (0..<max(1, contextCount)).map { index in
+            let options: [CIContextOption: Any] = [
+                .workingColorSpace: Self.workingColorSpace,
+                .workingFormat: CIFormat.RGBAh,
+                // Previews are rendered once each; caching intermediates only costs memory.
+                .cacheIntermediates: false,
+                .name: "\(name)-\(index)",
+            ]
+            if let device {
+                return CIContext(mtlDevice: device, options: options)
+            }
+            return CIContext(options: options)
         }
+        busy = Mutex([Int](repeating: 0, count: contexts.count))
+    }
+
+    /// For the renders a person waits on (live edits, the loupe's 1:1 and HDR
+    /// renditions), so they never queue behind background previews.
+    public static func interactive() -> RenderEngine {
+        RenderEngine(contextCount: 2, name: "interactive")
+    }
+
+    public var contextCount: Int { contexts.count }
+
+    /// Runs `body` with the least busy context.
+    public func withContext<T>(_ body: (CIContext) throws -> T) rethrows -> T {
+        let index = busy.withLock { counts in
+            let index = counts.indices.min { counts[$0] < counts[$1] } ?? 0
+            counts[index] += 1
+            return index
+        }
+        defer { busy.withLock { $0[index] -= 1 } }
+        return try body(contexts[index])
     }
 
     public var isMetalBacked: Bool { device != nil }
@@ -46,22 +78,25 @@ public final class RenderEngine: @unchecked Sendable {
     /// Animation does not have to convert them on the main thread.
     public func makeCGImage(_ image: CIImage, colorSpace: CGColorSpace? = nil) -> CGImage? {
         let space = colorSpace.flatMap { $0.model == .rgb ? $0 : nil } ?? Self.outputColorSpace
-        return context.createCGImage(image, from: image.extent.integral, format: .BGRA8, colorSpace: space)
+        return withContext { $0.createCGImage(image, from: image.extent.integral, format: .BGRA8, colorSpace: space) }
     }
 
     /// Renders to an RGBA `CGImage` with 8 or 16 bits per component in
     /// `colorSpace`, for writing to a file.
     public func makeCGImage(_ image: CIImage, colorSpace: CGColorSpace, bitsPerComponent: Int) -> CGImage? {
-        context.createCGImage(image, from: image.extent.integral, format: bitsPerComponent == 16 ? .RGBA16 : .RGBA8,
-                              colorSpace: colorSpace)
+        withContext {
+            $0.createCGImage(image, from: image.extent.integral, format: bitsPerComponent == 16 ? .RGBA16 : .RGBA8,
+                             colorSpace: colorSpace)
+        }
     }
 
     /// Renders to a half-float `CGImage` in extended linear Display P3, tagged with
     /// its content headroom: the brightest component relative to SDR white, which
     /// Core Animation needs to tone map the image to what the display can show.
     public func makeHDRCGImage(_ image: CIImage) -> CGImage? {
-        guard let rendered = context.createCGImage(image, from: image.extent.integral, format: .RGBAh,
-                                                   colorSpace: Self.hdrColorSpace),
+        guard let rendered = withContext({
+                  $0.createCGImage(image, from: image.extent.integral, format: .RGBAh, colorSpace: Self.hdrColorSpace)
+              }),
               let headroom = Self.maximumComponent(of: rendered)
         else { return nil }
         return CGImageCreateCopyWithContentHeadroom(max(headroom, 1), rendered) ?? rendered
@@ -94,7 +129,7 @@ public final class RenderEngine: @unchecked Sendable {
     /// Renders and encodes as JPEG with an embedded Display P3 profile.
     public func jpegData(_ image: CIImage, quality: Double) -> Data? {
         let key = CIImageRepresentationOption(rawValue: kCGImageDestinationLossyCompressionQuality as String)
-        return context.jpegRepresentation(of: image, colorSpace: Self.outputColorSpace, options: [key: quality])
+        return withContext { $0.jpegRepresentation(of: image, colorSpace: Self.outputColorSpace, options: [key: quality]) }
     }
 }
 

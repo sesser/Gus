@@ -34,8 +34,10 @@ let usage = """
       copy       --source DIR --dest DIR [--limit N]
                  Copies N shots with verification and compares with a plain copy.
 
-      edits      --library-root ROOT [--limit N] [--frames N]
+      edits      --library-root ROOT [--limit N] [--frames N] [--under-load [N]]
                  Renders previews with a typical set of adjustments and times the loupe's live frames.
+                 With --under-load, times only the live frames while N preview renders run
+                 in the background (default: the preview service's generate concurrency).
 
       synthesize --library-root ROOT --count N
                  Grows the catalog to N versions by cloning existing rows with new content

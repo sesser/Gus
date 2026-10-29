@@ -65,7 +65,11 @@ public final class PreviewService: Sendable {
     }
 
     public let cache: PreviewDiskCache
+    /// Renders the disk cache's tiers, in the background or for cells on screen.
     public let generator: PreviewGenerator
+    /// The same renderer on its own contexts, for renders a person waits on: the
+    /// loupe's 1:1 and HDR renditions, live edits, previews of looks and presets.
+    public let interactiveGenerator: PreviewGenerator
     private let editStack: @Sendable (Int64) async throws -> EditStack
     private let memory: MemoryCache
     private let display = DisplayColorSpace()
@@ -86,10 +90,14 @@ public final class PreviewService: Sendable {
                 generateConcurrency: Int = PreviewService.defaultGenerateConcurrency) {
         self.cache = cache
         self.generator = generator
+        self.interactiveGenerator = generator.withEngine(.interactive())
         self.editStack = editStack
         self.memory = MemoryCache(limit: memoryLimit)
         self.loadLane = WorkLane(concurrency: loadConcurrency)
-        self.generateLane = WorkLane(concurrency: generateConcurrency)
+        // Background work leaves a slot free, so a cell on screen or the loupe
+        // never waits for a background render to finish.
+        self.generateLane = WorkLane(concurrency: generateConcurrency,
+                                     reserved: generateConcurrency > 1 ? 1 : 0, reservedPriority: Priority.visible.rawValue)
         self.fullLane = WorkLane(concurrency: 1)
         self.hdrLane = WorkLane(concurrency: 2)
     }
@@ -198,7 +206,7 @@ public final class PreviewService: Sendable {
         let memoryKey = Self.memoryKey(request.key, bucket: 0) + "#full"
         if let image = memory.image(forKey: memoryKey) { return image }
         guard let source = request.sourceURL else { throw Failure.sourceUnavailable }
-        let generator = self.generator
+        let generator = interactiveGenerator
         let loadStack = self.editStack
         let versionID = request.versionID
         let colorSpace = display.value
@@ -231,7 +239,7 @@ public final class PreviewService: Sendable {
         if let image = memory.image(forKey: memoryKey) { return image }
         if standardRange.withLock({ $0.contains(memoryKey) }) { return nil }
         guard let source = request.sourceURL else { return nil }
-        let generator = self.generator
+        let generator = interactiveGenerator
         let loadStack = self.editStack
         let versionID = request.versionID
         let longEdge = fullResolution ? nil : request.key.tier.longEdge

@@ -492,13 +492,15 @@ enum AdjustText {
 struct ImageTile: NSViewRepresentable {
     var image: CGImage?
     var title: String
+    /// Width over height while there is no picture yet (the picture's, when
+    /// known, so the tile keeps its size when it arrives).
+    var placeholderAspect: CGFloat?
     var isSelected: Bool
     var help: String?
     var onHover: ((Bool) -> Void)?
     let action: () -> Void
 
-    /// Width over height while there is no picture yet.
-    static let placeholderAspect: CGFloat = 1.5
+    static let defaultPlaceholderAspect: CGFloat = 1.5
     static let captionHeight: CGFloat = 18
 
     func makeCoordinator() -> AppKitButton.Coordinator { AppKitButton.Coordinator() }
@@ -540,7 +542,8 @@ struct ImageTile: NSViewRepresentable {
 
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: HoverButton, context: Context) -> CGSize? {
         let width = proposal.width.flatMap { $0.isFinite ? $0 : nil } ?? 120
-        let aspect = image.map { CGFloat($0.width) / CGFloat(max($0.height, 1)) } ?? Self.placeholderAspect
+        let aspect = image.map { CGFloat($0.width) / CGFloat(max($0.height, 1)) }
+            ?? placeholderAspect ?? Self.defaultPlaceholderAspect
         return CGSize(width: width, height: (width / max(aspect, 0.5)).rounded() + Self.captionHeight)
     }
 

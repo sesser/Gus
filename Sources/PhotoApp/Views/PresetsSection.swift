@@ -112,12 +112,15 @@ private struct PresetGrid: View {
     private var previews: PresetPreviewModel { model.presetPreviews }
 
     var body: some View {
-        let current = model.mode == .loupe && model.editor.state == .ready ? model.editor.adjustments : nil
+        // Saved values: reading the live ones would redraw every picture on each step of a drag.
+        let current = model.mode == .loupe && model.editor.state == .ready ? model.editor.savedAdjustments : nil
+        let aspect = model.focusedItem?.orientedSize.map { $0.width / max($0.height, 1) }
         LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)],
                   alignment: .leading, spacing: 8) {
             ForEach(presets) { preset in
                 ImageTile(image: previews.previews[PresetPreviewModel.previewID(preset)]?.cgImage,
                           title: preset.name,
+                          placeholderAspect: aspect,
                           // Outlined when the photo already has the preset's settings.
                           isSelected: current.map { preset.applied(onto: $0) == $0 } ?? false,
                           help: "\(preset.name)\n\(PresetText.groups(preset))",

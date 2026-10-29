@@ -217,6 +217,38 @@ masking: nearly the whole graph.
 - First frames include the decode of the base; the editor starts one 250 ms
   after a photo is shown, so it is usually ready before the first drag.
 
+## Real camera RAW files and render contexts
+
+Measured on 2026-10-28, same machine, release builds, on 200 files hard-linked
+from a real library: 40 each of CR2 (Canon 5D Mark II / 6D), RW2 (Panasonic),
+ORF (Olympus E-M5 III), ARW (Sony A7 III) and camera JPEGs, about 20 MP each.
+
+Camera raws are decoded lazily inside the Core Image render that first needs
+their pixels, and a `CIContext` runs one render at a time. With a single
+context for everything, seven preview jobs ran one after another (the process
+sat at about 150 % CPU with the other jobs waiting in `-[CIContext lock]`), and
+the loupe's live frames waited behind them. `RenderEngine` now keeps a pool of
+contexts (one per generate job) and gives each render the least busy one;
+`PreviewService.interactiveGenerator` has two contexts of its own for live
+edits, the loupe's 1:1 and HDR renditions, and look and preset previews. Background
+work also leaves one generate slot to on-screen requests.
+
+| measurement | one context | pool + interactive contexts |
+|---|---|---|
+| previews, 2560 px, 7 jobs | 7.6/s, ~150 % CPU | 15.7/s, 375–450 % CPU |
+| preview latency, CR2 / RW2 / ORF / ARW / JPEG | 774 / 804 / 1,303 / 1,116 / 548 ms | 360 / 394 / 565 / 741 / 138 ms |
+| live next frame while 7 previews render (mean, p95) | 594–1,309 ms, up to 4.4 s | 91–140 ms, 183–246 ms |
+| live first frame while previews render | 1.1–4.8 s | 0.17–0.77 s |
+| live next frame, idle | 26–52 ms | 26–50 ms (unchanged) |
+
+What remains under load is the decode itself (render threads wait in
+`GetSurfaceFromCacheAndFill` for RawCamera) and sharing the GPU and CPU with
+the background jobs: live frames are still 3–5 times faster when nothing runs in the background.
+
+```bash
+.build/out/Products/Release/photobench edits --library-root $LIB --limit 3 --under-load
+```
+
 ## Reproducing
 
 Build the tools:
