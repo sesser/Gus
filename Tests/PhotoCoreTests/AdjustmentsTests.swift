@@ -415,6 +415,26 @@ struct AdjustmentRendererTests {
         #expect(after < before - 0.05)
     }
 
+    @Test func dehazeWorksWhenTheImageHasBlack() throws {
+        // A black corner used to make the estimated veil zero, so nothing changed.
+        let gradient = CIFilter(name: "CILinearGradient", parameters: [
+            "inputPoint0": CIVector(x: 0, y: 0), "inputPoint1": CIVector(x: 64, y: 0),
+            "inputColor0": CIColor(red: 0.2, green: 0.22, blue: 0.25, colorSpace: RenderEngine.workingColorSpace)!,
+            "inputColor1": CIColor(red: 0.8, green: 0.8, blue: 0.8, colorSpace: RenderEngine.workingColorSpace)!,
+        ])!.outputImage!.cropped(to: CGRect(x: 0, y: 0, width: 64, height: 64))
+        let image = solid(0, 0, 0, size: 8).composited(over: gradient)
+        var half = Adjustments()
+        half.presence.dehaze = 50
+        var full = Adjustments()
+        full.presence.dehaze = 100
+        let index = (40 * 64 + 40) * 4
+        let before = try #require(PixelSample(image, engine: engine)).rgba[index]
+        let atHalf = try #require(PixelSample(render(half, image), engine: engine)).rgba[index]
+        let atFull = try #require(PixelSample(render(full, image), engine: engine)).rgba[index]
+        #expect(atHalf < before - 0.03)
+        #expect(atFull < atHalf - 0.03)
+    }
+
     @Test func sharpeningAddsEdgeContrast() throws {
         let half = solid(0.6, 0.6, 0.6).cropped(to: CGRect(x: 0, y: 0, width: 32, height: 64))
             .composited(over: solid(0.2, 0.2, 0.2, size: 64))
@@ -425,6 +445,12 @@ struct AdjustmentRendererTests {
         // The pixel just inside the bright half gets brighter.
         let index = (32 * 64 + 31) * 4
         #expect(sharpened.rgba[index] > original.rgba[index] + 0.01)
+        // The default Detail still lets edges overshoot, and so does a loupe-sized rendition.
+        adjustments.sharpen = Sharpen(amount: 40)
+        let byDefault = try #require(PixelSample(render(adjustments, half), engine: engine))
+        #expect(byDefault.rgba[index] > original.rgba[index] + 0.01)
+        let reduced = AdjustmentRenderer().render(adjustments, to: half, context: RenderContext(scale: 0.4))
+        #expect(try #require(PixelSample(reduced, engine: engine)).rgba[index] > original.rgba[index] + 0.01)
         // At thumbnail scale sharpening is skipped.
         let small = AdjustmentRenderer().render(adjustments, to: half, context: RenderContext(scale: 0.1))
         #expect(small.extent == half.extent)

@@ -13,7 +13,7 @@ private let hashB = String(repeating: "cd", count: 32)
 struct PreviewCacheKeyTests {
     @Test func keysAreDeterministicAndLaidOutByMaster() throws {
         let key = try #require(PreviewCacheKey(contentHash: hashA, editStackHash: EditStack.identity.renderHash, tier: .thumbnail))
-        #expect(key.relativePath == "v1/thumb/ab/\(hashA)-6c76a50e5dc3f0cd.jpg")
+        #expect(key.relativePath == "v\(PreviewCacheKey.currentPipelineVersion)/thumb/ab/\(hashA)-6c76a50e5dc3f0cd.jpg")
         #expect(key == PreviewCacheKey(contentHash: hashA, editStackHash: EditStack.identity.renderHash, tier: .thumbnail))
     }
 
@@ -25,7 +25,7 @@ struct PreviewCacheKeyTests {
             PreviewCacheKey(contentHash: hashB, editStackHash: identity, tier: .thumbnail),
             PreviewCacheKey(contentHash: hashA, editStackHash: edited, tier: .thumbnail),
             PreviewCacheKey(contentHash: hashA, editStackHash: identity, tier: .preview),
-            PreviewCacheKey(contentHash: hashA, editStackHash: identity, tier: .thumbnail, pipelineVersion: 2),
+            PreviewCacheKey(contentHash: hashA, editStackHash: identity, tier: .thumbnail, pipelineVersion: PreviewCacheKey.currentPipelineVersion + 1),
         ].compactMap { $0 }
         #expect(variants.count == 4)
         #expect(Set(variants.map(\.relativePath) + [base.relativePath]).count == 5)
@@ -85,7 +85,7 @@ struct PreviewPipelineTests {
 
             let old = try #require(PreviewCacheKey(contentHash: hashA, editStackHash: hashB, tier: .thumbnail, pipelineVersion: 7))
             try cache.store(Data([1, 2, 3]), for: old)
-            cache.removeObsoletePipelineVersions(current: 1)
+            cache.removeObsoletePipelineVersions()
             #expect(cache.contains(key))
             #expect(!cache.contains(old))
 
