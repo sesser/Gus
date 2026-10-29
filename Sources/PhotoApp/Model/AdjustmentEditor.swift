@@ -116,7 +116,7 @@ final class AdjustmentEditor {
         sourceURL = url
         isRaw = SupportedFormats.isRaw(pathExtension: url.pathExtension)
         let catalog = library.catalog
-        let generator = library.previews.generator
+        let generator = library.previews.interactiveGenerator
         let colorSpace = library.previews.displayColorSpace
         let versionID = newItem.versionID
         loadTask = Task {
@@ -393,7 +393,7 @@ final class AdjustmentEditor {
                          _ work: @escaping @Sendable (AutoAdjuster, URL, Adjustments) throws -> @Sendable (inout Adjustments) -> Void) {
         guard state == .ready, !isMeasuring, let library, let url = sourceURL, let versionID = item?.versionID else { return }
         isMeasuring = true
-        let adjuster = AutoAdjuster(generator: library.previews.generator)
+        let adjuster = AutoAdjuster(generator: library.previews.interactiveGenerator)
         let values = adjustments
         Task {
             let result = await Task.detached(priority: .userInitiated) { try? work(adjuster, url, values) }.value

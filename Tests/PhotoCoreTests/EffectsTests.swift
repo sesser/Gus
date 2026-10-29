@@ -110,8 +110,10 @@ struct EffectsRenderingTests {
         let extent = image.extent.integral
         var buffer = [Float](repeating: 0, count: Int(extent.width * extent.height) * 4)
         buffer.withUnsafeMutableBytes { bytes in
-            engine.context.render(image, toBitmap: bytes.baseAddress!, rowBytes: Int(extent.width) * 16,
-                                  bounds: extent, format: .RGBAf, colorSpace: RenderEngine.workingColorSpace)
+            engine.withContext {
+                $0.render(image, toBitmap: bytes.baseAddress!, rowBytes: Int(extent.width) * 16,
+                          bounds: extent, format: .RGBAf, colorSpace: RenderEngine.workingColorSpace)
+            }
         }
         return buffer
     }

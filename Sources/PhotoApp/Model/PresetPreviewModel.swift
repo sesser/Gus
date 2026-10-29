@@ -47,7 +47,7 @@ final class PresetPreviewModel {
         }
         if sessionVersionID != item.versionID {
             sessionVersionID = item.versionID
-            session = LiveRenderSession(source: url, generator: library.previews.generator,
+            session = LiveRenderSession(source: url, generator: library.previews.interactiveGenerator,
                                         longEdge: Self.longEdge, colorSpace: library.previews.displayColorSpace)
         }
         guard let session, let base = await baseAdjustments(of: item), self.key == key else { return }

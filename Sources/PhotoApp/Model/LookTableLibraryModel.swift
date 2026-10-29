@@ -159,14 +159,14 @@ final class LookTableLibraryModel {
         }
         if previewBase == nil {
             guard let rendered = await editor.lookTablePreviewBase(), previewKey == key else { return }
-            let engine = library.previews.generator.engine
+            let engine = library.previews.interactiveGenerator.engine
             // Every preview starts from one small copy.
             previewBase = await Task.detached(priority: .userInitiated) {
                 LookTableBrowsing.reduced(rendered.cgImage, longEdge: 360, engine: engine).map(DecodedImage.init)
             }.value
         }
         guard let base = previewBase else { return }
-        let engine = library.previews.generator.engine
+        let engine = library.previews.interactiveGenerator.engine
         for entry in collection.entries where previews[Self.previewID(entry)] == nil {
             guard !Task.isCancelled, previewKey == key else { return }
             let preview = await Task.detached(priority: .utility) { () -> DecodedImage? in

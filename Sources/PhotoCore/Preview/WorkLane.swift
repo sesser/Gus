@@ -8,10 +8,13 @@ import Foundation
 ///   so cells that just scrolled into view are served before ones that left.
 /// - A cancelled request leaves its job; a job nobody waits for any more is
 ///   dropped if pending, or has its task cancelled if running.
+/// - Reserved slots only start jobs at the reserved priority or above, so a
+///   lane full of lower-priority work still starts an urgent job at once.
 actor WorkLane<Output: Sendable> {
     private final class Job {
         let id: UInt64
         let key: String
+        /// Raised while pending when a more urgent request joins; fixed once started.
         var priority: Int
         var sequence: UInt64
         let taskPriority: TaskPriority
@@ -31,6 +34,8 @@ actor WorkLane<Output: Sendable> {
     }
 
     private let limit: Int
+    private let reserved: Int
+    private let reservedPriority: Int
     private var pending: [String: Job] = [:]
     /// Running jobs that still have waiters, by key.
     private var running: [String: Job] = [:]
@@ -38,8 +43,12 @@ actor WorkLane<Output: Sendable> {
     private var active: [UInt64: Job] = [:]
     private var counter: UInt64 = 0
 
-    init(concurrency: Int) {
+    /// - Parameters:
+    ///   - reserved: Slots that only jobs at `reservedPriority` or above may take.
+    init(concurrency: Int, reserved: Int = 0, reservedPriority: Int = .max) {
         limit = max(1, concurrency)
+        self.reserved = min(max(0, reserved), limit - 1)
+        self.reservedPriority = reservedPriority
     }
 
     /// Number of jobs waiting to start.
@@ -89,6 +98,11 @@ actor WorkLane<Output: Sendable> {
 
     private func startJobs() {
         while active.count < limit, let job = nextJob() {
+            if job.priority < reservedPriority,
+               active.values.count(where: { $0.priority < reservedPriority }) >= limit - reserved {
+                // The best pending job may not take a reserved slot, so none may.
+                return
+            }
             pending[job.key] = nil
             running[job.key] = job
             active[job.id] = job

@@ -161,8 +161,9 @@ struct PreviewPipelineTests {
             let patch = CIImage(color: CIColor(red: 4, green: 4, blue: 4, colorSpace: RenderEngine.hdrColorSpace)!)
                 .cropped(to: CGRect(x: 100, y: 100, width: 200, height: 150))
             let hdr = patch.composited(over: sdr)
-            let data = try #require(engine.context.jpegRepresentation(
-                of: sdr, colorSpace: RenderEngine.outputColorSpace, options: [.hdrImage: hdr]))
+            let data = try #require(engine.withContext {
+                $0.jpegRepresentation(of: sdr, colorSpace: RenderEngine.outputColorSpace, options: [.hdrImage: hdr])
+            })
             let gainMapped = root.appending(path: "gain-map.jpg")
             try data.write(to: gainMapped)
 
@@ -383,5 +384,42 @@ struct WorkLaneTests {
         await #expect(throws: CancellationError.self) { _ = try await first.value }
         await gate.open()
         #expect(try await second.value == 7)
+    }
+
+    @Test func reservedSlotsStartOnlyUrgentJobs() async throws {
+        let lane = WorkLane<String>(concurrency: 3, reserved: 1, reservedPriority: 2)
+        let started = Locked<[String]>([])
+        let gate = Gate()
+        func job(_ key: String, _ priority: Int) -> Task<String, any Error> {
+            Task { try await lane.run(key: key, priority: priority) { started.withLock { $0.append(key) }; await gate.wait(); return key } }
+        }
+        var tasks = (0..<4).map { job("background-\($0)", 0) }
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(started.withLock { $0.count } == 2, "background work leaves the reserved slot free")
+
+        tasks.append(job("visible", 2))
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(started.withLock { $0.contains("visible") }, "an urgent job starts at once in the reserved slot")
+        #expect(started.withLock { $0.count } == 3)
+
+        await gate.open()
+        for task in tasks { _ = try await task.value }
+        #expect(started.withLock { $0.count } == 5)
+    }
+}
+
+@Suite("Render engine")
+struct RenderEngineTests {
+    @Test func rendersRunOnTheLeastBusyContext() async throws {
+        let engine = RenderEngine(contextCount: 3)
+        #expect(engine.contextCount == 3)
+        let identifiers = engine.withContext { first in
+            engine.withContext { second in
+                engine.withContext { third in [first, second, third].map(ObjectIdentifier.init) }
+            }
+        }
+        #expect(Set(identifiers).count == 3, "renders in flight get different contexts")
+        let again = engine.withContext(ObjectIdentifier.init)
+        #expect(again == identifiers[0], "the first context is free again")
     }
 }

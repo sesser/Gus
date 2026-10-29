@@ -162,8 +162,10 @@ struct PixelSample {
         guard width > 0, height > 0 else { return nil }
         var buffer = [Float](repeating: 0, count: width * height * 4)
         buffer.withUnsafeMutableBytes { bytes in
-            engine.context.render(reduced, toBitmap: bytes.baseAddress!, rowBytes: width * 16, bounds: bounds,
-                                  format: .RGBAf, colorSpace: RenderEngine.workingColorSpace)
+            engine.withContext {
+                $0.render(reduced, toBitmap: bytes.baseAddress!, rowBytes: width * 16, bounds: bounds,
+                          format: .RGBAf, colorSpace: RenderEngine.workingColorSpace)
+            }
         }
         rgba = buffer
     }
