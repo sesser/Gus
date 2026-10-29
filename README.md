@@ -51,6 +51,10 @@ shows you the difference and lets you choose.
 **Offline volumes welcome.** Photos on an unplugged drive keep their previews
 and their place in the library, and come back when the drive does.
 
+**Export ready to share.** JPEG or 16-bit TIFF in sRGB, Display P3, Adobe RGB
+or ProPhoto RGB, resized with output sharpening, named by template, with the
+metadata you choose and an optional watermark. Save the settings as presets.
+
 **Videos too.** MOV, MP4 and M4V are catalogued alongside your photos, rated,
 keyworded and played in the loupe.
 
@@ -63,8 +67,8 @@ metadata when it is installed.
 Gus is in active development and has no stable release yet. The `develop`
 branch has the latest work; `master` will hold releases.
 
-On the roadmap: masks and brushes, healing, cropping, lens corrections, export,
-ML denoising, stacks and hierarchical keywords.
+On the roadmap: masks and brushes, healing, cropping, lens corrections, DNG
+export, ML denoising, stacks and hierarchical keywords.
 
 See the [user guide](docs/USER_GUIDE.md) for how everything works, and the
 phase plans in [docs](docs) for design decisions.

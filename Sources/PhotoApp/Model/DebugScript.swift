@@ -39,6 +39,8 @@ import PhotoUI
 ///     copyadjust            pasteadjust            preset save|apply|delete|preview <name> | preset (prints them)
 ///     preset import <path>…  (prints the summary)   preset summary <path>… (imports, shows the alert)
 ///     preset export <file> [<name>]                 preset window | windowshot <png>
+///     export window | windowshot <png> | set <key>=<value>… | template <text> | run [keepboth|overwrite|skip]
+///            | preset save|apply|delete <name> | print   (see DebugExportCommands)
 ///
 /// Keys are characters ("3", "p") or names (left, right, up, down, home, end,
 /// pageup, pagedown, return, escape, space); prefix "opt+" or "shift+" for modifiers. Key events go through
@@ -229,6 +231,8 @@ enum DebugScript {
             model.showsHDR = rest.first != "off"
         case "adjust":
             await DebugAdjustCommands.run(rest, editor: model.editor)
+        case "export":
+            await DebugExportCommands.run(rest, model: model)
         case "lut", "lutimport", "luts", "lutwindow":
             await DebugLookTableCommands.run(verb, rest, model: model)
         case "copyadjust":

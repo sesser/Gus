@@ -133,6 +133,50 @@
         }
       }
     },
+    "%@: %@" : {
+      "comment" : "Export report: file name, then the error",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: %@"
+          }
+        }
+      }
+    },
+    "%@: the original could not be read." : {
+      "comment" : "Export report: file name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: the original could not be read."
+          }
+        }
+      }
+    },
+    "%@: the volume “%@” is not connected." : {
+      "comment" : "Export report: file name, volume name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: the volume “%@” is not connected."
+          }
+        }
+      }
+    },
+    "%@: the watermark image is missing." : {
+      "comment" : "Export report: file name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: the watermark image is missing."
+          }
+        }
+      }
+    },
     "%lld K" : {
       "comment" : "Color temperature in kelvin",
       "localizations" : {
@@ -140,6 +184,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld K"
+          }
+        }
+      }
+    },
+    "%lld files already exist in “%@”" : {
+      "comment" : "Export window: existing files alert title; count and folder name",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld file already exists in “%@”"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld files already exist in “%@”"
+                }
+              }
+            }
           }
         }
       }
@@ -291,6 +358,29 @@
         }
       }
     },
+    "%lld photos could not be exported" : {
+      "comment" : "Export report title",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photo could not be exported"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photos could not be exported"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld photos match" : {
       "comment" : "Smart album editor live count",
       "localizations" : {
@@ -360,6 +450,75 @@
         }
       }
     },
+    "%lld photos were skipped because their files already exist." : {
+      "comment" : "Export report",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photo was skipped because its file already exists."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photos were skipped because their files already exist."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld videos are not exported." : {
+      "comment" : "Export window: the selection includes videos",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld video is not exported."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld videos are not exported."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld videos were skipped." : {
+      "comment" : "Export report",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld video was skipped."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld videos were skipped."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld × %lld px" : {
       "comment" : "Image dimensions",
       "localizations" : {
@@ -371,6 +530,17 @@
         }
       }
     },
+    "16 bits per channel" : {
+      "comment" : "Export window: TIFF bit depth",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "16 bits per channel"
+          }
+        }
+      }
+    },
     "35 mm Eq." : {
       "comment" : "Info tab: 35 mm equivalent focal length tile",
       "localizations" : {
@@ -378,6 +548,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "35 mm Eq."
+          }
+        }
+      }
+    },
+    "8 bits per channel" : {
+      "comment" : "Export window: TIFF bit depth",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "8 bits per channel"
           }
         }
       }
@@ -466,6 +647,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Add a folder of .cube files as a collection"
+          }
+        }
+      }
+    },
+    "Add a watermark" : {
+      "comment" : "Export window",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add a watermark"
           }
         }
       }
@@ -637,6 +829,17 @@
         }
       }
     },
+    "Adobe RGB (1998)" : {
+      "comment" : "Export window: color space",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adobe RGB (1998)"
+          }
+        }
+      }
+    },
     "Advance After Rating" : {
       "localizations" : {
         "en" : {
@@ -701,6 +904,28 @@
         }
       }
     },
+    "All except location" : {
+      "comment" : "Export window: metadata choice",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All except location"
+          }
+        }
+      }
+    },
+    "All metadata" : {
+      "comment" : "Export window: metadata choice",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All metadata"
+          }
+        }
+      }
+    },
     "All settings" : {
       "comment" : "What a preset applies: every group of controls",
       "localizations" : {
@@ -741,6 +966,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Amount by Tone"
+          }
+        }
+      }
+    },
+    "And %lld more." : {
+      "comment" : "Export report: more failures than listed",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "And %lld more."
           }
         }
       }
@@ -997,6 +1233,17 @@
         }
       }
     },
+    "Bit depth" : {
+      "comment" : "Export window",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bit depth"
+          }
+        }
+      }
+    },
     "Black and white (approximated)" : {
       "comment" : "Imported preset setting, converted approximately",
       "localizations" : {
@@ -1058,6 +1305,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Blues"
+          }
+        }
+      }
+    },
+    "Bottom" : {
+      "comment" : "Export window: watermark position",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bottom"
+          }
+        }
+      }
+    },
+    "Bottom left" : {
+      "comment" : "Export window: watermark position",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bottom left"
+          }
+        }
+      }
+    },
+    "Bottom right" : {
+      "comment" : "Export window: watermark position",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bottom right"
+          }
+        }
+      }
+    },
+    "Box" : {
+      "comment" : "Export window: width and height to fit within",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Box"
           }
         }
       }
@@ -1248,6 +1539,17 @@
         }
       }
     },
+    "Center" : {
+      "comment" : "Export window: watermark position",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Center"
+          }
+        }
+      }
+    },
     "Change, export or delete this preset" : {
       "comment" : "Preset manager tooltip",
       "localizations" : {
@@ -1314,6 +1616,28 @@
         }
       }
     },
+    "Choose PNG…" : {
+      "comment" : "Export window: picks the watermark image",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose PNG…"
+          }
+        }
+      }
+    },
+    "Choose a PNG image. Transparent areas stay see-through." : {
+      "comment" : "Export window: watermark panel message",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a PNG image. Transparent areas stay see-through."
+          }
+        }
+      }
+    },
     "Choose a folder of .cube look-up tables, or the files themselves." : {
       "comment" : "Open panel message",
       "localizations" : {
@@ -1375,6 +1699,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Choose presets (.%@, .lrtemplate, .xmp or .dng), or folders of them."
+          }
+        }
+      }
+    },
+    "Choose the folder exported photos are written to." : {
+      "comment" : "Export window: folder panel message",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose the folder exported photos are written to."
           }
         }
       }
@@ -1575,6 +1910,17 @@
         }
       }
     },
+    "Color space" : {
+      "comment" : "Export window",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color space"
+          }
+        }
+      }
+    },
     "Color wheel" : {
       "comment" : "Accessibility label of a color grading wheel",
       "localizations" : {
@@ -1604,6 +1950,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Comparison"
+          }
+        }
+      }
+    },
+    "Compression" : {
+      "comment" : "Export window: TIFF compression",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compression"
           }
         }
       }
@@ -1685,6 +2042,17 @@
         }
       }
     },
+    "Copyright and contact only" : {
+      "comment" : "Export window: metadata choice",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copyright and contact only"
+          }
+        }
+      }
+    },
     "Could not export the presets: %@" : {
       "comment" : "Status message; the argument is the error",
       "localizations" : {
@@ -1746,6 +2114,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Could not read %@: %@"
+          }
+        }
+      }
+    },
+    "Could not read the photos to export: %@" : {
+      "comment" : "Export window: reading the selection failed; the error",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not read the photos to export: %@"
           }
         }
       }
@@ -2257,6 +2636,17 @@
         }
       }
     },
+    "Example" : {
+      "comment" : "Export window: the first photo's file name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Example"
+          }
+        }
+      }
+    },
     "Exp. Comp" : {
       "comment" : "Info tab: exposure compensation tile, in EV",
       "localizations" : {
@@ -2279,6 +2669,40 @@
         }
       }
     },
+    "Export" : {
+      "comment" : "Export window title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export"
+          }
+        }
+      }
+    },
+    "Export %lld Photos" : {
+      "comment" : "Export window: the export button",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Export %lld Photo"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Export %lld Photos"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "Export All…" : {
       "comment" : "Preset manager button",
       "localizations" : {
@@ -2290,6 +2714,40 @@
         }
       }
     },
+    "Export date" : {
+      "comment" : "Template token menu: today's date when exporting",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export date"
+          }
+        }
+      }
+    },
+    "Export stopped after %lld photos." : {
+      "comment" : "Status bar: an export was stopped; how many were written",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Export stopped after %lld photo."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Export stopped after %lld photos."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "Export this collection as one preset file" : {
       "comment" : "Preset manager tooltip",
       "localizations" : {
@@ -2297,6 +2755,74 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Export this collection as one preset file"
+          }
+        }
+      }
+    },
+    "Exported %lld photos" : {
+      "comment" : "Export report title",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Exported %lld photo"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Exported %lld photos"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Exported %lld photos to “%@”." : {
+      "comment" : "Status bar: an export finished; count and folder name",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Exported %lld photo to “%@”."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Exported %lld photos to “%@”."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Exporting %lld of %lld" : {
+      "comment" : "Status bar during an export: done and total",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exporting %lld of %lld"
+          }
+        }
+      }
+    },
+    "Exports" : {
+      "comment" : "Default export folder name, inside Pictures",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exports"
           }
         }
       }
@@ -2389,6 +2915,17 @@
         }
       }
     },
+    "File Names" : {
+      "comment" : "Export window: section",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "File Names"
+          }
+        }
+      }
+    },
     "File Type" : {
       "comment" : "Smart album rule field",
       "localizations" : {
@@ -2439,6 +2976,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Filter"
+          }
+        }
+      }
+    },
+    "Fit within" : {
+      "comment" : "Export window: sizing choice: fits inside a width and height",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fit within"
           }
         }
       }
@@ -2508,6 +3056,28 @@
         }
       }
     },
+    "Folder" : {
+      "comment" : "Export window: destination folder",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Folder"
+          }
+        }
+      }
+    },
+    "Format" : {
+      "comment" : "Export window: file format picker",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Format"
+          }
+        }
+      }
+    },
     "From" : {
       "comment" : "Import window source picker",
       "localizations" : {
@@ -2515,6 +3085,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "From"
+          }
+        }
+      }
+    },
+    "Full size" : {
+      "comment" : "Export window: sizing choice",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Full size"
           }
         }
       }
@@ -2626,6 +3207,17 @@
         }
       }
     },
+    "Height" : {
+      "comment" : "Export window",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Height"
+          }
+        }
+      }
+    },
     "Hide Suggestion" : {
       "comment" : "Undo action name",
       "localizations" : {
@@ -2732,6 +3324,17 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "Image" : {
+      "comment" : "Export window: watermark image",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Image"
           }
         }
       }
@@ -3231,6 +3834,28 @@
         }
       }
     },
+    "Keep Both" : {
+      "comment" : "Export window: existing files alert button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep Both"
+          }
+        }
+      }
+    },
+    "Keep Both writes the new files under numbered names." : {
+      "comment" : "Export window: existing files alert message",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep Both writes the new files under numbered names."
+          }
+        }
+      }
+    },
     "Keep Library Values" : {
       "comment" : "Inspector button",
       "localizations" : {
@@ -3286,6 +3911,17 @@
         }
       }
     },
+    "Keywords and captions come from the library. Ratings and labels are never included." : {
+      "comment" : "Export window: metadata note",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keywords and captions come from the library. Ratings and labels are never included."
+          }
+        }
+      }
+    },
     "Keywords, separated by commas" : {
       "comment" : "Keyword panel field placeholder",
       "localizations" : {
@@ -3293,6 +3929,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Keywords, separated by commas"
+          }
+        }
+      }
+    },
+    "LZW" : {
+      "comment" : "Export window: TIFF compression",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LZW"
           }
         }
       }
@@ -3314,6 +3961,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Last Import"
+          }
+        }
+      }
+    },
+    "Left" : {
+      "comment" : "Export window: watermark position",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Left"
+          }
+        }
+      }
+    },
+    "Length" : {
+      "comment" : "Export window: edge length field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Length"
           }
         }
       }
@@ -3369,6 +4038,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Location"
+          }
+        }
+      }
+    },
+    "Long edge" : {
+      "comment" : "Export window: sizing choice",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Long edge"
           }
         }
       }
@@ -3532,6 +4212,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Manual"
+          }
+        }
+      }
+    },
+    "Margin" : {
+      "comment" : "Export window: watermark margin",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Margin"
           }
         }
       }
@@ -4102,6 +4793,17 @@
         }
       }
     },
+    "Opacity" : {
+      "comment" : "Export window: watermark opacity",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opacity"
+          }
+        }
+      }
+    },
     "Open a photo in the loupe to adjust it. Paste Adjustments and presets change every selected photo." : {
       "comment" : "Adjust tab in the grid",
       "localizations" : {
@@ -4188,6 +4890,17 @@
         }
       }
     },
+    "Output sharpening" : {
+      "comment" : "Export window",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Output sharpening"
+          }
+        }
+      }
+    },
     "PNG" : {
       "comment" : "Grid badge: PNG file",
       "localizations" : {
@@ -4221,6 +4934,17 @@
         }
       }
     },
+    "Percentage" : {
+      "comment" : "Export window: sizing choice",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Percentage"
+          }
+        }
+      }
+    },
     "Perspective corrections" : {
       "comment" : "Imported preset setting with no equivalent",
       "localizations" : {
@@ -4250,6 +4974,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Photo"
+          }
+        }
+      }
+    },
+    "Photos are never enlarged." : {
+      "comment" : "Export window: size note",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photos are never enlarged."
           }
         }
       }
@@ -4314,6 +5049,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Point color"
+          }
+        }
+      }
+    },
+    "Position" : {
+      "comment" : "Export window: watermark anchor",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Position"
           }
         }
       }
@@ -4384,6 +5130,28 @@
         }
       }
     },
+    "Preview of the first photo" : {
+      "comment" : "Export window: caption under the watermark preview",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preview of the first photo"
+          }
+        }
+      }
+    },
+    "Print" : {
+      "comment" : "Export window: output sharpening medium",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Print"
+          }
+        }
+      }
+    },
     "ProPhoto RGB" : {
       "comment" : "Color space",
       "localizations" : {
@@ -4391,6 +5159,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ProPhoto RGB"
+          }
+        }
+      }
+    },
+    "ProPhoto RGB is so wide that 8 bits per channel can show banding. 16-bit TIFF avoids it." : {
+      "comment" : "Export window: warning",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ProPhoto RGB is so wide that 8 bits per channel can show banding. 16-bit TIFF avoids it."
           }
         }
       }
@@ -4456,6 +5235,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Purples"
+          }
+        }
+      }
+    },
+    "Quality" : {
+      "comment" : "Export window: JPEG quality",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quality"
           }
         }
       }
@@ -4839,6 +5629,17 @@
         }
       }
     },
+    "Replace" : {
+      "comment" : "Export window: existing files alert button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Replace"
+          }
+        }
+      }
+    },
     "Reset %@" : {
       "comment" : "Undo action name and tooltip; the argument is an Adjust tab heading",
       "localizations" : {
@@ -4883,6 +5684,17 @@
         }
       }
     },
+    "Resolution" : {
+      "comment" : "Export window: pixels per inch field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resolution"
+          }
+        }
+      }
+    },
     "Retouching" : {
       "comment" : "Imported preset setting with no equivalent",
       "localizations" : {
@@ -4901,6 +5713,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Return adds them. Tab completes, Esc closes."
+          }
+        }
+      }
+    },
+    "Right" : {
+      "comment" : "Export window: watermark position",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Right"
           }
         }
       }
@@ -4960,6 +5783,17 @@
         }
       }
     },
+    "Save Export Preset" : {
+      "comment" : "Export window: preset name alert title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save Export Preset"
+          }
+        }
+      }
+    },
     "Save Preset" : {
       "comment" : "Title of the dialog naming a new adjustment preset",
       "localizations" : {
@@ -4982,6 +5816,17 @@
         }
       }
     },
+    "Save as Preset…" : {
+      "comment" : "Export window",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save as Preset…"
+          }
+        }
+      }
+    },
     "Save this photo's adjustments as a preset" : {
       "comment" : "Tooltip of the Presets heading's Save button",
       "localizations" : {
@@ -5000,6 +5845,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Save…"
+          }
+        }
+      }
+    },
+    "Scale" : {
+      "comment" : "Export window: percentage of full size",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scale"
+          }
+        }
+      }
+    },
+    "Screen" : {
+      "comment" : "Export window: output sharpening medium",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Screen"
           }
         }
       }
@@ -5066,6 +5933,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sepia"
+          }
+        }
+      }
+    },
+    "Sequence in this export" : {
+      "comment" : "Template token menu: the photo's position in the export",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sequence in this export"
           }
         }
       }
@@ -5147,6 +6025,17 @@
         }
       }
     },
+    "Sharpen for" : {
+      "comment" : "Export window: output sharpening medium",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sharpen for"
+          }
+        }
+      }
+    },
     "Sharpening" : {
       "comment" : "Adjust tab group of sharpening sliders",
       "localizations" : {
@@ -5165,6 +6054,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sharpening is easiest to judge at 1:1 (Z), once the change is saved."
+          }
+        }
+      }
+    },
+    "Short edge" : {
+      "comment" : "Export window: sizing choice",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Short edge"
           }
         }
       }
@@ -5240,6 +6140,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Show Original"
+          }
+        }
+      }
+    },
+    "Show in Finder when done" : {
+      "comment" : "Export window",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show in Finder when done"
           }
         }
       }
@@ -5332,6 +6243,17 @@
         }
       }
     },
+    "Skip Them" : {
+      "comment" : "Export window: existing files alert button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skip Them"
+          }
+        }
+      }
+    },
     "Smaller Thumbnails" : {
       "localizations" : {
         "en" : {
@@ -5386,6 +6308,17 @@
         }
       }
     },
+    "Stop Exporting" : {
+      "comment" : "Status bar: stops the export",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop Exporting"
+          }
+        }
+      }
+    },
     "Strength" : {
       "comment" : "Grain slider",
       "localizations" : {
@@ -5393,6 +6326,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Strength"
+          }
+        }
+      }
+    },
+    "Strong" : {
+      "comment" : "Export window: output sharpening amount",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Strong"
           }
         }
       }
@@ -5573,6 +6517,17 @@
         }
       }
     },
+    "Template" : {
+      "comment" : "Export window: file naming choice and field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Template"
+          }
+        }
+      }
+    },
     "Text" : {
       "comment" : "Smart album rule text field placeholder",
       "localizations" : {
@@ -5681,6 +6636,28 @@
         }
       }
     },
+    "The watermark image is missing. Choose it again." : {
+      "comment" : "Export window: the watermark file was removed from the library",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The watermark image is missing. Choose it again."
+          }
+        }
+      }
+    },
+    "There is nothing to export." : {
+      "comment" : "Export window: no photos are selected",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There is nothing to export."
+          }
+        }
+      }
+    },
     "This collection is empty." : {
       "comment" : "Look-up table window",
       "localizations" : {
@@ -5752,6 +6729,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tone Curve"
+          }
+        }
+      }
+    },
+    "Top" : {
+      "comment" : "Export window: watermark position",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Top"
+          }
+        }
+      }
+    },
+    "Top left" : {
+      "comment" : "Export window: watermark position",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Top left"
+          }
+        }
+      }
+    },
+    "Top right" : {
+      "comment" : "Export window: watermark position",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Top right"
           }
         }
       }
@@ -5871,6 +6881,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Untitled Smart Album"
+          }
+        }
+      }
+    },
+    "Update “%@”" : {
+      "comment" : "Export window: saves the changed settings into the selected preset",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Update “%@”"
           }
         }
       }
@@ -6028,6 +7049,17 @@
         }
       }
     },
+    "Watermark" : {
+      "comment" : "Export window: section",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watermark"
+          }
+        }
+      }
+    },
     "Website" : {
       "comment" : "Contact field",
       "localizations" : {
@@ -6083,6 +7115,17 @@
         }
       }
     },
+    "Width" : {
+      "comment" : "Export window",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Width"
+          }
+        }
+      }
+    },
     "Write XMP sidecar files when photos change" : {
       "comment" : "Settings toggle",
       "localizations" : {
@@ -6133,6 +7176,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Yellows"
+          }
+        }
+      }
+    },
+    "ZIP" : {
+      "comment" : "Export window: TIFF compression",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ZIP"
           }
         }
       }
@@ -6445,6 +7499,28 @@
         }
       }
     },
+    "pixels" : {
+      "comment" : "Export window: unit after a size",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "pixels"
+          }
+        }
+      }
+    },
+    "pixels per inch" : {
+      "comment" : "Export window: unit after the resolution",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "pixels per inch"
+          }
+        }
+      }
+    },
     "sRGB" : {
       "comment" : "Color space",
       "localizations" : {
@@ -6496,6 +7572,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "“%@” (%lld of %lld)"
+          }
+        }
+      }
+    },
+    "“%@” is not a PNG image." : {
+      "comment" : "Export window: the chosen watermark file is not a PNG",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” is not a PNG image."
           }
         }
       }

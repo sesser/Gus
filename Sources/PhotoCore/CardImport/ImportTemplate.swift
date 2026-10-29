@@ -19,10 +19,12 @@ public struct TemplateContext: Sendable {
     /// The persistent counter's value for this shot.
     public var counter: Int
     public var jobCode: String
+    /// When exporting: the export's date, for `{export:<pattern>}`.
+    public var exportDate: Date?
 
     public init(captureDate: Date?, captureOffsetSeconds: Int?, fileDate: Date, importDate: Date, make: String?,
                 model: String?, serial: String?, lens: String?, originalName: String, sequence: Int, counter: Int,
-                jobCode: String) {
+                jobCode: String, exportDate: Date? = nil) {
         self.captureDate = captureDate
         self.captureOffsetSeconds = captureOffsetSeconds
         self.fileDate = fileDate
@@ -35,6 +37,7 @@ public struct TemplateContext: Sendable {
         self.sequence = sequence
         self.counter = counter
         self.jobCode = jobCode
+        self.exportDate = exportDate
     }
 }
 
@@ -50,6 +53,7 @@ public struct TemplateContext: Sendable {
 ///     {seq:4}                    this import's shot number, zero-padded
 ///     {counter:5}                a number that keeps counting across imports
 ///     {job}                      the job code typed for this import
+///     {export:<date pattern>}    when exporting: today
 ///
 /// Date patterns are Unicode patterns (yyyy, MM, MMM, MMMM, dd, HH, mm, ss…).
 /// Unknown tokens are left as typed. `/` in the folder template makes folders;
@@ -114,6 +118,9 @@ public struct ImportTemplate: Codable, Hashable, Sendable {
             return format(context.fileDate, argument, .current)
         case "import":
             return argument.map { format(context.importDate, $0, .current) }
+        case "export":
+            guard let argument, let date = context.exportDate else { return nil }
+            return format(date, argument, .current)
         case "make": return context.make ?? ""
         case "model": return context.model ?? ""
         case "serial": return context.serial ?? ""

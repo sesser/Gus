@@ -208,7 +208,7 @@ final class XMPDocument {
 
 extension XMPDocument {
     // Computed: key paths are not Sendable, so they cannot live in a static let.
-    private static var contactFields: [(field: String, path: WritableKeyPath<CreatorContact, String?>)] {
+    static var contactFields: [(field: String, path: WritableKeyPath<CreatorContact, String?>)] {
         [("CiEmailWork", \.email), ("CiTelWork", \.phone), ("CiUrlWork", \.url), ("CiAdrExtadr", \.address),
          ("CiAdrCity", \.city), ("CiAdrRegion", \.region), ("CiAdrPcode", \.postalCode), ("CiAdrCtry", \.country)]
     }

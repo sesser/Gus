@@ -39,6 +39,18 @@ struct MainView: View {
             model.requestsPresetWindow = false
             openWindow(id: "presets")
         }
+        .onChange(of: model.requestsExportWindow) {
+            guard model.requestsExportWindow else { return }
+            model.requestsExportWindow = false
+            openWindow(id: "export")
+        }
+        .alert(model.export.report?.title ?? "", isPresented: Binding(
+            get: { model.export.report != nil }, set: { if !$0 { model.export.report = nil } }
+        )) {
+            Button("OK") { model.export.report = nil }
+        } message: {
+            Text(model.export.report?.message ?? "")
+        }
         .alert(model.presetImportSummary?.title ?? "", isPresented: Binding(
             get: { model.presetImportSummary != nil }, set: { if !$0 { model.presetImportSummary = nil } }
         )) {
@@ -143,6 +155,18 @@ struct StatusBar: View {
                 }
                 .buttonStyle(.borderless)
                 .help("Cancel Import")
+            } else if let progress = model.export.progress {
+                ProgressView(value: Double(progress.done), total: Double(max(progress.total, 1)))
+                    .frame(width: 140)
+                Text("Exporting \(progress.done) of \(progress.total)")
+                    .monospacedDigit()
+                Button {
+                    model.export.cancel()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                }
+                .buttonStyle(.borderless)
+                .help("Stop Exporting")
             } else if let warming = model.warming {
                 ProgressView(value: Double(warming.done), total: Double(max(warming.total, 1)))
                     .frame(width: 100)
