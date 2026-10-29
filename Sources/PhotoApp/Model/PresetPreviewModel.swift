@@ -9,9 +9,13 @@ import PhotoUI
 @Observable
 final class PresetPreviewModel {
     @ObservationIgnored weak var library: LibraryModel?
-    /// Previews by `previewID(_:)`, for `key`.
+    /// Previews by `previewID(_:)`, of the photo being shown. Those not in
+    /// `rendered` still show an earlier edit until their new render replaces
+    /// them, so the pictures never blank out and change size.
     private(set) var previews: [String: DecodedImage] = [:]
     @ObservationIgnored private var key: String?
+    /// Previews rendered for `key`.
+    @ObservationIgnored private var rendered: Set<String> = []
     @ObservationIgnored private var session: LiveRenderSession?
     @ObservationIgnored private var sessionVersionID: Int64?
     /// Counts pictures the pointer entered, so leaving one ends the preview
@@ -25,15 +29,11 @@ final class PresetPreviewModel {
         return "\(preset.uuid)-\(groups)-\(preset.adjustments.editStack.renderHash)"
     }
 
-    /// Identifies the photo and the adjustments the previews start from: the
-    /// editor's while the loupe edits the photo, otherwise the saved ones.
+    /// Identifies the photo and the saved adjustments the previews start from.
+    /// Values being dragged do not count: the previews follow once the change
+    /// is saved.
     func key(for item: CatalogItem) -> String {
-        guard let library else { return "" }
-        let editor = library.editor
-        if editor.state == .ready, editor.item?.versionID == item.versionID {
-            return "\(item.versionID)-\(editor.adjustments.editStack.renderHash)"
-        }
-        return "\(item.versionID)-\(item.editStackHash)"
+        "\(item.versionID)-\(item.editStackHash)"
     }
 
     /// Renders the previews of `presets` on `item`, unless they were rendered
@@ -43,26 +43,29 @@ final class PresetPreviewModel {
         let key = key(for: item)
         if key != self.key {
             self.key = key
-            previews = [:]
+            rendered = []
         }
         if sessionVersionID != item.versionID {
             sessionVersionID = item.versionID
+            previews = [:]
             session = LiveRenderSession(source: url, generator: library.previews.interactiveGenerator,
                                         longEdge: Self.longEdge, colorSpace: library.previews.displayColorSpace)
         }
         guard let session, let base = await baseAdjustments(of: item), self.key == key else { return }
-        for preset in presets where previews[Self.previewID(preset)] == nil {
+        for preset in presets where !rendered.contains(Self.previewID(preset)) {
             guard !Task.isCancelled, self.key == key else { return }
             guard let frame = try? await session.render(preset.applied(onto: base)) else { continue }
             guard !Task.isCancelled, self.key == key else { return }
-            previews[Self.previewID(preset)] = frame.image
+            let id = Self.previewID(preset)
+            previews[id] = frame.image
+            rendered.insert(id)
         }
     }
 
     private func baseAdjustments(of item: CatalogItem) async -> Adjustments? {
         guard let library else { return nil }
         let editor = library.editor
-        if editor.state == .ready, editor.item?.versionID == item.versionID { return editor.adjustments }
+        if editor.state == .ready, editor.item?.versionID == item.versionID { return editor.savedAdjustments }
         let stack = (try? await library.catalog.version(id: item.versionID)?.decodedEditStack()) ?? .identity
         return Adjustments(stack: stack)
     }

@@ -68,6 +68,10 @@ final class AdjustmentEditor {
     }
 
     @ObservationIgnored private var committed = Adjustments()
+
+    /// The values last saved for the photo; `adjustments` runs ahead of them
+    /// while a control is being dragged.
+    var savedAdjustments: Adjustments { committed }
     @ObservationIgnored private var sourceURL: URL?
     @ObservationIgnored private var session: LiveRenderSession?
     @ObservationIgnored private var loadTask: Task<Void, Never>?
