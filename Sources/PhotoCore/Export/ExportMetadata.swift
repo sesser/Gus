@@ -6,7 +6,8 @@ import ImageIO
 /// IPTC) and an XMP packet, chosen by `ExportSettings.Metadata`.
 ///
 /// Camera and capture data come from the master; the descriptive fields
-/// (creator, copyright, usage terms, contact, caption, keywords) come from the
+/// (creator and job title, copyright, usage terms, contact, title, caption,
+/// accessibility texts, keywords) come from the
 /// library, which is the source of truth for them. Rating, flag and color label
 /// are never written: they only mean something inside the app.
 struct ExportMetadata {
@@ -24,7 +25,8 @@ struct ExportMetadata {
     private static var iptcLibraryKeys: [CFString] { [
         kCGImagePropertyIPTCKeywords, kCGImagePropertyIPTCCaptionAbstract, kCGImagePropertyIPTCByline,
         kCGImagePropertyIPTCCopyrightNotice, kCGImagePropertyIPTCRightsUsageTerms,
-        kCGImagePropertyIPTCCreatorContactInfo, kCGImagePropertyIPTCStarRating,
+        kCGImagePropertyIPTCCreatorContactInfo, kCGImagePropertyIPTCStarRating, kCGImagePropertyIPTCObjectName,
+        kCGImagePropertyIPTCBylineTitle,
     ] }
 
     /// Camera and capture fields of the TIFF dictionary worth keeping; the
@@ -71,6 +73,7 @@ struct ExportMetadata {
             }
             if !values.keywords.isEmpty { iptc[kCGImagePropertyIPTCKeywords] = values.keywords }
             iptc[kCGImagePropertyIPTCCaptionAbstract] = text(values.caption)
+            iptc[kCGImagePropertyIPTCObjectName] = text(values.title)
             properties[kCGImagePropertyIPTCDictionary] = iptc
         }
 
@@ -81,6 +84,7 @@ struct ExportMetadata {
             properties[kCGImagePropertyTIFFDictionary] = tiff
             var iptc = properties[kCGImagePropertyIPTCDictionary] as? [CFString: Any] ?? [:]
             iptc[kCGImagePropertyIPTCByline] = text(values.creator).map { [$0] }
+            iptc[kCGImagePropertyIPTCBylineTitle] = text(values.jobTitle).map { [$0] }
             iptc[kCGImagePropertyIPTCCopyrightNotice] = text(values.rights)
             iptc[kCGImagePropertyIPTCRightsUsageTerms] = text(values.usageTerms)
             properties[kCGImagePropertyIPTCDictionary] = iptc
@@ -101,12 +105,16 @@ struct ExportMetadata {
         let document = XMPDocument.empty()
         typealias Namespace = XMPDocument.Namespace
         document.setArray(Namespace.dc, "creator", .seq, text(values.creator).map { [$0] } ?? [])
+        document.setSimple(Namespace.photoshop, "AuthorsPosition", text(values.jobTitle))
         document.setAlternative(Namespace.dc, "rights", text(values.rights))
         document.setAlternative(Namespace.rights, "UsageTerms", text(values.usageTerms))
         document.setStruct(Namespace.iptcCore, "CreatorContactInfo", fieldNamespace: Namespace.iptcCore,
                            fields: XMPDocument.contactFields.map { ($0.field, values.contact?[keyPath: $0.path]) })
         if mode != .copyright {
+            document.setAlternative(Namespace.dc, "title", text(values.title))
             document.setAlternative(Namespace.dc, "description", text(values.caption))
+            document.setAlternative(Namespace.iptcCore, "AltTextAccessibility", text(values.altText))
+            document.setAlternative(Namespace.iptcCore, "ExtDescrAccessibility", text(values.extendedDescription))
             document.setArray(Namespace.dc, "subject", .bag, values.keywords)
         }
         guard document.hasProperties else { return nil }

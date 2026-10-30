@@ -607,6 +607,17 @@
         }
       }
     },
+    "A longer description for screen readers, when the alt text cannot say enough" : {
+      "comment" : "Info tab: tooltip of the Extended Description field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A longer description for screen readers, when the alt text cannot say enough"
+          }
+        }
+      }
+    },
     "A new project" : {
       "comment" : "Import window project picker",
       "localizations" : {
@@ -614,6 +625,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "A new project"
+          }
+        }
+      }
+    },
+    "A short description read aloud by screen readers, under 250 characters" : {
+      "comment" : "Info tab: tooltip of the Alt Text field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A short description read aloud by screen readers, under 250 characters"
           }
         }
       }
@@ -988,6 +1010,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Already in the library"
+          }
+        }
+      }
+    },
+    "Alt Text" : {
+      "comment" : "Metadata field: short accessibility text (IPTC Alt Text)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alt Text"
           }
         }
       }
@@ -1590,6 +1623,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Center"
+          }
+        }
+      }
+    },
+    "Change %@" : {
+      "comment" : "Undo action name; the argument is a metadata field such as Title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Change %@"
           }
         }
       }
@@ -2239,6 +2283,17 @@
         }
       }
     },
+    "Country/Region" : {
+      "comment" : "Metadata field: creator's contact country",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Country/Region"
+          }
+        }
+      }
+    },
     "Create" : {
       "comment" : "Sheet button",
       "localizations" : {
@@ -2625,6 +2680,17 @@
         }
       }
     },
+    "E-Mail" : {
+      "comment" : "Metadata field: creator's contact email address",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "E-Mail"
+          }
+        }
+      }
+    },
     "EV" : {
       "comment" : "Unit after an exposure compensation value",
       "localizations" : {
@@ -2944,6 +3010,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Exposure compensation, in stops (EV)"
+          }
+        }
+      }
+    },
+    "Extended Description" : {
+      "comment" : "Metadata field: long accessibility description (IPTC Extended Description)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Extended Description"
           }
         }
       }
@@ -3922,6 +3999,17 @@
         }
       }
     },
+    "Job Title" : {
+      "comment" : "Metadata field: the creator's job title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Job Title"
+          }
+        }
+      }
+    },
     "Job code" : {
       "comment" : "Import window field and template token",
       "localizations" : {
@@ -4421,6 +4509,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Move To"
+          }
+        }
+      }
+    },
+    "Multiple values" : {
+      "comment" : "Placeholder of a metadata field whose value differs between the selected photos",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Multiple values"
           }
         }
       }
@@ -5159,6 +5258,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Position"
+          }
+        }
+      }
+    },
+    "Postal Code" : {
+      "comment" : "Metadata field: creator's contact postal code",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Postal Code"
           }
         }
       }
@@ -6069,6 +6179,17 @@
         }
       }
     },
+    "Select photos to see and change their metadata." : {
+      "comment" : "Info tab: Metadata heading with nothing selected",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select photos to see and change their metadata."
+          }
+        }
+      }
+    },
     "Sepia" : {
       "comment" : "Built-in look-up table",
       "localizations" : {
@@ -6447,6 +6568,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Stars"
+          }
+        }
+      }
+    },
+    "State/Province" : {
+      "comment" : "Metadata field: creator's contact address region",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "State/Province"
           }
         }
       }
@@ -6872,6 +7004,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tint"
+          }
+        }
+      }
+    },
+    "Title" : {
+      "comment" : "Metadata field: the photo's title (IPTC Title)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Title"
           }
         }
       }
@@ -7320,6 +7463,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Written to sidecar files next to the copies; the copies stay identical to the originals."
+          }
+        }
+      }
+    },
+    "XMP sidecars are off: these fields are kept in the library and written into exports, but other apps won't see them. Turn on sidecars in Settings to share them." : {
+      "comment" : "Info tab: note under the Metadata heading while sidecar writing is off",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "XMP sidecars are off: these fields are kept in the library and written into exports, but other apps won't see them. Turn on sidecars in Settings to share them."
           }
         }
       }

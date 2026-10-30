@@ -15,12 +15,13 @@ final class XMPDocument {
         static let dc = "http://purl.org/dc/elements/1.1/"
         static let rights = "http://ns.adobe.com/xap/1.0/rights/"
         static let iptcCore = "http://iptc.org/std/Iptc4xmpCore/1.0/xmlns/"
+        static let photoshop = "http://ns.adobe.com/photoshop/1.0/"
         static let lightroom = "http://ns.adobe.com/lightroom/1.0/"
         static let xml = "http://www.w3.org/XML/1998/namespace"
         static let app = AppBranding.sidecarNamespace
 
         static let preferredPrefixes: [String: String] = [
-            xmp: "xmp", dc: "dc", rights: "xmpRights", iptcCore: "Iptc4xmpCore", lightroom: "lr",
+            xmp: "xmp", dc: "dc", rights: "xmpRights", iptcCore: "Iptc4xmpCore", photoshop: "photoshop", lightroom: "lr",
             app: AppBranding.sidecarNamespacePrefix,
         ]
     }
@@ -254,6 +255,10 @@ extension XMPDocument {
                                                  fieldNamespace: Namespace.iptcCore)?.trimmedNonEmpty
         }
         values.contact = contact.isEmpty ? nil : contact
+        values.title = alternative(Namespace.dc, "title")?.trimmedNonEmpty
+        values.altText = alternative(Namespace.iptcCore, "AltTextAccessibility")?.trimmedNonEmpty
+        values.extendedDescription = alternative(Namespace.iptcCore, "ExtDescrAccessibility")?.trimmedNonEmpty
+        values.jobTitle = simple(Namespace.photoshop, "AuthorsPosition")?.trimmedNonEmpty
         return values
     }
 
@@ -290,5 +295,9 @@ extension XMPDocument {
         setAlternative(Namespace.rights, "UsageTerms", values.usageTerms)
         setStruct(Namespace.iptcCore, "CreatorContactInfo", fieldNamespace: Namespace.iptcCore,
                   fields: Self.contactFields.map { ($0.field, values.contact?[keyPath: $0.path]) })
+        setAlternative(Namespace.dc, "title", values.title)
+        setAlternative(Namespace.iptcCore, "AltTextAccessibility", values.altText)
+        setAlternative(Namespace.iptcCore, "ExtDescrAccessibility", values.extendedDescription)
+        setSimple(Namespace.photoshop, "AuthorsPosition", values.jobTitle)
     }
 }

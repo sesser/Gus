@@ -91,16 +91,22 @@ struct XMPTests {
             keywords: ["golden hour"], creator: "Pat Doe", rights: "© 2024 Pat Doe", caption: "Beach at dusk",
             usageTerms: "All rights reserved",
             contact: CreatorContact(email: "pat@example.com", phone: "+1 555 0100", url: "https://example.com",
-                                    city: "Moab", country: "USA"))
+                                    city: "Moab", country: "USA"),
+            title: "Dusk", altText: "Waves under an orange sky", extendedDescription: "Low waves roll in.\nNo people.",
+            jobTitle: "Staff Photographer")
         let document = XMPDocument.empty()
         document.apply(values, previous: nil)
-        let (reread, _) = try roundTrip(document)
+        let (reread, text) = try roundTrip(document)
         #expect(reread.values() == values)
+        #expect(text.contains("<dc:title>") && text.contains("<Iptc4xmpCore:AltTextAccessibility>")
+                && text.contains("<Iptc4xmpCore:ExtDescrAccessibility>") && text.contains("<photoshop:AuthorsPosition>"))
 
         // Clearing a field removes it.
         var cleared = values
         cleared.contact = nil
         cleared.caption = nil
+        cleared.title = nil
+        cleared.jobTitle = nil
         reread.apply(cleared, previous: values)
         #expect(try roundTrip(reread).0.values() == cleared)
     }

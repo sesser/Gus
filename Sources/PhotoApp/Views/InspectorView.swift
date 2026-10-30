@@ -32,7 +32,7 @@ struct InspectorView: View {
     }
 }
 
-/// Details of the focused photo, then keywords of the selection.
+/// Details of the focused photo, then keywords and metadata of the selection.
 private struct InfoInspector: View {
     let model: LibraryModel
     @State private var usage: [KeywordUsage] = []
@@ -40,6 +40,12 @@ private struct InfoInspector: View {
     @State private var details: VersionDetails?
     @State private var suggestions = SuggestionSummary()
     @State private var diskChanges: [DiskChange] = []
+    @State private var descriptive = DescriptiveSummary()
+    /// The photos `descriptive` describes.
+    @State private var descriptiveIDs: [Int64] = []
+    @State private var keywordsExpanded = SectionHeaderState.isExpanded(key: Self.keywordsKey, default: true)
+
+    private static let keywordsKey = "info.section.keywords"
 
     var body: some View {
         AppKitScrollView {
@@ -53,16 +59,18 @@ private struct InfoInspector: View {
                     Divider()
                 }
                 keywordsSection
-                if targetCount > 0 {
+                if targetCount > 0, keywordsExpanded {
                     suggestionsSection
                 }
+                Divider()
+                MetadataSection(model: model, summary: descriptive, versionIDs: descriptiveIDs)
             }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .task(id: Reload(selection: model.selectionRevision, keywords: model.keywordRevision,
                          suggestions: model.suggestionRevision, disk: model.diskChangeRevision,
-                         focus: model.focusedItem?.versionID)) {
+                         descriptions: model.descriptionRevision, focus: model.focusedItem?.versionID)) {
             // Coalesces bursts of selection changes (shift-arrowing through a shoot).
             try? await Task.sleep(for: .milliseconds(60))
             guard !Task.isCancelled else { return }
@@ -71,7 +79,10 @@ private struct InfoInspector: View {
             let loadedDetails = try? await model.catalog.details(forVersion: model.focusedItem?.versionID ?? -1)
             let loadedSuggestions = (try? await model.catalog.suggestionSummary(forVersions: ids)) ?? SuggestionSummary()
             let loadedChanges = model.diskChangeCount > 0 ? ((try? await model.catalog.diskChanges(forVersions: ids)) ?? []) : []
+            let loadedDescriptive = (try? await model.catalog.descriptiveSummary(forVersions: ids)) ?? DescriptiveSummary()
             guard !Task.isCancelled else { return }
+            descriptive = loadedDescriptive
+            descriptiveIDs = ids
             diskChanges = loadedChanges
             usage = loaded
             suggestions = loadedSuggestions
@@ -85,6 +96,7 @@ private struct InfoInspector: View {
         var keywords: Int
         var suggestions: Int
         var disk: Int
+        var descriptions: Int
         var focus: Int64?
     }
 
@@ -121,17 +133,17 @@ private struct InfoInspector: View {
 
     private var keywordsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("Keywords")
-                    .font(.headline)
-                Spacer()
+            SectionHeader(title: String(localized: "Keywords"), isExpanded: $keywordsExpanded, key: Self.keywordsKey,
+                          reservesCheck: false) {
                 if targetCount > 1 {
                     Text("\(targetCount) photos selected")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
-            if targetCount == 0 {
+            if !keywordsExpanded {
+                EmptyView()
+            } else if targetCount == 0 {
                 Text("Select photos to see and change their keywords.")
                     .font(.callout)
                     .foregroundStyle(.secondary)

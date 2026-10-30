@@ -128,7 +128,9 @@ public actor SidecarSync {
         let culling = metadata.embeddedCulling
         return SidecarValues(rating: culling.rating, flag: culling.flag, colorLabel: culling.label, keywords: metadata.keywords,
                              creator: metadata.artist, rights: metadata.copyright, caption: metadata.caption,
-                             usageTerms: metadata.usageTerms, contact: metadata.creatorContact)
+                             usageTerms: metadata.usageTerms, contact: metadata.creatorContact, title: metadata.title,
+                             altText: metadata.altText, extendedDescription: metadata.extendedDescription,
+                             jobTitle: metadata.jobTitle)
     }
 
     // MARK: One master

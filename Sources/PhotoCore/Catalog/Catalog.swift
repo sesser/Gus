@@ -197,6 +197,10 @@ public struct NewMaster: Hashable, Sendable {
         merged.caption = values.caption ?? metadata.caption
         merged.usageTerms = values.usageTerms ?? metadata.usageTerms
         merged.creatorContact = values.contact ?? metadata.creatorContact
+        merged.title = values.title ?? metadata.title
+        merged.altText = values.altText ?? metadata.altText
+        merged.extendedDescription = values.extendedDescription ?? metadata.extendedDescription
+        merged.jobTitle = values.jobTitle ?? metadata.jobTitle
         return merged
     }
 }

@@ -136,7 +136,10 @@ struct ExportMetadataTests {
     ]
     let values = SidecarValues(rating: Rating(clamping: 5), colorLabel: .red, keywords: ["dog", "beach"],
                                creator: "Pat Doe", rights: "© Pat Doe", caption: "On the beach",
-                               usageTerms: "Ask first", contact: CreatorContact(email: "pat@example.com"))
+                               usageTerms: "Ask first", contact: CreatorContact(email: "pat@example.com"),
+                               title: "Dog Day", altText: "A dog running on sand",
+                               extendedDescription: "A brown dog runs left to right along a beach at low tide.",
+                               jobTitle: "Photographer")
 
     func make(_ mode: ExportSettings.Metadata) -> ExportMetadata {
         var settings = ExportSettings()
@@ -172,6 +175,8 @@ struct ExportMetadataTests {
         #expect(iptc?[kCGImagePropertyIPTCKeywords] as? [String] == ["dog", "beach"])
         #expect(iptc?[kCGImagePropertyIPTCCity] as? String == "Town")
         #expect(iptc?[kCGImagePropertyIPTCHeadline] as? String == "Headline")
+        #expect(iptc?[kCGImagePropertyIPTCObjectName] as? String == "Dog Day")
+        #expect(iptc?[kCGImagePropertyIPTCBylineTitle] as? [String] == ["Photographer"])
         #expect(metadata.properties[kCGImagePropertyOrientation] as? Int == 1)
         #expect(metadata.properties[kCGImagePropertyDPIWidth] as? Int == 240)
 
@@ -180,6 +185,10 @@ struct ExportMetadataTests {
         #expect(xmp(metadata, "dc:rights") == "© Pat Doe")
         #expect(xmp(metadata, "xmpRights:UsageTerms") == "Ask first")
         #expect(xmp(metadata, "Iptc4xmpCore:CreatorContactInfo.Iptc4xmpCore:CiEmailWork") == "pat@example.com")
+        #expect(xmp(metadata, "dc:title") == "Dog Day")
+        #expect(xmp(metadata, "Iptc4xmpCore:AltTextAccessibility") == "A dog running on sand")
+        #expect(xmp(metadata, "Iptc4xmpCore:ExtDescrAccessibility")?.hasPrefix("A brown dog") == true)
+        #expect(xmp(metadata, "photoshop:AuthorsPosition") == "Photographer")
         // Culling stays in the app.
         #expect(xmp(metadata, "xmp:Rating") == nil && xmp(metadata, "xmp:Label") == nil)
     }
@@ -205,6 +214,11 @@ struct ExportMetadataTests {
         #expect(xmp(metadata, "dc:rights") == "© Pat Doe")
         #expect(xmp(metadata, "Iptc4xmpCore:CreatorContactInfo.Iptc4xmpCore:CiEmailWork") == "pat@example.com")
         #expect(xmpArray(metadata, "dc:subject").isEmpty && xmp(metadata, "dc:description") == nil)
+        // The job title goes with the creator; the descriptive texts stay out.
+        #expect(xmp(metadata, "photoshop:AuthorsPosition") == "Photographer")
+        #expect(iptc?[kCGImagePropertyIPTCBylineTitle] as? [String] == ["Photographer"])
+        #expect(xmp(metadata, "dc:title") == nil && xmp(metadata, "Iptc4xmpCore:AltTextAccessibility") == nil)
+        #expect(iptc?[kCGImagePropertyIPTCObjectName] == nil)
     }
 
     @Test func noneWritesOnlyOrientationAndResolution() {

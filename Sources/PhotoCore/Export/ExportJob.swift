@@ -95,13 +95,8 @@ public struct ExportJob: Sendable {
         for id in versionIDs {
             guard let details = try await catalog.details(forVersion: id) else { continue }
             let image = details.image
-            var values = SidecarValues()
+            var values = image.descriptiveValues
             values.keywords = try await catalog.keywords(forVersion: id).map(\.name)
-            values.creator = image.artist
-            values.rights = image.copyright
-            values.caption = image.caption
-            values.usageTerms = image.usageTerms
-            values.contact = image.metadata.creatorContact
             let url = details.volume.url(forRelativePath: image.relativePath)
             items.append(ExportItem(versionID: id, details: details, values: values, sourceURL: url,
                                     isOnline: FileManager.default.fileExists(atPath: url.path)))

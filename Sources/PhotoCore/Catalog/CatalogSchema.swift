@@ -17,6 +17,7 @@ enum CatalogSchema {
         migrator.registerMigration("v10", migrate: addLookTableLibrary)
         migrator.registerMigration("v11", migrate: addPresetCollections)
         migrator.registerMigration("v12", migrate: addExportPresets)
+        migrator.registerMigration("v13", migrate: addDescriptiveFields)
         return migrator
     }
 
@@ -393,5 +394,28 @@ enum CatalogSchema {
             t.column("settings", .text).notNull()
             t.column("createdAt", .datetime).notNull()
         }
+    }
+
+    /// Title, accessibility texts and the creator's job title, edited in the
+    /// Info tab. The sidecar trigger is rebuilt to cover them.
+    private static func addDescriptiveFields(_ db: Database) throws {
+        try db.alter(table: "image") { t in
+            t.add(column: "title", .text)
+            t.add(column: "altText", .text)
+            t.add(column: "extendedDescription", .text)
+            t.add(column: "jobTitle", .text)
+        }
+        try db.execute(sql: """
+            DROP TRIGGER sidecar_description;
+
+            CREATE TRIGGER sidecar_description
+            AFTER UPDATE OF artist, copyright, caption, usageTerms, creatorContact,
+                            title, altText, extendedDescription, jobTitle ON image
+            WHEN OLD.artist IS NOT NEW.artist OR OLD.copyright IS NOT NEW.copyright OR OLD.caption IS NOT NEW.caption
+                 OR OLD.usageTerms IS NOT NEW.usageTerms OR OLD.creatorContact IS NOT NEW.creatorContact
+                 OR OLD.title IS NOT NEW.title OR OLD.altText IS NOT NEW.altText
+                 OR OLD.extendedDescription IS NOT NEW.extendedDescription OR OLD.jobTitle IS NOT NEW.jobTitle
+            BEGIN INSERT OR IGNORE INTO sidecarQueue (imageId) VALUES (NEW.id); END;
+            """)
     }
 }

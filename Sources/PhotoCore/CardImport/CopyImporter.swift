@@ -246,6 +246,10 @@ public final class CopyImporter: Sendable {
         if let usage = expand(preset.usageTerms) { metadata.usageTerms = usage }
         if let caption = expand(preset.caption) { metadata.caption = caption }
         if let contact = preset.contact, !contact.isEmpty { metadata.creatorContact = contact }
+        if let title = expand(preset.title) { metadata.title = title }
+        if let altText = expand(preset.altText) { metadata.altText = altText }
+        if let description = expand(preset.extendedDescription) { metadata.extendedDescription = description }
+        if let jobTitle = expand(preset.jobTitle) { metadata.jobTitle = jobTitle }
     }
 
     /// Writes `values` into a new sidecar for `copy` (a pair's sidecar is named
