@@ -3,11 +3,13 @@ import PhotoCore
 import SwiftUI
 
 /// Plays a video in the loupe. Space plays and pauses; the arrow, culling,
-/// Return and Escape keys work as they do for photos.
+/// Return and Escape keys work as they do for photos, and a double-click on the
+/// picture goes back to the grid.
 ///
 /// AVKit gives keyboard focus to a view of its own, which would take the arrow
-/// keys for scrubbing, so those keys are picked up by a local event monitor
-/// while the video is on screen.
+/// keys for scrubbing, and takes the mouse in views of its own, so those keys
+/// and double-clicks are picked up by a local event monitor while the video is
+/// on screen.
 struct VideoLoupe: NSViewRepresentable {
     let model: LibraryModel
     let url: URL
@@ -23,9 +25,15 @@ struct VideoLoupe: NSViewRepresentable {
         view.controlsStyle = .inline
         view.showsFullScreenToggleButton = true
         view.player = AVPlayer(url: url)
-        context.coordinator.monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak view, weak model] event in
-            guard let view, let model, let window = view.window, event.window === window,
-                  !(window.firstResponder is NSText) else { return event }
+        context.coordinator.monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .leftMouseDown]) {
+            [weak view, weak model] event in
+            guard let view, let model, let window = view.window, event.window === window else { return event }
+            if event.type == .leftMouseDown {
+                guard Self.isDoubleClickOnPicture(event, in: view) else { return event }
+                model.closeLoupe()
+                return nil
+            }
+            guard !(window.firstResponder is NSText) else { return event }
             return Self.handle(event, model: model, player: view.player) ? nil : event
         }
         return view
@@ -37,6 +45,20 @@ struct VideoLoupe: NSViewRepresentable {
         if let monitor = coordinator.monitor { NSEvent.removeMonitor(monitor) }
         view.player?.pause()
         view.player = nil
+    }
+
+    /// A double-click on the picture or the margins around it. AVKit's playback
+    /// controls are controls on visual effect views; clicks on them stay theirs.
+    @MainActor
+    static func isDoubleClickOnPicture(_ event: NSEvent, in view: AVPlayerView) -> Bool {
+        guard event.clickCount == 2, let superview = view.superview else { return false }
+        var hit = view.hitTest(superview.convert(event.locationInWindow, from: nil))
+        guard hit != nil else { return false }
+        while let current = hit, current !== view {
+            if current is NSControl || current is NSVisualEffectView { return false }
+            hit = current.superview
+        }
+        return true
     }
 
     /// Returns true when the key was handled.

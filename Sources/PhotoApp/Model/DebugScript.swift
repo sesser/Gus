@@ -12,7 +12,8 @@ import PhotoUI
 ///     pairs grouped|separate  pairfile raw|jpeg     advance on|off
 ///     selectall             addkeywords <a, b>      keyentry      text <typed text>
 ///     undo | redo           inspector on|off        keyword <n>   (sidebar keyword n, 0-based)
-///     print <what>          (state for checks: selection, keywords, undo, suggestions, items, hdr)
+///     print <what>          (state for checks: selection, keywords, undo, suggestions, items, hdr,
+///                           loupe [<x> <y>]: mode, magnification, visible rect, image point under x y)
 ///     suggest               (analyzes the selection and waits)      accept <keyword>
 ///     album <name>          (from the selection)    smartalbum <name>  (rating ≥ 3)     remove
 ///     sidebar album|smart|month <n> | builtin <name> | changed | all  sheet smart|album|none
@@ -20,6 +21,8 @@ import PhotoUI
 ///     click <x> <y>         (mouse down and up through the event queue, in window points
 ///                           from the top left; launch with `open` so the window is key)
 ///     drag <x> <y> <x2> <y2> (mouse down, eight drags and up through the event queue, like click)
+///     doubleclick <x> <y>   (two clicks, the second with a click count of 2; same coordinates as click)
+///     optionscroll <x> <y> <lines>   (Option-scroll of a mouse wheel over a point in the loupe; positive zooms in)
 ///     hit <x> <y>           (prints the view under a point)
 ///     menuhover <x> <y> <item>[/<sub>] | end   (highlights a menu item; end closes the menu)
 ///     menukey <key> […]     (posts keys to the event queue, where an open menu reads them)
@@ -208,6 +211,28 @@ enum DebugScript {
                 }
                 try? await Task.sleep(for: .milliseconds(300))
             }
+        case "doubleclick":
+            if let window, let point = windowPoint(rest, in: window) {
+                printHit(window, at: point)
+                let types: [(NSEvent.EventType, Int)] = [(.leftMouseDown, 1), (.leftMouseUp, 1), (.leftMouseDown, 2), (.leftMouseUp, 2)]
+                for (index, (type, count)) in types.enumerated() {
+                    guard let event = NSEvent.mouseEvent(
+                        with: type, location: point, modifierFlags: [],
+                        timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber,
+                        context: nil, eventNumber: index + 1, clickCount: count,
+                        pressure: type == .leftMouseDown ? 1 : 0) else { continue }
+                    NSApp.postEvent(event, atStart: false)
+                }
+                try? await Task.sleep(for: .milliseconds(300))
+            }
+        case "optionscroll":
+            // Synthetic scroll events have no window, so their location is wrong;
+            // the factor and point go to the loupe's handler instead.
+            if let window, rest.count == 3, let point = windowPoint(rest, in: window), let lines = Double(rest[2]),
+               let scrollView = descendant(of: LoupeScrollView.self, in: window.contentView) {
+                scrollView.onZoomScroll?(ScrollZoom.factor(deltaY: lines, precise: false, inverted: false), point)
+                try? await Task.sleep(for: .milliseconds(200))
+            }
         case "drag":
             if let window, rest.count == 4, let start = windowPoint(Array(rest.prefix(2)), in: window),
                let end = windowPoint(Array(rest.suffix(2)), in: window) {
@@ -325,7 +350,11 @@ enum DebugScript {
         case "buttons":
             if let window, let root = window.contentView?.superview { printButtons(in: root, window: window) }
         case "print":
-            printState(rest.first ?? "", model: model)
+            if rest.first == "loupe" {
+                printLoupe(at: Array(rest.dropFirst()), model: model)
+            } else {
+                printState(rest.first ?? "", model: model)
+            }
         case "quit":
             // An open sheet would keep the app from quitting.
             for window in NSApp.windows {
@@ -413,6 +442,30 @@ enum DebugScript {
     private static func windowPoint(_ words: [String], in window: NSWindow) -> NSPoint? {
         guard words.count >= 2, let x = Double(words[0]), let y = Double(words[1]) else { return nil }
         return NSPoint(x: x, y: window.frame.height - y)
+    }
+
+    private static func printLoupe(at words: [String], model: LibraryModel) {
+        guard let window, let scrollView = descendant(of: LoupeScrollView.self, in: window.contentView) else {
+            print("debug-script: loupe mode \(model.mode) no canvas")
+            return
+        }
+        let visible = scrollView.documentVisibleRect
+        var line = String(format: "debug-script: loupe mode %@ magnification %.3f visible %.0f,%.0f %.0fx%.0f",
+                          "\(model.mode)", scrollView.magnification, visible.minX, visible.minY, visible.width, visible.height)
+        if let point = windowPoint(words, in: window), let document = scrollView.documentView {
+            let imagePoint = document.convert(point, from: nil)
+            line += String(format: " point %.1f,%.1f", imagePoint.x, imagePoint.y)
+        }
+        print(line)
+    }
+
+    private static func descendant<V: NSView>(of type: V.Type, in view: NSView?) -> V? {
+        guard let view else { return nil }
+        if let match = view as? V { return match }
+        for subview in view.subviews {
+            if let match = descendant(of: type, in: subview) { return match }
+        }
+        return nil
     }
 
     private static func printHit(_ window: NSWindow, at point: NSPoint) {

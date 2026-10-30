@@ -74,7 +74,7 @@ final class LoupeController: NSObject {
 
     let model: LibraryModel
     let hostView = LoupeHostView()
-    private let scrollView = NSScrollView()
+    private let scrollView = LoupeScrollView()
     private let imageView = LoupeImageView()
     private let cropView = CropOverlayView()
     /// The version and edit shown; a new edit hash loads new renditions.
@@ -134,7 +134,9 @@ final class LoupeController: NSObject {
         cropView.onChangeRect = { [weak self] rect in self?.model.editor.setCropRect(rect) }
         cropView.onStraighten = { [weak self] angle, phase in self?.model.editor.straighten(angle, phase: phase) }
         hostView.controller = self
-        imageView.onDoubleClick = { [weak self] point in self?.toggleZoom(at: point) }
+        scrollView.onClick = { [weak self] point in self?.toggleZoom(at: point) }
+        scrollView.onDoubleClick = { [weak self] in self?.model.closeLoupe() }
+        scrollView.onZoomScroll = { [weak self] factor, point in self?.zoom(by: factor, at: point) }
 
         scrollView.postsFrameChangedNotifications = true
         frameObserver = NotificationCenter.default.addObserver(
@@ -153,6 +155,7 @@ final class LoupeController: NSObject {
     }
 
     func tearDown() {
+        scrollView.cancelPendingClick()
         loadTask?.cancel()
         hdrTask?.cancel()
         fullTask?.cancel()
@@ -223,7 +226,10 @@ final class LoupeController: NSObject {
                 display(immediate?.image, as: immediate?.rendition ?? .placeholder)
             }
         }
-        if !sameVersion { applyZoom(animated: false) }
+        if !sameVersion {
+            scrollView.cancelPendingClick()
+            applyZoom(animated: false)
+        }
 
         if let request = model.previewRequest(for: item, tier: .preview) {
             let previews = model.previews
@@ -416,11 +422,34 @@ final class LoupeController: NSObject {
     }
 
     @objc private func didEndMagnify(_ notification: Notification) {
+        adoptMagnification()
+    }
+
+    /// Option-scroll zooms between fit and the largest magnification, keeping
+    /// the image point under the pointer (`windowPoint`) where it is.
+    func zoom(by factor: CGFloat, at windowPoint: NSPoint) {
+        let old = scrollView.magnification
+        let target = ScrollZoom.magnification(old, factor: factor, minimum: fitMagnification,
+                                              maximum: scrollView.maxMagnification)
+        guard abs(target - old) > 0.0001 else { return }
+        let clip = scrollView.contentView
+        let anchor = imageView.convert(windowPoint, from: nil)
+        let origin = ScrollZoom.visibleOrigin(keeping: anchor, visibleOrigin: clip.bounds.origin, from: old, to: target)
+        scrollView.magnification = target
+        clip.scroll(to: clip.constrainBoundsRect(NSRect(origin: origin, size: clip.bounds.size)).origin)
+        scrollView.reflectScrolledClipView(clip)
+        adoptMagnification()
+    }
+
+    /// Takes the zoom from a magnification a pinch or Option-scroll left:
+    /// zooming past the preview's resolution switches to the full render.
+    private func adoptMagnification() {
         imageView.usesNearestFiltering = scrollView.magnification >= 1
-        // Pinching past the preview's resolution switches to the full render.
         if scrollView.magnification > fitMagnification * 1.05 {
-            zoom = .actualSize
-            loadFullResolution()
+            if zoom != .actualSize {
+                zoom = .actualSize
+                loadFullResolution()
+            }
         } else {
             zoom = .fit
         }
@@ -479,11 +508,9 @@ final class LoupeHostView: NSView {
 }
 
 /// The document view: one layer showing the image stretched to the view's bounds,
-/// which always have the image's aspect ratio. Drag to pan.
+/// which always have the image's aspect ratio. Its mouse events go up to the
+/// `LoupeScrollView`.
 final class LoupeImageView: NSView {
-    var onDoubleClick: ((NSPoint) -> Void)?
-    private var dragOrigin: NSPoint?
-
     var usesNearestFiltering = false {
         didSet { layer?.magnificationFilter = usesNearestFiltering ? .nearest : .linear }
     }
@@ -517,31 +544,82 @@ final class LoupeImageView: NSView {
         }
         CATransaction.commit()
     }
+}
+
+/// Takes the mouse for the whole canvas, image and margins: a click toggles
+/// zoom once the double-click interval has passed without a second click, a
+/// double-click goes back to the grid, a drag pans and Option-scroll zooms.
+/// Plain scrolling pans as usual.
+final class LoupeScrollView: NSScrollView {
+    /// Called with the clicked point in the document view.
+    var onClick: ((NSPoint) -> Void)?
+    var onDoubleClick: (() -> Void)?
+    /// Called with the zoom factor of an Option-scroll and the pointer in window coordinates.
+    var onZoomScroll: ((CGFloat, NSPoint) -> Void)?
+    /// How far the mouse moves before a click becomes a drag, in points.
+    private static let dragThreshold: CGFloat = 3
+    private var downLocation: NSPoint?
+    private var dragOrigin: NSPoint?
+    private var pendingClick: Task<Void, Never>?
+
+    func cancelPendingClick() {
+        pendingClick?.cancel()
+        pendingClick = nil
+    }
+
+    override func scrollWheel(with event: NSEvent) {
+        if event.modifierFlags.contains(.option), let onZoomScroll {
+            onZoomScroll(ScrollZoom.factor(deltaY: event.scrollingDeltaY, precise: event.hasPreciseScrollingDeltas,
+                                           inverted: event.isDirectionInvertedFromDevice),
+                         event.locationInWindow)
+        } else {
+            super.scrollWheel(with: event)
+        }
+    }
 
     override func mouseDown(with event: NSEvent) {
-        if event.clickCount == 2 {
-            onDoubleClick?(convert(event.locationInWindow, from: nil))
-            return
+        cancelPendingClick()
+        downLocation = nil
+        switch event.clickCount {
+        case 1: downLocation = event.locationInWindow
+        case 2: onDoubleClick?()
+        default: break
         }
-        dragOrigin = event.locationInWindow
-        NSCursor.closedHand.push()
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard let origin = dragOrigin, let clip = enclosingScrollView?.contentView else { return }
+        guard let down = downLocation else { return }
         let location = event.locationInWindow
-        let magnification = enclosingScrollView?.magnification ?? 1
-        var bounds = clip.bounds.origin
+        if dragOrigin == nil {
+            guard hypot(location.x - down.x, location.y - down.y) > Self.dragThreshold else { return }
+            dragOrigin = down
+            NSCursor.closedHand.push()
+        }
+        guard let origin = dragOrigin else { return }
+        var bounds = contentView.bounds.origin
         bounds.x -= (location.x - origin.x) / magnification
         bounds.y -= (location.y - origin.y) / magnification
-        clip.scroll(to: clip.constrainBoundsRect(NSRect(origin: bounds, size: clip.bounds.size)).origin)
-        enclosingScrollView?.reflectScrolledClipView(clip)
+        contentView.scroll(to: contentView.constrainBoundsRect(NSRect(origin: bounds, size: contentView.bounds.size)).origin)
+        reflectScrolledClipView(contentView)
         dragOrigin = location
     }
 
     override func mouseUp(with event: NSEvent) {
-        if dragOrigin != nil { NSCursor.pop() }
-        dragOrigin = nil
+        defer {
+            downLocation = nil
+            dragOrigin = nil
+        }
+        if dragOrigin != nil {
+            NSCursor.pop()
+            return
+        }
+        guard let down = downLocation, let point = documentView?.convert(down, from: nil) else { return }
+        pendingClick = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(NSEvent.doubleClickInterval))
+            guard !Task.isCancelled, let self else { return }
+            self.pendingClick = nil
+            self.onClick?(point)
+        }
     }
 }
 
