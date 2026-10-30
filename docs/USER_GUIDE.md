@@ -44,7 +44,7 @@ photos the library does not have yet, and a folder with nothing new makes none.
 | Home, End, Page Up, Page Down | jump | first / last photo |
 | Return, Space, double-click | open the loupe | back to the grid |
 | Esc | | back to the grid |
-| Z, double-click | | toggle fit / 100 % (pinch zooms too; drag pans) |
+| Z, click | | toggle fit / 100 % at the clicked point (⌥-scroll and pinch zoom too; drag pans) |
 | 0–5 | set rating | set rating |
 | [ and ] | lower / raise rating | lower / raise rating |
 | P, X, U | pick, reject, clear flag | pick, reject, clear flag |
@@ -115,7 +115,8 @@ be merged). Writing can be turned off in **Settings**.
 **Videos** (MOV, MP4, M4V) are catalogued like photos by both kinds of import
 (the import window has an **Include videos** switch): their poster frame is the
 thumbnail, the grid shows their length, and the loupe plays them (space plays
-and pauses; the arrow and culling keys still move between and rate items). They
+and pauses; the arrow and culling keys still move between and rate items, and a
+double-click on the picture goes back to the grid). They
 take ratings, keywords, albums and sidecars. There is no video editing or export.
 
 **HDR**: on a display with extended dynamic range, the loupe shows HDR photos
