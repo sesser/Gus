@@ -97,6 +97,10 @@ enum DiskChangeText {
         case .caption: String(localized: "Caption")
         case .usageTerms: String(localized: "Usage Terms")
         case .contact: String(localized: "Contact")
+        case .title: String(localized: "Title")
+        case .altText: String(localized: "Alt Text")
+        case .extendedDescription: String(localized: "Extended Description")
+        case .jobTitle: String(localized: "Job Title")
         }
     }
 
@@ -120,6 +124,10 @@ enum DiskChangeText {
         case .rights: return values.rights ?? none
         case .caption: return values.caption ?? none
         case .usageTerms: return values.usageTerms ?? none
+        case .title: return values.title ?? none
+        case .altText: return values.altText ?? none
+        case .extendedDescription: return values.extendedDescription ?? none
+        case .jobTitle: return values.jobTitle ?? none
         case .contact:
             guard let contact = values.contact else { return none }
             return [contact.email, contact.phone, contact.url, contact.city, contact.country].compactMap { $0 }

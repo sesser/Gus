@@ -45,12 +45,17 @@ public struct ImageMetadata: Hashable, Sendable, Codable {
     public var focalLength35mm: Double?
     public var creatorContact: CreatorContact?
     public var usageTerms: String?
+    // Since catalog v13 (revision 6).
+    public var title: String?
+    public var altText: String?
+    public var extendedDescription: String?
+    public var jobTitle: String?
     /// Seconds, for videos.
     public var duration: Double?
 
     /// What the readers fill in. Masters read with an older revision are read
     /// again in the background so the newer columns fill in.
-    public static let revision = 5
+    public static let revision = 6
 
     // Values another app (or the camera) stored in the file. They seed the
     // default version at import; the catalog does not keep them on `image`.

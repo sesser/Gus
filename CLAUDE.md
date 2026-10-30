@@ -217,6 +217,12 @@ output sharpening and PPI; four metadata levels; a PNG watermark placed by
 anchor; export presets (`exportPreset` table); background export with
 progress.
 
+Info tab metadata: title, description, alt text, extended description,
+copyright, usage terms and the creator's contact details (IPTC Core and
+Extension, `Catalog/Descriptions.swift`), edited for the whole selection as
+one undo step each, kept on `image`, synced to sidecars and written on export.
+Reading a file again only fills empty descriptive fields; the library's win.
+
 Not yet: brushes and masks, healing, cropping, lens corrections, DNG export, ML
 denoising, `.dcp` profiles, general (hand-made or burst) stacks, hierarchical
 keywords, PTP cameras, a second backup destination, writing metadata into

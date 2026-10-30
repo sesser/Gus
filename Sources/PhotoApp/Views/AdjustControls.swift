@@ -339,6 +339,9 @@ struct SectionHeader<Check: View, Trailing: View>: View {
     let title: String
     @Binding var isExpanded: Bool
     let key: String
+    /// Leaves room for the check box (the Adjust tab lines its titles up).
+    var reservesCheck = true
+    var titleFont: NSFont = .preferredFont(forTextStyle: .headline)
     @ViewBuilder let check: Check
     @ViewBuilder let trailing: Trailing
 
@@ -349,10 +352,11 @@ struct SectionHeader<Check: View, Trailing: View>: View {
                          style: .borderless, font: .systemFont(ofSize: 10), tint: .secondaryLabelColor,
                          help: help, action: flip)
                 .frame(width: 14)
-            check
-                .frame(width: 18)
-            AppKitButton(title: title, style: .borderless, font: .preferredFont(forTextStyle: .headline),
-                         help: help, action: flip)
+            if reservesCheck {
+                check
+                    .frame(width: 18)
+            }
+            AppKitButton(title: title, style: .borderless, font: titleFont, help: help, action: flip)
             Spacer()
             trailing
         }
@@ -366,8 +370,10 @@ struct SectionHeader<Check: View, Trailing: View>: View {
 
 extension SectionHeader where Check == Color {
     /// A heading with nothing to turn off.
-    init(title: String, isExpanded: Binding<Bool>, key: String, @ViewBuilder trailing: () -> Trailing) {
-        self.init(title: title, isExpanded: isExpanded, key: key, check: { Color.clear }, trailing: trailing)
+    init(title: String, isExpanded: Binding<Bool>, key: String, reservesCheck: Bool = true,
+         titleFont: NSFont = .preferredFont(forTextStyle: .headline), @ViewBuilder trailing: () -> Trailing) {
+        self.init(title: title, isExpanded: isExpanded, key: key, reservesCheck: reservesCheck, titleFont: titleFont,
+                  check: { Color.clear }, trailing: trailing)
     }
 }
 

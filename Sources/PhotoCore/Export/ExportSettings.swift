@@ -91,7 +91,7 @@ public struct ExportSettings: Codable, Hashable, Sendable {
         case all
         /// As `all`, without GPS coordinates or IPTC location fields.
         case noLocation
-        /// Only the creator, copyright, usage terms and contact details.
+        /// Only the creator and their job title, copyright, usage terms and contact details.
         case copyright
         /// Nothing but the color profile and resolution.
         case none

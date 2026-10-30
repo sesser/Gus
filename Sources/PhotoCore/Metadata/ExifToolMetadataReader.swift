@@ -21,6 +21,7 @@ public actor ExifToolMetadataReader: MetadataReader {
         "FlashExposureComp", "FlashBias",
         "UsageTerms", "CreatorWorkEmail", "CreatorWorkTelephone", "CreatorWorkURL", "CreatorAddress", "CreatorCity",
         "CreatorRegion", "CreatorPostalCode", "CreatorCountry",
+        "Title", "ObjectName", "AltTextAccessibility", "ExtDescrAccessibility", "AuthorsPosition", "By-lineTitle",
         "ShutterCount", "ShutterCount2", "ShutterCount3",
     ]
 
@@ -214,6 +215,11 @@ public actor ExifToolMetadataReader: MetadataReader {
                                      city: string("CreatorCity"), region: string("CreatorRegion"),
                                      postalCode: string("CreatorPostalCode"), country: string("CreatorCountry"))
         metadata.creatorContact = contact.isEmpty ? nil : contact
+        // XMP first, then the IPTC-IIM equivalents (no IIM field for the accessibility texts).
+        metadata.title = string("Title") ?? string("ObjectName")
+        metadata.altText = string("AltTextAccessibility")
+        metadata.extendedDescription = string("ExtDescrAccessibility")
+        metadata.jobTitle = string("AuthorsPosition") ?? string("By-lineTitle")
         // Sony bodies record the count in up to three places, not all of them on every model.
         metadata.shutterCount = [int("ShutterCount"), int("ShutterCount2"), int("ShutterCount3")]
             .lazy.compactMap { $0 }.first { $0 > 0 }
