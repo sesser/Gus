@@ -30,8 +30,8 @@ public struct PreviewGenerator: Sendable {
     /// The lazy Core Image graph for `source` rendered with `stack`, no larger than
     /// `longEdge` pixels (nil for full resolution).
     public func image(source: URL, stack: EditStack, longEdge: Int?, draft: Bool = false) throws -> CIImage {
-        let decoded = try Self.decode(source, longEdge: longEdge, draft: draft,
-                                      settings: renderer.decodeSettings(for: stack))
+        let decoded = try Self.decode(source, longEdge: decodeLongEdge(source, stack: stack, longEdge: longEdge),
+                                      draft: draft, settings: renderer.decodeSettings(for: stack))
         var image = try renderer.apply(stack, to: decoded.image, context: decoded.context)
         if let longEdge {
             image = image.scaledToFit(longEdge: longEdge)
@@ -83,7 +83,8 @@ public struct PreviewGenerator: Sendable {
     /// would also go above white with extended range.
     public func hdrImage(source: URL, stack: EditStack, longEdge: Int?) throws -> CGImage? {
         guard renderer.preservesExtendedRange(stack),
-              let decoded = try Self.decodeHDR(source, longEdge: longEdge, settings: renderer.decodeSettings(for: stack))
+              let decoded = try Self.decodeHDR(source, longEdge: decodeLongEdge(source, stack: stack, longEdge: longEdge),
+                                               settings: renderer.decodeSettings(for: stack))
         else { return nil }
         var image = try renderer.apply(stack, to: decoded.image, context: decoded.context)
         if let longEdge {
@@ -104,6 +105,25 @@ public struct PreviewGenerator: Sendable {
 
     // MARK: Decoding
 
+    /// The decode size for an output of `longEdge`: larger when the stack
+    /// crops, so the kept part is not enlarged.
+    func decodeLongEdge(_ source: URL, stack: EditStack, longEdge: Int?) -> Int? {
+        let crop = renderer.geometry(for: stack)
+        guard let longEdge, !crop.isIdentity, let size = Self.nativeSize(source) else { return longEdge }
+        return Int((Double(longEdge) * crop.sourceZoom(sourceSize: size)).rounded(.up))
+    }
+
+    /// The master's size in pixels, before or after its orientation, from its header.
+    public static func nativeSize(_ url: URL) -> CGSize? {
+        if SupportedFormats.isRaw(pathExtension: url.pathExtension), let raw = CIRAWFilter(imageURL: url),
+           raw.nativeSize.width > 0 {
+            return raw.nativeSize
+        }
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
+              CGImageSourceGetCount(source) > 0 else { return nil }
+        return pixelSize(source)
+    }
+
     /// A decoded master and what the renderer needs to know about it.
     public struct Decoded {
         public var image: CIImage
@@ -118,7 +138,8 @@ public struct PreviewGenerator: Sendable {
     /// decode when a size is given.
     static func decode(_ url: URL, longEdge: Int?, draft: Bool, extendedRange: Bool = false,
                        settings: RAWDecodeSettings = .none) throws -> Decoded {
-        if SupportedFormats.isRaw(pathExtension: url.pathExtension), let raw = CIRAWFilter(imageURL: url) {
+        if SupportedFormats.isRaw(pathExtension: url.pathExtension),
+           let raw = (settings.fullFrame ? CameraFrame.fullFrameFilter(for: url) : nil) ?? CIRAWFilter(imageURL: url) {
             if extendedRange {
                 raw.extendedDynamicRangeAmount = 1
             }

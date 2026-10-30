@@ -125,7 +125,21 @@ badge in the info bar says so. Camera raws stay SDR. The loupe first shows the
 cached preview, then the HDR render from the original, so offline originals stay
 SDR. Thumbnails and cached previews are always SDR. **View ▸ Show HDR** turns it off.
 
-**Presets** (the Adjust tab's **Presets** heading and **Photo ▸ Apply Preset**)
+**Crop, Rotate, Straighten** is the Adjust tab's first heading. **Crop** shows
+the whole photo in the loupe under a crop frame with a rule-of-thirds grid: drag
+inside the frame to move it, a corner or an edge to resize it, and outside it to
+straighten. The buttons under it hold the frame to 1:1, 3:2, 4:3 or 16:9 (pick
+the same one again to swap portrait and landscape) or free it; the arrows turn
+the photo a quarter turn; the **Straighten** slider tilts it up to 45° either
+way, over a finer grid, and the image grows so it always fills the frame.
+**Done** (or Return) saves the crop as one undo step and folds the heading;
+Esc cancels. Moving to another photo keeps the crop. Copy and Paste Adjustments
+carry the crop; presets never do. Photos shot at 1:1, 3:2 or 16:9 on a camera
+with a 4:3 sensor show the camera's crop; on Olympus, OM System and Panasonic
+raw files, cropping starts from that frame over the whole sensor, so it can be
+widened. Other raw formats are cropped within the frame their decoder gives.
+
+**Presets** (the Adjust tab's **Presets** heading, at its bottom, and **Photo ▸ Apply Preset**)
 apply saved adjustments to the photo in the loupe or to every selected photo.
 The heading shows the focused photo with each preset, by collection; in the
 loupe, hovering a picture shows the photo with that preset, and clicking it

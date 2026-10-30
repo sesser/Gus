@@ -19,6 +19,7 @@ import PhotoUI
 ///     checkdisk             (looks for outside changes and waits)   resolvedisk library|file
 ///     click <x> <y>         (mouse down and up through the event queue, in window points
 ///                           from the top left; launch with `open` so the window is key)
+///     drag <x> <y> <x2> <y2> (mouse down, eight drags and up through the event queue, like click)
 ///     hit <x> <y>           (prints the view under a point)
 ///     menuhover <x> <y> <item>[/<sub>] | end   (highlights a menu item; end closes the menu)
 ///     menukey <key> […]     (posts keys to the event queue, where an open menu reads them)
@@ -204,6 +205,24 @@ enum DebugScript {
                         context: nil, eventNumber: index + 1, clickCount: 1,
                         pressure: type == .leftMouseDown ? 1 : 0) else { continue }
                     NSApp.postEvent(event, atStart: false)
+                }
+                try? await Task.sleep(for: .milliseconds(300))
+            }
+        case "drag":
+            if let window, rest.count == 4, let start = windowPoint(Array(rest.prefix(2)), in: window),
+               let end = windowPoint(Array(rest.suffix(2)), in: window) {
+                let steps = 8
+                for step in 0...(steps + 1) {
+                    let t = CGFloat(min(step, steps)) / CGFloat(steps)
+                    let type: NSEvent.EventType = step == 0 ? .leftMouseDown : step > steps ? .leftMouseUp : .leftMouseDragged
+                    let point = NSPoint(x: start.x + (end.x - start.x) * t, y: start.y + (end.y - start.y) * t)
+                    guard let event = NSEvent.mouseEvent(
+                        with: type, location: point, modifierFlags: [],
+                        timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber,
+                        context: nil, eventNumber: step + 1, clickCount: 1,
+                        pressure: type == .leftMouseUp ? 0 : 1) else { continue }
+                    NSApp.postEvent(event, atStart: false)
+                    try? await Task.sleep(for: .milliseconds(30))
                 }
                 try? await Task.sleep(for: .milliseconds(300))
             }
