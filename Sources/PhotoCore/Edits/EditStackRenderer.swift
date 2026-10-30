@@ -26,10 +26,13 @@ public struct RAWDecodeSettings: Sendable, Hashable {
     public var colorNoiseReduction: Float?
     /// `extendedDynamicRangeAmount`: values above white are kept instead of rolled off.
     public var extendedDynamicRange: Float?
+    /// Decode the whole sensor, without the crop the camera recorded
+    /// (`CameraFrame`); the edit stack crops instead.
+    public var fullFrame = false
 
     public init(temperature: Float? = nil, tint: Float? = nil, boostAmount: Float? = nil, decoderVersion: String? = nil,
                 luminanceNoiseReduction: Float? = nil, colorNoiseReduction: Float? = nil,
-                extendedDynamicRange: Float? = nil) {
+                extendedDynamicRange: Float? = nil, fullFrame: Bool = false) {
         self.temperature = temperature
         self.tint = tint
         self.boostAmount = boostAmount
@@ -37,6 +40,7 @@ public struct RAWDecodeSettings: Sendable, Hashable {
         self.luminanceNoiseReduction = luminanceNoiseReduction
         self.colorNoiseReduction = colorNoiseReduction
         self.extendedDynamicRange = extendedDynamicRange
+        self.fullFrame = fullFrame
     }
 
     public static let none = RAWDecodeSettings()
@@ -70,6 +74,10 @@ public protocol EditStackRenderer: Sendable {
 
     func apply(_ stack: EditStack, to image: CIImage, context: RenderContext) throws -> CIImage
 
+    /// The stack's turns, straightening and crop, so the source can be decoded
+    /// large enough for the part that is kept.
+    func geometry(for stack: EditStack) -> Crop
+
     /// False when the stack's result would clip values above SDR white, so no
     /// HDR rendition should be made from it.
     func preservesExtendedRange(_ stack: EditStack) -> Bool
@@ -79,6 +87,8 @@ extension EditStackRenderer {
     public func decodeSettings(for stack: EditStack) -> RAWDecodeSettings { .none }
 
     public func preservesExtendedRange(_ stack: EditStack) -> Bool { true }
+
+    public func geometry(for stack: EditStack) -> Crop { Crop() }
 
     public func apply(_ stack: EditStack, to image: CIImage) throws -> CIImage {
         try apply(stack, to: image, context: RenderContext())

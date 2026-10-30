@@ -3,7 +3,8 @@ import CoreImage.CIFilterBuiltins
 
 /// Renders `Adjustments` with built-in Core Image filters.
 ///
-/// The order is fixed, whatever the order of operations in the stack: white
+/// The order is fixed, whatever the order of operations in the stack: the
+/// turns, straightening and crop, white
 /// balance (non-RAW; RAW files get it from the decoder), exposure, highlights and
 /// shadows, dehaze, clarity, the tone table (contrast, whites, blacks, curves),
 /// the color mixer, vibrance and saturation, color grading, the look-up table, the vignette,
@@ -31,6 +32,10 @@ public struct AdjustmentRenderer: EditStackRenderer {
         Adjustments(stack: stack).preservesExtendedRange
     }
 
+    public func geometry(for stack: EditStack) -> Crop {
+        Adjustments(stack: stack).effective.crop
+    }
+
     public func apply(_ stack: EditStack, to image: CIImage, context: RenderContext) throws -> CIImage {
         render(Adjustments(stack: stack), to: image, context: context)
     }
@@ -39,8 +44,8 @@ public struct AdjustmentRenderer: EditStackRenderer {
     public func render(_ values: Adjustments, to input: CIImage, context: RenderContext) -> CIImage {
         let adjustments = values.effective
         guard !adjustments.isDefault else { return input }
-        let extent = input.extent
-        var image = input
+        var image = adjustments.crop.apply(to: input)
+        let extent = image.extent
 
         if !context.isRaw {
             image = Self.relativeWhiteBalance(image, adjustments.whiteBalance)
@@ -634,6 +639,8 @@ extension Adjustments {
 
     private var rawDecodeSettings: RAWDecodeSettings {
         var settings = RAWDecodeSettings()
+        // The crop's rectangle is in the frame of the whole sensor.
+        settings.fullFrame = !crop.isIdentity
         if whiteBalance.preset != .asShot {
             settings.temperature = whiteBalance.temperature.map(Float.init)
             settings.tint = whiteBalance.tint.map(Float.init)

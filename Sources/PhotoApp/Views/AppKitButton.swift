@@ -15,6 +15,10 @@ struct AppKitButton: NSViewRepresentable {
     /// Shown after the title in the secondary color, such as a count.
     var detail: String?
     var symbol: String?
+    /// Shown when there is no symbol; a template image takes the tint.
+    var image: NSImage?
+    /// Where the symbol or image goes; next to the title unless given.
+    var imagePosition: NSControl.ImagePosition?
     var symbolWeight = NSFont.Weight.regular
     var style = Style.push
     var font = NSFont.preferredFont(forTextStyle: .callout)
@@ -52,7 +56,10 @@ struct AppKitButton: NSViewRepresentable {
                                                             weight: symbolWeight)
             button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: help)?
                 .withSymbolConfiguration(configuration)
-            button.imagePosition = title.isEmpty ? .imageOnly : .imageLeading
+            button.imagePosition = imagePosition ?? (title.isEmpty ? .imageOnly : .imageLeading)
+        } else if let image {
+            button.image = image
+            button.imagePosition = imagePosition ?? (title.isEmpty ? .imageOnly : .imageLeading)
         } else {
             button.image = nil
             button.imagePosition = .noImage

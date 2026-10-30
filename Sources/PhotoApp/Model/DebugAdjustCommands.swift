@@ -18,6 +18,9 @@ import PhotoCore
 ///     adjust mix red|orange|yellow|green|aqua|blue|purple|magenta <hue> <saturation> <luminance>
 ///     adjust auto exposure|wb   (waits for the measurement)
 ///     adjust reset all|develop|tone|details|colorMixer|colorGrading|effects
+///     adjust crop begin|done|cancel|reset|show   (begin waits for the crop frame)
+///     adjust crop rect <x> <y> <width> <height>  (unit coordinates of the turned frame)
+///     adjust crop angle <degrees> | turn left|right | aspect free|square|threeTwo|fourThree|sixteenNine
 ///     original on|off           tab info|adjust          print adjustments
 @MainActor
 enum DebugAdjustCommands {
@@ -91,6 +94,8 @@ enum DebugAdjustCommands {
                 return parts.count == 2 ? CurvePoint(x: parts[0], y: parts[1]) : nil
             }
             editor.change(actionName, phase: .committed) { $0.toneCurve[channel] = points }
+        case "crop":
+            await runCrop(arguments, editor: editor)
         case "grade":
             guard let range = ColorGrade.Range(rawValue: arguments.first ?? "") else { break }
             let numbers = arguments.dropFirst().compactMap(Double.init)
@@ -105,6 +110,37 @@ enum DebugAdjustCommands {
                 return
             }
             editor.change(actionName, phase: .committed) { $0[keyPath: keyPath] = value }
+        }
+    }
+
+    private static func runCrop(_ arguments: [String], editor: AdjustmentEditor) async {
+        let numbers = arguments.dropFirst().compactMap(Double.init)
+        switch arguments.first {
+        case "begin":
+            editor.beginCrop()
+            for _ in 0..<200 where editor.cropSession == nil {
+                try? await Task.sleep(for: .milliseconds(50))
+            }
+        case "done": editor.endCrop(save: true)
+        case "cancel": editor.endCrop(save: false)
+        case "reset": editor.resetCrop()
+        case "rect" where numbers.count == 4:
+            editor.setCropRect(CropRect(x: numbers[0], y: numbers[1], width: numbers[2], height: numbers[3]))
+        case "angle" where numbers.count == 1:
+            editor.straighten(numbers[0], phase: .changing)
+        case "turn":
+            editor.rotate(clockwise: arguments.dropFirst().first != "left")
+        case "aspect":
+            editor.setCropAspect(CropAspect(rawValue: arguments.dropFirst().first ?? "") ?? .free)
+        case "show":
+            if let session = editor.cropSession {
+                print("debug-script: crop session \(session.crop) aspect \(session.aspect)"
+                      + " camera \(session.cameraRect) source \(session.sourceSize)")
+            } else {
+                print("debug-script: crop none, saved \(editor.adjustments.crop)")
+            }
+        default:
+            print("debug-script: unknown crop command \(arguments.joined(separator: " "))")
         }
     }
 
