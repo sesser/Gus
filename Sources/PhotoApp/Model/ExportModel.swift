@@ -298,8 +298,8 @@ final class ExportModel {
         library.statusMessage = nil
         task = Task {
             let summary = await job.run(request, items: items) { done, total in
-                Task { @MainActor [weak self] in
-                    guard let self, self.progress != nil else { return }
+                Task { @MainActor in
+                    guard self.progress != nil else { return }
                     self.progress = (max(done, self.progress?.done ?? 0), total)
                 }
             }
