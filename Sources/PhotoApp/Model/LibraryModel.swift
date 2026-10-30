@@ -88,6 +88,8 @@ final class LibraryModel {
     var keywords: [KeywordSummary] = []
     /// Bumped whenever keyword assignments may have changed.
     var keywordRevision = 0
+    /// Bumped after descriptive fields (title, copyright, contact…) are written.
+    var descriptionRevision = 0
     /// Bumped when new suggestions are stored or their state changes.
     var suggestionRevision = 0
     /// Background keyword analysis in progress.

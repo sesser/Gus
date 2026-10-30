@@ -123,6 +123,11 @@ public struct ImageRecord: Codable, Hashable, Sendable, Identifiable, FetchableR
     public var usageTerms: String?
     /// Seconds, for videos.
     public var duration: Double?
+    // Descriptive fields since catalog v13.
+    public var title: String?
+    public var altText: String?
+    public var extendedDescription: String?
+    public var jobTitle: String?
 
     public enum Columns {
         public static let id = Column(CodingKeys.id)
@@ -163,17 +168,36 @@ public struct ImageRecord: Codable, Hashable, Sendable, Identifiable, FetchableR
         metadata.focalLength35mm = focalLength35mm
         metadata.creatorContact = creatorContact.flatMap { try? JSONDecoder().decode(CreatorContact.self, from: Data($0.utf8)) }
         metadata.usageTerms = usageTerms
+        metadata.title = title
+        metadata.altText = altText
+        metadata.extendedDescription = extendedDescription
+        metadata.jobTitle = jobTitle
         return metadata
+    }
+
+    /// The descriptive fields as sidecar values (no culling or keywords).
+    public var descriptiveValues: SidecarValues {
+        SidecarValues(creator: artist, rights: copyright, caption: caption, usageTerms: usageTerms,
+                      contact: metadata.creatorContact, title: title, altText: altText,
+                      extendedDescription: extendedDescription, jobTitle: jobTitle)
     }
 
     /// Copies the descriptive and technical columns from `metadata` (not the
     /// capture date, size or orientation, which are fixed at import). A lens
-    /// is only filled in, never cleared.
+    /// is only filled in, never cleared. The descriptive fields belong to the
+    /// library once it has them (edited in the inspector, set by an import
+    /// preset or a sidecar), so reading the file again only fills empty ones.
     mutating func applyExtendedMetadata(_ metadata: ImageMetadata) {
         lensModel = metadata.lensModel ?? lensModel
-        artist = metadata.artist
-        copyright = metadata.copyright
-        caption = metadata.caption
+        artist = artist ?? metadata.artist
+        copyright = copyright ?? metadata.copyright
+        caption = caption ?? metadata.caption
+        usageTerms = usageTerms ?? metadata.usageTerms
+        creatorContact = creatorContact ?? metadata.creatorContact.flatMap(Self.contactJSON)
+        title = title ?? metadata.title
+        altText = altText ?? metadata.altText
+        extendedDescription = extendedDescription ?? metadata.extendedDescription
+        jobTitle = jobTitle ?? metadata.jobTitle
         cameraSerial = metadata.cameraSerial
         latitude = metadata.latitude
         longitude = metadata.longitude
@@ -184,8 +208,6 @@ public struct ImageRecord: Codable, Hashable, Sendable, Identifiable, FetchableR
         exposureProgram = metadata.exposureProgram
         meteringMode = metadata.meteringMode
         focalLength35mm = metadata.focalLength35mm
-        creatorContact = metadata.creatorContact.flatMap(Self.contactJSON)
-        usageTerms = metadata.usageTerms
         metadataRevision = ImageMetadata.revision
     }
 }

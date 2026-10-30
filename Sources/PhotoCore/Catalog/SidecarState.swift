@@ -130,6 +130,11 @@ extension Catalog {
             """, arguments: [image.volumeId, key, id, id, id]) ?? false
     }
 
+    /// Fields kept on `image` rather than on its default version.
+    static let descriptiveFields: [SidecarValues.Field] = [
+        .creator, .rights, .caption, .usageTerms, .contact, .title, .altText, .extendedDescription, .jobTitle,
+    ]
+
     /// The library's values for a master: its default version's culling and
     /// keywords, and its descriptive columns.
     static func sidecarValues(_ db: Database, image: ImageRecord) throws -> SidecarValues {
@@ -144,12 +149,7 @@ extension Catalog {
                 WHERE versionKeyword.versionId = ? ORDER BY keyword.name COLLATE NOCASE
                 """, arguments: [version.id])
         }
-        values.creator = image.artist
-        values.rights = image.copyright
-        values.caption = image.caption
-        values.usageTerms = image.usageTerms
-        values.contact = image.metadata.creatorContact
-        return values
+        return values.taking(Self.descriptiveFields, from: image.descriptiveValues)
     }
 
     // MARK: Records
@@ -196,9 +196,12 @@ extension Catalog {
                                                          arguments: StatementArguments(targets)))
             for target in Set(images) {
                 try db.execute(sql: """
-                    UPDATE image SET artist = ?, copyright = ?, caption = ?, usageTerms = ?, creatorContact = ? WHERE id = ?
+                    UPDATE image SET artist = ?, copyright = ?, caption = ?, usageTerms = ?, creatorContact = ?,
+                                     title = ?, altText = ?, extendedDescription = ?, jobTitle = ?
+                    WHERE id = ?
                     """, arguments: [values.creator, values.rights, values.caption, values.usageTerms,
-                                     values.contact.flatMap(ImageRecord.contactJSON), target])
+                                     values.contact.flatMap(ImageRecord.contactJSON), values.title, values.altText,
+                                     values.extendedDescription, values.jobTitle, target])
             }
         }
     }

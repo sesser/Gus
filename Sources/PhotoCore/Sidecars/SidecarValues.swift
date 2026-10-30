@@ -29,8 +29,9 @@ public struct CreatorContact: Codable, Hashable, Sendable {
 }
 
 /// The values the app keeps in step between the catalog and a sidecar: culling,
-/// keywords and the descriptive fields. One per master (a RAW+JPEG pair shares
-/// one, through its RAW).
+/// keywords and the descriptive fields (IPTC Core and Extension: title,
+/// description, accessibility texts, rights, the creator and their contact
+/// details). One per master (a RAW+JPEG pair shares one, through its RAW).
 public struct SidecarValues: Codable, Hashable, Sendable {
     public var rating: Rating = .unrated
     public var flag: Flag = .none
@@ -41,10 +42,19 @@ public struct SidecarValues: Codable, Hashable, Sendable {
     public var caption: String?
     public var usageTerms: String?
     public var contact: CreatorContact?
+    // Since catalog v13. Baselines saved before then decode them as nil.
+    public var title: String?
+    /// Short text for screen readers (Iptc4xmpCore:AltTextAccessibility).
+    public var altText: String?
+    /// Longer accessibility description (Iptc4xmpCore:ExtDescrAccessibility).
+    public var extendedDescription: String?
+    /// The creator's job title (photoshop:AuthorsPosition).
+    public var jobTitle: String?
 
     public init(rating: Rating = .unrated, flag: Flag = .none, colorLabel: ColorLabel = .none, keywords: [String] = [],
                 creator: String? = nil, rights: String? = nil, caption: String? = nil, usageTerms: String? = nil,
-                contact: CreatorContact? = nil) {
+                contact: CreatorContact? = nil, title: String? = nil, altText: String? = nil,
+                extendedDescription: String? = nil, jobTitle: String? = nil) {
         self.rating = rating
         self.flag = flag
         self.colorLabel = colorLabel
@@ -54,6 +64,10 @@ public struct SidecarValues: Codable, Hashable, Sendable {
         self.caption = caption
         self.usageTerms = usageTerms
         self.contact = contact
+        self.title = title
+        self.altText = altText
+        self.extendedDescription = extendedDescription
+        self.jobTitle = jobTitle
     }
 
     /// Nothing worth a sidecar of its own.
@@ -69,6 +83,7 @@ public struct SidecarValues: Codable, Hashable, Sendable {
 
     public enum Field: String, Codable, Hashable, Sendable, CaseIterable {
         case rating, flag, colorLabel, keywords, creator, rights, caption, usageTerms, contact
+        case title, altText, extendedDescription, jobTitle
     }
 
     public func differingFields(from other: SidecarValues) -> [Field] {
@@ -84,6 +99,10 @@ public struct SidecarValues: Codable, Hashable, Sendable {
         if text(caption) != text(other.caption) { fields.append(.caption) }
         if text(usageTerms) != text(other.usageTerms) { fields.append(.usageTerms) }
         if contact(self.contact) != contact(other.contact) { fields.append(.contact) }
+        if text(title) != text(other.title) { fields.append(.title) }
+        if text(altText) != text(other.altText) { fields.append(.altText) }
+        if text(extendedDescription) != text(other.extendedDescription) { fields.append(.extendedDescription) }
+        if text(jobTitle) != text(other.jobTitle) { fields.append(.jobTitle) }
         return fields
     }
 
@@ -101,6 +120,10 @@ public struct SidecarValues: Codable, Hashable, Sendable {
             case .caption: result.caption = other.caption
             case .usageTerms: result.usageTerms = other.usageTerms
             case .contact: result.contact = other.contact
+            case .title: result.title = other.title
+            case .altText: result.altText = other.altText
+            case .extendedDescription: result.extendedDescription = other.extendedDescription
+            case .jobTitle: result.jobTitle = other.jobTitle
             }
         }
         return result

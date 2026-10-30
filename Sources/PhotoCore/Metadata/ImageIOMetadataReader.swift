@@ -100,6 +100,12 @@ public struct ImageIOMetadataReader: MetadataReader {
         metadata.meteringMode = (exif[kCGImagePropertyExifMeteringMode] as? NSNumber)?.intValue
         metadata.focalLength35mm = (exif[kCGImagePropertyExifFocalLenIn35mmFilm] as? NSNumber)?.doubleValue
         metadata.usageTerms = xmpText("xmpRights:UsageTerms")
+        metadata.title = xmpText("dc:title") ?? (iptc[kCGImagePropertyIPTCObjectName] as? String)?.trimmedNonEmpty
+        metadata.altText = xmpText("Iptc4xmpCore:AltTextAccessibility")
+        metadata.extendedDescription = xmpText("Iptc4xmpCore:ExtDescrAccessibility")
+        metadata.jobTitle = xmpText("photoshop:AuthorsPosition")
+            ?? (iptc[kCGImagePropertyIPTCBylineTitle] as? [String])?.joined(separator: ", ").trimmedNonEmpty
+            ?? (iptc[kCGImagePropertyIPTCBylineTitle] as? String)?.trimmedNonEmpty
         // ImageIO decodes Canon and Nikon maker notes only; ExifTool reads the other makes.
         let nikon = properties[kCGImagePropertyMakerNikonDictionary] as? [CFString: Any] ?? [:]
         let canon = properties[kCGImagePropertyMakerCanonDictionary] as? [CFString: Any] ?? [:]

@@ -33,6 +33,7 @@ import PhotoUI
 ///     import open | source <path> | dest <path> | job <text> | delete on|off | eject on|off
 ///            | run (waits) | confirm yes|no | snapshot <file> | print   (see ImportDebugCommands)
 ///     adjust …  original on|off  tab info|adjust   (see DebugAdjustCommands)
+///     metadata <field> [<text>]   print metadata   sidecars on|off   (see DebugMetadataCommands)
 ///     dropfolders <path>[, <path>…]   (imports dropped items the way a drop from Finder does)
 ///     waitimport            (waits for folder imports to finish, then prints the projects and status)
 ///     drophighlight on|off  (shows the browser's folder drop highlight)
@@ -69,7 +70,7 @@ enum DebugScript {
             // Only commands that can change photos get a group; empty groups
             // would otherwise become undo steps that do nothing.
             let changing: Set<String> = ["key", "addkeywords", "text", "pairfile", "accept", "album", "smartalbum", "remove",
-                                         "adjust", "lut", "pasteadjust", "preset", "menupick", "lutwindow"]
+                                         "adjust", "lut", "pasteadjust", "preset", "menupick", "lutwindow", "metadata"]
             for command in commands where !command.isEmpty {
                 let grouped = changing.contains(String(command.prefix { $0 != " " }))
                 if grouped { undoManager.beginUndoGrouping() }
@@ -273,6 +274,8 @@ enum DebugScript {
             }
         case "hdr":
             model.showsHDR = rest.first != "off"
+        case "metadata", "sidecars":
+            await DebugMetadataCommands.run(verb, rest, model: model)
         case "adjust":
             await DebugAdjustCommands.run(rest, editor: model.editor)
         case "export":
@@ -352,6 +355,8 @@ enum DebugScript {
         case "print":
             if rest.first == "loupe" {
                 printLoupe(at: Array(rest.dropFirst()), model: model)
+            } else if rest.first == "metadata" {
+                await DebugMetadataCommands.printSummary(model: model)
             } else {
                 printState(rest.first ?? "", model: model)
             }
