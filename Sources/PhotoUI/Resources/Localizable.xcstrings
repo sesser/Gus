@@ -541,6 +541,28 @@
         }
       }
     },
+    "16:9" : {
+      "comment" : "Crop aspect ratio",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "16:9"
+          }
+        }
+      }
+    },
+    "1:1" : {
+      "comment" : "Crop aspect ratio",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1:1"
+          }
+        }
+      }
+    },
     "35 mm Eq." : {
       "comment" : "Info tab: 35 mm equivalent focal length tile",
       "localizations" : {
@@ -548,6 +570,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "35 mm Eq."
+          }
+        }
+      }
+    },
+    "3:2" : {
+      "comment" : "Crop aspect ratio",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3:2"
+          }
+        }
+      }
+    },
+    "4:3" : {
+      "comment" : "Crop aspect ratio",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "4:3"
           }
         }
       }
@@ -2283,6 +2327,39 @@
         }
       }
     },
+    "Crop to %@; pick it again to swap portrait and landscape" : {
+      "comment" : "Tooltip of an aspect ratio button; the argument is a ratio such as 3:2",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Crop to %@; pick it again to swap portrait and landscape"
+          }
+        }
+      }
+    },
+    "Crop to any proportions" : {
+      "comment" : "Tooltip of the Free aspect ratio button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Crop to any proportions"
+          }
+        }
+      }
+    },
+    "Crop, Rotate, Straighten" : {
+      "comment" : "Adjust tab heading",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Crop, Rotate, Straighten"
+          }
+        }
+      }
+    },
     "Cross Process" : {
       "comment" : "Built-in look-up table",
       "localizations" : {
@@ -3057,6 +3134,17 @@
         }
       }
     },
+    "Finish cropping (Return); Esc cancels" : {
+      "comment" : "Tooltip of the Adjust tab's Crop button while cropping",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finish cropping (Return); Esc cancels"
+          }
+        }
+      }
+    },
     "Fit within" : {
       "comment" : "Export window: sizing choice: fits inside a width and height",
       "localizations" : {
@@ -3151,6 +3239,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Format"
+          }
+        }
+      }
+    },
+    "Free" : {
+      "comment" : "Crop aspect ratio: not constrained",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Free"
           }
         }
       }
@@ -5794,6 +5893,17 @@
         }
       }
     },
+    "Reset Crop" : {
+      "comment" : "Undo action name and tooltip in the Adjust tab's crop heading",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset Crop"
+          }
+        }
+      }
+    },
     "Resolution" : {
       "comment" : "Export window: pixels per inch field",
       "localizations" : {
@@ -5834,6 +5944,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Right"
+          }
+        }
+      }
+    },
+    "Rotate Left" : {
+      "comment" : "Tooltip: turns the photo a quarter turn counterclockwise",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rotate Left"
+          }
+        }
+      }
+    },
+    "Rotate Right" : {
+      "comment" : "Tooltip: turns the photo a quarter turn clockwise",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rotate Right"
           }
         }
       }
@@ -5933,6 +6065,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Save as Preset…"
+          }
+        }
+      }
+    },
+    "Save the crop and close this heading" : {
+      "comment" : "Tooltip of the crop heading's Done button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save the crop and close this heading"
           }
         }
       }
@@ -6298,6 +6441,17 @@
         }
       }
     },
+    "Show the crop frame on the photo" : {
+      "comment" : "Tooltip of the Adjust tab's Crop button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show the crop frame on the photo"
+          }
+        }
+      }
+    },
     "Show them" : {
       "comment" : "Import window toggle: show photos already in the library",
       "localizations" : {
@@ -6447,6 +6601,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Stop Exporting"
+          }
+        }
+      }
+    },
+    "Straighten" : {
+      "comment" : "Adjust tab slider",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Straighten"
           }
         }
       }

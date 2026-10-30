@@ -22,10 +22,14 @@ public actor LiveRenderSession {
     private let colorSpace: CGColorSpace?
     private var bases: [BaseKey: Base] = [:]
     private var baseOrder: [BaseKey] = []
+    /// The master's size, read once a crop needs it.
+    private var nativeSize: CGSize??
 
     private struct BaseKey: Hashable {
         var settings: RAWDecodeSettings
         var draft: Bool
+        /// Long edge of the decode: larger than the frames' when cropped.
+        var longEdge: Int
     }
 
     private struct Base {
@@ -51,7 +55,8 @@ public actor LiveRenderSession {
         let renderer = generator.renderer
         let isRaw = SupportedFormats.isRaw(pathExtension: source.pathExtension)
         let settings = isRaw ? renderer.decodeSettings(for: stack) : .none
-        let base = try self.base(for: BaseKey(settings: settings, draft: interactive))
+        let base = try self.base(for: BaseKey(settings: settings, draft: interactive,
+                                              longEdge: decodeLongEdge(renderer.geometry(for: stack))))
         var image = try renderer.apply(stack, to: CIImage(cgImage: base.image), context: base.context)
         image = image.scaledToFit(longEdge: longEdge)
         guard let rendered = generator.engine.makeCGImage(image, colorSpace: colorSpace) else {
@@ -61,14 +66,24 @@ public actor LiveRenderSession {
                      adjustments: adjustments)
     }
 
+    /// The frames' long edge, enlarged by what the crop leaves out (in steps,
+    /// so small changes to a crop reuse the base).
+    private func decodeLongEdge(_ crop: Crop) -> Int {
+        guard !crop.isIdentity else { return longEdge }
+        if nativeSize == nil { nativeSize = .some(PreviewGenerator.nativeSize(source)) }
+        guard let size = nativeSize ?? nil else { return longEdge }
+        let zoom = (crop.sourceZoom(sourceSize: size) * 4).rounded(.up) / 4
+        return min(Int(Double(longEdge) * zoom), Int(max(size.width, size.height)))
+    }
+
     /// Renders the base for `key`, or reuses one: a full decode serves a draft
     /// request too.
     private func base(for key: BaseKey) throws -> Base {
         if let base = bases[key] { return touch(key, base) }
-        if key.draft, let full = bases[BaseKey(settings: key.settings, draft: false)] {
+        if key.draft, let full = bases[BaseKey(settings: key.settings, draft: false, longEdge: key.longEdge)] {
             return full
         }
-        let size = key.draft ? longEdge / 2 : longEdge
+        let size = key.draft ? key.longEdge / 2 : key.longEdge
         let decoded = try PreviewGenerator.decode(source, longEdge: size, draft: key.draft, settings: key.settings)
         let extent = decoded.image.extent.integral
         guard !extent.isInfinite,

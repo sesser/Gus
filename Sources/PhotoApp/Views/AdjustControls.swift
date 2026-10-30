@@ -14,6 +14,8 @@ enum SliderFormat {
     case kelvin
     /// One decimal: "1.2".
     case decimal
+    /// Signed degrees with one decimal: "+1.5°".
+    case degrees
 
     func text(_ value: Double) -> String {
         switch self {
@@ -29,6 +31,9 @@ enum SliderFormat {
             return String(localized: "\(Int(value.rounded())) K", comment: "Color temperature in kelvin")
         case .decimal:
             return String(format: "%.1f", value)
+        case .degrees:
+            let text = String(format: "%.1f°", abs(value))
+            return value >= 0.05 ? "+" + text : value <= -0.05 ? "−" + text : "0.0°"
         }
     }
 
@@ -36,6 +41,7 @@ enum SliderFormat {
     func value(from text: String) -> Double? {
         let cleaned = text.replacingOccurrences(of: "−", with: "-")
             .replacingOccurrences(of: "K", with: "")
+            .replacingOccurrences(of: "°", with: "")
             .replacingOccurrences(of: "+", with: "")
             .trimmingCharacters(in: .whitespaces)
         return Double(cleaned)
@@ -47,7 +53,7 @@ enum SliderFormat {
         case .signed, .plain: 1
         case .stops: 0.05
         case .kelvin: 50
-        case .decimal: 0.1
+        case .decimal, .degrees: 0.1
         }
     }
 }

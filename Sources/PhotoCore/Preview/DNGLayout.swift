@@ -25,7 +25,7 @@ struct DNGLayout {
             return Image(subfileType: first(Tag.newSubfileType) ?? 0, photometric: first(Tag.photometricInterpretation),
                          sampleFormat: first(Tag.sampleFormat) ?? 1)
         }
-        let subIFDs = ifd0.first { $0.tag == Tag.subIFDs }.map(reader.values) ?? []
+        let subIFDs = ifd0.first { $0.tag == Tag.subIFDs }.map { reader.values($0) } ?? []
         images = [image(ifd0)] + subIFDs.prefix(64).compactMap { reader.entries(at: $0).map(image) }
     }
 
@@ -61,8 +61,9 @@ struct DNGLayout {
     }
 }
 
-/// Reads IFD entries of a classic (32-bit offset) TIFF file in either byte order.
-private struct TIFFReader {
+/// Reads IFD entries of a classic (32-bit offset) TIFF file in either byte order,
+/// and of Olympus and Panasonic raw files, which are TIFF with their own magic number.
+struct TIFFReader {
     struct Entry {
         var tag: UInt16
         var type: UInt16
@@ -83,24 +84,29 @@ private struct TIFFReader {
         case (0x4D, 0x4D): bigEndian = true
         default: return nil
         }
-        guard Self.integer(header, at: 2, as: UInt16.self, bigEndian: bigEndian) == 42 else { return nil }
+        // 42 for TIFF; "RO" and "RS" for Olympus raw files, "U" for Panasonic's.
+        guard [42, 0x4F52, 0x5352, 0x55].contains(Self.integer(header, at: 2, as: UInt16.self, bigEndian: bigEndian))
+        else { return nil }
         firstIFDOffset = Self.integer(header, at: 4, as: UInt32.self, bigEndian: bigEndian)
     }
 
-    func entries(at offset: UInt32) -> [Entry]? {
-        guard offset >= 8, let countData = Self.read(handle, 2, at: UInt64(offset)) else { return nil }
+    /// The entries of the IFD at `offset`, counted from `base` (a maker note's
+    /// start for maker notes whose offsets are relative to it).
+    func entries(at offset: UInt32, base: UInt64 = 0) -> [Entry]? {
+        guard offset >= 8, let countData = Self.read(handle, 2, at: base + UInt64(offset)) else { return nil }
         let count = Int(integer(countData, at: 0, as: UInt16.self))
-        guard count > 0, count <= 1024, let table = Self.read(handle, count * 12, at: UInt64(offset) + 2) else { return nil }
+        guard count > 0, count <= 1024, let table = Self.read(handle, count * 12, at: base + UInt64(offset) + 2)
+        else { return nil }
         return (0..<count).map { index in
-            let base = index * 12
-            return Entry(tag: integer(table, at: base, as: UInt16.self), type: integer(table, at: base + 2, as: UInt16.self),
-                         count: integer(table, at: base + 4, as: UInt32.self),
-                         field: table.subdata(in: (base + 8)..<(base + 12)))
+            let start = index * 12
+            return Entry(tag: integer(table, at: start, as: UInt16.self), type: integer(table, at: start + 2, as: UInt16.self),
+                         count: integer(table, at: start + 4, as: UInt32.self),
+                         field: table.subdata(in: (start + 8)..<(start + 12)))
         }
     }
 
     /// The values of a SHORT, LONG or IFD entry (at most 256 of them).
-    func values(_ entry: Entry) -> [UInt32] {
+    func values(_ entry: Entry, base: UInt64 = 0) -> [UInt32] {
         let size: Int
         switch entry.type {
         case 3: size = 2 // SHORT
@@ -111,14 +117,24 @@ private struct TIFFReader {
         let length = count * size
         guard count > 0,
               let data = length <= 4 ? entry.field
-                  : Self.read(handle, length, at: UInt64(integer(entry.field, at: 0, as: UInt32.self)))
+                  : Self.read(handle, length, at: base + UInt64(integer(entry.field, at: 0, as: UInt32.self)))
         else { return [] }
         return (0..<count).map { index in
             size == 2 ? UInt32(integer(data, at: index * 2, as: UInt16.self)) : integer(data, at: index * 4, as: UInt32.self)
         }
     }
 
-    private func integer<T: FixedWidthInteger>(_ data: Data, at index: Int, as type: T.Type) -> T {
+    /// Where in the file the values of an entry too long for its own field are
+    /// (the offset it holds, from `base`).
+    func valueOffset(_ entry: Entry, base: UInt64 = 0) -> UInt64 {
+        base + UInt64(integer(entry.field, at: 0, as: UInt32.self))
+    }
+
+    func read(_ count: Int, at offset: UInt64) -> Data? {
+        Self.read(handle, count, at: offset)
+    }
+
+    func integer<T: FixedWidthInteger>(_ data: Data, at index: Int, as type: T.Type) -> T {
         Self.integer(data, at: index, as: type, bigEndian: bigEndian)
     }
 

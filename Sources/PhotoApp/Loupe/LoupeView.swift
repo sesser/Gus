@@ -40,6 +40,7 @@ struct LoupeCanvas: NSViewRepresentable {
         context.coordinator.hdrSetting = model.showsHDR
         context.coordinator.show(index: model.focusIndex)
         context.coordinator.showLiveFrame(revision: model.editor.frameRevision, active: model.editor.showsLive)
+        context.coordinator.showCrop(model.editor.cropSession, image: model.editor.cropImage)
     }
 
     static func dismantleNSView(_ view: LoupeHostView, coordinator: LoupeController) {
@@ -75,6 +76,7 @@ final class LoupeController: NSObject {
     let hostView = LoupeHostView()
     private let scrollView = NSScrollView()
     private let imageView = LoupeImageView()
+    private let cropView = CropOverlayView()
     /// The version and edit shown; a new edit hash loads new renditions.
     private var shownKey: ShownKey?
     private struct ShownKey: Equatable {
@@ -120,6 +122,17 @@ final class LoupeController: NSObject {
             scrollView.topAnchor.constraint(equalTo: hostView.topAnchor),
             scrollView.bottomAnchor.constraint(equalTo: hostView.bottomAnchor),
         ])
+        cropView.translatesAutoresizingMaskIntoConstraints = false
+        cropView.isHidden = true
+        hostView.addSubview(cropView)
+        NSLayoutConstraint.activate([
+            cropView.leadingAnchor.constraint(equalTo: hostView.leadingAnchor),
+            cropView.trailingAnchor.constraint(equalTo: hostView.trailingAnchor),
+            cropView.topAnchor.constraint(equalTo: hostView.topAnchor),
+            cropView.bottomAnchor.constraint(equalTo: hostView.bottomAnchor),
+        ])
+        cropView.onChangeRect = { [weak self] rect in self?.model.editor.setCropRect(rect) }
+        cropView.onStraighten = { [weak self] angle, phase in self?.model.editor.straighten(angle, phase: phase) }
         hostView.controller = self
         imageView.onDoubleClick = { [weak self] point in self?.toggleZoom(at: point) }
 
@@ -272,14 +285,55 @@ final class LoupeController: NSObject {
         hdrTask?.cancel()
         fullTask?.cancel()
         rendition = .live
+        matchFrame(to: frame.image.cgImage, exact: false)
         imageView.setImage(frame.image.cgImage, extendedRange: false)
         if model.loupeHDRHeadroom != nil { model.loupeHDRHeadroom = nil }
+    }
+
+    /// Shows the crop frame over the whole photo while a crop is edited.
+    func showCrop(_ session: CropSession?, image: CGImage?) {
+        guard let session, let image else {
+            if !cropView.isHidden {
+                cropView.isHidden = true
+                cropView.reset()
+                scrollView.isHidden = false
+            }
+            return
+        }
+        cropView.configure(session: session, image: image)
+        if cropView.isHidden {
+            cropView.isHidden = false
+            scrollView.isHidden = true
+        }
+    }
+
+    /// Keeps the image view in the proportions of what it shows, which a crop
+    /// or a quarter turn changes. A full-resolution rendition sets its size
+    /// exactly; others keep the current long edge.
+    private func matchFrame(to image: CGImage?, exact: Bool) {
+        guard let image, image.width > 0, image.height > 0 else { return }
+        let backing = hostView.window?.backingScaleFactor ?? 2
+        let current = imageView.frame.size
+        let aspect = CGFloat(image.width) / CGFloat(image.height)
+        var size: NSSize
+        if exact {
+            size = NSSize(width: CGFloat(image.width) / backing, height: CGFloat(image.height) / backing)
+        } else {
+            guard current.width > 0, current.height > 0,
+                  abs(current.width / current.height - aspect) > 0.01 * aspect else { return }
+            let long = max(current.width, current.height)
+            size = aspect >= 1 ? NSSize(width: long, height: long / aspect) : NSSize(width: long * aspect, height: long)
+        }
+        guard abs(size.width - current.width) > 0.5 || abs(size.height - current.height) > 0.5 else { return }
+        imageView.setFrameSize(size)
+        applyZoom(animated: false)
     }
 
     /// Shows `image` unless something more detailed is already showing.
     private func display(_ image: CGImage?, as kind: Rendition) {
         guard kind >= rendition else { return }
         rendition = kind
+        matchFrame(to: image, exact: kind == .full || kind == .hdrFull)
         imageView.setImage(image, extendedRange: kind.isHDR)
         let headroom = kind.isHDR ? image?.contentHeadroom : nil
         if model.loupeHDRHeadroom != headroom { model.loupeHDRHeadroom = headroom }
@@ -375,6 +429,18 @@ final class LoupeController: NSObject {
     // MARK: Keys
 
     func handle(_ event: NSEvent) -> Bool {
+        if model.editor.cropSession != nil {
+            switch event.keyCode {
+            case 36, 76:
+                model.editor.endCrop(save: true)
+                return true
+            case 53:
+                model.editor.endCrop(save: false)
+                return true
+            default:
+                break
+            }
+        }
         if let action = CullingKeymap.action(for: event) {
             model.perform(action)
             return true

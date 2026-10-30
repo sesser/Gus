@@ -50,6 +50,10 @@ final class AdjustmentEditor {
     /// Bumped for every new frame.
     private(set) var frameRevision = 0
     @ObservationIgnored private(set) var frame: LiveRenderSession.Frame?
+    /// The crop being edited, while the loupe shows the crop frame.
+    private(set) var cropSession: CropSession?
+    /// The whole photo with its other adjustments, under the crop frame.
+    private(set) var cropImage: CGImage?
 
     /// Shows the photo without adjustments (before/after).
     var showsOriginal = false {
@@ -76,6 +80,7 @@ final class AdjustmentEditor {
     @ObservationIgnored private var session: LiveRenderSession?
     @ObservationIgnored private var loadTask: Task<Void, Never>?
     @ObservationIgnored private var renderTask: Task<Void, Never>?
+    @ObservationIgnored private var cropImageTask: Task<Void, Never>?
     @ObservationIgnored private var pendingRender: (values: Adjustments, interactive: Bool)?
     @ObservationIgnored private var lastFrameWasInteractive = false
     /// The frame being rendered is a draft.
@@ -100,6 +105,8 @@ final class AdjustmentEditor {
             item = newItem
             return
         }
+        // Moving to another photo (or closing the loupe) keeps the crop being edited.
+        endCrop(save: true)
         finishSession()
         item = newItem
         isPreviewing = false
@@ -149,6 +156,10 @@ final class AdjustmentEditor {
         pendingRender = nil
         session = nil
         frame = nil
+        cropSession = nil
+        cropImage = nil
+        cropImageTask?.cancel()
+        cropImageTask = nil
         histogram = nil
         showsLive = false
         showsOriginal = false
@@ -190,6 +201,7 @@ final class AdjustmentEditor {
             adjustments = next
             showsLive = true
             requestRender(interactive: phase == .changing)
+            if cropSession != nil, phase == .committed { renderCropImage() }
         } else if phase == .committed, lastFrameWasInteractive || renderingInteractive
                     || pendingRender?.interactive == true {
             // The drag's frames were drafts: render the final one at full quality.
@@ -231,7 +243,7 @@ final class AdjustmentEditor {
     }
 
     func toggleOriginal() {
-        guard state == .ready else { return }
+        guard state == .ready, cropSession == nil else { return }
         showsOriginal.toggle()
     }
 
@@ -375,6 +387,132 @@ final class AdjustmentEditor {
 
     private static func withoutEffects(_ values: Adjustments) -> Adjustments {
         values.effective.resetting(.effects)
+    }
+
+    // MARK: Cropping
+
+    /// Shows the whole photo under the crop frame, starting from its saved crop
+    /// (or the camera's).
+    func beginCrop() {
+        guard state == .ready, cropSession == nil, cropImageTask == nil, let url = sourceURL,
+              let versionID = item?.versionID else { return }
+        showsOriginal = false
+        isPreviewing = false
+        previewValues = nil
+        let start = adjustments.crop
+        cropImageTask?.cancel()
+        cropImageTask = Task {
+            let cameraRect = await Task.detached(priority: .userInitiated) { CameraFrame.rect(of: url) }.value ?? .full
+            guard !Task.isCancelled, item?.versionID == versionID, let image = await renderWholeImage() else { return }
+            // A photo without a crop shows its camera's frame; with one, the rectangle
+            // is in the whole sensor already.
+            let rect = start.rect ?? (start.isIdentity ? cameraRect : .full)
+            cropSession = CropSession(crop: Crop(rect: rect, quarterTurns: start.quarterTurns, angle: start.angle),
+                                      cameraRect: cameraRect,
+                                      sourceSize: CGSize(width: image.width, height: image.height))
+            cropImage = image
+            cropImageTask = nil
+        }
+    }
+
+    /// Ends the crop session, saving it as one undo step unless `save` is false.
+    func endCrop(save: Bool) {
+        cropImageTask?.cancel()
+        cropImageTask = nil
+        guard let session = cropSession else { return }
+        cropSession = nil
+        cropImage = nil
+        guard save, session.saved != adjustments.crop else { return }
+        change(String(localized: "Crop", comment: "Undo action name"), phase: .committed) { $0.crop = session.saved }
+    }
+
+    /// The photo's own frame again, without turns or straightening.
+    func resetCrop() {
+        if var session = cropSession {
+            session.crop = Crop(rect: session.cameraRect)
+            session.aspect = .free
+            cropSession = session
+        } else {
+            change(String(localized: "Reset Crop", comment: "Undo action name"), phase: .committed) { $0.crop = Crop() }
+        }
+    }
+
+    /// Moves or resizes the frame (from the loupe's drags).
+    func setCropRect(_ rect: CropRect) {
+        cropSession?.crop.rect = rect
+    }
+
+    /// Straightens, keeping the frame inside the image: each angle fits the
+    /// rectangle the straightening started from.
+    func straighten(_ angle: Double, phase: EditPhase) {
+        guard var session = cropSession else {
+            beginCrop(then: { $0.straighten(angle, phase: phase) })
+            return
+        }
+        let start = session.straightenStart ?? session.rect
+        let angle = min(max(angle, Crop.angleRange.lowerBound), Crop.angleRange.upperBound)
+        session.crop.angle = angle
+        session.crop.rect = CropGeometry.fitted(start, angle: angle, size: session.turnedSize)
+        session.isStraightening = phase == .changing
+        session.straightenStart = phase == .changing ? start : nil
+        cropSession = session
+    }
+
+    /// Turns the photo a quarter turn, frame and all.
+    func rotate(clockwise: Bool) {
+        guard var session = cropSession else {
+            beginCrop(then: { $0.rotate(clockwise: clockwise) })
+            return
+        }
+        session.crop.quarterTurns = (session.crop.quarterTurns + (clockwise ? 1 : 3)) % 4
+        session.crop.rect = session.rect.turned(clockwise: clockwise)
+        cropSession = session
+    }
+
+    /// Holds the frame to `aspect`. Picking the aspect already held turns the
+    /// frame from landscape to portrait or back.
+    func setCropAspect(_ aspect: CropAspect) {
+        guard var session = cropSession else {
+            beginCrop(then: { $0.setCropAspect(aspect) })
+            return
+        }
+        let size = session.turnedSize
+        if aspect == session.aspect, let ratio = aspect.ratio, ratio != 1 {
+            session.crop.rect = CropGeometry.flipped(session.rect, angle: session.crop.angle, size: size)
+        } else {
+            session.aspect = aspect
+            if let ratio = session.ratio {
+                session.crop.rect = CropGeometry.constrained(session.rect, to: ratio, angle: session.crop.angle, size: size)
+            }
+        }
+        cropSession = session
+    }
+
+    /// Starts a session and runs `body` once it is ready.
+    private func beginCrop(then body: @escaping @MainActor (AdjustmentEditor) -> Void) {
+        beginCrop()
+        guard let task = cropImageTask else { return }
+        Task {
+            await task.value
+            if cropSession != nil { body(self) }
+        }
+    }
+
+    /// Renders the photo with its other adjustments over the whole sensor, at the loupe's size.
+    private func renderWholeImage() async -> CGImage? {
+        guard let session else { return nil }
+        var values = adjustments
+        values.crop = Crop(rect: .full)
+        return try? await session.render(values).image.cgImage
+    }
+
+    /// Renders the image under the crop frame again after another adjustment changed.
+    private func renderCropImage() {
+        cropImageTask?.cancel()
+        cropImageTask = Task {
+            guard let image = await renderWholeImage(), !Task.isCancelled, cropSession != nil else { return }
+            cropImage = image
+        }
     }
 
     // MARK: Auto

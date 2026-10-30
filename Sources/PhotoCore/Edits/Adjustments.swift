@@ -11,6 +11,9 @@ import Foundation
 /// renders) leaves it out. Operations this build does not understand are kept
 /// as they are and written back after the modules.
 public struct Adjustments: Hashable, Sendable {
+    /// Turns, straightening and crop. Not one of the `Group`s: presets never
+    /// carry it, copy and paste does.
+    public var crop = Crop()
     public var decode = RawDecode()
     public var whiteBalance = WhiteBalance()
     public var exposure = Exposure()
@@ -59,6 +62,7 @@ public struct Adjustments: Hashable, Sendable {
                                                 parameters: parameters))
             }
         }
+        add(crop)
         add(decode)
         add(whiteBalance)
         add(exposure)
@@ -81,6 +85,7 @@ public struct Adjustments: Hashable, Sendable {
     private mutating func read(_ operation: EditOperation) -> Bool {
         let values = ParameterValues(operation.parameters)
         switch operation.kind {
+        case Crop.kind: crop = Crop(values)
         case RawDecode.kind: decode = RawDecode(values)
         case WhiteBalance.kind: whiteBalance = WhiteBalance(values)
         case Exposure.kind: exposure = Exposure(values)
@@ -102,6 +107,7 @@ public struct Adjustments: Hashable, Sendable {
     /// The parameters a module writes (empty at its defaults, or for unknown kinds).
     public func parameters(of kind: EditOperationKind) -> [String: EditParameter] {
         switch kind {
+        case Crop.kind: crop.parameters
         case RawDecode.kind: decode.parameters
         case WhiteBalance.kind: whiteBalance.parameters
         case Exposure.kind: exposure.parameters
@@ -122,6 +128,7 @@ public struct Adjustments: Hashable, Sendable {
     /// Puts one module back at its defaults (and on).
     private mutating func resetModule(_ kind: EditOperationKind) {
         switch kind {
+        case Crop.kind: crop = Crop()
         case RawDecode.kind: decode = RawDecode()
         case WhiteBalance.kind: whiteBalance = WhiteBalance()
         case Exposure.kind: exposure = Exposure()
@@ -143,6 +150,7 @@ public struct Adjustments: Hashable, Sendable {
     /// Takes one module's values, and whether it is on, from `source`.
     private mutating func copyModule(_ kind: EditOperationKind, from source: Adjustments) {
         switch kind {
+        case Crop.kind: crop = source.crop
         case RawDecode.kind: decode = source.decode
         case WhiteBalance.kind: whiteBalance = source.whiteBalance
         case Exposure.kind: exposure = source.exposure

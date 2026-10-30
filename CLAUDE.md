@@ -217,13 +217,23 @@ output sharpening and PPI; four metadata levels; a PNG watermark placed by
 anchor; export presets (`exportPreset` table); background export with
 progress.
 
+Crop, rotate and straighten: a `crop` operation (`Edits/Crop.swift`) applied
+first: quarter turns, straightening about the center, then a unit rectangle
+of the turned frame. Without it a photo keeps its decoder's frame, which for
+some raws is the camera's aspect crop; with it raws decode the whole sensor
+(`CameraFrame` undoes the Olympus/OM System `AspectFrame` or the Panasonic
+RW2 crop tags in an in-memory copy).
+`CropGeometry` keeps the rectangle on the straightened image. Editing is a
+session in `AdjustmentEditor` shown by `CropOverlayView` over the loupe and
+saved on Done. Crop is not an `Adjustments.Group`: presets never carry it.
+
 Info tab metadata: title, description, alt text, extended description,
 copyright, usage terms and the creator's contact details (IPTC Core and
 Extension, `Catalog/Descriptions.swift`), edited for the whole selection as
 one undo step each, kept on `image`, synced to sidecars and written on export.
 Reading a file again only fills empty descriptive fields; the library's win.
 
-Not yet: brushes and masks, healing, cropping, lens corrections, DNG export, ML
+Not yet: brushes and masks, healing, lens corrections, DNG export, ML
 denoising, `.dcp` profiles, general (hand-made or burst) stacks, hierarchical
 keywords, PTP cameras, a second backup destination, writing metadata into
 originals.

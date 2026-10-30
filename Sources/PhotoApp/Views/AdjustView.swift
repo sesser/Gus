@@ -49,7 +49,7 @@ struct AdjustView: View {
                 AppKitScrollView {
                     VStack(alignment: .leading, spacing: 18) {
                         AdjustToolbar(model: model)
-                        PresetsSection(model: model)
+                        CropSection(editor: editor)
                         Divider()
                         AdjustSection(.develop, editor: editor) {
                             DevelopControls(editor: editor)
@@ -77,6 +77,8 @@ struct AdjustView: View {
                         AdjustSection(.effects, editor: editor) {
                             EffectsControls(model: model)
                         }
+                        Divider()
+                        PresetsSection(model: model)
                     }
                     .padding(14)
                     .frame(maxWidth: .infinity, alignment: .leading)
