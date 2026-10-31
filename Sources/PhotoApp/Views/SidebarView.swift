@@ -161,9 +161,6 @@ struct SidebarView: View {
                 Text("Only the album is deleted, not its photos.")
             }
         }
-        .safeAreaInset(edge: .bottom) {
-            FilterPanel(model: model)
-        }
     }
 
     private var deletionTitle: String {
@@ -260,47 +257,6 @@ private struct CountBadge: View {
             .font(.caption)
             .monospacedDigit()
             .foregroundStyle(.secondary)
-    }
-}
-
-/// Rating and flag filters for whatever the sidebar has selected.
-private struct FilterPanel: View {
-    @Bindable var model: LibraryModel
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Filter")
-                    .font(.headline)
-                Spacer()
-                if model.isFiltered {
-                    Button("Clear") {
-                        model.ratingRule = .any
-                        model.flagRule = .any
-                    }
-                    .buttonStyle(.link)
-                    .font(.callout)
-                }
-            }
-            Picker("Rating", selection: $model.ratingRule) {
-                Text("Any rating").tag(LibraryFilter.RatingRule.any)
-                Text("Unrated").tag(LibraryFilter.RatingRule.unrated)
-                Divider()
-                ForEach(1...5, id: \.self) { stars in
-                    Text(RatingText.atLeast(stars)).tag(LibraryFilter.RatingRule.atLeast(Rating(clamping: stars)))
-                }
-            }
-            Picker("Flag", selection: $model.flagRule) {
-                Text("Any flag").tag(LibraryFilter.FlagRule.any)
-                Text("Picked").tag(LibraryFilter.FlagRule.picked)
-                Text("Not rejected").tag(LibraryFilter.FlagRule.notRejected)
-                Text("Unflagged").tag(LibraryFilter.FlagRule.unflagged)
-                Text("Rejected").tag(LibraryFilter.FlagRule.rejected)
-            }
-        }
-        .pickerStyle(.menu)
-        .padding(12)
-        .background(.bar)
     }
 }
 

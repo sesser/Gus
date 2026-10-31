@@ -23,6 +23,17 @@ public struct LibraryFilter: Hashable, Sendable {
         case unrated
         case atLeast(Rating)
         case exactly(Rating)
+
+        /// Stars lit in the filter bar: the minimum of an "at least" rule.
+        public var litStars: Int {
+            if case .atLeast(let minimum) = self { minimum.rawValue } else { 0 }
+        }
+
+        /// The rule after clicking star `stars` (1–5) in the filter bar:
+        /// "at least that many", or no rule when it was already the highest lit star.
+        public func clickingStar(_ stars: Int) -> RatingRule {
+            stars == litStars ? .any : .atLeast(Rating(clamping: stars))
+        }
     }
 
     public enum FlagRule: Hashable, Sendable, CaseIterable {
@@ -36,14 +47,28 @@ public struct LibraryFilter: Hashable, Sendable {
     public var scope: Scope
     public var rating: RatingRule
     public var flag: FlagRule
+    /// Text typed in the browser's search field (see `searchTerms`).
+    public var search: String
+    public var sort: LibrarySort
     /// Show one item per RAW+JPEG pair instead of both files.
     public var groupsPairs: Bool
 
-    public init(scope: Scope = .allPhotos, rating: RatingRule = .any, flag: FlagRule = .any, groupsPairs: Bool = true) {
+    public init(scope: Scope = .allPhotos, rating: RatingRule = .any, flag: FlagRule = .any, search: String = "",
+                sort: LibrarySort = LibrarySort(), groupsPairs: Bool = true) {
         self.scope = scope
         self.rating = rating
         self.flag = flag
+        self.search = search
+        self.sort = sort
         self.groupsPairs = groupsPairs
+    }
+
+    /// `search` split into alternatives at commas, each a list of words that
+    /// must all match: "orf, sony a7" is `[["orf"], ["sony", "a7"]]`.
+    public var searchTerms: [[String]] {
+        search.split(separator: ",").map { alternative in
+            alternative.split(whereSeparator: \.isWhitespace).map(String.init)
+        }.filter { !$0.isEmpty }
     }
 
     /// True when `item` passes the rating and flag rules (scope is not checked).
@@ -62,6 +87,36 @@ public struct LibraryFilter: Hashable, Sendable {
         case .notRejected: item.flag != .rejected
         }
         return ratingOK && flagOK
+    }
+}
+
+/// The browser's order.
+public struct LibrarySort: Hashable, Sendable {
+    public enum Key: String, CaseIterable, Sendable {
+        case captureDate, rating, fileName
+    }
+
+    public var key: Key
+    public var ascending: Bool
+
+    public init(key: Key = .captureDate, ascending: Bool = true) {
+        self.key = key
+        self.ascending = ascending
+    }
+
+    /// `ORDER BY` terms over `version` joined with `image`. Ties fall back to
+    /// capture order, which is always ascending so equal ratings read in time.
+    var orderTerms: String {
+        let direction = ascending ? "ASC" : "DESC"
+        let captureOrder = "image.sortDate, image.id, version.versionNumber"
+        return switch key {
+        case .captureDate:
+            "image.sortDate \(direction), image.id \(direction), version.versionNumber"
+        case .rating:
+            "version.rating \(direction), \(captureOrder)"
+        case .fileName:
+            "image.fileName COLLATE NOCASE \(direction), \(captureOrder)"
+        }
     }
 }
 
@@ -173,10 +228,38 @@ extension Catalog {
         case .unflagged: clauses.append("version.flag = 0")
         case .notRejected: clauses.append("version.flag >= 0")
         }
+        if let search = searchCondition(filter.searchTerms) {
+            clauses.append(search.sql)
+            arguments += search.arguments
+        }
         return (clauses.isEmpty ? "" : "WHERE " + clauses.joined(separator: " AND "), arguments)
     }
 
-    /// Versions matching `filter`, in capture order.
+    /// Alternatives OR'd, words within one AND'd; a word matches when the file
+    /// name (extension included), camera make or model, lens or a keyword
+    /// contains it, ignoring case.
+    private static func searchCondition(_ terms: [[String]]) -> (sql: String, arguments: StatementArguments)? {
+        guard !terms.isEmpty else { return nil }
+        let like = "LIKE ? ESCAPE '\\'"
+        let columns = ["image.fileName", "image.cameraMake", "image.cameraModel", "image.lensModel"]
+        let keyword = """
+            EXISTS (SELECT 1 FROM versionKeyword JOIN keyword ON keyword.id = versionKeyword.keywordId
+                    WHERE versionKeyword.versionId = version.id AND keyword.name \(like))
+            """
+        let wordMatch = "(" + (columns.map { "\($0) \(like)" } + [keyword]).joined(separator: " OR ") + ")"
+        var arguments = StatementArguments()
+        let alternatives = terms.map { words in
+            for word in words {
+                let escaped = word.replacingOccurrences(of: "\\", with: "\\\\")
+                    .replacingOccurrences(of: "%", with: "\\%").replacingOccurrences(of: "_", with: "\\_")
+                arguments += StatementArguments(Array(repeating: "%\(escaped)%", count: columns.count + 1))
+            }
+            return "(" + Array(repeating: wordMatch, count: words.count).joined(separator: " AND ") + ")"
+        }
+        return ("(" + alternatives.joined(separator: " OR ") + ")", arguments)
+    }
+
+    /// Versions matching `filter`, in its sort order.
     public func libraryItems(matching filter: LibraryFilter) async throws -> [CatalogItem] {
         let (whereClause, arguments) = Self.whereClause(for: filter)
         let sql = """
@@ -186,7 +269,7 @@ extension Catalog {
             FROM version
             JOIN image ON image.id = version.imageId
             \(whereClause)
-            ORDER BY image.sortDate, image.id, version.versionNumber
+            ORDER BY \(filter.sort.orderTerms)
             """
         let finalArguments = arguments
         let grouped = filter.groupsPairs

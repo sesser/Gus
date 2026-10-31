@@ -762,17 +762,6 @@
         }
       }
     },
-    "Add keywords to the selected photos (⌘K)" : {
-      "comment" : "Toolbar help",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add keywords to the selected photos (⌘K)"
-          }
-        }
-      }
-    },
     "Add presets from files or folders (.%@, .lrtemplate, .xmp or .dng)" : {
       "comment" : "Tooltip of the Presets heading's Import button; the argument is this app's preset file extension",
       "localizations" : {
@@ -1109,16 +1098,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Any flag"
-          }
-        }
-      }
-    },
-    "Any rating" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Any rating"
           }
         }
       }
@@ -2016,6 +1995,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Color wheel"
+          }
+        }
+      }
+    },
+    "Commas separate alternatives: “orf, arw”. Words must all match: “sony jpg”." : {
+      "comment" : "Filter bar: help for the search field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Commas separate alternatives: “orf, arw”. Words must all match: “sony jpg”."
           }
         }
       }
@@ -3124,16 +3114,6 @@
         }
       }
     },
-    "Filter" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Filter"
-          }
-        }
-      }
-    },
     "Finish cropping (Return); Esc cancels" : {
       "comment" : "Tooltip of the Adjust tab's Crop button while cropping",
       "localizations" : {
@@ -4109,6 +4089,17 @@
         }
       }
     },
+    "Keywords, file type, camera, lens" : {
+      "comment" : "Filter bar: placeholder of the search field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keywords, file type, camera, lens"
+          }
+        }
+      }
+    },
     "Keywords, separated by commas" : {
       "comment" : "Keyword panel field placeholder",
       "localizations" : {
@@ -4476,6 +4467,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Midtones"
+          }
+        }
+      }
+    },
+    "Minimum rating" : {
+      "comment" : "Filter bar: accessibility label of the five stars",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minimum rating"
           }
         }
       }
@@ -6408,6 +6410,17 @@
         }
       }
     },
+    "Show every photo again" : {
+      "comment" : "Filter bar: help for the Clear button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show every photo again"
+          }
+        }
+      }
+    },
     "Show in Finder when done" : {
       "comment" : "Export window",
       "localizations" : {
@@ -6415,6 +6428,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Show in Finder when done"
+          }
+        }
+      }
+    },
+    "Show photos by flag" : {
+      "comment" : "Filter bar: help for the flag menu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show photos by flag"
           }
         }
       }
@@ -6546,6 +6570,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Some settings have no equivalent here and were left out or approximated (number of presets): %@."
+          }
+        }
+      }
+    },
+    "Sort" : {
+      "comment" : "Filter bar: label of the sort menu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sort"
+          }
+        }
+      }
+    },
+    "Sort order" : {
+      "comment" : "Filter bar: help for the sort menu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sort order"
           }
         }
       }
