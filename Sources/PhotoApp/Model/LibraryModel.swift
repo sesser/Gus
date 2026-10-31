@@ -139,8 +139,36 @@ final class LibraryModel {
         didSet { if oldValue != flagRule { reloadItems(keepFocus: true) } }
     }
 
+    /// The filter bar's search field; reloads a moment after typing stops.
+    var searchText = "" {
+        didSet {
+            guard LibraryFilter(search: oldValue).searchTerms != LibraryFilter(search: searchText).searchTerms else { return }
+            searchTask?.cancel()
+            searchTask = Task {
+                try? await Task.sleep(for: .milliseconds(250))
+                guard !Task.isCancelled else { return }
+                reloadItems(keepFocus: true)
+            }
+        }
+    }
+    var sort: LibrarySort {
+        didSet {
+            guard oldValue != sort else { return }
+            UserDefaults.standard.set(sort.key.rawValue, forKey: Self.sortKeyKey)
+            UserDefaults.standard.set(sort.ascending, forKey: Self.sortAscendingKey)
+            reloadItems(keepFocus: true)
+        }
+    }
+
     var filter: LibraryFilter {
-        LibraryFilter(scope: scope(for: sidebarSelection), rating: ratingRule, flag: flagRule, groupsPairs: groupPairs)
+        LibraryFilter(scope: scope(for: sidebarSelection), rating: ratingRule, flag: flagRule, search: searchText,
+                      sort: sort, groupsPairs: groupPairs)
+    }
+
+    func clearFilter() {
+        ratingRule = .any
+        flagRule = .any
+        searchText = ""
     }
 
     func scope(for selection: SidebarSelection) -> LibraryFilter.Scope {
@@ -169,7 +197,9 @@ final class LibraryModel {
         return .captureDays(start: days.start, end: days.end)
     }
 
-    var isFiltered: Bool { ratingRule != .any || flagRule != .any }
+    var isFiltered: Bool {
+        ratingRule != .any || flagRule != .any || !LibraryFilter(search: searchText).searchTerms.isEmpty
+    }
 
     // MARK: Items, focus, selection
 
@@ -256,6 +286,8 @@ final class LibraryModel {
     private static let loupeInspectorTabKey = "loupe.inspectorTab"
     private static let writesSidecarsKey = "sidecars.write"
     private static let opensImportOnCardKey = "import.openOnCard"
+    private static let sortKeyKey = "browser.sortKey"
+    private static let sortAscendingKey = "browser.sortAscending"
 
     // MARK: Background work
 
@@ -271,6 +303,7 @@ final class LibraryModel {
     @ObservationIgnored weak var observer: LibraryItemsObserver?
     @ObservationIgnored private var volumesByID: [Int64: VolumeRecord] = [:]
     @ObservationIgnored private var reloadTask: Task<Void, Never>?
+    @ObservationIgnored private var searchTask: Task<Void, Never>?
     @ObservationIgnored private var importTask: Task<Void, Never>?
     @ObservationIgnored private var importQueue = FolderImportQueue()
     /// Items dropped during the current batch that were not folders.
@@ -316,6 +349,8 @@ final class LibraryModel {
         loupeInspectorTab = defaults.string(forKey: Self.loupeInspectorTabKey).flatMap(InspectorTab.init(rawValue:))
             ?? .adjust
         writesSidecars = defaults.object(forKey: Self.writesSidecarsKey) as? Bool ?? true
+        sort = LibrarySort(key: defaults.string(forKey: Self.sortKeyKey).flatMap(LibrarySort.Key.init(rawValue:)) ?? .captureDate,
+                           ascending: defaults.object(forKey: Self.sortAscendingKey) as? Bool ?? true)
         sidecars = SidecarSync(catalog: catalog, metadataReader: importer.metadataReader)
         cardImport = CardImportModel(metadataReader: importer.metadataReader, presets: catalog)
         opensImportOnCard = defaults.object(forKey: Self.opensImportOnCardKey) as? Bool ?? true

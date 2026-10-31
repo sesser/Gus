@@ -101,7 +101,11 @@ struct BrowserView: View {
             if model.isFolderDropTargeted { FolderDropHighlight() }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            StatusBar(model: model)
+            VStack(spacing: 0) {
+                FilterBar(model: model)
+                Divider()
+                StatusBar(model: model)
+            }
         }
     }
 }
@@ -224,14 +228,6 @@ struct BrowserToolbar: ToolbarContent {
             .disabled(model.isImporting)
         }
         ToolbarItemGroup(placement: .primaryAction) {
-            Button {
-                model.beginKeywordEntry()
-            } label: {
-                Label("Add Keywords", systemImage: "tag")
-            }
-            .help("Add keywords to the selected photos (⌘K)")
-            .disabled(model.itemCount == 0)
-
             Picker("View", selection: $model.mode) {
                 Label("Grid", systemImage: "square.grid.2x2").tag(BrowserMode.grid)
                 Label("Loupe", systemImage: "rectangle").tag(BrowserMode.loupe)

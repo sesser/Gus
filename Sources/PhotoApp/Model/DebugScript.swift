@@ -9,6 +9,8 @@ import PhotoUI
 ///     loupe | grid          size <points>           focus <index>|<file name without extension>
 ///     zoom                  project <n>|all         rating any|unrated|<1-5>
 ///     flag any|picked|rejected|unflagged|notrejected                 quit
+///     search [<text>]       (the filter bar's search; empty clears)
+///     sort captureDate|rating|fileName [asc|desc]
 ///     pairs grouped|separate  pairfile raw|jpeg     advance on|off
 ///     selectall             addkeywords <a, b>      keyentry      text <typed text>
 ///     undo | redo           inspector on|off        keyword <n>   (sidebar keyword n, 0-based)
@@ -131,6 +133,12 @@ enum DebugScript {
                 "picked": .picked, "rejected": .rejected, "unflagged": .unflagged, "notrejected": .notRejected,
             ]
             model.flagRule = rules[rest.first ?? ""] ?? .any
+        case "search":
+            model.searchText = rest.joined(separator: " ")
+        case "sort":
+            if let key = rest.first.flatMap(LibrarySort.Key.init(rawValue:)) {
+                model.sort = LibrarySort(key: key, ascending: rest.dropFirst().first != "desc")
+            }
         case "pairs":
             model.groupPairs = rest.first != "separate"
         case "pairfile":
