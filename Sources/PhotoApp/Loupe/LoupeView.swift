@@ -89,7 +89,10 @@ final class LoupeController: NSObject {
     /// Loads the shown version's renditions again on the next `show`.
     private var reloadsSameKey = false
     private var shownIndex: Int?
-    private var zoom: Zoom = .fit
+    private var zoom: Zoom = .fit {
+        // Zoomed in, live frames are already stretched: drafts would make that worse.
+        didSet { model.editor.allowsDrafts = zoom == .fit }
+    }
     private var rendition = Rendition.placeholder
     private var loadTask: Task<Void, Never>?
     private var hdrTask: Task<Void, Never>?

@@ -122,17 +122,47 @@ struct LiveSessionTests {
         #expect(difference.psnr >= 48.1 && difference.meanDeltaE <= 0.002, "\(control): \(difference)")
     }
 
-    @Test("Drafts step down over the budget and back up only with room to spare")
+    @Test("Drafts step down over the drop threshold and back up below the raise threshold")
     func draftHysteresis() {
         let next = LiveRenderSession.nextDraftLevel
-        #expect(next(0, 0.09) == 0)
-        #expect(next(0, 0.12) == 1)
-        #expect(next(1, 0.12) == 2)
-        #expect(next(2, 0.30) == 2)
-        // A half-size frame of 20 ms predicts 80 ms at full size: over 60 % of the budget, stay.
-        #expect(next(1, 0.020) == 1)
-        #expect(next(1, 0.014) == 0)
-        #expect(next(2, 0.010) == 1)
+        let drop = LiveRenderSession.draftDropThreshold, raise = LiveRenderSession.draftRaiseThreshold
+        #expect(raise < drop)
+        #expect(next(0, drop * 0.9) == 0)
+        #expect(next(0, drop * 1.1) == 1)
+        #expect(next(1, drop * 1.1) == 2)
+        #expect(next(2, drop * 3) == 2)
+        // A smaller frame predicting a full one just over the raise threshold stays small.
+        #expect(next(1, raise / 4 * 1.1) == 1)
+        #expect(next(1, raise / 4 * 0.9) == 0)
+        #expect(next(2, raise / 4 * 0.9) == 1)
+    }
+
+    static func floats(_ image: CGImage) -> [Float] {
+        let data = image.dataProvider?.data as Data? ?? Data()
+        let rowFloats = image.bytesPerRow / 4
+        return data.withUnsafeBytes { raw in
+            let all = raw.bindMemory(to: Float.self)
+            return (0..<image.height).flatMap { y in (0..<image.width * 4).map { all[y * rowFloats + $0] } }
+        }
+    }
+
+    @Test("Prefilling the cache makes a drag's first frame a cached one")
+    func prefill() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { folder in
+            let url = folder.appending(path: "photo.jpg")
+            try SyntheticImages.writeJPEG(to: url, width: 1200, height: 900, seed: 21)
+            let generator = PreviewGenerator(engine: RenderEngine(contextCount: 1, name: "prefill-test"))
+            let session = LiveRenderSession(source: url, generator: generator, longEdge: 800, colorSpace: nil)
+            let whole = LiveRenderSession(source: url, generator: generator, longEdge: 800, colorSpace: nil,
+                                          cachesStages: false)
+            var values = Self.masked()
+            #expect(try await session.render(values).filledCache)
+            try await session.prepare(values, editing: values.local.masks[2].id, allowsDrafts: false)
+            values.local.masks[2].adjustments.contrast = 45
+            let first = try await session.render(values, interactive: true, allowsDrafts: false)
+            #expect(!first.filledCache, "the drag's first frame filled the cache")
+            let a = Self.bytes(first), b = Self.bytes(try await whole.render(values))
+            #expect((zip(a, b).map { abs(Int($0) - Int($1)) }.max() ?? 9) <= 1)
+        }
     }
 }
-

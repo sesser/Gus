@@ -63,6 +63,7 @@ final class AdjustmentEditor {
             guard oldValue != selectedMaskID else { return }
             if selectedMask?.components.contains(where: { $0.shape.brushComponent }) != true { isBrushing = false }
             if showsMaskOverlay, state == .ready { showsLive = true; requestRender(interactive: false) }
+            schedulePrefill()
         }
     }
     /// Shows the selected mask in red over the photo.
@@ -73,6 +74,9 @@ final class AdjustmentEditor {
             requestRender(interactive: false)
         }
     }
+    /// Interactive frames may be reduced drafts (`LiveRenderSession`); off
+    /// while the loupe is zoomed in.
+    @ObservationIgnored var allowsDrafts = true
     /// Drags on the photo paint into the selected mask's brush.
     var isBrushing = false
     /// The settings the next stroke paints with (its points are unused).
@@ -121,6 +125,9 @@ final class AdjustmentEditor {
     /// pause), cancelled when new input arrives.
     @ObservationIgnored private var refinement: RenderCancellation?
     @ObservationIgnored private var refineTask: Task<Void, Never>?
+    /// Fills the session's stage cache for the selected mask on idle.
+    @ObservationIgnored private var prefill: RenderCancellation?
+    @ObservationIgnored private var prefillTask: Task<Void, Never>?
     @ObservationIgnored private var lastFrameWasInteractive = false
     /// The frame being rendered is a draft.
     @ObservationIgnored private var renderingInteractive = false
@@ -207,6 +214,8 @@ final class AdjustmentEditor {
         refineTask = nil
         refinement?.cancel()
         refinement = nil
+        prefillTask?.cancel()
+        prefill?.cancel()
         session = nil
         frame = nil
         cropSession = nil
@@ -249,9 +258,11 @@ final class AdjustmentEditor {
     /// Applies a change from a control. `actionName` names the undo step.
     func change(_ actionName: String, phase: EditPhase, _ body: (inout Adjustments) -> Void) {
         guard state == .ready else { return }
-        // New input: a pending full-quality render is out of date.
+        // New input: a pending full-quality render or cache fill is out of date.
         refineTask?.cancel()
         refinement?.cancel()
+        prefillTask?.cancel()
+        prefill?.cancel()
         var next = adjustments
         body(&next)
         next.enableModules(changedFrom: adjustments)
@@ -425,7 +436,8 @@ final class AdjustmentEditor {
                 do {
                     let overlay = showsMaskOverlay && !showsOriginal ? selectedMaskID : nil
                     let rendered = try await session.render(next.values, interactive: next.interactive,
-                                                            overlayMask: overlay, cancellation: next.cancellation)
+                                                            allowsDrafts: allowsDrafts, overlayMask: overlay,
+                                                            cancellation: next.cancellation)
                     guard !Task.isCancelled, session === self.session else { break }
                     frame = rendered
                     frameHasOverlay = overlay != nil && rendered.histogram == nil
@@ -436,7 +448,7 @@ final class AdjustmentEditor {
                     }
                     frameRevision += 1
                     seedPreviewIfRendered()
-                    if next.interactive { scheduleRefinement() }
+                    if next.interactive { scheduleRefinement() } else { schedulePrefill() }
                 } catch is CancellationError {
                     // Superseded by newer input; the draft stays on screen.
                 } catch {
@@ -455,6 +467,24 @@ final class AdjustmentEditor {
             try? await Task.sleep(for: .milliseconds(150))
             guard !Task.isCancelled, state == .ready, lastFrameWasInteractive, pendingRender == nil else { return }
             requestRender(interactive: false)
+        }
+    }
+
+    /// After about 150 ms without input, renders into the session's stage cache
+    /// what a drag of the selected mask will reuse (the image entering the
+    /// mask step, the estimates, the masks before it), so the drag's first
+    /// frame is cheap. Cancelled by new input between stages.
+    private func schedulePrefill() {
+        prefillTask?.cancel()
+        prefill?.cancel()
+        guard selectedMaskID != nil else { return }
+        prefillTask = Task {
+            try? await Task.sleep(for: .milliseconds(150))
+            guard !Task.isCancelled, state == .ready, let session, pendingRender == nil, renderTask == nil else { return }
+            let token = RenderCancellation()
+            prefill = token
+            try? await session.prepare(adjustments, editing: selectedMaskID, allowsDrafts: allowsDrafts,
+                                       cancellation: token)
         }
     }
 
