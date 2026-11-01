@@ -1,5 +1,6 @@
 import CoreImage
 import Foundation
+import Synchronization
 
 /// Renders one master again and again while its adjustments change.
 ///
@@ -28,6 +29,10 @@ public actor LiveRenderSession {
     private var baseOrder: [BaseKey] = []
     /// The master's size, read once a crop needs it.
     private var nativeSize: CGSize??
+    /// Keeps what a drag of a mask control does not change (`StageCache`);
+    /// false renders every frame whole, for comparison.
+    public let cachesStages: Bool
+    private var stages = StageCache()
 
     private struct BaseKey: Hashable {
         var settings: RAWDecodeSettings
@@ -39,13 +44,119 @@ public actor LiveRenderSession {
     private struct Base {
         var image: CGImage
         var context: RenderContext
+        var longEdge: Int { max(image.width, image.height) }
+    }
+
+    // MARK: Stages
+
+    /// What the last frames' masks had in common with the next: the image
+    /// entering the mask step, the whole-frame estimates, and the result of
+    /// the masks before the one being changed, each rendered once to a
+    /// half-float image (one rounding, as an intermediate of Core Image's own).
+    private struct StageCache {
+        /// The base and the global modules before the masks.
+        var upstreamKey: String?
+        var selection: CIImage?
+        var estimatesKey: String?
+        var estimates: LocalEstimates?
+        /// The result after the masks `prefix.masks`, the ones before the mask being changed.
+        var prefix: (masks: [Mask], image: CIImage, sharpening: [MaskSharpening])?
+        var lastMasks: [Mask] = []
+    }
+
+    /// `adjustments` through `AdjustmentRenderer`'s stages, reusing `stages`.
+    private func staged(_ adjustments: Adjustments, renderer: AdjustmentRenderer, source: CIImage,
+                        context: RenderContext, baseKey: BaseKey, cancellation: RenderCancellation?) throws -> CIImage {
+        let values = adjustments.effective
+        let masks = values.local.renderedMasks
+        guard !values.isDefault, !masks.isEmpty else {
+            stages = StageCache()
+            return renderer.render(values, to: source, context: context)
+        }
+        let crop = AdjustmentRenderer.crop(values, context: context)
+        var upstream = values
+        upstream.local = LocalAdjustments()
+        upstream.lookTable = LookTable()
+        upstream.vignette = Vignette()
+        upstream.noiseReduction = NoiseReduction()
+        upstream.sharpen = Sharpen()
+        upstream.grain = Grain()
+        let upstreamKey = "\(baseKey)|\(upstream.editStack.renderHash)"
+        if stages.upstreamKey != upstreamKey {
+            stages = StageCache()
+            stages.upstreamKey = upstreamKey
+        }
+        let selection: CIImage
+        if let cached = stages.selection {
+            selection = cached
+        } else {
+            selection = try materialize(renderer.upstream(values, to: source, crop: crop, context: context))
+            stages.selection = selection
+        }
+        try cancellation?.check()
+
+        let wanted = renderer.localEstimates(masks, over: selection)
+        let estimatesKey = "\(wanted.luminance != nil)|\(wanted.haze != nil)"
+        let estimates: LocalEstimates
+        if stages.estimatesKey == estimatesKey, let cached = stages.estimates {
+            estimates = cached
+        } else {
+            var made = LocalEstimates()
+            if let luminance = wanted.luminance { made.luminance = try materialize(luminance) }
+            if let haze = wanted.haze {
+                // The airlight is one value over an infinite image: render its one pixel.
+                let airlight = try materialize(haze.airlight.cropped(to: CGRect(x: 0, y: 0, width: 1, height: 1)))
+                made.haze = (try materialize(haze.map.cropped(to: selection.extent)), airlight.clampedToExtent())
+            }
+            estimates = made
+            stages.estimates = made
+            stages.estimatesKey = estimatesKey
+        }
+        try cancellation?.check()
+
+        // The first mask that differs from the last frame's: the one being changed.
+        let changed = masks.indices.first { $0 >= stages.lastMasks.count || masks[$0] != stages.lastMasks[$0] }
+            ?? masks.count
+        stages.lastMasks = masks
+        var start = 0
+        var image = selection
+        var sharpening: [MaskSharpening] = []
+        if let prefix = stages.prefix, prefix.masks.count <= masks.count,
+           masks.prefix(prefix.masks.count).elementsEqual(prefix.masks) {
+            (image, sharpening, start) = (prefix.image, prefix.sharpening, prefix.masks.count)
+        }
+        for index in start..<masks.count {
+            if index == changed, index > start {
+                // Keep the masks before the one being changed for the next frames.
+                image = try materialize(image)
+                stages.prefix = (Array(masks.prefix(index)), image, sharpening)
+            }
+            let step = renderer.applyMask(masks[index], to: image, selection: selection, estimates: estimates,
+                                          maskFrame: source.extent, crop: crop, context: context)
+            image = step.image
+            sharpening += step.sharpening
+            try cancellation?.check()
+        }
+        return renderer.downstream(values, image, sharpening: sharpening, context: context)
+    }
+
+    /// Renders `image` once to a half-float image in the working space.
+    private func materialize(_ image: CIImage) throws -> CIImage {
+        let extent = image.extent.integral
+        guard !extent.isInfinite, !extent.isEmpty,
+              let rendered = generator.engine.withContext({
+                  $0.createCGImage(image, from: extent, format: .RGBAh, colorSpace: RenderEngine.workingColorSpace)
+              })
+        else { throw PreviewGenerator.Failure.renderFailed }
+        return CIImage(cgImage: rendered).transformed(by: CGAffineTransform(translationX: extent.minX, y: extent.minY))
     }
 
     /// - Parameters:
     ///   - longEdge: Size of the frames (the loupe's fit size).
     ///   - colorSpace: The display's color space, so frames need no conversion on screen.
     public init(source: URL, generator: PreviewGenerator, longEdge: Int = PreviewTier.preview.longEdge,
-                colorSpace: CGColorSpace?) {
+                colorSpace: CGColorSpace?, cachesStages: Bool = true) {
+        self.cachesStages = cachesStages
         self.source = source
         self.generator = generator
         self.longEdge = longEdge
@@ -54,7 +165,8 @@ public actor LiveRenderSession {
 
     /// Renders `adjustments`. `interactive` allows a faster, rougher decode when a
     /// RAW decode setting changed.
-    public func render(_ adjustments: Adjustments, interactive: Bool = false, overlayMask: UUID? = nil) throws -> Frame {
+    public func render(_ adjustments: Adjustments, interactive: Bool = false, overlayMask: UUID? = nil,
+                       cancellation: RenderCancellation? = nil) throws -> Frame {
         let stack = adjustments.editStack
         let renderer = generator.renderer
         let isRaw = SupportedFormats.isRaw(pathExtension: source.pathExtension)
@@ -62,7 +174,15 @@ public actor LiveRenderSession {
         let base = try self.base(for: BaseKey(settings: settings, draft: interactive,
                                               longEdge: decodeLongEdge(renderer.geometry(for: stack))))
         let source = CIImage(cgImage: base.image)
-        var image = try renderer.apply(stack, to: source, context: base.context)
+        var image: CIImage
+        if cachesStages, let adjusting = renderer as? AdjustmentRenderer {
+            image = try staged(adjustments, renderer: adjusting, source: source, context: base.context,
+                               baseKey: BaseKey(settings: settings, draft: interactive, longEdge: base.longEdge),
+                               cancellation: cancellation)
+        } else {
+            image = try renderer.apply(stack, to: source, context: base.context)
+        }
+        try cancellation?.check()
         var overlaid = false
         if let overlayMask, let adjusting = renderer as? AdjustmentRenderer,
            let alpha = adjusting.maskAlpha(adjustments, id: overlayMask, to: source, context: base.context) {
@@ -121,5 +241,21 @@ public actor LiveRenderSession {
             bases[baseOrder.removeFirst()] = nil
         }
         return base
+    }
+}
+
+/// Lets a caller abandon a render between its stages (work already sent to
+/// the GPU finishes, but nothing more starts and no frame is made).
+public final class RenderCancellation: Sendable {
+    private let cancelled = Mutex(false)
+
+    public init() {}
+
+    public func cancel() { cancelled.withLock { $0 = true } }
+
+    public var isCancelled: Bool { cancelled.withLock { $0 } }
+
+    func check() throws {
+        if isCancelled { throw CancellationError() }
     }
 }
