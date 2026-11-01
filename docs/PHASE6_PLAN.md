@@ -1,8 +1,8 @@
 # Phase 6 plan: local adjustments with masks
 
-Status: **plan, waiting for approval of the six decisions below.** Step 0
-(the Phase 5 gaps) is done. No code that changes saved edit stacks has been
-written.
+Status: **decisions approved (2026-11-01) with the changes recorded below;
+implementation under way.** Step 0, questions A–D and the finding 4 guard
+are done.
 
 Masks let the global adjustments act on part of a photo: a linear gradient,
 a radial gradient, a brush, a luminance range and a color range, combined
@@ -46,7 +46,7 @@ issue):
   would make the reference take minutes.
 - **A new harness check**: every golden case must change its scene.
 
-### Findings (reported, not fixed)
+### Findings
 
 1. **Negative clarity does nothing.** `CIUnsharpMask` clamps its intensity
    at 0 (its attribute minimum), so `AdjustmentRenderer.clarity` with a
@@ -54,8 +54,10 @@ issue):
    `clarity-minus40-hazyLandscape` pins the unchanged scene. The new check
    records it as a known issue. Fixing it changes the render of every stack
    with negative clarity (a `currentPipelineVersion` bump and that golden).
-   Local clarity at −100 (softening) is one of the main uses of a mask, so
-   this needs a decision before local clarity ships. **Question A.**
+   Local clarity at −100 (softening) is one of the main uses of a mask.
+   **Fixed** (question A): negative amounts blend toward the same Gaussian,
+   checked against a new CPU reference (`ClarityReference`), pipeline
+   version 3, that golden rewritten.
 2. **`grain-coarseColor-patchChart` no longer reproduces bit for bit** on
    the machine that made it (macOS 27.2, M4 Pro): up to 0.00012 in green,
    PSNR 124 dB, well inside the tolerance. Unchanged `develop` gives the same
@@ -63,20 +65,22 @@ issue):
 3. **`UPDATE_GOLDENS=1` rewrites goldens that pass.** It rewrites every
    golden whose bytes differ, so adding new goldens also rewrote
    `grain-coarseColor-patchChart` (finding 2), which then had to be restored
-   by hand. Rewriting only the goldens a filter names, or only those outside
-   the tolerance, would prevent that. **Question B.**
+   by hand. **Fixed** (question B): `UPDATE_GOLDENS=1` now writes only
+   missing goldens and goldens outside their tolerance.
 4. **A RAW decode can come back empty without an error.** The synthetic DNG
    at 256 × 192 (and 258 × 194) decodes to an empty image (native size
    0 × 0) while 300 × 200 and larger decode; the cause is not found.
    `PreviewGenerator.decode` returns the empty image as a successful RAW
    decode rather than falling back to ImageIO or throwing `undecodable`. The
-   RAW goldens use 320 × 240.
+   RAW goldens use 320 × 240. **Guarded**: an empty RAW output now counts as
+   no output (ImageIO is tried, then `undecodable`); the cause is not
+   investigated.
 5. **An unreadable stack is edited as if it were empty.**
    `AdjustmentEditor.swift:134` and `AdjustmentActions.swift:16` take
    `(try? decodedEditStack()) ?? .identity`, so a stack this build cannot
    decode (one written by a newer build, `unsupportedSchemaVersion`) is
    shown unedited, and the first slider move saves over it: the newer
-   edits are lost. This matters for decision 2. **Question C.**
+   edits are lost. **Fixed** (question C, below).
 6. **Non-RAW noise reduction runs late**: after the look-up table and the
    vignette, so it smooths what they did and the vignette's gain has already
    amplified the noise. Not changed; it matters for where local sharpening
@@ -105,9 +109,35 @@ their GPU is virtual. In order of how likely they are to differ:
 
 `LargeRenderTests` does not run in CI. CI does not set `GOLDENS_REPORT=1` or
 keep `$TMPDIR/golden-failures`, so a failure there shows the measures but not
-the image. Setting the variable on the test step and uploading that folder
-as an artifact when the step fails would make the first run readable.
-**Question D.**
+the image. **Fixed** (question D): the test step sets `GOLDENS_REPORT=1`
+and `GOLDEN_FAILURES_DIR`, and a failed job uploads that folder as the
+artifact `golden-failures-<runner>`.
+
+### Refusing to write over unreadable stacks (question C)
+
+- `Catalog.setEditStack` and `setEditStacks` check the stored stack inside
+  the write transaction and throw `UnreadableEditStacks`, writing nothing,
+  when it cannot be read (`EditStack.ReadFailure`: `newerVersion(n)` or
+  `damaged`). Every writer goes through them, so a path added later is
+  covered too.
+- Paste Adjustments and applying a preset go through
+  `Catalog.changeEditStacks`, which leaves such photos alone; the status
+  line says how many. (There is no adjustment sync yet; it would use the
+  same call.)
+- The editor turns editing off for such a photo and the Adjust tab says
+  why ("These edits were saved by a newer version of …. Editing is off so
+  they are not lost."). Copy Adjustments and saving a preset from it say
+  the same instead of copying nothing.
+- `photocli develop` and `render` fail with `unreadableEditStack` (exit 1);
+  `query images` lists the version with `editStack: null` and
+  `unreadableEditStack: "newerVersion"`.
+- Tests (`UnreadableStackTests`): single and batch writes are refused and
+  leave the stored JSON and hash byte for byte; paste and a preset change
+  the readable photos only; `develop`, `render` and `query`. Checked in the
+  app with a debug script: the Adjust tab's message, an edit attempt and a
+  paste over both photos left the unreadable row unchanged.
+- The loupe shows nothing for such a photo: its preview cannot be rendered
+  either. Unchanged.
 
 ## Decision 1: coordinate space
 
@@ -151,6 +181,12 @@ and sizes as fractions of its long edge.
   renderer crops to the camera's frame (`CameraFrame.rect`, passed in
   `RenderContext`), so adding a mask never changes the framing. Only these
   formats are affected, and stacks without masks decode as before.
+- **Test on a real RW2** (approved addition): a stack whose masks all have
+  α = 0 must render the same as the stack without masks, on a Panasonic
+  RW2 from the library (one shot at an aspect other than the sensor's, so
+  the whole-sensor decode and the camera-frame crop both run). The file is
+  only read; its path comes from `CAMERA_RAW_SAMPLE`, and without it the
+  test is skipped with that reason (it cannot run in CI).
 
 ## Decision 2: persisted shape
 
@@ -193,10 +229,19 @@ and keep everything else as it is.
 
   Brush points are a flat list x, y, x, y… rounded to 10⁻⁶ of the frame
   (0.006 px on a 6000 px edge), which keeps long strokes compact.
-- **Limits** when reading (so a stack from `photocli` or a damaged file
-  cannot stall a render): 32 masks, 16 components per mask, 8 color samples,
-  and 200 000 brush points per mask; values outside a parameter's range are
-  clamped as the modules do.
+- **Limits**: 32 masks, 16 components per mask, 8 color samples, 200 000
+  brush points per mask. They are **enforced only when masks are created**
+  (the editor, the brush and `mask add` refuse to go past them). A stored
+  stack over a limit is **not truncated** on read: it is unreadable, with
+  the same refusal as question C (`EditStack.ReadFailure.exceedsLimits`),
+  so nothing ever writes a shortened copy over it. Values outside a
+  parameter's range are clamped as the modules do.
+- **Brush points are thinned when recorded**: a sample closer than a tenth
+  of the brush radius to the last kept one is dropped (dabs are a quarter of
+  the radius apart, so the dropped samples change no dab position by more
+  than that), and the stroke's last sample is always kept. While painting,
+  the benchmark measures the stack's encoded size and the time to encode it
+  and hash it, per stroke and for long strokes.
 - **Downside**: a build from before this phase cannot read a masked stack at
   all, and because of finding 5 it would show the photo unedited and
   overwrite the stack on the first edit. Fixing finding 5 now (Question C)
@@ -242,8 +287,14 @@ Why:
   - *Local sharpening* is applied at the sharpening step (after noise
     reduction, finding 6), as a second unsharp mask blended by the same
     mask. At the mask step it would be smoothed by noise reduction.
-  - *Local dehaze* uses the haze estimate (dark channel and airlight) taken
-    where global dehaze takes it, from the whole frame before any dehaze.
+  - *Local dehaze* takes its haze estimate (dark channel and airlight) from
+    the whole image entering the mask step, as local tone does (approved
+    change). No reason against it that outweighs the simplicity, but two
+    consequences: the estimate is made on values already through the tone
+    table, while the haze model (I = J·t + A·(1 − t)) is a linear-light
+    model; and after global dehaze the veil is partly gone, so local dehaze
+    acts on what remains. Local +40 and global +40 will therefore not look
+    the same on one region.
 - **Range masks select on the image entering the mask step**, the same image
   for every mask, so reordering masks never changes what a range selects.
 
@@ -284,23 +335,50 @@ Local controls in v1 and the module each one drives:
 
 | control | range | module |
 |---|---|---|
-| exposure | −4 … +4 EV | `Exposure.ev` |
+| exposure | −4 … +4 EV | exact, a gain map (below) |
 | contrast, highlights, shadows, whites, blacks | −100 … +100 | `Tone` |
 | temperature, tint | −100 … +100, relative | `relativeWhiteBalance` (RAW files too: the decoder's Kelvin stays global) |
 | vibrance, saturation, clarity, dehaze | −100 … +100 | `Presence` |
 | sharpen | 0 … 100 | `Sharpen.amount`, at the sharpening step |
 
-- **Whole-image estimates**: local tone's smoothed luminance comes from the
-  whole frame at the mask step, and local dehaze's haze estimate from the
-  whole frame before dehaze (decision 3), never from the masked region.
+- **Exposure is exact** (approved change): the mask's α goes through a
+  table to the gain 2^(EV · α) and multiplies the image, as the vignette's
+  gain map does. The other local modules then run on that image and are
+  blended by α: R = blend(E, M(E), α) with E = B · 2^(EV · α). A mask with
+  exposure alone renders exactly E.
+- **Whole-image estimates**: local tone's smoothed luminance and local
+  dehaze's haze estimate come from the whole image entering the mask step
+  (decision 3), never from the masked region.
 - **What the blend means for soft edges**: blending outputs is linear in α,
-  not in the slider. Where α = 0.5, a +2 EV mask gives (1 + 4) / 2 = 2.5×
-  (+1.32 EV) rather than +1 EV. Transitions stay smooth and monotonic, so
-  gradients look right, but half a mask is not half the slider. Scaling the
-  parameter per pixel would need a kernel for nearly every module, which is
-  out of proportion for v1. Exposure alone could later be made exact with a
-  gain map, as the vignette does, if it shows.
-- Negative clarity depends on Question A.
+  not in the slider, so half a mask is not half the slider. Transitions stay
+  smooth and monotonic. How far apart the two are, per control
+  (`photobench blend-error`: the largest difference between blend(B, M(p),
+  α) and M(α · p) over every test scene, four values across the range and
+  α 0.1 … 0.9, in the perceptual encoding clipped to 0 … 1, as goldens are;
+  the mean is of each case's largest difference):
+
+  | control | values | largest difference | 8-bit steps | mean | worst case |
+  |---|---|---|---|---|---|
+  | exposure | ±2, ±4 EV | 0.322 | 82.0 | 0.130 | hazy landscape, +4 at α 0.3 |
+  | contrast | ±50, ±100 | 0.028 | 7.0 | 0.011 | hue ramp, +100 at α 0.6 |
+  | highlights | ±50, ±100 | 0.081 | 20.6 | 0.007 | grey ramp, −100 at α 0.8 |
+  | shadows | ±50, ±100 | 0.053 | 13.5 | 0.011 | hue ramp, +100 at α 0.5 |
+  | whites | ±50, ±100 | 0.004 | 1.1 | 0.001 | grey ramp, −100 at α 0.5 |
+  | blacks | ±50, ±100 | 0.031 | 7.8 | 0.007 | hue ramp, −100 at α 0.5 |
+  | temperature | ±50, ±100 | 0.037 | 9.4 | 0.004 | hue ramp, −100 at α 0.5 |
+  | tint | ±50, ±100 | 0.014 | 3.6 | 0.001 | hue ramp, −100 at α 0.5 |
+  | vibrance | ±50, ±100 | 0.098 | 24.9 | 0.010 | hue ramp, +100 at α 0.5 |
+  | saturation | ±50, ±100 | 0.000 | 0.0 | 0.000 | (exact: linear in its parameter) |
+  | clarity | ±50, ±100 | 0.050 | 12.7 | 0.011 | edge target, −100 at α 0.4 |
+  | dehaze | ±50, ±100 | 0.515 | 131.3 | 0.052 | grey ramp, +100 at α 0.7 |
+  | sharpen | 25 … 100 | 0.086 | 22.0 | 0.015 | edge target, 100 at α 0.6 |
+
+  Exposure is why it is done exactly. Dehaze is the other outlier: its
+  effect grows steeply with the amount (the gain is 1/t), so a soft-edged
+  local dehaze is much stronger at mid α than the slider at that fraction.
+  Doing it exactly would need a per-pixel amount in its tables (a kernel or
+  a two-dimensional table); not in v1, and the UI will not hide it. The
+  table was measured on unedited scenes, Apple M4 Pro, macOS 27.2.
 
 ## Decision 6: mask resolution and caching
 
@@ -313,8 +391,12 @@ Local controls in v1 and the module each one drives:
 - **Brush strokes** are stored as points and rasterized at the render size
   for each render size, never as a bitmap that gets scaled. Rasterizing
   runs on the CPU in plain Swift into a `Float` plane (the dab profile and
-  accumulation are exact there, and testable against the reference); the
-  plane goes to Core Image as half float. Rasterized planes are cached in
+  accumulation are exact there, and testable against the reference), **in
+  parallel**: the plane is cut into bands of rows, one task per band, each
+  drawing every dab that reaches it in stroke order, so the result does not
+  depend on the split. The plane goes to Core Image as half float. A test
+  rasterizes a large soft brush at 24 megapixels against the reference on
+  sampled rows, and reports the time (`LARGE_RENDER_TESTS=1`). Rasterized planes are cached in
   memory by (mask hash, pixel size), least recently used first out, at most
   256 MB. While a stroke is being painted, only its new dabs are drawn into
   the cached plane.
@@ -334,7 +416,10 @@ Local controls in v1 and the module each one drives:
 ## Shapes
 
 All formulas take pixel centers. smoothstep(e₀, e₁, x) = t²(3 − 2t) with
-t = clamp((x − e₀)/(e₁ − e₀), 0, 1).
+t = clamp((x − e₀)/(e₁ − e₀), 0, 1). **A zero feather or smoothness is a
+hard step** (approved): smoothstep(e, e, x) is 0 for x < e and 1 for x ≥ e,
+never a division by zero, in the renderer and the references alike. Hard
+steps are not antialiased: a pixel center decides.
 
 - **Linear gradient**: start and end points and Feather (0 … 100, default
   100). With t the position along start → end (0 at start, 1 at end),
@@ -455,7 +540,9 @@ mean, p95), brush rasterization alone, and memory (physical footprint). The
 budget is the one live edits meet today with a typical stack (36 ms per
 frame for a DNG): three masks should stay under 100 ms p95. Over budget, the
 report says where the time goes (which mask's modules, rasterization, the
-blend) before anything is optimized.
+blend) before anything is optimized; the first remedy to consider is a
+reduced-size draft while a control or handle is dragged, as RAW decode
+settings already do, with the full frame on release.
 
 ## Order of work after approval
 
@@ -464,27 +551,30 @@ blend) before anything is optimized.
 3. The mask model in `Adjustments` (reading, writing, limits), with tests.
 4. Mask-frame mapping in `CropGeometry`, with tests.
 5. Shapes, one commit each with its reference and golden; combining.
-6. Renderer: the mask step, local sharpening at the sharpening step, the
-   dehaze estimate, the camera-frame crop; the crop and resolution tests.
+6. Renderer: the mask step, exact local exposure, local sharpening at the
+   sharpening step, the camera-frame crop; the crop, resolution and RW2
+   tests.
 7. Commands, then the debug-script commands.
-8. UI: the Masks heading, the overlay, the brush.
+8. UI: the Masks heading, the overlay, the brush (points thinned as they
+   are recorded).
 9. `photobench masks`, profiling, and this file's results.
 
 `swift build` and `swift test` after each commit.
 
-## Questions before code that persists data
+## Answers (2026-11-01)
 
-1. **Decisions 1–6**: approve, or change.
-2. **A.** Fix negative clarity (finding 1) before local clarity ships, as its
-   own commit with a pipeline version bump and the changed golden?
-3. **B.** Change `UPDATE_GOLDENS` to rewrite only goldens outside the
-   tolerance (finding 3)?
-4. **C.** Make the editor refuse to edit a stack it cannot read instead of
-   starting from an empty one (finding 5), before any schema 2 stack exists?
-5. **D.** Set `GOLDENS_REPORT=1` in CI and upload `golden-failures` when tests
-   fail?
-6. **E.** An invert for a whole mask, besides each component's?
-7. **F.** The linear gradient's Feather as described under Shapes?
+1. Decisions 1–6: approved, with the changes above (the RW2 test; no
+   truncation of over-limit stacks; thinned brush points; local dehaze from
+   the mask step's image; exact local exposure and the blend table; hard
+   steps at zero feather; parallel brush rasterization; drafts if over
+   budget).
+2. A: yes, done (`86eb73a` reference, `08d2fcc` fix, pipeline version 3).
+3. B: yes, done (`bb980ff`).
+4. C: yes, done before the stack format changes (`d413653`).
+5. D: yes, done (`d0e17cb`).
+6. E: no invert for a whole mask for now.
+7. F: yes, the linear gradient's Feather as described.
+8. Finding 4: guarded, cause not chased (`43a5b70`).
 
 ## Third-party code
 
