@@ -44,6 +44,10 @@ swift run photocli help
 UPDATE_GOLDENS=1 swift test --filter GoldenTests
 ```
 
+```bash
+LARGE_RENDER_TESTS=1 swift test --filter LargeRenderTests
+```
+
 The build does not depend on Xcode: everything goes through SwiftPM, and tests
 use Swift Testing (not XCTest). `Scripts/build-app.sh` assembles the `.app`
 bundle (Info.plist from `Branding.xcconfig`, String Catalog compiled by the

@@ -103,3 +103,53 @@ struct RuntimeKernelTests {
         #expect(weights.count == 13 && abs(weights.reduce(0, +) - 1) < 1e-6)
     }
 }
+
+
+/// A blur render too wide for one texture, so Core Image splits it into tiles
+/// itself (rather than the rectangles `blurTilesMatchReference` asks for),
+/// against the CPU reference. Slow in a debug build (drawing the 4 × 4
+/// supersampled scene and the reference take about 20 s), so it runs only
+/// with `LARGE_RENDER_TESTS=1`.
+@Suite("Large renders",
+       .enabled(if: ProcessInfo.processInfo.environment["LARGE_RENDER_TESTS"] == "1",
+                "Set LARGE_RENDER_TESTS=1 to run renders that Core Image tiles"),
+       .enabled(if: RuntimeKernels.isSupported, "No Metal device: runtime-compiled kernels need one"))
+struct LargeRenderTests {
+    /// Apple silicon GPUs (Metal's Apple 3 family and later) allow textures up
+    /// to 16384 pixels on a side; wider renders have to be tiled.
+    static let maximumTextureSize = 16384
+
+    /// Renders all of `image` as float RGBA in the working space, rows top
+    /// down, and says how many passes Core Image ran.
+    static func render(_ image: CIImage) throws -> (pixels: [Float], passes: Int) {
+        let width = Int(image.extent.width), height = Int(image.extent.height)
+        var pixels = [Float](repeating: 0, count: width * height * 4)
+        let info = try pixels.withUnsafeMutableBytes { buffer in
+            try ReferenceTests.engine.withContext { context in
+                let destination = CIRenderDestination(bitmapData: buffer.baseAddress!, width: width, height: height,
+                                                      bytesPerRow: width * 16, format: .RGBAf)
+                destination.colorSpace = RenderEngine.workingColorSpace
+                return try context.startTask(toRender: image, from: image.extent, to: destination, at: .zero)
+                    .waitUntilCompleted()
+            }
+        }
+        return (pixels, info.passCount)
+    }
+
+    @Test("A blur wider than a texture is tiled by Core Image and matches the reference")
+    func tiledBlurMatchesReference() throws {
+        let sigma = RuntimeKernelTests.tileSigma
+        let input = TestScene.edgeTarget.image(width: Self.maximumTextureSize + 640, height: 128)
+        let (rendered, passes) = try Self.render(RuntimeKernels.gaussianBlur(input.ciImage, sigma: sigma))
+        // The same graph over an image that fits one texture, for its pass count.
+        let narrow = try Self.render(RuntimeKernels.gaussianBlur(
+            TestScene.edgeTarget.image(width: 1024, height: 128).ciImage, sigma: sigma))
+        // Measured on an M4 Pro: 12 passes against 4.
+        #expect(passes > narrow.passes, "\(passes) passes; untiled: \(narrow.passes)")
+
+        let expected = BlurReference.apply(input, sigma: sigma)
+        let worst = zip(rendered, expected.pixels).map { abs($0 - $1) }.max() ?? 0
+        // Same float32 sums as the small tests; measured 2.4e-7.
+        #expect(worst <= RuntimeKernelTests.blurTolerance, "largest difference \(worst)")
+    }
+}
