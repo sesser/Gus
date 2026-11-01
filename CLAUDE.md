@@ -45,7 +45,11 @@ UPDATE_GOLDENS=1 swift test --filter GoldenTests
 ```
 
 ```bash
-LARGE_RENDER_TESTS=1 swift test --filter LargeRenderTests
+LARGE_RENDER_TESTS=1 swift test --filter "LargeRenderTests|LargeBrushTests"
+```
+
+```bash
+CAMERA_RAW_SAMPLE=path/to/file.RW2 swift test --filter CameraRAWMaskTests
 ```
 
 The build does not depend on Xcode: everything goes through SwiftPM, and tests
@@ -99,7 +103,8 @@ compatible and never put `#` comment lines inside pasted command snippets.
 
 - `Sources/PhotoCore` — library with no AppKit/SwiftUI: branding, catalog
   (GRDB), import, metadata, `Edits/` (edit stack, adjustments, renderer, live
-  render session, look-up tables), `Presets/` (preset files, Lightroom preset
+  render session, look-up tables, `Masks/`: local adjustments, mask shapes,
+  the brush rasterizer), `Presets/` (preset files, Lightroom preset
   reading and mapping), preview pipeline, `Sidecars/` (XMP),
   `CardImport/` (templates, copying), `Export/` (rendering, naming, metadata
   and watermarks for exports), `Suggestions/` (Vision), `Video/`.
@@ -108,7 +113,8 @@ compatible and never put `#` comment lines inside pasted command snippets.
   model and its debug-script commands), `Palette`, `LaunchOptions`, and the
   String Catalog (`Resources/Localizable.xcstrings`).
 - `Sources/PhotoApp` — SwiftUI app shell, AppKit grid (`NSCollectionView`) and
-  loupe, inspector (Info and Adjust tabs), sidebar, smart album editor.
+  loupe (with the crop and mask overlays), inspector (Info and Adjust tabs,
+  the Masks heading), sidebar, smart album editor.
 - `Sources/PhotoImporter` — the standalone importer: the same import window
   with no library (copies only; presets and options in its own preferences).
 - `Sources/PhotoCore/Commands` — the command registry (`CommandRegistry`: one
@@ -124,7 +130,8 @@ compatible and never put `#` comment lines inside pasted command snippets.
   macOS icon shape); `build-app.sh` turns it into `AppIcon.icns` with `iconutil`.
 - `Tests/PhotoCoreTests` — Swift Testing suites; `Goldens/` (16-bit PNGs read
   from the source tree) and `Reference/` (CPU implementations).
-- `docs/PHASE1_PLAN.md` … `docs/PHASE5_PLAN.md` — design decisions per phase.
+- `docs/PHASE1_PLAN.md` … `docs/PHASE6_PLAN.md` — design decisions per phase.
+- `THIRD_PARTY_NOTICES.md` — math ported from other projects, with notices.
 
 ## Naming rules
 
@@ -162,7 +169,9 @@ compatible and never put `#` comment lines inside pasted command snippets.
   (-1 reject, 0 none, 1 pick) and color labels (0–7) live on versions.
   Never edit an existing migration; add a new one.
 - **Edit stack**: each version stores an ordered, versioned JSON list of
-  operations. The render hash covers enabled operations only. `Adjustments`
+  operations. A stored stack this build cannot read (a newer schema, damaged,
+  over `MaskLimits`) is never written over: the catalog refuses the write
+  and the editor turns editing off. The render hash covers enabled operations only. `Adjustments`
   is the typed view of it: one operation per module, defaults left out (so a
   reset gives back the identity hash), unknown operations kept. A group of
   controls turned off keeps its operations with `isEnabled` false;
@@ -285,7 +294,15 @@ Phase 5: golden-image tests and CPU references for the renderer, `photocli`
 over a command registry (render, adjustments, query, develop, rate, flag,
 label, export), the library lock, and a spike on runtime-compiled GPU kernels.
 
-Not yet: brushes and masks, healing, lens corrections, DNG export, ML
+Phase 6: local adjustments with masks (linear and radial gradients, brush,
+luminance and color ranges; add, subtract, intersect, invert; Amount; local
+exposure, tone, white balance, presence and sharpening). Masks live in one
+`localAdjustments` operation as objects (`EditParameter.object`, schema 2
+for stacks that hold one), in the mask frame (the oriented decode before
+crop), read strictly and never written over when unreadable. Presets and
+paste leave them out. See `docs/PHASE6_PLAN.md`.
+
+Not yet: AI masks, healing, lens corrections, DNG export, ML
 denoising, `.dcp` profiles, general (hand-made or burst) stacks, hierarchical
 keywords, PTP cameras, a second backup destination, writing metadata into
 originals.

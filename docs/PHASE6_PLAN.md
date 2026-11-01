@@ -1,8 +1,8 @@
 # Phase 6 plan: local adjustments with masks
 
-Status: **decisions approved (2026-11-01) with the changes recorded below;
-implementation under way.** Step 0, questions A–D and the finding 4 guard
-are done.
+Status: **first pass done** (2026-11-01): decisions approved with the
+changes recorded below, steps 1–9 implemented. Open: the RW2 lens-correction
+issue under "Results" needs a decision.
 
 Masks let the global adjustments act on part of a photo: a linear gradient,
 a radial gradient, a brush, a luminance range and a color range, combined
@@ -560,6 +560,96 @@ settings already do, with the full frame on release.
 9. `photobench masks`, profiling, and this file's results.
 
 `swift build` and `swift test` after each commit.
+
+## Results
+
+### What was built
+
+- `Sources/PhotoCore/Edits/Masks/`: `LocalAdjustments` (the model, strict
+  reading, `MaskLimits`, thinning), `MaskRenderer` (shapes and combining),
+  `BrushRasterizer` (CPU, parallel bands, 256 MB cache).
+  `AdjustmentRenderer.applyLocal` and `maskAlpha`; `RenderContext.cameraFrame`;
+  `CropGeometry.maskToOutput`, `outputToMask`, `maskToOutputPixel`.
+- `EditParameter.object`, schema version from the content (2 with objects).
+- Commands `mask.list`, `mask.add`, `mask.set`, `mask.remove`; `adjustments`
+  has a `local` section.
+- App: `MasksSection`, `MaskOverlayView`, `MaskEditing` (editor actions),
+  the overlay in `LiveRenderSession`, debug-script `adjust mask …`.
+- `photobench masks` and `photobench blend-error`.
+- **No kernel was needed.** Every shape is stock filters except the brush
+  (CPU). Two stock routes were replaced for precision, each measured against
+  its reference: a `CIRadialGradient` squeezed and turned by a transform
+  (9 × 10⁻⁴ off) by r = √(u² + v²) from two linear ramps, and smoothstep
+  through a 4096-entry `CIColorCurves` table (3.4 × 10⁻⁴ off: the table's
+  input is rounded) by pointwise arithmetic. `CIAdditionCompositing` adds
+  alphas too, so sums go in at half opacity (as dehaze already did).
+
+### Tests
+
+365 tests, 13.0–15.6 s for the whole suite (8.5 s before this phase; the
+clarity reference, the mask references and the extra goldens). Gated:
+`LARGE_RENDER_TESTS=1` (the tiled blur, 22 s; a 24 MP soft brush against the
+reference on sampled pixels, 1.6 s to rasterize in a debug build) and
+`CAMERA_RAW_SAMPLE=<raw file>` (below).
+
+- A CPU reference per shape and for combining (exact on small planes), the
+  exact local exposure, the blend, two crops, a centroid through
+  straightening, a brush at two resolutions (tolerance from the plane's own
+  second differences), and seven mask goldens.
+- The corpus of 52 mask-free stacks is unchanged; every earlier golden is
+  unchanged. No pipeline bump for masks (pipeline 3 is negative clarity).
+
+### Performance (`photobench masks`, Apple M4 Pro, release, 6000 × 4000 synthetic DNG, frames at 2560 px)
+
+| live frame, a local slider moving | mean | p95 |
+|---|---|---|
+| global stack only | 42 ms | 57 ms |
+| 1 mask (exposure, contrast, clarity) | 83 ms | 102 ms |
+| 2 masks | 112 ms | 127 ms |
+| 3 masks | 157 ms | 173 ms (196 ms in a second run) |
+| 3 masks, exposure only | 35 ms | 37 ms |
+| 3 masks, contrast only | 37 ms | 41 ms |
+| 3 masks, clarity only | 63 ms | 71 ms |
+| 3 masks, shadows only (local tone) | 74 ms | 91 ms |
+| 3 masks, dehaze only | 63 ms | 75 ms |
+| draft at 1280 px: 3 masks | 12 ms | 17 ms |
+
+- **Over budget** with three masks carrying a neighborhood module: the time
+  is in each mask's branch of modules (clarity, local tone, dehaze run over
+  the whole frame per mask), not in the masks themselves (exposure alone, a
+  gain map, is free; the brush is cached). Half-size drafts while dragging
+  bring it to 12 ms; not built (it changes what a drag shows): a decision.
+- Brush rasterization, 20 strokes, uncached: 6 ms at 2560 × 1707, 33 ms at
+  24 MP.
+- Memory: a full-size render with three masks moved the footprint by about
+  50 MB; the brush cache held 62 MB (the 24 MP plane, 48 MB, and smaller ones).
+- Painting: thinning keeps about 28 % of the samples; at 1 000 points the
+  stack is 18 KB and encodes and hashes in 0.4 ms each, at 10 000 points
+  176 KB and 4.3 ms, at 50 000 points 878 KB and 21 ms. Each stroke is saved
+  once, on release.
+
+### Findings
+
+1. **A crop equal to a camera's aspect frame changes the photo** (Panasonic
+   RW2, and presumably Olympus and OM System): the RAW decoder corrects lens
+   distortion relative to the frame it decodes, so the whole sensor cropped to
+   the camera's frame differs at every edge from the camera's own frame
+   (P1190134, 16:9 of 4:3: PSNR 40.6 dB with lens correction, 63.6 dB
+   without; decoder settings identical). Masked stacks decode the whole
+   sensor, so the requested test (masks at α = 0 render like no masks) fails
+   on such files; it is recorded as a known issue, and the stack renders like
+   an explicit camera-frame crop within the golden tolerance. This predates
+   masks. Options: accept it; or keep the camera's decode for masked stacks
+   without a crop and remap masks when a crop is first added; or turn the
+   decoder's lens correction off for whole-sensor decodes and correct
+   ourselves (out of scope). **Needs your decision.**
+2. **Two crops of the same photo do not give identical pixels** where they
+   overlap, even rectangles a whole number of pixels apart: up to 2.9 × 10⁻³
+   at patch edges (the GPU's bilinear weights seem to depend on each render's
+   region). Not changed; the crop test allows for it.
+3. Reduced, an explicit crop's decode size comes from `Crop.sourceZoom` with
+   the camera frame's native size, not the whole sensor's: a pixel more or
+   less than the masked render at 1024 px. Harmless; noted.
 
 ## Answers (2026-11-01)
 
