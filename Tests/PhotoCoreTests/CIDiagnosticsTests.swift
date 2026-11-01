@@ -125,4 +125,48 @@ struct CIDiagnosticsTests {
             compare("mask 2 contrast only", contrast)
         }
     }
+
+    /// The unsharp mask over above-white values (macOS 26 differed by 0.11 between
+    /// a lazy input and the same input rendered to half float): CIUnsharpMask,
+    /// CIGaussianBlur, and p + i (p - G(p)) built from the blur, each on both inputs,
+    /// near the brightest pixel; and how far each is from the CPU formula.
+    @Test("Unsharp mask above white")
+    func unsharpAboveWhite() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { folder in
+            let url = folder.appending(path: "bright.dng")
+            try SyntheticDNG.write(to: url, options: .init(width: 640, height: 480, seed: 7))
+            var values = Adjustments()
+            values.exposure.ev = 1.5
+            values.tone.highlights = -20
+            let decoded = try PreviewGenerator.decode(url, longEdge: 640, draft: false, settings: values.decodeSettings)
+            let renderer = AdjustmentRenderer()
+            let lazy = renderer.upstream(values.effective, to: decoded.image, crop: Crop(), context: decoded.context)
+            let half = Self.materialized(lazy)
+            let extent = lazy.extent
+            func encoded(_ image: CIImage) -> CIImage {
+                CIFilter(name: "CILinearToSRGBToneCurve", parameters: [kCIInputImageKey: image.clampedToExtent()])!.outputImage!
+            }
+            func unsharp(_ image: CIImage) -> CIImage {
+                CIFilter(name: "CIUnsharpMask", parameters: [kCIInputImageKey: encoded(image), "inputRadius": 7.68,
+                                                            "inputIntensity": 0.18])!.outputImage!.cropped(to: extent)
+            }
+            func blur(_ image: CIImage) -> CIImage {
+                encoded(image).applyingGaussianBlur(sigma: 7.68).cropped(to: extent)
+            }
+            func formula(_ image: CIImage) -> CIImage {
+                let p = encoded(image).cropped(to: extent), g = blur(image)
+                // p + i (p - g) = (1 + i) p - i g, with the half-opacity sum of MaskRenderer.sum.
+                return MaskRenderer.sum(MaskRenderer.scaled(p, by: 1.18), MaskRenderer.scaled(g, by: -0.18))
+            }
+            Self.describe("encoded input, half against lazy", encoded(half).cropped(to: extent), encoded(lazy).cropped(to: extent))
+            Self.describe("CIGaussianBlur, half against lazy", blur(half), blur(lazy))
+            Self.describe("CIUnsharpMask, half against lazy", unsharp(half), unsharp(lazy))
+            Self.describe("formula, half against lazy", formula(half), formula(lazy))
+            Self.describe("CIUnsharpMask against formula, lazy", unsharp(lazy), formula(lazy))
+            Self.describe("CIUnsharpMask against formula, half", unsharp(half), formula(half))
+            let p = Self.linear(encoded(half).cropped(to: extent))
+            let x = 55, y = 458, i = (y * p.width + x) * 4
+            print("diagnostics encoded value at (55,458): \(p.pixels[i]) max \(p.pixels.max() ?? 0)")
+        }
+    }
 }
