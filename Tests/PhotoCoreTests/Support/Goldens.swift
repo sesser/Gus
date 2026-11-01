@@ -198,8 +198,10 @@ struct GoldenTolerance: Sendable {
 /// temporary folder.
 enum Goldens {
     static let directory = RepositoryFiles.url("Tests/PhotoCoreTests/Goldens")
-    static let failureDirectory = FileManager.default.temporaryDirectory.appending(path: "golden-failures",
-                                                                                     directoryHint: .isDirectory)
+    /// `GOLDEN_FAILURES_DIR` when set (CI uploads it), else a temporary folder.
+    static let failureDirectory = ProcessInfo.processInfo.environment["GOLDEN_FAILURES_DIR"]
+        .map { URL(fileURLWithPath: $0, isDirectory: true) }
+        ?? FileManager.default.temporaryDirectory.appending(path: "golden-failures", directoryHint: .isDirectory)
 
     static var isUpdating: Bool { ProcessInfo.processInfo.environment["UPDATE_GOLDENS"] == "1" }
 
