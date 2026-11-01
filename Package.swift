@@ -10,6 +10,7 @@ let package = Package(
         .executable(name: "PhotoApp", targets: ["PhotoApp"]),
         .executable(name: "PhotoImporter", targets: ["PhotoImporter"]),
         .executable(name: "photobench", targets: ["PhotoBench"]),
+        .executable(name: "photocli", targets: ["PhotoCLI"]),
         .executable(name: "catalog-strings", targets: ["StringCatalogCompiler"]),
         .executable(name: "app-icon", targets: ["AppIconCompiler"]),
     ],
@@ -42,6 +43,12 @@ let package = Package(
         .executableTarget(
             name: "PhotoBench",
             dependencies: ["PhotoCore", "PhotoFixtures"]
+        ),
+        // The headless command line: a thin dispatcher over PhotoCore's command
+        // registry, with no AppKit or SwiftUI.
+        .executableTarget(
+            name: "PhotoCLI",
+            dependencies: ["PhotoCore"]
         ),
         .target(
             name: "PhotoFixtures",
