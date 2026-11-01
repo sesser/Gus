@@ -45,6 +45,8 @@ struct AdjustView: View {
                 message(String(localized: "Adjustments are not available for videos."))
             case .offline:
                 message(String(localized: "The original is offline. Connect its volume to adjust this photo."))
+            case .unreadable(let failure):
+                message(AdjustText.unreadableMessage(failure))
             case .ready:
                 AppKitScrollView {
                     VStack(alignment: .leading, spacing: 18) {
@@ -73,6 +75,8 @@ struct AdjustView: View {
                             ColorGradeControls(editor: editor)
                                 .dimmedWhenOff(.colorGrade, editor: editor)
                         }
+                        Divider()
+                        MasksSection(editor: editor)
                         Divider()
                         AdjustSection(.effects, editor: editor) {
                             EffectsControls(model: model)

@@ -38,6 +38,21 @@ struct GoldenHarnessTests {
             #expect(try EncodedImage(rendering: image, engine: engine) == EncodedImage(rendering: image, engine: engine),
                     "\(golden.name)")
         }
+        for golden in GoldenTests.rawCases {
+            let image = try golden.render()
+            #expect(try EncodedImage(rendering: image, engine: engine) == EncodedImage(rendering: image, engine: engine),
+                    "\(golden.name)")
+        }
+    }
+
+    /// A module that silently did nothing would pin its scene under another name.
+    @Test("Every golden case changes its scene")
+    func casesChangeTheirScene() throws {
+        for golden in GoldenTests.cases {
+            let scene = try EncodedImage(rendering: golden.scene.image().ciImage, engine: Goldens.engine)
+            let rendered = try EncodedImage(rendering: golden.render(), engine: Goldens.engine)
+            #expect(rendered != scene, "\(golden.name)")
+        }
     }
 
     @Test("Core Image's software renderer is reported missing on Apple silicon")

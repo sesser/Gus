@@ -7,9 +7,10 @@ import CoreImage.CIFilterBuiltins
 /// turns, straightening and crop, white
 /// balance (non-RAW; RAW files get it from the decoder), exposure, highlights and
 /// shadows, dehaze, clarity, the tone table (contrast, whites, blacks, curves),
-/// the color mixer, vibrance and saturation, color grading, the look-up table, the vignette,
-/// noise reduction (non-RAW), sharpening and grain. Modules that are turned off
-/// are rendered at their defaults.
+/// the color mixer, vibrance and saturation, color grading, the masks (local
+/// adjustments, in list order), the look-up table, the vignette, noise
+/// reduction (non-RAW), sharpening (then each mask's local sharpening) and
+/// grain. Modules that are turned off are rendered at their defaults.
 public struct AdjustmentRenderer: EditStackRenderer {
     /// Encoding for tone curves and the grading cube: Rec. 2020 primaries with the
     /// sRGB transfer curve, so curve points are spaced the way tones are seen.
@@ -40,13 +41,48 @@ public struct AdjustmentRenderer: EditStackRenderer {
         render(Adjustments(stack: stack), to: image, context: context)
     }
 
-    /// The lazy graph for `adjustments` over a decoded image.
+    /// The lazy graph for `adjustments` over a decoded image: the stages
+    /// below in order (`LiveRenderSession` renders them separately to reuse
+    /// what a drag does not change).
     public func render(_ values: Adjustments, to input: CIImage, context: RenderContext) -> CIImage {
         let adjustments = values.effective
         guard !adjustments.isDefault else { return input }
-        var image = adjustments.crop.apply(to: input)
-        let extent = image.extent
+        let crop = Self.crop(adjustments, context: context)
+        let selection = upstream(adjustments, to: input, crop: crop, context: context)
+        let masks = adjustments.local.renderedMasks
+        let estimates = localEstimates(masks, over: selection)
+        var image = selection
+        var sharpening: [MaskSharpening] = []
+        for mask in masks {
+            let step = applyMask(mask, to: image, selection: selection, estimates: estimates, maskFrame: input.extent,
+                                 crop: crop, context: context)
+            image = step.image
+            sharpening += step.sharpening
+        }
+        return downstream(adjustments, image, sharpening: sharpening, context: context)
+    }
 
+    /// The stack's turns and crop, or the camera's frame of a RAW file decoded
+    /// whole for its masks.
+    public static func crop(_ adjustments: Adjustments, context: RenderContext) -> Crop {
+        if adjustments.crop.isIdentity, let cameraFrame = context.cameraFrame { return Crop(rect: cameraFrame) }
+        return adjustments.crop
+    }
+
+    /// Turns, straightening, crop and every global module before the masks
+    /// (through color grading): the image the mask step starts from and its
+    /// ranges select on. `adjustments` are the effective ones.
+    public func upstream(_ adjustments: Adjustments, to input: CIImage, crop: Crop, context: RenderContext) -> CIImage {
+        let image = crop.apply(to: input)
+        return globalSteps(adjustments, image, extent: image.extent, context: context, estimates: nil)
+    }
+
+    /// White balance through color grading over `image`. With `estimates`
+    /// (a mask's branch) local tone and dehaze use them instead of measuring
+    /// `image`.
+    func globalSteps(_ adjustments: Adjustments, _ input: CIImage, extent: CGRect, context: RenderContext,
+                     estimates: LocalEstimates?) -> CIImage {
+        var image = input
         if !context.isRaw {
             image = Self.relativeWhiteBalance(image, adjustments.whiteBalance)
         }
@@ -59,11 +95,11 @@ public struct AdjustmentRenderer: EditStackRenderer {
         let tone = adjustments.tone
         let local = LocalToneCurve(shadows: tone.shadows / 100, recovery: max(-tone.highlights, 0) / 100)
         if !local.isIdentity {
-            image = Self.localTone(image, local, extent: extent)
+            image = Self.localTone(image, local, extent: extent, smoothed: estimates?.luminance)
         }
         let presence = adjustments.presence
         if presence.dehaze != 0 {
-            image = Self.dehaze(image, amount: presence.dehaze / 100, extent: extent)
+            image = Self.dehaze(image, amount: presence.dehaze / 100, extent: extent, haze: estimates?.haze)
         }
         if presence.clarity != 0 {
             image = Self.clarity(image, amount: presence.clarity / 100, extent: extent)
@@ -97,6 +133,50 @@ public struct AdjustmentRenderer: EditStackRenderer {
         if !adjustments.colorGrade.isIdentity {
             image = Self.cube(image, ColorGradeCube.make(adjustments.colorGrade), colorSpace: Self.perceptualSpace)
         }
+        return image.cropped(to: extent)
+    }
+
+    /// Whole-image estimates the masks' local tone and dehaze use, measured
+    /// once on the image entering the mask step (never on a masked area);
+    /// only those some mask needs.
+    public func localEstimates(_ masks: [Mask], over selection: CIImage) -> LocalEstimates {
+        let extent = selection.extent
+        var estimates = LocalEstimates()
+        if masks.contains(where: { !LocalToneCurve(shadows: $0.adjustments.shadows / 100,
+                                                    recovery: max(-$0.adjustments.highlights, 0) / 100).isIdentity }) {
+            // Measured with a margin of repeated edge pixels, then cropped: unpadded,
+            // macOS 26 and 27 gave the frame's outermost columns a step (0.209 → 0.223
+            // in golden mask-combined-hazyLandscape) where macOS 15 did not.
+            let padded = extent.insetBy(dx: -16, dy: -16)
+            estimates.luminance = Self.smoothedLuminance(selection.clampedToExtent().cropped(to: padded), extent: padded,
+                                                         scaleFrom: extent)?.cropped(to: extent)
+        }
+        if masks.contains(where: { $0.adjustments.dehaze > 0 }) {
+            estimates.haze = Self.hazeMap(selection, extent: extent)
+        }
+        return estimates
+    }
+
+    /// One mask over `image`: its alpha, the image with its local values, and
+    /// its local sharpening for `downstream`.
+    public func applyMask(_ mask: Mask, to image: CIImage, selection: CIImage, estimates: LocalEstimates,
+                          maskFrame: CGRect, crop: Crop, context: RenderContext)
+        -> (image: CIImage, alpha: CIImage, sharpening: [MaskSharpening]) {
+        // Masks are made in the mask frame (the image before the crop) and
+        // select ranges on the image as it enters this step, the same for each.
+        let alpha = MaskRenderer(maskFrame: maskFrame, crop: crop, selection: selection).alpha(mask)
+        let result = applyLocal(image, mask.adjustments, alpha: alpha, context: context, extent: image.extent,
+                                estimates: estimates)
+        let sharpening = mask.adjustments.sharpen > 0 ? [MaskSharpening(amount: mask.adjustments.sharpen, alpha: alpha)] : []
+        return (result, alpha, sharpening)
+    }
+
+    /// Everything after the masks: the look-up table, vignette, noise
+    /// reduction, sharpening (then each mask's), grain.
+    public func downstream(_ adjustments: Adjustments, _ input: CIImage, sharpening: [MaskSharpening],
+                           context: RenderContext) -> CIImage {
+        var image = input
+        let extent = input.extent
         let table = adjustments.lookTable
         if let identifier = table.identifier, table.intensity > 0, let cube = lookTables?.cube(for: identifier) {
             image = Self.lookTable(image, cube, intensity: table.intensity / 100, colorSpace: table.colorSpace)
@@ -110,10 +190,75 @@ public struct AdjustmentRenderer: EditStackRenderer {
         if adjustments.sharpen.amount > 0 {
             image = Self.sharpen(image, adjustments.sharpen, scale: context.scale, extent: extent)
         }
+        for local in sharpening {
+            // The global radius, detail and masking at the local amount, after noise reduction.
+            var settings = adjustments.sharpen
+            settings.amount = local.amount
+            image = Self.blend(Self.sharpen(image, settings, scale: context.scale, extent: extent), over: image,
+                               alpha: local.alpha, extent: extent)
+        }
         if !adjustments.grain.isIdentity {
             image = Self.grain(image, adjustments.grain, extent: extent)
         }
         return image.cropped(to: extent)
+    }
+
+    // MARK: Masks
+
+    /// The alpha of the mask `id` of `values` over the rendered frame (grey,
+    /// 0 … 1), from the image as it enters the mask step: for the overlay
+    /// that shows a mask. Nil when there is no such mask.
+    public func maskAlpha(_ values: Adjustments, id: UUID, to input: CIImage, context: RenderContext) -> CIImage? {
+        let adjustments = values.effective
+        guard let mask = adjustments.local.masks.first(where: { $0.id == id }) else { return nil }
+        var crop = adjustments.crop
+        if crop.isIdentity, let cameraFrame = context.cameraFrame { crop = Crop(rect: cameraFrame) }
+        // Everything before the mask step, nothing after it.
+        var upstream = adjustments
+        upstream.local = LocalAdjustments()
+        upstream.lookTable = LookTable()
+        upstream.vignette = Vignette()
+        upstream.noiseReduction = NoiseReduction()
+        upstream.sharpen = Sharpen()
+        upstream.grain = Grain()
+        upstream.crop = crop
+        let selection = upstream.isDefault ? crop.apply(to: input) : render(upstream, to: input, context: context)
+        return MaskRenderer(maskFrame: input.extent, crop: crop, selection: selection).alpha(mask)
+    }
+
+    /// One mask's local values over `image`: exposure exactly, as a gain
+    /// 2^(EV · α) multiplied in linear light (as the vignette's gain map), then
+    /// the other modules on the whole image, blended by α. Local tone and
+    /// dehaze use `estimates`, measured on the whole image entering the mask
+    /// step, never on the masked area.
+    func applyLocal(_ image: CIImage, _ values: LocalValues, alpha: CIImage, context: RenderContext,
+                    extent: CGRect, estimates: LocalEstimates) -> CIImage {
+        var result = image
+        if values.exposure != 0 {
+            let ev = values.exposure
+            let gain = MaskRenderer.table(alpha, domain: 0...1) { pow(2, ev * $0) }
+            let multiply = CIFilter.multiplyCompositing()
+            multiply.inputImage = gain
+            multiply.backgroundImage = result
+            result = multiply.outputImage?.settingAlphaOne(in: extent).cropped(to: extent) ?? result
+        }
+        let modules = values.modules
+        if !modules.isDefault {
+            // Relative white balance applies to RAW files too: their Kelvin is the decoder's, and stays global.
+            let adjusted = globalSteps(modules, result, extent: extent,
+                                       context: RenderContext(scale: context.scale, isRaw: false), estimates: estimates)
+            result = Self.blend(adjusted, over: result, alpha: alpha, extent: extent)
+        }
+        return result
+    }
+
+    /// base + α · (adjusted − base).
+    static func blend(_ adjusted: CIImage, over base: CIImage, alpha: CIImage, extent: CGRect) -> CIImage {
+        let filter = CIFilter.blendWithMask()
+        filter.inputImage = adjusted
+        filter.backgroundImage = base
+        filter.maskImage = alpha
+        return filter.outputImage?.cropped(to: extent) ?? base
     }
 
     // MARK: Steps
@@ -132,25 +277,12 @@ public struct AdjustmentRenderer: EditStackRenderer {
     }
 
     /// Shadows and highlight recovery: a gain per pixel from an edge-aware,
-    /// smoothed luminance, so tones move by region and local detail is kept.
-    /// The smoothing is done on a fixed-size copy, so every tier looks the same.
-    static func localTone(_ image: CIImage, _ curve: LocalToneCurve, extent: CGRect) -> CIImage {
-        let longest = max(extent.width, extent.height)
-        guard longest > 0, let guide = luminanceGuide(image, extent: extent) else { return image }
-
-        let reduce = CIFilter.lanczosScaleTransform()
-        reduce.inputImage = guide
-        reduce.scale = Float(min(1, 256 / longest))
-        reduce.aspectRatio = 1
-        guard let small = reduce.outputImage else { return image }
-        let upsample = CIFilter.edgePreserveUpsample()
-        upsample.inputImage = guide
-        upsample.smallImage = small
-        upsample.spatialSigma = 3
-        upsample.lumaSigma = 0.12
-
+    /// smoothed luminance (`smoothedLuminance`, of `image` unless given), so
+    /// tones move by region and local detail is kept.
+    static func localTone(_ image: CIImage, _ curve: LocalToneCurve, extent: CGRect, smoothed: CIImage? = nil) -> CIImage {
+        guard let smoothed = smoothed ?? smoothedLuminance(image, extent: extent) else { return image }
         let gain = CIFilter.colorCurves()
-        gain.inputImage = upsample.outputImage
+        gain.inputImage = smoothed
         gain.curvesData = curve.gainTable().withUnsafeBytes { Data($0) }
         gain.curvesDomain = CIVector(x: 0, y: CGFloat(LocalToneCurve.domainMaximum))
         gain.colorSpace = RenderEngine.workingColorSpace
@@ -159,6 +291,26 @@ public struct AdjustmentRenderer: EditStackRenderer {
         multiply.backgroundImage = image
         // The upsampled mask's alpha is a hair under one.
         return multiply.outputImage?.settingAlphaOne(in: extent).cropped(to: extent) ?? image
+    }
+
+    /// The luminance guide smoothed on a fixed-size copy and upsampled along
+    /// the image's edges, so every tier looks the same.
+    /// `scaleFrom` sets the reduced copy's scale (the frame without a margin
+    /// added around it), so a margin changes nothing else.
+    static func smoothedLuminance(_ image: CIImage, extent: CGRect, scaleFrom reference: CGRect? = nil) -> CIImage? {
+        let longest = max((reference ?? extent).width, (reference ?? extent).height)
+        guard longest > 0, let guide = luminanceGuide(image, extent: extent) else { return nil }
+        let reduce = CIFilter.lanczosScaleTransform()
+        reduce.inputImage = guide
+        reduce.scale = Float(min(1, 256 / longest))
+        reduce.aspectRatio = 1
+        guard let small = reduce.outputImage else { return nil }
+        let upsample = CIFilter.edgePreserveUpsample()
+        upsample.inputImage = guide
+        upsample.smallImage = small
+        upsample.spatialSigma = 3
+        upsample.lumaSigma = 0.12
+        return upsample.outputImage
     }
 
     /// Luminance to a low power, as a grey image: the guide for edge-aware upsampling.
@@ -189,7 +341,8 @@ public struct AdjustmentRenderer: EditStackRenderer {
     /// falls as the dark channel nears A, so bright, colorless regions lose the most
     /// veil. The dark channel is found on a fixed-size copy, so every tier looks the
     /// same, and upsampled along the image's edges. Negative amounts add a grey veil.
-    static func dehaze(_ image: CIImage, amount: Double, extent: CGRect) -> CIImage {
+    static func dehaze(_ image: CIImage, amount: Double, extent: CGRect,
+                       haze estimate: (map: CIImage, airlight: CIImage)? = nil) -> CIImage {
         if amount < 0 {
             let k = CGFloat(-amount * 0.5)
             let filter = CIFilter.colorMatrix()
@@ -200,18 +353,11 @@ public struct AdjustmentRenderer: EditStackRenderer {
             filter.biasVector = CIVector(x: k * 0.3, y: k * 0.3, z: k * 0.3, w: 0)
             return filter.outputImage ?? image
         }
-        guard let guide = luminanceGuide(image, extent: extent),
-              let (haze, airlight) = hazeEstimate(image, extent: extent)
-        else { return image }
-        let upsample = CIFilter.edgePreserveUpsample()
-        upsample.inputImage = guide
-        upsample.smallImage = haze
-        upsample.spatialSigma = 3
-        upsample.lumaSigma = 0.12
+        guard let (map, airlight) = estimate ?? hazeMap(image, extent: extent) else { return image }
         let tables = DehazeTables(amount: amount)
         func lookUp(_ values: [Float]) -> CIImage? {
             let filter = CIFilter.colorCurves()
-            filter.inputImage = upsample.outputImage
+            filter.inputImage = map
             filter.curvesData = values.withUnsafeBytes { Data($0) }
             filter.curvesDomain = CIVector(x: 0, y: 1)
             filter.colorSpace = RenderEngine.workingColorSpace
@@ -243,6 +389,21 @@ public struct AdjustmentRenderer: EditStackRenderer {
         clamp.maxComponents = CIVector(x: 64, y: 64, z: 64, w: 1)
         // The upsampled haze's alpha is a hair under one.
         return clamp.outputImage?.settingAlphaOne(in: extent).cropped(to: extent) ?? image
+    }
+
+    /// The haze (the dark channel relative to the airlight, 0 … 1) upsampled
+    /// along the image's edges, and the airlight as an infinite grey image.
+    static func hazeMap(_ image: CIImage, extent: CGRect) -> (map: CIImage, airlight: CIImage)? {
+        guard let guide = luminanceGuide(image, extent: extent),
+              let (haze, airlight) = hazeEstimate(image, extent: extent)
+        else { return nil }
+        let upsample = CIFilter.edgePreserveUpsample()
+        upsample.inputImage = guide
+        upsample.smallImage = haze
+        upsample.spatialSigma = 3
+        upsample.lumaSigma = 0.12
+        guard let map = upsample.outputImage else { return nil }
+        return (map, airlight)
     }
 
     /// The dark channel relative to the airlight (0 … 1) on a reduced copy, and the
@@ -304,17 +465,36 @@ public struct AdjustmentRenderer: EditStackRenderer {
         return (haze, airlight)
     }
 
-    /// Large-radius unsharp mask in the perceptual encoding. The radius follows
-    /// the image size, so every tier shows the same local contrast.
+    /// Large-radius unsharp mask in the perceptual encoding, p + i · (p − G(p)).
+    /// The radius follows the image size, so every tier shows the same local
+    /// contrast. `CIUnsharpMask` takes no negative intensity (its minimum is 0),
+    /// so negative amounts blend toward the same Gaussian instead: the formula
+    /// with i < 0.
     static func clarity(_ image: CIImage, amount: Double, extent: CGRect) -> CIImage {
         let encode = CIFilter.linearToSRGBToneCurve()
         encode.inputImage = image.clampedToExtent()
-        let mask = CIFilter.unsharpMask()
-        mask.inputImage = encode.outputImage
-        mask.radius = Float(max(extent.width, extent.height) * 0.012)
-        mask.intensity = Float(amount * 0.6)
+        guard let perceptual = encode.outputImage else { return image }
+        let radius = Float(max(extent.width, extent.height) * 0.012)
+        let intensity = Float(amount * 0.6)
+        let sharpened: CIImage?
+        if intensity >= 0 {
+            let mask = CIFilter.unsharpMask()
+            mask.inputImage = perceptual
+            mask.radius = radius
+            mask.intensity = intensity
+            sharpened = mask.outputImage
+        } else {
+            let blur = CIFilter.gaussianBlur()
+            blur.inputImage = perceptual
+            blur.radius = radius
+            let mix = CIFilter.dissolveTransition()
+            mix.inputImage = perceptual
+            mix.targetImage = blur.outputImage
+            mix.time = -intensity
+            sharpened = mix.outputImage
+        }
         let decode = CIFilter.sRGBToneCurveToLinear()
-        decode.inputImage = mask.outputImage
+        decode.inputImage = sharpened
         return decode.outputImage?.cropped(to: extent) ?? image
     }
 
@@ -639,8 +819,8 @@ extension Adjustments {
 
     private var rawDecodeSettings: RAWDecodeSettings {
         var settings = RAWDecodeSettings()
-        // The crop's rectangle is in the frame of the whole sensor.
-        settings.fullFrame = !crop.isIdentity
+        // The crop's rectangle and the masks are in the frame of the whole sensor.
+        settings.fullFrame = !crop.isIdentity || !local.renderedMasks.isEmpty
         if whiteBalance.preset != .asShot {
             settings.temperature = whiteBalance.temperature.map(Float.init)
             settings.tint = whiteBalance.tint.map(Float.init)
@@ -675,4 +855,24 @@ public struct CoreImageDenoiser: Denoiser {
         filter.sharpness = 0.4
         return filter.outputImage ?? image
     }
+}
+
+/// Estimates over the whole image entering the mask step (`localEstimates`).
+public struct LocalEstimates: @unchecked Sendable {
+    // @unchecked: CIImage is an immutable recipe, safe to share.
+    /// Smoothed luminance for local tone, when a mask needs it.
+    public var luminance: CIImage?
+    /// The haze map and airlight for dehaze, when a mask needs them.
+    public var haze: (map: CIImage, airlight: CIImage)?
+
+    public init(luminance: CIImage? = nil, haze: (map: CIImage, airlight: CIImage)? = nil) {
+        self.luminance = luminance
+        self.haze = haze
+    }
+}
+
+/// A mask's local sharpening, applied at the sharpening step.
+public struct MaskSharpening: @unchecked Sendable {
+    public var amount: Double
+    public var alpha: CIImage
 }

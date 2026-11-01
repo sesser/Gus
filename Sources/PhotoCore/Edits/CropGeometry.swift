@@ -191,4 +191,66 @@ public enum CropGeometry {
         }
         return low
     }
+
+    // MARK: The mask frame
+
+    /// Where a point of the mask frame (unit coordinates of the oriented image
+    /// before turns, straightening and crop; y down) lands in the cropped
+    /// output, in unit coordinates of the output. `sourceSize` is the mask
+    /// frame in pixels (any scale: only its proportions matter).
+    ///
+    /// The image turns clockwise by θ = 90° × quarter turns + straighten angle
+    /// about its center (as `Crop.apply` does), then the rectangle is cut from
+    /// the turned frame.
+    public static func maskToOutput(_ point: CGPoint, crop: Crop, sourceSize: CGSize) -> CGPoint {
+        let turned = crop.turnedSize(sourceSize)
+        let s = (x: Double((point.x - 0.5) * sourceSize.width), y: Double((point.y - 0.5) * sourceSize.height))
+        let r = rotatedClockwise(s, degrees: turnAngle(crop))
+        let rect = crop.rect ?? .full
+        let t = (x: r.x / turned.width + 0.5, y: r.y / turned.height + 0.5)
+        return CGPoint(x: (t.x - rect.x) / rect.width, y: (t.y - rect.y) / rect.height)
+    }
+
+    /// The inverse of `maskToOutput`.
+    public static func outputToMask(_ point: CGPoint, crop: Crop, sourceSize: CGSize) -> CGPoint {
+        let turned = crop.turnedSize(sourceSize)
+        let rect = crop.rect ?? .full
+        let t = (x: rect.x + Double(point.x) * rect.width, y: rect.y + Double(point.y) * rect.height)
+        let r = (x: Double((t.x - 0.5) * turned.width), y: Double((t.y - 0.5) * turned.height))
+        let s = rotatedClockwise(r, degrees: -turnAngle(crop))
+        return CGPoint(x: s.x / sourceSize.width + 0.5, y: s.y / sourceSize.height + 0.5)
+    }
+
+    /// The output position, in pixels from the output's top left corner (y
+    /// down, continuous: a pixel's center is at +0.5), where a mask-frame point
+    /// lands when `Crop.apply` renders a source of `sourceSize` pixels. Like
+    /// `maskToOutput`, with the crop rectangle's edges rounded to whole pixels
+    /// as the render rounds them (its left edge, and its top edge counted from
+    /// the bottom, Core Image's y axis pointing up).
+    public static func maskToOutputPixel(_ point: CGPoint, crop: Crop, sourceSize: CGSize) -> CGPoint {
+        let turned = crop.turnedSize(sourceSize)
+        let s = (x: Double((point.x - 0.5) * sourceSize.width), y: Double((point.y - 0.5) * sourceSize.height))
+        let r = rotatedClockwise(s, degrees: turnAngle(crop))
+        let rect = crop.rect ?? .full
+        let left = (rect.x * turned.width).rounded()
+        let top = turned.height - ((1 - rect.y) * turned.height).rounded()
+        return CGPoint(x: r.x + turned.width / 2 - left, y: r.y + turned.height / 2 - top)
+    }
+
+    /// A mask-frame rotation (degrees, clockwise) as the output shows it.
+    public static func outputRotation(_ degrees: Double, crop: Crop) -> Double {
+        degrees + turnAngle(crop)
+    }
+
+    /// The whole clockwise turn of `crop`, in degrees.
+    static func turnAngle(_ crop: Crop) -> Double {
+        Double(crop.quarterTurns) * 90 + crop.angle
+    }
+
+    /// `point` (y down) turned clockwise by `degrees` about the origin.
+    static func rotatedClockwise(_ point: (x: Double, y: Double), degrees: Double) -> (x: Double, y: Double) {
+        let radians = degrees * .pi / 180
+        let cos = Foundation.cos(radians), sin = Foundation.sin(radians)
+        return (cos * point.x - sin * point.y, sin * point.x + cos * point.y)
+    }
 }

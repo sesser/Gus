@@ -625,9 +625,10 @@ struct AdjustmentPresetTests {
         var bright = Adjustments()
         bright.exposure.ev = 1
         try await fixture.catalog.setEditStacks([ids[0]: bright.editStack, ids[1]: .identity])
-        let stacks = try await fixture.catalog.editStacks(forVersions: ids)
-        #expect(Adjustments(stack: try #require(stacks[ids[0]])) == bright)
-        #expect(stacks[ids[1]] == .identity)
+        let stored = try await fixture.catalog.editStacks(forVersions: ids)
+        #expect(Adjustments(stack: try #require(stored.stacks[ids[0]])) == bright)
+        #expect(stored.stacks[ids[1]] == .identity)
+        #expect(stored.unreadable.isEmpty)
         let version = try #require(try await fixture.catalog.version(id: ids[0]))
         #expect(version.editStackHash == bright.editStack.renderHash)
     }

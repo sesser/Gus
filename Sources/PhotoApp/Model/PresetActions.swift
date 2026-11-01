@@ -47,8 +47,13 @@ extension LibraryModel {
     private func focusedAdjustments() async -> Adjustments? {
         guard let item = focusedItem else { return nil }
         if editor.item?.versionID == item.versionID, editor.state == .ready { return editor.adjustments }
-        let stack = (try? await catalog.version(id: item.versionID)?.decodedEditStack()) ?? .identity
-        return Adjustments(stack: stack)
+        do {
+            let stack = try await catalog.version(id: item.versionID)?.decodedEditStack() ?? .identity
+            return Adjustments(stack: stack)
+        } catch {
+            statusMessage = AdjustText.unreadableMessage(EditStack.ReadFailure(error))
+            return nil
+        }
     }
 
     /// Saves the focused photo's adjustments under `name` in `collection`

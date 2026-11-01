@@ -123,6 +123,7 @@ extension JSONValue {
         case .bool(let value): self = .bool(value)
         case .string(let value): self = .string(value)
         case .list(let values): self = .array(values.map(JSONValue.init))
+        case .object(let values): self = .object(values.mapValues(JSONValue.init))
         }
     }
 }

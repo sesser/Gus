@@ -20,8 +20,62 @@ struct GoldenCase: Sendable, CustomTestStringConvertible {
         self.adjustments = adjustments
     }
 
+    /// A mask of `shapes` with local values from `values`, ids fixed so stacks repeat.
+    static func mask(_ shapes: [MaskShape], operations: [MaskOperation] = [], inverts: [Bool] = [], amount: Double = 100,
+                     _ values: (inout LocalValues) -> Void) -> Mask {
+        var local = LocalValues()
+        values(&local)
+        let components = shapes.enumerated().map { index, shape in
+            MaskComponent(shape, operation: index < operations.count ? operations[index] : .add,
+                          invert: index < inverts.count ? inverts[index] : false)
+        }
+        return Mask(id: UUID(uuidString: "00000000-0000-4000-8000-000000000000")!, amount: amount,
+                    components: components, adjustments: local)
+    }
+
+    /// Built-in look-up tables are installed here on first use.
+    static let lookTables = LookTableStore(directory: FileManager.default.temporaryDirectory
+        .appending(path: "golden-look-tables-\(ProcessInfo.processInfo.processIdentifier)", directoryHint: .isDirectory))
+
+    /// The identifier of the built-in table `key` (`BuiltInLookTables`).
+    static func builtInTable(_ key: String) -> String {
+        BuiltInLookTables.all.first { $0.key == key }?.identifier ?? ""
+    }
+
     func render() -> CIImage {
-        AdjustmentRenderer().render(adjustments, to: scene.image().ciImage, context: RenderContext())
+        AdjustmentRenderer(lookTables: Self.lookTables).render(adjustments, to: scene.image().ciImage,
+                                                              context: RenderContext())
+    }
+}
+
+/// Settings the RAW decoder applies, over the synthetic Bayer DNG
+/// (`SyntheticDNG`, seed 7). Decoded at full size through `PreviewGenerator`,
+/// as previews and exports are. 320 × 240, not the scenes' 256 × 192: the
+/// decoder returns an empty image for that DNG (and for 258 × 194), while
+/// 300 × 200 and larger decode.
+struct RAWGoldenCase: Sendable, CustomTestStringConvertible {
+    var name: String
+    var adjustments: Adjustments
+
+    var testDescription: String { name }
+
+    init(_ name: String, _ edit: (inout Adjustments) -> Void) {
+        self.name = name
+        var adjustments = Adjustments()
+        edit(&adjustments)
+        self.adjustments = adjustments
+    }
+
+    static let master: URL = {
+        let url = FileManager.default.temporaryDirectory
+            .appending(path: "golden-bayer-\(ProcessInfo.processInfo.processIdentifier).dng", directoryHint: .notDirectory)
+        try? SyntheticDNG.write(to: url, options: .init(width: 320, height: 240, seed: 7))
+        return url
+    }()
+
+    func render() throws -> CIImage {
+        try PreviewGenerator(engine: Goldens.engine).image(source: Self.master, stack: adjustments.editStack,
+                                                           longEdge: nil)
     }
 }
 
@@ -120,6 +174,88 @@ struct GoldenTests {
             $0.grain = Grain(strength: 150, roughness: 20, color: 80, size: 3)
         },
 
+        GoldenCase("lookTable-tealOrange-hueRamp", .hueRamp) {
+            $0.lookTable = LookTable(identifier: GoldenCase.builtInTable("tealOrange"))
+        },
+        GoldenCase("lookTable-fadeHalf-patchChart", .patchChart) {
+            $0.lookTable = LookTable(identifier: GoldenCase.builtInTable("fade"), intensity: 50)
+        },
+        GoldenCase("lookTable-crossProcessProPhoto-grayRamp", .grayRamp) {
+            $0.lookTable = LookTable(identifier: GoldenCase.builtInTable("crossProcess"), colorSpace: .proPhoto)
+        },
+
+        // Files that are not RAW: Core Image's noise reduction (`CoreImageDenoiser`).
+        GoldenCase("noiseReduction-60-hazyLandscape", .hazyLandscape) { $0.noiseReduction.luminance = 60 },
+        GoldenCase("noiseReduction-100-edgeTarget", .edgeTarget) { $0.noiseReduction.luminance = 100 },
+
+        // Masks: a local adjustment through each shape, and one of everything.
+        GoldenCase("mask-linear-hazyLandscape", .hazyLandscape) {
+            $0.local.masks = [GoldenCase.mask([.linear(LinearGradient(start: MaskPoint(x: 0.5, y: 0),
+                                                                       end: MaskPoint(x: 0.5, y: 0.55)))]) {
+                $0.exposure = -1
+                $0.dehaze = 30
+            }]
+        },
+        GoldenCase("mask-radial-patchChart", .patchChart) {
+            $0.local.masks = [GoldenCase.mask([.radial(RadialGradient(center: MaskPoint(x: 0.4, y: 0.55), radiusX: 0.3,
+                                                                      radiusY: 0.18, rotation: 25, feather: 60))]) {
+                $0.exposure = 0.8
+                $0.contrast = 30
+                $0.temperature = 40
+            }]
+        },
+        GoldenCase("mask-brush-edgeTarget", .edgeTarget) {
+            $0.local.masks = [GoldenCase.mask([.brush(Brush(strokes: [
+                BrushStroke(points: [MaskPoint(x: 0.1, y: 0.3), MaskPoint(x: 0.6, y: 0.4), MaskPoint(x: 0.9, y: 0.8)],
+                            size: 0.08, feather: 70, flow: 60),
+                BrushStroke(points: [MaskPoint(x: 0.5, y: 0.1), MaskPoint(x: 0.5, y: 0.9)], size: 0.03, erase: true),
+            ]))]) {
+                $0.clarity = -80
+                $0.saturation = -50
+            }]
+        },
+        GoldenCase("mask-luminance-grayRamp", .grayRamp) {
+            $0.local.masks = [GoldenCase.mask([.luminanceRange(LuminanceRange(lower: 0.6, upper: 1, smoothness: 0.15))]) {
+                $0.highlights = -60
+                $0.whites = -30
+            }]
+        },
+        GoldenCase("mask-color-hueRamp", .hueRamp) {
+            $0.local.masks = [GoldenCase.mask([.colorRange(ColorRange(samples: MaskReferenceTests.sampled(
+                .hueRamp, at: [(40, 30)]), tolerance: 50))]) {
+                $0.saturation = 70
+                $0.tint = 30
+            }]
+        },
+        GoldenCase("mask-combined-hazyLandscape", .hazyLandscape) {
+            $0.exposure.ev = 0.3
+            $0.local.masks = [
+                GoldenCase.mask([.linear(LinearGradient(start: MaskPoint(x: 0.5, y: 1), end: MaskPoint(x: 0.5, y: 0.5),
+                                                        feather: 40)),
+                                 .luminanceRange(LuminanceRange(lower: 0, upper: 0.5, smoothness: 0.2))],
+                                operations: [.add, .intersect], amount: 70) {
+                    $0.shadows = 50
+                    $0.vibrance = 40
+                    $0.sharpen = 60
+                },
+                GoldenCase.mask([.radial(RadialGradient(center: MaskPoint(x: 0.7, y: 0.3), radiusX: 0.2, radiusY: 0.2,
+                                                        feather: 0)),
+                                 .brush(Brush(strokes: [BrushStroke(points: [MaskPoint(x: 0.6, y: 0.3),
+                                                                             MaskPoint(x: 0.8, y: 0.3)], size: 0.04)]))],
+                                operations: [.add, .subtract], inverts: [true, false]) {
+                    $0.exposure = -0.5
+                    $0.clarity = 40
+                },
+            ]
+        },
+        GoldenCase("mask-cropStraighten-patchChart", .patchChart) {
+            $0.crop = Crop(rect: CropRect(x: 0.1, y: 0.1, width: 0.8, height: 0.75), quarterTurns: 1, angle: 6)
+            $0.local.masks = [GoldenCase.mask([.radial(RadialGradient(center: MaskPoint(x: 0.3, y: 0.4), radiusX: 0.15,
+                                                                      radiusY: 0.25, rotation: -20))]) {
+                $0.exposure = 1
+            }]
+        },
+
         GoldenCase("crop-straighten-patchChart", .patchChart) {
             $0.crop = Crop(rect: CropRect(x: 0.1, y: 0.1, width: 0.8, height: 0.75), angle: 5)
         },
@@ -128,8 +264,43 @@ struct GoldenTests {
         },
     ]
 
+    /// The decoder's own settings: Kelvin white balance, the base look (its
+    /// boost), extended range (asked for by negative exposure), and its noise
+    /// reduction. Not covered: `decoderVersion` (the versions offered depend on
+    /// the macOS release) and the whole-sensor decode (`CameraFrame`, which
+    /// only Olympus, OM System and Panasonic files have).
+    static let rawCases: [RAWGoldenCase] = [
+        RAWGoldenCase("raw-asShot") { _ in },
+        RAWGoldenCase("raw-kelvin3200") { $0.whiteBalance = WhiteBalance(preset: .custom, temperature: 3200, tint: 0) },
+        RAWGoldenCase("raw-kelvin8000-tint30") {
+            $0.whiteBalance = WhiteBalance(preset: .custom, temperature: 8000, tint: 30)
+        },
+        RAWGoldenCase("raw-tungstenPreset") { $0.whiteBalance = .raw(.tungsten) },
+        RAWGoldenCase("raw-lookFlat") { $0.decode.look = .flat },
+        RAWGoldenCase("raw-lookNeutral") { $0.decode.look = .neutral },
+        RAWGoldenCase("raw-extendedRange-exposureMinus1") { $0.exposure.ev = -1 },
+        RAWGoldenCase("raw-noiseReduction") { $0.noiseReduction = NoiseReduction(luminance: 80, color: 80) },
+    ]
+
     @Test("Module renders match their goldens", arguments: cases)
     func moduleMatchesGolden(_ golden: GoldenCase) throws {
         try Goldens.check(golden.name, golden.render(), tolerance: Self.tolerance)
+    }
+
+    @Test("RAW decode settings match their goldens", arguments: rawCases)
+    func rawDecodeMatchesGolden(_ golden: RAWGoldenCase) throws {
+        try Goldens.check(golden.name, golden.render(), tolerance: Self.tolerance)
+    }
+
+    /// A setting the decoder ignored would pin the as-shot render under another
+    /// name: each case must change the image.
+    @Test("Every RAW decode setting changes the decode")
+    func rawSettingsTakeEffect() throws {
+        let engine = Goldens.engine
+        let asShot = try EncodedImage(rendering: Self.rawCases[0].render(), engine: engine)
+        for golden in Self.rawCases.dropFirst() {
+            let rendered = try EncodedImage(rendering: golden.render(), engine: engine)
+            #expect(rendered != asShot, "\(golden.name) renders as shot")
+        }
     }
 }

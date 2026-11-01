@@ -48,7 +48,20 @@ jobs:
         run: swift build
 
       - name: Test
+        # Every golden's difference goes to the log, and mismatches are kept
+        # as expected | actual | 8x difference images for the artifact below.
+        env:
+          GOLDENS_REPORT: "1"
+          GOLDEN_FAILURES_DIR: ${{ runner.temp }}/golden-failures
         run: swift test
+
+      - name: Upload golden failures
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-failures-${{ matrix.os }}
+          path: ${{ runner.temp }}/golden-failures
+          if-no-files-found: ignore
 
       - name: Build app bundles
         run: Scripts/build-app.sh all

@@ -252,6 +252,16 @@ public struct VersionRecord: Codable, Hashable, Sendable, Identifiable, Fetchabl
         try EditStack.decode(from: editStack)
     }
 
+    /// Nil when the stored stack can be read; otherwise why not.
+    public var editStackReadFailure: EditStack.ReadFailure? {
+        do {
+            _ = try decodedEditStack()
+            return nil
+        } catch {
+            return EditStack.ReadFailure(error)
+        }
+    }
+
     static func makeDefault(imageId: Int64, at date: Date) -> VersionRecord {
         VersionRecord(id: nil, uuid: UUID().uuidString, imageId: imageId, versionNumber: 1, name: nil,
                       isDefault: true, rating: .unrated, flag: .none, colorLabel: .none,

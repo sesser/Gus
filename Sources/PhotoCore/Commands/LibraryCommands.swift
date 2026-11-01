@@ -109,7 +109,16 @@ enum LibraryCommands {
         let version = details.version
         let image = details.image
         let url = details.volume.url(forRelativePath: image.relativePath)
-        let stack = try version.decodedEditStack()
+        // One unreadable stack must not fail a whole query: it is listed without its stack.
+        let stack: EditStack?
+        let failure: EditStack.ReadFailure?
+        do {
+            stack = try version.decodedEditStack()
+            failure = nil
+        } catch {
+            stack = nil
+            failure = EditStack.ReadFailure(error)
+        }
         return [
             "versionID": JSONValue(version.id ?? 0),
             "imageID": JSONValue(image.id ?? 0),
@@ -123,8 +132,9 @@ enum LibraryCommands {
             "flag": .string(flagName(version.flag)),
             "colorLabel": .string(labelName(version.colorLabel)),
             "keywords": .array(keywords.map(JSONValue.string)),
-            "editStack": try JSONValue(encoding: stack),
-            "renderHash": .string(stack.renderHash),
+            "editStack": try stack.map { try JSONValue(encoding: $0) } ?? .null,
+            "renderHash": stack.map { .string($0.renderHash) } ?? .string(version.editStackHash),
+            "unreadableEditStack": failure.map { .string($0.name) } ?? .null,
         ]
     }
 
@@ -160,7 +170,7 @@ enum LibraryCommands {
         guard let version = try await library.catalog.version(id: id) else {
             throw CommandError(.versionNotFound, "No version \(id)")
         }
-        let before = try version.decodedEditStack()
+        let before = try version.readableEditStack()
         let after: EditStack
         do throws(AdjustmentEdit.Failure) {
             after = try before.applying(edits)
