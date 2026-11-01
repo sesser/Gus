@@ -23,7 +23,7 @@ public struct CommandLineInterface: Sendable {
 
     /// Runs `arguments` (without the program name).
     public func run(_ arguments: [String]) async -> Output {
-        do {
+        do throws(CommandError) {
             let (id, values) = try parse(arguments)
             if id == "help" {
                 return success(try help(values.stringValue))

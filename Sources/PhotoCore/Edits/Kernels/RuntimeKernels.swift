@@ -1,7 +1,6 @@
 import CoreImage
 import Foundation
 import Metal
-import Synchronization
 
 /// Spike (docs/PHASE5_PLAN.md, "Custom GPU kernels"): Core Image kernels of
 /// our own without a Metal build step. Each is a `CIImageProcessorKernel`
@@ -87,14 +86,6 @@ public enum RuntimeKernels {
         }
         """
 
-    private struct DeviceKernels {
-        var library: MTLLibrary
-        var pipelines: [String: MTLComputePipelineState] = [:]
-    }
-
-    /// Compiled libraries and pipelines per device (`registryID`).
-    private static let cache = Mutex<[UInt64: DeviceKernels]>([:])
-
     /// Compiles the Metal source and every pipeline for `device` now rather
     /// than on first use.
     public static func compile(on device: any MTLDevice) throws {
@@ -105,24 +96,7 @@ public enum RuntimeKernels {
 
     /// The compute pipeline for `function` on `device`, compiled on first use.
     static func pipeline(_ function: String, device: any MTLDevice) throws -> any MTLComputePipelineState {
-        try cache.withLock { cache in
-            var kernels: DeviceKernels
-            if let cached = cache[device.registryID] {
-                kernels = cached
-            } else {
-                do {
-                    kernels = DeviceKernels(library: try device.makeLibrary(source: source, options: nil))
-                } catch {
-                    throw Failure.compileFailed(String(describing: error))
-                }
-            }
-            if let pipeline = kernels.pipelines[function] { return pipeline }
-            guard let entry = kernels.library.makeFunction(name: function) else { throw Failure.compileFailed(function) }
-            let pipeline = try device.makeComputePipelineState(function: entry)
-            kernels.pipelines[function] = pipeline
-            cache[device.registryID] = kernels
-            return pipeline
-        }
+        try PipelineCache.shared.pipeline(function, device: device)
     }
 
     /// Encodes `function` over the output, with the input's texture and the
@@ -200,5 +174,45 @@ final class BlurPassKernel: CIImageProcessorKernel {
             encoder.setBytes(&offset, length: MemoryLayout<SIMD2<Int32>>.size, index: 2)
             encoder.setBytes(&axis, length: MemoryLayout<SIMD2<Int32>>.size, index: 3)
         }
+    }
+}
+
+/// Compiled libraries and pipeline states per device (`registryID`).
+private final class PipelineCache: @unchecked Sendable {
+    // @unchecked: Metal libraries and pipeline states are immutable and safe to
+    // use from any thread (Metal's thread-safety rules); the dictionary is only
+    // touched under `lock`. A `Mutex` would have to send the non-Sendable
+    // pipeline out of its closure, which Swift 6.1 rejects.
+    static let shared = PipelineCache()
+
+    private struct DeviceKernels {
+        var library: any MTLLibrary
+        var pipelines: [String: any MTLComputePipelineState] = [:]
+    }
+
+    private let lock = NSLock()
+    private var kernels: [UInt64: DeviceKernels] = [:]
+
+    func pipeline(_ function: String, device: any MTLDevice) throws -> any MTLComputePipelineState {
+        lock.lock()
+        defer { lock.unlock() }
+        var entry: DeviceKernels
+        if let cached = kernels[device.registryID] {
+            entry = cached
+        } else {
+            do {
+                entry = DeviceKernels(library: try device.makeLibrary(source: RuntimeKernels.source, options: nil))
+            } catch {
+                throw RuntimeKernels.Failure.compileFailed(String(describing: error))
+            }
+        }
+        if let pipeline = entry.pipelines[function] { return pipeline }
+        guard let compiled = entry.library.makeFunction(name: function) else {
+            throw RuntimeKernels.Failure.compileFailed(function)
+        }
+        let pipeline = try device.makeComputePipelineState(function: compiled)
+        entry.pipelines[function] = pipeline
+        kernels[device.registryID] = entry
+        return pipeline
     }
 }

@@ -231,7 +231,7 @@ public struct CommandEnvironment: Sendable {
         guard FileManager.default.fileExists(atPath: locations.catalogFileURL.path) else {
             throw CommandError(.libraryNotFound, "No library at \(locations.catalogDirectory.deletingLastPathComponent().path)")
         }
-        do {
+        do throws(LibraryLock.Failure) {
             return try LibraryLock.acquire(locations)
         } catch .held(let processID) {
             let holder = processID.map { " (process \($0))" } ?? ""

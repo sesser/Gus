@@ -121,7 +121,7 @@ enum RenderCommands {
                 """)
         }
         let edits: [AdjustmentEdit]
-        do {
+        do throws(AdjustmentEdit.Failure) {
             edits = try arguments.strings("set").map(AdjustmentEdit.parseSet)
         } catch {
             throw LibraryCommands.commandError(error)
@@ -163,7 +163,7 @@ enum RenderCommands {
                 throw CommandError(.invalidValue, "--stack is not an edit stack: \(error)")
             }
         }
-        do {
+        do throws(AdjustmentEdit.Failure) {
             stack = try stack.applying(edits)
         } catch {
             throw LibraryCommands.commandError(error)

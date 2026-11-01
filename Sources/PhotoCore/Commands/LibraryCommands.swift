@@ -149,7 +149,7 @@ enum LibraryCommands {
     static func runDevelop(_ invocation: CommandInvocation) async throws -> JSONValue {
         let arguments = invocation.arguments
         let edits: [AdjustmentEdit]
-        do {
+        do throws(AdjustmentEdit.Failure) {
             edits = try arguments.strings("reset").map(AdjustmentEdit.parseReset)
                 + arguments.strings("set").map(AdjustmentEdit.parseSet)
         } catch {
@@ -162,7 +162,7 @@ enum LibraryCommands {
         }
         let before = try version.decodedEditStack()
         let after: EditStack
-        do {
+        do throws(AdjustmentEdit.Failure) {
             after = try before.applying(edits)
         } catch {
             throw commandError(error)
