@@ -228,20 +228,19 @@ struct MaskRenderingTests {
 
 /// On a real Panasonic RW2 shot at an aspect other than its sensor's: a mask
 /// makes the decoder give the whole sensor and the renderer crop back to the
-/// camera's frame, so a mask whose alpha is 0 everywhere should leave the
-/// render as it is. The file is only read. `CAMERA_RAW_SAMPLE` names it.
+/// camera's frame. The file is only read. `CAMERA_RAW_SAMPLE` names it.
 ///
-/// Known issue (docs/PHASE6_PLAN.md): the decoder corrects lens distortion
-/// relative to the frame it decodes, so the whole sensor cropped to the
-/// camera's frame differs from the camera's own frame at every edge (P1190134,
-/// 16:9 of 4:3: PSNR 40.6 dB with lens correction, 63.6 dB without). A crop
-/// equal to the camera's frame did the same before masks existed. What does
-/// hold: the masked stack renders like that explicit crop.
+/// Accepted (docs/PHASE6_PLAN.md, Results, finding 1): the decoder corrects
+/// lens distortion relative to the frame it decodes, so the whole sensor
+/// cropped to the camera's frame differs from the camera's own frame at every
+/// edge (P1190134, 16:9 of 4:3: PSNR 40.6 dB), as a crop equal to that frame
+/// did before masks. So a mask whose alpha is 0 everywhere must render like
+/// that explicit crop; its difference from the unmasked render is printed.
 @Suite("Masks on a camera RAW file",
        .enabled(if: ProcessInfo.processInfo.environment["CAMERA_RAW_SAMPLE"] != nil,
                 "Set CAMERA_RAW_SAMPLE to a Panasonic RW2 (or Olympus ORF) shot at a cropped aspect ratio"))
 struct CameraRAWMaskTests {
-    @Test("Masks with alpha 0 render the same as no masks")
+    @Test("Masks with alpha 0 render like an explicit camera-frame crop")
     func zeroAlphaMasksChangeNothing() throws {
         let url = URL(fileURLWithPath: ProcessInfo.processInfo.environment["CAMERA_RAW_SAMPLE"] ?? "")
         let cameraFrame = try #require(CameraFrame.rect(of: url), "\(url.lastPathComponent) has no camera crop")
@@ -264,13 +263,6 @@ struct CameraRAWMaskTests {
             print("camera RAW \(url.lastPathComponent) (frame \(cameraFrame)), long edge \(longEdge.map(String.init) ?? "full"): "
                   + "\(a.width) × \(a.height) and \(b.width) × \(b.height), \(difference)")
             #expect(difference.sizesMatch, "\(a.width) × \(a.height) against \(b.width) × \(b.height)")
-            if !GoldenTests.tolerance.accepts(difference) {
-                let failure = Goldens.failureDirectory.appending(path: "camera-raw-\(longEdge.map(String.init) ?? "full").png")
-                try EncodedImage.sideBySide(expected: a, actual: b).writePNG(to: failure)
-                withKnownIssue("The decoder's lens correction depends on the decoded frame") {
-                    Issue.record("\(difference). Without masks | with α = 0 masks | 8× difference: \(failure.path)")
-                }
-            }
             // At full size only: reduced, the explicit crop's decode size comes from
             // `Crop.sourceZoom` and can round to a pixel more or less.
             guard longEdge == nil else { continue }

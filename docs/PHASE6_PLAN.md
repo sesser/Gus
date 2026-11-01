@@ -1,8 +1,8 @@
 # Phase 6 plan: local adjustments with masks
 
 Status: **first pass done** (2026-11-01): decisions approved with the
-changes recorded below, steps 1–9 implemented. Open: the RW2 lens-correction
-issue under "Results" needs a decision.
+changes recorded below, steps 1–9 implemented. The RW2 lens-correction
+finding is accepted as it is. Open: half-size drafts while dragging.
 
 Masks let the global adjustments act on part of a photo: a linear gradient,
 a radial gradient, a brush, a luminance range and a color range, combined
@@ -637,12 +637,15 @@ reference on sampled pixels, 1.6 s to rasterize in a debug build) and
    (P1190134, 16:9 of 4:3: PSNR 40.6 dB with lens correction, 63.6 dB
    without; decoder settings identical). Masked stacks decode the whole
    sensor, so the requested test (masks at α = 0 render like no masks) fails
-   on such files; it is recorded as a known issue, and the stack renders like
-   an explicit camera-frame crop within the golden tolerance. This predates
-   masks. Options: accept it; or keep the camera's decode for masked stacks
-   without a crop and remap masks when a crop is first added; or turn the
-   decoder's lens correction off for whole-sensor decodes and correct
-   ourselves (out of scope). **Needs your decision.**
+   on such files, and the stack renders like an explicit camera-frame crop
+   within the golden tolerance. This predates masks. Options were: accept
+   it; keep the camera's decode for masked stacks without a crop and remap
+   masks when a crop is first added; or turn the decoder's lens correction
+   off for whole-sensor decodes and correct ourselves. **Accepted as it is**
+   (2026-11-01): adding the first mask to such a photo changes its edges the
+   way adding a crop already does. The test now asserts that a masked stack
+   renders like the explicit crop, and prints its difference from the
+   unmasked render.
 2. **Two crops of the same photo do not give identical pixels** where they
    overlap, even rectangles a whole number of pixels apart: up to 2.9 × 10⁻³
    at patch edges (the GPU's bilinear weights seem to depend on each render's
