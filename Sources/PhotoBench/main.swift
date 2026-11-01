@@ -43,6 +43,11 @@ let usage = """
                  Times the runtime-compiled kernel spike against the stock filters at preview
                  size (2560 px) and full size (default 6000x4000), first call and steady state.
 
+      masks      [--size WxH] [--frames N]
+                 Live frames with zero to three masks on a synthetic DNG (default 6000x4000) at
+                 the loupe's size, per-module costs, brush rasterization, memory, and the stack's
+                 size and hashing time while a stroke is painted.
+
       blend-error
                  For each local control: the largest difference between blending the adjusted
                  image by alpha and running the module at alpha times the value (test scenes).
@@ -113,6 +118,7 @@ do {
     case "copy": report = try await CopyBenchmark.run(arguments)
     case "edits": report = try await EditBenchmark.run(arguments)
     case "kernels": report = try await KernelBenchmark.run(arguments)
+    case "masks": report = try await MaskBenchmark.run(arguments)
     case "blend-error": report = try await BlendErrorReport.run(arguments)
     default:
         print(usage)

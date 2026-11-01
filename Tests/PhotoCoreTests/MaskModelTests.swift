@@ -164,4 +164,20 @@ struct MaskModelTests {
         ])
         #expect(local.renderedMasks.map(\.id) == [Self.ids[0]])
     }
+
+    @Test("Recorded brush samples closer than a tenth of the radius are dropped; the last one is kept")
+    func thinning() {
+        var stroke = BrushStroke(size: 0.05)
+        // A 3:2 frame: x runs over the long edge, y over two thirds of it.
+        let aspect = 1.5
+        let kept = [MaskPoint(x: 0.1, y: 0.1), MaskPoint(x: 0.104, y: 0.1), MaskPoint(x: 0.106, y: 0.1),
+                    // 0.006 of the height is 0.004 of the long edge: under 0.005.
+                    MaskPoint(x: 0.106, y: 0.106)].map { stroke.record($0, aspect: aspect) }
+        #expect(kept == [true, false, true, false])
+        stroke.finish(MaskPoint(x: 0.106, y: 0.107))
+        #expect(stroke.points.count == 3 && stroke.points.last == MaskPoint(x: 0.106, y: 0.107))
+        stroke.finish(MaskPoint(x: 0.106, y: 0.107))
+        #expect(stroke.points.count == 3)
+    }
 }
+

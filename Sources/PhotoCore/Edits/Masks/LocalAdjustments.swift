@@ -395,6 +395,30 @@ public struct BrushStroke: Hashable, Sendable {
         self.erase = erase
     }
 
+    /// Adds a sample as it is recorded, unless it lies within a tenth of the
+    /// radius (in long-edge units of a frame of `aspect` width over height) of
+    /// the last kept point. Dabs fall a quarter of the radius apart, so a
+    /// dropped sample moves no dab by more than that. Returns whether it was
+    /// kept; `finish` keeps the stroke's last sample whatever its distance.
+    @discardableResult
+    public mutating func record(_ point: MaskPoint, aspect: Double) -> Bool {
+        guard let last = points.last else {
+            points.append(point)
+            return true
+        }
+        // Unit coordinates to long-edge units.
+        let (sx, sy) = aspect >= 1 ? (1.0, 1 / aspect) : (aspect, 1.0)
+        let distance = hypot((point.x - last.x) * sx, (point.y - last.y) * sy)
+        guard distance >= size / 10 else { return false }
+        points.append(point)
+        return true
+    }
+
+    /// Ends a recorded stroke with its last sample.
+    public mutating func finish(_ point: MaskPoint) {
+        if points.last != point { points.append(point) }
+    }
+
     var parameters: [String: EditParameter] {
         var out = ParameterBuilder()
         out.values["points"] = .list(points.flatMap { [EditParameter.number($0.x), .number($0.y)] })

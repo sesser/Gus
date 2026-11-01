@@ -159,6 +159,9 @@ public enum BrushRasterizer {
     /// Rasterized brushes, least recently used out first, at most 256 MB.
     static let cache = RasterCache(limit: 256 << 20)
 
+    /// Bytes the cache of rasterized brushes holds.
+    public static var cachedBytes: Int { cache.byteCount }
+
     final class RasterCache: Sendable {
         private struct Entry {
             var image: CIImage
