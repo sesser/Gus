@@ -2,7 +2,8 @@
 
 Status: **first pass done** (2026-11-01): decisions approved with the
 changes recorded below, steps 1–9 implemented. The RW2 lens-correction
-finding is accepted as it is. Open: half-size drafts while dragging.
+finding is accepted as it is. Stage caching and adaptive drafts are built
+("Caching and drafts").
 
 Masks let the global adjustments act on part of a photo: a linear gradient,
 a radial gradient, a brush, a luminance range and a color range, combined
@@ -627,6 +628,71 @@ reference on sampled pixels, 1.6 s to rasterize in a debug build) and
   stack is 18 KB and encodes and hashes in 0.4 ms each, at 10 000 points
   176 KB and 4.3 ms, at 50 000 points 878 KB and 21 ms. Each stroke is saved
   once, on release.
+
+### Caching and drafts (approved 2026-11-01)
+
+- **Stages.** `AdjustmentRenderer.render` is upstream (crop through color
+  grading), whole-frame estimates, each mask, downstream. Local tone and
+  dehaze in a mask now measure the image entering the mask step, as
+  decision 3 says (before, the image after earlier masks and the mask's own
+  exposure): pipeline version 4, golden `mask-linear-hazyLandscape` updated.
+- **Cache** (`LiveRenderSession`): the image entering the mask step, the
+  estimates, and the result of the masks before the one being changed (the
+  first that differs from the last frame), each rendered once to a
+  half-float image and reused while its inputs stay the same, per draft
+  level. Cached frames match whole ones within one 8-bit step.
+- **Drafts.** Interactive frames step to ½ (then ¼) size when the previous
+  frame took over 100 ms, and back up only when the next larger frame (four
+  times the pixels) would take under 60 ms. A draft is the same staged render
+  over a reduced copy of the decoded master with `RenderContext.scale`
+  reduced to match, so every radius keeps its size relative to the photo.
+  Tested for each local control against the full render reduced 2×: RMS
+  under one 8-bit step (PSNR ≥ 48.1 dB) and mean OkLab ΔE ≤ 0.002 (a tenth of
+  a just-noticeable difference); measured 65–69 dB for all but exposure,
+  52 dB for local exposure +1.5 (Lanczos lobes on values above white differ
+  with the resampling order at a few pixels).
+- **Refinement.** On release, or after 150 ms without input, the editor
+  renders full quality and keeps the draft on screen until it is ready; new
+  input cancels it between stages (`RenderCancellation`; a stage already on
+  the GPU finishes). Mask handles and the brush cursor are vector layers at
+  screen resolution; the red mask overlay is part of the frame and follows
+  its scale.
+- **Never drafts:** exports, cached previews and `photocli` render through
+  `PreviewGenerator`, goldens through `AdjustmentRenderer`; drafts exist
+  only in `LiveRenderSession`.
+- **Timings** (`photobench masks`, same machine and file; 2560 px frames;
+  three masks with exposure, contrast and clarity unless said; times are
+  from the start of the render to the histogram):
+
+  | frames | mean | p50 | p95 |
+  |---|---|---|---|
+  | global stack only, whole | 37 ms | 37 ms | 40 ms |
+  | whole, first mask moves | 166 ms | 165 ms | 197 ms |
+  | whole, last mask moves | 167 ms | 167 ms | 181 ms |
+  | cached, first mask moves | 35 ms | 35 ms | 41 ms |
+  | cached, last mask moves | 24 ms | 18 ms | 130 ms |
+  | cached + adaptive drafts, first mask moves | 40 ms | 37 ms | 117 ms (2 of 20 frames at ½) |
+  | cached + adaptive drafts, last mask moves | 27 ms | 18 ms | 120 ms (3 of 20 at ½) |
+  | cached, forced ½ (1280 px) | 8.5 ms | 8.5 ms | 9.4 ms |
+  | cached, last mask moves: exposure / contrast / clarity / shadows / dehaze only | 13 / 15 / 19 / 16 / 17 ms | | 38 / 48 / 74 / 52 / 62 ms |
+
+  Caching does most of the work: whole frames spent their time on the
+  global modules before the masks, which a mask drag does not change. The
+  p95 values with the cache are the one frame per drag that renders the
+  masks before the moving one into the cache; that frame is what triggers
+  the occasional draft, which then steps back up at once.
+- **GPU completion.** Frame times include it: `createCGImage` returns a
+  bitmap already filled (reading its pixels afterwards took 0.00 ms), and
+  the histogram reads every pixel within the timed span. The earlier 12 ms
+  for half-size frames was measured the same way.
+- **The loupe at 100 %.** At fit, the loupe shows the live frames (2560 px).
+  At 1:1 it shows a full-resolution render of the saved stack, but while
+  editing the live 2560 px frames replace it, stretched (2.3× for a 6000 px
+  photo), until the change is saved and the full render reloads. Drafts
+  would stretch that to 4.7×. Recommendation: no drafts while zoomed in;
+  instead render only the visible part at full resolution while editing at
+  1:1 (a region of interest, about 1.5 megapixels for a 1500 × 1000 view,
+  less than the 4.4 megapixels of a fit frame). Neither is built.
 
 ### Findings
 

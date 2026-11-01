@@ -47,49 +47,82 @@ enum MaskBenchmark {
 
         var report: [String: any Sendable] = ["machine": machineDescription(), "width": width, "height": height]
         var live: [String: any Sendable] = [:]
+        /// Frames while one local slider moves. `caches` keeps the session's
+        /// stages; `adaptive` lets it draft (interactive frames); otherwise every
+        /// frame is full size. `mask` is the one whose slider moves.
         func time(_ name: String, _ adjustments: Adjustments, longEdge: Int = PreviewTier.preview.longEdge,
-                  vary: @escaping (inout Adjustments, Int) -> Void) async throws {
-            let session = LiveRenderSession(source: url, generator: generator, longEdge: longEdge, colorSpace: nil)
+                  caches: Bool = true, adaptive: Bool = false, mask: Int = 0) async throws {
+            let session = LiveRenderSession(source: url, generator: generator, longEdge: longEdge, colorSpace: nil,
+                                            cachesStages: caches)
             let first = try await measure { _ = try await session.render(adjustments) }.1.milliseconds
             var values = adjustments
             var samples: [Double] = []
+            var scales: [Double: Int] = [:]
             for frame in 0..<frames {
-                vary(&values, frame)
-                samples.append(try await measure { _ = try await session.render(values, interactive: true) }.1.milliseconds)
+                if values.local.masks.indices.contains(mask) {
+                    values.local.masks[mask].adjustments.exposure = 0.5 + Double(frame) * 0.02
+                } else {
+                    values.exposure.ev = 0.3 + Double(frame) * 0.01
+                }
+                let (rendered, duration) = try await measure { try await session.render(values, interactive: adaptive) }
+                samples.append(duration.milliseconds)
+                scales[rendered.scale, default: 0] += 1
             }
             let stats = Stats(samples)
-            print("  \(name.padding(toLength: 34, withPad: " ", startingAt: 0)) first \(String(format: "%.1f", first)) ms  \(stats.line)")
+            let scaleText = scales.keys.sorted(by: >).map { "\($0 == 1 ? "full" : $0 == 0.5 ? "½" : "¼") ×\(scales[$0]!)" }
+                .joined(separator: ", ")
+            print("  \(name.padding(toLength: 44, withPad: " ", startingAt: 0)) first \(String(format: "%6.1f", first)) ms  "
+                  + "\(stats.line)  [\(scaleText)]")
             var entry = stats.dictionary
             entry["first_ms"] = first
+            entry["scales"] = scales.map { ["scale": $0.key, "frames": $0.value] as [String: any Sendable] }
             live[name] = entry
         }
-        print("\nLive frames (a local slider moves each frame; masks: linear, radial, brush of 20 strokes):")
-        let moveLocal: (inout Adjustments, Int) -> Void = { values, frame in
-            if values.local.masks.isEmpty {
-                values.exposure.ev = 0.3 + Double(frame) * 0.01
-            } else {
-                values.local.masks[0].adjustments.exposure = 0.5 + Double(frame) * 0.02
+        print("\nLive frames at \(PreviewTier.preview.longEdge) px (a local slider moves each frame; masks: linear, "
+              + "radial, brush of 20 strokes; times include the GPU, read-back and histogram):")
+        try await time("global only", global, caches: false)
+        for count in 1...3 {
+            try await time("\(count) mask(s), whole", masked(count, typical), caches: false)
+        }
+        print("  Three masks with exposure, contrast and clarity:")
+        try await time("whole, first mask moves", masked(3, typical), caches: false, mask: 0)
+        try await time("whole, last mask moves", masked(3, typical), caches: false, mask: 2)
+        try await time("cached, first mask moves", masked(3, typical), mask: 0)
+        try await time("cached, last mask moves", masked(3, typical), mask: 2)
+        try await time("cached + adaptive drafts, first mask moves", masked(3, typical), adaptive: true, mask: 0)
+        try await time("cached + adaptive drafts, last mask moves", masked(3, typical), adaptive: true, mask: 2)
+        try await time("cached, forced ½ (1280 px), first mask moves", masked(3, typical), longEdge: 1280, mask: 0)
+        // Where the time goes: three masks with one kind of local value each, cached, last mask moving.
+        print("  Three masks, one kind of local value each (cached, last mask moves):")
+        for (name, values) in [
+            ("exposure only", { (v: inout LocalValues) in v.exposure = 0.5 }),
+            ("contrast only", { (v: inout LocalValues) in v.contrast = 20 }),
+            ("clarity only", { (v: inout LocalValues) in v.clarity = 30 }),
+            ("shadows only (local tone)", { (v: inout LocalValues) in v.shadows = 30 }),
+            ("dehaze only", { (v: inout LocalValues) in v.dehaze = 30 }),
+        ] as [(String, (inout LocalValues) -> Void)] {
+            try await time(name, masked(3, values), mask: 2)
+        }
+        report["live"] = live
+
+        // Does a frame's time include the GPU's work? `createCGImage` returns a
+        // bitmap already filled: reading its bytes afterwards costs a copy, not a render.
+        let check = LiveRenderSession(source: url, generator: generator, colorSpace: nil, cachesStages: false)
+        _ = try await check.render(masked(3, typical))
+        var probe = masked(3, typical)
+        probe.local.masks[2].adjustments.exposure = 0.9
+        let (frame, total) = try await measure { try await check.render(probe) }
+        let (_, read) = await measure {
+            if let data = frame.image.cgImage.dataProvider?.data, let bytes = CFDataGetBytePtr(data) {
+                var sum = 0
+                for i in stride(from: 0, to: CFDataGetLength(data), by: 4096) { sum &+= Int(bytes[i]) }
+                _ = sum
             }
         }
-        try await time("global only", global, vary: moveLocal)
-        for count in 1...3 {
-            try await time("\(count) mask(s): exposure, contrast, clarity", masked(count, typical), vary: moveLocal)
-        }
-        // Where the time goes: three masks with one kind of local value each.
-        for (name, values) in [
-            ("3 masks: exposure only", { (v: inout LocalValues) in v.exposure = 0.5 }),
-            ("3 masks: contrast only", { (v: inout LocalValues) in v.contrast = 20 }),
-            ("3 masks: clarity only", { (v: inout LocalValues) in v.clarity = 30 }),
-            ("3 masks: shadows only (local tone)", { (v: inout LocalValues) in v.shadows = 30 }),
-            ("3 masks: dehaze only", { (v: inout LocalValues) in v.dehaze = 30 }),
-        ] as [(String, (inout LocalValues) -> Void)] {
-            try await time(name, masked(3, values), vary: moveLocal)
-        }
-        // A draft while dragging: the same frames at half the loupe's size.
-        print("\nDrafts at 1280 px:")
-        try await time("draft: global only", global, longEdge: 1280, vary: moveLocal)
-        try await time("draft: 3 masks, exposure, contrast, clarity", masked(3, typical), longEdge: 1280, vary: moveLocal)
-        report["live"] = live
+        print("\nCompletion: a whole frame took \(String(format: "%.1f", total.milliseconds)) ms (its own measure "
+              + "\(String(format: "%.1f", frame.seconds * 1000)) ms); touching its pixels afterwards "
+              + "\(String(format: "%.2f", read.milliseconds)) ms")
+        report["completion"] = ["frame_ms": total.milliseconds, "read_ms": read.milliseconds]
 
         // Brush rasterization alone, uncached, at the loupe's size and in full.
         print("\nBrush rasterization (20 strokes, CPU, parallel):")
