@@ -295,6 +295,7 @@ extension EditStack.ReadFailure {
     var name: String {
         switch self {
         case .newerVersion: "newerVersion"
+        case .exceedsLimits: "exceedsLimits"
         case .damaged: "damaged"
         }
     }
@@ -312,6 +313,11 @@ extension VersionRecord {
                 throw CommandError(.unreadableEditStack, """
                     Version \(id)'s edits were saved by a newer version of \(AppBranding.displayName) \
                     (edit format \(schema)); they are left unchanged.
+                    """)
+            case .exceedsLimits:
+                throw CommandError(.unreadableEditStack, """
+                    Version \(id)'s edits hold more masks or brush points than this version of \
+                    \(AppBranding.displayName) allows; they are left unchanged.
                     """)
             case .damaged:
                 throw CommandError(.unreadableEditStack, "Version \(id)'s edits cannot be read; they are left unchanged.")

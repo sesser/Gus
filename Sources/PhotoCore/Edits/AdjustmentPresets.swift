@@ -83,10 +83,12 @@ struct AdjustmentPresetRecord: Codable, FetchableRecord, MutablePersistableRecor
 
 extension Adjustments {
     /// These adjustments applied over `target`'s: everything is replaced except
-    /// the target's operations this build does not understand.
+    /// the target's masks and its operations this build does not understand.
     public func pasted(onto target: Adjustments) -> Adjustments {
         var result = self
         result.preserved = target.preserved
+        // Masks are drawn on one photo's content: paste leaves the target's.
+        result.local = target.local
         return result
     }
 }

@@ -7035,6 +7035,17 @@
         }
       }
     },
+    "These edits hold more masks or brush points than this version of %@ allows. Editing is off so they are not lost." : {
+      "comment" : "Adjust tab and status line; %@ is the app's name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These edits hold more masks or brush points than this version of %@ allows. Editing is off so they are not lost."
+          }
+        }
+      }
+    },
     "These edits were saved by a newer version of %@. Editing is off so they are not lost." : {
       "comment" : "Adjust tab and status line; %@ is the app's name",
       "localizations" : {

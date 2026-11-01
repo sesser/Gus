@@ -56,6 +56,11 @@ public struct EditStack: Codable, Hashable, Sendable {
     public enum DecodingFailure: Error, Equatable {
         /// Written by a newer build than this one understands.
         case unsupportedSchemaVersion(Int)
+        /// An operation this build knows holds something it cannot read
+        /// (masks: `MaskReadError.invalid`).
+        case invalidOperation(String)
+        /// More masks, components, samples or brush points than `MaskLimits` allows.
+        case exceedsLimits(String)
     }
 
     /// Why a stored stack cannot be read. Such a stack is shown unedited but
@@ -63,14 +68,16 @@ public struct EditStack: Codable, Hashable, Sendable {
     public enum ReadFailure: Error, Hashable, Sendable {
         /// Written by a newer build (`DecodingFailure.unsupportedSchemaVersion`).
         case newerVersion(Int)
+        /// Holds more than `MaskLimits` allows.
+        case exceedsLimits
         /// Not a stack this build can decode at all.
         case damaged
 
         public init(_ error: any Error) {
-            if let failure = error as? DecodingFailure, case .unsupportedSchemaVersion(let version) = failure {
-                self = .newerVersion(version)
-            } else {
-                self = .damaged
+            switch error as? DecodingFailure {
+            case .unsupportedSchemaVersion(let version): self = .newerVersion(version)
+            case .exceedsLimits: self = .exceedsLimits
+            default: self = .damaged
             }
         }
     }
@@ -95,8 +102,18 @@ public struct EditStack: Codable, Hashable, Sendable {
         guard header.schemaVersion <= currentSchemaVersion else {
             throw DecodingFailure.unsupportedSchemaVersion(header.schemaVersion)
         }
-        // Schema upgrades go here, oldest first, once there is more than one version.
-        return try decoder.decode(EditStack.self, from: data)
+        // Schema upgrades go here, oldest first, once a version changes the meaning of an older one.
+        let stack = try decoder.decode(EditStack.self, from: data)
+        for operation in stack.operations {
+            do {
+                try LocalAdjustments.validate(operation)
+            } catch .invalid(let reason) {
+                throw DecodingFailure.invalidOperation(reason)
+            } catch .exceedsLimits(let reason) {
+                throw DecodingFailure.exceedsLimits(reason)
+            }
+        }
+        return stack
     }
 
     public static func decode(from string: String) throws -> EditStack {

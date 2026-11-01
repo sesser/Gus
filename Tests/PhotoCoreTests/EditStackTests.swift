@@ -85,7 +85,7 @@ struct EditStackTests {
         let id = UUID(uuidString: "00000000-0000-4000-8000-000000000001")!
         let masked = EditStack(operations: [
             exposure(1, id: id),
-            EditOperation(id: id, kind: "localAdjustments", parameters: [
+            EditOperation(id: id, kind: "objectSample", parameters: [
                 "masks": .list([.object(["name": .string("Sky"), "amount": .number(80),
                                          "adjustments": .object(["exposure": .number(-0.5)])])]),
             ]),
@@ -113,7 +113,7 @@ struct EditStackTests {
         let nested = EditParameter.list([.number(1), .list([.object([:])])])
         #expect(nested.containsObject)
         #expect(!EditParameter.list([.number(1), .list([.string("x")])]).containsObject)
-        let off = EditStack(operations: [EditOperation(kind: "localAdjustments", isEnabled: false,
+        let off = EditStack(operations: [EditOperation(kind: "objectSample", isEnabled: false,
                                                        parameters: ["masks": nested])])
         // The container needs version 2 to hold it, even turned off.
         #expect(off.schemaVersion == 2)

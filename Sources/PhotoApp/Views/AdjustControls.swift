@@ -505,6 +505,9 @@ enum AdjustText {
         case .newerVersion:
             String(localized: "These edits were saved by a newer version of \(name). Editing is off so they are not lost.",
                    comment: "Adjust tab and status line; %@ is the app's name")
+        case .exceedsLimits:
+            String(localized: "These edits hold more masks or brush points than this version of \(name) allows. Editing is off so they are not lost.",
+                   comment: "Adjust tab and status line; %@ is the app's name")
         case .damaged:
             String(localized: "These edits cannot be read. Editing is off so they are not lost.",
                    comment: "Adjust tab and status line")
