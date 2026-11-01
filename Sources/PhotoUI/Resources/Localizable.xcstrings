@@ -188,6 +188,29 @@
         }
       }
     },
+    "%lld colors" : {
+      "comment" : "Color range: how many colors were picked",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld color"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld colors"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld files already exist in “%@”" : {
       "comment" : "Export window: existing files alert title; count and folder name",
       "localizations" : {
@@ -663,6 +686,17 @@
         }
       }
     },
+    "Add" : {
+      "comment" : "Mask operation",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add"
+          }
+        }
+      }
+    },
     "Add Keyword" : {
       "comment" : "Undo action name",
       "localizations" : {
@@ -692,6 +726,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Add Keywords…"
+          }
+        }
+      }
+    },
+    "Add Mask" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Mask"
           }
         }
       }
@@ -848,6 +893,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Add to Album"
+          }
+        }
+      }
+    },
+    "Add to Mask" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add to Mask"
+          }
+        }
+      }
+    },
+    "Add to Mask:" : {
+      "comment" : "Masks heading: buttons that add a shape to the selected mask",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add to Mask:"
           }
         }
       }
@@ -1443,6 +1510,28 @@
         }
       }
     },
+    "Brush" : {
+      "comment" : "Mask shape",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Brush"
+          }
+        }
+      }
+    },
+    "Brush Stroke" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Brush Stroke"
+          }
+        }
+      }
+    },
     "Built-in" : {
       "comment" : "Look-up table collection that comes with the app",
       "localizations" : {
@@ -1880,6 +1969,17 @@
         }
       }
     },
+    "Click the photo to add colors to the range" : {
+      "comment" : "Button help",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Click the photo to add colors to the range"
+          }
+        }
+      }
+    },
     "Click to add a point, drag to move it, double-click to remove it." : {
       "comment" : "Help under the tone curve",
       "localizations" : {
@@ -1985,6 +2085,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Color Mixer"
+          }
+        }
+      }
+    },
+    "Color Range" : {
+      "comment" : "Mask shape",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color Range"
           }
         }
       }
@@ -2517,6 +2628,17 @@
         }
       }
     },
+    "Delete Mask" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Mask"
+          }
+        }
+      }
+    },
     "Delete Preset" : {
       "comment" : "Preset editor button",
       "localizations" : {
@@ -2583,6 +2705,17 @@
         }
       }
     },
+    "Delete this mask" : {
+      "comment" : "Button help",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete this mask"
+          }
+        }
+      }
+    },
     "Delete…" : {
       "comment" : "Sidebar keyword context menu",
       "localizations" : {
@@ -2590,6 +2723,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Delete…"
+          }
+        }
+      }
+    },
+    "Density" : {
+      "comment" : "Brush slider",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Density"
           }
         }
       }
@@ -2682,6 +2826,39 @@
         }
       }
     },
+    "Done Painting" : {
+      "comment" : "Brush button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Done Painting"
+          }
+        }
+      }
+    },
+    "Done Picking" : {
+      "comment" : "Color range button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Done Picking"
+          }
+        }
+      }
+    },
+    "Drag on the photo to paint into this mask" : {
+      "comment" : "Button help",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag on the photo to paint into this mask"
+          }
+        }
+      }
+    },
     "Drop folders to import each one as a project" : {
       "comment" : "Shown over the browser while folders are dragged over it",
       "localizations" : {
@@ -2766,6 +2943,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Email"
+          }
+        }
+      }
+    },
+    "Erase" : {
+      "comment" : "Brush button help",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erase"
           }
         }
       }
@@ -3049,6 +3237,17 @@
         }
       }
     },
+    "Feather" : {
+      "comment" : "Mask and brush slider",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Feather"
+          }
+        }
+      }
+    },
     "Field" : {
       "comment" : "Smart album rule field picker (accessibility label)",
       "localizations" : {
@@ -3187,6 +3386,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Flat"
+          }
+        }
+      }
+    },
+    "Flow" : {
+      "comment" : "Brush slider",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flow"
           }
         }
       }
@@ -3923,6 +4133,28 @@
         }
       }
     },
+    "Intersect" : {
+      "comment" : "Mask operation",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Intersect"
+          }
+        }
+      }
+    },
+    "Invert" : {
+      "comment" : "Mask component; undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invert"
+          }
+        }
+      }
+    },
     "It is removed from %lld photos. The photos stay in the library." : {
       "comment" : "Delete keyword confirmation",
       "localizations" : {
@@ -4232,6 +4464,28 @@
         }
       }
     },
+    "Linear Gradient" : {
+      "comment" : "Mask shape",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linear Gradient"
+          }
+        }
+      }
+    },
+    "Local Adjustment" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Local Adjustment"
+          }
+        }
+      }
+    },
     "Location" : {
       "comment" : "Smart album rule field",
       "localizations" : {
@@ -4341,6 +4595,17 @@
         }
       }
     },
+    "Lower" : {
+      "comment" : "Luminance range",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lower"
+          }
+        }
+      }
+    },
     "Lower Rating" : {
       "localizations" : {
         "en" : {
@@ -4358,6 +4623,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Luminance"
+          }
+        }
+      }
+    },
+    "Luminance Range" : {
+      "comment" : "Mask shape",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Luminance Range"
           }
         }
       }
@@ -4428,6 +4704,39 @@
         }
       }
     },
+    "Mask %lld" : {
+      "comment" : "A new mask's name; %lld is its number",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mask %lld"
+          }
+        }
+      }
+    },
+    "Mask Amount" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mask Amount"
+          }
+        }
+      }
+    },
+    "Mask Operation" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mask Operation"
+          }
+        }
+      }
+    },
     "Masking" : {
       "comment" : "Sharpening slider: limits sharpening to edges; also its undo action name",
       "localizations" : {
@@ -4435,6 +4744,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Masking"
+          }
+        }
+      }
+    },
+    "Masks" : {
+      "comment" : "Adjust tab heading",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Masks"
           }
         }
       }
@@ -4527,6 +4847,28 @@
         }
       }
     },
+    "Move Mask" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move Mask"
+          }
+        }
+      }
+    },
+    "Move Mask Handle" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move Mask Handle"
+          }
+        }
+      }
+    },
     "Move To" : {
       "comment" : "Preset manager submenu",
       "localizations" : {
@@ -4534,6 +4876,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Move To"
+          }
+        }
+      }
+    },
+    "Move down (applied later)" : {
+      "comment" : "Button help",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move down (applied later)"
+          }
+        }
+      }
+    },
+    "Move up (applied earlier)" : {
+      "comment" : "Button help",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move up (applied earlier)"
           }
         }
       }
@@ -4633,6 +4997,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "New Collection…"
+          }
+        }
+      }
+    },
+    "New Mask:" : {
+      "comment" : "Masks heading: buttons that make a new mask",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Mask:"
           }
         }
       }
@@ -5135,6 +5510,17 @@
         }
       }
     },
+    "Paint" : {
+      "comment" : "Brush button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paint"
+          }
+        }
+      }
+    },
     "Panel" : {
       "comment" : "Accessibility label of the inspector's Info/Adjust switch",
       "localizations" : {
@@ -5244,6 +5630,17 @@
         }
       }
     },
+    "Pick Colors" : {
+      "comment" : "Color range button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick Colors"
+          }
+        }
+      }
+    },
     "Picked" : {
       "localizations" : {
         "en" : {
@@ -5349,6 +5746,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Presets"
+          }
+        }
+      }
+    },
+    "Presets and Paste Adjustments leave masks out." : {
+      "comment" : "Masks heading note",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Presets and Paste Adjustments leave masks out."
           }
         }
       }
@@ -5513,6 +5921,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "RGB"
+          }
+        }
+      }
+    },
+    "Radial Gradient" : {
+      "comment" : "Mask shape",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Radial Gradient"
           }
         }
       }
@@ -5710,6 +6129,17 @@
         }
       }
     },
+    "Remove from Mask" : {
+      "comment" : "Undo action name and button help",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove from Mask"
+          }
+        }
+      }
+    },
     "Remove from Photo" : {
       "comment" : "Look-up table window: removes the table from the photo being edited",
       "localizations" : {
@@ -5816,6 +6246,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Rename Keyword"
+          }
+        }
+      }
+    },
+    "Rename Mask" : {
+      "comment" : "Undo action name and dialog title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rename Mask"
           }
         }
       }
@@ -6013,6 +6454,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Roundness"
+          }
+        }
+      }
+    },
+    "Sample Color" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sample Color"
           }
         }
       }
@@ -6215,6 +6667,17 @@
         }
       }
     },
+    "Select this mask" : {
+      "comment" : "Button help",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select this mask"
+          }
+        }
+      }
+    },
     "Sepia" : {
       "comment" : "Built-in look-up table",
       "localizations" : {
@@ -6343,6 +6806,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sharpening is easiest to judge at 1:1 (Z), once the change is saved."
+          }
+        }
+      }
+    },
+    "Sharpness" : {
+      "comment" : "Local sharpening",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sharpness"
           }
         }
       }
@@ -6499,6 +6973,17 @@
         }
       }
     },
+    "Show the selected mask in red" : {
+      "comment" : "Button help",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show the selected mask in red"
+          }
+        }
+      }
+    },
     "Show them" : {
       "comment" : "Import window toggle: show photos already in the library",
       "localizations" : {
@@ -6582,6 +7067,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Smaller Thumbnails"
+          }
+        }
+      }
+    },
+    "Smoothness" : {
+      "comment" : "Luminance range",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Smoothness"
           }
         }
       }
@@ -6714,6 +7210,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Subfolders"
+          }
+        }
+      }
+    },
+    "Subtract" : {
+      "comment" : "Mask operation",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Subtract"
           }
         }
       }
@@ -6927,6 +7434,17 @@
         }
       }
     },
+    "That would pass the limit on masks, components or brush points." : {
+      "comment" : "Status line",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That would pass the limit on masks, components or brush points."
+          }
+        }
+      }
+    },
     "The color space the table is applied in. Change it in the Adjust tab or under Manage." : {
       "comment" : "Look-up table window: tooltip",
       "localizations" : {
@@ -7121,6 +7639,17 @@
         }
       }
     },
+    "Tolerance" : {
+      "comment" : "Color range slider",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tolerance"
+          }
+        }
+      }
+    },
     "Tone" : {
       "comment" : "Adjust tab heading: the tone curve",
       "localizations" : {
@@ -7198,6 +7727,17 @@
         }
       }
     },
+    "Turn Off Mask" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn Off Mask"
+          }
+        }
+      }
+    },
     "Turn On %@" : {
       "comment" : "Undo action name; the group's name",
       "localizations" : {
@@ -7205,6 +7745,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Turn On %@"
+          }
+        }
+      }
+    },
+    "Turn On Mask" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn On Mask"
           }
         }
       }
@@ -7220,6 +7771,17 @@
         }
       }
     },
+    "Turn off this mask" : {
+      "comment" : "Button help",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn off this mask"
+          }
+        }
+      }
+    },
     "Turn on %@" : {
       "comment" : "Tooltip of a group's check box; the argument is the group's name",
       "localizations" : {
@@ -7227,6 +7789,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Turn on %@"
+          }
+        }
+      }
+    },
+    "Turn on this mask" : {
+      "comment" : "Button help",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn on this mask"
           }
         }
       }
@@ -7302,6 +7875,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Update “%@”"
+          }
+        }
+      }
+    },
+    "Upper" : {
+      "comment" : "Luminance range",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Upper"
           }
         }
       }

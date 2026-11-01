@@ -143,6 +143,27 @@ public struct AdjustmentRenderer: EditStackRenderer {
 
     // MARK: Masks
 
+    /// The alpha of the mask `id` of `values` over the rendered frame (grey,
+    /// 0 … 1), from the image as it enters the mask step: for the overlay
+    /// that shows a mask. Nil when there is no such mask.
+    public func maskAlpha(_ values: Adjustments, id: UUID, to input: CIImage, context: RenderContext) -> CIImage? {
+        let adjustments = values.effective
+        guard let mask = adjustments.local.masks.first(where: { $0.id == id }) else { return nil }
+        var crop = adjustments.crop
+        if crop.isIdentity, let cameraFrame = context.cameraFrame { crop = Crop(rect: cameraFrame) }
+        // Everything before the mask step, nothing after it.
+        var upstream = adjustments
+        upstream.local = LocalAdjustments()
+        upstream.lookTable = LookTable()
+        upstream.vignette = Vignette()
+        upstream.noiseReduction = NoiseReduction()
+        upstream.sharpen = Sharpen()
+        upstream.grain = Grain()
+        upstream.crop = crop
+        let selection = upstream.isDefault ? crop.apply(to: input) : render(upstream, to: input, context: context)
+        return MaskRenderer(maskFrame: input.extent, crop: crop, selection: selection).alpha(mask)
+    }
+
     /// One mask's local values over `image`: exposure exactly, as a gain
     /// 2^(EV · α) multiplied in linear light (as the vignette's gain map), then
     /// the other modules on the whole image, blended by α. Estimates that need

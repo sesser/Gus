@@ -76,6 +76,8 @@ struct AdjustView: View {
                                 .dimmedWhenOff(.colorGrade, editor: editor)
                         }
                         Divider()
+                        MasksSection(editor: editor)
+                        Divider()
                         AdjustSection(.effects, editor: editor) {
                             EffectsControls(model: model)
                         }

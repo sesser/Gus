@@ -494,6 +494,15 @@ public struct ColorRange: Hashable, Sendable {
         self.tolerance = tolerance
     }
 
+    /// OkLab of a linear Rec. 2020 color (clamped to 0 … 1), as the range compares.
+    public static func okLab(linearRec2020 rgb: SIMD3<Double>) -> SIMD3<Double> {
+        let c = SIMD3(min(max(rgb.x, 0), 1), min(max(rgb.y, 0), 1), min(max(rgb.z, 0), 1))
+        let m = MaskRenderer.rec2020ToLMS, lab = MaskRenderer.lmsToLab
+        let lms = (0..<3).map { cbrt(m[$0][0] * c.x + m[$0][1] * c.y + m[$0][2] * c.z) }
+        let out = (0..<3).map { lab[$0][0] * lms[0] + lab[$0][1] * lms[1] + lab[$0][2] * lms[2] }
+        return SIMD3(out[0], out[1], out[2])
+    }
+
     var parameters: [String: EditParameter] {
         var out = ParameterBuilder()
         out.values["samples"] = .list(samples.map { .list([.number($0.x), .number($0.y), .number($0.z)]) })

@@ -12,8 +12,12 @@ public actor LiveRenderSession {
     /// One rendered frame, ready for a layer.
     public struct Frame: Sendable {
         public let image: DecodedImage
+        /// Nil while a mask overlay is drawn over the frame.
         public let histogram: Histogram?
         public let adjustments: Adjustments
+        /// The mask frame's size in pixels (the decoded image before turns,
+        /// straightening and crop): its proportions place masks on screen.
+        public let maskFrameSize: CGSize
     }
 
     public let source: URL
@@ -50,20 +54,33 @@ public actor LiveRenderSession {
 
     /// Renders `adjustments`. `interactive` allows a faster, rougher decode when a
     /// RAW decode setting changed.
-    public func render(_ adjustments: Adjustments, interactive: Bool = false) throws -> Frame {
+    public func render(_ adjustments: Adjustments, interactive: Bool = false, overlayMask: UUID? = nil) throws -> Frame {
         let stack = adjustments.editStack
         let renderer = generator.renderer
         let isRaw = SupportedFormats.isRaw(pathExtension: source.pathExtension)
         let settings = isRaw ? renderer.decodeSettings(for: stack) : .none
         let base = try self.base(for: BaseKey(settings: settings, draft: interactive,
                                               longEdge: decodeLongEdge(renderer.geometry(for: stack))))
-        var image = try renderer.apply(stack, to: CIImage(cgImage: base.image), context: base.context)
+        let source = CIImage(cgImage: base.image)
+        var image = try renderer.apply(stack, to: source, context: base.context)
+        var overlaid = false
+        if let overlayMask, let adjusting = renderer as? AdjustmentRenderer,
+           let alpha = adjusting.maskAlpha(adjustments, id: overlayMask, to: source, context: base.context) {
+            // Red at half the mask's alpha over the photo.
+            let red = CIImage(color: CIColor(red: 1, green: 0.1, blue: 0.1)).cropped(to: image.extent)
+            let blend = CIFilter(name: "CIBlendWithMask", parameters: [
+                kCIInputImageKey: red, kCIInputBackgroundImageKey: image,
+                kCIInputMaskImageKey: MaskRenderer.scaled(alpha, by: 0.5),
+            ])
+            image = blend?.outputImage?.cropped(to: image.extent) ?? image
+            overlaid = true
+        }
         image = image.scaledToFit(longEdge: longEdge)
         guard let rendered = generator.engine.makeCGImage(image, colorSpace: colorSpace) else {
             throw PreviewGenerator.Failure.renderFailed
         }
-        return Frame(image: DecodedImage(cgImage: rendered), histogram: Histogram(image: rendered),
-                     adjustments: adjustments)
+        return Frame(image: DecodedImage(cgImage: rendered), histogram: overlaid ? nil : Histogram(image: rendered),
+                     adjustments: adjustments, maskFrameSize: source.extent.size)
     }
 
     /// The frames' long edge, enlarged by what the crop leaves out (in steps,

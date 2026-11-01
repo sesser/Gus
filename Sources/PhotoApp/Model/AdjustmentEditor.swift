@@ -57,6 +57,37 @@ final class AdjustmentEditor {
     private(set) var cropSession: CropSession?
     /// The whole photo with its other adjustments, under the crop frame.
     private(set) var cropImage: CGImage?
+    /// The mask the Masks heading and the loupe's handles edit.
+    var selectedMaskID: UUID? {
+        didSet {
+            guard oldValue != selectedMaskID else { return }
+            if selectedMask?.components.contains(where: { $0.shape.brushComponent }) != true { isBrushing = false }
+            if showsMaskOverlay, state == .ready { showsLive = true; requestRender(interactive: false) }
+        }
+    }
+    /// Shows the selected mask in red over the photo.
+    var showsMaskOverlay = false {
+        didSet {
+            guard oldValue != showsMaskOverlay, state == .ready else { return }
+            showsLive = true
+            requestRender(interactive: false)
+        }
+    }
+    /// Drags on the photo paint into the selected mask's brush.
+    var isBrushing = false
+    /// The settings the next stroke paints with (its points are unused).
+    var brushTemplate = BrushStroke(size: 0.03)
+    /// Clicks on the photo add a color to the selected mask's color range.
+    var isSamplingColor = false
+    /// The mask frame's size in pixels, from the latest frame: its proportions
+    /// place masks on screen.
+    private(set) var maskFrameSize: CGSize?
+    /// The frame on screen has the mask overlay drawn in: not a preview to keep.
+    @ObservationIgnored private var frameHasOverlay = false
+    /// The stroke being painted: its mask, component and index.
+    @ObservationIgnored var paintingStroke: (mask: UUID, component: Int, stroke: Int)?
+    /// The camera's crop of a RAW file's whole sensor, if it has one.
+    @ObservationIgnored private(set) var cameraRect: CropRect?
 
     /// Shows the photo without adjustments (before/after).
     var showsOriginal = false {
@@ -144,11 +175,14 @@ final class AdjustmentEditor {
             }
             let defaults = SupportedFormats.isRaw(pathExtension: url.pathExtension)
                 ? await Task.detached(priority: .userInitiated) { RawDefaults(source: url) }.value : nil
+            let camera = SupportedFormats.isRaw(pathExtension: url.pathExtension)
+                ? await Task.detached(priority: .userInitiated) { CameraFrame.rect(of: url) }.value : nil
             guard !Task.isCancelled, item?.versionID == versionID else { return }
             let loaded = Adjustments(stack: stack)
             adjustments = loaded
             committed = loaded
             rawDefaults = defaults
+            cameraRect = camera
             session = LiveRenderSession(source: url, generator: generator, colorSpace: colorSpace)
             state = .ready
             // A frame for the histogram, once the person settles on this photo.
@@ -176,6 +210,12 @@ final class AdjustmentEditor {
         isChanging = false
         rawDefaults = nil
         sourceURL = nil
+        selectedMaskID = nil
+        cameraRect = nil
+        paintingStroke = nil
+        isBrushing = false
+        isSamplingColor = false
+        maskFrameSize = nil
         pruneRenditions()
         adjustments = Adjustments()
         committed = Adjustments()
@@ -310,7 +350,7 @@ final class AdjustmentEditor {
     /// Once the frame on screen shows the saved values, it becomes the cached
     /// preview of the new edit hash and the loupe goes back to its renditions.
     private func seedPreviewIfRendered() {
-        guard let library, let item, let frame, !isChanging, !showsOriginal, !lastFrameWasInteractive,
+        guard let library, let item, let frame, !isChanging, !showsOriginal, !lastFrameWasInteractive, !frameHasOverlay,
               frame.adjustments == committed, adjustments == committed,
               item.editStackHash == committed.editStack.renderHash,
               let request = library.previewRequest(for: item, tier: .preview)
@@ -366,12 +406,16 @@ final class AdjustmentEditor {
                 renderingInteractive = next.interactive
                 defer { renderingInteractive = false }
                 do {
-                    let rendered = try await session.render(next.values, interactive: next.interactive)
+                    let overlay = showsMaskOverlay && !showsOriginal ? selectedMaskID : nil
+                    let rendered = try await session.render(next.values, interactive: next.interactive,
+                                                            overlayMask: overlay)
                     guard !Task.isCancelled, session === self.session else { break }
                     frame = rendered
+                    frameHasOverlay = overlay != nil && rendered.histogram == nil
+                    maskFrameSize = rendered.maskFrameSize
                     lastFrameWasInteractive = next.interactive
-                    if !showsOriginal || next.values == .none {
-                        histogram = rendered.histogram
+                    if (!showsOriginal || next.values == .none), let histogram = rendered.histogram {
+                        self.histogram = histogram
                     }
                     frameRevision += 1
                     seedPreviewIfRendered()

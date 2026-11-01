@@ -21,6 +21,13 @@ import PhotoCore
 ///     adjust crop begin|done|cancel|reset|show   (begin waits for the crop frame)
 ///     adjust crop rect <x> <y> <width> <height>  (unit coordinates of the turned frame)
 ///     adjust crop angle <degrees> | turn left|right | aspect free|square|threeTwo|fourThree|sixteenNine
+///     adjust mask add linear|radial|brush|luminanceRange|colorRange   (a new mask, selected)
+///     adjust mask component <shape> add|subtract|intersect           (into the selected mask)
+///     adjust mask select <index>|none    adjust mask overlay on|off    adjust mask remove
+///     adjust mask set <control> <value>  (exposure … sharpen, amount; the selected mask)
+///     adjust mask brush <x0> <y0> <x1> <y1> …   (one stroke; unit coordinates of the photo on screen)
+///     adjust mask sample <x> <y>          (adds the color there to the selected color range)
+///     adjust mask brushsize <percent of the long edge>   adjust mask erase on|off
 ///     original on|off           tab info|adjust          print adjustments
 @MainActor
 enum DebugAdjustCommands {
@@ -96,6 +103,8 @@ enum DebugAdjustCommands {
             editor.change(actionName, phase: .committed) { $0.toneCurve[channel] = points }
         case "crop":
             await runCrop(arguments, editor: editor)
+        case "mask":
+            runMask(arguments, editor: editor)
         case "grade":
             guard let range = ColorGrade.Range(rawValue: arguments.first ?? "") else { break }
             let numbers = arguments.dropFirst().compactMap(Double.init)
@@ -111,6 +120,50 @@ enum DebugAdjustCommands {
             }
             editor.change(actionName, phase: .committed) { $0[keyPath: keyPath] = value }
         }
+    }
+
+    private static func runMask(_ arguments: [String], editor: AdjustmentEditor) {
+        let rest = Array(arguments.dropFirst())
+        let numbers = rest.compactMap(Double.init)
+        switch arguments.first {
+        case "add":
+            if let kind = MaskShapeKind(rawValue: rest.first ?? "") { editor.addMask(kind) }
+        case "component":
+            if let kind = MaskShapeKind(rawValue: rest.first ?? "") {
+                editor.addComponent(kind, operation: MaskOperation(rawValue: rest.dropFirst().first ?? "") ?? .add)
+            }
+        case "select":
+            let masks = editor.adjustments.local.masks
+            editor.selectedMaskID = Int(rest.first ?? "").flatMap { masks.indices.contains($0) ? masks[$0].id : nil }
+        case "overlay":
+            editor.showsMaskOverlay = rest.first == "on"
+        case "remove":
+            if let id = editor.selectedMaskID { editor.removeMask(id) }
+        case "set":
+            guard let name = rest.first, let value = numbers.first else { break }
+            if name == "amount" {
+                editor.setMaskAmount(value, phase: .committed)
+            } else if let control = LocalValues.controls.first(where: { $0.name == name }) {
+                editor.setLocal(control.keyPath, value, phase: .committed)
+            }
+        case "brush":
+            let points = stride(from: 0, to: numbers.count - 1, by: 2).map { CGPoint(x: numbers[$0], y: numbers[$0 + 1]) }
+            guard let first = points.first, let last = points.last else { break }
+            editor.isBrushing = true
+            editor.beginStroke(at: first)
+            for point in points.dropFirst().dropLast() { editor.continueStroke(to: point) }
+            editor.continueStroke(to: last, finished: true)
+        case "sample":
+            if numbers.count >= 2 { editor.sampleColor(at: CGPoint(x: numbers[0], y: numbers[1])) }
+        case "brushsize":
+            if let value = numbers.first { editor.brushTemplate.size = value / 100 }
+        case "erase":
+            editor.brushTemplate.erase = rest.first == "on"
+        default:
+            print("debug-script: unknown mask command \(arguments.joined(separator: " "))")
+        }
+        print("debug-script: masks \(editor.adjustments.local.masks.count), selected "
+              + "\(editor.selectedMask?.name ?? "none"), components \(editor.selectedMask?.components.count ?? 0)")
     }
 
     private static func runCrop(_ arguments: [String], editor: AdjustmentEditor) async {
