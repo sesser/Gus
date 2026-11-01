@@ -90,8 +90,13 @@ struct EditStackCorpusTests {
             return
         }
         let recorded = try JSONDecoder().decode([Entry].self, from: data)
-        #expect(recorded.map(\.name) == current.map(\.name), "the corpus's cases changed")
-        for (old, new) in zip(recorded, current) {
+        // Matched by name: cases added since (golden cases with masks) are not part of it.
+        let byName = Dictionary(current.map { ($0.name, $0) }, uniquingKeysWith: { first, _ in first })
+        for old in recorded {
+            guard let new = byName[old.name] else {
+                Issue.record("\(old.name): no longer built")
+                continue
+            }
             #expect(new.json == old.json, "\(old.name): JSON changed")
             #expect(new.renderHash == old.renderHash, "\(old.name): render hash changed")
             // The stored bytes read back and write out unchanged.

@@ -138,8 +138,10 @@ public struct PreviewGenerator: Sendable {
     /// decode when a size is given.
     static func decode(_ url: URL, longEdge: Int?, draft: Bool, extendedRange: Bool = false,
                        settings: RAWDecodeSettings = .none) throws -> Decoded {
+        let wholeSensor = settings.fullFrame && SupportedFormats.isRaw(pathExtension: url.pathExtension)
+            ? CameraFrame.fullFrameFilter(for: url) : nil
         if SupportedFormats.isRaw(pathExtension: url.pathExtension),
-           let raw = (settings.fullFrame ? CameraFrame.fullFrameFilter(for: url) : nil) ?? CIRAWFilter(imageURL: url) {
+           let raw = wholeSensor ?? CIRAWFilter(imageURL: url) {
             if extendedRange {
                 raw.extendedDynamicRangeAmount = 1
             }
@@ -159,7 +161,8 @@ public struct PreviewGenerator: Sendable {
             // synthetic DNG does): treat it as no output.
             if let output = raw.outputImage, !output.extent.isEmpty {
                 return Decoded(image: output, context: RenderContext(scale: Self.scale(of: output, native: native),
-                                                                     isRaw: true))
+                                                                     isRaw: true,
+                                                                     cameraFrame: wholeSensor == nil ? nil : CameraFrame.rect(of: url)))
             }
         }
 

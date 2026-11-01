@@ -7,9 +7,10 @@ import CoreImage.CIFilterBuiltins
 /// turns, straightening and crop, white
 /// balance (non-RAW; RAW files get it from the decoder), exposure, highlights and
 /// shadows, dehaze, clarity, the tone table (contrast, whites, blacks, curves),
-/// the color mixer, vibrance and saturation, color grading, the look-up table, the vignette,
-/// noise reduction (non-RAW), sharpening and grain. Modules that are turned off
-/// are rendered at their defaults.
+/// the color mixer, vibrance and saturation, color grading, the masks (local
+/// adjustments, in list order), the look-up table, the vignette, noise
+/// reduction (non-RAW), sharpening (then each mask's local sharpening) and
+/// grain. Modules that are turned off are rendered at their defaults.
 public struct AdjustmentRenderer: EditStackRenderer {
     /// Encoding for tone curves and the grading cube: Rec. 2020 primaries with the
     /// sRGB transfer curve, so curve points are spaced the way tones are seen.
@@ -44,7 +45,13 @@ public struct AdjustmentRenderer: EditStackRenderer {
     public func render(_ values: Adjustments, to input: CIImage, context: RenderContext) -> CIImage {
         let adjustments = values.effective
         guard !adjustments.isDefault else { return input }
-        var image = adjustments.crop.apply(to: input)
+        let masks = adjustments.local.renderedMasks
+        var crop = adjustments.crop
+        if crop.isIdentity, let cameraFrame = context.cameraFrame {
+            // Decoded whole for the masks: crop back to the camera's frame.
+            crop = Crop(rect: cameraFrame)
+        }
+        var image = crop.apply(to: input)
         let extent = image.extent
 
         if !context.isRaw {
@@ -97,6 +104,17 @@ public struct AdjustmentRenderer: EditStackRenderer {
         if !adjustments.colorGrade.isIdentity {
             image = Self.cube(image, ColorGradeCube.make(adjustments.colorGrade), colorSpace: Self.perceptualSpace)
         }
+        // Masks are made in the mask frame (the image before the crop) and
+        // select ranges on the image as it enters this step, the same for each.
+        var sharpening: [(amount: Double, alpha: CIImage)] = []
+        if !masks.isEmpty {
+            let maskRenderer = MaskRenderer(maskFrame: input.extent, crop: crop, selection: image)
+            for mask in masks {
+                let alpha = maskRenderer.alpha(mask)
+                image = applyLocal(image, mask.adjustments, alpha: alpha, context: context, extent: extent)
+                if mask.adjustments.sharpen > 0 { sharpening.append((mask.adjustments.sharpen, alpha)) }
+            }
+        }
         let table = adjustments.lookTable
         if let identifier = table.identifier, table.intensity > 0, let cube = lookTables?.cube(for: identifier) {
             image = Self.lookTable(image, cube, intensity: table.intensity / 100, colorSpace: table.colorSpace)
@@ -110,10 +128,53 @@ public struct AdjustmentRenderer: EditStackRenderer {
         if adjustments.sharpen.amount > 0 {
             image = Self.sharpen(image, adjustments.sharpen, scale: context.scale, extent: extent)
         }
+        for (amount, alpha) in sharpening {
+            // The global radius, detail and masking at the local amount, after noise reduction.
+            var settings = adjustments.sharpen
+            settings.amount = amount
+            image = Self.blend(Self.sharpen(image, settings, scale: context.scale, extent: extent), over: image,
+                               alpha: alpha, extent: extent)
+        }
         if !adjustments.grain.isIdentity {
             image = Self.grain(image, adjustments.grain, extent: extent)
         }
         return image.cropped(to: extent)
+    }
+
+    // MARK: Masks
+
+    /// One mask's local values over `image`: exposure exactly, as a gain
+    /// 2^(EV · α) multiplied in linear light (as the vignette's gain map), then
+    /// the other modules on the whole image, blended by α. Estimates that need
+    /// the whole image (local tone's smoothed luminance, dehaze's haze) come
+    /// from the whole image, never from the masked area.
+    func applyLocal(_ image: CIImage, _ values: LocalValues, alpha: CIImage, context: RenderContext,
+               extent: CGRect) -> CIImage {
+        var result = image
+        if values.exposure != 0 {
+            let ev = values.exposure
+            let gain = MaskRenderer.table(alpha, domain: 0...1) { pow(2, ev * $0) }
+            let multiply = CIFilter.multiplyCompositing()
+            multiply.inputImage = gain
+            multiply.backgroundImage = result
+            result = multiply.outputImage?.settingAlphaOne(in: extent).cropped(to: extent) ?? result
+        }
+        let modules = values.modules
+        if !modules.isDefault {
+            // Relative white balance applies to RAW files too: their Kelvin is the decoder's, and stays global.
+            let adjusted = render(modules, to: result, context: RenderContext(scale: context.scale, isRaw: false))
+            result = Self.blend(adjusted, over: result, alpha: alpha, extent: extent)
+        }
+        return result
+    }
+
+    /// base + α · (adjusted − base).
+    static func blend(_ adjusted: CIImage, over base: CIImage, alpha: CIImage, extent: CGRect) -> CIImage {
+        let filter = CIFilter.blendWithMask()
+        filter.inputImage = adjusted
+        filter.backgroundImage = base
+        filter.maskImage = alpha
+        return filter.outputImage?.cropped(to: extent) ?? base
     }
 
     // MARK: Steps
@@ -658,8 +719,8 @@ extension Adjustments {
 
     private var rawDecodeSettings: RAWDecodeSettings {
         var settings = RAWDecodeSettings()
-        // The crop's rectangle is in the frame of the whole sensor.
-        settings.fullFrame = !crop.isIdentity
+        // The crop's rectangle and the masks are in the frame of the whole sensor.
+        settings.fullFrame = !crop.isIdentity || !local.renderedMasks.isEmpty
         if whiteBalance.preset != .asShot {
             settings.temperature = whiteBalance.temperature.map(Float.init)
             settings.tint = whiteBalance.tint.map(Float.init)

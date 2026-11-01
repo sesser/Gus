@@ -302,6 +302,7 @@ public struct Adjustments: Hashable, Sendable {
             && values.tone.highlights <= 0 && values.toneCurve.isIdentity && values.colorMixer.isIdentity
             && values.colorGrade == ColorGrade()
             && values.lookTable.identifier == nil && values.presence.dehaze == 0 && values.grain.isIdentity
+            && values.local.renderedMasks.allSatisfy { $0.adjustments.modules.preservesExtendedRange }
     }
 }
 
