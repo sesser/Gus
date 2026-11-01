@@ -110,4 +110,63 @@ struct ReferenceTests {
         }
         #expect(worst == 0, "largest error beyond half-float rounding: \(worst)")
     }
+
+    // MARK: Clarity
+
+    /// Core Image's Gaussian, measured: a one-pixel impulse blurred with
+    /// `sigma`, read back along its row (taps −reach … reach around it).
+    static func measuredGaussian(sigma: Double, reach: Int) -> [Double] {
+        let width = 2 * reach + 1
+        var pixels = [Float](repeating: 0, count: width * 4)
+        for x in 0..<width { pixels[x * 4 + 3] = 1 }
+        pixels[reach * 4] = 1
+        let impulse = LinearImage(width: width, height: 1, pixels: pixels).ciImage
+        let blurred = impulse.clampedToExtent().applyingGaussianBlur(sigma: sigma).cropped(to: impulse.extent)
+        let row = renderLinear(blurred)
+        return (0..<width).map { Double(row.pixels[$0 * 4]) }
+    }
+
+    /// Positive clarity is Core Image's unsharp mask; negative clarity (a
+    /// blend toward the blur) is our own. Both are checked in the perceptual
+    /// encoding against p + i · (p − G(p)).
+    ///
+    /// Tolerance, derived: Core Image's blur is not the reference's Gaussian.
+    /// Its kernel is measured here (half-float weights, a slightly different
+    /// reach, a sum just under one), and |G_CI(p) − G(p)| ≤ R · ‖k_CI − k‖₁
+    /// per pass, where R is the largest encoded value; two passes double it,
+    /// and the mask scales it by |i|. Half-float rounding adds at most 2⁻¹¹
+    /// relative for each of the encoded input, the blur and the result
+    /// (scaled by 1 + |i|, |i| and 1), so (2 + 2|i|) · 2⁻¹¹ · R. A further
+    /// 2⁻¹¹ · R covers the encode and decode around the step.
+    @Test("Clarity is an unsharp mask in the perceptual encoding",
+          arguments: [(TestScene.hazyLandscape, 60.0), (.edgeTarget, 60.0)])
+    func clarityMatchesReference(scene: TestScene, amount: Double) {
+        let input = scene.image()
+        var adjustments = Adjustments()
+        adjustments.presence.clarity = amount
+        let rendered = Self.renderLinear(AdjustmentRenderer().render(adjustments, to: input.ciImage,
+                                                                     context: RenderContext()))
+        let expected = ClarityReference.apply(input, amount: amount)
+
+        let sigma = ClarityReference.sigma(width: input.width, height: input.height)
+        let reach = Int((ClarityReference.reach * sigma).rounded(.up))
+        let measured = Self.measuredGaussian(sigma: sigma, reach: reach)
+        let reference = BlurReference.weights(sigma: sigma, reach: ClarityReference.reach)
+        let kernelL1 = zip(measured, reference).map { abs($0 - $1) }.reduce(0, +)
+        let range = expected.pixels.enumerated().filter { $0.offset % 4 != 3 }
+            .map { abs(Double($0.element)) }.max() ?? 1
+        let intensity = abs(amount / 100 * 0.6)
+        let tolerance = range * (intensity * 2 * kernelL1 + (3 + 2 * intensity) * 0x1p-11)
+
+        var worst = 0.0
+        for i in rendered.pixels.indices where i % 4 != 3 {
+            let actual = ColorMath.encode(Double(rendered.pixels[i]))
+            worst = max(worst, abs(actual - Double(expected.pixels[i])))
+        }
+        #expect(worst <= tolerance, "largest difference \(worst), tolerance \(tolerance) (kernel L1 \(kernelL1))")
+        // The step did something: more than twice what the comparison forgives.
+        let change = zip(input.pixels, expected.pixels).enumerated().filter { $0.offset % 4 != 3 }
+            .map { abs(ColorMath.encode(Double($0.element.0)) - Double($0.element.1)) }.max() ?? 0
+        #expect(change > 2 * tolerance, "change \(change), tolerance \(tolerance)")
+    }
 }
