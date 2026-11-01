@@ -153,3 +153,39 @@ struct LargeRenderTests {
         #expect(worst <= RuntimeKernelTests.blurTolerance, "largest difference \(worst)")
     }
 }
+
+/// A large, soft brush at 24 megapixels (`LARGE_RENDER_TESTS=1`): the
+/// parallel CPU rasterizer against the reference on sampled pixels, and its
+/// time. Float sums in the same dab order: within 10⁻⁶.
+@Suite("Large brush",
+       .enabled(if: ProcessInfo.processInfo.environment["LARGE_RENDER_TESTS"] == "1",
+                "Set LARGE_RENDER_TESTS=1 to rasterize a brush at 24 megapixels"))
+struct LargeBrushTests {
+    @Test("A soft brush at 6000 × 4000 matches the reference")
+    func softBrushAt24Megapixels() {
+        let width = 6000, height = 4000
+        let brush = Brush(strokes: [
+            BrushStroke(points: [MaskPoint(x: 0.1, y: 0.2), MaskPoint(x: 0.5, y: 0.6), MaskPoint(x: 0.9, y: 0.4)],
+                        size: 0.15, feather: 100, flow: 30, density: 90),
+            BrushStroke(points: [MaskPoint(x: 0.3, y: 0.9), MaskPoint(x: 0.7, y: 0.1)], size: 0.08, feather: 60,
+                        erase: true),
+        ])
+        let clock = ContinuousClock()
+        let start = clock.now
+        let plane = BrushRasterizer.rasterize(brush, width: width, height: height)
+        let elapsed = clock.now - start
+        print("large brush: rasterized \(width) × \(height) in \(elapsed) (debug build)")
+        var worst = 0.0, sampled = 0
+        for y in stride(from: 3, to: height, by: 197) {
+            for x in stride(from: 5, to: width, by: 61) {
+                let expected = MaskReference.brushValue(brush, x: Double(x) + 0.5, y: Double(y) + 0.5,
+                                                        width: width, height: height)
+                worst = max(worst, abs(Double(plane[y * width + x]) - expected))
+                sampled += 1
+            }
+        }
+        #expect(worst <= MaskReferenceTests.floatEvaluation, "largest difference \(worst) over \(sampled) pixels")
+        #expect((plane.max() ?? 0) > 0.5)
+    }
+}
+

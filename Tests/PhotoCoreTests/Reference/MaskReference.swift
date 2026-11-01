@@ -103,6 +103,40 @@ enum MaskReference {
         return out
     }
 
+    /// `brush` at one pixel center only (x, y from the top left), for large frames.
+    static func brushValue(_ brush: Brush, x: Double, y: Double, width: Int, height: Int) -> Double {
+        let long = Double(max(width, height))
+        var out = 0.0
+        for stroke in brush.strokes {
+            let radius = stroke.size * long
+            let core = radius * (1 - stroke.feather / 100)
+            var value = 0.0
+            var last: (Double, Double)?
+            func paint(_ c: (Double, Double)) {
+                let d = hypot(x - c.0, y - c.1)
+                let a = d > radius ? 0 : (d <= core ? 1 : 1 - smoothstep(core, radius, d))
+                value += a * stroke.flow / 100 * (stroke.density / 100 - value)
+            }
+            for point in stroke.points {
+                let p = (point.x * Double(width), point.y * Double(height))
+                if let l = last {
+                    let distance = hypot(p.0 - l.0, p.1 - l.1)
+                    guard distance > 0 else { continue }
+                    let n = Int((distance / (radius / 4)).rounded(.up))
+                    for k in 1...n {
+                        let t = Double(k) / Double(n)
+                        paint((l.0 + (p.0 - l.0) * t, l.1 + (p.1 - l.1) * t))
+                    }
+                } else {
+                    paint(p)
+                }
+                last = p
+            }
+            out = stroke.erase ? out * (1 - value) : max(out, value)
+        }
+        return out
+    }
+
     /// Perceptual luminance of a linear Rec. 2020 color, clamped to 0 … 1 first.
     static func perceptualLuminance(_ rgb: SIMD3<Double>) -> Double {
         let y = 0.2627 * rgb.x + 0.6780 * rgb.y + 0.0593 * rgb.z
