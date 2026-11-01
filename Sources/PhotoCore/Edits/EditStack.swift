@@ -7,15 +7,40 @@ import Foundation
 /// `schemaVersion` describes the container format, and each operation's
 /// `kindVersion` describes the meaning of its parameters, so an operation's
 /// algorithm can change later without breaking stacks written today.
+///
+/// The schema version follows from the content: 2 when any parameter holds an
+/// object (`EditParameter.object`, which version 1 has no room for), 1
+/// otherwise. A stack without objects therefore keeps the bytes it had before
+/// objects existed, and a build that predates them refuses a stack that has
+/// them (`unsupportedSchemaVersion`) instead of misreading it.
 public struct EditStack: Codable, Hashable, Sendable {
-    public static let currentSchemaVersion = 1
+    /// The newest container format this build reads.
+    public static let currentSchemaVersion = 2
 
-    public var schemaVersion: Int
     public var operations: [EditOperation]
 
     public init(operations: [EditOperation] = []) {
-        self.schemaVersion = Self.currentSchemaVersion
         self.operations = operations
+    }
+
+    /// The container format this stack needs.
+    public var schemaVersion: Int {
+        operations.contains { $0.parameters.values.contains(where: \.containsObject) } ? 2 : 1
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case operations, schemaVersion
+    }
+
+    public init(from decoder: any Decoder) throws {
+        // The version is checked by `decode(from:)`; here it only follows from the content.
+        operations = try decoder.container(keyedBy: CodingKeys.self).decode([EditOperation].self, forKey: .operations)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(operations, forKey: .operations)
+        try container.encode(schemaVersion, forKey: .schemaVersion)
     }
 
     /// The empty stack every new version starts with.
@@ -152,12 +177,23 @@ public struct EditOperationKind: RawRepresentable, Codable, Hashable, Sendable, 
 }
 
 /// A JSON-friendly parameter value. Numbers are always `Double` so that values
-/// survive a JSON round trip unchanged.
+/// survive a JSON round trip unchanged. Objects (named values, encoded with
+/// sorted keys) need schema version 2 (`EditStack.schemaVersion`).
 public enum EditParameter: Codable, Hashable, Sendable {
     case number(Double)
     case bool(Bool)
     case string(String)
     case list([EditParameter])
+    case object([String: EditParameter])
+
+    /// True when this value is or holds an object.
+    public var containsObject: Bool {
+        switch self {
+        case .number, .bool, .string: false
+        case .list(let values): values.contains(where: \.containsObject)
+        case .object: true
+        }
+    }
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.singleValueContainer()
@@ -169,6 +205,8 @@ public enum EditParameter: Codable, Hashable, Sendable {
             self = .string(value)
         } else if let value = try? container.decode([EditParameter].self) {
             self = .list(value)
+        } else if let value = try? container.decode([String: EditParameter].self) {
+            self = .object(value)
         } else {
             throw DecodingError.dataCorruptedError(in: container, debugDescription: "unsupported parameter value")
         }
@@ -181,6 +219,7 @@ public enum EditParameter: Codable, Hashable, Sendable {
         case .bool(let value): try container.encode(value)
         case .string(let value): try container.encode(value)
         case .list(let value): try container.encode(value)
+        case .object(let value): try container.encode(value)
         }
     }
 }
