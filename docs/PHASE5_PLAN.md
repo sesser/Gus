@@ -339,6 +339,14 @@ suites, run alone: goldens 0.27 s, harness
   left a stale object in `PhotoApp` (an undefined `RenderEngine.init` symbol
   at link time). Deleting that target's folder under
   `.build/out/Intermediates.noindex/PhotoWorkspace.build/Debug` fixed it.
+- CI also builds and tests on `macos-15` with that runner's Xcode 26.3 (its
+  default Xcode 16.4 cannot build the app, which uses the macOS 26 SDK).
+  Swift 6.2 there needed explicit types in two long app expressions, and
+  the kernel cache could not send Metal objects out of a `Mutex` under
+  Swift 6.1. It also found a real bug: ImageIO on macOS 15 parses no XMP
+  that starts with the `<?xpacket?>` wrapper, so exports there lost their
+  XMP. Export now hands ImageIO the root element alone
+  (`XMPDocument.rootElementData`).
 - Third-party code: none. LightCraft (MIT or Apache-2.0) was read, in a
   scratch folder outside the repository, for its command registry and its
   CPU-against-GPU equivalence tests; nothing was ported, so there is no

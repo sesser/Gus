@@ -221,6 +221,18 @@ struct ExportMetadataTests {
         #expect(iptc?[kCGImagePropertyIPTCObjectName] == nil)
     }
 
+    /// ImageIO on macOS 15 parses no XMP that starts with the `<?xpacket?>`
+    /// wrapper, so export hands it the root element alone. Newer macOS
+    /// accepts both, so this checks the bytes rather than the parse.
+    @Test func xmpReachesImageIOWithoutThePacketWrapper() throws {
+        let document = XMPDocument.empty()
+        document.setArray(XMPDocument.Namespace.dc, "subject", .bag, ["dog"])
+        let text = String(decoding: document.rootElementData(), as: UTF8.self)
+        #expect(text.hasPrefix("<x:xmpmeta") && !text.contains("xpacket"))
+        let metadata = try #require(CGImageMetadataCreateFromXMPData(document.rootElementData() as CFData))
+        #expect(CGImageMetadataCopyTagWithPath(metadata, nil, "dc:subject" as CFString) != nil)
+    }
+
     @Test func noneWritesOnlyOrientationAndResolution() {
         let metadata = make(.none)
         #expect(Set(metadata.properties.keys) == [kCGImagePropertyOrientation, kCGImagePropertyDPIWidth,
