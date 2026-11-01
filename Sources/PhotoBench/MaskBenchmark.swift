@@ -51,10 +51,14 @@ enum MaskBenchmark {
         /// stages; `adaptive` lets it draft (interactive frames); otherwise every
         /// frame is full size. `mask` is the one whose slider moves.
         func time(_ name: String, _ adjustments: Adjustments, longEdge: Int = PreviewTier.preview.longEdge,
-                  caches: Bool = true, adaptive: Bool = false, mask: Int = 0) async throws {
+                  caches: Bool = true, adaptive: Bool = false, mask: Int = 0, prefill: Bool = false) async throws {
             let session = LiveRenderSession(source: url, generator: generator, longEdge: longEdge, colorSpace: nil,
                                             cachesStages: caches)
             let first = try await measure { _ = try await session.render(adjustments) }.1.milliseconds
+            if prefill, adjustments.local.masks.indices.contains(mask) {
+                // As the editor does on idle after selecting the mask.
+                try await session.prepare(adjustments, editing: adjustments.local.masks[mask].id, allowsDrafts: adaptive)
+            }
             var values = adjustments
             var samples: [Double] = []
             var scales: [Double: Int] = [:]
@@ -89,8 +93,11 @@ enum MaskBenchmark {
         try await time("whole, last mask moves", masked(3, typical), caches: false, mask: 2)
         try await time("cached, first mask moves", masked(3, typical), mask: 0)
         try await time("cached, last mask moves", masked(3, typical), mask: 2)
+        try await time("cached + prefilled, last mask moves", masked(3, typical), mask: 2, prefill: true)
         try await time("cached + adaptive drafts, first mask moves", masked(3, typical), adaptive: true, mask: 0)
         try await time("cached + adaptive drafts, last mask moves", masked(3, typical), adaptive: true, mask: 2)
+        try await time("cached + prefilled + drafts, last mask moves", masked(3, typical), adaptive: true, mask: 2,
+                       prefill: true)
         try await time("cached, forced ½ (1280 px), first mask moves", masked(3, typical), longEdge: 1280, mask: 0)
         // Where the time goes: three masks with one kind of local value each, cached, last mask moving.
         print("  Three masks, one kind of local value each (cached, last mask moves):")

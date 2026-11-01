@@ -165,4 +165,58 @@ struct LiveSessionTests {
             #expect((zip(a, b).map { abs(Int($0) - Int($1)) }.max() ?? 9) <= 1)
         }
     }
+
+    /// The synthetic Bayer DNG decoded with extended range (negative highlights
+    /// ask for it) and lifted 1.5 EV: much of it lies above white (up to 2.9)
+    /// entering the mask step. The cached stages are half-float images in the
+    /// extended working space, so values above 1.0 must survive them, and
+    /// cached and whole renders must agree. Tolerance: each of the three cached
+    /// stages may round once more (2⁻¹¹ relative), and the stages after them
+    /// (curves, clarity, sharpening) can at most double a difference:
+    /// 2 · 3 · 2⁻¹¹ relative, plus 2⁻²⁴ near zero.
+    ///
+    /// Known issue (docs/PHASE6_PLAN.md): with local dehaze they do not agree.
+    /// Dehaze's haze estimate on above-white input moved by up to 0.09 when its
+    /// input moved by 0.002 (the reduced dark channel; its airlight came out at
+    /// exactly 1.0), so a different split of the render into passes changes it.
+    @Test("Values above white survive the cached stages", arguments: [false, true])
+    func aboveWhite(withDehaze: Bool) async throws {
+        try await RepositoryFiles.withTemporaryDirectory { folder in
+            let url = folder.appending(path: "bright.dng")
+            try SyntheticDNG.write(to: url, options: .init(width: 640, height: 480, seed: 7))
+            let generator = PreviewGenerator(engine: RenderEngine(contextCount: 1, name: "hdr-test"))
+            let cached = LiveRenderSession(source: url, generator: generator, longEdge: 640, colorSpace: nil)
+            let whole = LiveRenderSession(source: url, generator: generator, longEdge: 640, colorSpace: nil,
+                                          cachesStages: false)
+            var values = Self.masked()
+            values.exposure.ev = 1.5
+            values.tone.highlights = -20
+            if !withDehaze { values.local.masks[0].adjustments.dehaze = 0 }
+            #expect(values.decodeSettings.extendedDynamicRange == 1)
+            var entering = values
+            entering.local = LocalAdjustments()
+            let input = Self.floats(try await whole.linearFrame(entering))
+            #expect((input.max() ?? 0) > 1.5, "the decode does not reach above white: \(input.max() ?? 0)")
+
+            _ = try await cached.render(values)
+            values.local.masks[2].adjustments.contrast = 40
+            _ = try await cached.render(values, interactive: true, allowsDrafts: false)
+            values.local.masks[2].adjustments.contrast = 50
+            let a = Self.floats(try await cached.linearFrame(values))
+            let b = Self.floats(try await whole.linearFrame(values))
+            #expect(a.count == b.count)
+            #expect((a.max() ?? 0) > 1 && (b.max() ?? 0) > 1, "above white: cached \(a.max() ?? 0), whole \(b.max() ?? 0)")
+            var worst: Float = 0
+            for i in a.indices where i % 4 != 3 {
+                worst = max(worst, abs(a[i] - b[i]) - (max(abs(a[i]), abs(b[i])) * 6 * 0x1p-11 + 0x1p-24))
+            }
+            if withDehaze {
+                withKnownIssue("Dehaze's haze estimate is unstable on above-white input") {
+                    #expect(worst <= 0, "cached and whole differ beyond the tolerance by \(worst)")
+                }
+            } else {
+                #expect(worst <= 0, "cached and whole differ beyond the tolerance by \(worst)")
+            }
+        }
+    }
 }

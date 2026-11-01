@@ -651,6 +651,22 @@ reference on sampled pixels, 1.6 s to rasterize in a debug build) and
   a just-noticeable difference); measured 65–69 dB for all but exposure,
   52 dB for local exposure +1.5 (Lanczos lobes on values above white differ
   with the resampling order at a few pixels).
+- **Controller** (second pass, 2026-11-01). The thresholds are named
+  constants in `LiveRenderSession.swift`: `draftDropThreshold` (100 ms: a
+  slower interactive frame makes the next one smaller) and
+  `draftRaiseThreshold` (60 ms: a draft steps back up when the next larger
+  frame, four times the pixels, would take less). A frame that filled the
+  stage cache no longer counts toward stepping down. The editor fills the
+  stage cache on idle (150 ms after a mask is selected or after a
+  full-quality frame), cancellable by new input, so a drag's first frame
+  does not pay for it. Stage caches are keyed by the decode itself, so
+  full-quality and interactive frames share them. Drafts are off while the
+  loupe is zoomed in.
+- **Above white.** The synthetic DNG decoded with extended range and lifted
+  1.5 EV (values to 2.9) goes through the cached stages with values above
+  1.0 intact, and cached and whole renders agree within three extra
+  half-float roundings, doubled by the later stages; except with local
+  dehaze (finding 4).
 - **Refinement.** On release, or after 150 ms without input, the editor
   renders full quality and keeps the draft on screen until it is ready; new
   input cancels it between stages (`RenderCancellation`; a stage already on
@@ -674,6 +690,18 @@ reference on sampled pixels, 1.6 s to rasterize in a debug build) and
   | cached + adaptive drafts, first mask moves | 40 ms | 37 ms | 117 ms (2 of 20 frames at ½) |
   | cached + adaptive drafts, last mask moves | 27 ms | 18 ms | 120 ms (3 of 20 at ½) |
   | cached, forced ½ (1280 px) | 8.5 ms | 8.5 ms | 9.4 ms |
+
+  After the controller changes (second run; whole frames measured 141–143 ms
+  mean this time, so runs vary by about 15 %):
+
+  | frames | mean | p50 | p95 |
+  |---|---|---|---|
+  | cached, first mask moves | 29 ms | 28 ms | 32 ms |
+  | cached, last mask moves | 23 ms | 18 ms | 97 ms (the cache-fill frame) |
+  | cached + prefilled, last mask moves | 17 ms | 17 ms | 29 ms |
+  | cached + adaptive drafts, first / last mask moves | 35 / 19 ms | 34 / 16 ms | 43 / 71 ms (no frame drafted) |
+  | cached + prefilled + drafts, last mask moves | 27 ms | 22 ms | 65 ms (no frame drafted) |
+  | cached, forced ½ (1280 px) | 9.0 ms | 9.0 ms | 10.9 ms |
   | cached, last mask moves: exposure / contrast / clarity / shadows / dehaze only | 13 / 15 / 19 / 16 / 17 ms | | 38 / 48 / 74 / 52 / 62 ms |
 
   Caching does most of the work: whole frames spent their time on the
@@ -689,10 +717,8 @@ reference on sampled pixels, 1.6 s to rasterize in a debug build) and
   At 1:1 it shows a full-resolution render of the saved stack, but while
   editing the live 2560 px frames replace it, stretched (2.3× for a 6000 px
   photo), until the change is saved and the full render reloads. Drafts
-  would stretch that to 4.7×. Recommendation: no drafts while zoomed in;
-  instead render only the visible part at full resolution while editing at
-  1:1 (a region of interest, about 1.5 megapixels for a 1500 × 1000 view,
-  less than the 4.4 megapixels of a fit frame). Neither is built.
+  would stretch that to 4.7×, so they are off while zoomed in. Rendering
+  only the visible part is on the roadmap below.
 
 ### Findings
 
@@ -719,6 +745,29 @@ reference on sampled pixels, 1.6 s to rasterize in a debug build) and
 3. Reduced, an explicit crop's decode size comes from `Crop.sourceZoom` with
    the camera frame's native size, not the whole sensor's: a pixel more or
    less than the masked render at 1024 px. Harmless; noted.
+
+4. **Dehaze's haze estimate is unstable on above-white input.** On the
+   synthetic DNG lifted to values of 2.9, the reduced dark channel (the
+   haze before upsampling) moved by up to 0.09 when its input moved by
+   0.002 (two renders of the same image that Core Image split differently),
+   and the airlight came out at exactly 1.0, as if a step before it clipped
+   at white. Global dehaze has the same estimator. It is why cached and
+   whole renders with local dehaze differ by up to 0.058 on such content
+   (recorded as a known issue in `LiveSessionTests.aboveWhite`); on content
+   within 0 … 1 they agree. Not changed; on the roadmap.
+
+## Roadmap
+
+- **Viewport rendering at 1:1.** While editing zoomed in, render only the
+  visible part of the photo at full resolution (a region of interest: about
+  1.5 megapixels for a 1500 × 1000 view, less than the 4.4 megapixels of a
+  fit frame) instead of the whole frame at 2560 px. It also fixes what every
+  slider shows today at 1:1: the 2560 px live frames stretched (2.3× for a
+  6000 px photo) until the change is saved. Needs the live session to take
+  a region and the loupe to place the frame in it; the stage cache would
+  hold the region's stages. Not in this phase.
+- **Dehaze above white** (finding 4): make the haze estimate stable on
+  extended-range input; a rendering change with a pipeline bump.
 
 ## Answers (2026-11-01)
 
