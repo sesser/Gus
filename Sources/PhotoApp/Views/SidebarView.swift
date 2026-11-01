@@ -52,7 +52,9 @@ struct SidebarView: View {
 
     var body: some View {
         List(selection: $model.sidebarSelection) {
-            Section("Library") {
+            Section {
+                SidebarHeader(title: "Library")
+                    .selectionDisabled()
                 SidebarRow(title: String(localized: "All Photos"), symbol: "photo.on.rectangle", count: model.libraryCount)
                     .tag(SidebarSelection.allPhotos)
                 ForEach(BuiltInAlbum.allCases, id: \.self) { album in
@@ -67,32 +69,46 @@ struct SidebarView: View {
                 }
             }
             if !model.captureMonths.isEmpty {
-                Section("Dates", isExpanded: $datesExpanded) {
-                    ForEach(years, id: \.year) { year in
-                        DisclosureGroup(isExpanded: expansion(of: year.year, in: $expandedYears)) {
-                            ForEach(year.months) { month in
-                                SidebarRow(title: MonthText.monthOnly(year: month.year, month: month.month),
-                                           symbol: "calendar", count: month.count)
-                                    .tag(SidebarSelection.month(year: month.year, month: month.month))
-                            }
-                        } label: {
-                            SidebarRow(title: String(year.year), symbol: "calendar", count: year.count)
+                Section {
+                    SidebarHeader(title: "Dates", isExpanded: $datesExpanded)
+                        .selectionDisabled()
+                    if datesExpanded {
+                        ForEach(years, id: \.year) { year in
+                            let expanded = expansion(of: year.year, in: $expandedYears)
+                            SidebarRow(title: String(year.year), symbol: "calendar", count: year.count, isExpanded: expanded)
                                 .tag(SidebarSelection.year(year.year))
+                            if expanded.wrappedValue {
+                                ForEach(year.months) { month in
+                                    SidebarRow(title: MonthText.monthOnly(year: month.year, month: month.month),
+                                               symbol: "calendar", count: month.count, isNested: true)
+                                        .tag(SidebarSelection.month(year: month.year, month: month.month))
+                                }
+                            }
                         }
                     }
                 }
             }
-            Section("Albums", isExpanded: $albumsExpanded) {
+            Section {
+                SidebarHeader(title: "Albums", isExpanded: $albumsExpanded)
+                    .selectionDisabled()
                 let albums = model.albums.filter { $0.album.projectId == nil }
                 let smart = model.smartAlbums.filter { $0.projectID == nil }
-                if albums.isEmpty, smart.isEmpty {
+                if !albumsExpanded {
+                    EmptyView()
+                } else if albums.isEmpty, smart.isEmpty {
                     Text("Use File ▸ New Album to make one.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
+                } else {
+                    albumRows(albums, smart)
                 }
-                albumRows(albums, smart)
             }
             Section {
+                // Folders dropped on the header or any project row each become
+                // a new project, as they do on the browser.
+                SidebarHeader(title: "Projects")
+                    .selectionDisabled()
+                    .onDrop(of: FolderDrop.types, isTargeted: nil) { FolderDrop.accept($0, model: model) }
                 if model.projects.isEmpty {
                     Text("Import or drop a folder here.")
                         .font(.callout)
@@ -105,36 +121,36 @@ struct SidebarView: View {
                     if albums.isEmpty, smart.isEmpty {
                         projectRow(summary)
                     } else {
-                        DisclosureGroup(isExpanded: expansion(of: summary.id, in: $expandedProjects)) {
-                            albumRows(albums, smart)
-                        } label: {
-                            projectRow(summary)
+                        let expanded = expansion(of: summary.id, in: $expandedProjects)
+                        projectRow(summary, isExpanded: expanded)
+                        if expanded.wrappedValue {
+                            albumRows(albums, smart, isNested: true)
                         }
                     }
                 }
-            } header: {
-                // Folders dropped on the header or any project row each become
-                // a new project, as they do on the browser.
-                Text("Projects")
-                    .onDrop(of: FolderDrop.types, isTargeted: nil) { FolderDrop.accept($0, model: model) }
             }
-            Section("Keywords", isExpanded: $keywordsExpanded) {
-                if model.keywords.isEmpty {
+            Section {
+                SidebarHeader(title: "Keywords", isExpanded: $keywordsExpanded)
+                    .selectionDisabled()
+                if !keywordsExpanded {
+                    EmptyView()
+                } else if model.keywords.isEmpty {
                     Text("Select photos and press ⌘K to add keywords.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
-                }
-                ForEach(model.keywords) { keyword in
-                    SidebarRow(title: keyword.name, symbol: "tag", count: keyword.count)
-                        .tag(SidebarSelection.keyword(keyword.id))
-                        .onDrop(of: [.photoVersions], isTargeted: nil) { _ in
-                            model.addKeywords([keyword.name], to: model.draggedVersionIDs)
-                            return true
-                        }
-                        .contextMenu {
-                            Button("Rename…") { model.sidebarSheet = .renameKeyword(keyword) }
-                            Button("Delete…", role: .destructive) { deletion = .keyword(keyword) }
-                        }
+                } else {
+                    ForEach(model.keywords) { keyword in
+                        SidebarRow(title: keyword.name, symbol: "tag", count: keyword.count)
+                            .tag(SidebarSelection.keyword(keyword.id))
+                            .onDrop(of: [.photoVersions], isTargeted: nil) { _ in
+                                model.addKeywords([keyword.name], to: model.draggedVersionIDs)
+                                return true
+                            }
+                            .contextMenu {
+                                Button("Rename…") { model.sidebarSheet = .renameKeyword(keyword) }
+                                Button("Delete…", role: .destructive) { deletion = .keyword(keyword) }
+                            }
+                    }
                 }
             }
         }
@@ -173,11 +189,11 @@ struct SidebarView: View {
     }
 
     @ViewBuilder
-    private func albumRows(_ albums: [AlbumSummary], _ smart: [SmartAlbum]) -> some View {
+    private func albumRows(_ albums: [AlbumSummary], _ smart: [SmartAlbum], isNested: Bool = false) -> some View {
         // Album and smart album ids come from different tables, so they can
         // coincide; the uuids keep the rows apart.
         ForEach(albums, id: \.album.uuid) { album in
-            SidebarRow(title: album.album.name, symbol: "rectangle.stack", count: album.count)
+            SidebarRow(title: album.album.name, symbol: "rectangle.stack", count: album.count, isNested: isNested)
                 .tag(SidebarSelection.album(album.id))
                 .onDrop(of: [.photoVersions], isTargeted: nil) { _ in
                     model.addToAlbum(album.id, versionIDs: model.draggedVersionIDs)
@@ -189,7 +205,8 @@ struct SidebarView: View {
                 }
         }
         ForEach(smart, id: \.uuid) { album in
-            SidebarRow(title: album.name, symbol: "gearshape", count: model.sidebarCounts[.smartAlbum(album.id)])
+            SidebarRow(title: album.name, symbol: "gearshape", count: model.sidebarCounts[.smartAlbum(album.id)],
+                       isNested: isNested)
                 .tag(SidebarSelection.smartAlbum(album.id))
                 .contextMenu {
                     Button("Edit…") { model.sidebarSheet = .smartAlbum(album, projectID: album.projectID) }
@@ -198,8 +215,10 @@ struct SidebarView: View {
         }
     }
 
-    private func projectRow(_ summary: ProjectSummary) -> some View {
-        SidebarRow(title: summary.project.name, symbol: "folder", count: summary.versionCount)
+    private func projectRow(_ summary: ProjectSummary, isExpanded: Binding<Bool>? = nil) -> some View {
+        // Every project keeps room for a chevron, so the counts line up.
+        SidebarRow(title: summary.project.name, symbol: "folder", count: summary.versionCount,
+                   isExpanded: isExpanded, reservesChevron: true)
             .tag(SidebarSelection.project(summary.id))
             .help(summary.project.sourcePath ?? summary.project.name)
             .onDrop(of: FolderDrop.types, isTargeted: nil) { FolderDrop.accept($0, model: model) }
@@ -229,10 +248,61 @@ struct SidebarView: View {
     }
 }
 
+/// A section heading in the inspector's heading style. Collapsible sections
+/// get a chevron that stays visible, so a collapsed section still reads as one.
+///
+/// The sidebar draws its own chevrons: the list gives every section header a
+/// hover chevron (even with `.collapsible(false)`), and as soon as any row can
+/// expand (a `DisclosureGroup`) it indents every row to make room for the
+/// triangles. So headings are their section's first row, and years and
+/// projects expand by inserting their children as indented rows.
+private struct SidebarHeader: View {
+    let title: LocalizedStringKey
+    var isExpanded: Binding<Bool>?
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(title)
+                .font(.headline)
+                .foregroundStyle(.primary)
+            Spacer()
+            if let isExpanded {
+                DisclosureChevron(isExpanded: isExpanded.wrappedValue)
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { isExpanded?.wrappedValue.toggle() }
+        .help(isExpanded.map { DisclosureChevron.help($0.wrappedValue) } ?? "")
+    }
+}
+
+private struct DisclosureChevron: View {
+    let isExpanded: Bool
+
+    static let width: CGFloat = 14
+
+    static func help(_ isExpanded: Bool) -> String {
+        isExpanded ? String(localized: "Collapse") : String(localized: "Expand")
+    }
+
+    var body: some View {
+        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(.secondary)
+            .frame(width: Self.width)
+    }
+}
+
 private struct SidebarRow: View {
     let title: String
     let symbol: String
     let count: Int?
+    /// Shows a chevron after the count that expands the row's children.
+    var isExpanded: Binding<Bool>?
+    /// Keeps room for a chevron, so counts line up with rows that have one.
+    var reservesChevron = false
+    /// A child of a year or project: indented, with room for its parent's chevron.
+    var isNested = false
 
     var body: some View {
         Label {
@@ -242,10 +312,21 @@ private struct SidebarRow: View {
                     .truncationMode(.middle)
                 Spacer()
                 if let count { CountBadge(count: count) }
+                if let isExpanded {
+                    Button { isExpanded.wrappedValue.toggle() } label: {
+                        DisclosureChevron(isExpanded: isExpanded.wrappedValue)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help(DisclosureChevron.help(isExpanded.wrappedValue))
+                } else if reservesChevron || isNested {
+                    Color.clear.frame(width: DisclosureChevron.width, height: 1)
+                }
             }
         } icon: {
             Image(systemName: symbol)
         }
+        .padding(.leading, isNested ? 18 : 0)
     }
 }
 
