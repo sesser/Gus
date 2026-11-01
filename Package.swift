@@ -55,7 +55,9 @@ let package = Package(
         ),
         .testTarget(
             name: "PhotoCoreTests",
-            dependencies: ["PhotoCore", "PhotoFixtures"]
+            dependencies: ["PhotoCore", "PhotoFixtures"],
+            // Golden images are read from the source tree (`Goldens`), not bundled.
+            exclude: ["Goldens"]
         ),
     ]
 )
