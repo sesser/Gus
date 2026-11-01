@@ -144,7 +144,12 @@ public struct AdjustmentRenderer: EditStackRenderer {
         var estimates = LocalEstimates()
         if masks.contains(where: { !LocalToneCurve(shadows: $0.adjustments.shadows / 100,
                                                     recovery: max(-$0.adjustments.highlights, 0) / 100).isIdentity }) {
-            estimates.luminance = Self.smoothedLuminance(selection, extent: extent)
+            // Measured with a margin of repeated edge pixels, then cropped: unpadded,
+            // macOS 26 and 27 gave the frame's outermost columns a step (0.209 → 0.223
+            // in golden mask-combined-hazyLandscape) where macOS 15 did not.
+            let padded = extent.insetBy(dx: -16, dy: -16)
+            estimates.luminance = Self.smoothedLuminance(selection.clampedToExtent().cropped(to: padded), extent: padded,
+                                                         scaleFrom: extent)?.cropped(to: extent)
         }
         if masks.contains(where: { $0.adjustments.dehaze > 0 }) {
             estimates.haze = Self.hazeMap(selection, extent: extent)
@@ -290,8 +295,10 @@ public struct AdjustmentRenderer: EditStackRenderer {
 
     /// The luminance guide smoothed on a fixed-size copy and upsampled along
     /// the image's edges, so every tier looks the same.
-    static func smoothedLuminance(_ image: CIImage, extent: CGRect) -> CIImage? {
-        let longest = max(extent.width, extent.height)
+    /// `scaleFrom` sets the reduced copy's scale (the frame without a margin
+    /// added around it), so a margin changes nothing else.
+    static func smoothedLuminance(_ image: CIImage, extent: CGRect, scaleFrom reference: CGRect? = nil) -> CIImage? {
+        let longest = max((reference ?? extent).width, (reference ?? extent).height)
         guard longest > 0, let guide = luminanceGuide(image, extent: extent) else { return nil }
         let reduce = CIFilter.lanczosScaleTransform()
         reduce.inputImage = guide

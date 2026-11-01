@@ -27,7 +27,7 @@ public enum PreviewTier: String, Sendable, Hashable, CaseIterable {
 /// `currentPipelineVersion` orphans every old file in one folder that can be deleted.
 public struct PreviewCacheKey: Hashable, Sendable, CustomStringConvertible {
     /// Bump when rendering changes in a way that should invalidate cached previews.
-    public static let currentPipelineVersion = 4
+    public static let currentPipelineVersion = 5
 
     public let contentHash: String
     public let editStackHash: String
