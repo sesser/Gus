@@ -20,8 +20,49 @@ struct GoldenCase: Sendable, CustomTestStringConvertible {
         self.adjustments = adjustments
     }
 
+    /// Built-in look-up tables are installed here on first use.
+    static let lookTables = LookTableStore(directory: FileManager.default.temporaryDirectory
+        .appending(path: "golden-look-tables-\(ProcessInfo.processInfo.processIdentifier)", directoryHint: .isDirectory))
+
+    /// The identifier of the built-in table `key` (`BuiltInLookTables`).
+    static func builtInTable(_ key: String) -> String {
+        BuiltInLookTables.all.first { $0.key == key }?.identifier ?? ""
+    }
+
     func render() -> CIImage {
-        AdjustmentRenderer().render(adjustments, to: scene.image().ciImage, context: RenderContext())
+        AdjustmentRenderer(lookTables: Self.lookTables).render(adjustments, to: scene.image().ciImage,
+                                                              context: RenderContext())
+    }
+}
+
+/// Settings the RAW decoder applies, over the synthetic Bayer DNG
+/// (`SyntheticDNG`, seed 7). Decoded at full size through `PreviewGenerator`,
+/// as previews and exports are. 320 × 240, not the scenes' 256 × 192: the
+/// decoder returns an empty image for that DNG (and for 258 × 194), while
+/// 300 × 200 and larger decode.
+struct RAWGoldenCase: Sendable, CustomTestStringConvertible {
+    var name: String
+    var adjustments: Adjustments
+
+    var testDescription: String { name }
+
+    init(_ name: String, _ edit: (inout Adjustments) -> Void) {
+        self.name = name
+        var adjustments = Adjustments()
+        edit(&adjustments)
+        self.adjustments = adjustments
+    }
+
+    static let master: URL = {
+        let url = FileManager.default.temporaryDirectory
+            .appending(path: "golden-bayer-\(ProcessInfo.processInfo.processIdentifier).dng", directoryHint: .notDirectory)
+        try? SyntheticDNG.write(to: url, options: .init(width: 320, height: 240, seed: 7))
+        return url
+    }()
+
+    func render() throws -> CIImage {
+        try PreviewGenerator(engine: Goldens.engine).image(source: Self.master, stack: adjustments.editStack,
+                                                           longEdge: nil)
     }
 }
 
@@ -120,6 +161,20 @@ struct GoldenTests {
             $0.grain = Grain(strength: 150, roughness: 20, color: 80, size: 3)
         },
 
+        GoldenCase("lookTable-tealOrange-hueRamp", .hueRamp) {
+            $0.lookTable = LookTable(identifier: GoldenCase.builtInTable("tealOrange"))
+        },
+        GoldenCase("lookTable-fadeHalf-patchChart", .patchChart) {
+            $0.lookTable = LookTable(identifier: GoldenCase.builtInTable("fade"), intensity: 50)
+        },
+        GoldenCase("lookTable-crossProcessProPhoto-grayRamp", .grayRamp) {
+            $0.lookTable = LookTable(identifier: GoldenCase.builtInTable("crossProcess"), colorSpace: .proPhoto)
+        },
+
+        // Files that are not RAW: Core Image's noise reduction (`CoreImageDenoiser`).
+        GoldenCase("noiseReduction-60-hazyLandscape", .hazyLandscape) { $0.noiseReduction.luminance = 60 },
+        GoldenCase("noiseReduction-100-edgeTarget", .edgeTarget) { $0.noiseReduction.luminance = 100 },
+
         GoldenCase("crop-straighten-patchChart", .patchChart) {
             $0.crop = Crop(rect: CropRect(x: 0.1, y: 0.1, width: 0.8, height: 0.75), angle: 5)
         },
@@ -128,8 +183,43 @@ struct GoldenTests {
         },
     ]
 
+    /// The decoder's own settings: Kelvin white balance, the base look (its
+    /// boost), extended range (asked for by negative exposure), and its noise
+    /// reduction. Not covered: `decoderVersion` (the versions offered depend on
+    /// the macOS release) and the whole-sensor decode (`CameraFrame`, which
+    /// only Olympus, OM System and Panasonic files have).
+    static let rawCases: [RAWGoldenCase] = [
+        RAWGoldenCase("raw-asShot") { _ in },
+        RAWGoldenCase("raw-kelvin3200") { $0.whiteBalance = WhiteBalance(preset: .custom, temperature: 3200, tint: 0) },
+        RAWGoldenCase("raw-kelvin8000-tint30") {
+            $0.whiteBalance = WhiteBalance(preset: .custom, temperature: 8000, tint: 30)
+        },
+        RAWGoldenCase("raw-tungstenPreset") { $0.whiteBalance = .raw(.tungsten) },
+        RAWGoldenCase("raw-lookFlat") { $0.decode.look = .flat },
+        RAWGoldenCase("raw-lookNeutral") { $0.decode.look = .neutral },
+        RAWGoldenCase("raw-extendedRange-exposureMinus1") { $0.exposure.ev = -1 },
+        RAWGoldenCase("raw-noiseReduction") { $0.noiseReduction = NoiseReduction(luminance: 80, color: 80) },
+    ]
+
     @Test("Module renders match their goldens", arguments: cases)
     func moduleMatchesGolden(_ golden: GoldenCase) throws {
         try Goldens.check(golden.name, golden.render(), tolerance: Self.tolerance)
+    }
+
+    @Test("RAW decode settings match their goldens", arguments: rawCases)
+    func rawDecodeMatchesGolden(_ golden: RAWGoldenCase) throws {
+        try Goldens.check(golden.name, golden.render(), tolerance: Self.tolerance)
+    }
+
+    /// A setting the decoder ignored would pin the as-shot render under another
+    /// name: each case must change the image.
+    @Test("Every RAW decode setting changes the decode")
+    func rawSettingsTakeEffect() throws {
+        let engine = Goldens.engine
+        let asShot = try EncodedImage(rendering: Self.rawCases[0].render(), engine: engine)
+        for golden in Self.rawCases.dropFirst() {
+            let rendered = try EncodedImage(rendering: golden.render(), engine: engine)
+            #expect(rendered != asShot, "\(golden.name) renders as shot")
+        }
     }
 }
