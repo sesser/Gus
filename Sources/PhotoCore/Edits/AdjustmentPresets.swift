@@ -161,24 +161,43 @@ extension Catalog {
         }
     }
 
-    /// The edit stacks of several versions (identity for unreadable ones).
-    public func editStacks(forVersions ids: [Int64]) async throws -> [Int64: EditStack] {
+    /// The edit stacks of several versions, and the versions whose stacks
+    /// cannot be read (which must be left alone).
+    public func editStacks(forVersions ids: [Int64]) async throws -> StoredEditStacks {
         try await database.read { db in
-            var stacks: [Int64: EditStack] = [:]
+            var stored = StoredEditStacks()
             for chunk in ids.chunked(into: 10_000) {
                 for version in try VersionRecord.filter(keys: chunk).fetchAll(db) {
                     guard let id = version.id else { continue }
-                    stacks[id] = (try? version.decodedEditStack()) ?? .identity
+                    do {
+                        stored.stacks[id] = try version.decodedEditStack()
+                    } catch {
+                        stored.unreadable[id] = EditStack.ReadFailure(error)
+                    }
                 }
             }
-            return stacks
+            return stored
         }
     }
 
-    /// Replaces several versions' edit stacks in one transaction.
+    /// Gives each of `ids` `transform` of its adjustments (paste, a preset),
+    /// leaving versions whose stacks cannot be read as they are. Returns the
+    /// stacks before and after, for undo, and the versions left alone.
+    public func changeEditStacks(ofVersions ids: [Int64],
+                                 _ transform: (Adjustments) -> Adjustments) async throws -> EditStackChange {
+        let stored = try await editStacks(forVersions: ids)
+        let after = stored.stacks.mapValues { transform(Adjustments(stack: $0)).editStack }
+        try await setEditStacks(after)
+        return EditStackChange(before: stored.stacks, after: after, unreadable: stored.unreadable)
+    }
+
+    /// Replaces several versions' edit stacks in one transaction. Throws
+    /// `UnreadableEditStacks`, writing nothing, when any stored stack among them
+    /// cannot be read.
     public func setEditStacks(_ stacks: [Int64: EditStack], at date: Date = Date()) async throws {
         let rows = try stacks.map { ($0.key, try $0.value.jsonString(), $0.value.renderHash) }
         try await database.write { db in
+            try Self.refuseUnreadableStacks(of: Array(stacks.keys), db)
             for (id, json, hash) in rows {
                 _ = try VersionRecord.filter(key: id).updateAll(db, [
                     VersionRecord.Columns.editStack.set(to: json),
@@ -188,4 +207,30 @@ extension Catalog {
             }
         }
     }
+}
+
+/// Edit stacks read for a change to many versions.
+public struct StoredEditStacks: Sendable, Equatable {
+    public var stacks: [Int64: EditStack] = [:]
+    /// Versions whose stored stack cannot be read, and why: never written over.
+    public var unreadable: [Int64: EditStack.ReadFailure] = [:]
+
+    public init(stacks: [Int64: EditStack] = [:], unreadable: [Int64: EditStack.ReadFailure] = [:]) {
+        self.stacks = stacks
+        self.unreadable = unreadable
+    }
+}
+
+/// What `changeEditStacks` did.
+public struct EditStackChange: Sendable, Equatable {
+    public var before: [Int64: EditStack]
+    public var after: [Int64: EditStack]
+    /// Left unchanged: their stored stacks cannot be read.
+    public var unreadable: [Int64: EditStack.ReadFailure]
+}
+
+/// A write would have replaced edit stacks this build cannot read (written by
+/// a newer build, or damaged). Nothing was written.
+public struct UnreadableEditStacks: Error, Equatable, Sendable {
+    public var failures: [Int64: EditStack.ReadFailure]
 }

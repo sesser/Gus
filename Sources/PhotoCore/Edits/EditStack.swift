@@ -33,6 +33,23 @@ public struct EditStack: Codable, Hashable, Sendable {
         case unsupportedSchemaVersion(Int)
     }
 
+    /// Why a stored stack cannot be read. Such a stack is shown unedited but
+    /// never written over: it may hold edits a newer build made.
+    public enum ReadFailure: Error, Hashable, Sendable {
+        /// Written by a newer build (`DecodingFailure.unsupportedSchemaVersion`).
+        case newerVersion(Int)
+        /// Not a stack this build can decode at all.
+        case damaged
+
+        public init(_ error: any Error) {
+            if let failure = error as? DecodingFailure, case .unsupportedSchemaVersion(let version) = failure {
+                self = .newerVersion(version)
+            } else {
+                self = .damaged
+            }
+        }
+    }
+
     private struct Header: Decodable {
         var schemaVersion: Int
     }

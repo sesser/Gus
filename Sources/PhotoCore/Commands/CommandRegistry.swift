@@ -261,6 +261,8 @@ public struct CommandError: Error, Equatable, Sendable {
         case libraryNotFound, libraryLocked
         case versionNotFound, fileNotFound, presetNotFound
         case invalidEdit
+        /// The version's stored stack cannot be read (a newer build's, or damaged); it is left unchanged.
+        case unreadableEditStack
         case softwareRendererUnavailable
         case renderFailed, writeFailed
         case failed
@@ -285,5 +287,35 @@ public struct CommandError: Error, Equatable, Sendable {
 
     public var json: JSONValue {
         ["error": .string(message), "code": .string(code.rawValue)]
+    }
+}
+
+extension EditStack.ReadFailure {
+    /// "newerVersion" or "damaged", for command output.
+    var name: String {
+        switch self {
+        case .newerVersion: "newerVersion"
+        case .damaged: "damaged"
+        }
+    }
+}
+
+extension VersionRecord {
+    /// The stored stack, or `unreadableEditStack` naming why it cannot be read.
+    func readableEditStack() throws(CommandError) -> EditStack {
+        do {
+            return try decodedEditStack()
+        } catch {
+            let id = self.id ?? 0
+            switch EditStack.ReadFailure(error) {
+            case .newerVersion(let schema):
+                throw CommandError(.unreadableEditStack, """
+                    Version \(id)'s edits were saved by a newer version of \(AppBranding.displayName) \
+                    (edit format \(schema)); they are left unchanged.
+                    """)
+            case .damaged:
+                throw CommandError(.unreadableEditStack, "Version \(id)'s edits cannot be read; they are left unchanged.")
+            }
+        }
     }
 }

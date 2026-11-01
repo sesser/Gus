@@ -29,6 +29,9 @@ final class AdjustmentEditor {
         case ready
         case video
         case offline
+        /// The stored stack cannot be read (a newer build's, or damaged):
+        /// editing is off so it is never written over.
+        case unreadable(EditStack.ReadFailure)
     }
 
     @ObservationIgnored weak var library: LibraryModel?
@@ -131,7 +134,14 @@ final class AdjustmentEditor {
         let colorSpace = library.previews.displayColorSpace
         let versionID = newItem.versionID
         loadTask = Task {
-            let stack = (try? await catalog.version(id: versionID)?.decodedEditStack()) ?? .identity
+            let stack: EditStack
+            do {
+                stack = try await catalog.version(id: versionID)?.decodedEditStack() ?? .identity
+            } catch {
+                guard !Task.isCancelled, item?.versionID == versionID else { return }
+                state = .unreadable(EditStack.ReadFailure(error))
+                return
+            }
             let defaults = SupportedFormats.isRaw(pathExtension: url.pathExtension)
                 ? await Task.detached(priority: .userInitiated) { RawDefaults(source: url) }.value : nil
             guard !Task.isCancelled, item?.versionID == versionID else { return }

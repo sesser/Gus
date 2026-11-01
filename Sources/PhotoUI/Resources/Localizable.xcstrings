@@ -450,6 +450,29 @@
         }
       }
     },
+    "%lld photos were left unchanged: their edits were saved by a newer version of %@ or cannot be read." : {
+      "comment" : "After paste or a preset; %lld is a count, %@ the app's name",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photo was left unchanged: its edits were saved by a newer version of %@ or cannot be read."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photos were left unchanged: their edits were saved by a newer version of %@ or cannot be read."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld photos were skipped because their files already exist." : {
       "comment" : "Export report",
       "localizations" : {
@@ -6997,6 +7020,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "There is nothing to export."
+          }
+        }
+      }
+    },
+    "These edits cannot be read. Editing is off so they are not lost." : {
+      "comment" : "Adjust tab and status line",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These edits cannot be read. Editing is off so they are not lost."
+          }
+        }
+      }
+    },
+    "These edits were saved by a newer version of %@. Editing is off so they are not lost." : {
+      "comment" : "Adjust tab and status line; %@ is the app's name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These edits were saved by a newer version of %@. Editing is off so they are not lost."
           }
         }
       }

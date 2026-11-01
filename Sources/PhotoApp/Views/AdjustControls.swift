@@ -497,6 +497,19 @@ enum AdjustText {
         case .effects: String(localized: "Effects", comment: "Adjust tab heading")
         }
     }
+
+    /// Why a photo's edits cannot be changed here.
+    static func unreadableMessage(_ failure: EditStack.ReadFailure) -> String {
+        let name = AppBranding.displayName
+        return switch failure {
+        case .newerVersion:
+            String(localized: "These edits were saved by a newer version of \(name). Editing is off so they are not lost.",
+                   comment: "Adjust tab and status line; %@ is the app's name")
+        case .damaged:
+            String(localized: "These edits cannot be read. Editing is off so they are not lost.",
+                   comment: "Adjust tab and status line")
+        }
+    }
 }
 
 /// A clickable picture with a caption under it, outlined when selected, as

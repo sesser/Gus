@@ -147,7 +147,7 @@ enum RenderCommands {
                 throw CommandError(.versionNotFound, "No version \(id)")
             }
             source = details.volume.url(forRelativePath: details.image.relativePath)
-            stack = try details.version.decodedEditStack()
+            stack = try details.version.readableEditStack()
             library = opened
             versionID = Int64(id)
         default:
