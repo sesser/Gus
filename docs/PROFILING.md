@@ -249,6 +249,25 @@ the background jobs: live frames are still 3–5 times faster when nothing runs 
 .build/out/Products/Release/photobench edits --library-root $LIB --limit 3 --under-load
 ```
 
+## Phase 5: runtime-compiled kernels
+
+`photobench kernels` times the custom-kernel spike (`RuntimeKernels`, see
+`PHASE5_PLAN.md`) against the stock filters it mirrors, on the hazy-landscape
+scene uploaded once to the GPU and rendered into a GPU texture. First call,
+then the median of seven; Apple M4 Pro, macOS 27.2, 2026-10-31:
+
+| | preview 2560 × 1707 | full 6000 × 4000 |
+|---|---|---|
+| source only | 6.5 / 2.2 ms | 10.9 / 6.7 ms |
+| gain, runtime kernel | 6.6 / 4.1 ms | 25.5 / 21.9 ms |
+| gain, `CIExposureAdjust` | 1.3 / 1.2 ms | 6.9 / 6.7 ms |
+| blur σ 4, runtime kernel | 9.0 / 7.0 ms | 44.9 / 39.1 ms |
+| blur σ 4, `CIGaussianBlur` | 5.9 / 2.6 ms | 22.6 / 15.3 ms |
+
+Compiling the Metal source and both pipelines took 134 ms the first time and
+1.2 ms afterwards (Metal's shader cache). The kernels read and write 32-bit
+float; with half float the full-size gain took 12.7 ms and the blur 24.4 ms.
+
 ## Reproducing
 
 Build the tools:
@@ -317,6 +336,12 @@ Phase 3 (adjustments; renders previews and live frames for up to `--limit` files
 
 ```bash
 .build/out/Products/Release/photobench edits --library-root $LIB --limit 6
+```
+
+Phase 5 (runtime kernels; no library needed):
+
+```bash
+.build/out/Products/Release/photobench kernels --size 6000x4000 --sigma 4 --runs 7
 ```
 
 Scroll benchmark (opens the window for about 40 s, then quits):

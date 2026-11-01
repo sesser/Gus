@@ -36,6 +36,14 @@ Scripts/build-app.sh importer
 swift run -c release photobench help
 ```
 
+```bash
+swift run photocli help
+```
+
+```bash
+UPDATE_GOLDENS=1 swift test --filter GoldenTests
+```
+
 The build does not depend on Xcode: everything goes through SwiftPM, and tests
 use Swift Testing (not XCTest). `Scripts/build-app.sh` assembles the `.app`
 bundle (Info.plist from `Branding.xcconfig`, String Catalog compiled by the
@@ -54,6 +62,31 @@ monitors (the video loupe's) never see them. To test those, launch with
 A FAT32 disk image (`hdiutil create -fs "MS-DOS FAT32" …`, then `hdiutil
 attach`) stands in for a camera card. `docs/PROFILING.md` has the benchmark
 commands.
+
+`photocli` renders, queries and edits a library without the app (every
+command prints one JSON object; see `docs/PHASE5_PLAN.md`). Its write
+commands refuse while the app has that library open (`LibraryLock`), so
+quit the app (or use another `--library-root`) before `develop`, `rate`,
+`flag` or `label`.
+
+## Checking image code
+
+- **Goldens** (`Tests/PhotoCoreTests/Goldens`, `GoldenTests`) pin every
+  module's rendering of the synthetic `TestScene`s. When one fails, open the
+  side-by-side image the failure names (expected | actual | 8× difference)
+  and say in one sentence what differs before touching code. A change that is
+  meant to alter rendering bumps `PreviewCacheKey.currentPipelineVersion` and
+  updates the affected goldens (`UPDATE_GOLDENS=1`, which prints each file it
+  rewrote) in a separate commit with a one-line reason. Never loosen a
+  tolerance or update a golden only to make a test pass. `GOLDENS_REPORT=1`
+  prints every difference.
+- **CPU references** (`Tests/PhotoCoreTests/Reference`, `ReferenceTests`):
+  write the math in plain Swift (no Core Image) in the working space, and
+  check the renderer against it with a tolerance derived from the formats
+  involved (half float: 2⁻¹¹ per rounding). Derive expected values from the
+  reference; do not tune constants by trial and error.
+- Goldens render on the GPU: Core Image has no software renderer on Apple
+  silicon (the option needs OpenCL).
 
 Commands meant for the user to paste run in zsh: keep scripts POSIX sh or zsh
 compatible and never put `#` comment lines inside pasted command snippets.
@@ -74,14 +107,20 @@ compatible and never put `#` comment lines inside pasted command snippets.
   loupe, inspector (Info and Adjust tabs), sidebar, smart album editor.
 - `Sources/PhotoImporter` — the standalone importer: the same import window
   with no library (copies only; presets and options in its own preferences).
-- `Sources/PhotoFixtures` — synthetic JPEG/HEIC and Bayer DNG writers (tests, benchmarks).
+- `Sources/PhotoCore/Commands` — the command registry (`CommandRegistry`: one
+  `CommandSpec` per command with a parameter schema and a JSON handler) and
+  `CommandLineInterface` (argv parsing and the output contract).
+- `Sources/PhotoCLI` — `photocli`, a thin dispatcher over the registry
+  (PhotoCore only, no AppKit or SwiftUI).
+- `Sources/PhotoFixtures` — synthetic JPEG/HEIC and Bayer DNG writers, and the
+  `TestScene`s for goldens and references (tests, benchmarks).
 - `Sources/PhotoBench` — synthetic library generator and headless profiling.
 - `Sources/StringCatalogCompiler` — `.xcstrings` to `.strings`/`.stringsdict`.
 - `Sources/AppIconCompiler` — `Support/AppIcon.png` to an `.iconset` (masked to the
   macOS icon shape); `build-app.sh` turns it into `AppIcon.icns` with `iconutil`.
-- `Tests/PhotoCoreTests` — Swift Testing suites.
-- `docs/PHASE1_PLAN.md`, `docs/PHASE2_PLAN.md`, `docs/PHASE3_PLAN.md`,
-  `docs/PHASE4_PLAN.md` — design decisions per phase.
+- `Tests/PhotoCoreTests` — Swift Testing suites; `Goldens/` (16-bit PNGs read
+  from the source tree) and `Reference/` (CPU implementations).
+- `docs/PHASE1_PLAN.md` … `docs/PHASE5_PLAN.md` — design decisions per phase.
 
 ## Naming rules
 
@@ -125,7 +164,12 @@ compatible and never put `#` comment lines inside pasted command snippets.
   controls turned off keeps its operations with `isEnabled` false;
   `Adjustments.effective` is what renders.
   `AdjustmentRenderer` renders in a fixed order with built-in Core Image filters
-  and generated tables (no custom kernels: SwiftPM has no Metal step). RAW
+  and generated tables. Custom kernels are possible without a Metal build
+  step: `RuntimeKernels` (a spike, not used by the renderer) compiles Metal
+  source at run time into `CIImageProcessorKernel`s; see
+  `docs/PHASE5_PLAN.md` for its accuracy, speed and the alternatives. Each
+  module describes its parameters (`AdjustmentParameters.swift`); keep that
+  in step when adding one (`AdjustmentParameterTests`). RAW
   decode settings go to `CIRAWFilter` only when set, so an identity stack
   renders exactly as before; changing that, or any rendering of an existing
   stack, needs a `PreviewCacheKey.currentPipelineVersion` bump.
@@ -232,6 +276,10 @@ copyright, usage terms and the creator's contact details (IPTC Core and
 Extension, `Catalog/Descriptions.swift`), edited for the whole selection as
 one undo step each, kept on `image`, synced to sidecars and written on export.
 Reading a file again only fills empty descriptive fields; the library's win.
+
+Phase 5: golden-image tests and CPU references for the renderer, `photocli`
+over a command registry (render, adjustments, query, develop, rate, flag,
+label, export), the library lock, and a spike on runtime-compiled GPU kernels.
 
 Not yet: brushes and masks, healing, lens corrections, DNG export, ML
 denoising, `.dcp` profiles, general (hand-made or burst) stacks, hierarchical
