@@ -751,10 +751,18 @@ reference on sampled pixels, 1.6 s to rasterize in a debug build) and
    haze before upsampling) moved by up to 0.09 when its input moved by
    0.002 (two renders of the same image that Core Image split differently),
    and the airlight came out at exactly 1.0, as if a step before it clipped
-   at white. Global dehaze has the same estimator. It is why cached and
-   whole renders with local dehaze differ by up to 0.058 on such content
-   (recorded as a known issue in `LiveSessionTests.aboveWhite`); on content
-   within 0 … 1 they agree. Not changed; on the roadmap.
+   at white. Global dehaze has the same estimator. Local tone's estimate is
+   sensitive the same way (0.067 for the same input change). It is why
+   cached and whole renders with local dehaze or local tone differ on such
+   content: up to 0.058 here, 0.107 on the macOS 26 CI runner (recorded as a
+   known issue in `LiveSessionTests.aboveWhite`); on content within 0 … 1
+   they agree. Not changed; on the roadmap.
+5. **The masked local-tone estimate had a step at the frame's outermost
+   columns** on macOS 26 and 27 (0.209 → 0.223 in `mask-combined-hazyLandscape`),
+   not on macOS 15; found by the first CI run. The estimate is now measured
+   with a 16-pixel margin of repeated edge pixels and cropped (the reduced
+   copy keeps the frame's scale), which matches macOS 15's render; global
+   local tone and dehaze had no such step. Pipeline version 5.
 
 ## Roadmap
 
