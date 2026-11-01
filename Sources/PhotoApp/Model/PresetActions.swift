@@ -258,7 +258,7 @@ struct PresetSaveDialog {
             box.state = modified.contains(group) ? .on : .off
             return box
         }
-        let rows = stride(from: 0, to: boxes.count, by: 2).map { index in
+        let rows = stride(from: 0, to: boxes.count, by: 2).map { index -> [NSView] in
             [boxes[index], index + 1 < boxes.count ? boxes[index + 1] : NSGridCell.emptyContentView]
         }
         let grid = NSGridView(views: rows)
