@@ -211,6 +211,11 @@ struct LiveSessionTests {
     /// above-white input dehaze's haze estimate moved by up to 0.09, and local
     /// tone's by 0.067, when their input moved by 0.002, so a different split of
     /// the render into passes changes them (0.107 on the macOS 26 runner).
+    ///
+    /// Known issue on macOS 26 only (finding 6): there Core Image's Gaussian blur
+    /// over above-white values depends on how the render is split into passes
+    /// (clarity and sharpening, both unsharp masks, moved by 0.11 in linear light;
+    /// macOS 15 and 27: 0.0006), so even the strict case differs.
     @Test("Values above white survive the cached stages", arguments: [false, true])
     func aboveWhite(withEstimates: Bool) async throws {
         try await RepositoryFiles.withTemporaryDirectory { folder in
@@ -248,6 +253,10 @@ struct LiveSessionTests {
             }
             if withEstimates {
                 withKnownIssue("Dehaze's and local tone's estimates are unstable on above-white input") {
+                    #expect(worst <= 0, "cached and whole differ beyond the tolerance by \(worst)")
+                }
+            } else if ProcessInfo.processInfo.operatingSystemVersion.majorVersion == 26 {
+                withKnownIssue("macOS 26: Gaussian blur above white depends on how the render is split") {
                     #expect(worst <= 0, "cached and whole differ beyond the tolerance by \(worst)")
                 }
             } else {

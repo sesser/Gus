@@ -763,6 +763,16 @@ reference on sampled pixels, 1.6 s to rasterize in a debug build) and
    with a 16-pixel margin of repeated edge pixels and cropped (the reduced
    copy keeps the frame's scale), which matches macOS 15's render; global
    local tone and dehaze had no such step. Pipeline version 5.
+6. **On macOS 26, Core Image's Gaussian blur over above-white values depends
+   on how the render is split into passes** (found by CI, macOS 26 runner).
+   `CIUnsharpMask` equals p + i · (p − G(p)) to 2 × 10⁻⁷ there, but the same
+   blur over the same input moved by about 0.18 at the brightest pixel when
+   its input was a half-float image rather than part of the graph (macOS 15
+   and 27: about 0.003). Clarity and sharpening use it, so on macOS 26 whole
+   renders of above-white content depend on Core Image's split too; the stage
+   cache only changes that split. Recorded as a known issue on macOS 26 in
+   `LiveSessionTests.aboveWhite`; nothing in our code can make the split
+   irrelevant short of forcing one.
 
 ## Roadmap
 
