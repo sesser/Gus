@@ -155,7 +155,9 @@ public struct PreviewGenerator: Sendable {
                 }
                 raw.isDraftModeEnabled = draft
             }
-            if let output = raw.outputImage {
+            // The decoder can give an empty image without an error (a small
+            // synthetic DNG does): treat it as no output.
+            if let output = raw.outputImage, !output.extent.isEmpty {
                 return Decoded(image: output, context: RenderContext(scale: Self.scale(of: output, native: native),
                                                                      isRaw: true))
             }
