@@ -13,16 +13,24 @@ concurrency:
 jobs:
   build:
     name: Build and test (${{ matrix.os }})
-    # macos-15 checks the oldest supported macOS (the deployment target) with
-    # that runner's default Xcode.
+    # macos-15 checks the oldest supported macOS (the deployment target). Its
+    # default Xcode 16.4 cannot build the app (it uses the macOS 26 SDK), so
+    # that runner selects its Xcode 26 instead.
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-26, macos-15]
+        include:
+          - os: macos-26
+          - os: macos-15
+            xcode: "26.3"
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v6
+
+      - name: Select Xcode ${{ matrix.xcode }}
+        if: matrix.xcode
+        run: sudo xcode-select -s "/Applications/Xcode_${{ matrix.xcode }}.app"
 
       - name: Toolchain
         run: |
@@ -33,8 +41,8 @@ jobs:
       - uses: actions/cache@v5
         with:
           path: .build
-          key: spm-${{ matrix.os }}-${{ hashFiles('Package.resolved') }}
-          restore-keys: spm-${{ matrix.os }}-
+          key: spm-${{ matrix.os }}-xcode${{ matrix.xcode }}-${{ hashFiles('Package.resolved') }}
+          restore-keys: spm-${{ matrix.os }}-xcode${{ matrix.xcode }}-
 
       - name: Build
         run: swift build
