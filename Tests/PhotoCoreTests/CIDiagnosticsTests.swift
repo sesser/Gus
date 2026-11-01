@@ -70,41 +70,59 @@ struct CIDiagnosticsTests {
         }
     }
 
-    /// The above-white stack: each cached stage against its lazy counterpart.
+    /// The above-white stack without whole-frame estimates (the strict case of
+    /// `LiveSessionTests.aboveWhite`): each cached stage against its lazy
+    /// counterpart, for all masks and for each mask alone.
     @Test("Above-white content: cached stages against lazy ones")
     func aboveWhiteStages() async throws {
         try await RepositoryFiles.withTemporaryDirectory { folder in
             let url = folder.appending(path: "bright.dng")
             try SyntheticDNG.write(to: url, options: .init(width: 640, height: 480, seed: 7))
-            var values = LiveSessionTests.masked()
-            values.exposure.ev = 1.5
-            values.tone.highlights = -20
-            values.local.masks[0].adjustments.dehaze = 0
-            values = values.effective
-            let decoded = try PreviewGenerator.decode(url, longEdge: 640, draft: false, settings: values.decodeSettings)
+            var strict = LiveSessionTests.masked()
+            strict.exposure.ev = 1.5
+            strict.tone.highlights = -20
+            strict.local.masks[0].adjustments.dehaze = 0
+            strict.local.masks[1].adjustments.shadows = 0
+            let decoded = try PreviewGenerator.decode(url, longEdge: 640, draft: false, settings: strict.decodeSettings)
             let renderer = AdjustmentRenderer()
-            let crop = AdjustmentRenderer.crop(values, context: decoded.context)
-            let lazy = renderer.upstream(values, to: decoded.image, crop: crop, context: decoded.context)
-            let cached = Self.materialized(lazy)
-            Self.describe("selection, half float against lazy", cached, lazy)
-            Self.describe("selection, float against lazy", Self.materialized(lazy, .RGBAf), lazy)
-            let masks = values.local.renderedMasks
-            let lazyEstimates = renderer.localEstimates(masks, over: lazy)
-            let cachedEstimates = renderer.localEstimates(masks, over: cached)
-            if let a = lazyEstimates.luminance, let b = cachedEstimates.luminance {
-                Self.describe("luminance estimate from cached against lazy selection", b.cropped(to: lazy.extent),
-                              a.cropped(to: lazy.extent))
+            func compare(_ label: String, _ adjustments: Adjustments) {
+                let values = adjustments.effective
+                let crop = AdjustmentRenderer.crop(values, context: decoded.context)
+                let lazy = renderer.upstream(values, to: decoded.image, crop: crop, context: decoded.context)
+                let cached = Self.materialized(lazy)
+                let masks = values.local.renderedMasks
+                let estimates = renderer.localEstimates(masks, over: lazy)
+                var lazyImage = lazy, cachedImage = cached
+                var lazySharpening: [MaskSharpening] = [], cachedSharpening: [MaskSharpening] = []
+                for (index, mask) in masks.enumerated() {
+                    let l = renderer.applyMask(mask, to: lazyImage, selection: lazy, estimates: estimates,
+                                               maskFrame: decoded.image.extent, crop: crop, context: decoded.context)
+                    let c = renderer.applyMask(mask, to: cachedImage, selection: cached, estimates: estimates,
+                                               maskFrame: decoded.image.extent, crop: crop, context: decoded.context)
+                    (lazyImage, cachedImage) = (l.image, c.image)
+                    lazySharpening += l.sharpening
+                    cachedSharpening += c.sharpening
+                    Self.describe("\(label), after mask \(index)", cachedImage, lazyImage)
+                }
+                Self.describe("\(label), downstream",
+                              renderer.downstream(values, cachedImage, sharpening: cachedSharpening, context: decoded.context),
+                              renderer.downstream(values, lazyImage, sharpening: lazySharpening, context: decoded.context))
             }
-            var lazyImage = lazy, cachedImage = cached
-            for (index, mask) in masks.enumerated() {
-                lazyImage = renderer.applyMask(mask, to: lazyImage, selection: lazy, estimates: lazyEstimates,
-                                               maskFrame: decoded.image.extent, crop: crop, context: decoded.context).image
-                cachedImage = renderer.applyMask(mask, to: cachedImage, selection: cached, estimates: cachedEstimates,
-                                                 maskFrame: decoded.image.extent, crop: crop, context: decoded.context).image
-                Self.describe("after mask \(index), cached against lazy", cachedImage, lazyImage)
+            compare("strict, all masks", strict)
+            for index in 0..<3 {
+                var one = strict
+                one.local.masks = [strict.local.masks[index]]
+                compare("strict, mask \(index) alone", one)
             }
-            Self.describe("whole render against itself", renderer.render(values, to: decoded.image, context: decoded.context),
-                          renderer.render(values, to: decoded.image, context: decoded.context))
+            var clarity = strict
+            clarity.local.masks = [strict.local.masks[1]]
+            clarity.sharpen = Sharpen()
+            compare("mask 1 clarity, no global sharpening", clarity)
+            var contrast = strict
+            contrast.local.masks = [strict.local.masks[2]]
+            contrast.local.masks[0].adjustments.sharpen = 0
+            contrast.sharpen = Sharpen()
+            compare("mask 2 contrast only", contrast)
         }
     }
 }
