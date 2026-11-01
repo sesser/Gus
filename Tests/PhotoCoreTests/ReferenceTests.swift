@@ -139,7 +139,8 @@ struct ReferenceTests {
     /// (scaled by 1 + |i|, |i| and 1), so (2 + 2|i|) · 2⁻¹¹ · R. A further
     /// 2⁻¹¹ · R covers the encode and decode around the step.
     @Test("Clarity is an unsharp mask in the perceptual encoding",
-          arguments: [(TestScene.hazyLandscape, 60.0), (.edgeTarget, 60.0)])
+          arguments: [(TestScene.hazyLandscape, 60.0), (.edgeTarget, 60.0), (.patchChart, -40.0),
+                      (.edgeTarget, -100.0), (.hazyLandscape, -40.0)])
     func clarityMatchesReference(scene: TestScene, amount: Double) {
         let input = scene.image()
         var adjustments = Adjustments()

@@ -304,17 +304,36 @@ public struct AdjustmentRenderer: EditStackRenderer {
         return (haze, airlight)
     }
 
-    /// Large-radius unsharp mask in the perceptual encoding. The radius follows
-    /// the image size, so every tier shows the same local contrast.
+    /// Large-radius unsharp mask in the perceptual encoding, p + i · (p − G(p)).
+    /// The radius follows the image size, so every tier shows the same local
+    /// contrast. `CIUnsharpMask` takes no negative intensity (its minimum is 0),
+    /// so negative amounts blend toward the same Gaussian instead: the formula
+    /// with i < 0.
     static func clarity(_ image: CIImage, amount: Double, extent: CGRect) -> CIImage {
         let encode = CIFilter.linearToSRGBToneCurve()
         encode.inputImage = image.clampedToExtent()
-        let mask = CIFilter.unsharpMask()
-        mask.inputImage = encode.outputImage
-        mask.radius = Float(max(extent.width, extent.height) * 0.012)
-        mask.intensity = Float(amount * 0.6)
+        guard let perceptual = encode.outputImage else { return image }
+        let radius = Float(max(extent.width, extent.height) * 0.012)
+        let intensity = Float(amount * 0.6)
+        let sharpened: CIImage?
+        if intensity >= 0 {
+            let mask = CIFilter.unsharpMask()
+            mask.inputImage = perceptual
+            mask.radius = radius
+            mask.intensity = intensity
+            sharpened = mask.outputImage
+        } else {
+            let blur = CIFilter.gaussianBlur()
+            blur.inputImage = perceptual
+            blur.radius = radius
+            let mix = CIFilter.dissolveTransition()
+            mix.inputImage = perceptual
+            mix.targetImage = blur.outputImage
+            mix.time = -intensity
+            sharpened = mix.outputImage
+        }
         let decode = CIFilter.sRGBToneCurveToLinear()
-        decode.inputImage = mask.outputImage
+        decode.inputImage = sharpened
         return decode.outputImage?.cropped(to: extent) ?? image
     }
 

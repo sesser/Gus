@@ -51,14 +51,6 @@ struct GoldenHarnessTests {
         for golden in GoldenTests.cases {
             let scene = try EncodedImage(rendering: golden.scene.image().ciImage, engine: Goldens.engine)
             let rendered = try EncodedImage(rendering: golden.render(), engine: Goldens.engine)
-            if golden.adjustments.presence.clarity < 0 {
-                // CIUnsharpMask clamps its intensity at 0 (attribute minimum 0),
-                // so `AdjustmentRenderer.clarity` does nothing for negative amounts.
-                withKnownIssue("Negative clarity renders nothing: CIUnsharpMask clamps intensity at 0") {
-                    #expect(rendered != scene, "\(golden.name)")
-                }
-                continue
-            }
             #expect(rendered != scene, "\(golden.name)")
         }
     }
