@@ -192,9 +192,10 @@ struct GoldenTolerance: Sendable {
 /// Stored renders under `Tests/PhotoCoreTests/Goldens`, found from this file's
 /// path so the test target needs no resources.
 ///
-/// `UPDATE_GOLDENS=1 swift test` rewrites the goldens that changed and prints
-/// each one. Otherwise a missing golden fails, and a mismatch writes expected,
-/// actual and an 8× difference side by side into a temporary folder.
+/// `UPDATE_GOLDENS=1 swift test` writes the goldens that are missing or outside
+/// their tolerance and prints each one. Otherwise a missing golden fails, and a
+/// mismatch writes expected, actual and an 8× difference side by side into a
+/// temporary folder.
 enum Goldens {
     static let directory = RepositoryFiles.url("Tests/PhotoCoreTests/Goldens")
     static let failureDirectory = FileManager.default.temporaryDirectory.appending(path: "golden-failures",
@@ -223,10 +224,16 @@ enum Goldens {
         let url = url(name)
         let expected = EncodedImage(contentsOf: url)
         if isUpdating {
-            if expected != actual {
-                try actual.writePNG(to: url)
-                print("golden updated: \(url.path)")
+            // Only goldens that are missing or fail: one within the tolerance
+            // (GPU noise) stays as it is, so an update never churns unrelated files.
+            if let expected {
+                let difference = ImageDifference(expected: expected, actual: actual)
+                guard !tolerance.accepts(difference) else { return }
+                print("golden updated: \(url.path) (\(difference))")
+            } else {
+                print("golden created: \(url.path)")
             }
+            try actual.writePNG(to: url)
             return
         }
         guard let expected else {

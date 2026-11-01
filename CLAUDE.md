@@ -80,8 +80,8 @@ quit the app (or use another `--library-root`) before `develop`, `rate`,
   side-by-side image the failure names (expected | actual | 8× difference)
   and say in one sentence what differs before touching code. A change that is
   meant to alter rendering bumps `PreviewCacheKey.currentPipelineVersion` and
-  updates the affected goldens (`UPDATE_GOLDENS=1`, which prints each file it
-  rewrote) in a separate commit with a one-line reason. Never loosen a
+  updates the affected goldens (`UPDATE_GOLDENS=1`, which rewrites only goldens
+  outside their tolerance and prints each one) in a separate commit with a one-line reason. Never loosen a
   tolerance or update a golden only to make a test pass. `GOLDENS_REPORT=1`
   prints every difference.
 - **CPU references** (`Tests/PhotoCoreTests/Reference`, `ReferenceTests`):
