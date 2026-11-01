@@ -10,6 +10,7 @@ let package = Package(
         .executable(name: "PhotoApp", targets: ["PhotoApp"]),
         .executable(name: "PhotoImporter", targets: ["PhotoImporter"]),
         .executable(name: "photobench", targets: ["PhotoBench"]),
+        .executable(name: "photocli", targets: ["PhotoCLI"]),
         .executable(name: "catalog-strings", targets: ["StringCatalogCompiler"]),
         .executable(name: "app-icon", targets: ["AppIconCompiler"]),
     ],
@@ -43,6 +44,12 @@ let package = Package(
             name: "PhotoBench",
             dependencies: ["PhotoCore", "PhotoFixtures"]
         ),
+        // The headless command line: a thin dispatcher over PhotoCore's command
+        // registry, with no AppKit or SwiftUI.
+        .executableTarget(
+            name: "PhotoCLI",
+            dependencies: ["PhotoCore"]
+        ),
         .target(
             name: "PhotoFixtures",
             dependencies: ["PhotoCore"]
@@ -55,7 +62,9 @@ let package = Package(
         ),
         .testTarget(
             name: "PhotoCoreTests",
-            dependencies: ["PhotoCore", "PhotoFixtures"]
+            dependencies: ["PhotoCore", "PhotoFixtures"],
+            // Golden images are read from the source tree (`Goldens`), not bundled.
+            exclude: ["Goldens"]
         ),
     ]
 )

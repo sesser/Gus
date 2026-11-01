@@ -535,10 +535,11 @@ enum DebugScript {
                 }.joined(separator: " ") + " unanalyzed \(summary?.unanalyzedCount ?? -1)")
             }
         case "sidebar":
-            let counts = model.sidebarCounts.map { "\(model.title(for: $0.key))=\($0.value)" }.sorted()
-            print("debug-script: albums " + model.albums.map { "\($0.album.name)=\($0.count)" }.joined(separator: " ")
-                  + " | months " + model.captureMonths.map { "\($0.id)=\($0.count)" }.joined(separator: " ")
-                  + " | " + counts.joined(separator: " ") + " | showing \(model.items.count)")
+            // Separate pieces: as one expression, Swift 6.2 gives up type-checking it.
+            let counts: [String] = model.sidebarCounts.map { "\(model.title(for: $0.key))=\($0.value)" }.sorted()
+            let albums: String = model.albums.map { "\($0.album.name)=\($0.count)" }.joined(separator: " ")
+            let months: String = model.captureMonths.map { "\($0.id)=\($0.count)" }.joined(separator: " ")
+            print("debug-script: albums \(albums) | months \(months) | \(counts.joined(separator: " ")) | showing \(model.items.count)")
         case "disk":
             print("debug-script: changed on disk \(model.diskChangeCount), writes \(model.writesSidecars)")
         case "import":

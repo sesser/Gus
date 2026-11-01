@@ -63,6 +63,13 @@ final class XMPDocument {
         return Data((parts.joined(separator: "\n") + "\n").utf8)
     }
 
+    /// The root element alone, without the `<?xpacket?>` wrapper, for
+    /// `CGImageMetadataCreateFromXMPData`: ImageIO on macOS 15 returns nil for
+    /// a wrapped packet (macOS 26 accepts both).
+    func rootElementData() -> Data {
+        Data((document.rootElement()?.xmlString(options: [.nodeCompactEmptyElement]) ?? "").utf8)
+    }
+
     // MARK: Reading
 
     var descriptions: [XMLElement] {

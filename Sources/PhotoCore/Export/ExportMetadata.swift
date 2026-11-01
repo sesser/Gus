@@ -118,7 +118,7 @@ struct ExportMetadata {
             document.setArray(Namespace.dc, "subject", .bag, values.keywords)
         }
         guard document.hasProperties else { return nil }
-        return CGImageMetadataCreateFromXMPData(document.data() as CFData)
+        return CGImageMetadataCreateFromXMPData(document.rootElementData() as CFData)
     }
 
     private static func text(_ value: String?) -> String? {

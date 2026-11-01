@@ -294,6 +294,8 @@ public struct Adjustments: Hashable, Sendable {
 /// One group of controls stored as one operation.
 public protocol AdjustmentModule: Hashable, Sendable {
     static var kind: EditOperationKind { get }
+    /// Every parameter the module reads and writes (`AdjustmentParameters.swift`).
+    static var parameterDescriptions: [AdjustmentParameter] { get }
     /// Parameters that differ from the defaults; empty means "leave out".
     var parameters: [String: EditParameter] { get }
 }

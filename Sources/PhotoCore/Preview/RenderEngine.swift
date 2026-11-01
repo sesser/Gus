@@ -28,22 +28,34 @@ public final class RenderEngine: @unchecked Sendable {
     public static let minimumHDRHeadroom: Float = 1.05
 
     public let device: (any MTLDevice)?
+    /// Core Image's software renderer, on the CPU.
+    public let isSoftwareRenderer: Bool
     private let contexts: [CIContext]
     /// Renders in progress per context.
     private let busy: Mutex<[Int]>
 
     /// - Parameter contextCount: Renders that can run at once; one context each.
+    /// - Parameter softwareRenderer: Ask for Core Image's software renderer (on
+    ///   the CPU) instead of the GPU. Core Image ignores the request where there
+    ///   is no OpenCL, which includes Apple silicon: check
+    ///   `softwareRendererIsAvailable` first.
     public init(device: (any MTLDevice)? = MTLCreateSystemDefaultDevice(),
-                contextCount: Int = PreviewService.defaultGenerateConcurrency, name: String = "preview-pipeline") {
-        self.device = device
+                contextCount: Int = PreviewService.defaultGenerateConcurrency, name: String = "preview-pipeline",
+                softwareRenderer: Bool = false) {
+        self.device = softwareRenderer ? nil : device
+        isSoftwareRenderer = softwareRenderer
+        let device = self.device
         contexts = (0..<max(1, contextCount)).map { index in
-            let options: [CIContextOption: Any] = [
+            var options: [CIContextOption: Any] = [
                 .workingColorSpace: Self.workingColorSpace,
                 .workingFormat: CIFormat.RGBAh,
                 // Previews are rendered once each; caching intermediates only costs memory.
                 .cacheIntermediates: false,
                 .name: "\(name)-\(index)",
             ]
+            if softwareRenderer {
+                options[.useSoftwareRenderer] = true
+            }
             if let device {
                 return CIContext(mtlDevice: device, options: options)
             }
@@ -72,6 +84,16 @@ public final class RenderEngine: @unchecked Sendable {
     }
 
     public var isMetalBacked: Bool { device != nil }
+
+    /// Whether Core Image can render on the CPU here. Its documentation says the
+    /// software renderer option "has no effect if the platform does not support
+    /// OpenCL"; on Apple silicon a context created with it is still a Metal
+    /// context. Core Image has no API for the backend, so this reads the
+    /// context's description, which names it ("metal").
+    public static let softwareRendererIsAvailable: Bool = {
+        let context = CIContext(options: [.useSoftwareRenderer: true])
+        return !String(describing: context).lowercased().contains("metal")
+    }()
 
     /// Renders to an 8-bit `CGImage` in `colorSpace` (Display P3 by default). Pass
     /// the screen's color space for images headed straight to a layer, so Core

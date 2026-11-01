@@ -39,6 +39,10 @@ let usage = """
                  With --under-load, times only the live frames while N preview renders run
                  in the background (default: the preview service's generate concurrency).
 
+      kernels    [--size WxH] [--sigma N] [--runs N]
+                 Times the runtime-compiled kernel spike against the stock filters at preview
+                 size (2560 px) and full size (default 6000x4000), first call and steady state.
+
       synthesize --library-root ROOT --count N
                  Grows the catalog to N versions by cloning existing rows with new content
                  hashes and hard-linking their cached thumbnails (grid-scale testing).
@@ -104,6 +108,7 @@ do {
     case "sidecars": report = try await SidecarBenchmark.run(arguments)
     case "copy": report = try await CopyBenchmark.run(arguments)
     case "edits": report = try await EditBenchmark.run(arguments)
+    case "kernels": report = try await KernelBenchmark.run(arguments)
     default:
         print(usage)
         exit(arguments.command == "help" || arguments.flags.contains("help") ? 0 : 64)

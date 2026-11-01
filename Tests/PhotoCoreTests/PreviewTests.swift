@@ -393,12 +393,19 @@ struct WorkLaneTests {
         func job(_ key: String, _ priority: Int) -> Task<String, any Error> {
             Task { try await lane.run(key: key, priority: priority) { started.withLock { $0.append(key) }; await gate.wait(); return key } }
         }
+        /// Waits for `condition` up to two seconds: under a loaded test run, tasks
+        /// can take longer than a fixed sleep to start.
+        func eventually(_ condition: () -> Bool) async throws {
+            let deadline = ContinuousClock.now + .seconds(2)
+            while !condition(), ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(5)) }
+        }
         var tasks = (0..<4).map { job("background-\($0)", 0) }
+        try await eventually { started.withLock { $0.count } >= 2 }
         try await Task.sleep(for: .milliseconds(50))
         #expect(started.withLock { $0.count } == 2, "background work leaves the reserved slot free")
 
         tasks.append(job("visible", 2))
-        try await Task.sleep(for: .milliseconds(50))
+        try await eventually { started.withLock { $0.contains("visible") } }
         #expect(started.withLock { $0.contains("visible") }, "an urgent job starts at once in the reserved slot")
         #expect(started.withLock { $0.count } == 3)
 

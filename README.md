@@ -28,9 +28,10 @@ and let Gus verify every copy by hash before it counts. Only verified originals
 are ever offered for deletion. Already have a folder of photos? Drag it in from
 Finder and it becomes a project, in place.
 
-**Serious RAW editing.** White balance, exposure with Auto, tone, presence, a
-tone curve with live histogram, sharpening, noise reduction and color grading,
-plus look-up tables, vignette and grain. Everything renders live through Core
+**Serious RAW editing.** Crop, rotate and straighten, white balance, exposure
+with Auto, tone, presence, a tone curve with live histogram, a color mixer,
+sharpening, noise reduction and color grading, plus look-up tables, vignette
+and grain. Everything renders live through Core
 Image in a wide-gamut linear working space, with before/after, copy/paste and
 presets.
 
@@ -58,6 +59,11 @@ metadata you choose and an optional watermark. Save the settings as presets.
 **Videos too.** MOV, MP4 and M4V are catalogued alongside your photos, rated,
 keyworded and played in the loupe.
 
+**Scriptable.** `photocli` renders photos and edit stacks, lists and queries
+the library with smart-album rules, sets adjustments, ratings, flags and
+labels, and runs exports, all from the terminal and all as JSON. It reads a
+library at any time and changes it only while the app has it closed.
+
 **Also included:** a standalone Gus Importer for copying cards on a machine
 without a library, full undo and redo, and ExifTool support for the richest
 metadata when it is installed.
@@ -67,8 +73,8 @@ metadata when it is installed.
 Gus is in active development and has no stable release yet. The `develop`
 branch has the latest work; `master` will hold releases.
 
-On the roadmap: masks and brushes, healing, cropping, lens corrections, DNG
-export, ML denoising, stacks and hierarchical keywords.
+On the roadmap: masks and brushes, healing, lens corrections, DNG export, ML
+denoising, stacks and hierarchical keywords.
 
 See the [user guide](docs/USER_GUIDE.md) for how everything works, and the
 phase plans in [docs](docs) for design decisions.
@@ -116,6 +122,13 @@ swift build
 swift test
 ```
 
+The command line builds the same way (`swift run photocli help` lists its
+commands):
+
+```bash
+swift build --product photocli
+```
+
 Everything goes through SwiftPM; GRDB is the only third-party dependency.
 
 ## Repository layout
@@ -127,10 +140,11 @@ Everything goes through SwiftPM; GRDB is the only third-party dependency.
 | `Sources/PhotoApp` | SwiftUI shell, AppKit grid and loupe, inspector, sidebar |
 | `Sources/PhotoImporter` | the standalone importer |
 | `Sources/PhotoFixtures` | synthetic JPEG/HEIC and Bayer DNG writers for tests and benchmarks |
+| `Sources/PhotoCLI` | the command line (`photocli`) over PhotoCore's command registry |
 | `Sources/PhotoBench` | synthetic library generator and profiling (`photobench`) |
 | `Sources/StringCatalogCompiler` | String Catalog compiler used by the build script |
 | `Sources/AppIconCompiler` | turns `Support/AppIcon.png` into the app's `.icns` |
-| `Tests/PhotoCoreTests` | Swift Testing suites |
+| `Tests/PhotoCoreTests` | Swift Testing suites, golden images and CPU reference implementations |
 | `Branding.xcconfig` | brand-dependent build settings (see [RENAMING.md](RENAMING.md)) |
 | `docs/` | user guide, design plans per phase, profiling results |
 

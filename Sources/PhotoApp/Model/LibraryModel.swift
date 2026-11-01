@@ -301,6 +301,9 @@ final class LibraryModel {
     private(set) var onlineVolumeIDs: Set<Int64> = []
 
     @ObservationIgnored weak var observer: LibraryItemsObserver?
+    /// Held while the library is open, so command-line writes refuse instead of
+    /// changing the catalog behind the window's back (`LibraryLock`).
+    @ObservationIgnored private var libraryLock: LibraryLock?
     @ObservationIgnored private var volumesByID: [Int64: VolumeRecord] = [:]
     @ObservationIgnored private var reloadTask: Task<Void, Never>?
     @ObservationIgnored private var searchTask: Task<Void, Never>?
@@ -371,6 +374,15 @@ final class LibraryModel {
             locations = try .standard()
         }
         try locations.createDirectories()
+        // A command-line write holds the lock for moments only. If another
+        // process keeps it (a second copy of the app), open anyway, as before.
+        let lock: LibraryLock?
+        do {
+            lock = try LibraryLock.acquire(locations, timeout: .seconds(2))
+        } catch {
+            log.warning("Library lock not taken: \(String(describing: error), privacy: .public)")
+            lock = nil
+        }
         let catalog = try Catalog.open(at: locations.catalogFileURL)
         let importer = Importer(catalog: catalog, metadataReader: MetadataReaders.makeDefault())
         let lookTables = LookTableStore(locations: locations)
@@ -378,8 +390,10 @@ final class LibraryModel {
         let previews = PreviewService(cacheDirectory: locations.previewCacheDirectory, catalog: catalog,
                                       generator: generator)
         previews.cache.removeObsoletePipelineVersions()
-        return LibraryModel(locations: locations, catalog: catalog, importer: importer, previews: previews,
-                            lookTables: lookTables)
+        let model = LibraryModel(locations: locations, catalog: catalog, importer: importer, previews: previews,
+                                 lookTables: lookTables)
+        model.libraryLock = lock
+        return model
     }
 
     func start() async {

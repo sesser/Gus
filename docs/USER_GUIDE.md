@@ -210,3 +210,18 @@ document to open, which keeps the main window from appearing).
 `photobench` generates synthetic libraries and profiles import, preview
 generation, cache reads and catalog queries. See
 [PROFILING.md](PROFILING.md) for results and commands.
+
+## Scripting
+
+`photocli` (built with `swift build --product photocli`) works on a library
+from the terminal: `render` a file or a version to PNG, JPEG or TIFF with
+adjustments, `query projects` and `query images` (smart-album rules as JSON),
+`develop` (set and reset adjustments; `--dry-run` only shows the result),
+`rate`, `flag`, `label` and `export`. `photocli adjustments` lists every
+adjustment and its range; `photocli help` lists the commands. Each prints one
+JSON object. Pass `--library-root` as for the app; without it the standard
+library is used.
+
+It can read a library at any time, but it changes one only while the app has
+it closed: while the app is open, `develop`, `rate`, `flag` and `label` refuse
+and say so. Changes made from the terminal cannot be undone in the app.
