@@ -19,7 +19,21 @@ public actor LiveRenderSession {
         /// The mask frame's size in pixels (the decoded image before turns,
         /// straightening and crop): its proportions place masks on screen.
         public let maskFrameSize: CGSize
+        /// 1 for a full frame; ½ or ¼ for a draft rendered smaller while dragging.
+        public let scale: Double
+        /// From the start of the render to the histogram: GPU work and read-back included.
+        public let seconds: Double
     }
+
+    /// A frame should take no longer than this while a control is dragged.
+    public static let frameBudget = 0.1
+    /// Draft scales, from full size down.
+    public static let draftScales = [1.0, 0.5, 0.25]
+    /// The scale interactive frames render at now: lowered when a frame
+    /// went over the budget, raised again once one would fit with room to spare.
+    public private(set) var draftLevel = 0
+    private var draftBases: [String: (image: CIImage, context: RenderContext)] = [:]
+    private var stageCaches: [Int: StageCache] = [:]
 
     public let source: URL
     public let longEdge: Int
@@ -165,27 +179,42 @@ public actor LiveRenderSession {
 
     /// Renders `adjustments`. `interactive` allows a faster, rougher decode when a
     /// RAW decode setting changed.
+    ///
+    /// Interactive frames may be drafts (`draftLevel`): the same render over a
+    /// reduced copy of the decoded master, with `RenderContext.scale` reduced
+    /// to match, so radii keep their size relative to the photo. Other frames
+    /// are always full size.
     public func render(_ adjustments: Adjustments, interactive: Bool = false, overlayMask: UUID? = nil,
                        cancellation: RenderCancellation? = nil) throws -> Frame {
+        let clock = ContinuousClock()
+        let started = clock.now
+        let level = interactive ? draftLevel : 0
+        let factor = Self.draftScales[level]
         let stack = adjustments.editStack
         let renderer = generator.renderer
         let isRaw = SupportedFormats.isRaw(pathExtension: source.pathExtension)
         let settings = isRaw ? renderer.decodeSettings(for: stack) : .none
         let base = try self.base(for: BaseKey(settings: settings, draft: interactive,
                                               longEdge: decodeLongEdge(renderer.geometry(for: stack))))
-        let source = CIImage(cgImage: base.image)
+        let baseKey = BaseKey(settings: settings, draft: interactive, longEdge: base.longEdge)
+        var source = CIImage(cgImage: base.image)
+        var context = base.context
+        if level > 0 {
+            (source, context) = try draft(of: base, key: baseKey, factor: factor)
+        }
         var image: CIImage
         if cachesStages, let adjusting = renderer as? AdjustmentRenderer {
-            image = try staged(adjustments, renderer: adjusting, source: source, context: base.context,
-                               baseKey: BaseKey(settings: settings, draft: interactive, longEdge: base.longEdge),
-                               cancellation: cancellation)
+            stages = stageCaches[level] ?? StageCache()
+            defer { stageCaches[level] = stages }
+            image = try staged(adjustments, renderer: adjusting, source: source, context: context,
+                               baseKey: baseKey, cancellation: cancellation)
         } else {
-            image = try renderer.apply(stack, to: source, context: base.context)
+            image = try renderer.apply(stack, to: source, context: context)
         }
         try cancellation?.check()
         var overlaid = false
         if let overlayMask, let adjusting = renderer as? AdjustmentRenderer,
-           let alpha = adjusting.maskAlpha(adjustments, id: overlayMask, to: source, context: base.context) {
+           let alpha = adjusting.maskAlpha(adjustments, id: overlayMask, to: source, context: context) {
             // Red at half the mask's alpha over the photo.
             let red = CIImage(color: CIColor(red: 1, green: 0.1, blue: 0.1)).cropped(to: image.extent)
             let blend = CIFilter(name: "CIBlendWithMask", parameters: [
@@ -195,12 +224,48 @@ public actor LiveRenderSession {
             image = blend?.outputImage?.cropped(to: image.extent) ?? image
             overlaid = true
         }
-        image = image.scaledToFit(longEdge: longEdge)
+        image = image.scaledToFit(longEdge: Int((Double(longEdge) * factor).rounded()))
         guard let rendered = generator.engine.makeCGImage(image, colorSpace: colorSpace) else {
             throw PreviewGenerator.Failure.renderFailed
         }
-        return Frame(image: DecodedImage(cgImage: rendered), histogram: overlaid ? nil : Histogram(image: rendered),
-                     adjustments: adjustments, maskFrameSize: source.extent.size)
+        let histogram = overlaid ? nil : Histogram(image: rendered)
+        let elapsed = (clock.now - started).components
+        let seconds = Double(elapsed.seconds) + Double(elapsed.attoseconds) / 1e18
+        if interactive { adapt(level: level, seconds: seconds) }
+        return Frame(image: DecodedImage(cgImage: rendered), histogram: histogram, adjustments: adjustments,
+                     maskFrameSize: CGSize(width: base.image.width, height: base.image.height),
+                     scale: factor, seconds: seconds)
+    }
+
+    /// Steps the draft level down after a frame over the budget, and back up
+    /// only when the next larger frame (four times the pixels) would take
+    /// under 60 % of the budget, so it does not flip every frame.
+    private func adapt(level: Int, seconds: Double) {
+        guard level == draftLevel else { return }
+        draftLevel = Self.nextDraftLevel(after: level, seconds: seconds)
+    }
+
+    static func nextDraftLevel(after level: Int, seconds: Double) -> Int {
+        if seconds > frameBudget, level < draftScales.count - 1 { return level + 1 }
+        if level > 0, seconds * 4 < frameBudget * 0.6 { return level - 1 }
+        return level
+    }
+
+    /// The decoded master reduced by `factor`, rendered once per base.
+    private func draft(of base: Base, key: BaseKey, factor: Double) throws -> (CIImage, RenderContext) {
+        let name = "\(key)|\(factor)"
+        if let cached = draftBases[name] { return cached }
+        let full = CIImage(cgImage: base.image)
+        let reduced = try materialize(full.scaledToFit(longEdge: Int((Double(base.longEdge) * factor).rounded())))
+        var context = base.context
+        context.scale *= factor
+        draftBases = [name: (reduced, context)]
+        return (reduced, context)
+    }
+
+    /// Restarts the adaptive drafts at full size (a new photo, or a gesture's end).
+    public func resetDrafts() {
+        draftLevel = 0
     }
 
     /// The frames' long edge, enlarged by what the crop leaves out (in steps,

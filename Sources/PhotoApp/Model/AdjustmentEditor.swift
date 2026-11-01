@@ -115,7 +115,12 @@ final class AdjustmentEditor {
     @ObservationIgnored private var loadTask: Task<Void, Never>?
     @ObservationIgnored private var renderTask: Task<Void, Never>?
     @ObservationIgnored private var cropImageTask: Task<Void, Never>?
-    @ObservationIgnored private var pendingRender: (values: Adjustments, interactive: Bool)?
+    @ObservationIgnored private var pendingRender: (values: Adjustments, interactive: Bool,
+                                                    cancellation: RenderCancellation?)?
+    /// The full-quality render that follows a drag (on release, or after a
+    /// pause), cancelled when new input arrives.
+    @ObservationIgnored private var refinement: RenderCancellation?
+    @ObservationIgnored private var refineTask: Task<Void, Never>?
     @ObservationIgnored private var lastFrameWasInteractive = false
     /// The frame being rendered is a draft.
     @ObservationIgnored private var renderingInteractive = false
@@ -198,6 +203,10 @@ final class AdjustmentEditor {
         renderTask?.cancel()
         renderTask = nil
         pendingRender = nil
+        refineTask?.cancel()
+        refineTask = nil
+        refinement?.cancel()
+        refinement = nil
         session = nil
         frame = nil
         cropSession = nil
@@ -240,6 +249,9 @@ final class AdjustmentEditor {
     /// Applies a change from a control. `actionName` names the undo step.
     func change(_ actionName: String, phase: EditPhase, _ body: (inout Adjustments) -> Void) {
         guard state == .ready else { return }
+        // New input: a pending full-quality render is out of date.
+        refineTask?.cancel()
+        refinement?.cancel()
         var next = adjustments
         body(&next)
         next.enableModules(changedFrom: adjustments)
@@ -398,7 +410,12 @@ final class AdjustmentEditor {
     /// Renders the latest values; requests made while a frame renders collapse
     /// into one.
     private func requestRender(interactive: Bool) {
-        pendingRender = (previewValues ?? (showsOriginal ? .none : adjustments), interactive)
+        var cancellation: RenderCancellation?
+        if !interactive {
+            cancellation = RenderCancellation()
+            refinement = cancellation
+        }
+        pendingRender = (previewValues ?? (showsOriginal ? .none : adjustments), interactive, cancellation)
         guard renderTask == nil, let session else { return }
         renderTask = Task {
             while let next = pendingRender, !Task.isCancelled {
@@ -408,7 +425,7 @@ final class AdjustmentEditor {
                 do {
                     let overlay = showsMaskOverlay && !showsOriginal ? selectedMaskID : nil
                     let rendered = try await session.render(next.values, interactive: next.interactive,
-                                                            overlayMask: overlay)
+                                                            overlayMask: overlay, cancellation: next.cancellation)
                     guard !Task.isCancelled, session === self.session else { break }
                     frame = rendered
                     frameHasOverlay = overlay != nil && rendered.histogram == nil
@@ -419,11 +436,25 @@ final class AdjustmentEditor {
                     }
                     frameRevision += 1
                     seedPreviewIfRendered()
+                    if next.interactive { scheduleRefinement() }
+                } catch is CancellationError {
+                    // Superseded by newer input; the draft stays on screen.
                 } catch {
                     Self.log.error("Live render failed: \(error.localizedDescription, privacy: .public)")
                 }
             }
             if session === self.session { renderTask = nil }
+        }
+    }
+
+    /// A full-quality frame once input pauses for about 150 ms; the drag's
+    /// last (possibly reduced) frame stays on screen until it is ready.
+    private func scheduleRefinement() {
+        refineTask?.cancel()
+        refineTask = Task {
+            try? await Task.sleep(for: .milliseconds(150))
+            guard !Task.isCancelled, state == .ready, lastFrameWasInteractive, pendingRender == nil else { return }
+            requestRender(interactive: false)
         }
     }
 
