@@ -12,8 +12,10 @@ folder) is inserted, unless that is turned off in **Settings**. Pick photos
 the library are hidden and never imported), choose the destination folder and
 the subfolder and file name templates (tokens such as `{capture:yyyy-MM-dd}`,
 `{import:yyyy}`, `{model}`, `{lens}`, `{name}`, `{number}`, `{seq:4}`,
-`{counter:5}`, `{job}`; the ⊕ menu inserts them and an example shows the
-result), the project (a new one named from a template, or an existing one), a
+`{counter:5}`, `{job}`, shown in the field as named pills such as Capture
+Year; the Insert menu adds them, typing `{…}` makes one when you leave the
+field, copy and paste keep the `{…}` form, and an example under the field
+shows the result), the project (a new one named from a template, or an existing one), a
 job code and a metadata preset (creator, copyright such as
 `© {capture:yyyy} Your Name`, usage terms, contact; written to sidecars, the
 copies stay identical to the originals). Every copy is read back and compared

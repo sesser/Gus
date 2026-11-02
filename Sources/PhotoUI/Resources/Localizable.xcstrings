@@ -1767,46 +1767,35 @@
         }
       }
     },
+    "Camera Make" : {
+      "comment" : "Template token",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Camera Make"
+          }
+        }
+      }
+    },
+    "Camera Model" : {
+      "comment" : "Template token",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Camera Model"
+          }
+        }
+      }
+    },
     "Camera Serial Number" : {
-      "comment" : "Smart album rule field",
+      "comment" : "Smart album rule field and template token",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Camera Serial Number"
-          }
-        }
-      }
-    },
-    "Camera make" : {
-      "comment" : "Template token",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Camera make"
-          }
-        }
-      }
-    },
-    "Camera model" : {
-      "comment" : "Template token",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Camera model"
-          }
-        }
-      }
-    },
-    "Camera serial number" : {
-      "comment" : "Template token",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Camera serial number"
           }
         }
       }
@@ -1834,7 +1823,7 @@
       }
     },
     "Capture Date" : {
-      "comment" : "Smart album rule field",
+      "comment" : "Smart album rule field and template token",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1844,46 +1833,35 @@
         }
       }
     },
-    "Capture date" : {
+    "Capture Month Name" : {
       "comment" : "Template token",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Capture date"
+            "value" : "Capture Month Name"
           }
         }
       }
     },
-    "Capture month name" : {
+    "Capture Time" : {
       "comment" : "Template token",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Capture month name"
+            "value" : "Capture Time"
           }
         }
       }
     },
-    "Capture time" : {
+    "Capture Year" : {
       "comment" : "Template token",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Capture time"
-          }
-        }
-      }
-    },
-    "Capture year" : {
-      "comment" : "Template token",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Capture year"
+            "value" : "Capture Year"
           }
         }
       }
@@ -2599,13 +2577,13 @@
         }
       }
     },
-    "Counter across imports" : {
+    "Counter Across Imports" : {
       "comment" : "Template token",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Counter across imports"
+            "value" : "Counter Across Imports"
           }
         }
       }
@@ -3216,17 +3194,6 @@
         }
       }
     },
-    "Example" : {
-      "comment" : "Export window: the first photo's file name",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Example"
-          }
-        }
-      }
-    },
     "Exp. Comp" : {
       "comment" : "Info tab: exposure compensation tile, in EV",
       "localizations" : {
@@ -3305,6 +3272,17 @@
         }
       }
     },
+    "Export Date" : {
+      "comment" : "Template token: today's date when exporting",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export Date"
+          }
+        }
+      }
+    },
     "Export Presets" : {
       "comment" : "Activity row title",
       "localizations" : {
@@ -3312,17 +3290,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Export Presets"
-          }
-        }
-      }
-    },
-    "Export date" : {
-      "comment" : "Template token menu: today's date when exporting",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Export date"
           }
         }
       }
@@ -3551,7 +3518,7 @@
       }
     },
     "File Name" : {
-      "comment" : "Smart album rule field",
+      "comment" : "Smart album rule field and template token",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4188,7 +4155,7 @@
       }
     },
     "Import Date" : {
-      "comment" : "Smart album rule field",
+      "comment" : "Smart album rule field and template token",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4302,17 +4269,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Import cancelled. Photos copied so far are in the library."
-          }
-        }
-      }
-    },
-    "Import date" : {
-      "comment" : "Template token",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Import date"
           }
         }
       }
@@ -4525,6 +4481,17 @@
         }
       }
     },
+    "Insert" : {
+      "comment" : "Template field: pull-down menu of tokens",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Insert"
+          }
+        }
+      }
+    },
     "Insert a card or choose a folder" : {
       "comment" : "Import window, no source",
       "localizations" : {
@@ -4659,6 +4626,17 @@
         }
       }
     },
+    "Job Code" : {
+      "comment" : "Template token",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Job Code"
+          }
+        }
+      }
+    },
     "Job Title" : {
       "comment" : "Metadata field: the creator's job title",
       "localizations" : {
@@ -4671,7 +4649,7 @@
       }
     },
     "Job code" : {
-      "comment" : "Import window field and template token",
+      "comment" : "Import window field",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4846,7 +4824,7 @@
       }
     },
     "Lens" : {
-      "comment" : "Inspector info row",
+      "comment" : "Inspector info row and template token",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -5840,13 +5818,13 @@
         }
       }
     },
-    "Number in the original name" : {
+    "Number in the Original Name" : {
       "comment" : "Template token",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Number in the original name"
+            "value" : "Number in the Original Name"
           }
         }
       }
@@ -6032,17 +6010,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Original Name"
-          }
-        }
-      }
-    },
-    "Original name" : {
-      "comment" : "Template token",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Original name"
           }
         }
       }
@@ -7393,24 +7360,24 @@
         }
       }
     },
-    "Sequence in this export" : {
-      "comment" : "Template token menu: the photo's position in the export",
+    "Sequence in This Export" : {
+      "comment" : "Template token: the photo's position in the export",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sequence in this export"
+            "value" : "Sequence in This Export"
           }
         }
       }
     },
-    "Sequence in this import" : {
+    "Sequence in This Import" : {
       "comment" : "Template token",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sequence in this import"
+            "value" : "Sequence in This Import"
           }
         }
       }

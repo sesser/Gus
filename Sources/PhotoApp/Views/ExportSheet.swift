@@ -264,14 +264,8 @@ private struct ExportForm: View {
             }
             .pickerStyle(.segmented)
             if export.settings.naming == .template {
-                VStack(alignment: .leading, spacing: 4) {
-                    TemplateField(title: String(localized: "Template"), text: settings.fileNameTemplate,
-                                  tokens: TemplateField.exportFileTokens)
-                    if let example = export.example {
-                        Caption(text: example)
-                            .textSelection(.enabled)
-                    }
-                }
+                TemplateField(title: String(localized: "Template"), text: settings.fileNameTemplate,
+                              tokens: TemplateField.exportFileTokens, example: export.example)
             } else if let example = export.example {
                 Caption(text: example)
             }

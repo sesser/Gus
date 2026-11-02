@@ -140,8 +140,11 @@ compatible and never put `#` comment lines inside pasted command snippets.
   and watermarks for exports), `Suggestions/` (Vision), `Video/`.
   Everything testable lives here.
 - `Sources/PhotoUI` — UI shared by both apps: `Import/` (the import window, its
-  model and its debug-script commands), `Palette`, `LaunchOptions`, and the
-  String Catalog (`Resources/Localizable.xcstrings`).
+  model and its debug-script commands), `Grid/` (`UniformGridLayout` and the
+  cell images: symbols, stars, type badges), `TemplateField` (the naming
+  template token field; `TemplateParts` in PhotoCore splits templates),
+  `Palette`, `LaunchOptions`, and the String Catalog
+  (`Resources/Localizable.xcstrings`).
 - `Sources/PhotoApp` — SwiftUI app shell, AppKit grid (`NSCollectionView`) and
   loupe (with the crop and mask overlays), inspector (Info and Adjust tabs,
   the Masks heading), sidebar, smart album editor.

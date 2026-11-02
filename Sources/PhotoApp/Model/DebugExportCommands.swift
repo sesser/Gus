@@ -15,6 +15,7 @@ import PhotoUI
 ///                                   dest=<folder>  reveal=on|off
 ///                                   watermark=<png>|off  anchor=<name>  wmsize=<n>  margin=<n>  opacity=<0…1>
 ///     export template <text>        (the file name template; also switches names to it)
+///     export tokens …               (the sheet's template field, see TemplateFieldProbe)
 ///     export run [keepboth|overwrite|skip]   (waits, then prints the summary)
 ///     export preset save|apply|delete <name>
 ///     export print                  (the targets, settings and destination)
@@ -34,6 +35,8 @@ enum DebugExportCommands {
                 return
             }
             WindowSnapshot.write(window, to: URL(fileURLWithPath: (argument as NSString).expandingTildeInPath))
+        case "tokens":
+            TemplateFieldProbe.run(Array(words.dropFirst()), in: NSApp.windows.first { $0.attachedSheet != nil }?.attachedSheet)
         case "close":
             model.showsExportSheet = false
             try? await Task.sleep(for: .milliseconds(400))

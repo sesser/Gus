@@ -283,16 +283,7 @@ private struct ImportOptionsPanel: View {
                     TemplateField(title: String(localized: "Subfolders"), text: $model.folderTemplate,
                                   tokens: TemplateField.importFolderTokens, folders: true)
                     TemplateField(title: String(localized: "File names"), text: $model.fileTemplate,
-                                  tokens: TemplateField.importFileTokens)
-                    if let example = model.example {
-                        LabeledContent("Example") {
-                            Text(example)
-                                .font(.caption.monospaced())
-                                .lineLimit(2)
-                                .truncationMode(.middle)
-                                .textSelection(.enabled)
-                        }
-                    }
+                                  tokens: TemplateField.importFileTokens, example: model.example)
                 }
                 Section(model.copiesOnly ? String(localized: "Job") : String(localized: "Project")) {
                     if let library = model.library {

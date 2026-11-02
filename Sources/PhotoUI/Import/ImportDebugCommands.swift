@@ -8,6 +8,7 @@ import PhotoCore
 ///            | videos on|off (waits) | rescan (waits) | toggle <index of a shown shot>
 ///            | accessibility <role>|any [<n> press|<action name>] (see AccessibilityProbe)
 ///            | run (waits) | confirm yes|no | snapshot <file> | print
+///            | template folder|file|project <text> | tokens … (see TemplateFieldProbe)
 @MainActor
 public enum ImportDebugCommands {
     /// Runs one command (the words after "import"). Returns false for a command
@@ -32,6 +33,17 @@ public enum ImportDebugCommands {
             model.destination = URL(fileURLWithPath: argument)
         case "job":
             model.jobCode = argument
+        case "template":
+            let text = words.dropFirst(2).joined(separator: " ")
+            switch words.dropFirst().first {
+            case "folder": model.folderTemplate = text
+            case "file": model.fileTemplate = text
+            case "project": model.projectNameTemplate = text
+            default: return false
+            }
+            try? await Task.sleep(for: .milliseconds(200))
+        case "tokens":
+            TemplateFieldProbe.run(Array(words.dropFirst()), in: window)
         case "delete":
             model.deletesOriginals = argument == "on"
         case "eject":
@@ -69,6 +81,7 @@ public enum ImportDebugCommands {
               + "shots \(model.shots.count) duplicates \(model.duplicateCount) selected \(model.selectedShots.count) "
               + "[\(selected)] "
               + "deletion \(model.pendingDeletion?.count ?? 0) message \(model.message ?? "-") "
-              + "camera \(camera ?? "-")")
+              + "camera \(camera ?? "-") folders \(model.folderTemplate) files \(model.fileTemplate) "
+              + "project \(model.projectNameTemplate)")
     }
 }
