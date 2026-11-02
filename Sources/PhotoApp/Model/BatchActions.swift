@@ -22,7 +22,7 @@ extension LibraryModel {
         }
         if selection.skippedOffline > 0 {
             report(String(localized: "\(selection.skippedOffline) photos were left unchanged: their originals are offline.",
-                          comment: "Activity, after a batch adjustment that reads the originals"), action: action)
+                          comment: "Activity, after a batch adjustment that reads the originals"), action: action, warning: true)
         }
         return selection
     }

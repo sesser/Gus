@@ -203,7 +203,7 @@ private struct ShotTile: View {
             .font(.caption)
             Text(dateText)
                 .font(.caption2)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color(nsColor: Palette.dateText))
         }
         .padding(6)
         .background(selected ? Color.accentColor.opacity(0.18) : Color.clear, in: RoundedRectangle(cornerRadius: 6))

@@ -351,6 +351,8 @@ final class LibraryModel {
         if browserHasKeyboard != browser { browserHasKeyboard = browser }
     }
     @ObservationIgnored private var searchFocusPending = false
+    /// The folder being added, for Activity's "Add Folder “…”".
+    @ObservationIgnored private var batchFolderName: String?
     /// Sections hidden with View ▸ Sidebar Sections, remembered.
     var hiddenSidebarSections: Set<SidebarSection> = Set(
         (UserDefaults.standard.stringArray(forKey: "sidebar.hiddenSections") ?? []).compactMap(SidebarSection.init(rawValue:))
@@ -454,9 +456,11 @@ final class LibraryModel {
     private(set) var activity = ActivityLog()
 
     /// Posts a message to Activity, and has VoiceOver say it (medium
-    /// priority). `action`: the undo name of the action it is about;
-    /// `warning`: something failed, as opposed to information.
-    func report(_ text: String, action: String? = nil, warning: Bool = false) {
+    /// priority). `action` titles the row: the undo name of the action, or the
+    /// command and its object (`ActivityTitle`). `warning`: the person asked for
+    /// something that did not happen and can make it happen by acting; anything
+    /// expected (completions, cancellations, videos skipped) is information.
+    func report(_ text: String, action: String, warning: Bool = false) {
         activity.post(text, title: action, isWarning: warning)
         AccessibilityText.announce(text, priority: .medium)
     }
@@ -643,7 +647,8 @@ final class LibraryModel {
             } catch is CancellationError {
             } catch {
                 Self.log.error("Loading items failed: \(error.localizedDescription, privacy: .public)")
-                report(String(localized: "Could not load photos: \(error.localizedDescription)"), warning: true)
+                report(String(localized: "Could not load photos: \(error.localizedDescription)"), action: ActivityTitle.loadLibrary,
+                       warning: true)
             }
         }
     }
@@ -1090,7 +1095,7 @@ final class LibraryModel {
             } catch {
                 Self.log.error("Saving failed: \(error.localizedDescription, privacy: .public)")
                 report(String(localized: "Could not save the change: \(error.localizedDescription)"),
-                       action: undoManager.undoActionName.nilIfEmpty, warning: true)
+                       action: undoManager.undoActionName.nilIfEmpty ?? ActivityTitle.saveChanges, warning: true)
             }
             scheduleSidecarSync()
         }
@@ -1129,7 +1134,8 @@ final class LibraryModel {
         }
         guard !added.isEmpty else {
             if !dropped.ignored.isEmpty {
-                report(String(localized: "Only folders can be imported. Drag in a folder of photos."), warning: true)
+                report(String(localized: "Only folders can be imported. Drag in a folder of photos."),
+                       action: ActivityTitle.addFolder(nil), warning: true)
             }
             ignoredDropCount = 0
             return
@@ -1151,6 +1157,7 @@ final class LibraryModel {
         let importer = self.importer
         var folderErrors: [(name: String, error: any Error)] = []
         while let folder = importQueue.next() {
+            batchFolderName = Importer.defaultProjectName(for: folder)
             importGeneration += 1
             let generation = importGeneration
             importProgress = ImportProgress(phase: .scanning)
@@ -1167,7 +1174,7 @@ final class LibraryModel {
                 importBatch = nil
                 let totals = importQueue.finish()
                 ignoredDropCount = 0
-                report(String(localized: "Import cancelled."))
+                report(String(localized: "Import cancelled."), action: ActivityTitle.addFolder(batchFolderName))
                 await refreshProjects()
                 warmPreviews(projectIDs: totals.projectIDs)
                 reloadItems(keepFocus: true)
@@ -1239,7 +1246,8 @@ final class LibraryModel {
         if ignored > 0 {
             message += " " + String(localized: "Ignored \(ignored) items that are not folders.")
         }
-        report(message)
+        report(message, action: ActivityTitle.addFolder(folderCount == 1 ? batchFolderName : nil),
+               warning: totals.failed > 0 || !folderErrors.isEmpty)
         // The first new project opens; the rest are listed in the sidebar.
         if let projectID = totals.projectIDs.first {
             if sidebarSelection == .project(projectID) {

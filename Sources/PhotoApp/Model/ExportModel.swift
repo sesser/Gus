@@ -318,7 +318,8 @@ final class ExportModel {
         let written = summary.written.count
         library?.report(summary.cancelled
             ? String(localized: "Export stopped after \(written) photos.")
-            : String(localized: "Exported \(written) photos to “\(folder)”."))
+            : String(localized: "Exported \(written) photos to “\(folder)”."), action: ActivityTitle.exportTo(folder),
+            warning: !summary.failures.isEmpty)
         if reveals, !summary.written.isEmpty, !summary.cancelled {
             NSWorkspace.shared.activateFileViewerSelecting(summary.written)
         }

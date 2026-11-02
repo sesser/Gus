@@ -288,7 +288,7 @@ final class PhotoCellView: NSView {
         CATransaction.setDisableActions(true)
         layer.backgroundColor = color(isSelected ? Palette.cellSelected : Palette.cell).cgColor
         nameLayer.foregroundColor = color(Palette.fileName).cgColor
-        layer.borderWidth = isSelected ? 2 : 0
+        layer.borderWidth = isSelected ? PaletteSpec.selectedBorderWidth(in: PaletteAppearance(effectiveAppearance)) : 0
         layer.borderColor = NSColor.controlAccentColor.cgColor
         CATransaction.commit()
     }

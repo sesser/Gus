@@ -56,13 +56,13 @@
         }
       }
     },
-    "%@ MP (%@ × %@ px)" : {
-      "comment" : "Info tab: megapixels, then width and height in pixels",
+    "%@ MP · %@ × %@" : {
+      "comment" : "Info tab Size row: megapixels, then width × height in pixels",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ MP (%@ × %@ px)"
+            "value" : "%@ MP · %@ × %@"
           }
         }
       }
@@ -471,29 +471,6 @@
         }
       }
     },
-    "%lld photos selected" : {
-      "comment" : "Inspector",
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld photo selected"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld photos selected"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "%lld photos were left unchanged: their edits can't be changed in this version." : {
       "comment" : "Activity, after a batch adjustment: stacks this build cannot read",
       "localizations" : {
@@ -832,6 +809,17 @@
         }
       }
     },
+    "Add Folder" : {
+      "comment" : "Activity row title: folders added without copying",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Folder"
+          }
+        }
+      }
+    },
     "Add Folder Without Copying…" : {
       "comment" : "File menu: add a folder's photos to the library where they are (was Import Folder…)",
       "localizations" : {
@@ -839,6 +827,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Add Folder Without Copying…"
+          }
+        }
+      }
+    },
+    "Add Folder “%@”" : {
+      "comment" : "Activity row title: a folder added without copying",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Folder “%@”"
           }
         }
       }
@@ -3261,6 +3260,17 @@
         }
       }
     },
+    "Export Presets" : {
+      "comment" : "Activity row title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export Presets"
+          }
+        }
+      }
+    },
     "Export date" : {
       "comment" : "Template token menu: today's date when exporting",
       "localizations" : {
@@ -3313,6 +3323,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Export this collection as one preset file"
+          }
+        }
+      }
+    },
+    "Export to “%@”" : {
+      "comment" : "Activity row title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export to “%@”"
           }
         }
       }
@@ -4132,6 +4153,17 @@
         }
       }
     },
+    "Import Presets" : {
+      "comment" : "Activity row title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import Presets"
+          }
+        }
+      }
+    },
     "Import Presets…" : {
       "comment" : "Photo menu and Presets menu item",
       "localizations" : {
@@ -4257,6 +4289,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Import from a card or folder"
+          }
+        }
+      }
+    },
+    "Import from “%@”" : {
+      "comment" : "Activity row title: a copying import",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import from “%@”"
           }
         }
       }
@@ -4797,6 +4840,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Linear Gradient"
+          }
+        }
+      }
+    },
+    "Load Library" : {
+      "comment" : "Activity row title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Load Library"
           }
         }
       }
@@ -7052,6 +7106,17 @@
         }
       }
     },
+    "Save Adjustments as Preset" : {
+      "comment" : "Activity row title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save Adjustments as Preset"
+          }
+        }
+      }
+    },
     "Save Adjustments as Preset…" : {
       "comment" : "Photo menu and Presets menu item",
       "localizations" : {
@@ -7059,6 +7124,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Save Adjustments as Preset…"
+          }
+        }
+      }
+    },
+    "Save Changes" : {
+      "comment" : "Activity row title: saving to the library failed",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save Changes"
           }
         }
       }

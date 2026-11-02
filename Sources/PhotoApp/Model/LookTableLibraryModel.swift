@@ -110,7 +110,8 @@ final class LookTableLibraryModel {
     /// table it replaces.
     func apply(_ entry: LookTableEntry, editor: AdjustmentEditor) {
         guard isAvailable(entry) else {
-            library?.report(String(localized: "\(entry.name) is missing from the library."), warning: true)
+            library?.report(String(localized: "\(entry.name) is missing from the library."), action: AdjustText.title(.lookTable),
+                            warning: true)
             return
         }
         let table = lookTable(entry, replacing: editor.adjustments.lookTable)
@@ -234,10 +235,11 @@ final class LookTableLibraryModel {
                 browsedCollection = collection.uuid
                 expanded.insert(collection.uuid)
             }
-            library.report(String(localized: "Imported \(result.added) look-up tables."))
+            library.report(String(localized: "Imported \(result.added) look-up tables."), action: ActivityTitle.importLookTables)
         } catch {
             Self.log.error("Importing look-up tables failed: \(error.localizedDescription, privacy: .public)")
-            library.report(String(localized: "Could not import the look-up tables: \(error.localizedDescription)"), warning: true)
+            library.report(String(localized: "Could not import the look-up tables: \(error.localizedDescription)"),
+                           action: ActivityTitle.importLookTables, warning: true)
         }
     }
 
@@ -280,7 +282,8 @@ final class LookTableLibraryModel {
                 try await work(catalog)
             } catch {
                 Self.log.error("Changing look-up tables failed: \(error.localizedDescription, privacy: .public)")
-                library?.report(String(localized: "Could not save the change: \(error.localizedDescription)"), warning: true)
+                library?.report(String(localized: "Could not save the change: \(error.localizedDescription)"),
+                                action: ActivityTitle.saveChanges, warning: true)
             }
             await reload()
         }

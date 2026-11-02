@@ -36,9 +36,8 @@ struct CropSection: View {
     private var controls: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
-                AppKitButton(title: String(localized: "Crop"), symbol: "crop", style: .borderless,
-                             // Accent only while cropping; never tertiary.
-                             tint: session == nil ? nil : .controlAccentColor,
+                // A toggle like Original: its bezel shows the crop session.
+                AppKitButton(title: String(localized: "Crop"), symbol: "crop", style: .toggle(isOn: session != nil),
                              help: session == nil
                                  ? String(localized: "Show the crop frame on the photo")
                                  : String(localized: "Finish cropping (Return); Esc cancels")) {

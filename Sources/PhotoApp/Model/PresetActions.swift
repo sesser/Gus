@@ -51,7 +51,7 @@ extension LibraryModel {
             let stack = try await catalog.version(id: item.versionID)?.decodedEditStack() ?? .identity
             return Adjustments(stack: stack)
         } catch {
-            report(AdjustText.unreadableMessage(EditStack.ReadFailure(error)), warning: true)
+            report(AdjustText.unreadableMessage(EditStack.ReadFailure(error)), action: ActivityTitle.saveAsPreset, warning: true)
             return nil
         }
     }
@@ -70,7 +70,8 @@ extension LibraryModel {
             do {
                 _ = try await catalog.saveAdjustmentPreset(preset)
             } catch {
-                report(String(localized: "Could not save the preset: \(error.localizedDescription)"), warning: true)
+                report(String(localized: "Could not save the preset: \(error.localizedDescription)"), action: ActivityTitle.saveAsPreset,
+                       warning: true)
             }
             await refreshAdjustmentPresets()
         }
@@ -148,7 +149,8 @@ extension LibraryModel {
         do {
             result = try await PresetImport.run(scan, catalog: catalog, store: lookTables)
         } catch {
-            report(String(localized: "Could not import the presets: \(error.localizedDescription)"), warning: true)
+            report(String(localized: "Could not import the presets: \(error.localizedDescription)"), action: ActivityTitle.importPresets,
+                   warning: true)
             return nil
         }
         await refreshAdjustmentPresets()
@@ -194,7 +196,8 @@ extension LibraryModel {
         do {
             try writeAdjustmentPresets(presets, to: url)
         } catch {
-            report(String(localized: "Could not export the presets: \(error.localizedDescription)"), warning: true)
+            report(String(localized: "Could not export the presets: \(error.localizedDescription)"), action: ActivityTitle.exportPresets,
+                   warning: true)
         }
     }
 

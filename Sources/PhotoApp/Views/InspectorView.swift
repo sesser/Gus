@@ -140,12 +140,12 @@ private struct InfoInspector: View {
         VStack(alignment: .leading, spacing: 8) {
             SectionHeader(title: String(localized: "Keywords"), isExpanded: $keywordsExpanded, family: .info,
                           trailingWidth: nil) {
-                if !usage.isEmpty {
-                    Text(usage.count, format: .number)
+                // Which photos the keywords are for, when more than one.
+                if targetCount > 1 {
+                    Text("\(targetCount) photos")
                         .font(.system(size: 11))
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
-                        .help(targetCount > 1 ? String(localized: "\(targetCount) photos selected") : "")
                 }
             }
             if !keywordsExpanded {
@@ -383,18 +383,13 @@ private struct InfoSection: View {
                                          help: String(localized: "Whether the flash fired, and its compensation"))
                         }
                     }
-                    if let size = sizeLine {
-                        Text(size)
-                            .font(.caption)
-                            .frame(maxWidth: .infinity)
-                    }
                 }
-            } else if let size = sizeLine {
-                Text(size)
-                    .font(.caption)
             }
             // On the 80 pt label column.
             VStack(alignment: .leading, spacing: 4) {
+                if let size = sizeLine {
+                    InfoRow(label: String(localized: "Size", comment: "Info tab: megapixels and pixel dimensions")) { Text(size) }
+                }
                 if let date = CaptureDateText.text(image) {
                     InfoRow(label: String(localized: "Captured")) { Text(date) }
                 }
@@ -413,7 +408,12 @@ private struct InfoSection: View {
                         }
                     }
                 }
-                InfoRow(label: String(localized: "Folder", comment: "Info tab: the folder row")) { Text(folder) }
+                InfoRow(label: String(localized: "Folder", comment: "Info tab: the folder row")) {
+                    Text(folder)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .help(folder)
+                }
                 InfoRow(label: String(localized: "Volume", comment: "Info tab: the disk a photo's file is on")) {
                     Text(details.volume.name)
                 }
@@ -475,13 +475,13 @@ private struct InfoSection: View {
         details.image.fNumber.map { String(localized: "ƒ/\($0.formatted(.number.precision(.fractionLength(0...1))))") }
     }
 
-    /// "24 MP (6,048 × 4,024 px)"
+    /// "24 MP · 6,048 × 4,024"
     private var sizeLine: String? {
         let image = details.image
         guard let width = image.pixelWidth, let height = image.pixelHeight, width > 0, height > 0 else { return nil }
         let megapixels = (Double(width * height) / 1_000_000).rounded()
-        return String(localized: "\(Int(megapixels).formatted()) MP (\(width.formatted()) × \(height.formatted()) px)",
-                      comment: "Megapixels, then width and height in pixels")
+        return String(localized: "\(Int(megapixels).formatted()) MP · \(width.formatted()) × \(height.formatted())",
+                      comment: "Info tab Size row: megapixels, then width × height in pixels")
     }
 
     /// The folder on its volume, as "Users/name/Pictures/".

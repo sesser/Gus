@@ -51,6 +51,8 @@ public protocol CardImportLibrary: AnyObject {
     var projects: [ProjectSummary] { get }
     func refreshProjects() async
     func didFinishCopyImport(_ result: CopyImportResult) async
+    /// Posts a message to the library window's Activity item.
+    func report(_ text: String, action: String, warning: Bool)
 }
 
 /// State of the import window.
@@ -273,7 +275,7 @@ public final class CardImportModel {
                 selection = ImportSelection.selection(for: marked, leftOut: keptOut)
             } catch is CancellationError {
             } catch {
-                message = String(localized: "Could not read \(source.name): \(error.localizedDescription)")
+                post(String(localized: "Could not read \(source.name): \(error.localizedDescription)"), source: source, warning: true)
             }
             isScanning = false
         }
@@ -376,13 +378,13 @@ public final class CardImportModel {
             } catch {
                 importTask = nil
                 progress = nil
-                message = switch error {
+                switch error {
                 case is CancellationError where copiesOnly:
-                    String(localized: "Import cancelled. Photos copied so far are in the destination folder.")
+                    post(String(localized: "Import cancelled. Photos copied so far are in the destination folder."), source: source)
                 case is CancellationError:
-                    String(localized: "Import cancelled. Photos copied so far are in the library.")
+                    post(String(localized: "Import cancelled. Photos copied so far are in the library."), source: source)
                 default:
-                    String(localized: "Import failed: \(error.localizedDescription)")
+                    post(String(localized: "Import failed: \(error.localizedDescription)"), source: source, warning: true)
                 }
                 await library?.refreshProjects()
                 rescan(keepingPicks: true)
@@ -401,19 +403,27 @@ public final class CardImportModel {
         if delete {
             let failed = CopyImporter.deleteSources(urls)
             if !failed.isEmpty {
-                message = String(localized: "\(failed.count) files could not be deleted from \(source.name).")
+                post(String(localized: "\(failed.count) files could not be deleted from \(source.name)."), source: source, warning: true)
             }
         }
         Task { await finish(result, source: source) }
+    }
+
+    /// Shows a message in the window, and in the library's Activity item
+    /// titled Import from “‹source›” (section 1 of docs/UI_REDESIGN.md).
+    private func post(_ text: String, source: ImportSource, warning: Bool = false) {
+        message = text
+        library?.report(text, action: String(localized: "Import from “\(source.name)”", comment: "Activity row title: a copying import"),
+                        warning: warning)
     }
 
     private func finish(_ result: CopyImportResult, source: ImportSource) async {
         let failures = result.failures.count
         let copied = result.copied + result.alreadyAtDestination
         if message == nil {
-            message = failures > 0
-                ? String(localized: "Imported \(copied) files. \(failures) could not be copied.")
-                : String(localized: "Imported \(copied) files.")
+            post(failures > 0
+                 ? String(localized: "Imported \(copied) files. \(failures) could not be copied.")
+                 : String(localized: "Imported \(copied) files."), source: source, warning: failures > 0)
         }
         await library?.didFinishCopyImport(result)
         if ejectsWhenDone, source.isEjectable {
@@ -423,7 +433,7 @@ public final class CardImportModel {
                 self.source = nil
                 refreshSources()
             } else {
-                message = String(localized: "\(source.name) could not be ejected. It may still be in use.")
+                post(String(localized: "\(source.name) could not be ejected. It may still be in use."), source: source, warning: true)
             }
         } else {
             rescan(keepingPicks: true)

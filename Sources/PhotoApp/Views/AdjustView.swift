@@ -114,9 +114,9 @@ struct AdjustHeader: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            // A toggle: accent while the original shows.
-            AppKitButton(title: String(localized: "Original"), symbol: "square.split.2x1", style: .borderless,
-                         tint: editor.showsOriginal ? .controlAccentColor : nil,
+            // A toggle: its bezel shows when the original is on screen.
+            AppKitButton(title: String(localized: "Original"), symbol: "square.split.2x1",
+                         style: .toggle(isOn: editor.showsOriginal),
                          help: String(localized: "Compare with the original (\\)"),
                          isEnabled: editor.cropSession == nil) {
                 editor.toggleOriginal()
