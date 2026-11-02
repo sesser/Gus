@@ -42,6 +42,8 @@ struct PresetManagerWindow: View {
         }
         .padding(16)
         .frame(minWidth: 520, minHeight: 360)
+        // Dark like the library window, whose sheet it becomes (steps 11 and 14);
+        // this sets the window's own appearance only.
         .preferredColorScheme(.dark)
         .alert(String(localized: "Remove the collection \(pendingRemoval ?? "")?"),
                isPresented: Binding(get: { pendingRemoval != nil }, set: { if !$0 { pendingRemoval = nil } })) {

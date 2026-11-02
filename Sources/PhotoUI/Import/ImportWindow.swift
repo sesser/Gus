@@ -28,7 +28,6 @@ public struct ImportWindow: View {
         }
         .frame(minWidth: 900, minHeight: 600)
         .background { ImportMenuPublisher(model: model) }
-        .preferredColorScheme(.dark)
         .onAppear { model.refreshSources() }
         .alert(deletionTitle, isPresented: Binding(get: { model.pendingDeletion != nil },
                                                    set: { if !$0 { model.confirmDeletion(false) } })) {
@@ -175,7 +174,7 @@ private struct ShotTile: View {
         VStack(alignment: .leading, spacing: 4) {
             ZStack(alignment: .topLeading) {
                 Rectangle()
-                    .fill(Color(white: 0.2))
+                    .fill(Color(nsColor: Palette.cell))
                     .aspectRatio(1.4, contentMode: .fit)
                     .overlay {
                         if let thumbnail {
@@ -187,7 +186,7 @@ private struct ShotTile: View {
                     .clipShape(RoundedRectangle(cornerRadius: 4))
                 Image(systemName: shot.isDuplicate ? "checkmark.seal" : (selected ? "checkmark.circle.fill" : "circle"))
                     .font(.title3)
-                    .foregroundStyle(shot.isDuplicate ? .secondary : (selected ? Color.accentColor : .white.opacity(0.8)))
+                    .foregroundStyle(shot.isDuplicate ? .secondary : (selected ? Color.accentColor : .secondary))
                     .shadow(radius: 2)
                     .padding(6)
             }

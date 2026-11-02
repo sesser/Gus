@@ -25,6 +25,8 @@ struct ExportWindow: View {
                 .padding(12)
         }
         .frame(minWidth: 760, minHeight: 560)
+        // Dark like the library window, whose sheet it becomes (steps 11 and 14);
+        // this sets the window's own appearance only.
         .preferredColorScheme(.dark)
         .alert(conflictTitle, isPresented: Binding(get: { export.conflict != nil },
                                                    set: { if !$0 { export.conflict = nil } })) {

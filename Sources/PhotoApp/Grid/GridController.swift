@@ -243,18 +243,25 @@ final class GridController: NSObject, NSCollectionViewDataSource, NSCollectionVi
     func scroll(to index: Int, centered: Bool) {
         guard model.items.indices.contains(index) else { return }
         let frame = layout.frame(forItemAt: index)
-        let visible = scrollView.contentView.bounds
+        // Under the toolbar (macOS 26) the top inset is covered: a cell there
+        // is not visible.
+        let inset = scrollView.contentInsets.top
+        let bounds = scrollView.contentView.bounds
+        let visible = NSRect(x: bounds.minX, y: bounds.minY + inset, width: bounds.width, height: bounds.height - inset)
         if !centered, visible.contains(frame) { return }
-        var origin = visible.origin
+        var top = visible.minY
         if centered {
-            origin.y = frame.midY - visible.height / 2
+            top = frame.midY - visible.height / 2
         } else if frame.minY < visible.minY {
-            origin.y = frame.minY - layout.spacing
+            top = frame.minY - layout.spacing
         } else {
-            origin.y = frame.maxY + layout.spacing - visible.height
+            top = frame.maxY + layout.spacing - visible.height
         }
-        let maxY = max(0, collectionView.frame.height - visible.height)
-        origin.y = min(max(origin.y, 0), maxY)
+        // The first row scrolls all the way up.
+        if top <= layout.spacing { top = 0 }
+        let maxTop = max(0, collectionView.frame.height - visible.height)
+        var origin = bounds.origin
+        origin.y = min(max(top, 0), maxTop) - inset
         scrollView.contentView.scroll(to: origin)
         scrollView.reflectScrolledClipView(scrollView.contentView)
     }

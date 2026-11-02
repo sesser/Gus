@@ -118,12 +118,11 @@ final class PhotoCellView: NSView {
 
         imageLayer.contentsGravity = .resizeAspect
         imageLayer.minificationFilter = .trilinear
-        placeholderLayer.backgroundColor = NSColor(white: 0.22, alpha: 1).cgColor
+        placeholderLayer.backgroundColor = color(Palette.cellSelected).cgColor
         placeholderLayer.cornerRadius = 3
         ratingLayer.contentsGravity = .left
         nameLayer.fontSize = 11
         nameLayer.font = NSFont.systemFont(ofSize: 11)
-        nameLayer.foregroundColor = Palette.fileName.cgColor
         nameLayer.alignmentMode = .left
         nameLayer.truncationMode = .middle
         kindLayer.contentsGravity = .resizeAspect
@@ -218,31 +217,33 @@ final class PhotoCellView: NSView {
         }
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        ratingLayer.contents = Symbols.stars(item.rating.rawValue, color: Palette.rating, pointSize: 10)
+        ratingLayer.contents = Symbols.stars(item.rating.rawValue, color: color(Palette.rating), pointSize: 10)
         if nameLayer.string as? String != item.baseName {
             nameLayer.string = item.baseName
         }
         let badgeText = FileKindText.badge(for: item)
         if badgeText != shownBadgeText {
             shownBadgeText = badgeText
-            let badge = Badges.image(badgeText)
+            let badge = Badges.image(badgeText, appearance: effectiveAppearance)
             kindLayer.contents = badge?.image
             kindSize = badge?.size ?? .zero
             positionInfo()
         }
         switch item.flag {
         case .picked:
-            flagLayer.contents = Symbols.image("flag.fill", color: Palette.pick, pointSize: 11)
+            flagLayer.contents = Symbols.image("flag.fill", color: color(Palette.pick), pointSize: 11)
             flagLayer.isHidden = false
         case .rejected:
-            flagLayer.contents = Symbols.image("xmark.circle.fill", color: Palette.reject, pointSize: 11)
+            flagLayer.contents = Symbols.image("xmark.circle.fill", color: color(Palette.reject), pointSize: 11)
             flagLayer.isHidden = false
         case .none:
             flagLayer.contents = nil
             flagLayer.isHidden = true
         }
-        if let color = Palette.color(for: item.colorLabel) {
-            labelLayer.backgroundColor = color.cgColor
+        // The label's name too, not only its color.
+        toolTip = item.colorLabel == .none ? nil : PhotoAccessibility.text(.colorLabel(item.colorLabel))
+        if let label = Palette.color(for: item.colorLabel) {
+            labelLayer.backgroundColor = color(label).cgColor
             labelLayer.isHidden = false
         } else {
             labelLayer.isHidden = true
@@ -268,7 +269,7 @@ final class PhotoCellView: NSView {
         }
         imageLayer.contents = image
         placeholderLayer.isHidden = image != nil
-        placeholderLayer.backgroundColor = NSColor(white: 0.22, alpha: 1).cgColor
+        placeholderLayer.backgroundColor = color(Palette.cellSelected).cgColor
         CATransaction.commit()
     }
 
@@ -277,7 +278,7 @@ final class PhotoCellView: NSView {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         placeholderLayer.isHidden = false
-        placeholderLayer.backgroundColor = NSColor(white: 0.16, alpha: 1).cgColor
+        placeholderLayer.backgroundColor = color(Palette.cell).cgColor
         CATransaction.commit()
     }
 
@@ -285,10 +286,25 @@ final class PhotoCellView: NSView {
         guard let layer else { return }
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        layer.backgroundColor = (isSelected ? Palette.cellSelected : Palette.cell).cgColor
+        layer.backgroundColor = color(isSelected ? Palette.cellSelected : Palette.cell).cgColor
+        nameLayer.foregroundColor = color(Palette.fileName).cgColor
         layer.borderWidth = isSelected ? 2 : 0
         layer.borderColor = NSColor.controlAccentColor.cgColor
         CATransaction.commit()
+    }
+
+    /// A palette color as this cell's appearance shows it (layers do not follow it).
+    private func color(_ dynamic: NSColor) -> NSColor {
+        dynamic.resolved(for: effectiveAppearance)
+    }
+
+    /// Increase Contrast, or the window's appearance, changed: redraw.
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updateChrome()
+        shownBadgeText = nil
+        if let item { apply(item, offline: offline) }
+        if image == nil { placeholderLayer.backgroundColor = color(unavailable ? Palette.cell : Palette.cellSelected).cgColor }
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -345,12 +361,13 @@ enum Symbols {
 }
 
 extension Symbols {
-    private static var starCache: [Int: CGImage] = [:]
+    private static var starCache: [String: CGImage] = [:]
 
     /// `count` filled stars in a row, as one image (nil for none).
     static func stars(_ count: Int, color: NSColor, pointSize: CGFloat) -> CGImage? {
         guard count > 0 else { return nil }
-        if let cached = starCache[count] { return cached }
+        let key = "\(count)|\(color.description)"
+        if let cached = starCache[key] { return cached }
         guard let star = image("star.fill", color: color, pointSize: pointSize) else { return nil }
         let gap = 2
         let width = star.width * count + gap * (count - 1)
@@ -361,7 +378,7 @@ extension Symbols {
             context.draw(star, in: CGRect(x: index * (star.width + gap), y: 0, width: star.width, height: star.height))
         }
         let image = context.makeImage()
-        starCache[count] = image
+        starCache[key] = image
         return image
     }
 }
@@ -377,14 +394,17 @@ enum Badges {
 
     private static var cache: [String: Badge] = [:]
 
-    static func image(_ text: String?) -> Badge? {
+    /// 10 pt bold, in `appearance`'s colors.
+    static func image(_ text: String?, appearance: NSAppearance) -> Badge? {
         guard let text, !text.isEmpty else { return nil }
-        if let cached = cache[text] { return cached }
-        let font = NSFont.systemFont(ofSize: 8.5, weight: .bold)
-        let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: Palette.badgeText, .kern: 0.4]
+        let key = text + "|" + appearance.name.rawValue
+        if let cached = cache[key] { return cached }
+        let font = NSFont.systemFont(ofSize: 10, weight: .bold)
+        let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: Palette.badgeText.resolved(for: appearance),
+                                                         .kern: 0.3]
         let string = NSAttributedString(string: text, attributes: attributes)
         let textSize = string.size()
-        let size = CGSize(width: ceil(textSize.width) + 8, height: 13)
+        let size = CGSize(width: ceil(textSize.width) + 8, height: 15)
         let scale: CGFloat = 2
         guard let context = CGContext(data: nil, width: Int(size.width * scale), height: Int(size.height * scale),
                                       bitsPerComponent: 8, bytesPerRow: 0,
@@ -392,7 +412,7 @@ enum Badges {
                                       bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
         else { return nil }
         context.scaleBy(x: scale, y: scale)
-        let fill = text.hasPrefix(FileKindText.badge(.raw)) ? Palette.rawBadgeFill : Palette.badgeFill
+        let fill = (text.hasPrefix(FileKindText.badge(.raw)) ? Palette.rawBadgeFill : Palette.badgeFill).resolved(for: appearance)
         context.addPath(CGPath(roundedRect: CGRect(origin: .zero, size: size), cornerWidth: 3, cornerHeight: 3,
                                transform: nil))
         context.setFillColor(fill.cgColor)
@@ -403,7 +423,7 @@ enum Badges {
         NSGraphicsContext.restoreGraphicsState()
         guard let image = context.makeImage() else { return nil }
         let badge = Badge(image: image, size: size)
-        cache[text] = badge
+        cache[key] = badge
         return badge
     }
 }

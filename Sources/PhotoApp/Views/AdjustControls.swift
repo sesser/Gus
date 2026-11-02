@@ -243,7 +243,8 @@ final class SliderRow: NSView, NSTextFieldDelegate {
     /// turned off, labels and values go secondary and the fill hides.
     private func updateStyle(value: Double) {
         let isChanged = abs(value - defaultValue) > format.keyIncrement / 2
-        label.textColor = groupIsOn && slider.isEnabled ? .secondaryLabelColor : .tertiaryLabelColor
+        // Labels stay secondary (never tertiary); turned off, the value goes secondary too.
+        label.textColor = .secondaryLabelColor
         field.textColor = groupIsOn && isChanged ? .labelColor : .secondaryLabelColor
         if #available(macOS 26, *) {
             slider.neutralValue = scale.position(defaultValue)
@@ -687,7 +688,7 @@ struct LabeledPopUp<Content: View>: View {
         HStack(spacing: InspectorMetrics.gap) {
             Text(title)
                 .font(.system(size: 11))
-                .foregroundStyle(groupIsOn ? .secondary : .tertiary)
+                .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .frame(width: InspectorMetrics.labelWidth, alignment: .leading)
             content

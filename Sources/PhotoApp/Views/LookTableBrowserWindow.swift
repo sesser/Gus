@@ -38,6 +38,8 @@ struct LookTableBrowserWindow: View {
             ApplyBar(model: model)
         }
         .frame(minWidth: 640, minHeight: 460)
+        // Dark like the library window, whose sheet it becomes (steps 11 and 14);
+        // this sets the window's own appearance only.
         .preferredColorScheme(.dark)
         .task { await library.reload() }
         .sheet(item: $library.sheet) { sheet in

@@ -22,7 +22,9 @@ struct MainView: View {
         .navigationSubtitle(model.windowSubtitle)
         .toolbar(id: "library") { LibraryToolbar(model: model) }
         .background { LibraryMenuPublisher(model: model) }
-        // Photos are judged against neutral dark surroundings.
+        // The library window only (SwiftUI sets this window's NSWindow.appearance):
+        // photos are judged against neutral dark surroundings; Import and
+        // Settings follow the system.
         .preferredColorScheme(.dark)
         .task { await model.start() }
         .onChange(of: model.requestsImportWindow) {
@@ -63,6 +65,20 @@ struct MainView: View {
 
 }
 
+extension View {
+    /// On macOS 26 the grid scrolls under the toolbar for the system
+    /// scroll-edge effect; its scroll view insets its content by itself
+    /// (`automaticallyAdjustsContentInsets`). Earlier, a plain toolbar.
+    @ViewBuilder
+    func underToolbar() -> some View {
+        if #available(macOS 26, *) {
+            ignoresSafeArea(.container, edges: .top)
+        } else {
+            self
+        }
+    }
+}
+
 /// Grid, with the loupe laid over it while open. The grid stays alive underneath
 /// so its scroll position survives a trip to the loupe.
 struct BrowserView: View {
@@ -72,6 +88,7 @@ struct BrowserView: View {
         ZStack {
             Color(nsColor: Palette.gridBackground)
             GridView(model: model)
+                .underToolbar()
             if model.mode == .loupe {
                 LoupeView(model: model)
             }

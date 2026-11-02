@@ -683,6 +683,16 @@ enum DebugScript {
             let jobs = ActivityToolbarItem.jobs(model).map(\.title).joined(separator: "; ")
             print("debug-script: activity visible \(ActivityToolbarItem.isVisible(model)) jobs [\(jobs)] unseen \(model.activity.unseenCount)"
                   + " warning \(model.activity.unseenHasWarning) last \(model.activity.messages.last.map { "[\($0.title ?? "-")] \($0.text)" } ?? "-")")
+        case "grid":
+            if let scroll = window.flatMap({ descendant(of: PhotoCollectionView.self, in: $0.contentView) })?.enclosingScrollView {
+                print("debug-script: grid inset top \(scroll.contentInsets.top) visible \(scroll.documentVisibleRect.integral)"
+                      + " automatic \(scroll.automaticallyAdjustsContentInsets)")
+            }
+        case "appearance":
+            for window in NSApp.windows where window.isVisible {
+                print("debug-script: appearance '\(window.title)' set \(window.appearance?.name.rawValue ?? "nil")"
+                      + " effective \(window.effectiveAppearance.name.rawValue)")
+            }
         case "announcement":
             print("debug-script: announcement \(AccessibilityText.lastAnnouncement ?? "-")")
         case "hdr":
