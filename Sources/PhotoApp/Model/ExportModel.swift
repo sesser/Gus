@@ -43,6 +43,9 @@ final class ExportModel {
     private(set) var watermarkImage: CGImage?
     /// The first photo's file name with the current settings.
     private(set) var example: String?
+    /// The first photo, as the file name template sees it.
+    private(set) var exampleContext: TemplateContext?
+    @ObservationIgnored private var exampleTask: Task<Void, Never>?
 
     private(set) var presets: [ExportPreset] = []
     /// The preset the settings were last loaded from or saved as.
@@ -147,12 +150,17 @@ final class ExportModel {
     private func updateExample() {
         guard let job, let first = versionIDs.first else {
             example = nil
+            exampleContext = nil
             return
         }
         let settings = self.settings
-        Task {
-            guard let item = try? await job.items(for: [first]).first else { return }
-            example = ExportNaming.fileName(for: item.templateContext(sequence: 1, exportDate: Date()), settings: settings)
+        // The newest settings win: an older lookup finishing late is dropped.
+        exampleTask?.cancel()
+        exampleTask = Task {
+            guard let item = try? await job.items(for: [first]).first, !Task.isCancelled else { return }
+            let context = item.templateContext(sequence: 1, exportDate: Date())
+            exampleContext = context
+            example = ExportNaming.fileName(for: context, settings: settings)
         }
     }
 
@@ -335,10 +343,8 @@ final class ExportModel {
         lastSummary = summary
         let folder = summary.destination.lastPathComponent
         let written = summary.written.count
-        library?.report(summary.cancelled
-            ? String(localized: "Export stopped after \(written) photos.")
-            : String(localized: "Exported \(written) photos to “\(folder)”."), action: ActivityTitle.exportTo(folder),
-            warning: !summary.failures.isEmpty)
+        library?.report(Self.finishedMessage(summary), action: ActivityTitle.exportTo(folder),
+                        warning: !summary.failures.isEmpty)
         if reveals, !summary.written.isEmpty, !summary.cancelled {
             NSWorkspace.shared.activateFileViewerSelecting(summary.written)
         }
@@ -360,6 +366,26 @@ final class ExportModel {
             ? String(localized: "Exported \(written) photos")
             : String(localized: "\(summary.failures.count) photos could not be exported")
         report = Report(title: title, message: lines.joined(separator: "\n"))
+    }
+
+    /// The Activity row's message when an export ends (section 1 of
+    /// docs/UI_REDESIGN.md): "Exported 24 photos." or "Exported 22 of 24
+    /// photos. 2 could not be written."
+    static func finishedMessage(_ summary: ExportSummary) -> String {
+        let written = summary.written.count
+        let failed = summary.failures.count
+        if summary.cancelled {
+            return String(localized: "Export stopped after \(written) photos.")
+        }
+        if failed == 0 {
+            return String(localized: "Exported \(written) photos.", comment: "Activity: an export finished")
+        }
+        if written == 0 {
+            // Plurals follow the first number only, so "0 of 1 photos" is avoided.
+            return String(localized: "\(failed) photos could not be written.", comment: "Activity: an export wrote nothing")
+        }
+        return String(localized: "Exported \(written) of \(written + failed) photos. \(failed) could not be written.",
+                      comment: "Activity: an export finished with failures")
     }
 
     static func text(_ failure: ExportSummary.Failure) -> String {

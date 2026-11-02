@@ -222,6 +222,8 @@ private struct ExportForm: View {
         .alert(String(localized: "Delete the export preset “\(selectedPreset?.name ?? "")”?"), isPresented: $deletingPreset) {
             Button("Delete", role: .destructive) { export.deleteSelectedPreset() }
             Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Exports already made are not affected.", comment: "Delete export preset alert")
         }
     }
 
@@ -265,9 +267,9 @@ private struct ExportForm: View {
             .pickerStyle(.segmented)
             if export.settings.naming == .template {
                 TemplateField(title: String(localized: "Template"), text: settings.fileNameTemplate,
-                              tokens: TemplateField.exportFileTokens, example: export.example)
+                              tokens: .exportFiles, sample: export.exampleContext, example: export.example)
             } else if let example = export.example {
-                Caption(text: example)
+                TemplateExample(text: example)
             }
         }
     }
@@ -286,9 +288,9 @@ private struct ExportForm: View {
                                 text: export.settings.jpegQuality.formatted(.percent.precision(.fractionLength(0))))
                 }
             case .tiff:
-                Picker("Bit Depth", selection: settings.tiffBitDepth) {
-                    Text("8 bits per channel").tag(8)
-                    Text("16 bits per channel").tag(16)
+                Picker("Bit depth", selection: settings.tiffBitDepth) {
+                    Text("8 Bits per Channel").tag(8)
+                    Text("16 Bits per Channel").tag(16)
                 }
                 Picker("Compression", selection: settings.tiffCompression) {
                     Text("None").tag(ExportSettings.TIFFCompression.none)
@@ -296,7 +298,7 @@ private struct ExportForm: View {
                     Text("ZIP").tag(ExportSettings.TIFFCompression.zip)
                 }
             }
-            Picker("Color Space", selection: settings.colorSpace) {
+            Picker("Color space", selection: settings.colorSpace) {
                 Text("sRGB").tag(ExportSettings.ColorSpace.sRGB)
                 Text("Display P3").tag(ExportSettings.ColorSpace.displayP3)
                 Text("Adobe RGB (1998)").tag(ExportSettings.ColorSpace.adobeRGB)
@@ -311,10 +313,10 @@ private struct ExportForm: View {
     private func sizeSection(_ settings: Binding<ExportSettings>) -> some View {
         Section("Size") {
             Picker("Size", selection: settings.sizing) {
-                Text("Full size").tag(ExportSettings.Sizing.full)
-                Text("Fit within").tag(ExportSettings.Sizing.fit)
-                Text("Long edge").tag(ExportSettings.Sizing.longEdge)
-                Text("Short edge").tag(ExportSettings.Sizing.shortEdge)
+                Text("Full Size").tag(ExportSettings.Sizing.full)
+                Text("Fit Within").tag(ExportSettings.Sizing.fit)
+                Text("Long Edge").tag(ExportSettings.Sizing.longEdge)
+                Text("Short Edge").tag(ExportSettings.Sizing.shortEdge)
                 Text("Percentage").tag(ExportSettings.Sizing.percent)
             }
             switch export.settings.sizing {
@@ -345,14 +347,14 @@ private struct ExportForm: View {
                 Caption(text: String(localized: "Photos are never enlarged."))
             }
             if export.settings.sizing != .full {
-                Picker("Output Sharpening", selection: settings.sharpening) {
+                Picker("Output sharpening", selection: settings.sharpening) {
                     Text("Off").tag(ExportSettings.SharpeningAmount.off)
                     Text("Light").tag(ExportSettings.SharpeningAmount.light)
                     Text("Standard").tag(ExportSettings.SharpeningAmount.standard)
                     Text("Strong").tag(ExportSettings.SharpeningAmount.strong)
                 }
                 if export.settings.sharpening != .off {
-                    Picker("Sharpen For", selection: settings.sharpeningTarget) {
+                    Picker("Sharpen for", selection: settings.sharpeningTarget) {
                         Text("Screen").tag(ExportSettings.SharpeningTarget.screen)
                         Text("Print").tag(ExportSettings.SharpeningTarget.print)
                     }

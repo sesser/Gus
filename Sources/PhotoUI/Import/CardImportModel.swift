@@ -330,15 +330,19 @@ public final class CardImportModel {
 
     // MARK: Importing
 
-    /// What the templates make of the first selected shot.
-    var example: String? {
+    /// The first selected shot, as the templates see it.
+    var exampleContext: TemplateContext? {
         guard let shot = selectedShots.first ?? visibleShots.first else { return nil }
         let metadata = shot.primary.metadata
-        let context = TemplateContext(captureDate: metadata.captureDate, captureOffsetSeconds: metadata.captureOffsetSeconds,
-                                      fileDate: shot.primary.modifiedAt, importDate: Date(), make: metadata.cameraMake,
-                                      model: metadata.cameraModel, serial: metadata.cameraSerial, lens: metadata.lensModel,
-                                      originalName: shot.primary.name, sequence: 1, counter: counter, jobCode: jobCode)
-        return template.example(context)
+        return TemplateContext(captureDate: metadata.captureDate, captureOffsetSeconds: metadata.captureOffsetSeconds,
+                               fileDate: shot.primary.modifiedAt, importDate: Date(), make: metadata.cameraMake,
+                               model: metadata.cameraModel, serial: metadata.cameraSerial, lens: metadata.lensModel,
+                               originalName: shot.primary.name, sequence: 1, counter: counter, jobCode: jobCode)
+    }
+
+    /// What the templates make of the first selected shot.
+    var example: String? {
+        exampleContext.map(template.example)
     }
 
     public func startImport() {

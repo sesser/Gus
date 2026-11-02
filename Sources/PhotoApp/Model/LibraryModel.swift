@@ -1173,9 +1173,10 @@ final class LibraryModel {
             } catch is CancellationError {
                 importProgress = nil
                 importBatch = nil
+                let started = importQueue.started
                 let totals = importQueue.finish()
                 ignoredDropCount = 0
-                report(String(localized: "Import cancelled."), action: ActivityTitle.addFolder(batchFolderName))
+                report(String(localized: "Import cancelled."), action: ActivityTitle.addFolders(started, name: batchFolderName))
                 await refreshProjects()
                 warmPreviews(projectIDs: totals.projectIDs)
                 reloadItems(keepFocus: true)
@@ -1247,7 +1248,7 @@ final class LibraryModel {
         if ignored > 0 {
             message += " " + String(localized: "Ignored \(ignored) items that are not folders.")
         }
-        report(message, action: ActivityTitle.addFolder(folderCount == 1 ? batchFolderName : nil),
+        report(message, action: ActivityTitle.addFolders(folderCount, name: batchFolderName),
                warning: totals.failed > 0 || !folderErrors.isEmpty)
         // The first new project opens; the rest are listed in the sidebar.
         if let projectID = totals.projectIDs.first {

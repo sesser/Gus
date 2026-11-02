@@ -280,10 +280,11 @@ private struct ImportOptionsPanel: View {
                             Button("Choose…") { model.chooseDestination() }
                         }
                     }
+                    let sample = model.exampleContext
                     TemplateField(title: String(localized: "Subfolders"), text: $model.folderTemplate,
-                                  tokens: TemplateField.importFolderTokens, folders: true)
+                                  tokens: .importFolders, folders: true, sample: sample)
                     TemplateField(title: String(localized: "File names"), text: $model.fileTemplate,
-                                  tokens: TemplateField.importFileTokens, example: model.example)
+                                  tokens: .importFiles, sample: sample, example: model.example)
                 }
                 Section(model.copiesOnly ? String(localized: "Job") : String(localized: "Project")) {
                     if let library = model.library {
@@ -295,7 +296,7 @@ private struct ImportOptionsPanel: View {
                         }
                         if model.existingProjectID == nil {
                             TemplateField(title: String(localized: "Name"), text: $model.projectNameTemplate,
-                                          tokens: TemplateField.importFileTokens)
+                                          tokens: .importFiles, sample: model.exampleContext)
                         }
                     }
                     HStack {

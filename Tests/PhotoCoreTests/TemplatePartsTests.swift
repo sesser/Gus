@@ -70,9 +70,56 @@ struct TemplatePartsTests {
                                                            separator: "/").parts) == "a/{job}")
     }
 
+    @Test func unknownTokensCanBeText() {
+        let known: (String) -> Bool = { TemplateToken(syntax: $0) != nil }
+        #expect(TemplateParts.parse("a{x}b{job}{y}", isToken: known) == [.text("a{x}b"), .token("{job}"), .text("{y}")])
+        // In the editor an unknown token is its characters, so the caret counts them.
+        let parts = TemplateParts.parse("{x}_", isToken: known)
+        let result = TemplateParts.inserting("{job}", into: parts, at: 4, isToken: known)
+        #expect(result.parts == [.text("{x}_"), .token("{job}")])
+        #expect(result.caret == 5)
+    }
+
     @Test func caretCountsUTF16() {
         let parts = TemplateParts.parse("📷{job}")
         #expect(parts.map(\.editorLength) == [2, 1])
         #expect(TemplateParts.join(TemplateParts.inserting("{name}", into: parts, at: 2).parts) == "📷{name}{job}")
+    }
+}
+
+@Suite("Template tokens")
+struct TemplateTokenTests {
+    @Test func readsTheGrammar() {
+        #expect(TemplateToken(syntax: "{capture:yyyy}") == .date(.capture, pattern: "yyyy"))
+        #expect(TemplateToken(syntax: "{import:yyyy-MM-dd}") == .date(.import, pattern: "yyyy-MM-dd"))
+        #expect(TemplateToken(syntax: "{export:yyyyMM}") == .date(.export, pattern: "yyyyMM"))
+        #expect(TemplateToken(syntax: "{name}") == .name)
+        #expect(TemplateToken(syntax: "{number}") == .number)
+        #expect(TemplateToken(syntax: "{ext}") == .ext(nil))
+        #expect(TemplateToken(syntax: "{ext:lower}") == .ext(.lower))
+        #expect(TemplateToken(syntax: "{ext:upper}") == .ext(.upper))
+        #expect(TemplateToken(syntax: "{seq:4}") == .sequence)
+        #expect(TemplateToken(syntax: "{seq}") == .sequence)
+        #expect(TemplateToken(syntax: "{counter:5}") == .counter)
+        #expect(TemplateToken(syntax: "{job}") == .job)
+        #expect(TemplateToken(syntax: "{serial}") == .serial)
+    }
+
+    @Test func unknownTokensAreText() {
+        // What `ImportTemplate.expand` leaves as written.
+        for syntax in ["{}", "{capture}", "{import}", "{export}", "{unknown}", "{Name}", "plain", "{a{b}"] {
+            #expect(TemplateToken(syntax: syntax) == nil, "\(syntax)")
+        }
+    }
+
+    @Test func valuesComeFromTheContext() {
+        let context = TemplateContext(captureDate: Date(timeIntervalSince1970: 1_780_000_000), captureOffsetSeconds: 0,
+                                      fileDate: Date(timeIntervalSince1970: 0), importDate: Date(timeIntervalSince1970: 0),
+                                      make: "Make", model: "Model", serial: nil, lens: nil, originalName: "DSC00328.ARW",
+                                      sequence: 3, counter: 41, jobCode: "Job")
+        #expect(TemplateToken.value(of: "{capture:yyyy}", in: context) == "2026")
+        #expect(TemplateToken.value(of: "{number}", in: context) == "00328")
+        #expect(TemplateToken.value(of: "{seq:4}", in: context) == "0003")
+        #expect(TemplateToken.value(of: "{lens}", in: context) == "")
     }
 }

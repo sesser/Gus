@@ -6,7 +6,8 @@ import PhotoCore
 ///
 ///     tokens                         each field: label, pills and text as shown, template
 ///     tokens type <n> <text>         types at the end of field n, then ends editing
-///     tokens insert <n> <syntax>     what the Insert menu does (at the end, or at the caret while editing)
+///     tokens select <n> <loc> [<len>]  selects in field n, then moves focus away (as a click on Insert can)
+///     tokens insert <n> <syntax>     what the Insert menu does (at the last selection, or the end if never edited)
 ///     tokens copy <n>                what Copy puts on the pasteboard for the whole field
 ///     tokens paste <n> <text>        what Paste of <text> inserts
 ///
@@ -39,6 +40,13 @@ public enum TemplateFieldProbe {
             editor.insertText(argument, replacementRange: editor.selectedRange())
             window.makeFirstResponder(nil)
             print("debug-script: tokens \(index ?? 0) \(describe(field))")
+        case "select":
+            guard let field = field(), let window else { return }
+            let numbers = words.dropFirst(2).compactMap { Int($0) }
+            window.makeFirstResponder(field)
+            field.currentEditor()?.selectedRange = NSRange(location: numbers.first ?? 0, length: numbers.dropFirst().first ?? 0)
+            window.makeFirstResponder(nil)
+            print("debug-script: tokens \(index ?? 0) selection \(field.lastSelection.map { "\($0.location),\($0.length)" } ?? "-")")
         case "insert":
             guard let field = field() else { return }
             field.insert(argument, separator: nil)
@@ -80,6 +88,8 @@ public enum TemplateFieldProbe {
             let style = field.delegate?.tokenField?(field, styleForRepresentedObject: object)
             return style == NSTokenField.TokenStyle.none ? text : "[\(text)]"
         }
-        return "'\(field.accessibilityLabel() ?? "-")' \(shown.joined()) = \(field.template)"
+        return "'\(field.accessibilityLabel() ?? "-")' \(shown.joined()) = \(field.template) "
+            + "height \(Int(field.frame.height)) editing \(field.currentEditor() != nil)"
+            + (field.toolTip.map { " tooltip \($0.replacingOccurrences(of: "\n", with: "; "))" } ?? "")
     }
 }

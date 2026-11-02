@@ -110,7 +110,7 @@ final class LookTableLibraryModel {
     /// table it replaces.
     func apply(_ entry: LookTableEntry, editor: AdjustmentEditor) {
         guard isAvailable(entry) else {
-            library?.report(String(localized: "\(entry.name) is missing from the library."), action: AdjustText.title(.lookTable),
+            library?.report(String(localized: "\(entry.name) is missing from the library."), action: ActivityTitle.lookTable(entry.name),
                             warning: true)
             return
         }

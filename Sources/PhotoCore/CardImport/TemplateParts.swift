@@ -26,15 +26,26 @@ public enum TemplatePart: Hashable, Sendable {
 }
 
 public enum TemplateParts {
-    public static func parse(_ template: String) -> [TemplatePart] {
+    /// With `isToken`, braces it rejects are text (the template field shows
+    /// tokens the grammar does not know as text, see `TemplateToken`).
+    public static func parse(_ template: String, isToken: (String) -> Bool = { _ in true }) -> [TemplatePart] {
         var parts: [TemplatePart] = []
+        func append(_ text: Substring) {
+            guard !text.isEmpty else { return }
+            if case .text(let last) = parts.last {
+                parts[parts.count - 1] = .text(last + text)
+            } else {
+                parts.append(.text(String(text)))
+            }
+        }
         var rest = Substring(template)
         while let open = rest.firstIndex(of: "{"), let close = rest[open...].firstIndex(of: "}") {
-            if open > rest.startIndex { parts.append(.text(String(rest[..<open]))) }
-            parts.append(.token(String(rest[open...close])))
+            append(rest[..<open])
+            let token = rest[open...close]
+            if isToken(String(token)) { parts.append(.token(String(token))) } else { append(token) }
             rest = rest[rest.index(after: close)...]
         }
-        if !rest.isEmpty { parts.append(.text(String(rest))) }
+        append(rest)
         return parts
     }
 
@@ -44,8 +55,8 @@ public enum TemplateParts {
 
     /// Adjacent text merged, empty text dropped, and tokens typed as text
     /// (`{job}`) turned into tokens.
-    public static func normalized(_ parts: [TemplatePart]) -> [TemplatePart] {
-        parse(join(parts))
+    public static func normalized(_ parts: [TemplatePart], isToken: (String) -> Bool = { _ in true }) -> [TemplatePart] {
+        parse(join(parts), isToken: isToken)
     }
 
     /// Inserts `token` at `location` (an offset in the editor, see
@@ -54,7 +65,8 @@ public enum TemplateParts {
     /// before it unless it is at the start or after one already.
     /// Returns the parts and the editor offset just after the token.
     public static func inserting(_ token: String, into parts: [TemplatePart], at location: Int,
-                                 separator: String? = nil) -> (parts: [TemplatePart], caret: Int) {
+                                 separator: String? = nil,
+                                 isToken: (String) -> Bool = { _ in true }) -> (parts: [TemplatePart], caret: Int) {
         var before: [TemplatePart] = []
         var after: [TemplatePart] = []
         var offset = 0
@@ -78,7 +90,55 @@ public enum TemplateParts {
             inserted.append(.text(separator))
         }
         inserted.append(.token(token))
-        let head = normalized(before + inserted)
-        return (normalized(head + after), head.reduce(0) { $0 + $1.editorLength })
+        let head = normalized(before + inserted, isToken: isToken)
+        return (normalized(head + after, isToken: isToken), head.reduce(0) { $0 + $1.editorLength })
+    }
+}
+
+/// What a `{…}` token means, read the way `ImportTemplate` expands it.
+/// `nil` from `init(syntax:)` is a token the grammar does not know: it
+/// renders as written, so the template field shows it as plain text.
+public enum TemplateToken: Hashable, Sendable {
+    public enum DateSource: String, Sendable {
+        case capture, `import`, export
+    }
+
+    public enum Case: String, Sendable {
+        case lower, upper
+    }
+
+    case date(DateSource, pattern: String)
+    case make, model, serial, lens
+    case name, number
+    case ext(Case?)
+    case sequence, counter
+    case job
+
+    public init?(syntax: String) {
+        guard syntax.hasPrefix("{"), syntax.hasSuffix("}"), syntax.count >= 2 else { return nil }
+        let body = syntax.dropFirst().dropLast()
+        let parts = body.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
+        let argument = parts.count > 1 ? parts[1] : nil
+        switch parts.first ?? "" {
+        case "capture", "import", "export":
+            guard let argument, let source = DateSource(rawValue: parts[0]) else { return nil }
+            self = .date(source, pattern: argument)
+        case "make": self = .make
+        case "model": self = .model
+        case "serial": self = .serial
+        case "lens": self = .lens
+        case "name": self = .name
+        case "number": self = .number
+        case "ext": self = .ext(argument.flatMap(Case.init(rawValue:)))
+        case "seq": self = .sequence
+        case "counter": self = .counter
+        case "job": self = .job
+        default: return nil
+        }
+    }
+
+    /// The token's value for one photo, as the template would render it.
+    public static func value(of syntax: String, in context: TemplateContext) -> String {
+        ImportTemplate.expand(syntax, context)
     }
 }

@@ -12,6 +12,17 @@
         }
       }
     },
+    "%@ (%@)" : {
+      "comment" : "Template field Insert menu: a token and its value for the first photo",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ (%2$@)"
+          }
+        }
+      }
+    },
     "%@ (%lld)" : {
       "comment" : "Preset import summary: a kind of setting and how many presets had it",
       "localizations" : {
@@ -448,6 +459,29 @@
         }
       }
     },
+    "%lld photos could not be written." : {
+      "comment" : "Activity: an export wrote nothing",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photo could not be written."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photos could not be written."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld photos match" : {
       "comment" : "Smart album editor live count",
       "localizations" : {
@@ -689,13 +723,13 @@
         }
       }
     },
-    "16 bits per channel" : {
-      "comment" : "Export window: TIFF bit depth",
+    "16 Bits per Channel" : {
+      "comment" : "Export sheet: TIFF bit depth",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "16 bits per channel"
+            "value" : "16 Bits per Channel"
           }
         }
       }
@@ -755,13 +789,13 @@
         }
       }
     },
-    "8 bits per channel" : {
-      "comment" : "Export window: TIFF bit depth",
+    "8 Bits per Channel" : {
+      "comment" : "Export sheet: TIFF bit depth",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "8 bits per channel"
+            "value" : "8 Bits per Channel"
           }
         }
       }
@@ -828,6 +862,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Add"
+          }
+        }
+      }
+    },
+    "Add %lld Folders" : {
+      "comment" : "Activity row title: several folders added without copying",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add %lld Folders"
           }
         }
       }
@@ -1570,13 +1615,13 @@
         }
       }
     },
-    "Bit Depth" : {
-      "comment" : "Export sheet: TIFF bits per channel",
+    "Bit depth" : {
+      "comment" : "Export sheet row",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bit Depth"
+            "value" : "Bit depth"
           }
         }
       }
@@ -1757,7 +1802,7 @@
       }
     },
     "Camera" : {
-      "comment" : "Inspector info row",
+      "comment" : "Inspector info row; template field Insert menu section",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1790,7 +1835,7 @@
       }
     },
     "Camera Serial Number" : {
-      "comment" : "Smart album rule field and template token",
+      "comment" : "Smart album rule field",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1833,13 +1878,24 @@
         }
       }
     },
-    "Capture Month Name" : {
+    "Capture Date (%@)" : {
+      "comment" : "Template token: the capture date in a pattern of the user's, e.g. yyyyMM",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Capture Date (%@)"
+          }
+        }
+      }
+    },
+    "Capture Month" : {
       "comment" : "Template token",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Capture Month Name"
+            "value" : "Capture Month"
           }
         }
       }
@@ -2577,17 +2633,6 @@
         }
       }
     },
-    "Counter Across Imports" : {
-      "comment" : "Template token",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Counter Across Imports"
-          }
-        }
-      }
-    },
     "Country" : {
       "comment" : "Contact field",
       "localizations" : {
@@ -2694,6 +2739,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Custom"
+          }
+        }
+      }
+    },
+    "Date" : {
+      "comment" : "Template field Insert menu section",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Date"
           }
         }
       }
@@ -3194,6 +3250,17 @@
         }
       }
     },
+    "Example: %@" : {
+      "comment" : "Under a naming template: what it makes of the first photo",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Example: %@"
+          }
+        }
+      }
+    },
     "Exp. Comp" : {
       "comment" : "Info tab: exposure compensation tile, in EV",
       "localizations" : {
@@ -3283,6 +3350,17 @@
         }
       }
     },
+    "Export Date (%@)" : {
+      "comment" : "Template token: the export date in a pattern of the user's, e.g. yyyyMM",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export Date (%@)"
+          }
+        }
+      }
+    },
     "Export Presets" : {
       "comment" : "Activity row title",
       "localizations" : {
@@ -3350,6 +3428,17 @@
         }
       }
     },
+    "Exported %lld of %lld photos. %lld could not be written." : {
+      "comment" : "Activity: an export finished with failures",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exported %1$lld of %2$lld photos. %3$lld could not be written."
+          }
+        }
+      }
+    },
     "Exported %lld photos" : {
       "comment" : "Export report title",
       "localizations" : {
@@ -3373,8 +3462,8 @@
         }
       }
     },
-    "Exported %lld photos to “%@”." : {
-      "comment" : "Status bar: an export finished; count and folder name",
+    "Exported %lld photos." : {
+      "comment" : "Activity: an export finished",
       "localizations" : {
         "en" : {
           "variations" : {
@@ -3382,13 +3471,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "Exported %lld photo to “%@”."
+                  "value" : "Exported %lld photo."
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "Exported %lld photos to “%@”."
+                  "value" : "Exported %lld photos."
                 }
               }
             }
@@ -3414,6 +3503,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Exports"
+          }
+        }
+      }
+    },
+    "Exports already made are not affected." : {
+      "comment" : "Delete export preset alert",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exports already made are not affected."
           }
         }
       }
@@ -3473,6 +3573,17 @@
         }
       }
     },
+    "Extension" : {
+      "comment" : "Template token",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Extension"
+          }
+        }
+      }
+    },
     "Fade" : {
       "comment" : "Built-in look-up table",
       "localizations" : {
@@ -3507,7 +3618,7 @@
       }
     },
     "File" : {
-      "comment" : "Inspector column: the value in the sidecar or file",
+      "comment" : "Inspector column: the value in the sidecar or file; template field Insert menu section",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3518,7 +3629,7 @@
       }
     },
     "File Name" : {
-      "comment" : "Smart album rule field and template token",
+      "comment" : "Smart album rule field",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3671,6 +3782,17 @@
         }
       }
     },
+    "Fit Within" : {
+      "comment" : "Export sheet: size pop-up",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fit Within"
+          }
+        }
+      }
+    },
     "Fit the photo in the window, or show it at 100%" : {
       "comment" : "Toolbar, loupe: Fit / 100% tooltip",
       "localizations" : {
@@ -3678,17 +3800,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fit the photo in the window, or show it at 100%"
-          }
-        }
-      }
-    },
-    "Fit within" : {
-      "comment" : "Export window: sizing choice: fits inside a width and height",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fit within"
           }
         }
       }
@@ -3824,13 +3935,13 @@
         }
       }
     },
-    "Full size" : {
-      "comment" : "Export window: sizing choice",
+    "Full Size" : {
+      "comment" : "Export sheet: size pop-up",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Full size"
+            "value" : "Full Size"
           }
         }
       }
@@ -4154,6 +4265,17 @@
         }
       }
     },
+    "Import Counter" : {
+      "comment" : "Template token",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import Counter"
+          }
+        }
+      }
+    },
     "Import Date" : {
       "comment" : "Smart album rule field and template token",
       "localizations" : {
@@ -4161,6 +4283,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Import Date"
+          }
+        }
+      }
+    },
+    "Import Date (%@)" : {
+      "comment" : "Template token: the import date in a pattern of the user's, e.g. yyyyMM",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import Date (%@)"
           }
         }
       }
@@ -4616,7 +4749,7 @@
       }
     },
     "Job" : {
-      "comment" : "Import window section title in the standalone importer (holds the job code)",
+      "comment" : "Import window section title in the standalone importer (holds the job code); template field Insert menu section",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4710,6 +4843,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Keep the keywords from both"
+          }
+        }
+      }
+    },
+    "Keeps counting across imports" : {
+      "comment" : "Template field Insert menu: Import Counter help",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keeps counting across imports"
           }
         }
       }
@@ -4911,13 +5055,13 @@
         }
       }
     },
-    "Long edge" : {
-      "comment" : "Export window: sizing choice",
+    "Long Edge" : {
+      "comment" : "Export sheet: size pop-up",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Long edge"
+            "value" : "Long Edge"
           }
         }
       }
@@ -4940,6 +5084,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Look-Up Table"
+          }
+        }
+      }
+    },
+    "Look-Up Table “%@”" : {
+      "comment" : "Activity row title: a missing look-up table",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Look-Up Table “%@”"
           }
         }
       }
@@ -5026,6 +5181,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Lower Rating"
+          }
+        }
+      }
+    },
+    "Lowercase Extension" : {
+      "comment" : "Template token",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lowercase Extension"
           }
         }
       }
@@ -5818,13 +5984,13 @@
         }
       }
     },
-    "Number in the Original Name" : {
-      "comment" : "Template token",
+    "Numbering" : {
+      "comment" : "Template field Insert menu section",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Number in the Original Name"
+            "value" : "Numbering"
           }
         }
       }
@@ -6004,7 +6170,7 @@
       }
     },
     "Original Name" : {
-      "comment" : "Export sheet: keep each file's name",
+      "comment" : "Export sheet: keep each file's name; template token",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6014,13 +6180,24 @@
         }
       }
     },
-    "Output Sharpening" : {
-      "comment" : "Export sheet",
+    "Original Number" : {
+      "comment" : "Template token: the digits in the original name",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Output Sharpening"
+            "value" : "Original Number"
+          }
+        }
+      }
+    },
+    "Output sharpening" : {
+      "comment" : "Export sheet row",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Output sharpening"
           }
         }
       }
@@ -7360,24 +7537,24 @@
         }
       }
     },
-    "Sequence in This Export" : {
-      "comment" : "Template token: the photo's position in the export",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sequence in This Export"
-          }
-        }
-      }
-    },
-    "Sequence in This Import" : {
+    "Sequence Number" : {
       "comment" : "Template token",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sequence in This Import"
+            "value" : "Sequence Number"
+          }
+        }
+      }
+    },
+    "Serial Number" : {
+      "comment" : "Template token",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Serial Number"
           }
         }
       }
@@ -7448,13 +7625,13 @@
         }
       }
     },
-    "Sharpen For" : {
-      "comment" : "Export sheet: screen or print",
+    "Sharpen for" : {
+      "comment" : "Export sheet row",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sharpen For"
+            "value" : "Sharpen for"
           }
         }
       }
@@ -7492,13 +7669,13 @@
         }
       }
     },
-    "Short edge" : {
-      "comment" : "Export window: sizing choice",
+    "Short Edge" : {
+      "comment" : "Export sheet: size pop-up",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Short edge"
+            "value" : "Short Edge"
           }
         }
       }
@@ -8601,6 +8778,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Upper"
+          }
+        }
+      }
+    },
+    "Uppercase Extension" : {
+      "comment" : "Template token",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uppercase Extension"
           }
         }
       }
