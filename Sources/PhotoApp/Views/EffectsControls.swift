@@ -87,7 +87,7 @@ private struct LookTableControls: View {
     private var browseButton: AppKitButton {
         AppKitButton(title: String(localized: "Browse…"), style: .push,
                      help: String(localized: "See every table on this photo, import and manage tables")) {
-            model.requestsLookTableWindow = true
+            model.showsLookTableSheet = true
         }
     }
 

@@ -166,8 +166,5 @@ struct KeywordEntryPanel: View {
         }
         .padding(14)
         .frame(width: 420)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
-        .shadow(radius: 12)
-        .padding(.top, 24)
     }
 }

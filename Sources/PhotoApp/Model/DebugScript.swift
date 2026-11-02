@@ -51,10 +51,10 @@ import PhotoUI
 ///     lut <name>|none       (the first table of that name in any collection)
 ///     lutimport <folder> [<collection>]   (into a new collection, or an existing one of that name)
 ///     luts                  (prints the collections)
-///     lutwindow open|close|all|collection <name>|expand <name>|select <name>|apply|manage|snapshot <file>
+///     lutwindow open|close|all|collection <name>|expand <name>|select <name>|apply|manage|back|snapshot <file> (the sheet)
 ///     copyadjust            pasteadjust            preset save|apply|delete|preview <name> | preset (prints them)
 ///     preset import <path>…  (prints the summary)   preset summary <path>… (imports, shows the alert)
-///     preset export <file> [<name>]                 preset window | windowshot <png>
+///     preset export <file> [<name>]                 preset window | windowshot <png> (the sheet)
 ///     export window | windowshot <png> | set <key>=<value>… | template <text> | run [keepboth|overwrite|skip]
 ///            | preset save|apply|delete <name> | print   (see DebugExportCommands)
 ///
@@ -340,12 +340,12 @@ enum DebugScript {
                     try? await Task.sleep(for: .milliseconds(600))
                 }
             case "window":
-                model.requestsPresetWindow = true
+                model.showsPresetSheet = true
                 try? await Task.sleep(for: .milliseconds(500))
             case "windowshot":
-                guard let window = NSApp.windows.first(where: { $0.isVisible && $0.title == String(localized: "Presets") })
-                else {
-                    print("debug-script: the presets window is not open")
+                // A sheet on the library window; the snapshot shows the sheet.
+                guard let window = NSApp.windows.first(where: { $0.attachedSheet != nil }) else {
+                    print("debug-script: the presets sheet is not open")
                     break
                 }
                 WindowSnapshot.write(window, to: URL(fileURLWithPath: (name as NSString).expandingTildeInPath))
@@ -410,7 +410,12 @@ enum DebugScript {
                 printState(rest.first ?? "", model: model)
             }
         case "quit":
-            // An open sheet would keep the app from quitting.
+            // An open sheet would keep the app from quitting; SwiftUI's close
+            // through their bindings.
+            model.showsExportSheet = false
+            model.showsLookTableSheet = false
+            model.showsPresetSheet = false
+            try? await Task.sleep(for: .milliseconds(500))
             for window in NSApp.windows {
                 if let sheet = window.attachedSheet { window.endSheet(sheet) }
             }

@@ -37,24 +37,6 @@ struct PhotoApplication: App {
         }
         .defaultSize(width: 1200, height: 780)
 
-        Window(String(localized: "Look-Up Tables"), id: "lookTables") {
-            if let model = library.model {
-                LookTableBrowserWindow(model: model)
-            }
-        }
-        .defaultSize(width: 980, height: 720)
-        // Opened from the menus; the Window menu lists only Library and Import.
-        .commandsRemoved()
-
-        Window(String(localized: "Presets"), id: "presets") {
-            if let model = library.model {
-                PresetManagerWindow(model: model)
-            }
-        }
-        .defaultSize(width: 640, height: 600)
-        // Opened from the menus; the Window menu lists only Library and Import.
-        .commandsRemoved()
-
         Settings {
             if let model = library.model {
                 SettingsView(model: model)
@@ -116,17 +98,12 @@ private struct LibraryErrorView: View {
     let message: String
 
     var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 40))
-                .foregroundStyle(.orange)
-            Text("The library could not be opened.")
-                .font(.title3)
+        ContentUnavailableView {
+            Label("The Library Could Not Be Opened", systemImage: "exclamationmark.triangle")
+        } description: {
             Text(message)
-                .foregroundStyle(.secondary)
                 .textSelection(.enabled)
         }
-        .padding(40)
     }
 }
 

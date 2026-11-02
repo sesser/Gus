@@ -72,7 +72,7 @@ struct PresetsSection: View {
     private var manageButton: AppKitButton {
         AppKitButton(title: String(localized: "Manage…"), style: .push,
                      help: String(localized: "Rename, move, export and delete presets")) {
-            model.requestsPresetWindow = true
+            model.showsPresetSheet = true
         }
     }
 }
@@ -127,7 +127,7 @@ private struct PresetGrid: View {
                 }
                 .contextMenu {
                     Button("Apply") { model.applyAdjustmentPreset(preset) }
-                    Button("Manage Presets…") { model.requestsPresetWindow = true }
+                    Button("Manage Presets…") { model.showsPresetSheet = true }
                 }
             }
         }

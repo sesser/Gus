@@ -45,10 +45,11 @@ enum DebugLookTableCommands {
         let argument = words.dropFirst().joined(separator: " ")
         switch words.first {
         case "open":
-            model.requestsLookTableWindow = true
+            model.showsLookTableSheet = true
             try? await Task.sleep(for: .milliseconds(500))
         case "close":
-            browserWindow?.close()
+            model.showsLookTableSheet = false
+            try? await Task.sleep(for: .milliseconds(400))
         case "all":
             library.browsedCollection = LookTableLibraryModel.allCollections
         case "collection":
@@ -62,28 +63,27 @@ enum DebugLookTableCommands {
         case "select":
             library.selection = entry(named: argument, in: library)
         case "apply":
-            // As the window's Apply & Close button.
+            // As the sheet's Apply button.
             guard let selection = library.selection else { return }
             library.apply(selection, editor: model.editor)
-            browserWindow?.close()
+            model.showsLookTableSheet = false
+            try? await Task.sleep(for: .milliseconds(400))
         case "manage":
-            library.sheet = .manage
+            library.page = .manage
+            try? await Task.sleep(for: .milliseconds(300))
+        case "back":
+            library.page = nil
             try? await Task.sleep(for: .milliseconds(300))
         case "snapshot":
-            guard let window = browserWindow else {
-                print("debug-script: the look-up table window is not open")
+            // A sheet on the library window; the snapshot shows the sheet.
+            guard let window = NSApp.windows.first(where: { $0.attachedSheet != nil }) else {
+                print("debug-script: the look-up table sheet is not open")
                 return
             }
-            // A sheet is its own window.
-            let target = window.attachedSheet ?? window
-            WindowSnapshot.write(target, to: URL(fileURLWithPath: (argument as NSString).expandingTildeInPath))
+            WindowSnapshot.write(window, to: URL(fileURLWithPath: (argument as NSString).expandingTildeInPath))
         default:
             print("debug-script: unknown lutwindow command")
         }
-    }
-
-    private static var browserWindow: NSWindow? {
-        NSApp.windows.first { $0.isVisible && $0.title == String(localized: "Look-Up Tables") }
     }
 
     private static func entry(named name: String, in library: LookTableLibraryModel) -> LookTableEntry? {

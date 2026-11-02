@@ -369,9 +369,9 @@ struct LibraryCommands: Commands {
                 .disabled(!can { $0.hasFocusedItem })
             Button("Import Presets…") { model?.chooseAdjustmentPresetImport() }
                 .disabled(!can())
-            Button("Manage Presets…") { model?.requestsPresetWindow = true }
+            Button("Manage Presets…") { model?.showsPresetSheet = true }
                 .disabled(!can())
-            Button("Browse Look-Up Tables…") { model?.requestsLookTableWindow = true }
+            Button("Browse Look-Up Tables…") { model?.showsLookTableSheet = true }
                 .disabled(!can())
         }
     }

@@ -32,18 +32,15 @@ struct MainView: View {
             model.requestsImportWindow = false
             openWindow(id: "import")
         }
-        .onChange(of: model.requestsLookTableWindow) {
-            guard model.requestsLookTableWindow else { return }
-            model.requestsLookTableWindow = false
-            openWindow(id: "lookTables")
-        }
-        .onChange(of: model.requestsPresetWindow) {
-            guard model.requestsPresetWindow else { return }
-            model.requestsPresetWindow = false
-            openWindow(id: "presets")
-        }
+        // One sheet at a time (section 8, "The rule").
         .sheet(isPresented: $model.showsExportSheet) {
             ExportSheet(model: model)
+        }
+        .sheet(isPresented: $model.showsLookTableSheet) {
+            LookTableBrowserSheet(model: model)
+        }
+        .sheet(isPresented: $model.showsPresetSheet) {
+            PresetManagerSheet(model: model)
         }
         .alert(model.export.report?.title ?? "", isPresented: Binding(
             get: { model.export.report != nil }, set: { if !$0 { model.export.report = nil } }
@@ -90,12 +87,18 @@ struct BrowserView: View {
             if model.mode == .loupe {
                 LoupeView(model: model)
             }
-            if let request = model.keywordEntry {
-                VStack {
-                    KeywordEntryPanel(model: model, request: request)
-                    Spacer()
-                }
+            // ⌘K: a popover on the content's top edge (section 8).
+            VStack {
+                Color.clear
+                    .frame(width: 1, height: 1)
+                    .popover(item: Binding(get: { model.keywordEntry },
+                                           set: { if $0 == nil, model.keywordEntry != nil { model.endKeywordEntry(adding: []) } }),
+                             arrowEdge: .top) { request in
+                        KeywordEntryPanel(model: model, request: request)
+                    }
+                Spacer()
             }
+            .allowsHitTesting(false)
             if model.itemCount == 0, model.mode == .grid, !model.isFolderDropTargeted {
                 EmptyLibraryView(model: model)
             }
@@ -109,30 +112,36 @@ struct BrowserView: View {
     }
 }
 
+/// "No Photos Yet" with Import and Add Folder Without Copying, or "No Photos
+/// Match" with Clear Filter (section 9 of docs/UI_REDESIGN.md).
 private struct EmptyLibraryView: View {
     let model: LibraryModel
 
     var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: model.isFiltered ? "line.3.horizontal.decrease.circle" : "photo.stack")
-                .font(.system(size: 44, weight: .light))
-            if model.isFiltered {
-                Text("No photos match the filter.")
-                    .font(.title3)
-            } else {
-                Text("No photos yet")
-                    .font(.title3)
-                Text("Import a folder of photos, or drag folders here. Originals stay where they are; \(AppBranding.displayName) only references them.")
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: 360)
+        if model.isFiltered {
+            ContentUnavailableView {
+                Label("No Photos Match", systemImage: "line.3.horizontal.decrease.circle")
+            } actions: {
+                Button("Clear Filter") { model.clearFilter() }
+            }
+        } else {
+            ContentUnavailableView {
+                Label("No Photos Yet", systemImage: "photo.stack")
+            } description: {
+                Text("Import copies photos from a card or folder into the folder you choose. Add Folder Without Copying uses photos where they are; \(AppBranding.displayName) only references them.",
+                     comment: "Empty library: copying versus using photos in place")
+                Text("You can also drag folders here.", comment: "Empty library hint")
+            } actions: {
+                Button(model.mountedCardName.map { String(localized: "Import from \($0)…", comment: "Empty library: a card is mounted") }
+                       ?? String(localized: "Import from Card or Folder…")) {
+                    model.cardImport.refreshSources()
+                    model.requestsImportWindow = true
+                }
+                .buttonStyle(.borderedProminent)
                 Button("Add Folder Without Copying…") { ImportPanel.run(model: model) }
-                    .controlSize(.large)
                     .disabled(model.isImporting)
             }
         }
-        .foregroundStyle(.white.opacity(0.85))
-        .padding(40)
     }
 }
 
@@ -145,7 +154,9 @@ enum ImportPanel {
         panel.allowsMultipleSelection = false
         panel.prompt = String(localized: "Import")
         panel.message = String(localized: "Choose a folder. Photos inside it, including subfolders, are added to a new project.")
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        model.importFolder(url)
+        Task {
+            guard await WindowModal.run(panel), let url = panel.url else { return }
+            model.importFolder(url)
+        }
     }
 }

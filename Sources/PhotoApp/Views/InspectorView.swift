@@ -29,9 +29,15 @@ struct InspectorView: View {
             }
             .padding(InspectorMetrics.padding)
             Divider()
-            switch model.inspectorTab {
-            case .info: InfoInspector(model: model)
-            case .adjust: AdjustView(model: model)
+            if model.focusedItem == nil {
+                ContentUnavailableView("No Selection", systemImage: "photo",
+                                       description: Text("Select a photo to see its details.", comment: "Inspector with nothing selected"))
+                    .frame(maxHeight: .infinity)
+            } else {
+                switch model.inspectorTab {
+                case .info: InfoInspector(model: model)
+                case .adjust: AdjustView(model: model)
+                }
             }
         }
     }

@@ -1439,17 +1439,6 @@
         }
       }
     },
-    "Apply & Close" : {
-      "comment" : "Look-up table window button: applies the picked table and closes the window",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Apply & Close"
-          }
-        }
-      }
-    },
     "Apply Choices" : {
       "comment" : "Inspector button",
       "localizations" : {
@@ -1589,6 +1578,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Auto white balance and auto tone"
+          }
+        }
+      }
+    },
+    "Back" : {
+      "comment" : "Look-up table sheet: back to the tables from a page",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Back"
           }
         }
       }
@@ -2191,17 +2191,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Clear Flag"
-          }
-        }
-      }
-    },
-    "Click a table to pick it, double-click to apply it." : {
-      "comment" : "Look-up table window",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Click a table to pick it, double-click to apply it."
           }
         }
       }
@@ -4396,17 +4385,6 @@
         }
       }
     },
-    "Import a folder of photos, or drag folders here. Originals stay where they are; %@ only references them." : {
-      "comment" : "Empty library; the argument is the app's name",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Import a folder of photos, or drag folders here. Originals stay where they are; %@ only references them."
-          }
-        }
-      }
-    },
     "Import cancelled." : {
       "localizations" : {
         "en" : {
@@ -4439,12 +4417,34 @@
         }
       }
     },
+    "Import copies photos from a card or folder into the folder you choose. Add Folder Without Copying uses photos where they are; %@ only references them." : {
+      "comment" : "Empty library: copying versus using photos in place",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import copies photos from a card or folder into the folder you choose. Add Folder Without Copying uses photos where they are; %@ only references them."
+          }
+        }
+      }
+    },
     "Import failed: %@" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Import failed: %@"
+          }
+        }
+      }
+    },
+    "Import from %@…" : {
+      "comment" : "Empty library: a card is mounted",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import from %@…"
           }
         }
       }
@@ -5790,6 +5790,28 @@
         }
       }
     },
+    "No Photos Match" : {
+      "comment" : "Empty grid under a filter",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Photos Match"
+          }
+        }
+      }
+    },
+    "No Photos Yet" : {
+      "comment" : "Empty library",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Photos Yet"
+          }
+        }
+      }
+    },
     "No Photos on %@" : {
       "comment" : "Import window: the source holds no photos",
       "localizations" : {
@@ -5884,26 +5906,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No photo"
-          }
-        }
-      }
-    },
-    "No photos match the filter." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No photos match the filter."
-          }
-        }
-      }
-    },
-    "No photos yet" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No photos yet"
           }
         }
       }
@@ -7538,6 +7540,17 @@
         }
       }
     },
+    "Select a photo to see its details." : {
+      "comment" : "Inspector with nothing selected",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select a photo to see its details."
+          }
+        }
+      }
+    },
     "Select photos to see and change their keywords." : {
       "comment" : "Inspector, nothing selected",
       "localizations" : {
@@ -8404,13 +8417,13 @@
         }
       }
     },
-    "The color space the table is applied in. Change it in the Adjust tab or under Manage." : {
-      "comment" : "Look-up table window: tooltip",
+    "The Library Could Not Be Opened" : {
+      "comment" : "Catalog failure view title",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The color space the table is applied in. Change it in the Adjust tab or under Manage."
+            "value" : "The Library Could Not Be Opened"
           }
         }
       }
@@ -8422,16 +8435,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The color space the tables were made for. Most creative tables expect sRGB."
-          }
-        }
-      }
-    },
-    "The library could not be opened." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The library could not be opened."
           }
         }
       }
@@ -9162,6 +9165,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Yellows"
+          }
+        }
+      }
+    },
+    "You can also drag folders here." : {
+      "comment" : "Empty library hint",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can also drag folders here."
           }
         }
       }

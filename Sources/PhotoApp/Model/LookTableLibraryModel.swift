@@ -22,16 +22,10 @@ final class LookTableLibraryModel {
         var importable: Int { candidates.count { $0.failure == nil } }
     }
 
-    enum Sheet: Identifiable {
+    /// A page of the browser sheet (one sheet at a time; steps are pages).
+    enum Page {
         case importing(ImportDraft)
         case manage
-
-        var id: String {
-            switch self {
-            case .importing(let draft): draft.id.uuidString
-            case .manage: "manage"
-            }
-        }
     }
 
     /// The browser shows every collection.
@@ -52,7 +46,8 @@ final class LookTableLibraryModel {
     var expanded: Set<String> = []
     /// The table picked in the browser, waiting for Apply.
     var selection: LookTableEntry?
-    var sheet: Sheet?
+    /// Nil: the tables.
+    var page: Page?
     private(set) var isScanning = false
     /// Previews by `previewID(_:)`, for the current photo and its edit.
     private(set) var previews: [String: DecodedImage] = [:]
@@ -184,7 +179,7 @@ final class LookTableLibraryModel {
 
     // MARK: Importing
 
-    /// Asks for a folder (or `.cube` files), reads it, and shows the import sheet.
+    /// Asks for a folder (or `.cube` files), reads it, and shows the import page.
     func chooseImportSource(into collectionID: Int64? = nil) {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
@@ -193,11 +188,13 @@ final class LookTableLibraryModel {
         panel.allowsMultipleSelection = true
         panel.prompt = String(localized: "Choose")
         panel.message = String(localized: "Choose a folder of .cube look-up tables, or the files themselves.")
-        guard panel.runModal() == .OK, !panel.urls.isEmpty else { return }
-        prepareImport(panel.urls, into: collectionID)
+        Task {
+            guard await WindowModal.run(panel), !panel.urls.isEmpty else { return }
+            prepareImport(panel.urls, into: collectionID)
+        }
     }
 
-    /// Reads `urls` (one folder, or files) and shows the import sheet.
+    /// Reads `urls` (one folder, or files) and shows the import page.
     func prepareImport(_ urls: [URL], into collectionID: Int64? = nil) {
         isScanning = true
         Task {
@@ -212,7 +209,7 @@ final class LookTableLibraryModel {
             isScanning = false
             let folder = urls.count == 1 && urls[0].hasDirectoryPath ? urls[0] : urls[0].deletingLastPathComponent()
             let existing = collectionID.flatMap { id in importedCollections.first { $0.rowID == id }?.rowID }
-            sheet = .importing(ImportDraft(source: folder.path, candidates: candidates, collectionID: existing,
+            page = .importing(ImportDraft(source: folder.path, candidates: candidates, collectionID: existing,
                                            newName: LookTableNaming.cleanedFileName(folder.lastPathComponent)))
         }
     }

@@ -189,10 +189,12 @@ final class LibraryModel {
     var isCheckingDisk = false
     /// Set when a card mounts and the import window should open for it.
     var requestsImportWindow = false
-    /// Set to open the look-up table browser.
-    var requestsLookTableWindow = false
-    /// Set to open the preset manager.
-    var requestsPresetWindow = false
+    /// A mounted card, named in the empty library's Import button.
+    private(set) var mountedCardName: String?
+    /// The look-up table browser sheet is up on the library window.
+    var showsLookTableSheet = false
+    /// The preset manager sheet is up on the library window.
+    var showsPresetSheet = false
     /// Set to open the export window (the menu command and debug scripts).
     /// The Export sheet is up on the library window.
     var showsExportSheet = false
@@ -739,6 +741,7 @@ final class LibraryModel {
 
     func refreshVolumes() async {
         let mounted = await Task.detached(priority: .utility) { VolumeAvailability.mountedVolumes() }.value
+        mountedCardName = await Task.detached(priority: .utility) { ImportSource.mountedCards().first(where: \.isCard)?.name }.value
         do {
             let online = try await catalog.refreshVolumeAvailability(mounted: mounted)
             let volumes = try await catalog.volumes()

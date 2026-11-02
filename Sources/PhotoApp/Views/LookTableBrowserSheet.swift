@@ -3,26 +3,43 @@ import PhotoCore
 import PhotoUI
 import SwiftUI
 
-/// Every look-up table of a collection previewed on the photo being edited.
+/// Every look-up table of a collection previewed on the photo being edited,
+/// as a sheet on the library window (section 8, "Other sheets"). Importing
+/// and managing are pages of the sheet with a Back button, not sheets on it.
 /// Collections are panes; only expanded panes render their previews.
-struct LookTableBrowserWindow: View {
+struct LookTableBrowserSheet: View {
     let model: LibraryModel
+    @Environment(\.dismiss) private var dismiss
 
     private var library: LookTableLibraryModel { model.lookTableLibrary }
     private var editor: AdjustmentEditor { model.editor }
 
     var body: some View {
-        @Bindable var library = library
+        Group {
+            switch library.page {
+            case .importing(let draft):
+                LookTableImportPage(library: library, draft: draft)
+            case .manage:
+                LookTableManagePage(library: library)
+            case nil:
+                browser
+            }
+        }
+        .frame(width: 760, height: 560)
+        .task { await library.reload() }
+        .onDisappear { library.page = nil }
+    }
+
+    private var browser: some View {
         VStack(spacing: 0) {
             BrowserBar(model: model)
             Divider()
             if editor.state != .ready {
                 Text("Open a photo in the loupe to preview look-up tables on it.")
-                    .font(.callout)
+                    .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity)
                     .padding(8)
-                    .background(.bar)
                 Divider()
             }
             ScrollView {
@@ -35,22 +52,29 @@ struct LookTableBrowserWindow: View {
             }
             .background(Color(nsColor: Palette.gridBackground))
             Divider()
-            ApplyBar(model: model)
-        }
-        .frame(minWidth: 640, minHeight: 460)
-        // Dark like the library window, whose sheet it becomes (steps 11 and 14);
-        // this sets the window's own appearance only.
-        .preferredColorScheme(.dark)
-        .task { await library.reload() }
-        .sheet(item: $library.sheet) { sheet in
-            switch sheet {
-            case .importing(let draft): LookTableImportSheet(library: library, draft: draft)
-            case .manage: LookTableManageSheet(library: library)
+            HStack(spacing: 12) {
+                Button("Remove from Photo") {
+                    editor.change(String(localized: "Look-Up Table"), phase: .committed) { $0.lookTable = LookTable() }
+                }
+                .disabled(editor.state != .ready || editor.adjustments.lookTable.identifier == nil)
+                Spacer()
+                Button("Cancel", role: .cancel) { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Button("Apply") {
+                    guard let selection = library.selection else { return }
+                    library.apply(selection, editor: editor)
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(editor.state != .ready || library.selection == nil)
             }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 14)
         }
     }
 }
 
+/// Collection pop-up, Import… and Manage….
 private struct BrowserBar: View {
     let model: LibraryModel
 
@@ -71,10 +95,29 @@ private struct BrowserBar: View {
             }
             Button("Import…") { library.chooseImportSource() }
                 .help("Add a folder of .cube files as a collection")
-            Button("Manage…") { library.sheet = .manage }
+            Button("Manage…") { library.page = .manage }
                 .help("Rename or remove collections and tables")
         }
-        .padding(10)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 12)
+    }
+}
+
+/// A page's top row: Back, and its title.
+private struct PageHeader: View {
+    let title: String
+    let back: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Button(action: back) {
+                Label("Back", systemImage: "chevron.backward")
+            }
+            .keyboardShortcut("[", modifiers: .command)
+            Text(title)
+                .font(.headline)
+            Spacer()
+        }
     }
 }
 
@@ -178,55 +221,15 @@ private struct LookTableTile: View {
     }
 }
 
-/// The picked table and Apply.
-private struct ApplyBar: View {
-    let model: LibraryModel
-    @Environment(\.dismissWindow) private var dismissWindow
-
-    private var library: LookTableLibraryModel { model.lookTableLibrary }
-    private var editor: AdjustmentEditor { model.editor }
-
-    var body: some View {
-        HStack(spacing: 10) {
-            if let selection = library.selection {
-                Text(selection.name)
-                    .lineLimit(1)
-                Text(LookTableText.title(selection.colorSpace))
-                    .foregroundStyle(.secondary)
-                    .help("The color space the table is applied in. Change it in the Adjust tab or under Manage.")
-            } else {
-                Text("Click a table to pick it, double-click to apply it.")
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            Button("Remove from Photo") {
-                editor.change(String(localized: "Look-Up Table"), phase: .committed) { $0.lookTable = LookTable() }
-            }
-            .disabled(editor.state != .ready || editor.adjustments.lookTable.identifier == nil)
-            Button("Apply & Close") {
-                guard let selection = library.selection else { return }
-                library.apply(selection, editor: editor)
-                dismissWindow(id: "lookTables")
-            }
-            .keyboardShortcut(.defaultAction)
-            .disabled(editor.state != .ready || library.selection == nil)
-        }
-        .font(.callout)
-        .padding(10)
-    }
-}
-
 /// Confirms an import: where the tables go, their names and color space.
-struct LookTableImportSheet: View {
+struct LookTableImportPage: View {
     let library: LookTableLibraryModel
     @State var draft: LookTableLibraryModel.ImportDraft
-    @Environment(\.dismiss) private var dismiss
     @State private var isImporting = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Import Look-Up Tables")
-                .font(.headline)
+            PageHeader(title: String(localized: "Import Look-Up Tables")) { library.page = nil }
             Text(draft.source)
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -242,7 +245,7 @@ struct LookTableImportSheet: View {
                 if draft.collectionID == nil {
                     TextField("Name", text: $draft.newName)
                 }
-                Picker("Color Space", selection: $draft.colorSpace) {
+                Picker("Color space", selection: $draft.colorSpace) {
                     ForEach(LookTable.ColorSpace.allCases, id: \.self) { space in
                         Text(LookTableText.title(space)).tag(space)
                     }
@@ -285,35 +288,32 @@ struct LookTableImportSheet: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
-                Button("Cancel", role: .cancel) { dismiss() }
+                Button("Cancel", role: .cancel) { library.page = nil }
                     .keyboardShortcut(.cancelAction)
                 Button(String(localized: "Import \(draft.importable) Tables")) {
                     isImporting = true
                     Task {
                         await library.runImport(draft)
                         isImporting = false
-                        dismiss()
+                        library.page = nil
                     }
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(draft.importable == 0 || isImporting)
             }
         }
-        .padding(16)
-        .frame(width: 560, height: 520)
+        .padding(20)
     }
 }
 
 /// Renames and removes imported collections and their tables.
-struct LookTableManageSheet: View {
+struct LookTableManagePage: View {
     let library: LookTableLibraryModel
-    @Environment(\.dismiss) private var dismiss
     @State private var pendingRemoval: LookTableCollection?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Manage Look-Up Tables")
-                .font(.headline)
+            PageHeader(title: String(localized: "Manage Look-Up Tables")) { library.page = nil }
             if library.importedCollections.isEmpty {
                 ContentUnavailableView("No Imported Collections", systemImage: "square.stack.3d.up",
                                        description: Text("Import a folder of .cube files to start a collection."))
@@ -335,16 +335,12 @@ struct LookTableManageSheet: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
-                Button("Import…") {
-                    dismiss()
-                    library.chooseImportSource()
-                }
-                Button("Done") { dismiss() }
+                Button("Import…") { library.chooseImportSource() }
+                Button("Done") { library.page = nil }
                     .keyboardShortcut(.defaultAction)
             }
         }
-        .padding(16)
-        .frame(width: 600, height: 520)
+        .padding(20)
         .alert(String(localized: "Remove the collection \(pendingRemoval?.name ?? "")?"),
                isPresented: Binding(get: { pendingRemoval != nil }, set: { if !$0 { pendingRemoval = nil } })) {
             Button("Remove", role: .destructive) {
@@ -395,7 +391,7 @@ private struct EntryRow: View {
                 .textFieldStyle(.plain)
                 .onSubmit { library.renameEntry(entry, to: name) }
             Spacer()
-            Picker("Color Space", selection: Binding(get: { entry.colorSpace },
+            Picker("Color space", selection: Binding(get: { entry.colorSpace },
                                                      set: { library.setColorSpace($0, for: entry) })) {
                 ForEach(LookTable.ColorSpace.allCases, id: \.self) { space in
                     Text(LookTableText.title(space)).tag(space)
