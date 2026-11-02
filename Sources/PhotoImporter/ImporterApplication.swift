@@ -23,6 +23,7 @@ struct ImporterApplication: App {
         .defaultSize(width: 1200, height: 780)
         .commands {
             CommandGroup(replacing: .newItem) {}
+            ImportCommands(includesLibraryItems: false)
         }
     }
 

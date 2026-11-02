@@ -1,0 +1,344 @@
+import PhotoCore
+import PhotoUI
+import SwiftUI
+
+/// The library window's menus (section 6 of docs/UI_REDESIGN.md).
+///
+/// Titles and enabled states come from `LibraryMenuContext`, which the window
+/// publishes; it is nil while another window is key, so every item here is
+/// off then. Bare-key items show the key, but the grid and loupe handle it
+/// (AppKit offers an unmodified key to the first responder before the menu),
+/// and they are on only while one of them has the keyboard. Command-key items
+/// are on whenever the window is key and the command has something to act on.
+struct LibraryCommands: Commands {
+    @FocusedValue(\.libraryMenu) private var menu
+    @Environment(\.openWindow) private var openWindow
+
+    private var model: LibraryModel? { menu?.model }
+
+    /// The window is key and `test` holds.
+    private func can(_ test: (LibraryMenuState) -> Bool = { _ in true }) -> Bool {
+        guard let state = menu?.state, state.isWindowKey else { return false }
+        return test(state)
+    }
+
+    /// The grid, loupe or video loupe has the keyboard and `test` holds.
+    private func canByKey(_ test: (LibraryMenuState) -> Bool = { _ in true }) -> Bool {
+        guard let state = menu?.state, state.bareKeysActive else { return false }
+        return test(state)
+    }
+
+    var body: some Commands {
+        fileCommands
+        editCommands
+        viewCommands
+        photoCommands
+        adjustCommands
+        SidebarCommands()
+        ToolbarCommands()
+    }
+
+    // MARK: File
+
+    private var fileCommands: some Commands {
+        CommandGroup(after: .newItem) {
+            Button("Import from Card or Folder…") {
+                model?.cardImport.refreshSources()
+                openWindow(id: "import")
+            }
+            .keyboardShortcut("i", modifiers: .command)
+            .disabled(!can())
+            Button("Add Folder Without Copying…") {
+                if let model { ImportPanel.run(model: model) }
+            }
+            .keyboardShortcut("i", modifiers: [.command, .shift])
+            .disabled(!can { !$0.isImporting })
+            Divider()
+            Button("New Album…") { model?.sidebarSheet = .newAlbum(projectID: model?.selectedProjectID) }
+                .keyboardShortcut("n", modifiers: .command)
+                .disabled(!can())
+            Button("New Smart Album…") { model?.sidebarSheet = .smartAlbum(nil, projectID: model?.selectedProjectID) }
+                .keyboardShortcut("n", modifiers: [.command, .option])
+                .disabled(!can())
+            Button("Edit Smart Album…") {
+                if case .smartAlbum(let album) = menu?.state.sidebarItem {
+                    model?.sidebarSheet = .smartAlbum(album, projectID: album.projectID)
+                }
+            }
+            .disabled(!can { if case .smartAlbum = $0.sidebarItem { true } else { false } })
+            Button(renameTitle) {
+                switch menu?.state.sidebarItem {
+                case .album(let album): model?.sidebarSheet = .renameAlbum(album)
+                case .keyword(let keyword): model?.sidebarSheet = .renameKeyword(keyword)
+                case .smartAlbum, nil: break
+                }
+            }
+            .disabled(!can { $0.sidebarItem?.isRenamable == true })
+            Button(deleteTitle) {
+                model?.sidebarDeletion = switch menu?.state.sidebarItem {
+                case .album(let album): .album(album)
+                case .smartAlbum(let album): .smartAlbum(album)
+                case .keyword(let keyword): .keyword(keyword)
+                case nil: nil
+                }
+            }
+            .disabled(!can { $0.sidebarItem != nil })
+            Divider()
+            Button("Export…") { model?.export.begin() }
+                .keyboardShortcut("e", modifiers: [.command, .shift])
+                .disabled(!can { $0.itemCount > 0 && !$0.isExporting })
+            Button("Check for Changes on Disk") { model?.checkForDiskChanges() }
+                .disabled(!can { !$0.isCheckingDisk })
+            Divider()
+        }
+    }
+
+    /// "Rename “Holiday”…" for an album or keyword selected in the sidebar.
+    private var renameTitle: String {
+        guard can(), let item = menu?.state.sidebarItem, item.isRenamable else { return String(localized: "Rename…") }
+        return String(localized: "Rename “\(item.name)”…", comment: "File menu; the album or keyword selected in the sidebar")
+    }
+
+    private var deleteTitle: String {
+        guard can(), let item = menu?.state.sidebarItem else { return String(localized: "Delete…") }
+        return String(localized: "Delete “\(item.name)”…", comment: "File menu; the album, smart album or keyword selected in the sidebar")
+    }
+
+    // MARK: Edit
+
+    private var editCommands: some Commands {
+        CommandGroup(after: .pasteboard) {
+            Divider()
+            Menu("Find") {
+                Button("Find…") { model?.beginSearch() }
+                .keyboardShortcut("f", modifiers: .command)
+                .disabled(!can())
+                Button("Clear Filter") { model?.clearFilter() }
+                    .disabled(!can { $0.isFiltered })
+            }
+        }
+    }
+
+    // MARK: View
+
+    /// SwiftUI puts the system items (Show / Hide Toolbar, Customize
+    /// Toolbar…, Show / Hide Sidebar) at the top of the View menu; these follow.
+    private var viewCommands: some Commands {
+        CommandGroup(after: .sidebar) {
+            Button(menu?.state.mode == .loupe ? String(localized: "Show Grid") : String(localized: "Show Loupe")) {
+                guard let model else { return }
+                if model.mode == .loupe { model.closeLoupe() } else { model.openLoupe() }
+            }
+            .keyboardShortcut(.return, modifiers: .command)
+            .disabled(!can { $0.itemCount > 0 })
+            Divider()
+            Button(menu?.state.loupeShowsActualSize == true ? String(localized: "Zoom to Fit")
+                                                             : String(localized: "Zoom to 100%")) {
+                NotificationCenter.default.post(name: .loupeShouldToggleZoom, object: model)
+            }
+            .keyboardShortcut("z", modifiers: [])
+            .disabled(!canByKey { $0.showsLoupePhoto })
+            Button(menu?.state.showsOriginal == true ? String(localized: "Show Adjustments")
+                                                      : String(localized: "Show Original")) {
+                model?.editor.toggleOriginal()
+            }
+            .keyboardShortcut("\\", modifiers: [])
+            .disabled(!canByKey { $0.canEditLoupePhoto && !$0.isCropping })
+            Divider()
+            Button("Larger Thumbnails") { model?.resizeThumbnails(by: 1.2) }
+                .keyboardShortcut("=", modifiers: .command)
+                .disabled(!can { $0.mode == .grid })
+            Button("Smaller Thumbnails") { model?.resizeThumbnails(by: 1 / 1.2) }
+                .keyboardShortcut("-", modifiers: .command)
+                .disabled(!can { $0.mode == .grid })
+            Button(menu?.state.showFileInfo == false ? String(localized: "Show File Names")
+                                                     : String(localized: "Hide File Names")) {
+                model?.showFileInfo.toggle()
+            }
+            .disabled(!can())
+            Toggle("Group RAW+JPEG Pairs", isOn: Binding(
+                get: { menu?.state.groupPairs ?? true },
+                set: { model?.groupPairs = $0 }
+            ))
+            .disabled(!can())
+            Button(menu?.state.showsHDR == false ? String(localized: "Show HDR Highlights")
+                                                 : String(localized: "Hide HDR Highlights")) {
+                model?.showsHDR.toggle()
+            }
+            .disabled(!can())
+            Menu("Sort By") {
+                ForEach(Self.sortKeys, id: \.key) { key, title in
+                    Toggle(title, isOn: Binding(
+                        get: { menu?.state.sort.key == key },
+                        set: { if $0 { model?.sort.key = key } }
+                    ))
+                }
+                Divider()
+                Toggle("Ascending", isOn: Binding(
+                    get: { menu?.state.sort.ascending == true },
+                    set: { if $0 { model?.sort.ascending = true } }
+                ))
+                Toggle("Descending", isOn: Binding(
+                    get: { menu?.state.sort.ascending == false },
+                    set: { if $0 { model?.sort.ascending = false } }
+                ))
+            }
+            .disabled(!can())
+            Divider()
+            Button(menu?.state.showsInspector == true ? String(localized: "Hide Inspector")
+                                                      : String(localized: "Show Inspector")) {
+                model?.showsInspector.toggle()
+            }
+            .keyboardShortcut("i", modifiers: [.command, .option])
+            .disabled(!can())
+            Button("Info") { show(.info) }
+                .keyboardShortcut("1", modifiers: [.command, .option])
+                .disabled(!can())
+            Button("Adjust") { show(.adjust) }
+                .keyboardShortcut("2", modifiers: [.command, .option])
+                .disabled(!can())
+            Divider()
+        }
+    }
+
+    private static let sortKeys: [(key: LibrarySort.Key, title: String)] = [
+        (.captureDate, String(localized: "Capture Date")),
+        (.rating, String(localized: "Rating")),
+        (.fileName, String(localized: "File Name")),
+    ]
+
+    private func show(_ tab: InspectorTab) {
+        guard let model else { return }
+        model.showsInspector = true
+        model.inspectorTab = tab
+    }
+
+    // MARK: Photo
+
+    private var photoCommands: some Commands {
+        CommandMenu("Photo") {
+            Menu("Rating") {
+                Button("No Rating") { cull(.setRating(.unrated)) }
+                    .keyboardShortcut("0", modifiers: [])
+                ForEach(1...5, id: \.self) { stars in
+                    Button(RatingText.stars(stars)) { cull(.setRating(Rating(clamping: stars))) }
+                        .keyboardShortcut(KeyEquivalent(Character(String(stars))), modifiers: [])
+                }
+                Divider()
+                Button("Raise Rating") { cull(.adjustRating(1)) }
+                    .keyboardShortcut("]", modifiers: [])
+                Button("Lower Rating") { cull(.adjustRating(-1)) }
+                    .keyboardShortcut("[", modifiers: [])
+            }
+            .disabled(!canByKey { $0.hasTargets })
+            Menu("Flag") {
+                Button("Pick") { cull(.setFlag(.picked)) }
+                    .keyboardShortcut("p", modifiers: [])
+                Button("Reject") { cull(.setFlag(.rejected)) }
+                    .keyboardShortcut("x", modifiers: [])
+                Button("Clear Flag") { cull(.setFlag(.none)) }
+                    .keyboardShortcut("u", modifiers: [])
+            }
+            .disabled(!canByKey { $0.hasTargets })
+            Menu("Color Label") {
+                ForEach(ColorLabel.allCases, id: \.self) { label in
+                    Button(ColorLabelText.name(label)) { cull(.setColorLabel(label)) }
+                        .keyboardShortcut(KeyEquivalent(Character(String(label.rawValue))), modifiers: .option)
+                }
+            }
+            .disabled(!canByKey { $0.hasTargets })
+            Toggle("Advance After Rating", isOn: Binding(
+                get: { menu?.state.autoAdvance ?? false },
+                set: { model?.autoAdvance = $0 }
+            ))
+            .disabled(!can())
+            Divider()
+            Button("Add Keywords…") { model?.beginKeywordEntry() }
+                .keyboardShortcut("k", modifiers: .command)
+                .disabled(!can { $0.hasTargets })
+            Button("Suggest Keywords") {
+                guard let model else { return }
+                model.suggestKeywords(for: model.actionTargetVersionIDs)
+                model.showsInspector = true
+            }
+            .keyboardShortcut("k", modifiers: [.command, .shift])
+            .disabled(!can { $0.hasTargets })
+            Menu("Add to Album") {
+                ForEach(menu?.state.albums ?? []) { album in
+                    Button(album.album.name) { model?.addToAlbum(album.id) }
+                }
+            }
+            .disabled(!can { $0.hasTargets && !$0.albums.isEmpty })
+            Button("Remove from Album") { model?.removeFromCurrentAlbum() }
+                .keyboardShortcut(.delete, modifiers: [])
+                .disabled(!canByKey { $0.hasTargets && $0.isInAlbum })
+            Divider()
+            Menu("RAW+JPEG Pair") {
+                Button("Show the RAW File") { model?.showPairFile(raw: true) }
+                Button("Show the JPEG or HEIC File") { model?.showPairFile(raw: false) }
+            }
+            .disabled(!can { $0.groupPairs && $0.hasFocusedItem })
+        }
+    }
+
+    private func cull(_ action: CullingAction) {
+        model?.perform(action)
+    }
+
+    // MARK: Adjust
+
+    private var adjustCommands: some Commands {
+        CommandMenu("Adjust") {
+            Button("Copy Adjustments") { model?.copyAdjustments() }
+                .keyboardShortcut("c", modifiers: [.command, .shift])
+                .disabled(!can { $0.hasFocusedItem })
+            Button("Paste Adjustments") { model?.pasteAdjustments() }
+                .keyboardShortcut("v", modifiers: [.command, .shift])
+                .disabled(!can { $0.hasCopiedAdjustments && $0.hasTargets })
+            Menu("Apply Preset") {
+                ForEach(menu?.state.presetCollections ?? []) { collection in
+                    if collection.name.isEmpty {
+                        ForEach(collection.presets) { preset in
+                            Button(preset.name) { model?.applyAdjustmentPreset(preset) }
+                        }
+                    } else {
+                        Menu(collection.name) {
+                            ForEach(collection.presets) { preset in
+                                Button(preset.name) { model?.applyAdjustmentPreset(preset) }
+                            }
+                        }
+                    }
+                }
+            }
+            .disabled(!can { !$0.presetCollections.isEmpty && $0.hasTargets })
+            Divider()
+            Button("Auto Exposure") { model?.editor.autoExposure() }
+                .disabled(!can { $0.canEditLoupePhoto && !$0.isCropping })
+            Divider()
+            Button("Crop") { model?.editor.beginCrop() }
+                .keyboardShortcut("c", modifiers: [])
+                .disabled(!canByKey { $0.canEditLoupePhoto && !$0.isCropping })
+            Button("Rotate Left") { model?.editor.rotate(clockwise: false) }
+                .keyboardShortcut("[", modifiers: .command)
+                .disabled(!can { $0.canEditLoupePhoto })
+            Button("Rotate Right") { model?.editor.rotate(clockwise: true) }
+                .keyboardShortcut("]", modifiers: .command)
+                .disabled(!can { $0.canEditLoupePhoto })
+            Menu("New Mask") {
+                ForEach(MaskShapeKind.allCases, id: \.self) { kind in
+                    Button(kind.title) { model?.editor.addMask(kind) }
+                }
+            }
+            .disabled(!can { $0.canEditLoupePhoto && !$0.isCropping })
+            Divider()
+            Button("Save Adjustments as Preset…") { model?.promptForAdjustmentPreset() }
+                .disabled(!can { $0.hasFocusedItem })
+            Button("Import Presets…") { model?.chooseAdjustmentPresetImport() }
+                .disabled(!can())
+            Button("Manage Presets…") { model?.requestsPresetWindow = true }
+                .disabled(!can())
+            Button("Browse Look-Up Tables…") { model?.requestsLookTableWindow = true }
+                .disabled(!can())
+        }
+    }
+}

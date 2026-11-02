@@ -21,7 +21,9 @@ enum SidebarSheet: Identifiable {
 }
 
 /// Something the person asked to delete, waiting for confirmation.
-private enum SidebarDeletion: Identifiable {
+/// An album, smart album or keyword waiting for the person to confirm its
+/// deletion (from the sidebar's context menu or File ▸ Delete).
+enum SidebarDeletion: Identifiable {
     case keyword(KeywordSummary)
     case album(AlbumSummary)
     case smartAlbum(SmartAlbum)
@@ -43,7 +45,6 @@ extension UTType {
 
 struct SidebarView: View {
     @Bindable var model: LibraryModel
-    @State private var deletion: SidebarDeletion?
     @AppStorage("sidebar.datesExpanded") private var datesExpanded = true
     @AppStorage("sidebar.albumsExpanded") private var albumsExpanded = true
     @AppStorage("sidebar.keywordsExpanded") private var keywordsExpanded = true
@@ -148,7 +149,7 @@ struct SidebarView: View {
                             }
                             .contextMenu {
                                 Button("Rename…") { model.sidebarSheet = .renameKeyword(keyword) }
-                                Button("Delete…", role: .destructive) { deletion = .keyword(keyword) }
+                                Button("Delete…", role: .destructive) { model.sidebarDeletion = .keyword(keyword) }
                             }
                     }
                 }
@@ -158,8 +159,9 @@ struct SidebarView: View {
         .sheet(item: $model.sidebarSheet) { sheet in
             SidebarSheetView(model: model, sheet: sheet)
         }
-        .confirmationDialog(deletionTitle, isPresented: Binding(get: { deletion != nil }, set: { if !$0 { deletion = nil } }),
-                            presenting: deletion) { deletion in
+        .confirmationDialog(deletionTitle, isPresented: Binding(get: { model.sidebarDeletion != nil },
+                                                                set: { if !$0 { model.sidebarDeletion = nil } }),
+                            presenting: model.sidebarDeletion) { deletion in
             Button("Delete", role: .destructive) {
                 switch deletion {
                 case .keyword(let keyword): model.deleteKeyword(keyword.id)
@@ -180,7 +182,7 @@ struct SidebarView: View {
     }
 
     private var deletionTitle: String {
-        switch deletion {
+        switch model.sidebarDeletion {
         case .keyword(let keyword): String(localized: "Delete the keyword “\(keyword.name)”?")
         case .album(let album): String(localized: "Delete the album “\(album.album.name)”?")
         case .smartAlbum(let album): String(localized: "Delete the smart album “\(album.name)”?")
@@ -201,7 +203,7 @@ struct SidebarView: View {
                 }
                 .contextMenu {
                     Button("Rename…") { model.sidebarSheet = .renameAlbum(album) }
-                    Button("Delete…", role: .destructive) { deletion = .album(album) }
+                    Button("Delete…", role: .destructive) { model.sidebarDeletion = .album(album) }
                 }
         }
         ForEach(smart, id: \.uuid) { album in
@@ -210,7 +212,7 @@ struct SidebarView: View {
                 .tag(SidebarSelection.smartAlbum(album.id))
                 .contextMenu {
                     Button("Edit…") { model.sidebarSheet = .smartAlbum(album, projectID: album.projectID) }
-                    Button("Delete…", role: .destructive) { deletion = .smartAlbum(album) }
+                    Button("Delete…", role: .destructive) { model.sidebarDeletion = .smartAlbum(album) }
                 }
         }
     }

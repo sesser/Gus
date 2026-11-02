@@ -92,7 +92,10 @@ final class LoupeController: NSObject {
     private var shownIndex: Int?
     private var zoom: Zoom = .fit {
         // Zoomed in, live frames are already stretched: drafts would make that worse.
-        didSet { model.editor.allowsDrafts = zoom == .fit }
+        didSet {
+            model.editor.allowsDrafts = zoom == .fit
+            model.loupeShowsActualSize = zoom == .actualSize
+        }
     }
     private var rendition = Rendition.placeholder
     private var loadTask: Task<Void, Never>?
@@ -157,11 +160,19 @@ final class LoupeController: NSObject {
         NotificationCenter.default.addObserver(self, selector: #selector(didEndMagnify(_:)),
                                                name: NSScrollView.didEndLiveMagnifyNotification, object: scrollView)
         NotificationCenter.default.addObserver(self, selector: #selector(takeFocus(_:)),
-                                               name: .browserShouldTakeFocus, object: model)
+                                               name: .browserShouldTakeFocus, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(zoomRequested(_:)),
+                                               name: .loupeShouldToggleZoom, object: model)
     }
 
+    /// From the model, or from a view in this window (an inspector value field).
     @objc private func takeFocus(_ notification: Notification) {
+        guard notification.object as AnyObject? === model || notification.object as AnyObject? === hostView.window else { return }
         if model.mode == .loupe { hostView.window?.makeFirstResponder(hostView) }
+    }
+
+    @objc private func zoomRequested(_ notification: Notification) {
+        if model.mode == .loupe { toggleZoom() }
     }
 
     func tearDown() {
@@ -532,8 +543,13 @@ final class LoupeController: NSObject {
             model.perform(action)
             return true
         }
-        if event.charactersIgnoringModifiers == "\\", event.modifierFlags.intersection(.deviceIndependentFlagsMask).isEmpty {
+        let bare = event.modifierFlags.intersection(.deviceIndependentFlagsMask).isEmpty
+        if event.charactersIgnoringModifiers == "\\", bare {
             model.editor.toggleOriginal()
+            return true
+        }
+        if event.charactersIgnoringModifiers?.lowercased() == "c", bare, model.editor.cropSession == nil {
+            model.editor.beginCrop()
             return true
         }
         switch NavigationKey.from(event) {

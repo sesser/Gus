@@ -20,7 +20,7 @@ copies stay identical to the originals). Every copy is read back and compared
 by hash before it counts. Optionally, the originals that were copied and checked
 are deleted from the card (after a confirmation) and the card is ejected.
 
-Choose **File ▸ Import Folder…** (⇧⌘I) to add photos where they are, without
+Choose **File ▸ Add Folder Without Copying…** (⇧⌘I) to add photos where they are, without
 copying: pick a folder. Photos in it and its
 subfolders (CR3, CR2, NEF, ARW, DNG, RAF, ORF, RW2, HEIC, JPEG, TIFF, PNG) and
 videos (MOV, MP4, M4V) are
@@ -67,13 +67,13 @@ A RAW file and a JPEG or HEIC with the same name in the same folder are a
 pair. **View ▸ Group RAW+JPEG Pairs** shows each pair once, as the RAW unless
 **Photo ▸ RAW+JPEG Pair** says otherwise; its badge reads `RAW+JPEG` (the file on
 screen first). Ratings, flags, labels, keywords and albums always apply to both
-files. **View ▸ Show File Names** toggles the name and type badge under each
+files. **View ▸ Show / Hide File Names** toggles the name and type badge under each
 thumbnail.
 
 **Keywords**: ⌘K opens a field over the grid or loupe that adds keywords to the
 selected photos, completing from the keywords already in the library (↓ ↑ to
 choose, Tab or Return to take one, Return to add, Esc to close). The inspector
-(**View ▸ Show Inspector**, ⌥⌘I) lists the selection's keywords with counts
+(**View ▸ Show Inspector**, ⌥⌘I; **View ▸ Info** ⌥⌘1 and **Adjust** ⌥⌘2 pick the tab) lists the selection's keywords with counts
 ("dog, 12 of 30"), removes them, and shows file details. The sidebar lists every
 keyword; click one to see its photos, or right-click to rename (renaming onto
 an existing keyword merges the two) or delete it. Keywords, ratings and labels
@@ -106,7 +106,7 @@ one), so other apps can read them. Existing sidecars are edited in place and
 keep everything other apps put in them. Sidecars present at import, or
 `IMG_0412.CR3.xmp` ones, are read. Originals are never written, JPEG, HEIC and
 DNG included. The library is the source of truth, but nothing another app
-changed is overwritten: at launch, when a volume mounts and with **Photo ▸ Check
+changed is overwritten: at launch, when a volume mounts and with **File ▸ Check
 for Changes on Disk**, sidecars and originals changed outside the app are listed
 under **Library ▸ Changed on Disk**, and the inspector compares the library's
 values with the file's so you can keep either, or choose per field (keywords can
@@ -124,7 +124,7 @@ with highlights above white: floating-point DNGs (such as Lightroom's HDR
 merges) and HEIC and JPEG files with a gain map or HLG or PQ encoding. An **HDR**
 badge in the info bar says so. Camera raws stay SDR. The loupe first shows the
 cached preview, then the HDR render from the original, so offline originals stay
-SDR. Thumbnails and cached previews are always SDR. **View ▸ Show HDR** turns it off.
+SDR. Thumbnails and cached previews are always SDR. **View ▸ Hide HDR Highlights** turns it off.
 
 **Crop, Rotate, Straighten** is the Adjust tab's first heading. **Crop** shows
 the whole photo in the loupe under a crop frame with a rule-of-thirds grid: drag
@@ -140,7 +140,7 @@ with a 4:3 sensor show the camera's crop; on Olympus, OM System and Panasonic
 raw files, cropping starts from that frame over the whole sensor, so it can be
 widened. Other raw formats are cropped within the frame their decoder gives.
 
-**Presets** (the Adjust tab's **Presets** heading, at its bottom, and **Photo ▸ Apply Preset**)
+**Presets** (the Adjust tab's **Presets** heading, at its bottom, and **Adjust ▸ Apply Preset**)
 apply saved adjustments to the photo in the loupe or to every selected photo.
 The heading shows the focused photo with each preset, by collection; in the
 loupe, hovering a picture shows the photo with that preset, and clicking it

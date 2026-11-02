@@ -21,6 +21,7 @@ struct MainView: View {
         .navigationTitle(title)
         .navigationSubtitle(subtitle)
         .toolbar { BrowserToolbar(model: model) }
+        .background { LibraryMenuPublisher(model: model) }
         // Photos are judged against neutral dark surroundings.
         .preferredColorScheme(.dark)
         .task { await model.start() }
@@ -127,7 +128,7 @@ private struct EmptyLibraryView: View {
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: 360)
-                Button("Import Folder…") { ImportPanel.run(model: model) }
+                Button("Add Folder Without Copying…") { ImportPanel.run(model: model) }
                     .controlSize(.large)
                     .disabled(model.isImporting)
             }

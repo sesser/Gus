@@ -57,7 +57,7 @@ final class GridController: NSObject, NSCollectionViewDataSource, NSCollectionVi
                                                name: NSView.boundsDidChangeNotification,
                                                object: scrollView.contentView)
         NotificationCenter.default.addObserver(self, selector: #selector(takeFocus(_:)),
-                                               name: .browserShouldTakeFocus, object: model)
+                                               name: .browserShouldTakeFocus, object: nil)
         model.observer = self
     }
 
@@ -77,7 +77,11 @@ final class GridController: NSObject, NSCollectionViewDataSource, NSCollectionVi
             self.mode = mode
             scrollView.isHidden = mode != .grid
             if mode == .grid {
-                collectionView.window?.makeFirstResponder(collectionView)
+                if model.takesSearchFocus() {
+                    NotificationCenter.default.post(name: .searchShouldTakeFocus, object: model)
+                } else {
+                    collectionView.window?.makeFirstResponder(collectionView)
+                }
             }
         }
     }
@@ -262,6 +266,7 @@ final class GridController: NSObject, NSCollectionViewDataSource, NSCollectionVi
     func windowDidChange(_ window: NSWindow?) {
         // One undo stack for the window, so ⌘Z works wherever the focus is.
         if let undoManager = window?.undoManager { model.undoManager = undoManager }
+        model.windowObserver.attach(window)
         let center = NotificationCenter.default
         for name in [NSWindow.didChangeScreenNotification, NSWindow.didChangeScreenProfileNotification] {
             center.removeObserver(self, name: name, object: nil)
@@ -272,7 +277,10 @@ final class GridController: NSObject, NSCollectionViewDataSource, NSCollectionVi
         updateDisplayColorSpace(window)
     }
 
+    /// From the model, or from a view in this window (an inspector value field).
     @objc private func takeFocus(_ notification: Notification) {
+        let sender = notification.object as AnyObject?
+        guard sender === model || sender === collectionView.window else { return }
         if mode == .grid { collectionView.window?.makeFirstResponder(collectionView) }
     }
 

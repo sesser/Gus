@@ -111,6 +111,7 @@ private struct SearchField: NSViewRepresentable {
         field.sendsWholeSearchString = false
         field.cell?.isScrollable = true
         field.lineBreakMode = .byTruncatingHead
+        context.coordinator.field = field
         return field
     }
 
@@ -122,8 +123,20 @@ private struct SearchField: NSViewRepresentable {
     @MainActor
     final class Coordinator: NSObject, NSSearchFieldDelegate {
         var parent: SearchField
+        weak var field: NSSearchField?
 
-        init(_ parent: SearchField) { self.parent = parent }
+        init(_ parent: SearchField) {
+            self.parent = parent
+            super.init()
+            NotificationCenter.default.addObserver(self, selector: #selector(takeFocus(_:)),
+                                                   name: .searchShouldTakeFocus, object: nil)
+        }
+
+        /// Edit ▸ Find ▸ Find… (⌘F).
+        @objc private func takeFocus(_ notification: Notification) {
+            guard let field, let window = field.window else { return }
+            window.makeFirstResponder(field)
+        }
 
         func controlTextDidChange(_ notification: Notification) {
             guard let field = notification.object as? NSTextField else { return }

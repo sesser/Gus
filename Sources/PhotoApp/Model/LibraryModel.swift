@@ -213,6 +213,22 @@ final class LibraryModel {
     /// Observed stand-in for `selection`, which is not observed.
     private(set) var selectionRevision = 0
     var mode: BrowserMode = .grid
+    /// The library window is key: no sheet or other window is in front.
+    private(set) var isWindowKey = false
+    /// The grid, the loupe or the video loupe has the keyboard, so the bare
+    /// culling keys act on photos (section 6 of docs/UI_REDESIGN.md).
+    private(set) var browserHasKeyboard = false
+    @ObservationIgnored private(set) lazy var windowObserver = LibraryWindowObserver { [weak self] isKey, browser in
+        guard let self else { return }
+        if isWindowKey != isKey { isWindowKey = isKey }
+        if browserHasKeyboard != browser { browserHasKeyboard = browser }
+    }
+    @ObservationIgnored private var searchFocusPending = false
+    /// A sidebar item waiting for its deletion to be confirmed.
+    var sidebarDeletion: SidebarDeletion?
+    /// The loupe shows the photo at 100% rather than fitted (its controller
+    /// owns the zoom; this copy is for the menus).
+    var loupeShowsActualSize = false
     /// The open ⌘K keyword field, with the photos it will tag.
     var keywordEntry: KeywordEntryRequest?
     var showsInspector: Bool {
@@ -664,6 +680,25 @@ final class LibraryModel {
     func closeLoupe() {
         mode = .grid
         observer?.libraryFocusChanged()
+    }
+
+    /// Edit ▸ Find ▸ Find…: the keyboard goes to the search field, which
+    /// filters the grid; from the loupe, back to the grid first, which hands the
+    /// keyboard on once it shows (`takesSearchFocus`).
+    func beginSearch() {
+        if mode == .loupe {
+            searchFocusPending = true
+            closeLoupe()
+        } else {
+            NotificationCenter.default.post(name: .searchShouldTakeFocus, object: self)
+        }
+    }
+
+    /// The grid is about to take the keyboard: true (once) when Find… asked
+    /// for the search field instead.
+    func takesSearchFocus() -> Bool {
+        defer { searchFocusPending = false }
+        return searchFocusPending
     }
 
     /// VoiceOver's Open in Loupe on a grid cell.

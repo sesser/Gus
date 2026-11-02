@@ -27,6 +27,7 @@ public struct ImportWindow: View {
             CameraStatusBar(camera: model.camera)
         }
         .frame(minWidth: 900, minHeight: 600)
+        .background { ImportMenuPublisher(model: model) }
         .preferredColorScheme(.dark)
         .onAppear { model.refreshSources() }
         .alert(deletionTitle, isPresented: Binding(get: { model.pendingDeletion != nil },

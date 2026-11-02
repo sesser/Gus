@@ -753,6 +753,17 @@
         }
       }
     },
+    "Add Folder Without Copying…" : {
+      "comment" : "File menu: add a folder's photos to the library where they are (was Import Folder…)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Folder Without Copying…"
+          }
+        }
+      }
+    },
     "Add Keyword" : {
       "comment" : "Undo action name",
       "localizations" : {
@@ -1380,6 +1391,17 @@
         }
       }
     },
+    "Ascending" : {
+      "comment" : "Sort order (View ▸ Sort By, filter bar)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ascending"
+          }
+        }
+      }
+    },
     "Auto" : {
       "comment" : "White balance",
       "localizations" : {
@@ -1551,6 +1573,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Box"
+          }
+        }
+      }
+    },
+    "Browse Look-Up Tables…" : {
+      "comment" : "Adjust menu: opens the look-up table browser",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Browse Look-Up Tables…"
           }
         }
       }
@@ -2000,6 +2033,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Clear"
+          }
+        }
+      }
+    },
+    "Clear Filter" : {
+      "comment" : "Edit ▸ Find menu: shows every photo of the sidebar selection again",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear Filter"
           }
         }
       }
@@ -2772,6 +2816,17 @@
         }
       }
     },
+    "Delete “%@”…" : {
+      "comment" : "File menu; the album, smart album or keyword selected in the sidebar",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete “%@”…"
+          }
+        }
+      }
+    },
     "Delete…" : {
       "comment" : "Sidebar keyword context menu",
       "localizations" : {
@@ -2790,6 +2845,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Density"
+          }
+        }
+      }
+    },
+    "Descending" : {
+      "comment" : "Sort order (View ▸ Sort By, filter bar)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descending"
           }
         }
       }
@@ -2955,6 +3021,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Edit Smart Album"
+          }
+        }
+      }
+    },
+    "Edit Smart Album…" : {
+      "comment" : "File menu: edits the smart album selected in the sidebar",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit Smart Album…"
           }
         }
       }
@@ -3392,6 +3469,28 @@
         }
       }
     },
+    "Find" : {
+      "comment" : "Edit menu submenu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find"
+          }
+        }
+      }
+    },
+    "Find…" : {
+      "comment" : "Edit ▸ Find: puts the keyboard in the search field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find…"
+          }
+        }
+      }
+    },
     "Finish cropping (Return); Esc cancels" : {
       "comment" : "Tooltip of the Adjust tab's Crop button while cropping",
       "localizations" : {
@@ -3663,6 +3762,39 @@
         }
       }
     },
+    "Hide File Names" : {
+      "comment" : "View menu: hides the file name and type badge under each thumbnail",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide File Names"
+          }
+        }
+      }
+    },
+    "Hide HDR Highlights" : {
+      "comment" : "View menu: the loupe clips highlights at SDR white",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide HDR Highlights"
+          }
+        }
+      }
+    },
+    "Hide Inspector" : {
+      "comment" : "View menu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide Inspector"
+          }
+        }
+      }
+    },
     "Hide Suggestion" : {
       "comment" : "Undo action name",
       "localizations" : {
@@ -3852,16 +3984,6 @@
         }
       }
     },
-    "Import Folder…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Import Folder…"
-          }
-        }
-      }
-    },
     "Import Look-Up Tables" : {
       "comment" : "Look-up table import sheet title",
       "localizations" : {
@@ -3880,6 +4002,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Import Presets…"
+          }
+        }
+      }
+    },
+    "Import Selected Photos" : {
+      "comment" : "Import window, File menu: same as the Import button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import Selected Photos"
           }
         }
       }
@@ -5053,6 +5186,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "New Collection…"
+          }
+        }
+      }
+    },
+    "New Mask" : {
+      "comment" : "Adjust menu submenu: the mask shapes",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Mask"
           }
         }
       }
@@ -6429,6 +6573,17 @@
         }
       }
     },
+    "Rename “%@”…" : {
+      "comment" : "File menu; the album or keyword selected in the sidebar",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rename “%@”…"
+          }
+        }
+      }
+    },
     "Rename, move, export and delete presets" : {
       "comment" : "Tooltip of the Presets heading's Manage button",
       "localizations" : {
@@ -6468,6 +6623,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Replace"
+          }
+        }
+      }
+    },
+    "Rescan" : {
+      "comment" : "Import window, File menu: looks at the source again",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rescan"
           }
         }
       }
@@ -7032,13 +7198,13 @@
         }
       }
     },
-    "Show HDR" : {
-      "comment" : "View menu toggle: the loupe shows highlights above SDR white on displays with extended dynamic range",
+    "Show HDR Highlights" : {
+      "comment" : "View menu: the loupe shows highlights above SDR white on displays with extended dynamic range",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Show HDR"
+            "value" : "Show HDR Highlights"
           }
         }
       }
@@ -7071,6 +7237,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Show Original"
+          }
+        }
+      }
+    },
+    "Show Photos Already in Library" : {
+      "comment" : "Import window, View menu (checkmark): also lists shots the library already has",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Photos Already in Library"
+          }
+        }
+      }
+    },
+    "Show Videos" : {
+      "comment" : "Import window, View menu (checkmark): videos on the source are listed and imported",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Videos"
           }
         }
       }
@@ -7272,6 +7460,17 @@
         }
       }
     },
+    "Sort By" : {
+      "comment" : "View menu submenu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sort By"
+          }
+        }
+      }
+    },
     "Sort order" : {
       "comment" : "Filter bar: help for the sort menu",
       "localizations" : {
@@ -7334,6 +7533,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Stop Exporting"
+          }
+        }
+      }
+    },
+    "Stop Import" : {
+      "comment" : "Import window, File menu: stops copying",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop Import"
           }
         }
       }

@@ -86,6 +86,12 @@ document and then does not open the main window. A process started from a shell 
 no key window: scripted keys go straight to the window, and local event
 monitors (the video loupe's) never see them. To test those, launch with
 `open -W -n --stdout <log> build/*.app --args …`, which activates the app.
+macOS may refuse to activate it while you use another app (`print responder`
+then shows `key nil`); running `open build/<name>.app` again a few seconds in,
+while the script waits, brings it forward. Menu state needs a key window:
+`menuitems <text>` prints items as AppKit sees them (after the update an
+opening menu gets), `menupress <title>` runs one. `menukey` turns grouping
+undo by event on while its posted keys are handled.
 A FAT32 disk image (`hdiutil create -fs "MS-DOS FAT32" …`, then `hdiutil
 attach`) stands in for a camera card. `docs/PROFILING.md` has the benchmark
 commands.
@@ -238,6 +244,14 @@ compatible and never put `#` comment lines inside pasted command snippets.
   design, but older systems still get it, so keep `AppKitScrollView`;
   inspector buttons are `AppKitButton`s, which the debug script's `click` can
   drive.
+- **Menus** read `LibraryMenuContext` / `ImportMenuContext` through
+  `@FocusedValue`, published by the window with `focusedSceneValue`; never a
+  model passed into `Commands`, which SwiftUI does not refresh. Bare-key items
+  (culling, `Z`, `\`, `C`, ⌫) are shown but the grid and loupe handle the
+  keys (AppKit offers an unmodified key to the first responder first); they
+  are enabled only while the grid, loupe or video loupe has the keyboard.
+  Text fields that hand the keyboard back on Return or Escape post
+  `.browserShouldTakeFocus` with their window.
 - **Metadata** goes through the `MetadataReader` protocol. ExifTool
   (`-stay_open` subprocess) is the default when installed; ImageIO is the
   in-process fallback; videos always go through AVFoundation.

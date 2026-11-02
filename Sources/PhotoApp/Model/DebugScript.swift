@@ -30,6 +30,9 @@ import PhotoUI
 ///     menukey <key> […]     (posts keys to the event queue, where an open menu reads them)
 ///     menupick <x> <y> <item>[/<submenu item>]   (picks from the menu of the menu button at a point)
 ///     buttons               (prints the window's AppKit buttons and where they are)
+///     menuitems [<text>]    (main menu items whose title contains text: key equivalent, enabled, checked)
+///     menupress <title>     (runs the main menu item with that title, if enabled)
+///     editvalue <title>     (puts the keyboard in the value field of the inspector slider with that title)
 ///     accessibility <role>|any [<n> press|<action name>] | focused   (lists the window's accessibility
 ///                           elements with that role, e.g. AXImage, or runs an action on the nth; see AccessibilityProbe)
 ///     scroll <y>|bottom     (scrolls the inspector's Adjust tab to a point from its top)
@@ -75,7 +78,8 @@ enum DebugScript {
             // Only commands that can change photos get a group; empty groups
             // would otherwise become undo steps that do nothing.
             let changing: Set<String> = ["key", "addkeywords", "text", "pairfile", "accept", "album", "smartalbum", "remove",
-                                         "adjust", "lut", "pasteadjust", "preset", "menupick", "lutwindow", "metadata"]
+                                         "adjust", "lut", "pasteadjust", "preset", "menupick", "lutwindow", "metadata",
+                                         "menupress"]
             for command in commands where !command.isEmpty {
                 let words = command.split(separator: " ")
                 // "accessibility <role> <n> <action>" runs an action; listing changes nothing.
@@ -282,10 +286,14 @@ enum DebugScript {
             }
             try? await Task.sleep(for: .milliseconds(600))
         case "menukey":
+            // Posted keys are handled after this command returns, outside its
+            // undo group; grouping by event, as for real keys, gives them one.
+            model.undoManager.groupsByEvent = true
             for key in rest {
                 send(key, posted: true)
                 try? await Task.sleep(for: .milliseconds(150))
             }
+            model.undoManager.groupsByEvent = false
         case "hdr":
             model.showsHDR = rest.first != "off"
         case "metadata", "sidecars":
@@ -366,6 +374,19 @@ enum DebugScript {
             if let window, let point = windowPoint(rest, in: window) { printHit(window, at: point) }
         case "buttons":
             if let window, let root = window.contentView?.superview { printButtons(in: root, window: window) }
+        case "editvalue":
+            // Puts the keyboard in the value field of the inspector slider with this title.
+            let title = rest.joined(separator: " ")
+            if let row = window?.contentView.flatMap({ findSliderRow(titled: title, in: $0) }) {
+                row.beginEditingValue()
+            } else {
+                print("debug-script: no slider titled \(title)")
+            }
+        case "menuitems":
+            printMenuItems(containing: rest.joined(separator: " "))
+        case "menupress":
+            pressMenuItem(titled: rest.joined(separator: " "))
+            try? await Task.sleep(for: .milliseconds(300))
         case "accessibility":
             AccessibilityProbe.run(rest, in: window)
             try? await Task.sleep(for: .milliseconds(200))
@@ -499,6 +520,66 @@ enum DebugScript {
             hit = view.superview
         }
         print("debug-script: \(Int(point.x)),\(Int(window.frame.height - point.y)) hits " + chain.joined(separator: " < "))
+    }
+
+    /// Runs the enabled main menu item with this title, as a click would.
+    private static func pressMenuItem(titled title: String) {
+        func find(_ menu: NSMenu?) -> (NSMenu, Int)? {
+            guard let menu else { return nil }
+            menu.delegate?.menuNeedsUpdate?(menu)
+            for (index, item) in menu.items.enumerated() {
+                if item.title == title { return (menu, index) }
+                if let found = find(item.submenu) { return found }
+            }
+            return nil
+        }
+        guard let (menu, index) = find(NSApp.mainMenu) else {
+            print("debug-script: no menu item \(title)")
+            return
+        }
+        guard menu.items[index].isEnabled else {
+            print("debug-script: menu item \(title) is disabled")
+            return
+        }
+        menu.performActionForItem(at: index)
+    }
+
+    private static func findSliderRow(titled title: String, in view: NSView) -> SliderRow? {
+        if let row = view as? SliderRow, row.title == title { return row }
+        for subview in view.subviews {
+            if let row = findSliderRow(titled: title, in: subview) { return row }
+        }
+        return nil
+    }
+
+    /// Main menu items whose title contains `text`: title, key equivalent and
+    /// whether they are enabled, as AppKit sees them.
+    private static func printMenuItems(containing text: String) {
+        func visit(_ menu: NSMenu?, path: String) {
+            // As if opened: SwiftUI may refresh its items only then.
+            if let menu {
+                menu.delegate?.menuNeedsUpdate?(menu)
+                menu.delegate?.menuWillOpen?(menu)
+                menu.update()
+            }
+            defer { if let menu { menu.delegate?.menuDidClose?(menu) } }
+            for item in menu?.items ?? [] where !item.isSeparatorItem {
+                let itemPath = path.isEmpty ? item.title : path + "/" + item.title
+                if text.isEmpty || item.title.localizedCaseInsensitiveContains(text) {
+                    var modifiers = ""
+                    let mask = item.keyEquivalentModifierMask
+                    if mask.contains(.control) { modifiers += "ctrl+" }
+                    if mask.contains(.option) { modifiers += "opt+" }
+                    if mask.contains(.shift) { modifiers += "shift+" }
+                    if mask.contains(.command) { modifiers += "cmd+" }
+                    let key = item.keyEquivalent.isEmpty ? "" : " key \(modifiers)\(item.keyEquivalent.debugDescription)"
+                    print("debug-script: menu \(itemPath)\(key) \(item.isEnabled ? "enabled" : "disabled")"
+                          + (item.state == .on ? " checked" : ""))
+                }
+                if let submenu = item.submenu { visit(submenu, path: itemPath) }
+            }
+        }
+        visit(NSApp.mainMenu, path: "")
     }
 
     private static func printButtons(in view: NSView, window: NSWindow) {

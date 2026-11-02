@@ -106,10 +106,28 @@ final class VideoLoupeHostView: NSView {
         playerView.frame = bounds
         playerView.autoresizingMask = [.width, .height]
         addSubview(playerView)
+        NotificationCenter.default.addObserver(self, selector: #selector(takeFocus(_:)),
+                                               name: .browserShouldTakeFocus, object: nil)
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("not used") }
+
+    // Takes the keyboard like the photo canvas, so culling keys reach the
+    // event monitor rather than a text field AppKit would pick instead.
+    override var acceptsFirstResponder: Bool { true }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        window?.makeFirstResponder(self)
+    }
+
+    /// From the model, or from a view in this window (an inspector value field).
+    @objc private func takeFocus(_ notification: Notification) {
+        let sender = notification.object as AnyObject?
+        guard let window, sender === model || sender === window, model?.mode == .loupe else { return }
+        window.makeFirstResponder(self)
+    }
 
     private var item: CatalogItem? { model?.focusedItem }
 

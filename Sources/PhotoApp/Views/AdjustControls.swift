@@ -224,6 +224,37 @@ final class SliderRow: NSView, NSTextFieldDelegate {
         field.stringValue = format.text(defaultValue)
         onChange(defaultValue, .committed)
     }
+
+    /// Return commits the typed value, Escape drops it; either way the
+    /// keyboard goes back to the grid or loupe, so culling keys work again.
+    func control(_ control: NSControl, textView: NSTextView, doCommandBy selector: Selector) -> Bool {
+        switch selector {
+        case #selector(NSResponder.insertNewline(_:)):
+            fieldCommitted()
+            handKeyboardBack()
+            return true
+        case #selector(NSResponder.cancelOperation(_:)):
+            field.abortEditing()
+            field.stringValue = format.text(sliderValue)
+            handKeyboardBack()
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func handKeyboardBack() {
+        guard let window else { return }
+        NotificationCenter.default.post(name: .browserShouldTakeFocus, object: window)
+    }
+
+    /// The row's title, for debug scripts.
+    var title: String { label.stringValue }
+
+    /// Puts the keyboard in the value field, for debug scripts.
+    func beginEditingValue() {
+        window?.makeFirstResponder(field)
+    }
 }
 
 /// Reports the start and end of a drag, and double-clicks.
