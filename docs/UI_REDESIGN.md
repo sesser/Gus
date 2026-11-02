@@ -215,9 +215,16 @@ confirmation dialogs.
   about 5 s. Activity is shown while a job runs or while messages are
   unread; opening its popover marks them read. Idle with unread messages,
   it shows `info.circle`, or `exclamationmark.triangle` when one is a
-  warning, and VoiceOver hears each new message (medium priority). The
-  popover keeps the 20 newest messages until quit; each row is the action's
-  undo name with the message as detail. Skipped photos are reported in
+  warning, and VoiceOver hears each new message (medium priority). A
+  warning means the person asked for something that did not happen and can
+  make it happen by acting (a failure, an offline original, unreadable
+  edits, files not copied, a card not ejected); everything expected is
+  information (completions, cancellations, videos skipped by design). The
+  popover keeps the 20 newest messages until quit. Every row has a title:
+  the action's undo name, or else the command's menu title without its
+  ellipsis plus its object: Import from "‹source›", Add Folder "‹folder›",
+  Import Look-Up Tables, Import Presets, Export to "‹folder›", Save
+  Changes, Load Library. The message is the detail. Skipped photos are reported in
   plural strings, one sentence per reason: "N videos were left
   unchanged."; "N photos were left unchanged: their originals are
   offline."; "N photos were left unchanged: their edits can't be changed in
@@ -295,7 +302,9 @@ confirmation dialogs.
 
 Pinned at the top (not scrolling): the Info | Adjust segmented control,
 full width; the histogram, 88 pt, corner radius 8; in the loupe's Adjust tab
-an **Original** toggle (`\`) on the left and a ⋯ pull-down on the right
+an **Original** toggle (`\`; push-on/push-off `NSButton`, `.accessoryBarAction`
+bezel, small, `square.split.2x1` plus title: state shown by the bezel, not
+by tint alone) on the left and a ⋯ pull-down on the right
 (Copy Adjustments, Paste Adjustments, Save Adjustments as Preset…, Reset All
 Adjustments). (F1, F15)
 
@@ -312,7 +321,7 @@ Dimensions (inspector padding 12, so 276 pt of content at the ideal width):
 | Group label | 20 high, 10 above; 11 pt semibold secondary, mixed case; optional trailing control (Auto); check box in the section column |
 | Check boxes | shown only when the group or section has edits (slot always reserved); checked = applied, unchecked = kept but off, mixed = some groups off |
 | Slider row | 22 high, 24 pitch: label 80 (11 pt secondary), gap 6, `.small` `NSSlider` (140 at 300 wide, 120 at 280), gap 6, value field 44 (small rounded bezel, 11 pt monospaced digits, focus ring; primary when changed, secondary at default; ↑/↓ step, ⇧ ×10) |
-| Slider fill | from the default value, so untouched sliders show no fill (26: `neutralValue`, availability to confirm; 15: neutral gray fill) |
+| Slider fill | 26: from the default value (`neutralValue`), so untouched sliders show no fill; 15: neutral gray fill from the minimum |
 | Pop-up row | the same 80 pt label column; pop-up starts where slider tracks start |
 | Group turned off | controls stay enabled; labels and values go secondary, fill hidden (no 45% fade) |
 | Reset | double-click label or knob (as now), plus a row context menu |
@@ -324,17 +333,21 @@ The Light section (was Develop) goes from about 750 pt to about 480 pt. (F3, F6,
 1. Changed on Disk, when present, with a warning icon.
 2. Summary, no header: camera 13 pt semibold, lens 11 pt secondary; a 3 × 2
    grid of exposure tiles (10 pt label, 13 pt monospaced value) in the
-   loupe's formats ("ƒ/2.8", "1/400 s"); Captured, File, Folder, Volume on
-   the 80 pt label column. (F9, F17)
-3. Keywords, with a count; Suggested becomes a group label. (F3)
+   loupe's formats ("ƒ/2.8", "1/400 s"); then rows on the 80 pt label
+   column, 11 pt secondary labels and 11 pt primary, selectable values:
+   Size ("24 MP · 6,048 × 4,024"), Captured, File, Folder (middle
+   truncation, full path as tooltip), Volume. (F3, F9, F17)
+3. Keywords: the header shows "N photos" on the right when more than one
+   photo is targeted, nothing for one; Suggested becomes a group label.
+   Collapse All / Expand All act on the current tab's headings only. (F3)
 4. Metadata: labels above fields (they are long), one bezel style.
 5. Contact as its own collapsed section.
 
 ### Adjust tab
 
 Order follows the workflow (render order is unchanged): Presets
-(collapsed) · Crop & Straighten (the toggle is accent-tinted only while
-active, never tertiary) · Light (was Develop) with Profile, White Balance
+(collapsed) · Crop & Straighten (the Crop toggle is a push-on/push-off
+bezel button like Original) · Light (was Develop) with Profile, White Balance
 (pop-up "Mode"), Tone (was Light; with Auto), Presence · Tone Curve · Color Mixer ·
 Color Grading · Details · Masks (rows: check box, name, ⋯ menu with Rename,
 Move Up, Move Down, Delete; double-click to rename inline) · Effects.
@@ -655,8 +668,9 @@ Preset name becomes an `.alert` with a `TextField`; masks rename inline.
 
 ### Appearance
 
-The library window is dark through `NSWindow.appearance`, so its sheets and
-popovers inherit it and nothing leaks into other windows. Import (in both
+The library window is dark through `preferredColorScheme(.dark)` on its
+root view (SwiftUI resets an `NSWindow.appearance` set from outside); this
+darkens only that window and its sheets and popovers. Import (in both
 apps) and Settings follow the system; the Import grid background uses the
 dynamic `Palette`. (HIG: Dark Mode. F32, F14)
 
@@ -710,8 +724,20 @@ text. (F11, F16, F28)
   The counts are plural strings in `Localizable.xcstrings`.
 - Sliders announce formatted values; value fields are labeled; icon buttons
   use their help text as the label.
-- `Palette` becomes dynamic colors with high-contrast variants (in code;
-  SwiftPM does not compile asset catalogs). No tertiary text for labels;
+- `Palette` becomes dynamic colors with dark, light and Increase Contrast
+  variants (in code; SwiftPM does not compile asset catalogs).
+  `PaletteContrastTests` resolves every pair in all four appearances and
+  asserts the WCAG ratios:
+  - text (file name, type badge, date) on its real surface, in every cell
+    state: 4.5:1, or 7:1 with Increase Contrast;
+  - stars, pick and reject on a cell and on a selected cell: 3:1, or 4.5:1
+    with Increase Contrast.
+
+  Grays stay neutral. Under Increase Contrast the selected-cell fill stays
+  at or below 0.24 and the accent border goes from 2 pt to 3 pt. The loupe
+  background is dark in every appearance and keeps 0.09 under Increase
+  Contrast (it is the color-judgment surround); the grid background may
+  darken. No tertiary text for labels;
   10 pt minimum (the grid badge goes from 8.5 pt to 10 pt); color labels
   carry their name in the label, tooltip and loupe caption. (F9, F14)
 - Default focus rings; Tab order sidebar → content → inspector; the grid
@@ -725,7 +751,7 @@ text. (F11, F16, F28)
 | Look | system Liquid Glass components | the earlier design |
 | Inspector scroll | `AppKitScrollView` (unchanged) | the same |
 | Toolbar groups | `ToolbarSpacer(.fixed)` | plain grouping |
-| Slider fill | `neutralValue` (confirm availability) | neutral `trackFillColor` |
+| Slider fill | `neutralValue`: fill from the default value | neutral gray `trackFillColor`, from the minimum |
 | Grid under the toolbar | system scroll-edge effect | plain toolbar background |
 | Import button | prominent tinted glass in the toolbar | bordered prominent button |
 | Sheet sizing | `.presentationSizing` | the same (macOS 15 API) |
