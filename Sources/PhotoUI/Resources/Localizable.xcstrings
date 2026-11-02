@@ -100,6 +100,17 @@
         }
       }
     },
+    "%@ label" : {
+      "comment" : "VoiceOver: a photo's color label, as in “Red label”",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ label"
+          }
+        }
+      }
+    },
     "%@ or better" : {
       "comment" : "Rating filter. The argument is a row of stars.",
       "localizations" : {
@@ -107,6 +118,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ or better"
+          }
+        }
+      }
+    },
+    "%@ plus %@" : {
+      "comment" : "VoiceOver: the file types of a RAW+JPEG pair, as in “RAW plus JPEG”",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ plus %@"
           }
         }
       }
@@ -512,6 +534,29 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "%lld photos were skipped because their files already exist."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld stars" : {
+      "comment" : "VoiceOver: a photo's star rating",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld star"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld stars"
                 }
               }
             }
@@ -5420,6 +5465,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Open a photo in the loupe to preview look-up tables on it."
+          }
+        }
+      }
+    },
+    "Open in Loupe" : {
+      "comment" : "VoiceOver action on a grid photo",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open in Loupe"
           }
         }
       }

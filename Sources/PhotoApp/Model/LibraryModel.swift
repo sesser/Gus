@@ -666,6 +666,11 @@ final class LibraryModel {
         observer?.libraryFocusChanged()
     }
 
+    /// VoiceOver's Open in Loupe on a grid cell.
+    func openLoupe(onVersion versionID: Int64) {
+        if let index = indexByVersionID[versionID] { openLoupe(at: index) }
+    }
+
     // MARK: Culling
 
     /// A version's culling values, as remembered for undo.
@@ -701,10 +706,21 @@ final class LibraryModel {
             after[item.versionID] = values
         }
         applyCulling(after, undoingTo: before, actionName: action.undoActionName)
+        let announced = focusIndex.flatMap { targets.contains($0) ? $0 : nil } ?? targets.first ?? 0
+        AccessibilityText.announce(PhotoAccessibility.announcement(for: action, item: items[announced]))
 
         if autoAdvance, targets.count == 1, let focusIndex, focusIndex + 1 < items.count {
             setFocus(focusIndex + 1)
         }
+    }
+
+    /// A culling action VoiceOver chose on one photo. Like a context menu, it
+    /// applies to the selection when the photo is in it; otherwise the photo
+    /// is selected first.
+    func performAccessibilityAction(_ action: CullingAction, onVersion versionID: Int64) {
+        guard let index = indexByVersionID[versionID] else { return }
+        if !actionTargets.contains(index) { setFocus(index) }
+        perform(action)
     }
 
     /// Shows the new values at once, saves them in order, and registers the

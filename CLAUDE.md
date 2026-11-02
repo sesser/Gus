@@ -73,7 +73,14 @@ executable with `--library-root <folder> --debug-script "wait 2; snapshot /tmp/a
 albums, sidecars, the import window, folder drops…). In the current design
 `snapshot` leaves the glass panes (sidebar, inspector, toolbar items) blank:
 it renders the window's layers, which cannot draw them. The content area
-comes out right; check the panes with `buttons`, `hit` and `print`. App
+comes out right; check the panes with `buttons`, `hit` and `print`.
+`accessibility <role>` lists what the grid and loupe tell VoiceOver and runs
+their actions; SwiftUI builds its accessibility tree only for an attached
+assistive app, so SwiftUI elements (the import tiles) are not found this way.
+The script turns off `groupsByEvent` and opens an undo group only around
+commands that change photos (`changing` in `DebugScript`): a new command that
+changes photos without one makes `registerUndo` raise an Objective-C
+exception, which unwinds through Swift and crashes later. App
 launch options must always take a value: AppKit treats a stray argument as a
 document and then does not open the main window. A process started from a shell is not the active app, so it has
 no key window: scripted keys go straight to the window, and local event

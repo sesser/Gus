@@ -146,7 +146,9 @@ private struct ShotGrid: View {
                 ScrollView {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 150, maximum: 220), spacing: 10)], spacing: 10) {
                         ForEach(model.visibleShots) { shot in
-                            ShotTile(shot: shot, selected: model.selection.contains(shot.id))
+                            ShotTile(shot: shot, selected: model.selection.contains(shot.id)) {
+                                model.click(shot, extend: false)
+                            }
                                 .onTapGesture {
                                     guard !shot.isDuplicate else { return }
                                     model.click(shot, extend: NSEvent.modifierFlags.contains(.shift))
@@ -164,6 +166,8 @@ private struct ShotGrid: View {
 private struct ShotTile: View {
     let shot: SourceShot
     let selected: Bool
+    /// VoiceOver's press on the tile's check box.
+    let toggle: () -> Void
     @State private var thumbnail: CGImage?
 
     var body: some View {
@@ -209,6 +213,13 @@ private struct ShotTile: View {
             thumbnail = await SourceThumbnails.shared.thumbnail(for: shot.primary.url)
         }
         .help(shot.isDuplicate ? String(localized: "Already in the library") : shot.files.map(\.name).joined(separator: " + "))
+        .modifier(ShotAccessibility(shot: shot, label: accessibilityLabel, selected: selected, toggle: toggle))
+    }
+
+    /// "DSC00328, RAW plus JPEG, Oct 30, 10:46 AM".
+    private var accessibilityLabel: String {
+        AccessibilityText.list([(shot.primary.name as NSString).deletingPathExtension,
+                                AccessibilityText.fileType(shot.files.map(\.kind)), dateText])
     }
 
     /// In the capture's own time: cameras usually record local time without a
@@ -224,6 +235,31 @@ private struct ShotTile: View {
 
     private var badge: String {
         shot.files.map { FileKindText.badge($0.kind) }.joined(separator: "+")
+    }
+}
+
+/// To VoiceOver a tile is a check box (checked: it will be imported), or, for
+/// a shot already in the library, a description saying so.
+private struct ShotAccessibility: ViewModifier {
+    let shot: SourceShot
+    let label: String
+    let selected: Bool
+    let toggle: () -> Void
+
+    func body(content: Content) -> some View {
+        if shot.isDuplicate {
+            content
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(verbatim: label))
+                .accessibilityValue(Text("Already in the library"))
+        } else {
+            content.accessibilityRepresentation {
+                Toggle(isOn: Binding(get: { selected }, set: { _ in toggle() })) {
+                    Text(verbatim: label)
+                }
+                .toggleStyle(.checkbox)
+            }
+        }
     }
 }
 

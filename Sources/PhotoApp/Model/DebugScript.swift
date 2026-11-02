@@ -14,7 +14,7 @@ import PhotoUI
 ///     pairs grouped|separate  pairfile raw|jpeg     advance on|off
 ///     selectall             addkeywords <a, b>      keyentry      text <typed text>
 ///     undo | redo           inspector on|off        keyword <n>   (sidebar keyword n, 0-based)
-///     print <what>          (state for checks: selection, keywords, undo, suggestions, items, hdr,
+///     print <what>          (state for checks: selection, keywords, undo, suggestions, items, hdr, announcement,
 ///                           loupe [<x> <y>]: mode, magnification, visible rect, image point under x y)
 ///     suggest               (analyzes the selection and waits)      accept <keyword>
 ///     album <name>          (from the selection)    smartalbum <name>  (rating ≥ 3)     remove
@@ -30,10 +30,12 @@ import PhotoUI
 ///     menukey <key> […]     (posts keys to the event queue, where an open menu reads them)
 ///     menupick <x> <y> <item>[/<submenu item>]   (picks from the menu of the menu button at a point)
 ///     buttons               (prints the window's AppKit buttons and where they are)
+///     accessibility <role>|any [<n> press|<action name>]   (lists the window's accessibility elements
+///                           with that role, e.g. AXImage, or runs an action on the nth; see AccessibilityProbe)
 ///     scroll <y>|bottom     (scrolls the inspector's Adjust tab to a point from its top)
 ///     hdr on|off            (the View menu's Show HDR; snapshots show HDR clipped at white)
 ///     import open | source <path> | dest <path> | job <text> | delete on|off | eject on|off
-///            | videos on|off | rescan | toggle <n> | run (waits) | confirm yes|no | snapshot <file> | print
+///            | videos on|off | rescan | toggle <n> | accessibility … | run (waits) | confirm yes|no | snapshot <file> | print
 ///            (see ImportDebugCommands)
 ///     adjust …  original on|off  tab info|adjust   (see DebugAdjustCommands)
 ///     metadata <field> [<text>]   print metadata   sidecars on|off   (see DebugMetadataCommands)
@@ -75,7 +77,10 @@ enum DebugScript {
             let changing: Set<String> = ["key", "addkeywords", "text", "pairfile", "accept", "album", "smartalbum", "remove",
                                          "adjust", "lut", "pasteadjust", "preset", "menupick", "lutwindow", "metadata"]
             for command in commands where !command.isEmpty {
-                let grouped = changing.contains(String(command.prefix { $0 != " " }))
+                let words = command.split(separator: " ")
+                // "accessibility <role> <n> <action>" runs an action; listing changes nothing.
+                let grouped = changing.contains(String(words.first ?? ""))
+                    || (words.first == "accessibility" && words.count >= 4)
                 if grouped { undoManager.beginUndoGrouping() }
                 await run(command, model: model)
                 if grouped { undoManager.endUndoGrouping() }
@@ -361,6 +366,9 @@ enum DebugScript {
             if let window, let point = windowPoint(rest, in: window) { printHit(window, at: point) }
         case "buttons":
             if let window, let root = window.contentView?.superview { printButtons(in: root, window: window) }
+        case "accessibility":
+            AccessibilityProbe.run(rest, in: window)
+            try? await Task.sleep(for: .milliseconds(200))
         case "print":
             if rest.first == "loupe" {
                 printLoupe(at: Array(rest.dropFirst()), model: model)
@@ -514,6 +522,8 @@ enum DebugScript {
 
     private static func printState(_ what: String, model: LibraryModel) {
         switch what {
+        case "announcement":
+            print("debug-script: announcement \(AccessibilityText.lastAnnouncement ?? "-")")
         case "hdr":
             let potential = window?.screen?.maximumPotentialExtendedDynamicRangeColorComponentValue ?? 1
             let headroom = model.loupeHDRHeadroom.map { String(format: "%.2f", $0) } ?? "none"

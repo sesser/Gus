@@ -39,6 +39,7 @@ final class PhotoCell: NSCollectionViewItem {
         versionID = item.versionID
         editStackHash = item.editStackHash
         cellView.showsInfo = model.showFileInfo
+        cellView.model = model
         cellView.apply(item, offline: model.isOffline(item))
         guard isNewRendition || cellView.image == nil else { return }
 
@@ -70,6 +71,8 @@ final class PhotoCell: NSCollectionViewItem {
 
 final class PhotoCellView: NSView {
     var onDoubleClick: (() -> Void)?
+    /// For VoiceOver's actions on the photo.
+    weak var model: LibraryModel?
     private(set) var image: CGImage?
 
     private let imageLayer = CALayer()
@@ -206,8 +209,16 @@ final class PhotoCellView: NSView {
     }
 
     func apply(_ item: CatalogItem, offline: Bool) {
+        let previous = self.item
+        let wasOffline = self.offline
         self.item = item
         self.offline = offline
+        // The same photo culled (not a reused cell): VoiceOver reads the new value.
+        if let previous, previous.versionID == item.versionID,
+           previous.rating != item.rating || previous.flag != item.flag || previous.colorLabel != item.colorLabel
+            || wasOffline != offline {
+            NSAccessibility.post(element: self, notification: .valueChanged)
+        }
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         ratingLayer.string = item.rating.rawValue > 0 ? String(repeating: "★", count: item.rating.rawValue) : ""
@@ -252,7 +263,7 @@ final class PhotoCellView: NSView {
         unavailable = false
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        if animated, image != nil {
+        if animated, image != nil, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
             let fade = CATransition()
             fade.type = .fade
             fade.duration = 0.12
@@ -286,6 +297,21 @@ final class PhotoCellView: NSView {
     override func mouseDown(with event: NSEvent) {
         super.mouseDown(with: event)
         if event.clickCount == 2 { onDoubleClick?() }
+    }
+
+    // MARK: Accessibility
+
+    // Computed when asked, so configuring cells while scrolling stays cheap.
+
+    override func isAccessibilityElement() -> Bool { item != nil }
+    override func accessibilityRole() -> NSAccessibility.Role? { .image }
+    override func accessibilityLabel() -> String? { item.map(PhotoAccessibility.label) }
+    override func accessibilityValue() -> Any? { item.map { PhotoAccessibility.value(for: $0, offline: offline) } }
+    override func isAccessibilitySelected() -> Bool { isSelected }
+
+    override func accessibilityCustomActions() -> [NSAccessibilityCustomAction]? {
+        guard let item, let model else { return nil }
+        return PhotoAccessibility.actions(forVersion: item.versionID, model: model, opensLoupe: true)
     }
 
     /// AppKit's default resets alpha, hiding and animations under an animator on

@@ -6,6 +6,7 @@ import PhotoCore
 ///
 ///     import source <path> | dest <path> | job <text> | delete on|off | eject on|off
 ///            | videos on|off (waits) | rescan (waits) | toggle <index of a shown shot>
+///            | accessibility <role>|any [<n> press|<action name>] (see AccessibilityProbe)
 ///            | run (waits) | confirm yes|no | snapshot <file> | print
 @MainActor
 public enum ImportDebugCommands {
@@ -45,6 +46,9 @@ public enum ImportDebugCommands {
             try? await Task.sleep(for: .seconds(1))
         case "snapshot":
             if let window { WindowSnapshot.write(window, to: URL(fileURLWithPath: argument)) }
+        case "accessibility":
+            AccessibilityProbe.run(Array(words.dropFirst()), in: window)
+            try? await Task.sleep(for: .milliseconds(200))
         case "print":
             printState(model)
         default:

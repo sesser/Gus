@@ -42,6 +42,7 @@ struct LoupeCanvas: NSViewRepresentable {
         context.coordinator.showLiveFrame(revision: model.editor.frameRevision, active: model.editor.showsLive)
         context.coordinator.showCrop(model.editor.cropSession, image: model.editor.cropImage)
         context.coordinator.showMasks()
+        context.coordinator.updateAccessibility()
     }
 
     static func dismantleNSView(_ view: LoupeHostView, coordinator: LoupeController) {
@@ -474,6 +475,30 @@ final class LoupeController: NSObject {
         }
     }
 
+    // MARK: Accessibility
+
+    /// The photo the canvas describes to VoiceOver.
+    var accessibilityItem: CatalogItem? { model.focusedItem }
+    private var describedCulling: (versionID: Int64, value: String)?
+
+    /// Culling the photo on screen changes the canvas's value; VoiceOver is told.
+    func updateAccessibility() {
+        guard let item = accessibilityItem else {
+            describedCulling = nil
+            return
+        }
+        let value = PhotoAccessibility.value(for: item, offline: model.isOffline(item))
+        defer { describedCulling = (item.versionID, value) }
+        if let described = describedCulling, described.versionID == item.versionID, described.value != value {
+            NSAccessibility.post(element: hostView, notification: .valueChanged)
+        }
+    }
+
+    func accessibilityActions() -> [NSAccessibilityCustomAction]? {
+        guard let item = accessibilityItem else { return nil }
+        return PhotoAccessibility.actions(forVersion: item.versionID, model: model, opensLoupe: false)
+    }
+
     // MARK: Keys
 
     func handle(_ event: NSEvent) -> Bool {
@@ -523,6 +548,36 @@ final class LoupeHostView: NSView {
         super.viewDidMoveToWindow()
         window?.makeFirstResponder(self)
         controller?.windowDidChange()
+    }
+
+    // MARK: Accessibility
+
+    // The canvas is one image element: the scroll view and image view inside
+    // it are hidden from VoiceOver; the crop and mask overlays are not.
+
+    override func isAccessibilityElement() -> Bool { controller?.accessibilityItem != nil }
+    override func accessibilityRole() -> NSAccessibility.Role? { .image }
+    override func accessibilityLabel() -> String? { controller?.accessibilityItem.map(PhotoAccessibility.label) }
+
+    override func accessibilityValue() -> Any? {
+        guard let controller, let item = controller.accessibilityItem else { return nil }
+        return PhotoAccessibility.value(for: item, offline: controller.model.isOffline(item))
+    }
+
+    override func accessibilityCustomActions() -> [NSAccessibilityCustomAction]? { controller?.accessibilityActions() }
+
+    override func accessibilityChildren() -> [Any]? {
+        super.accessibilityChildren()?.filter { !($0 is LoupeScrollView) }
+    }
+
+    // Declared nonisolated, but AppKit asks accessibility questions on the main thread.
+    override func accessibilityHitTest(_ point: NSPoint) -> Any? {
+        let hit = super.accessibilityHitTest(point)
+        guard let view = hit as? NSView else { return hit }
+        let insideCanvas = MainActor.assumeIsolated {
+            subviews.first { $0 is LoupeScrollView }.map(view.isDescendant(of:)) ?? false
+        }
+        return insideCanvas ? self : hit
     }
 }
 
