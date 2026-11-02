@@ -30,7 +30,7 @@ extension LibraryModel {
 
     /// Gives the selection (grid) or the photo on screen (loupe) the preset's groups.
     func applyAdjustmentPreset(_ preset: AdjustmentPreset) {
-        changeAdjustments(ofVersions: actionTargetVersionIDs,
+        changeAdjustments(ofVersions: batchSelection().versionIDs,
                           actionName: String(localized: "Apply Preset \(preset.name)", comment: "Undo action name")) {
             preset.applied(onto: $0)
         }

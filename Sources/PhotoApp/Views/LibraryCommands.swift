@@ -132,12 +132,19 @@ struct LibraryCommands: Commands {
             .keyboardShortcut(.return, modifiers: .command)
             .disabled(!can { $0.itemCount > 0 })
             Divider()
-            Button(menu?.state.loupeShowsActualSize == true ? String(localized: "Zoom to Fit")
-                                                             : String(localized: "Zoom to 100%")) {
+            Button(menu?.state.loupeZoom.isZoomed == true ? String(localized: "Zoom to Fit")
+                                                           : String(localized: "Zoom to 100%")) {
                 NotificationCenter.default.post(name: .loupeShouldToggleZoom, object: model)
             }
             .keyboardShortcut("z", modifiers: [])
             .disabled(!canByKey { $0.showsLoupePhoto })
+            // The same items zoom the loupe and resize the grid's thumbnails.
+            Button(isLoupe ? String(localized: "Zoom In") : String(localized: "Larger Thumbnails")) { resize(larger: true) }
+                .keyboardShortcut("=", modifiers: .command)
+                .disabled(!can { $0.mode == .grid || ($0.showsLoupePhoto && $0.loupeZoom.canZoomIn) })
+            Button(isLoupe ? String(localized: "Zoom Out") : String(localized: "Smaller Thumbnails")) { resize(larger: false) }
+                .keyboardShortcut("-", modifiers: .command)
+                .disabled(!can { $0.mode == .grid || ($0.showsLoupePhoto && $0.loupeZoom.canZoomOut) })
             Button(menu?.state.showsOriginal == true ? String(localized: "Show Adjustments")
                                                       : String(localized: "Show Original")) {
                 model?.editor.toggleOriginal()
@@ -145,12 +152,6 @@ struct LibraryCommands: Commands {
             .keyboardShortcut("\\", modifiers: [])
             .disabled(!canByKey { $0.canEditLoupePhoto && !$0.isCropping })
             Divider()
-            Button("Larger Thumbnails") { model?.resizeThumbnails(by: 1.2) }
-                .keyboardShortcut("=", modifiers: .command)
-                .disabled(!can { $0.mode == .grid })
-            Button("Smaller Thumbnails") { model?.resizeThumbnails(by: 1 / 1.2) }
-                .keyboardShortcut("-", modifiers: .command)
-                .disabled(!can { $0.mode == .grid })
             Button(menu?.state.showFileInfo == false ? String(localized: "Show File Names")
                                                      : String(localized: "Hide File Names")) {
                 model?.showFileInfo.toggle()
@@ -166,24 +167,23 @@ struct LibraryCommands: Commands {
                 model?.showsHDR.toggle()
             }
             .disabled(!can())
-            Menu("Sort By") {
-                ForEach(Self.sortKeys, id: \.key) { key, title in
-                    Toggle(title, isOn: Binding(
-                        get: { menu?.state.sort.key == key },
-                        set: { if $0 { model?.sort.key = key } }
-                    ))
-                }
+            // Rating, Flag and Sort By act on the grid; Clear Filter works in the loupe too.
+            Menu("Filter") {
+                RatingFilterPicker(rule: Binding(get: { menu?.state.ratingRule ?? .any },
+                                                 set: { model?.ratingRule = $0 }))
+                    .disabled(!can { $0.mode == .grid })
+                FlagFilterPicker(rule: Binding(get: { menu?.state.flagRule ?? .any },
+                                               set: { model?.flagRule = $0 }))
+                    .disabled(!can { $0.mode == .grid })
                 Divider()
-                Toggle("Ascending", isOn: Binding(
-                    get: { menu?.state.sort.ascending == true },
-                    set: { if $0 { model?.sort.ascending = true } }
-                ))
-                Toggle("Descending", isOn: Binding(
-                    get: { menu?.state.sort.ascending == false },
-                    set: { if $0 { model?.sort.ascending = false } }
-                ))
+                Button("Clear Filter") { model?.clearFilter() }
+                    .disabled(!can { $0.isFiltered })
             }
             .disabled(!can())
+            Menu("Sort By") {
+                SortPickers(sort: Binding(get: { menu?.state.sort ?? LibrarySort() }, set: { model?.sort = $0 }))
+            }
+            .disabled(!can { $0.mode == .grid })
             Divider()
             Button(menu?.state.showsInspector == true ? String(localized: "Hide Inspector")
                                                       : String(localized: "Show Inspector")) {
@@ -201,11 +201,18 @@ struct LibraryCommands: Commands {
         }
     }
 
-    private static let sortKeys: [(key: LibrarySort.Key, title: String)] = [
-        (.captureDate, String(localized: "Capture Date")),
-        (.rating, String(localized: "Rating")),
-        (.fileName, String(localized: "File Name")),
-    ]
+    private var isLoupe: Bool { menu?.state.mode == .loupe }
+
+    /// ⌘= / ⌘−: thumbnails in the grid, zoom steps in the loupe.
+    private func resize(larger: Bool) {
+        guard let model else { return }
+        if model.mode == .loupe {
+            NotificationCenter.default.post(name: .loupeShouldStepZoom, object: model,
+                                            userInfo: [LoupeZoomStep.zoomInKey: larger])
+        } else {
+            model.resizeThumbnails(by: larger ? 1.2 : 1 / 1.2)
+        }
+    }
 
     private func show(_ tab: InspectorTab) {
         guard let model else { return }
@@ -281,6 +288,12 @@ struct LibraryCommands: Commands {
         }
     }
 
+    /// Batch adjust commands: the grid's selected photos, or the loupe's photo
+    /// outside a crop session.
+    private func adjustsTargets(_ state: LibraryMenuState) -> Bool {
+        state.mode == .grid ? state.targetsIncludePhoto : state.canEditLoupePhoto && !state.isCropping
+    }
+
     private func cull(_ action: CullingAction) {
         model?.perform(action)
     }
@@ -294,7 +307,7 @@ struct LibraryCommands: Commands {
                 .disabled(!can { $0.hasFocusedItem })
             Button("Paste Adjustments") { model?.pasteAdjustments() }
                 .keyboardShortcut("v", modifiers: [.command, .shift])
-                .disabled(!can { $0.hasCopiedAdjustments && $0.hasTargets })
+                .disabled(!can { $0.hasCopiedAdjustments && $0.targetsIncludePhoto })
             Menu("Apply Preset") {
                 ForEach(menu?.state.presetCollections ?? []) { collection in
                     if collection.name.isEmpty {
@@ -310,20 +323,24 @@ struct LibraryCommands: Commands {
                     }
                 }
             }
-            .disabled(!can { !$0.presetCollections.isEmpty && $0.hasTargets })
+            .disabled(!can { !$0.presetCollections.isEmpty && $0.targetsIncludePhoto })
             Divider()
-            Button("Auto Exposure") { model?.editor.autoExposure() }
-                .disabled(!can { $0.canEditLoupePhoto && !$0.isCropping })
+            Button("Auto Exposure") { model?.autoExposure() }
+                .disabled(!can(adjustsTargets))
+            Button("Reset All Adjustments") { model?.resetAllAdjustments() }
+                .disabled(!can(adjustsTargets))
             Divider()
-            Button("Crop") { model?.editor.beginCrop() }
-                .keyboardShortcut("c", modifiers: [])
-                .disabled(!canByKey { $0.canEditLoupePhoto && !$0.isCropping })
-            Button("Rotate Left") { model?.editor.rotate(clockwise: false) }
+            Button(menu?.state.isCropping == true ? String(localized: "Finish Cropping") : String(localized: "Crop")) {
+                model?.crop()
+            }
+            .keyboardShortcut("c", modifiers: [])
+            .disabled(!canByKey { $0.mode == .grid ? $0.focusedIsPhoto : $0.canEditLoupePhoto })
+            Button("Rotate Left") { model?.rotate(clockwise: false) }
                 .keyboardShortcut("[", modifiers: .command)
-                .disabled(!can { $0.canEditLoupePhoto })
-            Button("Rotate Right") { model?.editor.rotate(clockwise: true) }
+                .disabled(!can { $0.mode == .grid ? $0.targetsIncludePhoto : $0.canEditLoupePhoto })
+            Button("Rotate Right") { model?.rotate(clockwise: true) }
                 .keyboardShortcut("]", modifiers: .command)
-                .disabled(!can { $0.canEditLoupePhoto })
+                .disabled(!can { $0.mode == .grid ? $0.targetsIncludePhoto : $0.canEditLoupePhoto })
             Menu("New Mask") {
                 ForEach(MaskShapeKind.allCases, id: \.self) { kind in
                     Button(kind.title) { model?.editor.addMask(kind) }

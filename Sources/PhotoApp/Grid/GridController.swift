@@ -357,6 +357,12 @@ final class PhotoCollectionView: NSCollectionView {
            controller?.navigate(key, extend: event.modifierFlags.contains(.shift)) == true {
             return
         }
+        // C opens the focused photo in the loupe, cropping.
+        if event.charactersIgnoringModifiers?.lowercased() == "c",
+           event.modifierFlags.intersection([.command, .option, .control, .shift]).isEmpty {
+            controller?.model.crop()
+            return
+        }
         // ⌫ in an album takes the selection out of it.
         if event.keyCode == 51 || event.keyCode == 117, let model = controller?.model, model.currentAlbumID != nil {
             model.removeFromCurrentAlbum()

@@ -322,7 +322,12 @@ some raws is the camera's aspect crop; with it raws decode the whole sensor
 RW2 crop tags in an in-memory copy).
 `CropGeometry` keeps the rectangle on the straightened image. Editing is a
 session in `AdjustmentEditor` shown by `CropOverlayView` over the loupe and
-saved on Done. Crop is not an `Adjustments.Group`: presets never carry it.
+saved on Done. Rotate outside a session commits at once (`Crop.turned`: a
+raw without a crop takes its camera frame as the rectangle, since any crop
+decodes the whole sensor). Crop is not an `Adjustments.Group`: presets never
+carry it. Grid batch commands (paste, presets, Auto Exposure, Reset All,
+Rotate) go through `BatchEdit` (videos, offline masters when read) and
+`changeAdjustments`, one undo step.
 
 Info tab metadata: title, description, alt text, extended description,
 copyright, usage terms and the creator's contact details (IPTC Core and

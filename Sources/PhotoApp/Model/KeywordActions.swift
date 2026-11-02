@@ -14,12 +14,19 @@ final class Pending<Value> {
     var value: Value?
 }
 
+enum LoupeZoomStep {
+    static let zoomInKey = "zoomIn"
+}
+
 extension Notification.Name {
     /// The grid or loupe, whichever is showing, should take keyboard focus back
     /// (after the keyword field closes, for instance).
     static let browserShouldTakeFocus = Notification.Name("browserShouldTakeFocus")
     /// The loupe should switch between fit and 100% (View ▸ Zoom).
     static let loupeShouldToggleZoom = Notification.Name("loupeShouldToggleZoom")
+    /// The loupe should zoom one step in or out (View ▸ Zoom In / Zoom Out);
+    /// `LoupeZoomStep.zoomInKey` says which.
+    static let loupeShouldStepZoom = Notification.Name("loupeShouldStepZoom")
     /// The search field should take keyboard focus (Edit ▸ Find ▸ Find…).
     static let searchShouldTakeFocus = Notification.Name("searchShouldTakeFocus")
 }

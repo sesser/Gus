@@ -102,6 +102,28 @@ public struct Crop: AdjustmentModule {
 
     public var isIdentity: Bool { rect == nil && quarterTurns == 0 && angle == 0 }
 
+    /// The crop after a quarter turn of the whole photo, frame and all, as
+    /// Rotate Left / Right commit it outside a crop session.
+    ///
+    /// `cameraRect` is the frame the decoder shows without a crop (a raw's
+    /// in-camera aspect crop, `CameraFrame`), nil when that is the whole
+    /// image. Any crop operation decodes the whole sensor, so a photo without
+    /// a crop takes that frame as its rectangle to keep showing the same
+    /// part. Four turns of such a photo give back no crop at all.
+    public func turned(clockwise: Bool, cameraRect: CropRect?) -> Crop {
+        let camera = cameraRect.flatMap { $0.isClose(to: .full) ? nil : $0 }
+        // Without a rectangle, a crop shows the whole sensor; with a camera
+        // frame that must be explicit, or an upright result would read as no crop.
+        let start = isIdentity ? camera : (rect ?? (camera == nil ? nil : .full))
+        let turned = Crop(rect: start?.turned(clockwise: clockwise), quarterTurns: quarterTurns + (clockwise ? 1 : 3),
+                          angle: angle)
+        guard turned.quarterTurns == 0, turned.angle == 0 else { return turned }
+        // Without turns or straightening, a rectangle that is the frame shown
+        // anyway is no crop. (No rectangle means the whole sensor, which is
+        // the frame shown only when there is no camera frame.)
+        return (turned.rect ?? .full).isClose(to: camera ?? .full) ? Crop() : turned
+    }
+
     public var parameters: [String: EditParameter] {
         var out = ParameterBuilder()
         if let rect {

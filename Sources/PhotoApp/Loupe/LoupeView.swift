@@ -94,7 +94,7 @@ final class LoupeController: NSObject {
         // Zoomed in, live frames are already stretched: drafts would make that worse.
         didSet {
             model.editor.allowsDrafts = zoom == .fit
-            model.loupeShowsActualSize = zoom == .actualSize
+            publishZoom()
         }
     }
     private var rendition = Rendition.placeholder
@@ -163,6 +163,8 @@ final class LoupeController: NSObject {
                                                name: .browserShouldTakeFocus, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(zoomRequested(_:)),
                                                name: .loupeShouldToggleZoom, object: model)
+        NotificationCenter.default.addObserver(self, selector: #selector(zoomStepRequested(_:)),
+                                               name: .loupeShouldStepZoom, object: model)
     }
 
     /// From the model, or from a view in this window (an inspector value field).
@@ -173,6 +175,11 @@ final class LoupeController: NSObject {
 
     @objc private func zoomRequested(_ notification: Notification) {
         if model.mode == .loupe { toggleZoom() }
+    }
+
+    @objc private func zoomStepRequested(_ notification: Notification) {
+        guard model.mode == .loupe, let zoomIn = notification.userInfo?[LoupeZoomStep.zoomInKey] as? Bool else { return }
+        stepZoom(in: zoomIn)
     }
 
     func tearDown() {
@@ -434,8 +441,36 @@ final class LoupeController: NSObject {
         return min(clipSize.width / document.width, clipSize.height / document.height, 1)
     }
 
+    /// ⌘= / ⌘−: the next step (`LoupeZoomSteps`), keeping the visible center.
+    func stepZoom(in zoomIn: Bool) {
+        let current = scrollView.magnification
+        let fit = fitMagnification
+        guard let target = zoomIn ? LoupeZoomSteps.zoomIn(from: current, fit: fit)
+                                  : LoupeZoomSteps.zoomOut(from: current, fit: fit) else { return }
+        let visible = scrollView.documentVisibleRect
+        imageView.usesNearestFiltering = target >= 1
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.15
+            scrollView.animator().setMagnification(target, centeredAt: NSPoint(x: visible.midX, y: visible.midY))
+        }
+        zoom = target > fit * 1.001 ? .actualSize : .fit
+        if zoom == .actualSize { loadFullResolution() }
+        publishZoom(magnification: target)
+    }
+
+    /// Tells the menus whether the loupe is zoomed and can zoom further.
+    private func publishZoom(magnification: CGFloat? = nil) {
+        let current = magnification ?? scrollView.magnification
+        let fit = fitMagnification
+        let state = LoupeZoomState(isZoomed: zoom != .fit,
+                                   canZoomIn: LoupeZoomSteps.zoomIn(from: current, fit: fit) != nil,
+                                   canZoomOut: zoom != .fit && LoupeZoomSteps.zoomOut(from: current, fit: fit) != nil)
+        if model.loupeZoom != state { model.loupeZoom = state }
+    }
+
     private func applyZoom(animated: Bool, centeredAt point: NSPoint? = nil) {
         let target: CGFloat = zoom == .fit ? fitMagnification : 1
+        defer { publishZoom(magnification: target) }
         let center = point ?? NSPoint(x: imageView.bounds.midX, y: imageView.bounds.midY)
         imageView.usesNearestFiltering = target >= 1
         if animated {
@@ -454,6 +489,7 @@ final class LoupeController: NSObject {
 
     @objc private func didEndMagnify(_ notification: Notification) {
         adoptMagnification()
+        publishZoom()
     }
 
     /// Option-scroll zooms between fit and the largest magnification, keeping
@@ -470,6 +506,7 @@ final class LoupeController: NSObject {
         clip.scroll(to: clip.constrainBoundsRect(NSRect(origin: origin, size: clip.bounds.size)).origin)
         scrollView.reflectScrolledClipView(clip)
         adoptMagnification()
+        publishZoom()
     }
 
     /// Takes the zoom from a magnification a pinch or Option-scroll left:
@@ -548,8 +585,9 @@ final class LoupeController: NSObject {
             model.editor.toggleOriginal()
             return true
         }
-        if event.charactersIgnoringModifiers?.lowercased() == "c", bare, model.editor.cropSession == nil {
-            model.editor.beginCrop()
+        // Starts cropping, or finishes (as Return does).
+        if event.charactersIgnoringModifiers?.lowercased() == "c", bare {
+            model.crop()
             return true
         }
         switch NavigationKey.from(event) {

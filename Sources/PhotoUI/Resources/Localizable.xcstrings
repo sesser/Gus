@@ -111,13 +111,13 @@
         }
       }
     },
-    "%@ or better" : {
+    "%@ or Better" : {
       "comment" : "Rating filter. The argument is a row of stars.",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ or better"
+            "value" : "%@ or Better"
           }
         }
       }
@@ -1245,6 +1245,28 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "Any Flag" : {
+      "comment" : "View ▸ Filter, Flag section: no flag filter",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Any Flag"
+          }
+        }
+      }
+    },
+    "Any Rating" : {
+      "comment" : "View ▸ Filter, Rating section: no rating filter",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Any Rating"
           }
         }
       }
@@ -3469,6 +3491,17 @@
         }
       }
     },
+    "Filter" : {
+      "comment" : "View menu submenu: rating and flag filters",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filter"
+          }
+        }
+      }
+    },
     "Find" : {
       "comment" : "Edit menu submenu",
       "localizations" : {
@@ -3487,6 +3520,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Find…"
+          }
+        }
+      }
+    },
+    "Finish Cropping" : {
+      "comment" : "Adjust menu while a crop is being edited: saves it (C or Return)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finish Cropping"
           }
         }
       }
@@ -5494,6 +5538,17 @@
         }
       }
     },
+    "Not Rejected" : {
+      "comment" : "View ▸ Filter, Flag section",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not Rejected"
+          }
+        }
+      }
+    },
     "Not a readable table" : {
       "comment" : "Look-up table import sheet: a file that cannot be imported",
       "localizations" : {
@@ -5685,6 +5740,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Oranges"
+          }
+        }
+      }
+    },
+    "Order" : {
+      "comment" : "View ▸ Sort By: ascending or descending (not shown; for accessibility)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Order"
           }
         }
       }
@@ -6671,6 +6737,17 @@
         }
       }
     },
+    "Reset All Adjustments" : {
+      "comment" : "Adjust menu: resets the photo in the loupe, or every selected photo in the grid",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset All Adjustments"
+          }
+        }
+      }
+    },
     "Reset Channel" : {
       "comment" : "Button under the tone curve: resets the channel shown",
       "localizations" : {
@@ -6733,6 +6810,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Right"
+          }
+        }
+      }
+    },
+    "Rotate" : {
+      "comment" : "Undo action name: a quarter turn",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rotate"
           }
         }
       }
@@ -8570,6 +8658,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ZIP"
+          }
+        }
+      }
+    },
+    "Zoom In" : {
+      "comment" : "View menu in the loupe (⌘=): the next zoom step",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zoom In"
+          }
+        }
+      }
+    },
+    "Zoom Out" : {
+      "comment" : "View menu in the loupe (⌘−): the previous zoom step, or Fit",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zoom Out"
           }
         }
       }

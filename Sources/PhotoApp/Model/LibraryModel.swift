@@ -31,6 +31,14 @@ enum SidebarSelection: Hashable {
     case changedOnDisk
 }
 
+/// The loupe's zoom as the menus see it.
+struct LoupeZoomState: Equatable {
+    /// Zoomed in rather than fitted (`Z` then zooms to fit).
+    var isZoomed = false
+    var canZoomIn = false
+    var canZoomOut = false
+}
+
 /// The smart albums every library has.
 enum BuiltInAlbum: String, CaseIterable, Hashable {
     case lastImport, picks, rejects, unrated, noKeywords
@@ -226,9 +234,8 @@ final class LibraryModel {
     @ObservationIgnored private var searchFocusPending = false
     /// A sidebar item waiting for its deletion to be confirmed.
     var sidebarDeletion: SidebarDeletion?
-    /// The loupe shows the photo at 100% rather than fitted (its controller
-    /// owns the zoom; this copy is for the menus).
-    var loupeShowsActualSize = false
+    /// What the menus need of the loupe's zoom (its controller owns the zoom).
+    var loupeZoom = LoupeZoomState()
     /// The open ⌘K keyword field, with the photos it will tag.
     var keywordEntry: KeywordEntryRequest?
     var showsInspector: Bool {
@@ -699,6 +706,10 @@ final class LibraryModel {
     func takesSearchFocus() -> Bool {
         defer { searchFocusPending = false }
         return searchFocusPending
+    }
+
+    func indexOfVersion(_ versionID: Int64) -> Int? {
+        indexByVersionID[versionID]
     }
 
     /// VoiceOver's Open in Loupe on a grid cell.

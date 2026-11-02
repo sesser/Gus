@@ -349,6 +349,6 @@ enum RatingText {
     }
 
     static func atLeast(_ count: Int) -> String {
-        count == 5 ? stars(5) : String(localized: "\(stars(count)) or better")
+        count == 5 ? stars(5) : String(localized: "\(stars(count)) or Better", comment: "Rating filter. The argument is a row of stars.")
     }
 }

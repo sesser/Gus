@@ -187,8 +187,18 @@ extension Catalog {
     /// stacks before and after, for undo, and the versions left alone.
     public func changeEditStacks(ofVersions ids: [Int64],
                                  _ transform: (Adjustments) -> Adjustments) async throws -> EditStackChange {
+        try await changeEditStacks(ofVersions: ids) { _, values in transform(values) }
+    }
+
+    /// As above, with each version's id, for changes that differ per photo
+    /// (a measured exposure, a raw's camera frame).
+    public func changeEditStacks(ofVersions ids: [Int64],
+                                 _ transform: (Int64, Adjustments) -> Adjustments) async throws -> EditStackChange {
         let stored = try await editStacks(forVersions: ids)
-        let after = stored.stacks.mapValues { transform(Adjustments(stack: $0)).editStack }
+        var after: [Int64: EditStack] = [:]
+        for (id, stack) in stored.stacks {
+            after[id] = transform(id, Adjustments(stack: stack)).editStack
+        }
         try await setEditStacks(after)
         return EditStackChange(before: stored.stacks, after: after, unreadable: stored.unreadable)
     }

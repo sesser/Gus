@@ -22,10 +22,11 @@ extension LibraryModel {
         }
     }
 
-    /// Gives the selection (grid) or the photo on screen (loupe) the copied adjustments.
+    /// Gives the selection (grid) or the photo on screen (loupe) the copied
+    /// adjustments; videos are left out (`batchSelection`).
     func pasteAdjustments() {
         guard let copiedAdjustments else { return }
-        applyAdjustments(copiedAdjustments, toVersions: actionTargetVersionIDs,
+        applyAdjustments(copiedAdjustments, toVersions: batchSelection().versionIDs,
                          actionName: String(localized: "Paste Adjustments", comment: "Undo action name"))
     }
 
@@ -40,6 +41,12 @@ extension LibraryModel {
     /// Gives each of `ids` `transform` of its adjustments, as one undo step.
     func changeAdjustments(ofVersions ids: [Int64], actionName: String,
                            _ transform: @escaping @Sendable (Adjustments) -> Adjustments) {
+        changeAdjustments(ofVersions: ids, actionName: actionName) { _, values in transform(values) }
+    }
+
+    /// As above, with each version's id, for changes that differ per photo.
+    func changeAdjustments(ofVersions ids: [Int64], actionName: String,
+                           _ transform: @escaping @Sendable (Int64, Adjustments) -> Adjustments) {
         guard !ids.isEmpty else { return }
         let change = Pending<(before: [Int64: EditStack], after: [Int64: EditStack])>()
         let skipped = Pending<Int>()

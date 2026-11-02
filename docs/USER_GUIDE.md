@@ -131,10 +131,15 @@ the whole photo in the loupe under a crop frame with a rule-of-thirds grid: drag
 inside the frame to move it, a corner or an edge to resize it, and outside it to
 straighten. The buttons under it hold the frame to 1:1, 3:2, 4:3 or 16:9 (pick
 the same one again to swap portrait and landscape) or free it; the arrows turn
-the photo a quarter turn; the **Straighten** slider tilts it up to 45° either
+the frame a quarter turn; the **Straighten** slider tilts it up to 45° either
 way, over a finer grid, and the image grows so it always fills the frame.
-**Done** (or Return) saves the crop as one undo step and folds the heading;
-Esc cancels. Moving to another photo keeps the crop. Copy and Paste Adjustments
+**Done** (or Return, or `C` again) saves the crop as one undo step and folds
+the heading; Esc cancels. `C` (**Adjust ▸ Crop**) starts cropping, from the
+grid too. **Adjust ▸ Rotate Left / Right** (⌘[ / ⌘]) and the heading's arrows,
+outside a crop, turn the photo at once as one undo step; in the grid they turn
+every selected photo. **Auto Exposure**, **Reset All Adjustments**, **Paste
+Adjustments** and **Apply Preset** also act on every selected photo in the
+grid, as one undo step; videos are left out. Moving to another photo keeps the crop. Copy and Paste Adjustments
 carry the crop; presets never do. Photos shot at 1:1, 3:2 or 16:9 on a camera
 with a 4:3 sensor show the camera's crop; on Olympus, OM System and Panasonic
 raw files, cropping starts from that frame over the whole sensor, so it can be

@@ -526,7 +526,11 @@ enum DebugScript {
     private static func pressMenuItem(titled title: String) {
         func find(_ menu: NSMenu?) -> (NSMenu, Int)? {
             guard let menu else { return nil }
+            // As if opened, like `menuitems`: SwiftUI may refresh its items only then.
             menu.delegate?.menuNeedsUpdate?(menu)
+            menu.delegate?.menuWillOpen?(menu)
+            menu.update()
+            defer { menu.delegate?.menuDidClose?(menu) }
             for (index, item) in menu.items.enumerated() {
                 if item.title == title { return (menu, index) }
                 if let found = find(item.submenu) { return found }

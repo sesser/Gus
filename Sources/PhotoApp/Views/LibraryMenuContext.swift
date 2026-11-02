@@ -27,13 +27,17 @@ struct LibraryMenuState: Equatable {
     /// Culling and batch commands have photos to act on.
     var hasTargets: Bool
     var hasFocusedItem: Bool
+    /// The focused photo is not a video (Crop from the grid).
+    var focusedIsPhoto: Bool
+    /// Some of the photos a batch command would change are not videos.
+    var targetsIncludePhoto: Bool
     /// The loupe shows a photo, not a video.
     var showsLoupePhoto: Bool
     /// The loupe shows a photo whose adjustments can be edited.
     var canEditLoupePhoto: Bool
     var isCropping: Bool
     var showsOriginal: Bool
-    var loupeShowsActualSize: Bool
+    var loupeZoom: LoupeZoomState
     var showsInspector: Bool
     var inspectorTab: InspectorTab
     var showFileInfo: Bool
@@ -41,6 +45,8 @@ struct LibraryMenuState: Equatable {
     var showsHDR: Bool
     var autoAdvance: Bool
     var sort: LibrarySort
+    var ratingRule: LibraryFilter.RatingRule
+    var flagRule: LibraryFilter.FlagRule
     var isFiltered: Bool
     var hasCopiedAdjustments: Bool
     var presetCollections: [AdjustmentPresetCollection]
@@ -80,11 +86,13 @@ struct LibraryMenuState: Equatable {
         itemCount = model.itemCount
         hasTargets = !model.actionTargets.isEmpty
         hasFocusedItem = model.focusedItem != nil
+        focusedIsPhoto = model.focusedItem.map { !$0.isVideo } ?? false
+        targetsIncludePhoto = model.actionTargets.contains { !model.items[$0].isVideo }
         showsLoupePhoto = model.mode == .loupe && model.focusedItem?.isVideo == false
         canEditLoupePhoto = showsLoupePhoto && model.editor.state == .ready
         isCropping = model.editor.cropSession != nil
         showsOriginal = model.editor.showsOriginal
-        loupeShowsActualSize = model.loupeShowsActualSize
+        loupeZoom = model.loupeZoom
         showsInspector = model.showsInspector
         inspectorTab = model.inspectorTab
         showFileInfo = model.showFileInfo
@@ -92,6 +100,8 @@ struct LibraryMenuState: Equatable {
         showsHDR = model.showsHDR
         autoAdvance = model.autoAdvance
         sort = model.sort
+        ratingRule = model.ratingRule
+        flagRule = model.flagRule
         isFiltered = model.isFiltered
         hasCopiedAdjustments = model.copiedAdjustments != nil
         presetCollections = model.adjustmentPresetCollections
