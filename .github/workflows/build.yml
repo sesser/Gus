@@ -47,6 +47,9 @@ jobs:
       - name: Build
         run: swift build
 
+      - name: Blur above white repro (temporary)
+        run: swift docs/feedback/blur-above-white/repro.swift || true
+
       - name: Test
         # Every golden's difference goes to the log, and mismatches are kept
         # as expected | actual | 8x difference images for the artifact below.
@@ -56,7 +59,7 @@ jobs:
         run: swift test
 
       - name: Upload golden failures
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: golden-failures-${{ matrix.os }}
