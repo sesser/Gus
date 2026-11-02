@@ -328,4 +328,72 @@ struct AdjustmentParameterTests {
             #expect(Adjustments(stack: stack).parameters(of: module.kind)[parameter.name] == nil, "\(parameter.name)")
         }
     }
+
+    // MARK: Masks
+
+    @Test("mask add, list, set and remove; the stack goes back to schema 1 without masks")
+    func maskCommands() async throws {
+        try await CommandTests.withLibrary { library in
+            let id = String(library.versionIDs[0])
+            let before = await library.run("query", "images")
+            let plainHash = before.json["images"]?.arrayValue?.first { $0["versionID"] == JSONValue(Int(id)!) }?["renderHash"]
+
+            let added = await library.run("mask", "add", "--version", id, "--shape", "linear",
+                                          "--params", #"{"startX": 0.5, "startY": 0, "endX": 0.5, "endY": 0.6}"#,
+                                          "--name", "Sky", "--set", "exposure=-0.7", "--set", "amount=80")
+            #expect(added.output.exitCode == 0, "\(added.output.standardError)")
+            #expect(added.json["written"] == true)
+            #expect(added.json["editStack"]?["schemaVersion"] == 2)
+            #expect(added.json["masks"]?.arrayValue?.first?["name"] == "Sky")
+            #expect(added.json["renderHash"] != plainHash)
+
+            let component = await library.run("mask", "add", "--version", id, "--mask", "0", "--shape", "luminanceRange",
+                                              "--params", #"{"lower": 0.6}"#, "--operation", "intersect")
+            #expect(component.json["masks"]?.arrayValue?.first?["components"]?.arrayValue?.count == 2)
+
+            let set = await library.run("mask", "set", "--version", id, "--mask", "0", "--set", "component.0.feather=0",
+                                        "--set", "isEnabled=false", "--set", "clarity=-40")
+            #expect(set.output.exitCode == 0, "\(set.output.standardError)")
+            let mask = await library.run("mask", "list", "--version", id)
+            let listed = try #require(mask.json["masks"]?.arrayValue?.first)
+            #expect(listed["isEnabled"] == false && listed["adjustments"]?["clarity"] == -40)
+            #expect(listed["components"]?.arrayValue?.first?["feather"] == 0)
+
+            // The strict reader refuses what the app would not read; nothing is written.
+            let bogus = await library.run("mask", "set", "--version", id, "--mask", "0", "--set", "component.0.bogus=1")
+            #expect(bogus.json["code"] == "invalidEdit")
+            let shape = await library.run("mask", "add", "--version", id, "--shape", "subject")
+            #expect(shape.json["code"] == "invalidValue")
+
+            let render = await library.run("render", "--version", id, "--out", library.root.appending(path: "m.png").path,
+                                           "--long-edge", "128")
+            #expect(render.output.exitCode == 0, "\(render.output.standardError)")
+
+            _ = await library.run("mask", "remove", "--version", id, "--mask", "0", "--component", "1")
+            let removed = await library.run("mask", "remove", "--version", id, "--mask", "0")
+            #expect(removed.json["editStack"]?["schemaVersion"] == 1)
+            #expect(removed.json["renderHash"] == plainHash)
+            #expect(removed.json["masks"]?.arrayValue?.isEmpty == true)
+        }
+    }
+
+    @Test("mask add stops at the limits; adjustments describes the local controls")
+    func maskLimitsAndDescription() async throws {
+        try await CommandTests.withLibrary { library in
+            let id = String(library.versionIDs[1])
+            for _ in 0..<MaskLimits.masks {
+                let added = await library.run("mask", "add", "--version", id, "--shape", "radial", "--set", "exposure=1")
+                #expect(added.output.exitCode == 0)
+            }
+            let over = await library.run("mask", "add", "--version", id, "--shape", "radial")
+            #expect(over.json["code"] == "invalidEdit")
+            #expect(await library.run("mask", "list", "--version", id).json["masks"]?.arrayValue?.count == MaskLimits.masks)
+
+            let adjustments = (output: (), json: try JSONValue.parse(await library.cli.run(["adjustments"]).standardOutput))
+            let controls = adjustments.json["local"]?["controls"]?.arrayValue?.compactMap { $0["name"]?.stringValue }
+            #expect(controls == LocalValues.controls.map(\.name))
+            #expect(adjustments.json["local"]?["shapes"]?["radial"] != nil)
+        }
+    }
 }
+

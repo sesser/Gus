@@ -2,18 +2,19 @@ import Foundation
 import PhotoFixtures
 
 /// A Gaussian blur without Core Image or Metal: taps exp(−i² / 2σ²) for
-/// |i| ≤ ceil(3σ), normalized to sum to one, applied along rows then
-/// columns, with edge pixels repeated beyond the image. Sums in Double.
+/// |i| ≤ ceil(reach × σ) (3σ by default, as the runtime kernel), normalized
+/// to sum to one, applied along rows then columns, with edge pixels repeated
+/// beyond the image. Sums in Double.
 enum BlurReference {
-    static func weights(sigma: Double) -> [Double] {
-        let radius = Int((3 * sigma).rounded(.up))
+    static func weights(sigma: Double, reach: Double = 3) -> [Double] {
+        let radius = Int((reach * sigma).rounded(.up))
         let raw = (-radius...radius).map { exp(-Double($0 * $0) / (2 * sigma * sigma)) }
         let sum = raw.reduce(0, +)
         return raw.map { $0 / sum }
     }
 
-    static func apply(_ image: LinearImage, sigma: Double) -> LinearImage {
-        let weights = weights(sigma: sigma)
+    static func apply(_ image: LinearImage, sigma: Double, reach: Double = 3) -> LinearImage {
+        let weights = weights(sigma: sigma, reach: reach)
         let radius = weights.count / 2
         let width = image.width, height = image.height
         // Tests are built without optimization: buffer pointers keep this fast enough.

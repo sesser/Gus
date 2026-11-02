@@ -22,6 +22,9 @@ public struct Adjustments: Hashable, Sendable {
     public var toneCurve = ToneCurve()
     public var colorMixer = ColorMixer()
     public var colorGrade = ColorGrade()
+    /// Masks and their local values. Not one of the `Group`s: presets and
+    /// paste leave them out.
+    public var local = LocalAdjustments()
     public var lookTable = LookTable()
     public var vignette = Vignette()
     public var noiseReduction = NoiseReduction()
@@ -71,6 +74,11 @@ public struct Adjustments: Hashable, Sendable {
         add(toneCurve)
         add(colorMixer)
         add(colorGrade)
+        let masks = local.parameters
+        if !masks.isEmpty {
+            operations.append(EditOperation(kind: LocalAdjustments.kind,
+                                            isEnabled: !disabled.contains(LocalAdjustments.kind), parameters: masks))
+        }
         add(lookTable)
         add(vignette)
         add(noiseReduction)
@@ -94,6 +102,11 @@ public struct Adjustments: Hashable, Sendable {
         case ToneCurve.kind: toneCurve = ToneCurve(values)
         case ColorMixer.kind: colorMixer = ColorMixer(values)
         case ColorGrade.kind: colorGrade = ColorGrade(values)
+        case LocalAdjustments.kind:
+            // Stored stacks were checked by `EditStack.decode`; one built in
+            // memory that does not read is kept as it is.
+            guard let read = try? LocalAdjustments(operation.parameters) else { return false }
+            local = read
         case LookTable.kind: lookTable = LookTable(values)
         case Vignette.kind: vignette = Vignette(values)
         case NoiseReduction.kind: noiseReduction = NoiseReduction(values)
@@ -116,6 +129,7 @@ public struct Adjustments: Hashable, Sendable {
         case ToneCurve.kind: toneCurve.parameters
         case ColorMixer.kind: colorMixer.parameters
         case ColorGrade.kind: colorGrade.parameters
+        case LocalAdjustments.kind: local.parameters
         case LookTable.kind: lookTable.parameters
         case Vignette.kind: vignette.parameters
         case NoiseReduction.kind: noiseReduction.parameters
@@ -137,6 +151,7 @@ public struct Adjustments: Hashable, Sendable {
         case ToneCurve.kind: toneCurve = ToneCurve()
         case ColorMixer.kind: colorMixer = ColorMixer()
         case ColorGrade.kind: colorGrade = ColorGrade()
+        case LocalAdjustments.kind: local = LocalAdjustments()
         case LookTable.kind: lookTable = LookTable()
         case Vignette.kind: vignette = Vignette()
         case NoiseReduction.kind: noiseReduction = NoiseReduction()
@@ -159,6 +174,7 @@ public struct Adjustments: Hashable, Sendable {
         case ToneCurve.kind: toneCurve = source.toneCurve
         case ColorMixer.kind: colorMixer = source.colorMixer
         case ColorGrade.kind: colorGrade = source.colorGrade
+        case LocalAdjustments.kind: local = source.local
         case LookTable.kind: lookTable = source.lookTable
         case Vignette.kind: vignette = source.vignette
         case NoiseReduction.kind: noiseReduction = source.noiseReduction
@@ -286,6 +302,7 @@ public struct Adjustments: Hashable, Sendable {
             && values.tone.highlights <= 0 && values.toneCurve.isIdentity && values.colorMixer.isIdentity
             && values.colorGrade == ColorGrade()
             && values.lookTable.identifier == nil && values.presence.dehaze == 0 && values.grain.isIdentity
+            && values.local.renderedMasks.allSatisfy { $0.adjustments.modules.preservesExtendedRange }
     }
 }
 

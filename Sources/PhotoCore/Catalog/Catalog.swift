@@ -460,17 +460,31 @@ extension Catalog {
         }
     }
 
-    /// Replaces a version's edit stack and its render hash together.
+    /// Replaces a version's edit stack and its render hash together. Throws
+    /// `UnreadableEditStacks`, writing nothing, when the stored stack cannot be
+    /// read: it may hold edits of a newer build.
     public func setEditStack(_ stack: EditStack, forVersion id: Int64, at date: Date = Date()) async throws {
         let json = try stack.jsonString()
         let hash = stack.renderHash
         try await database.write { db in
+            try Self.refuseUnreadableStacks(of: [id], db)
             _ = try VersionRecord.filter(key: id).updateAll(db, [
                 VersionRecord.Columns.editStack.set(to: json),
                 VersionRecord.Columns.editStackHash.set(to: hash),
                 VersionRecord.Columns.modifiedAt.set(to: date),
             ])
         }
+    }
+
+    /// Throws when any of `ids` has a stored stack this build cannot read.
+    static func refuseUnreadableStacks(of ids: [Int64], _ db: Database) throws {
+        var failures: [Int64: EditStack.ReadFailure] = [:]
+        for chunk in ids.chunked(into: 10_000) {
+            for version in try VersionRecord.filter(keys: chunk).fetchAll(db) {
+                if let id = version.id, let failure = version.editStackReadFailure { failures[id] = failure }
+            }
+        }
+        if !failures.isEmpty { throw UnreadableEditStacks(failures: failures) }
     }
 
     /// Creates a new version of the same master with a copy of `id`'s edit stack

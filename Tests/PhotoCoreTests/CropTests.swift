@@ -384,3 +384,82 @@ struct CropTests {
         return url
     }
 }
+
+/// The mask frame (docs/PHASE6_PLAN.md, decision 1) mapped through turns,
+/// straightening and crop, checked against `Crop.apply` itself.
+@Suite("Mask frame mapping")
+struct MaskFrameMappingTests {
+    static let crops: [Crop] = [
+        Crop(),
+        Crop(rect: CropRect(x: 0.1, y: 0.2, width: 0.7, height: 0.6)),
+        Crop(quarterTurns: 1),
+        Crop(rect: CropRect(x: 0.05, y: 0.1, width: 0.8, height: 0.75), quarterTurns: 3),
+        Crop(rect: CropRect(x: 0.15, y: 0.15, width: 0.7, height: 0.7), angle: 7),
+        Crop(rect: CropRect(x: 0.2, y: 0.1, width: 0.6, height: 0.8), quarterTurns: 2, angle: -11.5),
+        Crop(rect: CropRect(x: 0.1, y: 0.15, width: 0.75, height: 0.7), quarterTurns: 1, angle: 4),
+    ]
+
+    @Test("Mask to output and back is the identity", arguments: crops)
+    func roundTrip(crop: Crop) {
+        let size = CGSize(width: 300, height: 200)
+        for point in [CGPoint(x: 0.5, y: 0.5), CGPoint(x: 0.31, y: 0.62), CGPoint(x: -0.2, y: 1.3)] {
+            let output = CropGeometry.maskToOutput(point, crop: crop, sourceSize: size)
+            let back = CropGeometry.outputToMask(output, crop: crop, sourceSize: size)
+            #expect(abs(back.x - point.x) < 1e-12 && abs(back.y - point.y) < 1e-12, "\(point) → \(output) → \(back)")
+        }
+    }
+
+    @Test("Without a crop the frames agree; a quarter turn takes the top left corner to the top right")
+    func simpleCases() {
+        let size = CGSize(width: 300, height: 200)
+        let point = CGPoint(x: 0.3, y: 0.7)
+        #expect(CropGeometry.maskToOutput(point, crop: Crop(), sourceSize: size) == point)
+        let corner = CropGeometry.maskToOutput(.zero, crop: Crop(quarterTurns: 1), sourceSize: size)
+        #expect(abs(corner.x - 1) < 1e-12 && abs(corner.y) < 1e-12)
+        #expect(CropGeometry.outputRotation(30, crop: Crop(quarterTurns: 1, angle: 5)) == 125)
+    }
+
+    /// A Gaussian blob (σ 3 px) drawn at a mask-frame point and rendered through
+    /// `Crop.apply`: its centroid must land where `maskToOutputPixel` says.
+    /// Bilinear resampling reproduces linear functions, so it keeps a sampled
+    /// blob's first moment; a Gaussian sampled at 1 px has a centroid error
+    /// below 10⁻⁹ px. What is left is half-float rounding of the pixels (2⁻¹¹
+    /// relative), which moves the centroid by far less than 0.01 px.
+    @Test("A point lands where the mapping says, through Crop.apply", arguments: crops)
+    func mappingMatchesRender(crop: Crop) throws {
+        let width = 240, height = 160
+        let point = CGPoint(x: 0.47, y: 0.53)
+        let center = (x: Double(point.x) * Double(width), y: Double(point.y) * Double(height))
+        var pixels = [Float](repeating: 0, count: width * height * 4)
+        for y in 0..<height {
+            for x in 0..<width {
+                let dx = Double(x) + 0.5 - center.x, dy = Double(y) + 0.5 - center.y
+                let value = Float(exp(-(dx * dx + dy * dy) / (2 * 9)))
+                let i = (y * width + x) * 4
+                pixels[i] = value
+                pixels[i + 1] = value
+                pixels[i + 2] = value
+                pixels[i + 3] = 1
+            }
+        }
+        let source = LinearImage(width: width, height: height, pixels: pixels)
+        let output = ReferenceTests.renderLinear(crop.apply(to: source.ciImage))
+        var sum = 0.0, sx = 0.0, sy = 0.0
+        for y in 0..<output.height {
+            for x in 0..<output.width {
+                let value = Double(output.pixels[(y * output.width + x) * 4])
+                sum += value
+                sx += value * (Double(x) + 0.5)
+                sy += value * (Double(y) + 0.5)
+            }
+        }
+        let expected = CropGeometry.maskToOutputPixel(point, crop: crop,
+                                                      sourceSize: CGSize(width: width, height: height))
+        let found = (x: sx / sum, y: sy / sum)
+        #expect(abs(found.x - expected.x) < 0.01 && abs(found.y - expected.y) < 0.01,
+                "centroid \(found), mapped \(expected)")
+        // The unit mapping agrees with the pixel one up to the crop's rounding (under a pixel).
+        let unit = CropGeometry.maskToOutput(point, crop: crop, sourceSize: CGSize(width: width, height: height))
+        #expect(abs(unit.x * Double(output.width) - expected.x) < 1 && abs(unit.y * Double(output.height) - expected.y) < 1)
+    }
+}

@@ -11,6 +11,7 @@ extension CommandRegistry {
         LibraryCommands.projects, LibraryCommands.images,
         LibraryCommands.develop, LibraryCommands.rate, LibraryCommands.flag, LibraryCommands.label,
         LibraryCommands.export,
+        MaskCommands.list, MaskCommands.add, MaskCommands.set, MaskCommands.remove,
     ])
 }
 
@@ -39,10 +40,13 @@ enum RenderCommands {
 
     static let adjustments = CommandSpec(
         id: "adjustments",
-        summary: "Lists every adjustment module with its parameters: names, types, ranges and defaults.",
+        summary: """
+            Lists every adjustment module with its parameters (names, types, ranges and defaults), and under local \
+            the masks' controls, shapes, operations and limits.
+            """,
         access: .read,
         parameters: [],
-        run: { _ in ["modules": .array(Adjustments.moduleDescriptions.map(describe))] })
+        run: { _ in ["modules": .array(Adjustments.moduleDescriptions.map(describe)), "local": MaskCommands.description] })
 
     static func describe(_ module: AdjustmentModuleDescription) -> JSONValue {
         let section = module.group.flatMap { group in Adjustments.Section.allCases.first { $0.groups.contains(group) } }
@@ -147,7 +151,7 @@ enum RenderCommands {
                 throw CommandError(.versionNotFound, "No version \(id)")
             }
             source = details.volume.url(forRelativePath: details.image.relativePath)
-            stack = try details.version.decodedEditStack()
+            stack = try details.version.readableEditStack()
             library = opened
             versionID = Int64(id)
         default:

@@ -1,0 +1,262 @@
+[
+  {
+    "json" : "{\"operations\":[],\"schemaVersion\":1}",
+    "name" : "identity",
+    "renderHash" : "6c76a50e5dc3f0cd68d308e680249e3d6630fa08627df6456a5d9e701b20b9f8"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"exposure\",\"kindVersion\":1,\"parameters\":{\"ev\":-1}}],\"schemaVersion\":1}",
+    "name" : "exposure-minus1-grayRamp",
+    "renderHash" : "f387045dca469870c832ea7eb7a7297aee15e03d7f222d0294ccc46d34b04044"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"exposure\",\"kindVersion\":1,\"parameters\":{\"ev\":1}}],\"schemaVersion\":1}",
+    "name" : "exposure-plus1-hueRamp",
+    "renderHash" : "4da12ce5d935481075e133edb486e079f345af4cb763e6cf36a5a33f248219a2"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"exposure\",\"kindVersion\":1,\"parameters\":{\"ev\":0.5}}],\"schemaVersion\":1}",
+    "name" : "exposure-plus0.5-patchChart",
+    "renderHash" : "4dee610a65b9db04effce9a227a988776235a1a3fdaa4e20a32226350a7754ca"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"whiteBalance\",\"kindVersion\":1,\"parameters\":{\"relativeTemperature\":50}}],\"schemaVersion\":1}",
+    "name" : "whiteBalance-warmer-patchChart",
+    "renderHash" : "76d509c292287b0b251616a64d9fab4e67c674fc41e95ae48b752e60a2b9e45e"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"whiteBalance\",\"kindVersion\":1,\"parameters\":{\"relativeTint\":40}}],\"schemaVersion\":1}",
+    "name" : "whiteBalance-magenta-patchChart",
+    "renderHash" : "421a36fe6e99f3613df2dba5d5f916eb3232748940e08770bfb9394878975f8c"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"whiteBalance\",\"kindVersion\":1,\"parameters\":{\"relativeTemperature\":-40,\"relativeTint\":-30}}],\"schemaVersion\":1}",
+    "name" : "whiteBalance-coolerGreener-hazyLandscape",
+    "renderHash" : "c946f621ca0190ef4c86895ed02ac4e847ea7e6653da2af0c063c5869e9bc94d"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"tone\",\"kindVersion\":1,\"parameters\":{\"contrast\":50}}],\"schemaVersion\":1}",
+    "name" : "tone-contrast-grayRamp",
+    "renderHash" : "c0f06c55ea7933dd9fa38cbc93759c2a7258575eba29e183b874d2cb2bd98d9e"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"tone\",\"kindVersion\":1,\"parameters\":{\"contrast\":-40}}],\"schemaVersion\":1}",
+    "name" : "tone-lessContrast-patchChart",
+    "renderHash" : "463d8cbf9b91814baf9f19692be78e150caaff84fa36136d228b3c508518c7e8"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"tone\",\"kindVersion\":1,\"parameters\":{\"highlights\":-70}}],\"schemaVersion\":1}",
+    "name" : "tone-recoverHighlights-grayRamp",
+    "renderHash" : "2629a4deda5c30dd7285f06df2b4baac145142beaa902f0589339f96db07e5fd"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"tone\",\"kindVersion\":1,\"parameters\":{\"highlights\":40}}],\"schemaVersion\":1}",
+    "name" : "tone-brighterHighlights-hazyLandscape",
+    "renderHash" : "d0789e5309c075eb95056eaa13b45a135087ae4185b8ab3dfeb326e15f4cdc59"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"tone\",\"kindVersion\":1,\"parameters\":{\"shadows\":60}}],\"schemaVersion\":1}",
+    "name" : "tone-shadows-hazyLandscape",
+    "renderHash" : "7ec3a52680aecc16b9efdc58a80f68d0906a1e4563bbaefbb1865ef284dbaf17"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"tone\",\"kindVersion\":1,\"parameters\":{\"blacks\":-30,\"whites\":40}}],\"schemaVersion\":1}",
+    "name" : "tone-whitesBlacks-grayRamp",
+    "renderHash" : "f09ba48b113b5df56eb66ccdfc5aa3f4933ea39e779ff8ec9b86e32c530f2fa7"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"presence\",\"kindVersion\":1,\"parameters\":{\"clarity\":60}}],\"schemaVersion\":1}",
+    "name" : "clarity-plus60-edgeTarget",
+    "renderHash" : "1a563f67c27259b3d66362b1fbcb8c12f32a915c1ad8897b407804cc6679945b"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"presence\",\"kindVersion\":1,\"parameters\":{\"clarity\":-40}}],\"schemaVersion\":1}",
+    "name" : "clarity-minus40-hazyLandscape",
+    "renderHash" : "6ea863608642a82db41c36ba4e38f85108690798d51597b69c6e85d4f2816ac0"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"presence\",\"kindVersion\":1,\"parameters\":{\"dehaze\":60}}],\"schemaVersion\":1}",
+    "name" : "dehaze-plus60-hazyLandscape",
+    "renderHash" : "d948033c9346024cf048cbfa5b901dd25ce9dc900b31eab67d2158e21436d085"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"presence\",\"kindVersion\":1,\"parameters\":{\"dehaze\":-40}}],\"schemaVersion\":1}",
+    "name" : "dehaze-minus40-hazyLandscape",
+    "renderHash" : "554458ffd7dc4e6b672b43808915511f61d1e4aeadc92c5faa3a56133ec1ad7c"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"presence\",\"kindVersion\":1,\"parameters\":{\"vibrance\":60}}],\"schemaVersion\":1}",
+    "name" : "vibrance-plus60-hueRamp",
+    "renderHash" : "aec17fa9cb40b904d7021f515a80bd526688ab01aae27eaf642efe8bc6af3ac5"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"presence\",\"kindVersion\":1,\"parameters\":{\"vibrance\":-50}}],\"schemaVersion\":1}",
+    "name" : "vibrance-minus50-patchChart",
+    "renderHash" : "b282757f556cbe313c35698d94668b13ad23bbc716cc452850b39314c5823bb9"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"presence\",\"kindVersion\":1,\"parameters\":{\"saturation\":-50}}],\"schemaVersion\":1}",
+    "name" : "saturation-minus50-hueRamp",
+    "renderHash" : "e7995bff0da29f6c8c85857ec6320f384a0d6214587a2da13ddace62c8de8d40"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"presence\",\"kindVersion\":1,\"parameters\":{\"saturation\":40}}],\"schemaVersion\":1}",
+    "name" : "saturation-plus40-patchChart",
+    "renderHash" : "3212d5cdc32f6bf432dfb2f16ad6d535f8241e28ee6d1983baca14a1f6472e23"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"toneCurve\",\"kindVersion\":1,\"parameters\":{\"rgb\":[0,0,0.25,0.18,0.75,0.85,1,1]}}],\"schemaVersion\":1}",
+    "name" : "toneCurve-sCurve-grayRamp",
+    "renderHash" : "c6798bc850ba56a57e733d38205b8a721fbcae3bea9f0262f72ce0563fac9128"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"toneCurve\",\"kindVersion\":1,\"parameters\":{\"blue\":[0,0.08,1,0.92],\"red\":[0,0,0.5,0.6,1,1]}}],\"schemaVersion\":1}",
+    "name" : "toneCurve-red-patchChart",
+    "renderHash" : "6e1ec191cf4b31595bb0cea75dccd9f1cd79dd255f5e400edc3aa570b78683bf"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"colorMixer\",\"kindVersion\":1,\"parameters\":{\"blueSaturation\":-60,\"greenLuminance\":50,\"orangeHue\":40}}],\"schemaVersion\":1}",
+    "name" : "colorMixer-hueRamp",
+    "renderHash" : "73ab0a3a8624d9fe4494f533736881e7626611887990a254d9071d4cde9fabd9"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"colorMixer\",\"kindVersion\":1,\"parameters\":{\"aquaHue\":50,\"aquaSaturation\":40,\"redHue\":-30,\"redLuminance\":-20,\"redSaturation\":30}}],\"schemaVersion\":1}",
+    "name" : "colorMixer-patchChart",
+    "renderHash" : "3eb0f95224bb69ae6467ba2a82ea27c8193939286e74a983b85b60c5f1447d93"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"colorGrade\",\"kindVersion\":1,\"parameters\":{\"highlightsAmount\":30,\"highlightsHue\":40,\"shadowsAmount\":40,\"shadowsHue\":200}}],\"schemaVersion\":1}",
+    "name" : "colorGrade-splitTone-grayRamp",
+    "renderHash" : "320d0979dea0aaf5c73f412fced839458804fb322d28fa9fa9b74aad55695823"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"colorGrade\",\"kindVersion\":1,\"parameters\":{\"balance\":30,\"blending\":70,\"midtonesAmount\":25,\"midtonesHue\":300,\"midtonesLuminance\":20}}],\"schemaVersion\":1}",
+    "name" : "colorGrade-midtones-patchChart",
+    "renderHash" : "f8fa5169813e01c87f51220a1a051bd29048abee1e6652b883e95e170266005c"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"vignette\",\"kindVersion\":1,\"parameters\":{\"amount\":-60}}],\"schemaVersion\":1}",
+    "name" : "vignette-dark-hazyLandscape",
+    "renderHash" : "e0e94d37342316142363d9c08af4cf4597fc804449dc1837a8e0e869ab6edf5d"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"vignette\",\"kindVersion\":1,\"parameters\":{\"amount\":40,\"roundness\":100,\"size\":30}}],\"schemaVersion\":1}",
+    "name" : "vignette-lightRound-patchChart",
+    "renderHash" : "3256900346a76d7861d6c9406775d8478e5f157ce9225b919894c17b285bc634"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"vignette\",\"kindVersion\":1,\"parameters\":{\"amount\":-80,\"roundness\":-100,\"size\":70}}],\"schemaVersion\":1}",
+    "name" : "vignette-rectangle-grayRamp",
+    "renderHash" : "077d5787bb17d794f0bb107927e5b229c0825ffc3282aa3faef7de9872a2f242"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"sharpen\",\"kindVersion\":1,\"parameters\":{\"amount\":100}}],\"schemaVersion\":1}",
+    "name" : "sharpen-default-edgeTarget",
+    "renderHash" : "b02248efeef2bb6af4140893feaa1011b5cfd3b1de0a357e11d7706bebd46c57"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"sharpen\",\"kindVersion\":1,\"parameters\":{\"amount\":120,\"detail\":80,\"masking\":60,\"radius\":1.5}}],\"schemaVersion\":1}",
+    "name" : "sharpen-detailMasking-edgeTarget",
+    "renderHash" : "206fbbee55037855bb46c0cf3f25cb9c8c103f9e9ff9b231708ccc742c86b830"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"grain\",\"kindVersion\":1,\"parameters\":{\"strength\":100}}],\"schemaVersion\":1}",
+    "name" : "grain-default-grayRamp",
+    "renderHash" : "d4458eca8848b3497bf9e7a49b6e95a2dad5d7172faa9d2db1844ef89fabe785"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"grain\",\"kindVersion\":1,\"parameters\":{\"color\":80,\"roughness\":20,\"size\":3,\"strength\":150}}],\"schemaVersion\":1}",
+    "name" : "grain-coarseColor-patchChart",
+    "renderHash" : "e9a68510ffc7ffb0e9582c0011cf7369de419201d8e9a927f4f569331dcbfd8f"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"lookTable\",\"kindVersion\":1,\"parameters\":{\"identifier\":\"31093964c9f6b603857b33edef449830a5b5ea4ae3099f897fa6c45b8f9ac656\"}}],\"schemaVersion\":1}",
+    "name" : "lookTable-tealOrange-hueRamp",
+    "renderHash" : "4fdce14688b89e2d4f1923c82f7dd70345c5203a09c3dbe675aa8f9587d562c3"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"lookTable\",\"kindVersion\":1,\"parameters\":{\"identifier\":\"f8b33481d6cd49584e3b44ff08edc7cd3903f97c95278a37788fa99e0d2f0d7d\",\"intensity\":50}}],\"schemaVersion\":1}",
+    "name" : "lookTable-fadeHalf-patchChart",
+    "renderHash" : "730b98fc2dfb987867a5913694dd74f85e044c852f36577babfa02c6e2580db1"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"lookTable\",\"kindVersion\":1,\"parameters\":{\"colorSpace\":\"proPhoto\",\"identifier\":\"c502c7f61294d4fe05fcbb8874c83b1f50bbadcb80042d277d6aad190fa1d742\"}}],\"schemaVersion\":1}",
+    "name" : "lookTable-crossProcessProPhoto-grayRamp",
+    "renderHash" : "a5147aaf8da921efcf74b1c68c572a42368b44a7f55520c6e886647bc9ce9174"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"noiseReduction\",\"kindVersion\":1,\"parameters\":{\"luminance\":60}}],\"schemaVersion\":1}",
+    "name" : "noiseReduction-60-hazyLandscape",
+    "renderHash" : "bc0c3a0129b6dcf807927ed75d582837af49d8329b23bbec820010f61ce55db0"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"noiseReduction\",\"kindVersion\":1,\"parameters\":{\"luminance\":100}}],\"schemaVersion\":1}",
+    "name" : "noiseReduction-100-edgeTarget",
+    "renderHash" : "b0ac351ac5aff48be9c19a3a06bde80f836a714554156f5a6c8535e9979b95df"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"crop\",\"kindVersion\":1,\"parameters\":{\"angle\":5,\"height\":0.75,\"width\":0.8,\"x\":0.1,\"y\":0.1}}],\"schemaVersion\":1}",
+    "name" : "crop-straighten-patchChart",
+    "renderHash" : "6835e7f08c7da1bedaffbc7d6384276077f5f7add71e0e70c3ff1c663134f6c1"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"crop\",\"kindVersion\":1,\"parameters\":{\"angle\":-3,\"height\":0.6,\"quarterTurns\":1,\"width\":0.9,\"x\":0.05,\"y\":0.2}}],\"schemaVersion\":1}",
+    "name" : "crop-turnStraighten-edgeTarget",
+    "renderHash" : "31d62f36954f621ff1df705f597284dc49a601c8a1bf38afaec0817019e49354"
+  },
+  {
+    "json" : "{\"operations\":[],\"schemaVersion\":1}",
+    "name" : "raw-asShot",
+    "renderHash" : "6c76a50e5dc3f0cd68d308e680249e3d6630fa08627df6456a5d9e701b20b9f8"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"whiteBalance\",\"kindVersion\":1,\"parameters\":{\"preset\":\"custom\",\"temperature\":3200,\"tint\":0}}],\"schemaVersion\":1}",
+    "name" : "raw-kelvin3200",
+    "renderHash" : "1b3700793a0ac849463e3f4b3d9c3f2d85d6b4b58abcaa8aa4bf9370ef22739e"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"whiteBalance\",\"kindVersion\":1,\"parameters\":{\"preset\":\"custom\",\"temperature\":8000,\"tint\":30}}],\"schemaVersion\":1}",
+    "name" : "raw-kelvin8000-tint30",
+    "renderHash" : "8dd874d83fcc66e0e191cc167f4dc7529c011e1f41ecb375be6faa2c765c8696"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"whiteBalance\",\"kindVersion\":1,\"parameters\":{\"preset\":\"tungsten\",\"temperature\":2850,\"tint\":0}}],\"schemaVersion\":1}",
+    "name" : "raw-tungstenPreset",
+    "renderHash" : "a6c8184c942f458cc0d7a1d53881a710b51da00ce90a0b0a264ca2e2581962fa"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"rawDecode\",\"kindVersion\":1,\"parameters\":{\"look\":\"flat\"}}],\"schemaVersion\":1}",
+    "name" : "raw-lookFlat",
+    "renderHash" : "597736ba24fc7eda744f36d359feef796607c3353ed1cfe9346acd101dd8f6bd"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"rawDecode\",\"kindVersion\":1,\"parameters\":{\"look\":\"neutral\"}}],\"schemaVersion\":1}",
+    "name" : "raw-lookNeutral",
+    "renderHash" : "bcaa91212c8e079bb87ca5088ade0b7f92f54c1a0f0fafc6218130ae502d89da"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"exposure\",\"kindVersion\":1,\"parameters\":{\"ev\":-1}}],\"schemaVersion\":1}",
+    "name" : "raw-extendedRange-exposureMinus1",
+    "renderHash" : "f387045dca469870c832ea7eb7a7297aee15e03d7f222d0294ccc46d34b04044"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"noiseReduction\",\"kindVersion\":1,\"parameters\":{\"color\":80,\"luminance\":80}}],\"schemaVersion\":1}",
+    "name" : "raw-noiseReduction",
+    "renderHash" : "1d2a0f919ef3a8820a74bdaf1910e971b67049d07b6774a67b800411b96100c0"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":false,\"kind\":\"exposure\",\"kindVersion\":1,\"parameters\":{\"ev\":1}},{\"id\":\"00000000-0000-4000-8000-000000000001\",\"isEnabled\":false,\"kind\":\"tone\",\"kindVersion\":1,\"parameters\":{\"contrast\":20}}],\"schemaVersion\":1}",
+    "name" : "light-turnedOff",
+    "renderHash" : "6c76a50e5dc3f0cd68d308e680249e3d6630fa08627df6456a5d9e701b20b9f8"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"presence\",\"kindVersion\":1,\"parameters\":{\"vibrance\":15}},{\"id\":\"00000000-0000-4000-8000-000000000001\",\"isEnabled\":true,\"kind\":\"futureModule\",\"kindVersion\":3,\"parameters\":{\"flag\":true,\"list\":[1,[2,\"x\"],false],\"name\":\"a/b \\\"c\\\"\",\"number\":0.125}}],\"schemaVersion\":1}",
+    "name" : "unknownOperationPreserved",
+    "renderHash" : "67795eec734e8a63a2a4eaa21cb1ed52dd264198a4cc4600d34dc582e660248c"
+  },
+  {
+    "json" : "{\"operations\":[{\"id\":\"00000000-0000-4000-8000-000000000000\",\"isEnabled\":true,\"kind\":\"crop\",\"kindVersion\":1,\"parameters\":{\"angle\":2.5,\"height\":0.9,\"quarterTurns\":3,\"width\":0.8,\"x\":0.1,\"y\":0.05}},{\"id\":\"00000000-0000-4000-8000-000000000001\",\"isEnabled\":true,\"kind\":\"rawDecode\",\"kindVersion\":1,\"parameters\":{\"decoderVersion\":\"8\",\"look\":\"neutral\"}},{\"id\":\"00000000-0000-4000-8000-000000000002\",\"isEnabled\":true,\"kind\":\"whiteBalance\",\"kindVersion\":1,\"parameters\":{\"preset\":\"custom\",\"relativeTemperature\":10,\"relativeTint\":-5,\"temperature\":5100,\"tint\":7}},{\"id\":\"00000000-0000-4000-8000-000000000003\",\"isEnabled\":true,\"kind\":\"exposure\",\"kindVersion\":1,\"parameters\":{\"ev\":0.33}},{\"id\":\"00000000-0000-4000-8000-000000000004\",\"isEnabled\":true,\"kind\":\"tone\",\"kindVersion\":1,\"parameters\":{\"blacks\":-8,\"contrast\":12,\"highlights\":-40,\"shadows\":30,\"whites\":5}},{\"id\":\"00000000-0000-4000-8000-000000000005\",\"isEnabled\":true,\"kind\":\"presence\",\"kindVersion\":1,\"parameters\":{\"clarity\":-20,\"dehaze\":10,\"saturation\":-10,\"vibrance\":25}},{\"id\":\"00000000-0000-4000-8000-000000000006\",\"isEnabled\":true,\"kind\":\"toneCurve\",\"kindVersion\":1,\"parameters\":{\"rgb\":[0,0.02,0.5,0.55,1,1]}},{\"id\":\"00000000-0000-4000-8000-000000000007\",\"isEnabled\":true,\"kind\":\"colorMixer\",\"kindVersion\":1,\"parameters\":{\"blueHue\":-10,\"blueLuminance\":-15,\"blueSaturation\":20}},{\"id\":\"00000000-0000-4000-8000-000000000008\",\"isEnabled\":true,\"kind\":\"colorGrade\",\"kindVersion\":1,\"parameters\":{\"shadowsAmount\":15,\"shadowsHue\":210}},{\"id\":\"00000000-0000-4000-8000-000000000009\",\"isEnabled\":true,\"kind\":\"lookTable\",\"kindVersion\":1,\"parameters\":{\"colorSpace\":\"displayP3\",\"identifier\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"intensity\":70,\"name\":\"Look\"}},{\"id\":\"00000000-0000-4000-8000-000000000010\",\"isEnabled\":true,\"kind\":\"vignette\",\"kindVersion\":1,\"parameters\":{\"amount\":-30,\"roundness\":20,\"size\":60}},{\"id\":\"00000000-0000-4000-8000-000000000011\",\"isEnabled\":true,\"kind\":\"noiseReduction\",\"kindVersion\":1,\"parameters\":{\"color\":30,\"luminance\":20}},{\"id\":\"00000000-0000-4000-8000-000000000012\",\"isEnabled\":true,\"kind\":\"sharpen\",\"kindVersion\":1,\"parameters\":{\"amount\":60,\"detail\":30,\"masking\":10,\"radius\":1.2}},{\"id\":\"00000000-0000-4000-8000-000000000013\",\"isEnabled\":true,\"kind\":\"grain\",\"kindVersion\":1,\"parameters\":{\"color\":10,\"roughness\":70,\"size\":1.5,\"strength\":40}}],\"schemaVersion\":1}",
+    "name" : "everything",
+    "renderHash" : "7f4838614c25741716959ac4194cd58d54a68482812ba2626cb6ed16d7ae61cd"
+  }
+]

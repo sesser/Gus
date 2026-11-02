@@ -8,10 +8,16 @@ public struct RenderContext: Sendable, Hashable {
     /// The image came from the RAW decoder, which already applied the stack's
     /// decode settings.
     public var isRaw: Bool
+    /// The camera's crop of the whole sensor (`CameraFrame`), when the decoder
+    /// gave the whole sensor for a stack that asked for it and the file has
+    /// one: a stack with masks but no crop of its own crops to it, so the
+    /// photo keeps its frame.
+    public var cameraFrame: CropRect?
 
-    public init(scale: Double = 1, isRaw: Bool = false) {
+    public init(scale: Double = 1, isRaw: Bool = false, cameraFrame: CropRect? = nil) {
         self.scale = scale
         self.isRaw = isRaw
+        self.cameraFrame = cameraFrame
     }
 }
 
@@ -27,7 +33,8 @@ public struct RAWDecodeSettings: Sendable, Hashable {
     /// `extendedDynamicRangeAmount`: values above white are kept instead of rolled off.
     public var extendedDynamicRange: Float?
     /// Decode the whole sensor, without the crop the camera recorded
-    /// (`CameraFrame`); the edit stack crops instead.
+    /// (`CameraFrame`); the edit stack crops instead, or the renderer crops to
+    /// the camera's frame (`RenderContext.cameraFrame`).
     public var fullFrame = false
 
     public init(temperature: Float? = nil, tint: Float? = nil, boostAmount: Float? = nil, decoderVersion: String? = nil,

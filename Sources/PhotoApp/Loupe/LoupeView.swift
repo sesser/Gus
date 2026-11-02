@@ -41,6 +41,7 @@ struct LoupeCanvas: NSViewRepresentable {
         context.coordinator.show(index: model.focusIndex)
         context.coordinator.showLiveFrame(revision: model.editor.frameRevision, active: model.editor.showsLive)
         context.coordinator.showCrop(model.editor.cropSession, image: model.editor.cropImage)
+        context.coordinator.showMasks()
     }
 
     static func dismantleNSView(_ view: LoupeHostView, coordinator: LoupeController) {
@@ -77,6 +78,7 @@ final class LoupeController: NSObject {
     private let scrollView = LoupeScrollView()
     private let imageView = LoupeImageView()
     private let cropView = CropOverlayView()
+    private let maskView = MaskOverlayView()
     /// The version and edit shown; a new edit hash loads new renditions.
     private var shownKey: ShownKey?
     private struct ShownKey: Equatable {
@@ -87,7 +89,10 @@ final class LoupeController: NSObject {
     /// Loads the shown version's renditions again on the next `show`.
     private var reloadsSameKey = false
     private var shownIndex: Int?
-    private var zoom: Zoom = .fit
+    private var zoom: Zoom = .fit {
+        // Zoomed in, live frames are already stretched: drafts would make that worse.
+        didSet { model.editor.allowsDrafts = zoom == .fit }
+    }
     private var rendition = Rendition.placeholder
     private var loadTask: Task<Void, Never>?
     private var hdrTask: Task<Void, Never>?
@@ -131,6 +136,10 @@ final class LoupeController: NSObject {
             cropView.topAnchor.constraint(equalTo: hostView.topAnchor),
             cropView.bottomAnchor.constraint(equalTo: hostView.bottomAnchor),
         ])
+        maskView.frame = imageView.bounds
+        maskView.autoresizingMask = [.width, .height]
+        maskView.editor = model.editor
+        imageView.addSubview(maskView)
         cropView.onChangeRect = { [weak self] rect in self?.model.editor.setCropRect(rect) }
         cropView.onStraighten = { [weak self] angle, phase in self?.model.editor.straighten(angle, phase: phase) }
         hostView.controller = self
@@ -294,6 +303,16 @@ final class LoupeController: NSObject {
         matchFrame(to: frame.image.cgImage, exact: false)
         imageView.setImage(frame.image.cgImage, extendedRange: false)
         if model.loupeHDRHeadroom != nil { model.loupeHDRHeadroom = nil }
+    }
+
+    /// The selected mask's handles over the photo; reading the editor here
+    /// registers the observation that redraws them.
+    func showMasks() {
+        let editor = model.editor
+        _ = (editor.adjustments.local, editor.selectedMaskID, editor.isBrushing, editor.isSamplingColor,
+             editor.maskFrameSize, editor.brushTemplate)
+        maskView.isHidden = editor.state != .ready || editor.cropSession != nil || editor.selectedMaskID == nil
+        maskView.refresh()
     }
 
     /// Shows the crop frame over the whole photo while a crop is edited.

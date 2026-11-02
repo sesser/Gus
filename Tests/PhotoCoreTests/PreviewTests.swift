@@ -430,3 +430,28 @@ struct RenderEngineTests {
         #expect(again == identifiers[0], "the first context is free again")
     }
 }
+
+@Suite("RAW decode guard")
+struct RAWDecodeGuardTests {
+    /// The RAW decoder returns an empty image for this DNG (256 × 192; 320 × 240
+    /// decodes) without an error. A decode must never pass that on as a photo.
+    @Test("An empty RAW decode is never returned as a decoded image")
+    func emptyRAWOutputIsNotAPhoto() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { folder in
+            let dng = folder.appending(path: "small.dng")
+            try SyntheticDNG.write(to: dng, options: .init(width: 256, height: 192, seed: 7))
+            let raw = try #require(CIRAWFilter(imageURL: dng))
+            // The premise: if the decoder starts decoding this file, the test no longer covers anything.
+            #expect(raw.outputImage?.extent.isEmpty ?? true, "the decoder now decodes this DNG")
+            for longEdge in [nil, 128] as [Int?] {
+                do {
+                    let decoded = try PreviewGenerator.decode(dng, longEdge: longEdge, draft: false)
+                    #expect(!decoded.image.extent.isEmpty)
+                    #expect(!decoded.context.isRaw)
+                } catch PreviewGenerator.Failure.undecodable {
+                    // Also acceptable: nothing else could read it either.
+                }
+            }
+        }
+    }
+}
