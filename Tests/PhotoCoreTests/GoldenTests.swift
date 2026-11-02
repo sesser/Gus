@@ -267,8 +267,8 @@ struct GoldenTests {
     /// The decoder's own settings: Kelvin white balance, the base look (its
     /// boost), extended range (asked for by negative exposure), and its noise
     /// reduction. Not covered: `decoderVersion` (the versions offered depend on
-    /// the macOS release) and the whole-sensor decode (`CameraFrame`, which
-    /// only Olympus, OM System and Panasonic files have).
+    /// the macOS release; see `DecoderFingerprint`) and the whole-sensor decode
+    /// (`CameraFrame`, which only Olympus, OM System and Panasonic files have).
     static let rawCases: [RAWGoldenCase] = [
         RAWGoldenCase("raw-asShot") { _ in },
         RAWGoldenCase("raw-kelvin3200") { $0.whiteBalance = WhiteBalance(preset: .custom, temperature: 3200, tint: 0) },
@@ -287,9 +287,35 @@ struct GoldenTests {
         try Goldens.check(golden.name, golden.render(), tolerance: Self.tolerance)
     }
 
-    @Test("RAW decode settings match their goldens", arguments: rawCases)
+    /// This Mac's decoder, for the RAW goldens' fingerprints.
+    static let decoder = DecoderFingerprint.current(decoding: RAWGoldenCase.master)
+    static let rawComparison = RAWGoldenComparison(names: rawCases.map(\.name), current: decoder)
+
+    /// Compared only on the macOS build and decoder version that made the
+    /// goldens (`DecoderFingerprint`); elsewhere skipped with both named, and
+    /// `RAWDecodeTests` checks what each setting does instead. Updating
+    /// rewrites the fingerprints along with the goldens.
+    @Test("RAW decode settings match their goldens",
+          .enabled(if: Goldens.isUpdating || rawComparison.isComparable, Comment(rawValue: rawComparison.skipReason)),
+          arguments: rawCases)
     func rawDecodeMatchesGolden(_ golden: RAWGoldenCase) throws {
         try Goldens.check(golden.name, golden.render(), tolerance: Self.tolerance)
+        if Goldens.isUpdating, DecoderFingerprint.stored(forGolden: golden.name) != Self.decoder {
+            try Self.decoder.write(forGolden: golden.name)
+            print("golden fingerprint written: \(DecoderFingerprint.url(forGolden: golden.name).path) (\(Self.decoder))")
+        }
+    }
+
+    /// One fingerprint for the set, so the goldens are compared all together or
+    /// not at all: a golden updated on another Mac must bring the others along.
+    @Test("RAW goldens share one fingerprint")
+    func rawFingerprintsAgree() throws {
+        let stored = Self.rawCases.map { DecoderFingerprint.stored(forGolden: $0.name) }
+        for (golden, fingerprint) in zip(Self.rawCases, stored) {
+            #expect(fingerprint != nil, "\(golden.name) has no fingerprint (UPDATE_GOLDENS=1 writes it)")
+        }
+        #expect(Set(stored.compactMap { $0.map(\.description) }).count <= 1,
+                "RAW goldens come from different decoders: \(stored.compactMap { $0?.description })")
     }
 
     /// A setting the decoder ignored would pin the as-shot render under another

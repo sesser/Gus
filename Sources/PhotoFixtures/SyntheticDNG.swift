@@ -15,13 +15,18 @@ public enum SyntheticDNG {
         /// "yyyy:MM:dd HH:mm:ss"
         public var dateTimeOriginal: String?
         public var orientation: Int
+        /// Standard deviation of Gaussian noise added to every photosite, as a
+        /// fraction of the white level (0: none). Drawn from `seed`.
+        public var noise: Double
 
-        public init(width: Int, height: Int, seed: UInt64, dateTimeOriginal: String? = nil, orientation: Int = 1) {
+        public init(width: Int, height: Int, seed: UInt64, dateTimeOriginal: String? = nil, orientation: Int = 1,
+                    noise: Double = 0) {
             self.width = width
             self.height = height
             self.seed = seed
             self.dateTimeOriginal = dateTimeOriginal
             self.orientation = orientation
+            self.noise = noise
         }
     }
 
@@ -35,7 +40,7 @@ public enum SyntheticDNG {
         guard width >= 16, height >= 16,
               let scene = SyntheticImages.makeImage(width: width, height: height, seed: options.seed)
         else { throw CocoaError(.fileWriteInvalidFileName) }
-        let mosaic = try mosaic(scene, width: width, height: height)
+        let mosaic = try mosaic(scene, width: width, height: height, noise: options.noise, seed: options.seed)
 
         var tiff = TIFFWriter()
         let date = options.dateTimeOriginal ?? "2024:01:01 00:00:00"
@@ -111,7 +116,7 @@ public enum SyntheticDNG {
     }
 
     /// Samples the scene through an RGGB color filter array as 16-bit linear values.
-    static func mosaic(_ scene: CGImage, width: Int, height: Int) throws -> Data {
+    static func mosaic(_ scene: CGImage, width: Int, height: Int, noise: Double, seed: UInt64) throws -> Data {
         var rgba = [UInt8](repeating: 0, count: width * height * 4)
         guard let context = CGContext(data: &rgba, width: width, height: height, bitsPerComponent: 8,
                                       bytesPerRow: width * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
@@ -125,13 +130,24 @@ public enum SyntheticDNG {
             let l = v <= 0.04045 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4)
             return UInt16(min(65535, l * 0.85 * 65535))
         }
+        var random = SplitMix64(seed: seed)
+        // Box–Muller: one standard normal value per photosite.
+        func gaussian() -> Double {
+            let u = (Double(random.next() >> 11) + 0.5) / Double(1 << 53)
+            let v = Double(random.next() >> 11) / Double(1 << 53)
+            return (-2 * log(u)).squareRoot() * cos(2 * Double.pi * v)
+        }
         var output = Data(count: width * height * 2)
         output.withUnsafeMutableBytes { raw in
             let samples = raw.bindMemory(to: UInt16.self)
             for y in 0..<height {
                 for x in 0..<width {
                     let channel = (y & 1) == 0 ? ((x & 1) == 0 ? 0 : 1) : ((x & 1) == 0 ? 1 : 2)
-                    samples[y * width + x] = linear[Int(rgba[(y * width + x) * 4 + channel])].littleEndian
+                    var value = linear[Int(rgba[(y * width + x) * 4 + channel])]
+                    if noise > 0 {
+                        value = UInt16(min(65535, max(0, (Double(value) + gaussian() * noise * 65535).rounded())))
+                    }
+                    samples[y * width + x] = value.littleEndian
                 }
             }
         }
