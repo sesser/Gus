@@ -1,7 +1,8 @@
 # UI redesign: window, navigation, menus and inspector
 
-Status: **proposed** (2026-11-02). The decisions below were approved.
-Nothing is implemented yet.
+Status: **proposed** (2026-11-02). The decisions below were approved,
+with three Import questions still open (see "Open"). Nothing is
+implemented yet.
 
 The library window grew one feature at a time, and it shows: the sidebar
 and the inspector are built from two different hand-made heading styles,
@@ -12,7 +13,8 @@ Guidelines (HIG) and the redesign that answers it. The architecture,
 naming and clean-room rules in `CLAUDE.md` still apply: the data model,
 existing shortcuts and existing features do not change.
 
-Screenshots of the starting point: `docs/screenshots/`.
+Screenshots of the starting point: `docs/screenshots/` (library window,
+Import and Export).
 
 ## Decisions
 
@@ -37,7 +39,7 @@ Screenshots of the starting point: `docs/screenshots/`.
 7. **No permanent status bar.** Progress lives in a toolbar Activity item.
 8. **Dark appearance on the library window only.** Its sheets (Export, the
    look-up table browser, Presets) inherit it; that is accepted.
-   Import and Settings follow the system.
+   Import (in both apps) and Settings follow the system.
 9. **One library window** plus a full-screen review mode. A second loupe on
    another display is deferred.
 10. **Sizing:** a 13" laptop is the minimum, a large external display the
@@ -57,6 +59,22 @@ Screenshots of the starting point: `docs/screenshots/`.
     the "Develop" section → "Light", and its "Light" group → "Tone" (free
     once the old Tone section is Tone Curve). Only UI strings change: edit
     operation identifiers, keypaths and `photocli` command names stay.
+16. **Export is a sheet; Import stays a window.** Export is a 560 pt wide
+    sheet on the library window whose preview appears only with a
+    watermark. Import is a window with a toolbar and an options inspector,
+    shared unchanged by the standalone importer. One form idiom for both
+    (section 8).
+
+## Open
+
+- **New keys in the Import window:** ⌘O Choose Folder…, ⌘R Rescan, ⇧⌘A
+  Deselect All, ⌘. Stop Import. None clash with the library app.
+- **Shared grid code:** `UniformGridLayout` and the `Badges` renderer move
+  from PhotoApp into PhotoUI so the Import grid uses the library grid's
+  machinery. The fallback is a SwiftUI grid with focus and keys added,
+  which would look less alike.
+- **Template fields:** bezeled text with an Insert menu, or token pills
+  (`NSTokenField`) later.
 
 ## Audit (most severe first)
 
@@ -117,6 +135,46 @@ Severity in brackets. File references are as of `f828cb9`.
     macOS 26 shows the earlier design. Building with the 26 SDK switches the
     app to the new design on 26 regardless of the minimum, and all custom
     chrome carries over unchanged.
+
+Import and Export windows (reviewed after the first audit, from
+`gus-import.png` and `gus-export.png`):
+
+20. **F20 Import grid without keyboard or VoiceOver [High].** Tiles in a
+    `LazyVGrid` respond only to `.onTapGesture`; no focus, keys or
+    accessibility action; All / None have no shortcut, ⌘A does nothing.
+21. **F21 Import has no toolbar or commands [Medium].** Source and
+    selection controls sit in a bar in the content; Import N Photos is at
+    the bottom of the options column; no menu items in either app; open
+    panels are app-modal.
+22. **F22 Import inclusion by color [Medium].** An accent fill and a round
+    accent check, unlike the library grid's border; the whole grid is
+    tinted by default; already-imported shots are a seal at 50%.
+23. **F23 Template fields [Medium].** Bezel-less, right-aligned monospaced
+    tokens, selected in the red accent on open, read as an error; the token
+    menu is unlabeled; the example is 10 pt right-aligned.
+24. **F24 Export fields and sliders [Medium].** Length, Resolution and Box
+    fields have no bezel; Quality, Scale and watermark sliders draw a tick
+    per step (about 90 on Quality).
+25. **F25 Export over a frozen selection [Medium].** A free-standing window
+    over the selection copied when it opened; only the button shows the
+    count.
+26. **F26 Export preview [Medium].** Half the window shows the first photo
+    whether or not a watermark is on, far from the Watermark section.
+27. **F27 Import options [Medium].** Videos is a one-switch section, and
+    toggling it rescans and re-includes every shot (the user's picks are
+    lost); After Importing is below the fold; "Apply / No metadata"; three
+    meanings of "Preset".
+28. **F28 Import states [Low-Medium].** Blank grid while scanning; empty
+    states without actions; progress, errors and results as small text in
+    the options footer.
+29. **F29 Shutter count [Low].** "Sony ILCE-7M3 - 4,374" in a permanent
+    status bar, with no label.
+30. **F30 Wording [Low].** "Choose…", "Choose Folder…", "Choose PNG…";
+    "Preset / Preset"; three loose preset buttons in Export.
+31. **F31 Export footer [Low].** "Show in Finder when done" among the
+    buttons; errors as orange text.
+32. **F32 Forced dark in Import and Export [Low].** Including the standalone
+    importer.
 
 Working well and to keep: `NavigationSplitView` with `.inspector`, the
 AppKit grid and loupe with their keyboard navigation, one culling keymap
@@ -323,6 +381,12 @@ Browse Look-Up Tables….
 
 **Window:** system items, Library, Import. (F5, F11, F18)
 
+**Import window** (shared `ImportCommands`, enabled while an Import window
+is key, in both apps): File ▸ Choose Folder… ⌘O (N) · Rescan ⌘R (N) ·
+Import Selected Photos (Return) · Stop Import ⌘. (N); Edit ▸ Select All ⌘A ·
+Deselect All ⇧⌘A (N); View ▸ Show Videos · Show Photos Already in Library ·
+Show / Hide Options ⌥⌘I. (F21)
+
 ## 7. Context menus
 
 The grid gets `menu(for:)` on its collection view; right-clicking outside
@@ -340,27 +404,199 @@ the selection selects the clicked item first. (F12)
 | Slider row | Reset "…" |
 | Preset tile | Apply · Manage Presets… |
 | Mask row | Rename · Move Up · Move Down · Delete |
+| Import cell | Select / Deselect · Select All · Deselect All |
 
 ## 8. Secondary windows
 
-A task tied to the library window that ends in Cancel / OK is a sheet
-(grouped `Form`, `.cancellationAction` / `.confirmationAction`). A task that
-can open on its own is a window. Open and save panels attach to their window
-(`beginSheetModal(for:)` or `.fileImporter` / `.fileExporter`); the Save
-Preset name becomes an `.alert` with a `TextField`. (F16)
+### The rule
 
-| Surface | Becomes |
+A task that works on the library window's current selection or photo and
+ends in Cancel / OK is a **sheet** on that window: the parent is frozen
+while the sheet is up, so what the sheet acts on cannot change under it. A
+long task that can start on its own (a card is inserted, the standalone
+importer launches) is a **window**. Only one sheet is shown at a time; a
+step inside a sheet (importing look-up tables, managing them) is a page in
+the sheet with a Back button, not a second sheet. Open and save panels and
+alerts attach to their window (`beginSheetModal(for:)`, `.fileImporter`,
+`.fileExporter`, `.alert`). (HIG: Sheets, "Display only one sheet at a
+time"; Modality. F16, F25)
+
+| Surface | Kind | Default size (pt) | Appearance |
+|---|---|---|---|
+| Import | window, shared with the standalone importer | 1200 × 780, minimum 900 × 600 | system |
+| Export | sheet on the library window | 560 wide, 640 high (480 minimum) | inherits dark |
+| Look-up table browser | sheet, with Import and Manage as pages | 760 × 560 | inherits dark |
+| Preset manager | sheet | 560 × 480 | inherits dark |
+| New / rename album, rename keyword, smart album | sheets (already) | content | inherits dark |
+| Metadata preset editor | sheet on the Import window | 460 × 560 | system |
+| ⌘K keyword entry | `.popover` on the content's top edge | 420 wide | inherits dark |
+| Settings | `Settings` scene | 480 wide | system |
+
+On a 13" laptop (about 1470 × 850 pt usable) the Import window fits at its
+default size, and the Export sheet on a 1320 × 860 library window covers
+about 42% of its width and 74% of its height, leaving the toolbar, sidebar
+and window edges visible. (HIG: Sheets, "Present a sheet in a reasonable
+default size")
+
+### Form conventions (Import options, Export, preset editors, Settings)
+
+| Element | Convention | Why |
+|---|---|---|
+| Container | `Form` with `.formStyle(.grouped)`, regular control size | one system idiom (F16) |
+| Sections | `Section("Title")`; no section for a single control; no header that repeats its only row | hierarchy (F27, F30) |
+| Text and number fields | `.textFieldStyle(.roundedBorder)`; numbers right-aligned in 72 pt with the unit after | fields must look editable (HIG: Text fields; F23, F24) |
+| Templates | a full-width bezeled monospaced field, left-aligned, with an **Insert** pull-down (`Menu`, items like "Capture year  {capture:yyyy}"); the example directly under it in 11 pt monospaced secondary text, left-aligned, wrapping | readable, never red (F23) |
+| On / off options | `Toggle` with `.toggleStyle(.checkbox)`; no switches | HIG: Toggles (F27) |
+| Choices | segmented only when the choice changes the rows below (Name, Format); pop-up otherwise; a radio group for up to five long labels (Metadata) | HIG: Toggles, Pop-up buttons |
+| Sliders | continuous (no `step:`; round in the binding), value text 44 pt, monospaced digits | no tick-mark noise (HIG: Sliders; F24) |
+| Choose buttons | name the object: "Choose Folder…", "Choose Image…"; panel prompts "Choose Folder", "Use Image" | HIG: Writing (F30) |
+| Presets | one pop-up whose menu also holds New / Save as Preset…, Update "‹name›", Edit "‹name›"…, Delete "‹name›"… | fewer loose controls (F27, F30) |
+| Captions and errors | 11 pt secondary text under the row they explain; errors with `exclamationmark.triangle` and text, next to the field they concern | color is never the only signal (F31) |
+| Buttons | `.cancellationAction` and `.confirmationAction` placements; in a window, the main action goes in the toolbar | HIG: Sheets, Toolbars |
+
+### Import window
+
+```
+┌ [▣ Untitled ▾] [⟳] │ Import · 6 of 412 selected · Sony ILCE-7M3, shutter count 4,374 │ ⟳ Copying │ [☑▾] [◨] [Import 6 Photos] ┐
+├──────────────────────────────────────────────────────┬──────────────────────────┤
+│ Grid: library cell style, a check box per shot       │ Options (inspector)      │
+│ (no header bar, no duplicates strip)                 │ Destination · Project    │
+│                                                      │ Metadata · After Import  │
+└──────────────────────────────────────────────────────┴──────────────────────────┘
+   no footer, no status bar
+```
+
+The source bar, the footer and the status bar are removed; their contents
+move to the toolbar, the subtitle and the menus. (HIG: Toolbars; decision 7.
+F21, F28, F29)
+
+Toolbar (fixed, not customizable; three groups):
+
+| Item | Placement | Notes |
+|---|---|---|
+| Source pop-up: mounted cards (`sdcard`), chosen folders (`folder`), a divider, Choose Folder… ⌘O | `.navigation` | replaces "From", the pop-up and the Choose Folder… button |
+| Rescan (`arrow.clockwise`) ⌘R | `.navigation` | |
+| Title and subtitle | system | title "Import" in the library app, the importer's name in the importer; subtitle "6 of 412 selected · Sony ILCE-7M3, shutter count 4,374" (F29) |
+| Activity | `.status` | while scanning, a spinner and "Reading ‹source›…"; while copying, a 160 pt progress bar and "12 of 412 files · 1.2 of 18 GB", the current file name as its tooltip |
+| Selection pull-down (`checklist`) | trailing | Select All ⌘A · Deselect All ⇧⌘A · Show Videos (checkmark) · Show Photos Already in Library (library app only); replaces All / None, the Videos section and the duplicates strip |
+| Show / Hide Options (`sidebar.trailing`) ⌥⌘I | trailing | toggles the options inspector |
+| **Import N Photos** (`.borderedProminent`, Return); **Stop** (⌘.) while copying | `.primaryAction`, far trailing | the window's one prominent action (HIG: Toolbars) |
+
+Show Videos keeps the user's picks when it rescans: shots that were left out
+stay left out, and new videos come in included. Today `rescan()` resets the
+selection to every new shot. (F27)
+
+Grid: it shares the library grid's machinery and look. `UniformGridLayout`
+and the `Badges` renderer move into PhotoUI, and an `NSCollectionView` hosts
+an `ImportCell` built to the library cell's measurements. (Consistency; F20,
+F22)
+
+| Part | Spec | Same as library |
+|---|---|---|
+| Layout | `NSCollectionView` and `UniformGridLayout`, 180 pt target cell, the library's spacing | yes |
+| Cell | corner radius 6, padding 6, `Palette.cell` fill (dynamic) | yes |
+| Name and type | 11 pt name; 10 pt bold type badge from `Badges` | yes |
+| Date | 10 pt secondary line under the name | Import only |
+| Included | a system check box (14 pt) at top-leading on a 20 pt dark rounded backing; checked = will import; unchecked = left out, image at 50% | Import only; replaces the accent fill and round check |
+| Already in library | shown only when asked; no check box; 10 pt text badge "In Library"; image at 50% | Import only |
+| Focus | the system focus ring on the keyboard-focused cell; no accent border (the check box is the selection) | — |
+| Mouse | click toggles a shot; ⇧-click toggles the range (as today) | — |
+| Keys | arrows move focus; Space toggles; ⌘A / ⇧⌘A select all / none; Return imports | — |
+| VoiceOver | each cell is a check box: label "DSC00328, RAW plus JPEG, Oct 30, 10:46 AM", value checked or unchecked, press toggles; imported shots say "already in library" | — |
+| Context menu | Select / Deselect · Select All · Deselect All | — |
+
+Options inspector: `.inspector` with `.inspectorColumnWidth(min: 300,
+ideal: 320, max: 400)`, a grouped `Form` following the conventions above, in
+the order the decisions are made. It fits the default 780 pt height without
+scrolling once the Videos section and the footer are gone.
+
+| Section | Rows |
 |---|---|
-| Export | sheet; the export then runs in the background with progress in Activity |
-| Look-up table browser | sheet; Import and Manage stack as sheets on it |
-| Preset manager | sheet |
-| Album, keyword and smart album sheets | already sheets; moved onto the same idiom |
-| ⌘K keyword entry | `.popover` |
-| Import | window, shared with the standalone importer: a real toolbar (source, Choose Folder…, Rescan, count or progress, Import N Photos), options in an `.inspector`, camera info in the subtitle, no footer |
-| Settings | `Settings` scene, system appearance |
+| Destination | Folder: path (truncated at the head, full path as tooltip) and Choose Folder… · Subfolders: template · File Names: template · Example: the whole relative path |
+| Project (library app) / Job (importer) | Add To pop-up (library app) · Project Name template (for a new project) · Job Code, bezeled, with the recent-codes `clock` menu |
+| Metadata | Metadata Preset pop-up: None · presets · New Preset… · Edit "‹name›"…; a caption when one is chosen |
+| After Import | ☐ Delete originals from "‹card›" · ☐ Eject "‹card›" (disabled for folders); caption: "Originals are deleted only after every copy is verified, and you're asked first." |
 
-Dark is applied to the library window itself (`NSWindow.appearance`), so it
-does not leak into Import or Settings; its sheets inherit it.
+| State | Shown |
+|---|---|
+| No source | `ContentUnavailableView` "Insert a Card or Choose a Folder" (`sdcard`) with Choose Folder… |
+| Scanning | the toolbar activity, and a centered `ProgressView` "Reading ‹source›…" in the grid until the first shots appear |
+| No photos | "No Photos on ‹source›" with Choose Folder… |
+| All already imported | "All 412 Photos Are Already in the Library" with Show Them |
+| Read error | "Can't Read ‹source›", the error text, and Rescan |
+| Copying | toolbar activity; Import becomes Stop |
+| Done | subtitle "Imported 412 files"; the delete confirmation (existing) as a window-modal alert |
+| Cancelled, failures, eject failure | a window-modal alert with the existing message text |
+
+Commands: a shared `ImportCommands` in PhotoUI, used by both apps and enabled
+while an Import window is key (`focusedSceneValue`); see section 6.
+(HIG: The menu bar. F21)
+
+The standalone importer uses the same `ImportWindow`, model and commands,
+never a fork:
+
+| Aspect | Library app | Standalone importer |
+|---|---|---|
+| Window | `Window` opened by ⌘I or a card | the only window; closing it quits (as now) |
+| Title | "Import" | the importer's name |
+| Second section | Project: Add To, Project Name, Job Code | Job: Job Code |
+| Already in library | marked; menu item to show them | absent |
+| Appearance | system | system |
+
+### Export sheet
+
+Export is a sheet: it acts on the library window's selection, which a sheet
+freezes (F25); it is a scoped task ending in Cancel / Export (HIG: Sheets);
+and with its preview inside the Watermark section it fits a 13" laptop with
+the library still in view. The cost is that the library can't be browsed
+while the sheet is up; presets carry settings between exports. The export
+runs after the sheet closes, with progress in the library toolbar's Activity
+item.
+
+Size: 560 pt wide (520 pt of form), 640 pt high by default, 480 minimum,
+never taller than the library window minus 40 pt; the form scrolls between a
+fixed header and the buttons. `.presentationSizing` (macOS 15) sets this;
+check whether it lets people resize the sheet vertically.
+
+| Part | Contents |
+|---|---|
+| Header (fixed) | a 44 pt thumbnail of the first photo; "Export 24 Photos" in 13 pt semibold; "From All Photos · 3 videos are skipped" in 11 pt secondary |
+| Preset (first row, no section) | pop-up: None · presets · Save as Preset… · Update "‹name›" (when changed) · Delete "‹name›"… |
+| Destination | Folder: path and Choose Folder… · ☐ Show in Finder when done (F31) · errors about the folder shown here |
+| File Names | Name: Original Name \| Template (segmented) · template field and Insert menu · example |
+| File Type | Format: JPEG \| TIFF · Quality slider (continuous) or Bit Depth and Compression · Color Space; the ProPhoto warning with an icon |
+| Size | Size pop-up · Length, Box or Scale with bezeled 72 pt fields · Resolution (bezeled) · "Photos are never enlarged." · Output Sharpening · Sharpen For |
+| Metadata | radio group (as now) and its caption |
+| Watermark | ☐ Add a watermark · Image: name and Choose Image… · Position (anchor grid) · Size, Margin, Opacity · **Preview**: the first photo with the watermark, fitted within 520 × 220 pt, shown only while a watermark is on (F26) |
+| Buttons | Cancel (Esc) · Export 24 Photos (Return, default); the name-conflict alert appears on the sheet before it closes |
+
+### Other sheets
+
+The look-up table browser (760 × 560): a header row with the Collection
+pop-up, Import… and Manage…; the tiles as today; buttons Remove from Photo
+(leading), Cancel, Apply. Import and Manage become pages inside the sheet
+(a `NavigationStack` with Back), not sheets on the sheet. Without a photo in
+the loupe it shows a note and Apply is disabled.
+
+The preset manager (560 × 480): the list by collection; Import… and Export
+All… on the leading side, Done on the trailing side (edits apply at once).
+Album, keyword, smart album and metadata preset sheets use the form
+conventions, with Delete on the leading side where it exists. The Save
+Preset name becomes an `.alert` with a `TextField`; masks rename inline.
+
+### Appearance
+
+The library window is dark through `NSWindow.appearance`, so its sheets and
+popovers inherit it and nothing leaks into other windows. Import (in both
+apps) and Settings follow the system; the Import grid background uses the
+dynamic `Palette`. (HIG: Dark Mode. F32, F14)
+
+### macOS 15
+
+Everything in this section uses macOS 14 or 15 APIs: `.inspector`,
+`ToolbarItem` `.status`, `.borderedProminent`, `ContentUnavailableView`,
+`.toggleStyle(.checkbox)`, `.presentationSizing`. On macOS 26 the toolbar
+and its prominent Import button pick up Liquid Glass; nothing else differs.
 
 ## 9. First run and empty states
 
@@ -369,8 +605,8 @@ copying vs. using photos in place, a primary Import from Card or Folder…
 (or "Import from ‹card name›…" when a card is mounted), a secondary Add
 Folder Without Copying…, and a hint that folders can be dropped. Also: "No
 Photos Match" with Clear Filter; "No Selection" in the inspector; the Import
-window's "Insert a Card or Choose a Folder"; the catalog-failure view with
-selectable text. (F11, F16)
+window's states (section 8); the catalog-failure view with selectable
+text. (F11, F16, F28)
 
 ## 10. Accessibility
 
@@ -398,6 +634,8 @@ selectable text. (F11, F16)
 | Toolbar groups | `ToolbarSpacer(.fixed)` | plain grouping |
 | Slider fill | `neutralValue` (confirm availability) | neutral `trackFillColor` |
 | Grid under the toolbar | system scroll-edge effect | plain toolbar background |
+| Import button | prominent tinted glass in the toolbar | bordered prominent button |
+| Sheet sizing | `.presentationSizing` | the same (macOS 15 API) |
 | Everything else | sidebar sections, badges, `ContentUnavailableView`, inspector, customizable toolbar, full-screen toolbar visibility | the same (macOS 14 or 15 APIs) |
 
 ## Steps
@@ -408,7 +646,9 @@ and updates the debug-script commands for views it removes.
 1. **Build with the macOS 26 SDK** (minimum stays 15). Needs an Xcode 26
    toolchain on the build machine. Check the inspector's scrolling and
    clicks under the toolbar on 26 and on 15. (F19)
-2. **Grid and loupe accessibility.** (F4)
+2. **Grid, loupe and Import grid accessibility:** labels, values and
+   actions; the Import tiles get check-box semantics before the grid is
+   rebuilt. (F4, F20)
 3. **Menu bar:** the Adjust menu, `SidebarCommands`, `ToolbarCommands`,
    shown culling keys with the typing guard, new keys, state-based titles,
    the import rename. Prototype one guarded bare-key item first. (F5, F11,
@@ -424,10 +664,18 @@ and updates the debug-script commands for views it removes.
 8. **Inspector:** pinned header, system disclosure and check boxes, the
    slider row, Adjust order and names, Info typography. (F2, F3, F6–F9, F15)
 9. **Color and appearance.** (F14, F9)
-10. **Secondary windows:** sheets, the Import window's toolbar and
-    inspector, window-modal panels, empty states, the keyword popover.
-    (F16, F11)
-11. **Review mode.**
+10. **Import fix:** Show Videos keeps the user's picks when it rescans.
+    Can ship first. (F27)
+11. **Export sheet:** single column, preview inside Watermark, bezeled
+    number fields, continuous sliders, the preset pop-up, Show in Finder
+    under Destination. (F16, F24–F26, F30, F31)
+12. **Import window:** toolbar, options inspector, `ImportCommands`, the
+    grid on `NSCollectionView` with check boxes, states, system appearance;
+    the standalone importer gets it unchanged. (F11, F20–F23, F27–F29, F32)
+13. **Other sheets and panels:** the look-up table browser and Presets as
+    sheets with in-sheet pages, window-modal panels, the keyword popover.
+    (F16)
+14. **Review mode.**
 
 ## References
 
@@ -440,4 +688,6 @@ and updates the debug-script commands for views it removes.
 - [HIG: The menu bar](https://developer.apple.com/design/human-interface-guidelines/the-menu-bar)
 - [HIG: Dark Mode](https://developer.apple.com/design/human-interface-guidelines/dark-mode)
 - [HIG: Designing for macOS](https://developer.apple.com/design/human-interface-guidelines/designing-for-macos)
+- [HIG: Sheets](https://developer.apple.com/design/human-interface-guidelines/sheets)
+- [SwiftUI: presentationSizing(_:)](https://developer.apple.com/documentation/swiftui/view/presentationsizing(_:))
 - [Apple Developer Forums: UIDesignRequiresCompatibility and SDK versions](https://developer.apple.com/forums/thread/838637)
