@@ -103,44 +103,74 @@ func unsharp(_ image: CIImage) -> CIImage {
         .cropped(to: extent)
 }
 
-let exposed = source.applyingFilter("CIExposureAdjust", parameters: [kCIInputEVKey: 0.5])
+func guide(_ image: CIImage) -> CIImage {
+    image
+        .applyingFilter("CIColorMatrix", parameters: [
+            "inputRVector": CIVector(x: 0.2627, y: 0.6780, z: 0.0593, w: 0),
+            "inputGVector": CIVector(x: 0.2627, y: 0.6780, z: 0.0593, w: 0),
+            "inputBVector": CIVector(x: 0.2627, y: 0.6780, z: 0.0593, w: 0),
+            "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 0),
+            "inputBiasVector": CIVector(x: 0, y: 0, z: 0, w: 1),
+        ])
+        .applyingFilter("CIGammaAdjust", parameters: ["inputPower": 0.25])
+        .cropped(to: extent)
+}
 
-/// Luminance to the power 0.25, as a grey image.
-let guide = exposed
-    .applyingFilter("CIColorMatrix", parameters: [
-        "inputRVector": CIVector(x: 0.2627, y: 0.6780, z: 0.0593, w: 0),
-        "inputGVector": CIVector(x: 0.2627, y: 0.6780, z: 0.0593, w: 0),
-        "inputBVector": CIVector(x: 0.2627, y: 0.6780, z: 0.0593, w: 0),
-        "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 0),
-        "inputBiasVector": CIVector(x: 0, y: 0, z: 0, w: 1),
+func reduced(_ guide: CIImage) -> CIImage {
+    guide.applyingFilter("CILanczosScaleTransform", parameters: [kCIInputScaleKey: 256.0 / 640, kCIInputAspectRatioKey: 1])
+}
+
+func upsampled(_ guide: CIImage, _ small: CIImage) -> CIImage {
+    guide.applyingFilter("CIEdgePreserveUpsampleFilter", parameters: [
+        "inputSmallImage": small, "inputSpatialSigma": 3, "inputLumaSigma": 0.12,
     ])
-    .applyingFilter("CIColorClamp", parameters: [
-        "inputMinComponents": CIVector(x: 0, y: 0, z: 0, w: 1),
-        "inputMaxComponents": CIVector(x: 16, y: 16, z: 16, w: 1),
-    ])
-    .applyingFilter("CIGammaAdjust", parameters: ["inputPower": 0.25])
-    .cropped(to: extent)
-let reduced = guide.applyingFilter("CILanczosScaleTransform", parameters: [
-    kCIInputScaleKey: 256.0 / 640, kCIInputAspectRatioKey: 1,
-])
-let upsampled = guide.applyingFilter("CIEdgePreserveUpsampleFilter", parameters: [
-    "inputSmallImage": reduced, "inputSpatialSigma": 3, "inputLumaSigma": 0.12,
-])
-let lanczosRoundTrip = reduced.applyingFilter("CILanczosScaleTransform", parameters: [
-    kCIInputScaleKey: 640.0 / 256, kCIInputAspectRatioKey: 1,
-]).cropped(to: extent)
-let localTone = upsampled.applyingFilter("CIMultiplyCompositing", parameters: [kCIInputBackgroundImageKey: exposed])
-    .cropped(to: extent)
+}
+
+/// `image` rendered over its extent, against the same image clamped to its
+/// extent and rendered 32 pixels wider on every side (inner part compared).
+func alongsideMargin(_ image: CIImage) -> [Float] {
+    let wide = extent.insetBy(dx: -32, dy: -32)
+    let all = render(image.clampedToExtent().cropped(to: wide), wide)
+    var out = [Float](repeating: 0, count: width * height * 4)
+    let wideWidth = Int(wide.width)
+    for row in 0..<height {
+        let from = ((row + 32) * wideWidth + 32) * 4
+        out.replaceSubrange((row * width * 4)..<((row + 1) * width * 4), with: all[from..<(from + width * 4)])
+    }
+    return out
+}
+
+func blurred(_ image: CIImage) -> CIImage {
+    image.clampedToExtent().applyingGaussianBlur(sigma: 7.68).cropped(to: extent)
+}
 
 print("macOS \(ProcessInfo.processInfo.operatingSystemVersionString), \(device.name)")
 var worst: Float = 0
-for (name, graph) in [("CIExposureAdjust", exposed), ("Lanczos down and up", lanczosRoundTrip),
-                      ("CIEdgePreserveUpsampleFilter", upsampled), ("local tone (upsampled × image)", localTone)] {
-    print("\(name), brightest \(render(graph).max() ?? 0):")
-    let whole = render(graph)
-    worst = max(worst, describe("whole against 2 × 2 tiles", whole, renderTiled(graph)))
-    let half = preRendered(graph)
-    _ = describe("input: lazy against pre-rendered", whole, render(half))
-    worst = max(worst, describe("CIUnsharpMask: lazy against pre-rendered", render(unsharp(graph)), render(unsharp(half))))
+for (label, input) in [("bright (to 4.2)", source.applyingFilter("CIExposureAdjust", parameters: [kCIInputEVKey: 0.5])),
+                       ("SDR (to 0.85)", source.applyingFilter("CIExposureAdjust", parameters: [kCIInputEVKey: -2.3]))] {
+    let g = guide(input)
+    let graphs: [(String, CIImage)] = [
+        ("guide only", g),
+        ("Lanczos small image", reduced(g)),
+        ("upsample, both inputs lazy", upsampled(g, reduced(g))),
+        ("upsample, small image pre-rendered", upsampled(g, CIImage(cgImage: context.createCGImage(reduced(g),
+            from: reduced(g).extent.integral, format: .RGBAh, colorSpace: space)!).transformed(by:
+            CGAffineTransform(translationX: reduced(g).extent.integral.minX, y: reduced(g).extent.integral.minY)))),
+        ("upsample, guide pre-rendered", upsampled(preRendered(g), reduced(g))),
+    ]
+    print("\(label), brightest input \(render(input).max() ?? 0)")
+    for (name, graph) in graphs {
+        print(" \(name):")
+        let whole = graph.extent == extent ? render(graph) : nil
+        if let whole {
+            worst = max(worst, describe("alone against clamped and rendered wider", whole, alongsideMargin(graph)))
+            let half = preRendered(graph)
+            _ = describe("input: lazy against pre-rendered", whole, render(half))
+            worst = max(worst, describe("CIGaussianBlur: lazy against pre-rendered", render(blurred(graph)),
+                                        render(blurred(half))))
+            worst = max(worst, describe("CIUnsharpMask: lazy against pre-rendered", render(unsharp(graph)),
+                                        render(unsharp(half))))
+        }
+    }
 }
-print(worst > 0.02 ? "REPRODUCED (largest \(worst))" : "not reproduced (largest \(worst))")
+print(worst > 0.005 ? "REPRODUCED (largest \(worst))" : "not reproduced (largest \(worst))")
