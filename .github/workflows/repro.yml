@@ -15,4 +15,4 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
-      - run: swift docs/feedback/blur-above-white/repro.swift
+      - run: swift docs/feedback/edge-preserve-upsample/repro.swift
