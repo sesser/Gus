@@ -609,6 +609,29 @@
         }
       }
     },
+    "%lld videos are skipped" : {
+      "comment" : "Export sheet: videos are not exported",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld video is skipped"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld videos are skipped"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld videos were left unchanged." : {
       "comment" : "Activity, after a batch adjustment on the grid's selection",
       "localizations" : {
@@ -1547,13 +1570,13 @@
         }
       }
     },
-    "Bit depth" : {
-      "comment" : "Export window",
+    "Bit Depth" : {
+      "comment" : "Export sheet: TIFF bits per channel",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bit depth"
+            "value" : "Bit Depth"
           }
         }
       }
@@ -1953,6 +1976,17 @@
         }
       }
     },
+    "Choose Folder" : {
+      "comment" : "Open panel button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose Folder"
+          }
+        }
+      }
+    },
     "Choose Folder…" : {
       "comment" : "Import window: import from a folder",
       "localizations" : {
@@ -1964,13 +1998,13 @@
         }
       }
     },
-    "Choose PNG…" : {
-      "comment" : "Export window: picks the watermark image",
+    "Choose Image…" : {
+      "comment" : "Export sheet: choose the watermark image",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Choose PNG…"
+            "value" : "Choose Image…"
           }
         }
       }
@@ -2859,6 +2893,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Delete the album “%@”?"
+          }
+        }
+      }
+    },
+    "Delete the export preset “%@”?" : {
+      "comment" : "Export sheet: confirm deleting a preset",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete the export preset “%@”?"
           }
         }
       }
@@ -3797,6 +3842,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "From"
+          }
+        }
+      }
+    },
+    "From %@" : {
+      "comment" : "Export sheet: the sidebar source",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "From %@"
           }
         }
       }
@@ -5969,6 +6025,17 @@
         }
       }
     },
+    "Original Name" : {
+      "comment" : "Export sheet: keep each file's name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Original Name"
+          }
+        }
+      }
+    },
     "Original name" : {
       "comment" : "Template token",
       "localizations" : {
@@ -5980,13 +6047,13 @@
         }
       }
     },
-    "Output sharpening" : {
-      "comment" : "Export window",
+    "Output Sharpening" : {
+      "comment" : "Export sheet",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Output sharpening"
+            "value" : "Output Sharpening"
           }
         }
       }
@@ -7414,13 +7481,13 @@
         }
       }
     },
-    "Sharpen for" : {
-      "comment" : "Export window: output sharpening medium",
+    "Sharpen For" : {
+      "comment" : "Export sheet: screen or print",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sharpen for"
+            "value" : "Sharpen For"
           }
         }
       }
@@ -8600,6 +8667,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Use File Values"
+          }
+        }
+      }
+    },
+    "Use Image" : {
+      "comment" : "Open panel button: the watermark",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use Image"
           }
         }
       }

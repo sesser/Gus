@@ -194,7 +194,8 @@ final class LibraryModel {
     /// Set to open the preset manager.
     var requestsPresetWindow = false
     /// Set to open the export window (the menu command and debug scripts).
-    var requestsExportWindow = false
+    /// The Export sheet is up on the library window.
+    var showsExportSheet = false
     /// What the last preset import did, shown in an alert.
     var presetImportSummary: PresetImportSummary?
     /// Open the import window when a card is inserted (Settings).

@@ -46,15 +46,6 @@ struct PhotoApplication: App {
         // Opened from the menus; the Window menu lists only Library and Import.
         .commandsRemoved()
 
-        Window(String(localized: "Export"), id: "export") {
-            if let model = library.model {
-                ExportWindow(model: model)
-            }
-        }
-        .defaultSize(width: 980, height: 760)
-        // Opened from the menus; the Window menu lists only Library and Import.
-        .commandsRemoved()
-
         Window(String(localized: "Presets"), id: "presets") {
             if let model = library.model {
                 PresetManagerWindow(model: model)

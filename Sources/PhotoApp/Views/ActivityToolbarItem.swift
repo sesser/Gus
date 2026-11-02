@@ -5,6 +5,8 @@ import SwiftUI
 struct ActivityJob: Identifiable {
     let id: String
     let title: String
+    /// Under the title in the popover ("12 of 24").
+    var detail: String?
     let progress: Double?
     /// Nil when the job cannot be stopped.
     let stop: (@MainActor () -> Void)?
@@ -69,7 +71,8 @@ struct ActivityToolbarItem: View {
                                     stop: { model.cancelImport() }))
         }
         if let progress = model.export.progress {
-            jobs.append(ActivityJob(id: "export", title: String(localized: "Exporting \(progress.done) of \(progress.total)"),
+            jobs.append(ActivityJob(id: "export", title: ActivityTitle.exportTo(model.export.destination.lastPathComponent),
+                                    detail: String(localized: "\(progress.done) of \(progress.total)"),
                                     progress: Double(progress.done) / Double(max(progress.total, 1)),
                                     stop: { model.export.cancel() }))
         }
@@ -110,6 +113,9 @@ private struct ActivityPopover: View {
                         if let stop = job.stop {
                             Button("Stop") { stop() }
                         }
+                    }
+                    if let detail = job.detail {
+                        Text(detail).font(.caption).monospacedDigit().foregroundStyle(.secondary)
                     }
                     if let progress = job.progress {
                         ProgressView(value: progress)

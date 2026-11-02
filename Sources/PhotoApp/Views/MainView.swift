@@ -42,10 +42,8 @@ struct MainView: View {
             model.requestsPresetWindow = false
             openWindow(id: "presets")
         }
-        .onChange(of: model.requestsExportWindow) {
-            guard model.requestsExportWindow else { return }
-            model.requestsExportWindow = false
-            openWindow(id: "export")
+        .sheet(isPresented: $model.showsExportSheet) {
+            ExportSheet(model: model)
         }
         .alert(model.export.report?.title ?? "", isPresented: Binding(
             get: { model.export.report != nil }, set: { if !$0 { model.export.report = nil } }

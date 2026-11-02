@@ -172,7 +172,7 @@ another library; double-clicking one in the Finder imports it.
 
 **Export** (**File ▸ Export…**, ⇧⌘E) writes the selected photos, or the one in
 the loupe, to a folder with their adjustments. A RAW+JPEG pair is exported once,
-from its RAW; videos are not exported. The window sets:
+from its RAW; videos are not exported. A sheet on the library window sets:
 
 - **File names**: the original name, or a template with the import tokens, plus
   `{export:yyyy-MM-dd}` for today and `{seq:4}` for the position in the export.
@@ -186,10 +186,11 @@ from its RAW; videos are not exported. The window sets:
   and contact only, or none. Keywords, caption, creator and copyright come from
   the library. Ratings and labels are never included.
 - **Watermark**: a PNG (transparent areas stay see-through), placed in one of
-  nine positions with a margin, size and opacity, with a preview of the first photo.
+  nine positions with a margin, size and opacity, with a preview of the first photo
+  while a watermark is on.
 
 Settings can be saved as **presets**. When files with the same names are
-already in the folder, the window asks once whether to keep both (the new files
+already in the folder, the sheet asks once whether to keep both (the new files
 get numbered names), replace them or skip them. The export runs in the
 background, with progress and Stop in the toolbar's Activity item. If anything
 could not be exported (an offline volume, for instance), an alert says why. The

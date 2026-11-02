@@ -3,31 +3,31 @@ import PhotoCore
 import PhotoUI
 import SwiftUI
 
-/// Exports the selected photos to a folder: names, file type, size,
-/// metadata and a watermark, with presets for the whole set of options.
-struct ExportWindow: View {
+/// Exports the selected photos (section 8 of docs/UI_REDESIGN.md): a sheet
+/// on the library window, which freezes what it acts on. A fixed header, one
+/// scrolling form column, then Cancel and Export. The export runs after the
+/// sheet closes, with progress in the toolbar's Activity item.
+struct ExportSheet: View {
     let model: LibraryModel
-    @Environment(\.dismissWindow) private var dismissWindow
 
     private var export: ExportModel { model.export }
 
     var body: some View {
         @Bindable var export = export
         VStack(spacing: 0) {
-            HSplitView {
-                ExportOptionsForm(export: export)
-                    .frame(minWidth: 400, idealWidth: 440, maxWidth: 520)
-                WatermarkPreview(export: export)
-                    .frame(minWidth: 320)
-            }
+            ExportHeader(model: model)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 14)
             Divider()
-            footer
-                .padding(12)
+            ExportForm(model: model)
+            Divider()
+            buttons
+                .padding(.horizontal, 20)
+                .padding(.vertical, 14)
         }
-        .frame(minWidth: 760, minHeight: 560)
-        // Dark like the library window, whose sheet it becomes (steps 11 and 14);
-        // this sets the window's own appearance only.
-        .preferredColorScheme(.dark)
+        .frame(width: 560)
+        .frame(minHeight: 480, idealHeight: 640)
+        .presentationSizing(.fitted)
         .alert(conflictTitle, isPresented: Binding(get: { export.conflict != nil },
                                                    set: { if !$0 { export.conflict = nil } })) {
             Button("Keep Both") { resolve(.keepBoth) }
@@ -46,30 +46,17 @@ struct ExportWindow: View {
 
     private func resolve(_ policy: ExportConflictPolicy) {
         export.resolveConflict(policy)
-        dismissWindow(id: "export")
+        model.showsExportSheet = false
     }
 
-    private var footer: some View {
+    private var buttons: some View {
         HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                if let message = export.message {
-                    Text(message)
-                        .foregroundStyle(.orange)
-                }
-                if export.skippedVideos > 0 {
-                    Text("\(export.skippedVideos) videos are not exported.")
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .font(.callout)
             Spacer()
-            Toggle("Show in Finder when done", isOn: Binding(get: { export.revealsInFinder },
-                                                              set: { export.revealsInFinder = $0 }))
-            Button("Cancel", role: .cancel) { dismissWindow(id: "export") }
+            Button("Cancel", role: .cancel) { model.showsExportSheet = false }
                 .keyboardShortcut(.cancelAction)
-            Button("Export \(export.versionIDs.count) Photos") {
+            Button(String(localized: "Export \(export.versionIDs.count) Photos")) {
                 Task {
-                    if await export.requestExport() { dismissWindow(id: "export") }
+                    if await export.requestExport() { model.showsExportSheet = false }
                 }
             }
             .keyboardShortcut(.defaultAction)
@@ -78,16 +65,125 @@ struct ExportWindow: View {
     }
 }
 
-private struct ExportOptionsForm: View {
-    @Bindable var export: ExportModel
-    @State private var savingPreset = false
-    @State private var presetName = ""
-
-    private var settings: Binding<ExportSettings> { $export.settings }
+/// The first photo, how many are exported, and from where.
+private struct ExportHeader: View {
+    let model: LibraryModel
 
     var body: some View {
+        let export = model.export
+        HStack(spacing: 12) {
+            Group {
+                if let image = export.previewImage {
+                    Image(decorative: image, scale: 1)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    Color(nsColor: Palette.cell)
+                }
+            }
+            .frame(width: 44, height: 44)
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Export \(export.versionIDs.count) Photos")
+                    .font(.system(size: 13, weight: .semibold))
+                Text(subtitle)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                if let issue = export.issue, issue.place == .general {
+                    IssueText(text: issue.text)
+                }
+            }
+            Spacer()
+        }
+    }
+
+    /// "From All Photos · 3 videos are skipped".
+    private var subtitle: String {
+        let source = String(localized: "From \(model.title(for: model.sidebarSelection))", comment: "Export sheet: the sidebar source")
+        let skipped = model.export.skippedVideos
+        guard skipped > 0 else { return source }
+        return [source, String(localized: "\(skipped) videos are skipped", comment: "Export sheet: videos are not exported")]
+            .joined(separator: " · ")
+    }
+}
+
+/// An error next to the row it concerns: a warning sign and the text.
+private struct IssueText: View {
+    let text: String
+
+    var body: some View {
+        Label {
+            Text(text).fixedSize(horizontal: false, vertical: true)
+        } icon: {
+            Image(systemName: "exclamationmark.triangle")
+        }
+        .font(.system(size: 11))
+        .foregroundStyle(.secondary)
+    }
+}
+
+/// A caption under the row it explains: 11 pt secondary.
+private struct Caption: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 11))
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// A number in a bezeled 72 pt field, right-aligned, its unit after it.
+private struct NumberField: View {
+    let title: LocalizedStringKey
+    @Binding var value: Int
+    let unit: String
+
+    var body: some View {
+        HStack(spacing: 6) {
+            TextField(title, value: $value, format: .number)
+                .textFieldStyle(.roundedBorder)
+                .multilineTextAlignment(.trailing)
+                .labelsHidden()
+                .frame(width: 72)
+            Text(unit).foregroundStyle(.secondary)
+        }
+    }
+}
+
+/// A continuous slider (no ticks) with its value in 44 pt of monospaced digits.
+private struct ValueSlider: View {
+    @Binding var value: Double
+    let range: ClosedRange<Double>
+    /// What the binding keeps: the slider moves freely, the value rounds.
+    let step: Double
+    let text: String
+
+    var body: some View {
+        HStack {
+            Slider(value: Binding(get: { value }, set: { value = ($0 / step).rounded() * step }), in: range)
+                .labelsHidden()
+            Text(verbatim: text)
+                .monospacedDigit()
+                .frame(width: 44, alignment: .trailing)
+        }
+    }
+}
+
+private struct ExportForm: View {
+    let model: LibraryModel
+    @State private var savingPreset = false
+    @State private var presetName = ""
+    @State private var deletingPreset = false
+
+    private var export: ExportModel { model.export }
+
+    var body: some View {
+        @Bindable var export = export
+        let settings = $export.settings
         Form {
-            presetSection
+            presetRow
             Section("Destination") {
                 LabeledContent("Folder") {
                     HStack {
@@ -95,13 +191,16 @@ private struct ExportOptionsForm: View {
                             .lineLimit(1)
                             .truncationMode(.head)
                             .help(export.destination.path)
-                        Button("Choose…") { export.chooseDestination() }
+                        Button("Choose Folder…") { export.chooseDestination(in: NSApp.keyWindow) }
                     }
                 }
+                Toggle("Show in Finder when done", isOn: $export.revealsInFinder)
+                    .toggleStyle(.checkbox)
+                if let issue = export.issue, issue.place == .destination { IssueText(text: issue.text) }
             }
-            namingSection
-            formatSection
-            sizeSection
+            namingSection(settings)
+            formatSection(settings)
+            sizeSection(settings)
             Section("Metadata") {
                 Picker("Include", selection: settings.metadata) {
                     Text("All metadata").tag(ExportSettings.Metadata.all)
@@ -110,11 +209,9 @@ private struct ExportOptionsForm: View {
                     Text("None").tag(ExportSettings.Metadata.none)
                 }
                 .pickerStyle(.radioGroup)
-                Text("Keywords and captions come from the library. Ratings and labels are never included.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Caption(text: String(localized: "Keywords and captions come from the library. Ratings and labels are never included."))
             }
-            watermarkSection
+            watermarkSection(settings)
         }
         .formStyle(.grouped)
         .alert("Save Export Preset", isPresented: $savingPreset) {
@@ -122,56 +219,66 @@ private struct ExportOptionsForm: View {
             Button("Save") { export.savePreset(named: presetName) }
             Button("Cancel", role: .cancel) {}
         }
+        .alert(String(localized: "Delete the export preset “\(selectedPreset?.name ?? "")”?"), isPresented: $deletingPreset) {
+            Button("Delete", role: .destructive) { export.deleteSelectedPreset() }
+            Button("Cancel", role: .cancel) {}
+        }
     }
 
-    private var presetSection: some View {
-        Section("Preset") {
-            Picker("Preset", selection: Binding(get: { export.presetID }, set: { export.applyPreset(id: $0) })) {
-                Text("None").tag(Int64?.none)
+    private var selectedPreset: ExportPreset? {
+        export.presets.first { $0.id == export.presetID }
+    }
+
+    /// One pop-up: None, the presets, then Save as Preset…, Update and Delete.
+    private var presetRow: some View {
+        LabeledContent("Preset") {
+            Menu(selectedPreset?.name ?? String(localized: "None")) {
+                Button("None") { export.applyPreset(id: nil) }
                 ForEach(export.presets) { preset in
-                    Text(preset.name).tag(preset.id)
+                    Button(preset.name) { export.applyPreset(id: preset.id) }
                 }
-            }
-            HStack {
+                Divider()
                 Button("Save as Preset…") {
-                    presetName = export.presets.first { $0.id == export.presetID }?.name ?? ""
+                    presetName = selectedPreset?.name ?? ""
                     savingPreset = true
                 }
                 if let modified = export.modifiedPreset {
                     Button("Update “\(modified.name)”") { export.updateSelectedPreset() }
                 }
-                Spacer()
-                if export.presetID != nil {
-                    Button("Delete Preset", role: .destructive) { export.deleteSelectedPreset() }
+                if let preset = selectedPreset {
+                    Button("Delete “\(preset.name)”…") { deletingPreset = true }
                 }
             }
+            .fixedSize()
+        }
+        .overlay(alignment: .bottomLeading) {
+            if let issue = export.issue, issue.place == .preset { IssueText(text: issue.text).offset(y: 18) }
         }
     }
 
-    private var namingSection: some View {
+    private func namingSection(_ settings: Binding<ExportSettings>) -> some View {
         Section("File Names") {
             Picker("Name", selection: settings.naming) {
-                Text("Original name").tag(ExportSettings.Naming.original)
+                Text("Original Name").tag(ExportSettings.Naming.original)
                 Text("Template").tag(ExportSettings.Naming.template)
             }
             .pickerStyle(.segmented)
             if export.settings.naming == .template {
-                TemplateField(title: String(localized: "Template"), text: settings.fileNameTemplate,
-                              tokens: TemplateField.exportFileTokens)
-            }
-            if let example = export.example {
-                LabeledContent("Example") {
-                    Text(example)
-                        .font(.caption.monospaced())
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .textSelection(.enabled)
+                VStack(alignment: .leading, spacing: 4) {
+                    TemplateField(title: String(localized: "Template"), text: settings.fileNameTemplate,
+                                  tokens: TemplateField.exportFileTokens)
+                    if let example = export.example {
+                        Caption(text: example)
+                            .textSelection(.enabled)
+                    }
                 }
+            } else if let example = export.example {
+                Caption(text: example)
             }
         }
     }
 
-    private var formatSection: some View {
+    private func formatSection(_ settings: Binding<ExportSettings>) -> some View {
         Section("File Type") {
             Picker("Format", selection: settings.format) {
                 Text("JPEG").tag(ExportSettings.FileFormat.jpeg)
@@ -181,15 +288,11 @@ private struct ExportOptionsForm: View {
             switch export.settings.format {
             case .jpeg:
                 LabeledContent("Quality") {
-                    HStack {
-                        Slider(value: settings.jpegQuality, in: 0.1...1, step: 0.01)
-                        Text(export.settings.jpegQuality.formatted(.percent.precision(.fractionLength(0))))
-                            .monospacedDigit()
-                            .frame(width: 44, alignment: .trailing)
-                    }
+                    ValueSlider(value: settings.jpegQuality, range: 0.1...1, step: 0.01,
+                                text: export.settings.jpegQuality.formatted(.percent.precision(.fractionLength(0))))
                 }
             case .tiff:
-                Picker("Bit depth", selection: settings.tiffBitDepth) {
+                Picker("Bit Depth", selection: settings.tiffBitDepth) {
                     Text("8 bits per channel").tag(8)
                     Text("16 bits per channel").tag(16)
                 }
@@ -199,21 +302,19 @@ private struct ExportOptionsForm: View {
                     Text("ZIP").tag(ExportSettings.TIFFCompression.zip)
                 }
             }
-            Picker("Color space", selection: settings.colorSpace) {
+            Picker("Color Space", selection: settings.colorSpace) {
                 Text("sRGB").tag(ExportSettings.ColorSpace.sRGB)
                 Text("Display P3").tag(ExportSettings.ColorSpace.displayP3)
                 Text("Adobe RGB (1998)").tag(ExportSettings.ColorSpace.adobeRGB)
                 Text("ProPhoto RGB").tag(ExportSettings.ColorSpace.proPhoto)
             }
             if export.settings.colorSpace.prefersHighBitDepth, export.settings.bitsPerComponent == 8 {
-                Text("ProPhoto RGB is so wide that 8 bits per channel can show banding. 16-bit TIFF avoids it.")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
+                IssueText(text: String(localized: "ProPhoto RGB is so wide that 8 bits per channel can show banding. 16-bit TIFF avoids it."))
             }
         }
     }
 
-    private var sizeSection: some View {
+    private func sizeSection(_ settings: Binding<ExportSettings>) -> some View {
         Section("Size") {
             Picker("Size", selection: settings.sizing) {
                 Text("Full size").tag(ExportSettings.Sizing.full)
@@ -227,56 +328,37 @@ private struct ExportOptionsForm: View {
                 EmptyView()
             case .fit:
                 LabeledContent("Box") {
-                    HStack {
-                        TextField("Width", value: settings.boxWidth, format: .number)
-                            .labelsHidden()
-                            .frame(width: 70)
-                        Text(verbatim: "×")
-                        TextField("Height", value: settings.boxHeight, format: .number)
-                            .labelsHidden()
-                            .frame(width: 70)
-                        Text("pixels")
+                    HStack(spacing: 6) {
+                        NumberField(title: "Width", value: settings.boxWidth, unit: "")
+                        Text(verbatim: "×").foregroundStyle(.secondary)
+                        NumberField(title: "Height", value: settings.boxHeight, unit: String(localized: "pixels"))
                     }
                 }
             case .longEdge, .shortEdge:
                 LabeledContent("Length") {
-                    HStack {
-                        TextField("Length", value: settings.edgeLength, format: .number)
-                            .labelsHidden()
-                            .frame(width: 70)
-                        Text("pixels")
-                    }
+                    NumberField(title: "Length", value: settings.edgeLength, unit: String(localized: "pixels"))
                 }
             case .percent:
                 LabeledContent("Scale") {
-                    HStack {
-                        Slider(value: settings.percent, in: 1...100, step: 1)
-                        Text(verbatim: (export.settings.percent / 100).formatted(.percent.precision(.fractionLength(0))))
-                            .monospacedDigit()
-                            .frame(width: 44, alignment: .trailing)
-                    }
+                    ValueSlider(value: settings.percent, range: 1...100, step: 1,
+                                text: (export.settings.percent / 100).formatted(.percent.precision(.fractionLength(0))))
                 }
             }
-            LabeledContent("Resolution") {
-                HStack {
-                    TextField("Resolution", value: settings.ppi, format: .number)
-                        .labelsHidden()
-                        .frame(width: 70)
-                    Text("pixels per inch")
+            VStack(alignment: .leading, spacing: 4) {
+                LabeledContent("Resolution") {
+                    NumberField(title: "Resolution", value: settings.ppi, unit: String(localized: "pixels per inch"))
                 }
+                Caption(text: String(localized: "Photos are never enlarged."))
             }
-            Text("Photos are never enlarged.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
             if export.settings.sizing != .full {
-                Picker("Output sharpening", selection: settings.sharpening) {
+                Picker("Output Sharpening", selection: settings.sharpening) {
                     Text("Off").tag(ExportSettings.SharpeningAmount.off)
                     Text("Light").tag(ExportSettings.SharpeningAmount.light)
                     Text("Standard").tag(ExportSettings.SharpeningAmount.standard)
                     Text("Strong").tag(ExportSettings.SharpeningAmount.strong)
                 }
                 if export.settings.sharpening != .off {
-                    Picker("Sharpen for", selection: settings.sharpeningTarget) {
+                    Picker("Sharpen For", selection: settings.sharpeningTarget) {
                         Text("Screen").tag(ExportSettings.SharpeningTarget.screen)
                         Text("Print").tag(ExportSettings.SharpeningTarget.print)
                     }
@@ -286,9 +368,10 @@ private struct ExportOptionsForm: View {
         }
     }
 
-    private var watermarkSection: some View {
+    private func watermarkSection(_ settings: Binding<ExportSettings>) -> some View {
         Section("Watermark") {
             Toggle("Add a watermark", isOn: settings.watermarkEnabled)
+                .toggleStyle(.checkbox)
                 .disabled(export.settings.watermark == nil)
             LabeledContent("Image") {
                 HStack {
@@ -297,41 +380,39 @@ private struct ExportOptionsForm: View {
                             .lineLimit(1)
                             .truncationMode(.middle)
                     }
-                    Button("Choose PNG…") { export.chooseWatermark() }
+                    Button("Choose Image…") { export.chooseWatermark(in: NSApp.keyWindow) }
                 }
             }
+            if let issue = export.issue, issue.place == .watermark { IssueText(text: issue.text) }
             if export.settings.watermark != nil, export.settings.watermarkEnabled {
                 LabeledContent("Position") {
                     AnchorGrid(anchor: Binding(get: { export.settings.watermark?.anchor ?? .bottomRight },
                                                set: { export.settings.watermark?.anchor = $0 }))
                 }
-                watermarkSlider("Size", \.size, Watermark.sizeRange)
-                watermarkSlider("Margin", \.margin, Watermark.marginRange)
+                watermarkSlider("Size", \.size, Watermark.sizeRange, step: 0.5)
+                watermarkSlider("Margin", \.margin, Watermark.marginRange, step: 0.5)
                 LabeledContent("Opacity") {
-                    HStack {
-                        Slider(value: Binding(get: { export.settings.watermark?.opacity ?? 1 },
-                                              set: { export.settings.watermark?.opacity = $0 }), in: 0.05...1)
-                        Text((export.settings.watermark?.opacity ?? 1).formatted(.percent.precision(.fractionLength(0))))
-                            .monospacedDigit()
-                            .frame(width: 44, alignment: .trailing)
-                    }
+                    ValueSlider(value: Binding(get: { export.settings.watermark?.opacity ?? 1 },
+                                               set: { export.settings.watermark?.opacity = $0 }),
+                                range: 0.05...1, step: 0.01,
+                                text: (export.settings.watermark?.opacity ?? 1).formatted(.percent.precision(.fractionLength(0))))
                 }
+                // The first photo with the watermark, only while there is one.
+                WatermarkPreview(export: export)
+                    .frame(maxWidth: 520, minHeight: 220, maxHeight: 220)
             }
         }
     }
 
     /// A slider for a percentage of the image's long edge.
     private func watermarkSlider(_ title: LocalizedStringKey, _ path: WritableKeyPath<Watermark, Double>,
-                                 _ range: ClosedRange<Double>) -> some View {
+                                 _ range: ClosedRange<Double>, step: Double) -> some View {
         LabeledContent(title) {
-            HStack {
-                Slider(value: Binding(get: { export.settings.watermark?[keyPath: path] ?? range.lowerBound },
-                                      set: { export.settings.watermark?[keyPath: path] = $0 }), in: range, step: 0.5)
-                Text(verbatim: ((export.settings.watermark?[keyPath: path] ?? 0) / 100)
-                    .formatted(.percent.precision(.fractionLength(0...1))))
-                    .monospacedDigit()
-                    .frame(width: 44, alignment: .trailing)
-            }
+            ValueSlider(value: Binding(get: { export.settings.watermark?[keyPath: path] ?? range.lowerBound },
+                                       set: { export.settings.watermark?[keyPath: path] = $0 }),
+                        range: range, step: step,
+                        text: ((export.settings.watermark?[keyPath: path] ?? 0) / 100)
+                            .formatted(.percent.precision(.fractionLength(0...1))))
         }
     }
 }
@@ -396,12 +477,8 @@ private struct WatermarkPreview: View {
                         .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
                 }
             }
-            Text("Preview of the first photo")
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
-        .padding(16)
-        .background(Color.black.opacity(0.35))
+        .accessibilityLabel(Text("Preview of the first photo"))
     }
 
     private func fitted(_ size: CGSize, in bounds: CGSize) -> CGSize {

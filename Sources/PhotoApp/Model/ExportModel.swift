@@ -57,8 +57,15 @@ final class ExportModel {
     }
 
     var conflict: Conflict?
-    /// What the window shows when it cannot start (a bad watermark, nothing to export…).
-    var message: String?
+    /// Why the export cannot start, shown next to the part of the sheet it
+    /// concerns (form conventions, section 8 of docs/UI_REDESIGN.md).
+    var issue: Issue?
+
+    struct Issue: Equatable {
+        enum Place: Equatable { case general, destination, preset, watermark }
+        let place: Place
+        let text: String
+    }
 
     private(set) var progress: (done: Int, total: Int)?
     var isExporting: Bool { progress != nil }
@@ -106,7 +113,7 @@ final class ExportModel {
         let resolved = ExportTargets.resolve(targets)
         versionIDs = resolved.versionIDs
         skippedVideos = resolved.videos
-        message = nil
+        issue = nil
         conflict = nil
         loadPreview(targets.first { !$0.isVideo })
         loadWatermark()
@@ -114,7 +121,7 @@ final class ExportModel {
             await refreshPresets()
             updateExample()
         }
-        library.requestsExportWindow = true
+        library.showsExportSheet = true
     }
 
     private func loadPreview(_ item: CatalogItem?) {
@@ -151,27 +158,39 @@ final class ExportModel {
 
     // MARK: Choosing files
 
-    func chooseDestination() {
+    /// Choose Folder…, as a sheet on the export sheet's window.
+    func chooseDestination(in window: NSWindow?) {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
         panel.directoryURL = destination
-        panel.prompt = String(localized: "Choose")
+        panel.prompt = String(localized: "Choose Folder", comment: "Open panel button")
         panel.message = String(localized: "Choose the folder exported photos are written to.")
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        destination = url
+        Self.run(panel, in: window) { [weak self] url in self?.destination = url }
     }
 
-    func chooseWatermark() {
+    /// Choose Image… for the watermark.
+    func chooseWatermark(in window: NSWindow?) {
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowedContentTypes = [.png]
-        panel.prompt = String(localized: "Choose")
+        panel.prompt = String(localized: "Use Image", comment: "Open panel button: the watermark")
         panel.message = String(localized: "Choose a PNG image. Transparent areas stay see-through.")
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        useWatermark(at: url)
+        Self.run(panel, in: window) { [weak self] url in self?.useWatermark(at: url) }
+    }
+
+    /// Attached to `window` when there is one (window-modal), else app-modal.
+    private static func run(_ panel: NSOpenPanel, in window: NSWindow?, then pick: @escaping @MainActor (URL) -> Void) {
+        guard let window else {
+            if panel.runModal() == .OK, let url = panel.url { pick(url) }
+            return
+        }
+        panel.beginSheetModal(for: window) { response in
+            guard response == .OK, let url = panel.url else { return }
+            MainActor.assumeIsolated { pick(url) }
+        }
     }
 
     /// Copies the PNG into the library and draws it with the current placement.
@@ -187,9 +206,9 @@ final class ExportModel {
             }
             settings.watermark = watermark
             settings.watermarkEnabled = true
-            message = nil
+            issue = nil
         } catch {
-            message = String(localized: "“\(url.lastPathComponent)” is not a PNG image.")
+            issue = Issue(place: .watermark, text: String(localized: "“\(url.lastPathComponent)” is not a PNG image."))
         }
     }
 
@@ -230,7 +249,7 @@ final class ExportModel {
                 await refreshPresets()
                 presetID = saved.id
             } catch {
-                message = String(localized: "Could not save the preset: \(error.localizedDescription)")
+                issue = Issue(place: .preset, text: String(localized: "Could not save the preset: \(error.localizedDescription)"))
             }
         }
     }
@@ -257,18 +276,18 @@ final class ExportModel {
     func requestExport() async -> Bool {
         guard let job, !isExporting else { return false }
         guard !versionIDs.isEmpty else {
-            message = String(localized: "There is nothing to export.")
+            issue = Issue(place: .general, text: String(localized: "There is nothing to export."))
             return false
         }
         if let watermark = settings.activeWatermark, watermarks?.contains(watermark.identifier) != true {
-            message = String(localized: "The watermark image is missing. Choose it again.")
+            issue = Issue(place: .watermark, text: String(localized: "The watermark image is missing. Choose it again."))
             return false
         }
         let items: [ExportItem]
         do {
             items = try await job.items(for: versionIDs)
         } catch {
-            message = String(localized: "Could not read the photos to export: \(error.localizedDescription)")
+            issue = Issue(place: .general, text: String(localized: "Could not read the photos to export: \(error.localizedDescription)"))
             return false
         }
         let date = Date()
