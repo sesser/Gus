@@ -73,7 +73,27 @@ Import and Export).
     and reusable modules win over a quicker SwiftUI-only Import grid.
 19. **Template fields are token fields.** Tokens such as
     `{capture:yyyy}` show as labeled pills ("Capture Year"), so people who
-    don't know the syntax can read and edit templates.
+    don't know the syntax can read and edit templates. The field wraps up to
+    three lines, then scrolls, in Import and Export alike. One term for the
+    original file's name: "Original Name" (pill, Insert menu and Export's
+    segmented control). The Insert menu groups tokens (Date, Camera, File,
+    Numbering, Job) and shows each with an example value when there is a
+    photo ("Capture Year (2026)"). Inserting replaces the field's last
+    selection, or goes at its last caret position, even after focus moved
+    to the menu, and returns focus to the field; a field never edited gets
+    the token at the end.
+
+    | Token | Pill | In the Insert menu |
+    |---|---|---|
+    | `{capture:yyyy}` / `{capture:yyyy-MM-dd}` / `{capture:MMMM}` / `{capture:HHmmss}` | Capture Year / Capture Date / Capture Month / Capture Time | yes |
+    | `{import:yyyy-MM-dd}` (Import) / `{export:yyyy-MM-dd}` (Export) | Import Date / Export Date | yes |
+    | `{job}` (Import) | Job Code | yes |
+    | `{make}` / `{model}` / `{serial}` / `{lens}` | Camera Make / Camera Model / Serial Number / Lens | yes |
+    | `{name}` / `{number}` | Original Name / Original Number | yes |
+    | `{seq:4}` / `{counter:5}` (Import) | Sequence Number / Import Counter | yes |
+    | `{ext}` / `{ext:lower}` / `{ext:upper}` | Extension / Lowercase Extension / Uppercase Extension | no (the extension is added automatically) |
+    | other date patterns | "Capture Date (yyyyMM)" style: source, "Date", the pattern; tooltip shows the value | no |
+    | anything in braces the grammar doesn't know | plain text, as it renders | — |
 
 ## Audit (most severe first)
 
@@ -222,9 +242,13 @@ confirmation dialogs.
   information (completions, cancellations, videos skipped by design). The
   popover keeps the 20 newest messages until quit. Every row has a title:
   the action's undo name, or else the command's menu title without its
-  ellipsis plus its object: Import from "‹source›", Add Folder "‹folder›",
-  Import Look-Up Tables, Import Presets, Export to "‹folder›", Save
-  Changes, Load Library. The message is the detail. Skipped photos are reported in
+  ellipsis plus its object: Import from "‹source›", Add Folder "‹folder›"
+  (several: "Add 3 Folders"), Import Look-Up Tables, Import Presets, Export
+  to "‹folder›", Export Presets, Save Adjustments as Preset, Look-Up Table
+  "‹name›" (missing; a warning), Save Changes, Load Library. The message
+  is the detail. A running export shows "12 of 24"; its finished message
+  is a sentence ("Exported 24 photos." / "Exported 22 of 24 photos. 2
+  could not be written.", a warning). Skipped photos are reported in
   plural strings, one sentence per reason: "N videos were left
   unchanged."; "N photos were left unchanged: their originals are
   offline."; "N photos were left unchanged: their edits can't be changed in
@@ -526,6 +550,7 @@ default size")
 |---|---|---|
 | Container | `Form` with `.formStyle(.grouped)`, regular control size | one system idiom (F16) |
 | Sections | `Section("Title")`; no section for a single control; no header that repeats its only row | hierarchy (F27, F30) |
+| Capitalization | row labels, check boxes and radio buttons sentence-style ("File names", "Show in Finder when done"), no trailing colon; section headers, buttons, segments, pop-up and menu items, titles title-style ("File Names", "Original Name") | HIG: Labels use sentence-style capitalization; Apple style for controls |
 | Text and number fields | `.textFieldStyle(.roundedBorder)`; numbers right-aligned in 72 pt with the unit after | fields must look editable (HIG: Text fields; F23, F24) |
 | Templates | a full-width `NSTokenField` (shared in PhotoUI, replacing `TemplateField`'s text field): each token is a pill with a readable name ("Capture Year", "File Name", "Job Code") and literal text between pills is plain; an **Insert** pull-down lists the tokens by name; copy and paste and the stored template keep the `{capture:yyyy}` syntax, so templates and presets don't change; the example directly under it in 11 pt secondary text, left-aligned, wrapping | readable by people who don't know the syntax, never red (decision 19, F23) |
 | On / off options | `Toggle` with `.toggleStyle(.checkbox)`; no switches | HIG: Toggles (F27) |
@@ -594,7 +619,7 @@ scrolling once the Videos section and the footer are gone.
 
 | Section | Rows |
 |---|---|
-| Destination | Folder: path (truncated at the head, full path as tooltip) and Choose Folder… · Subfolders: template · File Names: template · Example: the whole relative path |
+| Destination | Folder: path (truncated at the head, full path as tooltip) and Choose Folder… · Subfolders: template · File names: template, with one example under it for both fields ("Example: 2026/2026-10-30/DSC00328.ARW", the whole relative path) |
 | Project (library app) / Job (importer) | Add To pop-up (library app) · Project Name template (for a new project) · Job Code, bezeled, with the recent-codes `clock` menu |
 | Metadata | Metadata Preset pop-up: None · presets · New Preset… · Edit "‹name›"…; a caption when one is chosen |
 | After Import | ☐ Delete originals from "‹card›" · ☐ Eject "‹card›" (disabled for folders); caption: "Originals are deleted only after every copy is verified, and you're asked first." |
@@ -645,7 +670,7 @@ check whether it lets people resize the sheet vertically.
 | Header (fixed) | a 44 pt thumbnail of the first photo; "Export 24 Photos" in 13 pt semibold; "From All Photos · 3 videos are skipped" in 11 pt secondary |
 | Preset (first row, no section) | pop-up: None · presets · Save as Preset… · Update "‹name›" (when changed) · Delete "‹name›"… |
 | Destination | Folder: path and Choose Folder… · ☐ Show in Finder when done (F31) · errors about the folder shown here |
-| File Names | Name: Original Name \| Template (segmented) · template field and Insert menu · example |
+| File Names | Name: Original Name \| Template (segmented) · template field and Insert menu · "Example: …" under the field, or under the segmented control when Original Name is chosen |
 | File Type | Format: JPEG \| TIFF · Quality slider (continuous) or Bit Depth and Compression · Color Space; the ProPhoto warning with an icon |
 | Size | Size pop-up · Length, Box or Scale with bezeled 72 pt fields · Resolution (bezeled) · "Photos are never enlarged." · Output Sharpening · Sharpen For |
 | Metadata | radio group (as now) and its caption |
@@ -665,6 +690,10 @@ All… on the leading side, Done on the trailing side (edits apply at once).
 Album, keyword, smart album and metadata preset sheets use the form
 conventions, with Delete on the leading side where it exists. The Save
 Preset name becomes an `.alert` with a `TextField`; masks rename inline.
+
+Deleting an export preset asks first, because it cannot be undone: title
+"Delete the export preset “‹name›”?", text "Exports already made are not
+affected.", buttons Delete (destructive) and Cancel.
 
 ### Appearance
 
@@ -733,8 +762,10 @@ text. (F11, F16, F28)
   - stars, pick and reject on a cell and on a selected cell: 3:1, or 4.5:1
     with Increase Contrast.
 
-  Grays stay neutral. Under Increase Contrast the selected-cell fill stays
-  at or below 0.24 and the accent border goes from 2 pt to 3 pt. The loupe
+  Grays stay neutral. Under Increase Contrast selection is carried by the
+  accent border, which goes from 2 pt to 3 pt, and the selected-cell fill
+  changes only as far as the text and glyph ratios allow (at most 0.24 in
+  dark; 0.80 in light). The loupe
   background is dark in every appearance and keeps 0.09 under Increase
   Contrast (it is the color-judgment surround); the grid background may
   darken. No tertiary text for labels;
