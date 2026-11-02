@@ -10,7 +10,7 @@ struct MainView: View {
     var body: some View {
         NavigationSplitView {
             SidebarView(model: model)
-                .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 360)
+                .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 320)
         } detail: {
             BrowserView(model: model)
                 .inspector(isPresented: $model.showsInspector) {

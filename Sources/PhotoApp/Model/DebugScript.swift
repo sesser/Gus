@@ -33,6 +33,7 @@ import PhotoUI
 ///     buttons               (prints the window's AppKit buttons and where they are)
 ///     menuitems [<text>]    (main menu items whose title contains text: key equivalent, enabled, checked)
 ///     menupress <title>     (runs the main menu item with that title, if enabled)
+///     sidebarsection [albums|dates|keywords|projects show|hide]   (prints the hidden sidebar sections)
 ///     contextmenu cell <n>|loupe|slider <title> [<item>[/<sub>]]   (prints a right-click's menu there, or runs an item)
 ///     editvalue <title>     (puts the keyboard in the value field of the inspector slider with that title)
 ///     accessibility <role>|any [<n> press|<action name>] | focused   (lists the window's accessibility
@@ -384,6 +385,11 @@ enum DebugScript {
             } else {
                 print("debug-script: no slider titled \(title)")
             }
+        case "sidebarsection":
+            if let section = rest.first.flatMap(SidebarSection.init(rawValue:)) {
+                model.setSidebarSection(section, shown: rest.dropFirst().first != "hide")
+            }
+            print("debug-script: hidden sections \(model.hiddenSidebarSections.map(\.rawValue).sorted())")
         case "menuitems":
             printMenuItems(containing: rest.joined(separator: " "))
         case "contextmenu":

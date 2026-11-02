@@ -79,6 +79,36 @@ extension SidebarSelection {
     }
 }
 
+/// The sidebar's sections, in order (section 3 of docs/UI_REDESIGN.md).
+enum SidebarSection: String, CaseIterable, Hashable {
+    case library, albums, dates, keywords, projects
+
+    var title: String {
+        switch self {
+        case .library: String(localized: "Library")
+        case .albums: String(localized: "Albums")
+        case .dates: String(localized: "Dates")
+        case .keywords: String(localized: "Keywords")
+        case .projects: String(localized: "Projects")
+        }
+    }
+
+    /// Library cannot be hidden.
+    var canHide: Bool { self != .library }
+}
+
+extension LibraryModel {
+    func showsSidebarSection(_ section: SidebarSection) -> Bool {
+        !hiddenSidebarSections.contains(section)
+    }
+
+    /// View ▸ Sidebar Sections and the section header's Hide Section.
+    func setSidebarSection(_ section: SidebarSection, shown: Bool) {
+        guard section.canHide else { return }
+        if shown { hiddenSidebarSections.remove(section) } else { hiddenSidebarSections.insert(section) }
+    }
+}
+
 /// The smart albums every library has.
 enum BuiltInAlbum: String, CaseIterable, Hashable {
     case lastImport, picks, rejects, unrated, noKeywords
@@ -321,6 +351,12 @@ final class LibraryModel {
         if browserHasKeyboard != browser { browserHasKeyboard = browser }
     }
     @ObservationIgnored private var searchFocusPending = false
+    /// Sections hidden with View ▸ Sidebar Sections, remembered.
+    var hiddenSidebarSections: Set<SidebarSection> = Set(
+        (UserDefaults.standard.stringArray(forKey: "sidebar.hiddenSections") ?? []).compactMap(SidebarSection.init(rawValue:))
+    ) {
+        didSet { UserDefaults.standard.set(hiddenSidebarSections.map(\.rawValue).sorted(), forKey: "sidebar.hiddenSections") }
+    }
     /// A sidebar item waiting for its deletion to be confirmed.
     var sidebarDeletion: SidebarDeletion?
     /// What the menus need of the loupe's zoom (its controller owns the zoom).

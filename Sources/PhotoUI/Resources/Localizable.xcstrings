@@ -3930,6 +3930,17 @@
         }
       }
     },
+    "Hide Section" : {
+      "comment" : "Sidebar section header context menu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide Section"
+          }
+        }
+      }
+    },
     "Hide Suggestion" : {
       "comment" : "Undo action name",
       "localizations" : {
@@ -4245,17 +4256,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Import from a card or folder"
-          }
-        }
-      }
-    },
-    "Import or drop a folder here." : {
-      "comment" : "Sidebar, Projects section with no projects",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Import or drop a folder here."
           }
         }
       }
@@ -5489,6 +5489,28 @@
         }
       }
     },
+    "No albums" : {
+      "comment" : "Sidebar: the Albums section is empty",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No albums"
+          }
+        }
+      }
+    },
+    "No capture dates" : {
+      "comment" : "Sidebar: the Dates section is empty",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No capture dates"
+          }
+        }
+      }
+    },
     "No card connected" : {
       "comment" : "Import window source picker",
       "localizations" : {
@@ -5582,6 +5604,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No photos yet"
+          }
+        }
+      }
+    },
+    "No projects" : {
+      "comment" : "Sidebar: the Projects section is empty",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No projects"
           }
         }
       }
@@ -7161,17 +7194,6 @@
         }
       }
     },
-    "Select photos and press ⌘K to add keywords." : {
-      "comment" : "Sidebar, no keywords yet",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Select photos and press ⌘K to add keywords."
-          }
-        }
-      }
-    },
     "Select photos to see and change their keywords." : {
       "comment" : "Inspector, nothing selected",
       "localizations" : {
@@ -7573,6 +7595,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Shutter Speed"
+          }
+        }
+      }
+    },
+    "Sidebar Sections" : {
+      "comment" : "View menu submenu: which sidebar sections are shown",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sidebar Sections"
           }
         }
       }
@@ -8457,17 +8490,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Use File Values"
-          }
-        }
-      }
-    },
-    "Use File ▸ New Album to make one." : {
-      "comment" : "Sidebar, no albums yet",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Use File ▸ New Album to make one."
           }
         }
       }

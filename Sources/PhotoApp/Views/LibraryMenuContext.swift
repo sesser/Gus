@@ -56,6 +56,7 @@ struct LibraryMenuState: Equatable {
     var isImporting: Bool
     var isExporting: Bool
     var isCheckingDisk: Bool
+    var hiddenSidebarSections: Set<SidebarSection>
 
     /// The album, smart album or keyword selected in the sidebar, for File ▸
     /// Rename, Delete and Edit Smart Album.
@@ -116,6 +117,7 @@ struct LibraryMenuState: Equatable {
         isImporting = model.isImporting
         isExporting = model.export.isExporting
         isCheckingDisk = model.isCheckingDisk
+        hiddenSidebarSections = model.hiddenSidebarSections
     }
 
     /// Items with a bare key: only while the grid, loupe or video loupe has

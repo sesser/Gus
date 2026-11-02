@@ -184,6 +184,15 @@ struct LibraryCommands: Commands {
                 SortPickers(sort: Binding(get: { menu?.state.sort ?? LibrarySort() }, set: { model?.sort = $0 }))
             }
             .disabled(!can { $0.mode == .grid })
+            Menu("Sidebar Sections") {
+                ForEach(SidebarSection.allCases.filter(\.canHide), id: \.self) { section in
+                    Toggle(section.title, isOn: Binding(
+                        get: { menu?.state.hiddenSidebarSections.contains(section) != true },
+                        set: { model?.setSidebarSection(section, shown: $0) }
+                    ))
+                }
+            }
+            .disabled(!can())
             Divider()
             Button(menu?.state.showsInspector == true ? String(localized: "Hide Inspector")
                                                       : String(localized: "Show Inspector")) {
