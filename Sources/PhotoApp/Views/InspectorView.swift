@@ -385,7 +385,7 @@ private struct InfoSection: View {
                 Text(size)
                     .font(.caption)
             }
-            if let date = LoupeInfoBar.captureDateText(image) {
+            if let date = CaptureDateText.text(image) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Captured")
                         .font(.caption)
@@ -532,5 +532,18 @@ private struct ExposureTile: View {
         .frame(maxWidth: .infinity)
         .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
         .help(help ?? "")
+    }
+}
+
+/// A capture date in the photo's own time.
+enum CaptureDateText {
+    static func text(_ image: ImageRecord) -> String? {
+        guard let date = image.captureDate else { return nil }
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        // Times without an offset are floating local times stored as UTC.
+        formatter.timeZone = image.captureOffsetSeconds.flatMap(TimeZone.init(secondsFromGMT:)) ?? TimeZone(secondsFromGMT: 0)
+        return formatter.string(from: date)
     }
 }

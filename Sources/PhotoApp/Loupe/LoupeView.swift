@@ -16,7 +16,7 @@ struct LoupeView: View {
             } else {
                 LoupeCanvas(model: model)
             }
-            LoupeInfoBar(model: model)
+            LoupeCaption(model: model)
         }
         .background(Color(nsColor: Palette.loupeBackground))
     }
@@ -447,8 +447,12 @@ final class LoupeController: NSObject {
         let clip = scrollView.contentView.bounds.size
         let document = imageView.frame.size
         guard document.width > 0, document.height > 0, clip.width > 0 else { return 1 }
+        // Fitted within a margin of the neutral surround (section 1 of docs/UI_REDESIGN.md).
+        let margin: CGFloat = 24
         let clipSize = scrollView.frame.size
-        return min(clipSize.width / document.width, clipSize.height / document.height, 1)
+        let width = max(clipSize.width - margin * 2, 1)
+        let height = max(clipSize.height - margin * 2, 1)
+        return min(width / document.width, height / document.height, 1)
     }
 
     /// ⌘= / ⌘−: the next step (`LoupeZoomSteps`), keeping the visible center.
@@ -794,131 +798,107 @@ final class CenteringClipView: NSClipView {
     }
 }
 
-/// File name, capture details and culling state of the photo in the loupe.
-struct LoupeInfoBar: View {
+/// One line under the photo, on the surround (section 1 of
+/// docs/UI_REDESIGN.md): the position on the left; the stars, flag and color
+/// label with its name in the middle; Filtered, Original, HDR and Offline on
+/// the right. The file name is the window title; capture details are in the
+/// Info tab.
+struct LoupeCaption: View {
     let model: LibraryModel
-    @State private var details: VersionDetails?
+
+    static let height: CGFloat = 28
 
     var body: some View {
-        HStack(spacing: 16) {
-            if let item = model.focusedItem {
-                CullingBadges(item: item)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(item.fileName)
-                        .font(.headline)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    if let details {
-                        Text(Self.captureLine(details))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                }
-                Spacer()
-                if model.editor.showsOriginal {
-                    Text("Original")
-                        .font(.caption.weight(.semibold))
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 1)
-                        .background(RoundedRectangle(cornerRadius: 3).fill(.white.opacity(0.2)))
-                        .help("Showing the photo without adjustments. Press \\ to show them again.")
-                }
-                if let headroom = model.loupeHDRHeadroom {
-                    Text("HDR")
-                        .font(.caption.weight(.semibold))
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 1)
-                        .overlay(RoundedRectangle(cornerRadius: 3).stroke(.secondary))
-                        .help("Highlights up to \(headroom.formatted(.number.precision(.fractionLength(1))))× SDR white are shown with the display's extended range")
-                }
-                if let details {
-                    Text(Self.exposureLine(details.image))
-                        .font(.callout)
+        ZStack {
+            if let item = model.focusedItem, let index = model.focusIndex {
+                HStack {
+                    Text(PhotoAccessibility.position(index, of: model.items.count))
                         .monospacedDigit()
-                        .foregroundStyle(.secondary)
+                    Spacer()
+                    badges(item)
                 }
-                if model.isOffline(item) {
-                    Label("Original offline", systemImage: "externaldrive.badge.xmark")
-                        .foregroundStyle(.orange)
-                        .help("The volume \(model.volumeName(for: item) ?? "") is not connected. Showing the cached preview.")
-                }
+                CullingMarks(item: item)
             }
         }
-        .foregroundStyle(.white.opacity(0.9))
-        .padding(.horizontal, 16)
-        .frame(height: 48)
-        .background(Color(white: 0.11))
-        .task(id: model.focusedItem?.versionID) {
-            guard let id = model.focusedItem?.versionID else { details = nil; return }
-            details = try? await model.catalog.details(forVersion: id)
-        }
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 12)
+        .frame(height: Self.height)
     }
 
-    static func captureLine(_ details: VersionDetails) -> String {
-        var parts: [String] = []
-        let image = details.image
-        if let date = captureDateText(image) { parts.append(date) }
-        if let camera = [image.cameraMake, image.cameraModel].compactMap({ $0 }).joined(separator: " ").nilIfEmpty {
-            parts.append(camera)
+    @ViewBuilder
+    private func badges(_ item: CatalogItem) -> some View {
+        HStack(spacing: 6) {
+            if model.isFiltered {
+                CaptionBadge(title: String(localized: "Filtered"),
+                             help: String(localized: "A filter hides some of this source's photos"))
+            }
+            if model.editor.showsOriginal {
+                CaptionBadge(title: String(localized: "Original"),
+                             help: String(localized: "Showing the photo without adjustments. Press \\ to show them again."))
+            }
+            if let headroom = model.loupeHDRHeadroom {
+                CaptionBadge(title: String(localized: "HDR"),
+                             help: String(localized: "Highlights up to \(headroom.formatted(.number.precision(.fractionLength(1))))× SDR white are shown with the display's extended range"))
+            }
+            if model.isOffline(item) {
+                CaptionBadge(title: String(localized: "Offline"),
+                             help: String(localized: "The volume \(model.volumeName(for: item) ?? "") is not connected. Showing the cached preview."))
+            }
         }
-        if let lens = image.lensModel { parts.append(lens) }
-        if let width = image.pixelWidth, let height = image.pixelHeight {
-            parts.append(String(localized: "\(width) × \(height) px"))
-        }
-        return parts.joined(separator: "  ·  ")
-    }
-
-    static func captureDateText(_ image: ImageRecord) -> String? {
-        guard let date = image.captureDate else { return nil }
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        // Times without an offset are floating local times stored as UTC.
-        formatter.timeZone = image.captureOffsetSeconds.flatMap(TimeZone.init(secondsFromGMT:)) ?? TimeZone(secondsFromGMT: 0)
-        return formatter.string(from: date)
-    }
-
-    static func exposureLine(_ image: ImageRecord) -> String {
-        var parts: [String] = []
-        if let time = image.exposureTime, time > 0 {
-            let duration = time < 1 ? "1/\(Int((1 / time).rounded()))" : time.formatted(.number.precision(.fractionLength(0...1)))
-            parts.append(String(localized: "\(duration) s", comment: "Exposure time in seconds"))
-        }
-        if let aperture = image.fNumber {
-            parts.append(String(localized: "ƒ/\(aperture.formatted(.number.precision(.fractionLength(0...1))))"))
-        }
-        if let iso = image.iso { parts.append(String(localized: "ISO \(iso)")) }
-        if let focal = image.focalLength {
-            parts.append(String(localized: "\(Int(focal.rounded())) mm", comment: "Focal length"))
-        }
-        return parts.joined(separator: "   ")
     }
 }
 
-struct CullingBadges: View {
+/// A small outlined text badge.
+private struct CaptionBadge: View {
+    let title: String
+    let help: String
+
+    var body: some View {
+        Text(title)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .overlay(RoundedRectangle(cornerRadius: 3).stroke(.secondary.opacity(0.6)))
+            .help(help)
+    }
+}
+
+/// Stars (SF Symbols), the flag, and the color label's dot with its name.
+struct CullingMarks: View {
     let item: CatalogItem
 
     var body: some View {
-        HStack(spacing: 6) {
-            Text(item.rating.rawValue > 0 ? RatingText.stars(item.rating.rawValue) : "☆")
-                .foregroundStyle(item.rating.rawValue > 0 ? Color(nsColor: Palette.rating) : .secondary)
-                .frame(minWidth: 64, alignment: .leading)
+        HStack(spacing: 10) {
+            if item.rating != .unrated {
+                HStack(spacing: 1) {
+                    ForEach(0..<item.rating.rawValue, id: \.self) { _ in
+                        Image(systemName: "star.fill")
+                    }
+                }
+                .foregroundStyle(Color(nsColor: Palette.rating))
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(PhotoAccessibility.text(.rating(item.rating)))
+            }
             switch item.flag {
             case .picked:
                 Image(systemName: "flag.fill").foregroundStyle(Color(nsColor: Palette.pick))
                     .help("Picked")
+                    .accessibilityLabel(Text("Picked"))
             case .rejected:
                 Image(systemName: "xmark.circle.fill").foregroundStyle(Color(nsColor: Palette.reject))
                     .help("Rejected")
+                    .accessibilityLabel(Text("Rejected"))
             case .none:
                 EmptyView()
             }
             if let color = Palette.color(for: item.colorLabel) {
-                Circle().fill(Color(nsColor: color)).frame(width: 10, height: 10)
+                HStack(spacing: 4) {
+                    Circle().fill(Color(nsColor: color)).frame(width: 9, height: 9)
+                    Text(ColorLabelText.name(item.colorLabel))
+                }
+                .accessibilityElement(children: .combine)
             }
         }
-        .font(.callout)
     }
 }
 

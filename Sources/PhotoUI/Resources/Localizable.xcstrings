@@ -133,17 +133,6 @@
         }
       }
     },
-    "%@ s" : {
-      "comment" : "Exposure time in seconds",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ s"
-          }
-        }
-      }
-    },
     "%@+%@" : {
       "comment" : "Grid badge for a RAW+JPEG pair; the first type is the file shown",
       "localizations" : {
@@ -655,17 +644,6 @@
         }
       }
     },
-    "%lld × %lld px" : {
-      "comment" : "Image dimensions",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld × %lld px"
-          }
-        }
-      }
-    },
     "100%" : {
       "comment" : "Toolbar, loupe: show the photo at actual size",
       "localizations" : {
@@ -750,6 +728,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "8 bits per channel"
+          }
+        }
+      }
+    },
+    "A filter hides some of this source's photos" : {
+      "comment" : "Loupe caption: the Filtered badge tooltip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A filter hides some of this source's photos"
           }
         }
       }
@@ -4018,16 +4007,6 @@
         }
       }
     },
-    "ISO %lld" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ISO %lld"
-          }
-        }
-      }
-    },
     "Ignored %lld items that are not folders." : {
       "comment" : "Status bar, after a drop that included files",
       "localizations" : {
@@ -5909,16 +5888,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Original name"
-          }
-        }
-      }
-    },
-    "Original offline" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Original offline"
           }
         }
       }
@@ -9201,17 +9170,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "© {capture:yyyy} Your Name"
-          }
-        }
-      }
-    },
-    "ƒ/%@" : {
-      "comment" : "Aperture",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ƒ/%@"
           }
         }
       }

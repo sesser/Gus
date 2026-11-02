@@ -76,7 +76,8 @@ final class PhotoCellView: NSView {
     private(set) var image: CGImage?
 
     private let imageLayer = CALayer()
-    private let ratingLayer = CATextLayer()
+    /// SF Symbol stars, one image per rating.
+    private let ratingLayer = CALayer()
     private let nameLayer = CATextLayer()
     private let kindLayer = CALayer()
     private let flagLayer = CALayer()
@@ -119,11 +120,7 @@ final class PhotoCellView: NSView {
         imageLayer.minificationFilter = .trilinear
         placeholderLayer.backgroundColor = NSColor(white: 0.22, alpha: 1).cgColor
         placeholderLayer.cornerRadius = 3
-        ratingLayer.fontSize = 11
-        ratingLayer.font = NSFont.systemFont(ofSize: 11, weight: .semibold)
-        ratingLayer.foregroundColor = Palette.rating.cgColor
-        ratingLayer.alignmentMode = .left
-        ratingLayer.truncationMode = .end
+        ratingLayer.contentsGravity = .left
         nameLayer.fontSize = 11
         nameLayer.font = NSFont.systemFont(ofSize: 11)
         nameLayer.foregroundColor = Palette.fileName.cgColor
@@ -221,7 +218,7 @@ final class PhotoCellView: NSView {
         }
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        ratingLayer.string = item.rating.rawValue > 0 ? String(repeating: "★", count: item.rating.rawValue) : ""
+        ratingLayer.contents = Symbols.stars(item.rating.rawValue, color: Palette.rating, pointSize: 10)
         if nameLayer.string as? String != item.baseName {
             nameLayer.string = item.baseName
         }
@@ -343,6 +340,28 @@ enum Symbols {
         let image = symbol.cgImage(forProposedRect: &rect, context: nil,
                                    hints: [.ctm: AffineTransform(scale: 2)])
         cache[key] = image
+        return image
+    }
+}
+
+extension Symbols {
+    private static var starCache: [Int: CGImage] = [:]
+
+    /// `count` filled stars in a row, as one image (nil for none).
+    static func stars(_ count: Int, color: NSColor, pointSize: CGFloat) -> CGImage? {
+        guard count > 0 else { return nil }
+        if let cached = starCache[count] { return cached }
+        guard let star = image("star.fill", color: color, pointSize: pointSize) else { return nil }
+        let gap = 2
+        let width = star.width * count + gap * (count - 1)
+        guard let context = CGContext(data: nil, width: width, height: star.height, bitsPerComponent: 8, bytesPerRow: 0,
+                                      space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+        for index in 0..<count {
+            context.draw(star, in: CGRect(x: index * (star.width + gap), y: 0, width: star.width, height: star.height))
+        }
+        let image = context.makeImage()
+        starCache[count] = image
         return image
     }
 }
