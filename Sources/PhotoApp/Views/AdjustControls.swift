@@ -225,6 +225,17 @@ final class SliderRow: NSView, NSTextFieldDelegate {
         onChange(defaultValue, .committed)
     }
 
+    /// Reset "Exposure", while the value is not the default.
+    override func menu(for event: NSEvent) -> NSMenu? {
+        guard slider.isEnabled, abs(scale.value(slider.doubleValue) - defaultValue) > format.keyIncrement / 2 else { return nil }
+        let menu = NSMenu()
+        menu.addItem(ActionMenuItem(String(localized: "Reset “\(label.stringValue)”",
+                                           comment: "Context menu of an adjustment slider; the slider's name")) { [weak self] in
+            self?.reset()
+        })
+        return menu
+    }
+
     /// Return commits the typed value, Escape drops it; either way the
     /// keyboard goes back to the grid or loupe, so culling keys work again.
     func control(_ control: NSControl, textView: NSTextView, doCommandBy selector: Selector) -> Bool {

@@ -377,6 +377,19 @@ final class PhotoCollectionView: NSCollectionView {
         window?.makeFirstResponder(self)
     }
 
+    /// A right-click outside the selection selects the clicked photo first;
+    /// inside it, the selection stays and the clicked photo becomes the focus.
+    override func menu(for event: NSEvent) -> NSMenu? {
+        guard let model = controller?.model,
+              let path = indexPathForItem(at: convert(event.locationInWindow, from: nil)) else { return nil }
+        if model.selection.contains(path.item) {
+            model.gridSelectionChanged(model.selection, focus: path.item)
+        } else {
+            model.setFocus(path.item)
+        }
+        return PhotoContextMenu.grid(model: model)
+    }
+
     // Declared nonisolated, but AppKit asks accessibility questions on the main thread.
     override var accessibilityFocusedUIElement: Any? {
         let cell = MainActor.assumeIsolated { controller?.focusedCellView }

@@ -92,6 +92,14 @@ private struct MaskRow: View {
             }
             .frame(width: 22)
         }
+        .contentShape(Rectangle())
+        // TODO(UI redesign step 8): Rename becomes inline (double-click), titled "Rename".
+        .contextMenu {
+            Button("Rename…") { rename() }
+            if index > 0 { Button("Move Up") { editor.moveMask(mask.id, by: -1) } }
+            if index < count - 1 { Button("Move Down") { editor.moveMask(mask.id, by: 1) } }
+            Button("Delete") { editor.removeMask(mask.id) }
+        }
     }
 
     private func rename() {

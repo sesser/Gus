@@ -5080,6 +5080,17 @@
         }
       }
     },
+    "Move Down" : {
+      "comment" : "Mask row context menu: applied later",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move Down"
+          }
+        }
+      }
+    },
     "Move Mask" : {
       "comment" : "Undo action name",
       "localizations" : {
@@ -5109,6 +5120,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Move To"
+          }
+        }
+      }
+    },
+    "Move Up" : {
+      "comment" : "Mask row context menu: applied earlier",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move Up"
           }
         }
       }
@@ -6766,6 +6788,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Reset Crop"
+          }
+        }
+      }
+    },
+    "Reset “%@”" : {
+      "comment" : "Context menu of an adjustment slider; the slider's name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset “%@”"
           }
         }
       }

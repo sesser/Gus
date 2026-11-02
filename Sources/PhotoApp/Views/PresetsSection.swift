@@ -127,6 +127,10 @@ private struct PresetGrid: View {
                           onHover: { previews.hover(preset, isInside: $0) }) {
                     model.applyAdjustmentPreset(preset)
                 }
+                .contextMenu {
+                    Button("Apply") { model.applyAdjustmentPreset(preset) }
+                    Button("Manage Presets…") { model.requestsPresetWindow = true }
+                }
             }
         }
         .task(id: renderKey) {

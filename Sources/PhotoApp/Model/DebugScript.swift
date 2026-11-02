@@ -32,6 +32,7 @@ import PhotoUI
 ///     buttons               (prints the window's AppKit buttons and where they are)
 ///     menuitems [<text>]    (main menu items whose title contains text: key equivalent, enabled, checked)
 ///     menupress <title>     (runs the main menu item with that title, if enabled)
+///     contextmenu cell <n>|loupe|slider <title> [<item>[/<sub>]]   (prints a right-click's menu there, or runs an item)
 ///     editvalue <title>     (puts the keyboard in the value field of the inspector slider with that title)
 ///     accessibility <role>|any [<n> press|<action name>] | focused   (lists the window's accessibility
 ///                           elements with that role, e.g. AXImage, or runs an action on the nth; see AccessibilityProbe)
@@ -79,7 +80,7 @@ enum DebugScript {
             // would otherwise become undo steps that do nothing.
             let changing: Set<String> = ["key", "addkeywords", "text", "pairfile", "accept", "album", "smartalbum", "remove",
                                          "adjust", "lut", "pasteadjust", "preset", "menupick", "lutwindow", "metadata",
-                                         "menupress"]
+                                         "menupress", "contextmenu"]
             for command in commands where !command.isEmpty {
                 let words = command.split(separator: " ")
                 // "accessibility <role> <n> <action>" runs an action; listing changes nothing.
@@ -384,6 +385,9 @@ enum DebugScript {
             }
         case "menuitems":
             printMenuItems(containing: rest.joined(separator: " "))
+        case "contextmenu":
+            runContextMenu(rest)
+            try? await Task.sleep(for: .milliseconds(300))
         case "menupress":
             pressMenuItem(titled: rest.joined(separator: " "))
             try? await Task.sleep(for: .milliseconds(300))
@@ -520,6 +524,64 @@ enum DebugScript {
             hit = view.superview
         }
         print("debug-script: \(Int(point.x)),\(Int(window.frame.height - point.y)) hits " + chain.joined(separator: " < "))
+    }
+
+    /// `contextmenu cell <n> | loupe | slider <title> [<item>[/<sub>]]`: prints the
+    /// context menu a right-click there gets, or runs one of its items.
+    private static func runContextMenu(_ words: [String]) {
+        guard let window, let root = window.contentView else { return }
+        var view: NSView?
+        var point = NSPoint.zero
+        var path = Array(words.dropFirst())
+        switch words.first {
+        case "cell":
+            guard let index = path.first.flatMap(Int.init), let grid = descendant(of: PhotoCollectionView.self, in: root),
+                  let frame = grid.layoutAttributesForItem(at: IndexPath(item: index, section: 0))?.frame else { break }
+            path.removeFirst()
+            view = grid
+            point = grid.convert(NSPoint(x: frame.midX, y: frame.midY), to: nil)
+        case "loupe":
+            view = descendant(of: LoupeHostView.self, in: root)
+            point = view.map { $0.convert(NSPoint(x: $0.bounds.midX, y: $0.bounds.midY), to: nil) } ?? .zero
+        case "slider":
+            let title = path.first ?? ""
+            path.removeFirst()
+            view = findSliderRow(titled: title, in: root)
+            point = view.map { $0.convert(NSPoint(x: $0.bounds.midX, y: $0.bounds.midY), to: nil) } ?? .zero
+        default:
+            break
+        }
+        guard let view, let event = NSEvent.mouseEvent(with: .rightMouseDown, location: point, modifierFlags: [],
+                                                         timestamp: ProcessInfo.processInfo.systemUptime,
+                                                         windowNumber: window.windowNumber, context: nil, eventNumber: 0,
+                                                         clickCount: 1, pressure: 1),
+              let menu = view.menu(for: event) else {
+            print("debug-script: no context menu")
+            return
+        }
+        let target = path.joined(separator: " ").split(separator: "/").map(String.init)
+        if target.isEmpty {
+            func show(_ menu: NSMenu, _ prefix: String) {
+                for item in menu.items {
+                    print("debug-script: context \(item.isSeparatorItem ? "—" : prefix + item.title)")
+                    if let sub = item.submenu { show(sub, prefix + item.title + "/") }
+                }
+            }
+            show(menu, "")
+            return
+        }
+        var current = menu
+        for (depth, title) in target.enumerated() {
+            guard let index = current.items.firstIndex(where: { $0.title == title }) else {
+                print("debug-script: no context item \(title)")
+                return
+            }
+            if depth == target.count - 1 {
+                current.performActionForItem(at: index)
+            } else if let sub = current.items[index].submenu {
+                current = sub
+            }
+        }
     }
 
     /// Runs the enabled main menu item with this title, as a click would.

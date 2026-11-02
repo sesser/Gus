@@ -623,6 +623,11 @@ final class LoupeHostView: NSView {
         controller?.windowDidChange()
     }
 
+    override func menu(for event: NSEvent) -> NSMenu? {
+        guard let model = controller?.model, model.focusedItem != nil else { return nil }
+        return PhotoContextMenu.loupe(model: model)
+    }
+
     // MARK: Accessibility
 
     // The canvas is one image element: the scroll view and image view inside
