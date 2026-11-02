@@ -342,10 +342,25 @@ absent in the loupe. (F10, F1, F5)
 E = existing shortcut, unchanged. S = an existing view key now shown in a
 menu. N = new.
 
-Bare keys in menus are real key equivalents, disabled while the key window's
-first responder is a text view, and enabled only while the library window is
-key (`focusedSceneValue`). The view-level handlers stay as a fallback.
-**Verify first** that a disabled item lets the keystroke reach a text field.
+**Bare keys** (0–5, `[` `]`, P, X, U, ⌥0–⌥7, `Z`, `\`, `F`, `C`, ⌫) are
+shown in the menus as real key equivalents, but the grid and loupe handle
+them: AppKit offers an unmodified key to the first responder before the
+menu (verified on macOS 27.2), so `CullingKeymap` and `NavigationKey` stay
+the primary path. These items are enabled only while the grid, the loupe or
+the video loupe is first responder in the key library window and no sheet
+is open; those views publish that through `focusedSceneValue`. Anywhere
+else (sidebar, inspector, search field, any text field) they are dimmed,
+so a letter typed there does what that control does (type-select, text)
+and never culls; to act on photos from there, click a photo or use its
+context menu. Command-key items (⌘K, ⇧⌘C, ⇧⌘V, ⌘[, ⌘] …) are enabled
+whenever the library window is key, no sheet is open and the command has a
+target, wherever focus is. Every library-window item is disabled while
+another window (Import, Settings, the standalone importer) is key.
+Committing an inspector value field or the search field with Return or Esc
+hands focus back to the grid or loupe. Menu state comes from
+`@FocusedValue` / `focusedSceneValue`: SwiftUI does not refresh `Commands`
+built from a plain model value. (HIG: Menus, dim unavailable commands;
+Keyboards, focus decides what a key does. Ruling 2026-11-02.)
 
 **File:** Import from Card or Folder… ⌘I (E) · Add Folder Without Copying…
 ⇧⌘I (E, renamed) · New Album… ⌘N (E) · New Smart Album… ⌥⌘N (E) · Edit
@@ -608,10 +623,34 @@ text. (F11, F16, F28)
 ## 10. Accessibility
 
 - Grid cells are accessibility elements: label "DSC00231, RAW plus JPEG",
-  value "3 stars, Picked, Red label, Offline", custom actions (Open in
-  Loupe, Raise / Lower Rating, Pick, Reject, Clear Flag). The loupe canvas
-  is an image element with the same label, value and actions. (F4)
-- Each culling action posts a value change and an announcement.
+  value "3 stars, Picked, Red label, Offline", custom actions Open in
+  Loupe, Raise Rating, Lower Rating, Pick, Reject, Clear Flag. Arrow keys
+  move keyboard focus and post a focused-element change, so VoiceOver reads
+  the new cell; no extra announcement. (F4)
+- The loupe canvas is an image element with the same label and value plus
+  the position ("13 of 87"). Its actions are the grid's minus Open in
+  Loupe, plus Show Grid, Zoom to 100% / Zoom to Fit and Show Original /
+  Show Adjustments (titles follow state), matching the loupe context menu.
+- The video loupe's host view is a group element: label "DSC00400, video,
+  0:42", the same value, actions Raise Rating, Lower Rating, Pick, Reject,
+  Clear Flag, Play / Pause, Show Grid. The player's own controls stay as
+  its children.
+- Moving in the loupe (arrows, Home, End, auto-advance) posts a value
+  change on the canvas and announces the new photo: "DSC00232, RAW, 3
+  stars, Picked, 13 of 87". The window title alone is not enough, because
+  VoiceOver does not speak title changes.
+- Each culling action announces its result at high priority, so a fast run
+  of keys speaks only the latest:
+  - one photo: the new value ("Picked", "3 stars", "Red label", "No
+    rating");
+  - several photos: the value and the count ("Picked, 12 photos");
+  - mixed results: the action and the count ("Rating raised, 12 photos");
+  - a RAW+JPEG pair counts as one photo;
+  - a key that changes nothing still announces the value;
+  - with Advance After Rating, one combined announcement ("3 stars.
+    DSC00232, no rating"), because two separate ones cut each other off.
+
+  The counts are plural strings in `Localizable.xcstrings`.
 - Sliders announce formatted values; value fields are labeled; icon buttons
   use their help text as the label.
 - `Palette` becomes dynamic colors with high-contrast variants (in code;
