@@ -88,6 +88,11 @@ quit the app (or use another `--library-root`) before `develop`, `rate`,
   outside their tolerance and prints each one) in a separate commit with a one-line reason. Never loosen a
   tolerance or update a golden only to make a test pass. `GOLDENS_REPORT=1`
   prints every difference.
+- **RAW goldens** are compared only on the macOS build and RAW decoder
+  version that made them: each has a `<name>.fingerprint.json` beside it
+  (written by `UPDATE_GOLDENS=1`), and elsewhere the test is skipped with
+  both named. Apple's decoder changes between releases; `RAWDecodeTests`
+  checks each setting's direction or order everywhere instead.
 - **CPU references** (`Tests/PhotoCoreTests/Reference`, `ReferenceTests`):
   write the math in plain Swift (no Core Image) in the working space, and
   check the renderer against it with a tolerance derived from the formats

@@ -763,16 +763,45 @@ reference on sampled pixels, 1.6 s to rasterize in a debug build) and
    with a 16-pixel margin of repeated edge pixels and cropped (the reduced
    copy keeps the frame's scale), which matches macOS 15's render; global
    local tone and dehaze had no such step. Pipeline version 5.
-6. **On macOS 26, Core Image's Gaussian blur over above-white values depends
-   on how the render is split into passes** (found by CI, macOS 26 runner).
-   `CIUnsharpMask` equals p + i · (p − G(p)) to 2 × 10⁻⁷ there, but the same
-   blur over the same input moved by about 0.18 at the brightest pixel when
-   its input was a half-float image rather than part of the graph (macOS 15
-   and 27: about 0.003). Clarity and sharpening use it, so on macOS 26 whole
-   renders of above-white content depend on Core Image's split too; the stage
-   cache only changes that split. Recorded as a known issue on macOS 26 in
-   `LiveSessionTests.aboveWhite`; nothing in our code can make the split
-   irrelevant short of forcing one.
+6. **On macOS 26, `CIEdgePreserveUpsampleFilter` gives different pixels at
+   the image's edge depending on the region rendered** (found by CI, macOS
+   26 runner). First taken for the Gaussian blur over above-white values:
+   clarity and sharpening (both unsharp masks) moved by 0.11 in linear light
+   between whole and cached renders. Narrowed down on the runners with a
+   standalone script: the blur itself agrees with its input; what moves is
+   global local tone's estimate (Lanczos reduce, then the edge-preserving
+   upsample) upstream of it, evaluated for a blur that reads past the
+   frame's edge. Rendered over its own extent, and clamped and rendered 32
+   pixels wider, the upsample's output differs by 0.0081 at the corner on
+   macOS 26 (0.0047 on SDR input: values above white are not needed), and
+   by exactly 0 on macOS 15 and 27. Recorded as an intermittent known issue
+   on macOS 26 in `LiveSessionTests.aboveWhite` (it passes once Apple fixes
+   it). Repro and report text for Feedback Assistant:
+   `docs/feedback/edge-preserve-upsample/`. Our side could avoid it the way
+   finding 5 did for the masked estimate: measure global local tone's
+   estimate with a margin of repeated edge pixels and crop, so nothing reads
+   the upsample's edge; a rendering change with a pipeline bump, not made.
+7. **The RAW decoder renders the synthetic DNG differently on macOS 27
+   than on macOS 15 and 26** (found by CI; seven of the eight RAW goldens
+   outside the tolerance on both runners, mean OkLab ΔE about 0.0002,
+   largest up to about 0.02). It is Apple's code, so the goldens were not
+   loosened and no per-release set was made: each RAW golden has a
+   fingerprint beside it (`<name>.fingerprint.json`: macOS build and
+   decoder version) and is compared only where it matches, otherwise
+   skipped with both named. `RAWDecodeTests` checks every setting's
+   direction or order on every release instead: Kelvin 3200 and 8000
+   against as shot (red over blue), flat < neutral < standard by
+   contrast, extended range above 1.0, decoder noise reduction lowering
+   high-frequency energy (on a DNG with 2 % noise).
+   **Pinning a decoder version does not help.** All three releases offer
+   6.dng, 7.dng and 8.dng (macOS 27 adds 9.dng; 8.dng is the default
+   everywhere). On macOS 15 and 26 the three versions decode this DNG
+   identically (bit for bit on macOS 26), and the two runners agree within the golden tolerance (mean
+   ΔE ≤ 0.00004). On macOS 27, 8.dng with or without pinning gives the
+   same result as before (seven of eight outside the tolerance against
+   macOS 26), and 6.dng and 7.dng differ far more (largest ΔE 0.4 to 0.8).
+   Thirty of the 32 pinned renders from macOS 15 fall outside the
+   tolerance against macOS 27.
 
 ## Roadmap
 
