@@ -212,18 +212,35 @@ confirmation dialogs.
   The toolbar, not a sidebar footer, because the HIG advises against
   actions at the bottom of a sidebar and the toolbar stays visible when the
   sidebar is hidden. Previews and suggestions show in Activity only after
-  about 5 s.
+  about 5 s. Activity is shown while a job runs or while messages are
+  unread; opening its popover marks them read. Idle with unread messages,
+  it shows `info.circle`, or `exclamationmark.triangle` when one is a
+  warning, and VoiceOver hears each new message (medium priority). The
+  popover keeps the 20 newest messages until quit; each row is the action's
+  undo name with the message as detail. Skipped photos are reported in
+  plural strings, one sentence per reason: "N videos were left
+  unchanged."; "N photos were left unchanged: their originals are
+  offline."; "N photos were left unchanged: their edits can't be changed in
+  this version." (HIG Alerts: no alert for information that needs no
+  action.)
 - Title and subtitle: in the grid, the source name and "4,623 photos" /
-  "12 selected of 4,623" / "87 of 4,623 · Filtered"; in the loupe, the file
-  name and "All Photos · 12 of 87".
+  "12 selected of 4,623" / "87 of 4,623 · Filtered" / "5 selected of 87 ·
+  Filtered" ("N selected" only for 2 or more; M is the filtered count;
+  plural strings); in the loupe, the file name and "All Photos" (or "All
+  Photos · Filtered"). The position ("12 of 87") is shown only in the loupe
+  caption, which stays visible in review mode.
 - Loupe: a neutral dynamic gray inside the safe area (never under the
   toolbar), the photo fitted within a 24 pt margin. A 28 pt caption line on
   the surround, no bar or divider, 11 pt secondary text: position on the
   left; stars (SF Symbols), flag and the label dot *with its name* in the
-  middle; Filtered, Original, HDR and Offline badges on the right. (F1, F14,
-  F17)
+  middle; Filtered, Original, HDR and Offline badges on the right. Unrated
+  photos show no stars, as in the grid, but the stars' width stays reserved
+  so the flag and label do not move between photos. Capture details are in
+  the Info tab only. (F1, F14, F17)
 - Grid: the scroll view extends under the toolbar for the system scroll-edge
-  effect (26 only).
+  effect (26 only; step 9), with automatic content insets so the first row
+  starts below the toolbar, and `scroll(to:centered:)` allowing for the top
+  inset so the focused cell is never under it.
 
 ## 2. Navigation
 
@@ -258,11 +275,19 @@ confirmation dialogs.
   | Projects | project ▸ its albums | 2 | expanded | yes |
 
   Hide through View ▸ Sidebar Sections or the section header's context menu.
-- Icons: smart albums get a stack-with-badge symbol instead of `gearshape`
-  (pick it in the SF Symbols app); Changed on Disk keeps a fixed orange
-  `exclamationmark.triangle`.
-- Empty sections show one secondary line and a link button ("No albums ·
-  New Album…"). No footer.
+- Icons: smart albums use `square.stack.3d.up.badge.automatic` (macOS 14)
+  instead of `gearshape`: the badge says "made by rules", and `sparkles`
+  stays reserved for keyword suggestions. Changed on Disk keeps a fixed
+  orange `exclamationmark.triangle`.
+- Empty sections show a secondary line and, where an action applies, a
+  link button. No footer.
+
+  | Section | Empty state |
+  |---|---|
+  | Albums | "No albums · New Album…" |
+  | Keywords | "No keywords"; adds "· Add Keywords…" only while the grid has a selection or focused photo (a link that cannot act is hidden, not dimmed) |
+  | Projects | "No projects", then the link "Import from Card or Folder…" on a second line |
+  | Dates | "No capture dates" (no link) |
 
 ## 4. Inspector
 
@@ -330,11 +355,11 @@ by `ToolbarSpacer(.fixed)` on 26.
 | Export… | automatic | yes | yes |
 | Grid / Loupe segmented (`square.grid.2x2` / `rectangle`) | automatic | yes | yes |
 | Size: thumbnail slider in the grid (`photo` icons); Fit / 100% in the loupe | automatic | yes | yes |
-| Activity: progress and label, popover; only while jobs run | `.status` | when running | no |
+| Activity: progress and label, popover with jobs, Stop and recent messages; shown while jobs run or messages are unread (section 1) | `.status` | when running or unread | no |
 | Filter and Sort menu (`line.3.horizontal.decrease.circle`, `.fill` only while a filter is active): the Rating, Flag and Sort By sections and Clear Filter, built from the same items as View ▸ Filter and View ▸ Sort By; grid only | trailing | yes | yes |
 | Search: hosts the existing `NSSearchField`; grid only; ⌘F | trailing | yes | yes |
 | Show/Hide Inspector (`sidebar.trailing`) | far trailing | yes | no |
-| Palette only: Crop, Rotate Left/Right, Original, Auto, Copy/Paste Adjustments, Add/Suggest Keywords, Enter Review, New Album | automatic | no | yes |
+| Palette only: Crop (`crop`), Rotate Left (`rotate.left`), Rotate Right (`rotate.right`), Original (`square.split.2x1`), Auto Exposure (`wand.and.stars`), Copy Adjustments (`doc.on.doc`), Paste Adjustments (`doc.on.clipboard`), Add Keywords (`tag`), Suggest Keywords (`sparkles`), New Album (`rectangle.stack.badge.plus`); Enter Review joins in step 15 | automatic | no | yes |
 
 Search is a custom item rather than `.searchable` because it has to be
 absent in the loupe. (F10, F1, F5)
@@ -731,7 +756,9 @@ and updates the debug-script commands for views it removes.
 7. **Sidebar rebuild.** (F2, F13)
 8. **Inspector:** pinned header, system disclosure and check boxes, the
    slider row, Adjust order and names, Info typography. (F2, F3, F6–F9, F15)
-9. **Color and appearance.** (F14, F9)
+9. **Color and appearance:** dynamic `Palette` with high-contrast variants,
+   the dark appearance scoped to the library window, the 10 pt badge, and
+   the grid under the toolbar (macOS 26). (F14, F9)
 10. **Import fix:** Show Videos keeps the user's picks when it rescans.
     Can ship first. ([sesser/Gus#19](https://github.com/sesser/Gus/issues/19), F27)
 11. **Export sheet:** single column, preview inside Watermark, bezeled
