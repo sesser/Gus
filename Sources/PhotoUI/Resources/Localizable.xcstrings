@@ -155,6 +155,17 @@
         }
       }
     },
+    "%@. %@" : {
+      "comment" : "VoiceOver: a culling result, then the photo shown next (“3 stars. DSC00232, no rating”)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@. %@"
+          }
+        }
+      }
+    },
     "%@: %@" : {
       "comment" : "Export report: file name, then the error",
       "localizations" : {
@@ -313,7 +324,7 @@
       }
     },
     "%lld of %lld" : {
-      "comment" : "Inspector: how many of the selected photos have a keyword",
+      "comment" : "A position in a list (“13 of 87”), or how many of the selected photos have a keyword",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -358,7 +369,7 @@
       }
     },
     "%lld photos" : {
-      "comment" : "Window subtitle",
+      "comment" : "Window subtitle; also VoiceOver, after the result of a culling action on several photos (“Picked, 12 photos”)",
       "localizations" : {
         "en" : {
           "variations" : {
@@ -5209,6 +5220,17 @@
         }
       }
     },
+    "No label" : {
+      "comment" : "VoiceOver: a photo's color label was removed",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No label"
+          }
+        }
+      }
+    },
     "No metadata" : {
       "comment" : "Import window preset picker",
       "localizations" : {
@@ -5258,6 +5280,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No photos yet"
+          }
+        }
+      }
+    },
+    "No rating" : {
+      "comment" : "VoiceOver: a photo's rating was removed",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No rating"
           }
         }
       }
@@ -5599,6 +5632,17 @@
         }
       }
     },
+    "Pause" : {
+      "comment" : "VoiceOver action on a video",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pause"
+          }
+        }
+      }
+    },
     "Percentage" : {
       "comment" : "Export window: sizing choice",
       "localizations" : {
@@ -5714,6 +5758,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Picks"
+          }
+        }
+      }
+    },
+    "Play" : {
+      "comment" : "VoiceOver action on a video",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play"
           }
         }
       }
@@ -6030,6 +6085,52 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Rating"
+          }
+        }
+      }
+    },
+    "Rating lowered, %lld photos" : {
+      "comment" : "VoiceOver: Lower Rating on photos with different ratings",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Rating lowered, %lld photo"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Rating lowered, %lld photos"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Rating raised, %lld photos" : {
+      "comment" : "VoiceOver: Raise Rating on photos with different ratings",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Rating raised, %lld photo"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Rating raised, %lld photos"
+                }
+              }
+            }
           }
         }
       }
@@ -6884,6 +6985,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Short edge"
+          }
+        }
+      }
+    },
+    "Show Adjustments" : {
+      "comment" : "Loupe: go back from the original to the adjusted photo (menu item, VoiceOver action)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Adjustments"
           }
         }
       }
@@ -8252,6 +8364,28 @@
         }
       }
     },
+    "Zoom to 100%" : {
+      "comment" : "Loupe: show the photo at actual size (menu item, VoiceOver action)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zoom to 100%"
+          }
+        }
+      }
+    },
+    "Zoom to Fit" : {
+      "comment" : "Loupe: fit the photo in the window (menu item, VoiceOver action)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zoom to Fit"
+          }
+        }
+      }
+    },
     "all of the rules" : {
       "comment" : "Smart album editor match picker",
       "localizations" : {
@@ -8560,6 +8694,17 @@
         }
       }
     },
+    "no rating" : {
+      "comment" : "VoiceOver: an unrated photo, inside a sentence (“DSC00232, no rating”)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "no rating"
+          }
+        }
+      }
+    },
     "pixels" : {
       "comment" : "Export window: unit after a size",
       "localizations" : {
@@ -8600,6 +8745,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "seconds"
+          }
+        }
+      }
+    },
+    "video" : {
+      "comment" : "VoiceOver: a video's type, as in “DSC00400, video, 0:42”",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "video"
           }
         }
       }

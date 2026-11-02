@@ -20,8 +20,9 @@ struct VideoLoupe: NSViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
-    func makeNSView(context: Context) -> AVPlayerView {
-        let view = AVPlayerView()
+    func makeNSView(context: Context) -> VideoLoupeHostView {
+        let host = VideoLoupeHostView(model: model)
+        let view = host.playerView
         view.controlsStyle = .inline
         view.showsFullScreenToggleButton = true
         view.player = AVPlayer(url: url)
@@ -36,15 +37,19 @@ struct VideoLoupe: NSViewRepresentable {
             guard !(window.firstResponder is NSText) else { return event }
             return Self.handle(event, model: model, player: view.player) ? nil : event
         }
-        return view
+        return host
     }
 
-    func updateNSView(_ view: AVPlayerView, context: Context) {}
+    func updateNSView(_ host: VideoLoupeHostView, context: Context) {
+        // Reading this registers observation, so culling the video lands here.
+        _ = model.itemsRevision
+        host.updateAccessibility()
+    }
 
-    static func dismantleNSView(_ view: AVPlayerView, coordinator: Coordinator) {
+    static func dismantleNSView(_ host: VideoLoupeHostView, coordinator: Coordinator) {
         if let monitor = coordinator.monitor { NSEvent.removeMonitor(monitor) }
-        view.player?.pause()
-        view.player = nil
+        host.playerView.player?.pause()
+        host.playerView.player = nil
     }
 
     /// A double-click on the picture or the margins around it. AVKit's playback
@@ -77,9 +82,69 @@ struct VideoLoupe: NSViewRepresentable {
         case .right, .down: model.moveFocus(by: 1)
         case .home: model.setFocus(0)
         case .end: model.setFocus(model.items.count - 1)
-        case .toggleLoupe, .exitLoupe: model.closeLoupe()
+        case .toggleLoupe, .exitLoupe:
+            model.closeLoupe()
+            return true
         case .toggleZoom, .pageUp, .pageDown, nil: return false
         }
+        model.announceLoupePhoto()
         return true
+    }
+}
+
+/// Holds the player. To VoiceOver it is a group describing the video, with
+/// the culling actions, Play / Pause and Show Grid; the player's own
+/// controls stay inside it as its children.
+final class VideoLoupeHostView: NSView {
+    let playerView = AVPlayerView()
+    private weak var model: LibraryModel?
+    private var describedValue: String?
+
+    init(model: LibraryModel) {
+        self.model = model
+        super.init(frame: .zero)
+        playerView.frame = bounds
+        playerView.autoresizingMask = [.width, .height]
+        addSubview(playerView)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("not used") }
+
+    private var item: CatalogItem? { model?.focusedItem }
+
+    override func isAccessibilityElement() -> Bool { item != nil }
+    override func accessibilityRole() -> NSAccessibility.Role? { .group }
+    override func accessibilityLabel() -> String? { item.map(PhotoAccessibility.label) }
+
+    override func accessibilityValue() -> Any? { currentValue }
+
+    private var currentValue: String? {
+        guard let model, let item, let index = model.focusIndex else { return nil }
+        return PhotoAccessibility.loupeValue(for: item, offline: model.isOffline(item), index: index,
+                                             count: model.items.count)
+    }
+
+    override func accessibilityCustomActions() -> [NSAccessibilityCustomAction]? {
+        guard let model, let item else { return nil }
+        let playing = playerView.player?.timeControlStatus == .playing
+        let playTitle = playing ? String(localized: "Pause", comment: "VoiceOver action on a video")
+                                : String(localized: "Play", comment: "VoiceOver action on a video")
+        return PhotoAccessibility.cullingActions(forVersion: item.versionID, model: model) + [
+            PhotoAccessibility.action(playTitle) { [weak self] in
+                guard let player = self?.playerView.player else { return }
+                if player.timeControlStatus == .playing { player.pause() } else { player.play() }
+            },
+            PhotoAccessibility.showGrid(model),
+        ]
+    }
+
+    /// Culling the video changes the value; VoiceOver is told.
+    func updateAccessibility() {
+        let value = currentValue
+        defer { describedValue = value }
+        if describedValue != nil, value != nil, describedValue != value {
+            NSAccessibility.post(element: self, notification: .valueChanged)
+        }
     }
 }

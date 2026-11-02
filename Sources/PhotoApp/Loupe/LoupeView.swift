@@ -479,24 +479,38 @@ final class LoupeController: NSObject {
 
     /// The photo the canvas describes to VoiceOver.
     var accessibilityItem: CatalogItem? { model.focusedItem }
-    private var describedCulling: (versionID: Int64, value: String)?
+    private var describedValue: String?
 
-    /// Culling the photo on screen changes the canvas's value; VoiceOver is told.
+    /// "Picked, 13 of 87".
+    var accessibilityValue: String? {
+        guard let item = accessibilityItem, let index = model.focusIndex else { return nil }
+        return PhotoAccessibility.loupeValue(for: item, offline: model.isOffline(item), index: index,
+                                             count: model.items.count)
+    }
+
+    /// Culling the photo on screen, or moving to another, changes the
+    /// canvas's value; VoiceOver is told. (The move itself is announced by
+    /// the key's handler, or with the culling result after auto-advance.)
     func updateAccessibility() {
-        guard let item = accessibilityItem else {
-            describedCulling = nil
-            return
-        }
-        let value = PhotoAccessibility.value(for: item, offline: model.isOffline(item))
-        defer { describedCulling = (item.versionID, value) }
-        if let described = describedCulling, described.versionID == item.versionID, described.value != value {
+        let value = accessibilityValue
+        defer { describedValue = value }
+        if describedValue != nil, value != nil, describedValue != value {
             NSAccessibility.post(element: hostView, notification: .valueChanged)
         }
     }
 
+    /// The grid's culling actions, then Show Grid, Zoom and Show Original,
+    /// titled for the current state.
     func accessibilityActions() -> [NSAccessibilityCustomAction]? {
         guard let item = accessibilityItem else { return nil }
-        return PhotoAccessibility.actions(forVersion: item.versionID, model: model, opensLoupe: false)
+        let zoomTitle = zoom == .fit ? String(localized: "Zoom to 100%") : String(localized: "Zoom to Fit")
+        let originalTitle = model.editor.showsOriginal ? String(localized: "Show Adjustments")
+                                                       : String(localized: "Show Original")
+        return PhotoAccessibility.cullingActions(forVersion: item.versionID, model: model) + [
+            PhotoAccessibility.showGrid(model),
+            PhotoAccessibility.action(zoomTitle) { [weak self] in self?.toggleZoom() },
+            PhotoAccessibility.action(originalTitle) { [weak self] in self?.model.editor.toggleOriginal() },
+        ]
     }
 
     // MARK: Keys
@@ -527,10 +541,15 @@ final class LoupeController: NSObject {
         case .right, .down: model.moveFocus(by: 1)
         case .home: model.setFocus(0)
         case .end: model.setFocus(model.items.count - 1)
-        case .toggleLoupe, .exitLoupe: model.closeLoupe()
-        case .toggleZoom: toggleZoom()
+        case .toggleLoupe, .exitLoupe:
+            model.closeLoupe()
+            return true
+        case .toggleZoom:
+            toggleZoom()
+            return true
         case .pageUp, .pageDown, nil: return false
         }
+        model.announceLoupePhoto()
         return true
     }
 }
@@ -559,10 +578,7 @@ final class LoupeHostView: NSView {
     override func accessibilityRole() -> NSAccessibility.Role? { .image }
     override func accessibilityLabel() -> String? { controller?.accessibilityItem.map(PhotoAccessibility.label) }
 
-    override func accessibilityValue() -> Any? {
-        guard let controller, let item = controller.accessibilityItem else { return nil }
-        return PhotoAccessibility.value(for: item, offline: controller.model.isOffline(item))
-    }
+    override func accessibilityValue() -> Any? { controller?.accessibilityValue }
 
     override func accessibilityCustomActions() -> [NSAccessibilityCustomAction]? { controller?.accessibilityActions() }
 

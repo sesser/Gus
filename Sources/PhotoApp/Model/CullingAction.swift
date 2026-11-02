@@ -8,6 +8,20 @@ enum CullingAction: Equatable {
     case setFlag(Flag)
     case setColorLabel(ColorLabel)
 
+    /// Which value the action sets, for VoiceOver's announcement.
+    var change: CullingDescription.Change {
+        switch self {
+        case .setRating, .adjustRating: .rating
+        case .setFlag: .flag
+        case .setColorLabel: .colorLabel
+        }
+    }
+
+    /// Raise or Lower Rating's step; nil for the others.
+    var ratingStep: Int? {
+        if case .adjustRating(let step) = self { step } else { nil }
+    }
+
     var undoActionName: String {
         switch self {
         case .setRating, .adjustRating: String(localized: "Set Rating", comment: "Undo action name")

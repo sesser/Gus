@@ -30,8 +30,8 @@ import PhotoUI
 ///     menukey <key> […]     (posts keys to the event queue, where an open menu reads them)
 ///     menupick <x> <y> <item>[/<submenu item>]   (picks from the menu of the menu button at a point)
 ///     buttons               (prints the window's AppKit buttons and where they are)
-///     accessibility <role>|any [<n> press|<action name>]   (lists the window's accessibility elements
-///                           with that role, e.g. AXImage, or runs an action on the nth; see AccessibilityProbe)
+///     accessibility <role>|any [<n> press|<action name>] | focused   (lists the window's accessibility
+///                           elements with that role, e.g. AXImage, or runs an action on the nth; see AccessibilityProbe)
 ///     scroll <y>|bottom     (scrolls the inspector's Adjust tab to a point from its top)
 ///     hdr on|off            (the View menu's Show HDR; snapshots show HDR clipped at white)
 ///     import open | source <path> | dest <path> | job <text> | delete on|off | eject on|off

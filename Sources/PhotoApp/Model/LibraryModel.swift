@@ -706,12 +706,31 @@ final class LibraryModel {
             after[item.versionID] = values
         }
         applyCulling(after, undoingTo: before, actionName: action.undoActionName)
-        let announced = focusIndex.flatMap { targets.contains($0) ? $0 : nil } ?? targets.first ?? 0
-        AccessibilityText.announce(PhotoAccessibility.announcement(for: action, item: items[announced]))
+        let results = targets.map { index in
+            let item = items[index]
+            return CullingDescription.Result(
+                photo: CullingDescription.Result.photo(versionID: item.versionID, partnerVersionID: item.partnerVersionID),
+                rating: item.rating, flag: item.flag, colorLabel: item.colorLabel)
+        }
+        var announcement = CullingDescription.announcement(of: action.change, step: action.ratingStep, results: results)
+            .map(PhotoAccessibility.text) ?? ""
 
         if autoAdvance, targets.count == 1, let focusIndex, focusIndex + 1 < items.count {
             setFocus(focusIndex + 1)
+            // One announcement: two would cut each other off.
+            let next = items[focusIndex + 1]
+            announcement = PhotoAccessibility.advanced(announcement, to: next, offline: isOffline(next))
         }
+        AccessibilityText.announce(announcement)
+    }
+
+    /// Announces the photo the loupe moved to (arrows, Home, End):
+    /// "DSC00232, RAW, 3 stars, Picked, 13 of 87".
+    func announceLoupePhoto() {
+        guard mode == .loupe, let index = focusIndex, items.indices.contains(index) else { return }
+        let item = items[index]
+        AccessibilityText.announce(PhotoAccessibility.loupeMove(to: item, offline: isOffline(item), index: index,
+                                                                count: items.count))
     }
 
     /// A culling action VoiceOver chose on one photo. Like a context menu, it

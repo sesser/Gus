@@ -202,6 +202,19 @@ final class GridController: NSObject, NSCollectionViewDataSource, NSCollectionVi
     func libraryFocusChanged() {
         applyModelSelection()
         if let focus = model.focusIndex { scroll(to: focus, centered: false) }
+        postFocusedCell()
+    }
+
+    /// The focused cell, for VoiceOver.
+    var focusedCellView: NSView? {
+        guard mode == .grid, let focus = model.focusIndex else { return nil }
+        return collectionView.item(at: IndexPath(item: focus, section: 0))?.view
+    }
+
+    /// Keyboard moves in the grid make VoiceOver read the new cell.
+    private func postFocusedCell() {
+        guard let cell = focusedCellView else { return }
+        NSAccessibility.post(element: cell, notification: .focusedUIElementChanged)
     }
 
     func libraryAvailabilityChanged() {
@@ -348,5 +361,11 @@ final class PhotoCollectionView: NSCollectionView {
         super.viewDidMoveToWindow()
         controller?.windowDidChange(window)
         window?.makeFirstResponder(self)
+    }
+
+    // Declared nonisolated, but AppKit asks accessibility questions on the main thread.
+    override var accessibilityFocusedUIElement: Any? {
+        let cell = MainActor.assumeIsolated { controller?.focusedCellView }
+        return cell ?? super.accessibilityFocusedUIElement
     }
 }

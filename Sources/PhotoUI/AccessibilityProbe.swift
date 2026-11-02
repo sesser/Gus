@@ -60,9 +60,17 @@ public enum AccessibilityProbe {
 
     /// The `accessibility <role> [<n> <action>]` debug command: lists the
     /// elements with that role (`any` for all), or runs an action on the nth.
+    /// `accessibility focused` prints the element VoiceOver's cursor follows.
     public static func run(_ words: [String], in window: NSWindow?) {
         guard let window, let role = words.first else {
             print("debug-script: accessibility needs a window and a role")
+            return
+        }
+        if role == "focused" {
+            // What VoiceOver's cursor follows: the first responder's focused element.
+            let focused = (window.firstResponder as? NSView)?.accessibilityFocusedUIElement
+            let element = focused as? any NSAccessibilityProtocol
+            print("debug-script: accessibility focused \(element.map(describe) ?? "-")")
             return
         }
         let elements = elements(in: window, role: role == "any" ? nil : role)

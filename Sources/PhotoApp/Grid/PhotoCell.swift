@@ -311,7 +311,13 @@ final class PhotoCellView: NSView {
 
     override func accessibilityCustomActions() -> [NSAccessibilityCustomAction]? {
         guard let item, let model else { return nil }
-        return PhotoAccessibility.actions(forVersion: item.versionID, model: model, opensLoupe: true)
+        return PhotoAccessibility.gridActions(forVersion: item.versionID, model: model)
+    }
+
+    /// The keyboard focus of the grid, which VoiceOver follows.
+    override func isAccessibilityFocused() -> Bool {
+        guard let item, let focused = model?.focusedItem else { return false }
+        return focused.versionID == item.versionID
     }
 
     /// AppKit's default resets alpha, hiding and animations under an animator on
