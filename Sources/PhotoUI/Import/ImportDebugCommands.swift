@@ -5,6 +5,7 @@ import PhotoCore
 /// the standalone importer:
 ///
 ///     import source <path> | dest <path> | job <text> | delete on|off | eject on|off
+///            | videos on|off (waits) | rescan (waits) | toggle <index of a shown shot>
 ///            | run (waits) | confirm yes|no | snapshot <file> | print
 @MainActor
 public enum ImportDebugCommands {
@@ -16,8 +17,16 @@ public enum ImportDebugCommands {
         switch words.first {
         case "source":
             model.source = ImportSource.describe(URL(fileURLWithPath: argument))
-            try? await Task.sleep(for: .milliseconds(100))
-            while model.isScanning { try? await Task.sleep(for: .milliseconds(100)) }
+            await waitForScan(model)
+        case "videos":
+            model.includesVideos = argument == "on"
+            await waitForScan(model)
+        case "rescan":
+            model.rescan(keepingPicks: true)
+            await waitForScan(model)
+        case "toggle":
+            guard let index = Int(argument), model.visibleShots.indices.contains(index) else { return false }
+            model.click(model.visibleShots[index], extend: false)
         case "dest":
             model.destination = URL(fileURLWithPath: argument)
         case "job":
@@ -44,10 +53,17 @@ public enum ImportDebugCommands {
         return true
     }
 
+    private static func waitForScan(_ model: CardImportModel) async {
+        try? await Task.sleep(for: .milliseconds(100))
+        while model.isScanning { try? await Task.sleep(for: .milliseconds(100)) }
+    }
+
     public static func printState(_ model: CardImportModel) {
         let camera = model.camera.map { "\($0.name) count \($0.shutterCount.map(String.init) ?? "-") from \($0.fileName)" }
+        let selected = model.selectedShots.map(\.primary.name).joined(separator: ",")
         print("debug-script: import source \(model.source?.name ?? "-") card \(model.source?.isCard == true) "
               + "shots \(model.shots.count) duplicates \(model.duplicateCount) selected \(model.selectedShots.count) "
+              + "[\(selected)] "
               + "deletion \(model.pendingDeletion?.count ?? 0) message \(model.message ?? "-") "
               + "camera \(camera ?? "-")")
     }

@@ -70,7 +70,7 @@ public final class CardImportModel {
 
     public private(set) var sources: [ImportSource] = []
     public var source: ImportSource? {
-        didSet { if oldValue != source { rescan() } }
+        didSet { if oldValue != source { rescan(keepingPicks: false) } }
     }
     public private(set) var shots: [SourceShot] = []
     /// The newest photo's camera, for the status bar.
@@ -78,6 +78,9 @@ public final class CardImportModel {
     public private(set) var isScanning = false
     var selection: Set<URL> = []
     var showsDuplicates = false
+    /// Shots the person left out of this source, kept across its scans
+    /// (`ImportSelection`). Cleared when the source changes.
+    @ObservationIgnored private var leftOut: Set<URL> = []
     @ObservationIgnored private var scanTask: Task<Void, Never>?
     @ObservationIgnored var lastClicked: URL?
 
@@ -121,7 +124,7 @@ public final class CardImportModel {
     var includesVideos: Bool {
         didSet {
             defaults.set(includesVideos, forKey: Keys.videos)
-            if oldValue != includesVideos { rescan() }
+            if oldValue != includesVideos { rescan(keepingPicks: true) }
         }
     }
     /// Not remembered: deleting from the card is decided each time.
@@ -243,7 +246,14 @@ public final class CardImportModel {
         destination = url
     }
 
-    public func rescan() {
+    /// Scans the source again. `keepingPicks`: the same source, so shots the
+    /// person left out stay out (`ImportSelection`); false for a new source,
+    /// which starts with every shot not already in the library.
+    public func rescan(keepingPicks: Bool) {
+        // While a scan is still running no shots are shown, so the shots
+        // remembered as left out carry over unchanged.
+        leftOut = keepingPicks ? ImportSelection.leftOut(remembered: leftOut, shown: shots, selection: selection) : []
+        let keptOut = leftOut
         scanTask?.cancel()
         shots = []
         camera = nil
@@ -260,7 +270,7 @@ public final class CardImportModel {
                 guard !Task.isCancelled else { return }
                 shots = marked
                 camera = CameraSummary(newestOf: marked)
-                selection = Set(marked.filter { !$0.isDuplicate }.map(\.id))
+                selection = ImportSelection.selection(for: marked, leftOut: keptOut)
             } catch is CancellationError {
             } catch {
                 message = String(localized: "Could not read \(source.name): \(error.localizedDescription)")
@@ -375,7 +385,7 @@ public final class CardImportModel {
                     String(localized: "Import failed: \(error.localizedDescription)")
                 }
                 await library?.refreshProjects()
-                rescan()
+                rescan(keepingPicks: true)
             }
         }
     }
@@ -416,7 +426,7 @@ public final class CardImportModel {
                 message = String(localized: "\(source.name) could not be ejected. It may still be in use.")
             }
         } else {
-            rescan()
+            rescan(keepingPicks: true)
         }
     }
 }

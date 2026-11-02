@@ -33,7 +33,8 @@ import PhotoUI
 ///     scroll <y>|bottom     (scrolls the inspector's Adjust tab to a point from its top)
 ///     hdr on|off            (the View menu's Show HDR; snapshots show HDR clipped at white)
 ///     import open | source <path> | dest <path> | job <text> | delete on|off | eject on|off
-///            | run (waits) | confirm yes|no | snapshot <file> | print   (see ImportDebugCommands)
+///            | videos on|off | rescan | toggle <n> | run (waits) | confirm yes|no | snapshot <file> | print
+///            (see ImportDebugCommands)
 ///     adjust …  original on|off  tab info|adjust   (see DebugAdjustCommands)
 ///     metadata <field> [<text>]   print metadata   sidecars on|off   (see DebugMetadataCommands)
 ///     dropfolders <path>[, <path>…]   (imports dropped items the way a drop from Finder does)

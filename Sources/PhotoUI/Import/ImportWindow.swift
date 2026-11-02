@@ -93,7 +93,7 @@ private struct SourceBar: View {
             .frame(maxWidth: 280)
             Button("Choose Folder…") { model.chooseFolder() }
             Button {
-                model.rescan()
+                model.rescan(keepingPicks: true)
             } label: {
                 Image(systemName: "arrow.clockwise")
             }
