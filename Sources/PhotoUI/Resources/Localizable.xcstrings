@@ -133,6 +133,28 @@
         }
       }
     },
+    "%@ s" : {
+      "comment" : "Exposure time in seconds",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ s"
+          }
+        }
+      }
+    },
+    "%@ value" : {
+      "comment" : "VoiceOver: an adjustment slider's number field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ value"
+          }
+        }
+      }
+    },
     "%@+%@" : {
       "comment" : "Grid badge for a RAW+JPEG pair; the first type is the file shown",
       "localizations" : {
@@ -2172,6 +2194,17 @@
         }
       }
     },
+    "Collapse All" : {
+      "comment" : "Inspector heading context menu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collapse All"
+          }
+        }
+      }
+    },
     "Collection" : {
       "comment" : "Look-up table window: pop-up label",
       "localizations" : {
@@ -2376,17 +2409,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Copy Adjustments"
-          }
-        }
-      }
-    },
-    "Copy this photo's adjustments" : {
-      "comment" : "Tooltip of the Copy Adjustments button under the Adjust tab",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Copy this photo's adjustments"
           }
         }
       }
@@ -2610,6 +2632,17 @@
         }
       }
     },
+    "Crop & Straighten" : {
+      "comment" : "Adjust tab heading",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Crop & Straighten"
+          }
+        }
+      }
+    },
     "Crop to %@; pick it again to swap portrait and landscape" : {
       "comment" : "Tooltip of an aspect ratio button; the argument is a ratio such as 3:2",
       "localizations" : {
@@ -2628,17 +2661,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Crop to any proportions"
-          }
-        }
-      }
-    },
-    "Crop, Rotate, Straighten" : {
-      "comment" : "Adjust tab heading",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Crop, Rotate, Straighten"
           }
         }
       }
@@ -2864,17 +2886,6 @@
         }
       }
     },
-    "Delete this mask" : {
-      "comment" : "Button help",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Delete this mask"
-          }
-        }
-      }
-    },
     "Delete “%@”…" : {
       "comment" : "File menu; the album, smart album or keyword selected in the sidebar",
       "localizations" : {
@@ -2959,17 +2970,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Details"
-          }
-        }
-      }
-    },
-    "Develop" : {
-      "comment" : "Adjust tab heading: profile, white balance, exposure and tone",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Develop"
           }
         }
       }
@@ -3201,6 +3201,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Expand"
+          }
+        }
+      }
+    },
+    "Expand All" : {
+      "comment" : "Inspector heading context menu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expand All"
           }
         }
       }
@@ -3517,17 +3528,6 @@
         }
       }
     },
-    "Filename" : {
-      "comment" : "Info tab: label above the file's name",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Filename"
-          }
-        }
-      }
-    },
     "Files that could not be read: %@" : {
       "comment" : "Preset import summary; the argument lists file names and reasons",
       "localizations" : {
@@ -3787,17 +3787,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Full size"
-          }
-        }
-      }
-    },
-    "Give the copied adjustments to the photo on screen or the selection" : {
-      "comment" : "Tooltip of the Paste Adjustments button under the Adjust tab",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Give the copied adjustments to the photo on screen or the selection"
           }
         }
       }
@@ -5074,6 +5063,17 @@
         }
       }
     },
+    "Mask commands" : {
+      "comment" : "Mask row ⋯ menu tooltip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mask commands"
+          }
+        }
+      }
+    },
     "Masking" : {
       "comment" : "Sharpening slider: limits sharpening to edges; also its undo action name",
       "localizations" : {
@@ -5162,6 +5162,17 @@
         }
       }
     },
+    "Mode" : {
+      "comment" : "White balance: As Shot, Auto, Daylight…",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mode"
+          }
+        }
+      }
+    },
     "Mono" : {
       "comment" : "Built-in look-up table",
       "localizations" : {
@@ -5169,6 +5180,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mono"
+          }
+        }
+      }
+    },
+    "More adjustment commands" : {
+      "comment" : "Adjust tab ⋯ menu tooltip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More adjustment commands"
           }
         }
       }
@@ -5235,28 +5257,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Move Up"
-          }
-        }
-      }
-    },
-    "Move down (applied later)" : {
-      "comment" : "Button help",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Move down (applied later)"
-          }
-        }
-      }
-    },
-    "Move up (applied earlier)" : {
-      "comment" : "Button help",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Move up (applied earlier)"
           }
         }
       }
@@ -5795,17 +5795,6 @@
         }
       }
     },
-    "On %@" : {
-      "comment" : "Info tab: the disk a photo's file is on; the argument is the disk's name",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "On %@"
-          }
-        }
-      }
-    },
     "Only folders can be imported. Drag in a folder of photos." : {
       "comment" : "Status bar, after a drop of files that are not folders",
       "localizations" : {
@@ -5839,13 +5828,13 @@
         }
       }
     },
-    "Open a photo in the loupe to adjust it. Paste Adjustments and presets change every selected photo." : {
+    "Open a Photo to Adjust It" : {
       "comment" : "Adjust tab in the grid",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Open a photo in the loupe to adjust it. Paste Adjustments and presets change every selected photo."
+            "value" : "Open a Photo to Adjust It"
           }
         }
       }
@@ -6624,17 +6613,6 @@
         }
       }
     },
-    "Remove every adjustment from this photo" : {
-      "comment" : "Reset All button tooltip",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Remove every adjustment from this photo"
-          }
-        }
-      }
-    },
     "Remove from Album" : {
       "comment" : "Undo action name and Photo menu item",
       "localizations" : {
@@ -6850,6 +6828,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Rescan"
+          }
+        }
+      }
+    },
+    "Reset" : {
+      "comment" : "Inspector heading context menu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset"
           }
         }
       }
@@ -7239,6 +7228,17 @@
         }
       }
     },
+    "Select this mask; double-click to rename it" : {
+      "comment" : "Mask row name tooltip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select this mask; double-click to rename it"
+          }
+        }
+      }
+    },
     "Sepia" : {
       "comment" : "Built-in look-up table",
       "localizations" : {
@@ -7404,17 +7404,6 @@
         }
       }
     },
-    "Show Edit" : {
-      "comment" : "Adjust tab button while the original is shown",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Show Edit"
-          }
-        }
-      }
-    },
     "Show File Names" : {
       "comment" : "View menu toggle: file name and type badge under each thumbnail",
       "localizations" : {
@@ -7541,6 +7530,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Show the crop frame on the photo"
+          }
+        }
+      }
+    },
+    "Show the focused photo in the loupe" : {
+      "comment" : "Adjust tab in the grid: Open in Loupe tooltip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show the focused photo in the loupe"
           }
         }
       }
@@ -8299,6 +8299,17 @@
         }
       }
     },
+    "Turn Off" : {
+      "comment" : "Inspector heading context menu: keep the heading's edits but show the photo without them",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn Off"
+          }
+        }
+      }
+    },
     "Turn Off %@" : {
       "comment" : "Undo action name; the group's name",
       "localizations" : {
@@ -8317,6 +8328,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Turn Off Mask"
+          }
+        }
+      }
+    },
+    "Turn On" : {
+      "comment" : "Inspector heading context menu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn On"
           }
         }
       }
@@ -8600,6 +8622,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Vignette feather and style"
+          }
+        }
+      }
+    },
+    "Volume" : {
+      "comment" : "Info tab: the disk a photo's file is on",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Volume"
           }
         }
       }
@@ -9204,6 +9237,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "© {capture:yyyy} Your Name"
+          }
+        }
+      }
+    },
+    "ƒ/%@" : {
+      "comment" : "Aperture, as in “ƒ/2.8”",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ƒ/%@"
           }
         }
       }

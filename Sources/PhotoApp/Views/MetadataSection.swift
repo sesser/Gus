@@ -11,18 +11,16 @@ struct MetadataSection: View {
     let summary: DescriptiveSummary
     /// The photos `summary` describes.
     let versionIDs: [Int64]
-    @State private var isExpanded = SectionHeaderState.isExpanded(key: Self.key, default: true)
-    @State private var isContactExpanded = SectionHeaderState.isExpanded(key: Self.contactKey, default: true)
+    @InspectorExpanded(Self.key, family: .info, default: true) private var isExpanded
+    /// Contact is a section of its own, collapsed until opened.
+    @InspectorExpanded(Self.contactKey, family: .info, default: false) private var isContactExpanded
 
     static let key = "info.section.metadata"
     static let contactKey = "info.section.contact"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeader(title: String(localized: "Metadata"), isExpanded: $isExpanded, key: Self.key,
-                          reservesCheck: false) {
-                EmptyView()
-            }
+            SectionHeader(title: String(localized: "Metadata"), isExpanded: $isExpanded, family: .info)
             if isExpanded {
                 if versionIDs.isEmpty {
                     Text("Select photos to see and change their metadata.")
@@ -36,15 +34,14 @@ struct MetadataSection: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     fields(DescriptiveField.general)
-                    SectionHeader(title: String(localized: "Contact", comment: "Info tab: the creator's contact details heading"),
-                                  isExpanded: $isContactExpanded, key: Self.contactKey, reservesCheck: false,
-                                  titleFont: .preferredFont(forTextStyle: .subheadline)) {
-                        EmptyView()
-                    }
-                    .padding(.top, 4)
-                    if isContactExpanded {
-                        fields(DescriptiveField.contact)
-                    }
+                }
+            }
+            if !versionIDs.isEmpty {
+                InspectorSeparator()
+                SectionHeader(title: String(localized: "Contact", comment: "Info tab: the creator's contact details heading"),
+                              isExpanded: $isContactExpanded, family: .info)
+                if isContactExpanded {
+                    fields(DescriptiveField.contact)
                 }
             }
         }

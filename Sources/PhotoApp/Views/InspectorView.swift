@@ -8,21 +8,26 @@ import SwiftUI
 struct InspectorView: View {
     @Bindable var model: LibraryModel
 
+    /// Pinned at the top, not scrolling: the tabs, full width; the histogram;
+    /// in the loupe's Adjust tab, Original and the ⋯ menu.
     var body: some View {
         VStack(spacing: 0) {
-            if let item = model.focusedItem, !item.isVideo {
-                InfoHistogram(model: model)
-                    .padding(.horizontal, 14)
-                    .padding(.top, 10)
+            VStack(spacing: 8) {
+                Picker("Panel", selection: $model.inspectorTab) {
+                    Text("Info").tag(InspectorTab.info)
+                    Text("Adjust").tag(InspectorTab.adjust)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(maxWidth: .infinity)
+                if let item = model.focusedItem, !item.isVideo {
+                    InfoHistogram(model: model)
+                }
+                if model.inspectorTab == .adjust, model.mode == .loupe, model.editor.state == .ready {
+                    AdjustHeader(model: model)
+                }
             }
-            Picker("Panel", selection: $model.inspectorTab) {
-                Text("Info").tag(InspectorTab.info)
-                Text("Adjust").tag(InspectorTab.adjust)
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
+            .padding(InspectorMetrics.padding)
             Divider()
             switch model.inspectorTab {
             case .info: InfoInspector(model: model)
@@ -43,29 +48,30 @@ private struct InfoInspector: View {
     @State private var descriptive = DescriptiveSummary()
     /// The photos `descriptive` describes.
     @State private var descriptiveIDs: [Int64] = []
-    @State private var keywordsExpanded = SectionHeaderState.isExpanded(key: Self.keywordsKey, default: true)
+    @InspectorExpanded(Self.keywordsKey, family: .info, default: true) private var keywordsExpanded
 
     private static let keywordsKey = "info.section.keywords"
 
     var body: some View {
         AppKitScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                if let details {
-                    InfoSection(details: details, item: model.focusedItem)
-                    Divider()
-                }
+            // Changed on Disk, the summary, keywords, metadata and contact (section 4).
+            VStack(alignment: .leading, spacing: 0) {
                 if !diskChanges.isEmpty {
                     DiskChangeSection(model: model, changes: diskChanges)
-                    Divider()
+                    InspectorSeparator()
+                }
+                if let details {
+                    InfoSection(details: details, item: model.focusedItem)
+                    InspectorSeparator()
                 }
                 keywordsSection
                 if targetCount > 0, keywordsExpanded {
                     suggestionsSection
                 }
-                Divider()
+                InspectorSeparator()
                 MetadataSection(model: model, summary: descriptive, versionIDs: descriptiveIDs)
             }
-            .padding(14)
+            .padding(InspectorMetrics.padding)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .task(id: Reload(selection: model.selectionRevision, keywords: model.keywordRevision,
@@ -103,9 +109,8 @@ private struct InfoInspector: View {
     /// Chips for keywords the on-device analysis suggests; clicking one adds it.
     private var suggestionsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("Suggested")
-                    .font(.headline)
+            HStack(alignment: .center) {
+                ControlGroupLabel(text: String(localized: "Suggested"))
                 Spacer()
                 if let progress = model.suggestionProgress {
                     ProgressView(value: Double(progress.done), total: Double(max(progress.total, 1)))
@@ -133,12 +138,14 @@ private struct InfoInspector: View {
 
     private var keywordsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeader(title: String(localized: "Keywords"), isExpanded: $keywordsExpanded, key: Self.keywordsKey,
-                          reservesCheck: false) {
-                if targetCount > 1 {
-                    Text("\(targetCount) photos selected")
-                        .font(.caption)
+            SectionHeader(title: String(localized: "Keywords"), isExpanded: $keywordsExpanded, family: .info,
+                          trailingWidth: nil) {
+                if !usage.isEmpty {
+                    Text(usage.count, format: .number)
+                        .font(.system(size: 11))
+                        .monospacedDigit()
                         .foregroundStyle(.secondary)
+                        .help(targetCount > 1 ? String(localized: "\(targetCount) photos selected") : "")
                 }
             }
             if !keywordsExpanded {
@@ -276,7 +283,7 @@ private struct InfoHistogram: View {
 
     var body: some View {
         HistogramView(histogram: liveHistogram ?? loaded)
-            .frame(height: 110)
+            .frame(height: 88)
             .task(id: Key(versionID: model.focusedItem?.versionID, editStackHash: model.focusedItem?.editStackHash)) {
                 loaded = nil
                 try? await Task.sleep(for: .milliseconds(60))
@@ -329,7 +336,7 @@ struct HistogramView: View {
                 context.fill(path, with: .color(color.opacity(0.55)))
             }
         }
-        .background(Color.black.opacity(0.82), in: RoundedRectangle(cornerRadius: 6))
+        .background(Color.black.opacity(0.82), in: RoundedRectangle(cornerRadius: 8))
         .accessibilityLabel(Text("Histogram"))
     }
 }
@@ -345,11 +352,12 @@ private struct InfoSection: View {
             if let camera = CameraSummary.displayName(make: image.cameraMake, model: image.cameraModel) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(camera)
-                        .font(.title3.weight(.bold))
+                        .font(.system(size: 13, weight: .semibold))
                         .textSelection(.enabled)
                     if let lens = image.lensModel {
                         Text(lens)
-                            .font(.callout)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
                             .textSelection(.enabled)
                     }
                 }
@@ -385,43 +393,29 @@ private struct InfoSection: View {
                 Text(size)
                     .font(.caption)
             }
-            if let date = CaptureDateText.text(image) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Captured")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text(date)
-                        .font(.title3)
-                        .textSelection(.enabled)
+            // On the 80 pt label column.
+            VStack(alignment: .leading, spacing: 4) {
+                if let date = CaptureDateText.text(image) {
+                    InfoRow(label: String(localized: "Captured")) { Text(date) }
                 }
-            }
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Filename")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(image.fileName)
-                        .font(.headline)
-                        .textSelection(.enabled)
-                        .lineLimit(2)
-                        .truncationMode(.middle)
-                    if let partner = item?.partnerKind, let kind = item?.fileKind {
-                        Text(verbatim: "\(FileKindText.badge(kind)) + \(FileKindText.badge(partner))")
-                            .font(.caption2.weight(.semibold))
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1)
-                            .background(.quaternary, in: Capsule())
-                            .help("Shown as one photo with its partner file")
+                InfoRow(label: String(localized: "File", comment: "Info tab: the file name row")) {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(image.fileName)
+                            .lineLimit(2)
+                            .truncationMode(.middle)
+                        if let partner = item?.partnerKind, let kind = item?.fileKind {
+                            Text(verbatim: "\(FileKindText.badge(kind)) + \(FileKindText.badge(partner))")
+                                .font(.system(size: 10, weight: .semibold))
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1)
+                                .background(.quaternary, in: Capsule())
+                                .help("Shown as one photo with its partner file")
+                        }
                     }
                 }
-                Text(folder)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-                if details.volume.mountPath != "/" {
-                    Text("On \(details.volume.name)", comment: "The disk a photo's file is on")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                InfoRow(label: String(localized: "Folder", comment: "Info tab: the folder row")) { Text(folder) }
+                InfoRow(label: String(localized: "Volume", comment: "Info tab: the disk a photo's file is on")) {
+                    Text(details.volume.name)
                 }
             }
         }
@@ -469,13 +463,16 @@ private struct InfoSection: View {
         String(localized: "\(signed(value)) EV", comment: "Exposure compensation; the argument is a signed number")
     }
 
+    /// "1/400 s", as the loupe wrote it.
     private var shutter: String? {
         guard let time = details.image.exposureTime, time > 0 else { return nil }
-        return time < 1 ? "1/\(Int((1 / time).rounded()))" : time.formatted(.number.precision(.fractionLength(0...1)))
+        let duration = time < 1 ? "1/\(Int((1 / time).rounded()))" : time.formatted(.number.precision(.fractionLength(0...1)))
+        return String(localized: "\(duration) s", comment: "Exposure time in seconds")
     }
 
+    /// "ƒ/2.8".
     private var aperture: String? {
-        details.image.fNumber.map { $0.formatted(.number.precision(.fractionLength(0...1))) }
+        details.image.fNumber.map { String(localized: "ƒ/\($0.formatted(.number.precision(.fractionLength(0...1))))") }
     }
 
     /// "24 MP (6,048 × 4,024 px)"
@@ -507,21 +504,20 @@ private struct ExposureTile: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline, spacing: 2) {
                 Text(label)
-                    .font(.caption)
+                    .font(.system(size: 10))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                 Spacer(minLength: 0)
                 if let detail {
                     Text(detail)
-                        .font(.caption2)
+                        .font(.system(size: 10))
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
             }
             Text(value ?? "–")
-                .font(.title2)
-                .monospacedDigit()
+                .font(.system(size: 13).monospacedDigit())
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
                 .foregroundStyle(isDimmed || value == nil ? .tertiary : .primary)
@@ -532,6 +528,24 @@ private struct ExposureTile: View {
         .frame(maxWidth: .infinity)
         .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
         .help(help ?? "")
+    }
+}
+
+/// A summary row: an 80 pt label column, then the value (selectable).
+private struct InfoRow<Value: View>: View {
+    let label: String
+    @ViewBuilder let value: Value
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: InspectorMetrics.gap) {
+            Text(label)
+                .foregroundStyle(.secondary)
+                .frame(width: InspectorMetrics.labelWidth, alignment: .leading)
+            value
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .font(.system(size: 11))
     }
 }
 

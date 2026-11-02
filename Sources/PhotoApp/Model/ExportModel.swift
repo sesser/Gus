@@ -291,7 +291,7 @@ final class ExportModel {
     }
 
     private func start(items: [ExportItem], policy: ExportConflictPolicy) {
-        guard let job, let library else { return }
+        guard let job, library != nil else { return }
         let request = ExportRequest(versionIDs: versionIDs, settings: settings, destination: destination, policy: policy)
         let reveals = revealsInFinder
         progress = (0, items.filter { !$0.isVideo }.count)

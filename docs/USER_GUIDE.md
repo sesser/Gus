@@ -130,7 +130,7 @@ badge in the caption line under the photo says so. Camera raws stay SDR. The lou
 cached preview, then the HDR render from the original, so offline originals stay
 SDR. Thumbnails and cached previews are always SDR. **View ▸ Hide HDR Highlights** turns it off.
 
-**Crop, Rotate, Straighten** is the Adjust tab's first heading. **Crop** shows
+**Crop & Straighten** follows **Presets** at the top of the Adjust tab. **Crop** shows
 the whole photo in the loupe under a crop frame with a rule-of-thirds grid: drag
 inside the frame to move it, a corner or an edge to resize it, and outside it to
 straighten. The buttons under it hold the frame to 1:1, 3:2, 4:3 or 16:9 (pick
@@ -149,13 +149,14 @@ with a 4:3 sensor show the camera's crop; on Olympus, OM System and Panasonic
 raw files, cropping starts from that frame over the whole sensor, so it can be
 widened. Other raw formats are cropped within the frame their decoder gives.
 
-**Presets** (the Adjust tab's **Presets** heading, at its bottom, and **Adjust ▸ Apply Preset**)
+**Presets** (the Adjust tab's first heading, and **Adjust ▸ Apply Preset**)
 apply saved adjustments to the photo in the loupe or to every selected photo.
 The heading shows the focused photo with each preset, by collection; in the
 loupe, hovering a picture shows the photo with that preset, and clicking it
 applies the preset. Its **Save…**, **Import…** and **Manage…** buttons match
-the menu commands below. **Copy Adjustments** and **Paste Adjustments** sit
-at the bottom of the Adjust tab. **Save Adjustments as
+the menu commands below. **Copy Adjustments**, **Paste Adjustments** and
+**Reset All Adjustments** are in the ⋯ menu at the top of the Adjust tab, next
+to **Original** (`\`). **Save Adjustments as
 Preset…** asks for a name, a collection and the groups of controls to include
 (those the photo changes are checked): applying the preset replaces only those
 and leaves the photo's other settings alone. **Import Presets…** reads this

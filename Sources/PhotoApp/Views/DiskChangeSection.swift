@@ -17,9 +17,14 @@ struct DiskChangeSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("Changed on Disk", systemImage: "exclamationmark.arrow.triangle.2.circlepath")
-                .font(.headline)
-                .foregroundStyle(.orange)
+            // The sidebar's symbol and color for the same thing.
+            Label {
+                Text("Changed on Disk")
+            } icon: {
+                Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange)
+            }
+            .font(.system(size: 13, weight: .semibold))
+            .frame(height: InspectorMetrics.headerHeight)
             Text(summary)
                 .font(.callout)
                 .foregroundStyle(.secondary)

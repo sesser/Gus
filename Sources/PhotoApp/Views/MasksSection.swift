@@ -6,14 +6,14 @@ import SwiftUI
 /// selected mask's components, amount and local values, and the brush.
 struct MasksSection: View {
     let editor: AdjustmentEditor
-    @State private var isExpanded = SectionHeaderState.isExpanded(key: Self.key, default: true)
+    @InspectorExpanded(Self.key, family: .adjust, default: true) private var isExpanded
 
     static let key = "adjust.section.masks"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             SectionHeader(title: String(localized: "Masks", comment: "Adjust tab heading"), isExpanded: $isExpanded,
-                          key: Self.key) {
+                          family: .adjust) {
                 AppKitButton(symbol: editor.showsMaskOverlay ? "eye.fill" : "eye", style: .borderless,
                              tint: editor.showsMaskOverlay ? .controlAccentColor : .secondaryLabelColor,
                              help: String(localized: "Show the selected mask in red"),
@@ -57,62 +57,137 @@ private struct ShapeButtons: View {
     }
 }
 
+/// A mask: its check box, its name (click selects, double-click renames in
+/// place), and a ⋯ menu with Rename, Move Up, Move Down and Delete.
 private struct MaskRow: View {
     let editor: AdjustmentEditor
     let mask: Mask
     let index: Int
+    @State private var isRenaming = false
 
     var body: some View {
         let isSelected = editor.selectedMaskID == mask.id
         let count = editor.adjustments.local.masks.count
-        HStack(spacing: 4) {
-            AppKitButton(symbol: mask.isEnabled ? "checkmark.circle.fill" : "circle", style: .borderless,
-                         tint: mask.isEnabled ? .controlAccentColor : .tertiaryLabelColor,
-                         help: mask.isEnabled ? String(localized: "Turn off this mask") : String(localized: "Turn on this mask")) {
+        let name = mask.name.isEmpty ? String(localized: "Mask \(index + 1)", comment: "A new mask's name") : mask.name
+        HStack(spacing: InspectorMetrics.gap) {
+            AppKitCheckbox(state: mask.isEnabled ? .on : .off,
+                           help: mask.isEnabled ? String(localized: "Turn off this mask") : String(localized: "Turn on this mask")) {
                 editor.setMaskEnabled(mask.id, !mask.isEnabled)
             }
-            .frame(width: 18)
-            AppKitButton(title: mask.name.isEmpty ? String(localized: "Mask \(index + 1)", comment: "A new mask's name") : mask.name,
-                         style: .borderless,
-                         font: isSelected ? .boldSystemFont(ofSize: NSFont.systemFontSize) : .systemFont(ofSize: NSFont.systemFontSize),
-                         help: String(localized: "Select this mask")) {
-                editor.selectedMaskID = isSelected ? nil : mask.id
-            }
-            Spacer()
-            AppKitButton(symbol: "pencil", style: .borderless, help: String(localized: "Rename…")) { rename() }
-                .frame(width: 22)
-            AppKitButton(symbol: "chevron.up", style: .borderless, help: String(localized: "Move up (applied earlier)"),
-                         isEnabled: index > 0) { editor.moveMask(mask.id, by: -1) }
-                .frame(width: 22)
-            AppKitButton(symbol: "chevron.down", style: .borderless, help: String(localized: "Move down (applied later)"),
-                         isEnabled: index < count - 1) { editor.moveMask(mask.id, by: 1) }
-                .frame(width: 22)
-            AppKitButton(symbol: "trash", style: .borderless, help: String(localized: "Delete this mask")) {
-                editor.removeMask(mask.id)
-            }
-            .frame(width: 22)
+            .frame(width: InspectorMetrics.checkSlot)
+            MaskNameField(name: name, isSelected: isSelected, isRenaming: $isRenaming,
+                          select: { editor.selectedMaskID = isSelected ? nil : mask.id },
+                          rename: { editor.renameMask(mask.id, to: $0.trimmingCharacters(in: .whitespacesAndNewlines)) })
+            AppKitMenuButton(title: "", symbol: "ellipsis.circle", entries: menuEntries(count: count),
+                             help: String(localized: "Mask commands"))
+                .frame(width: InspectorMetrics.resetSlot + 4)
         }
+        .frame(height: SliderRow.height)
         .contentShape(Rectangle())
-        // TODO(UI redesign step 8): Rename becomes inline (double-click), titled "Rename".
         .contextMenu {
-            Button("Rename…") { rename() }
+            Button("Rename") { isRenaming = true }
             if index > 0 { Button("Move Up") { editor.moveMask(mask.id, by: -1) } }
             if index < count - 1 { Button("Move Down") { editor.moveMask(mask.id, by: 1) } }
             Button("Delete") { editor.removeMask(mask.id) }
         }
     }
 
-    private func rename() {
-        let alert = NSAlert()
-        alert.messageText = String(localized: "Rename Mask")
-        let field = NSTextField(string: mask.name)
-        field.frame = NSRect(x: 0, y: 0, width: 240, height: 24)
-        alert.accessoryView = field
-        alert.addButton(withTitle: String(localized: "Rename"))
-        alert.addButton(withTitle: String(localized: "Cancel"))
-        alert.window.initialFirstResponder = field
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
-        editor.renameMask(mask.id, to: field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines))
+    private func menuEntries(count: Int) -> [AppKitMenuButton.Entry] {
+        [
+            .item(String(localized: "Rename")) { isRenaming = true },
+            .item(String(localized: "Move Up"), isEnabled: index > 0) { editor.moveMask(mask.id, by: -1) },
+            .item(String(localized: "Move Down"), isEnabled: index < count - 1) { editor.moveMask(mask.id, by: 1) },
+            .separator,
+            .item(String(localized: "Delete")) { editor.removeMask(mask.id) },
+        ]
+    }
+}
+
+/// A mask's name: a click selects the mask, a double-click (or Rename)
+/// edits it in place; Return saves, Escape gives up.
+private struct MaskNameField: NSViewRepresentable {
+    let name: String
+    let isSelected: Bool
+    @Binding var isRenaming: Bool
+    let select: () -> Void
+    let rename: (String) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeNSView(context: Context) -> Field {
+        let field = Field(labelWithString: name)
+        field.lineBreakMode = .byTruncatingTail
+        field.delegate = context.coordinator
+        field.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        return field
+    }
+
+    func updateNSView(_ field: Field, context: Context) {
+        let coordinator = context.coordinator
+        coordinator.rename = rename
+        coordinator.endRenaming = { isRenaming = false }
+        field.onClick = select
+        field.onDoubleClick = { isRenaming = true }
+        field.font = isSelected ? .boldSystemFont(ofSize: NSFont.systemFontSize) : .systemFont(ofSize: NSFont.systemFontSize)
+        field.toolTip = String(localized: "Select this mask; double-click to rename it")
+        if isRenaming, !field.isEditable {
+            field.beginRenaming(name)
+        } else if !isRenaming, field.isEditable {
+            field.endRenaming(name)
+        } else if !field.isEditable, field.stringValue != name {
+            field.stringValue = name
+        }
+    }
+
+    final class Field: NSTextField {
+        var onClick: (() -> Void)?
+        var onDoubleClick: (() -> Void)?
+
+        override func mouseDown(with event: NSEvent) {
+            guard !isEditable else { return super.mouseDown(with: event) }
+            if event.clickCount == 2 { onDoubleClick?() } else { onClick?() }
+        }
+
+        func beginRenaming(_ name: String) {
+            stringValue = name
+            isEditable = true
+            isBezeled = true
+            bezelStyle = .roundedBezel
+            drawsBackground = true
+            window?.makeFirstResponder(self)
+            currentEditor()?.selectAll(nil)
+        }
+
+        func endRenaming(_ name: String) {
+            isEditable = false
+            isBezeled = false
+            drawsBackground = false
+            stringValue = name
+        }
+    }
+
+    @MainActor
+    final class Coordinator: NSObject, NSTextFieldDelegate {
+        var rename: (String) -> Void = { _ in }
+        var endRenaming: () -> Void = {}
+        private var cancelled = false
+
+        func control(_ control: NSControl, textView: NSTextView, doCommandBy selector: Selector) -> Bool {
+            if selector == #selector(NSResponder.cancelOperation(_:)) {
+                cancelled = true
+                control.window?.makeFirstResponder(nil)
+                return true
+            }
+            return false
+        }
+
+        func controlTextDidEndEditing(_ notification: Notification) {
+            guard let field = notification.object as? NSTextField else { return }
+            if !cancelled { rename(field.stringValue) }
+            cancelled = false
+            endRenaming()
+        }
     }
 }
 

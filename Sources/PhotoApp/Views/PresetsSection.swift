@@ -8,15 +8,13 @@ import SwiftUI
 /// the photo on screen (loupe) or the selection (grid).
 struct PresetsSection: View {
     let model: LibraryModel
-    @State private var isExpanded = SectionHeaderState.isExpanded(key: Self.key, default: false)
+    @InspectorExpanded(Self.key, family: .adjust, default: false) private var isExpanded
 
     static let key = "adjust.section.presets"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionHeader(title: String(localized: "Presets"), isExpanded: $isExpanded, key: Self.key) {
-                EmptyView()
-            }
+            SectionHeader(title: String(localized: "Presets"), isExpanded: $isExpanded, family: .adjust)
             if isExpanded {
                 VStack(alignment: .leading, spacing: 10) {
                     buttons
@@ -100,7 +98,7 @@ private struct PresetCollectionSection: View {
                 PresetGrid(model: model, presets: collection.presets)
             }
         }
-        .onAppear { isExpanded = SectionHeaderState.isExpanded(key: key, default: false) }
+        .onAppear { isExpanded = UserDefaults.standard.bool(forKey: key) }
     }
 }
 

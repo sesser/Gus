@@ -15,7 +15,7 @@ struct MainView: View {
             BrowserView(model: model)
                 .inspector(isPresented: $model.showsInspector) {
                     InspectorView(model: model)
-                        .inspectorColumnWidth(min: 240, ideal: 280, max: 420)
+                        .inspectorColumnWidth(min: 280, ideal: 300, max: 420)
                 }
         }
         .navigationTitle(model.windowTitle)
