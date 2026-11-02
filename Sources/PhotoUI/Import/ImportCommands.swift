@@ -3,17 +3,21 @@ import SwiftUI
 
 /// The import window's menu items, shared by the library app and the
 /// standalone importer and on only while an import window is key (section 6
-/// of docs/UI_REDESIGN.md). Select All / Deselect All and Show / Hide Options
-/// come with the rebuilt import window (plan step 13): today's grid cannot take
-/// the keyboard, so ⌘A must stay with the text fields, and the options are not
-/// a pane that hides.
+/// of docs/UI_REDESIGN.md). Edit ▸ Select All (⌘A) is the system item: the
+/// grid answers `selectAll(_:)` while it has the focus, and text fields keep
+/// theirs.
 public struct ImportCommands: Commands {
     /// The library app also offers Show Photos Already in Library.
     let includesLibraryItems: Bool
+    /// Off in the library app, whose Show / Hide Inspector item (⌥⌘I too)
+    /// toggles the options while an import window is key: AppKit stops at the
+    /// first item with a key equivalent, even a disabled one.
+    let includesOptionsItem: Bool
     @FocusedValue(\.importMenu) private var menu
 
-    public init(includesLibraryItems: Bool) {
+    public init(includesLibraryItems: Bool, includesOptionsItem: Bool = true) {
         self.includesLibraryItems = includesLibraryItems
+        self.includesOptionsItem = includesOptionsItem
     }
 
     private var model: CardImportModel? { menu?.model }
@@ -38,7 +42,17 @@ public struct ImportCommands: Commands {
                 .disabled(!can { $0.isImporting })
             Divider()
         }
+        CommandGroup(after: .pasteboard) {
+            Button("Deselect All") { model?.selectNone() }
+                .keyboardShortcut("a", modifiers: [.command, .shift])
+                .disabled(!can { $0.selectedCount > 0 && !$0.isImporting })
+        }
         CommandGroup(after: .sidebar) {
+            if includesOptionsItem {
+                Button(menu?.optionsTitle ?? String(localized: "Hide Options")) { menu?.toggleOptions() }
+                    .keyboardShortcut("i", modifiers: [.command, .option])
+                    .disabled(menu == nil)
+            }
             Toggle("Show Videos", isOn: Binding(
                 get: { menu?.state.includesVideos ?? false },
                 set: { model?.includesVideos = $0 }
@@ -58,12 +72,22 @@ public struct ImportCommands: Commands {
 
 /// What the import menus read from the import window, published with
 /// `focusedSceneValue` so the menus follow it.
-struct ImportMenuContext: Equatable {
+public struct ImportMenuContext: Equatable {
     let model: CardImportModel
     let state: ImportMenuState
 
-    static func == (lhs: Self, rhs: Self) -> Bool {
+    public static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.model === rhs.model && lhs.state == rhs.state
+    }
+
+    /// Show Options / Hide Options.
+    public var optionsTitle: String {
+        state.showsOptions ? String(localized: "Hide Options") : String(localized: "Show Options")
+    }
+
+    @MainActor
+    public func toggleOptions() {
+        model.showsOptions.toggle()
     }
 }
 
@@ -74,6 +98,7 @@ struct ImportMenuState: Equatable {
     var includesVideos: Bool
     var showsDuplicates: Bool
     var copiesOnly: Bool
+    var showsOptions: Bool
 
     @MainActor
     init(_ model: CardImportModel) {
@@ -84,11 +109,12 @@ struct ImportMenuState: Equatable {
         includesVideos = model.includesVideos
         showsDuplicates = model.showsDuplicates
         copiesOnly = model.copiesOnly
+        showsOptions = model.showsOptions
     }
 }
 
 extension FocusedValues {
-    @Entry var importMenu: ImportMenuContext?
+    @Entry public var importMenu: ImportMenuContext?
 }
 
 /// Publishes the import menu context from a view of its own.

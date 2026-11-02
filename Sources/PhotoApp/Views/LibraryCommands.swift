@@ -12,6 +12,9 @@ import SwiftUI
 /// are on whenever the window is key and the command has something to act on.
 struct LibraryCommands: Commands {
     @FocusedValue(\.libraryMenu) private var menu
+    /// The import window, key: ⌥⌘I toggles its options (one item per key
+    /// equivalent; AppKit stops at the first match, even a disabled one).
+    @FocusedValue(\.importMenu) private var importMenu
     @Environment(\.openWindow) private var openWindow
 
     private var model: LibraryModel? { menu?.model }
@@ -194,12 +197,17 @@ struct LibraryCommands: Commands {
             }
             .disabled(!can())
             Divider()
-            Button(menu?.state.showsInspector == true ? String(localized: "Hide Inspector")
-                                                      : String(localized: "Show Inspector")) {
-                model?.showsInspector.toggle()
+            if menu == nil, let importMenu {
+                Button(importMenu.optionsTitle) { importMenu.toggleOptions() }
+                    .keyboardShortcut("i", modifiers: [.command, .option])
+            } else {
+                Button(menu?.state.showsInspector == true ? String(localized: "Hide Inspector")
+                                                          : String(localized: "Show Inspector")) {
+                    model?.showsInspector.toggle()
+                }
+                .keyboardShortcut("i", modifiers: [.command, .option])
+                .disabled(!can())
             }
-            .keyboardShortcut("i", modifiers: [.command, .option])
-            .disabled(!can())
             Button("Info") { show(.info) }
                 .keyboardShortcut("1", modifiers: [.command, .option])
                 .disabled(!can())

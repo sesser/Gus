@@ -139,8 +139,9 @@ compatible and never put `#` comment lines inside pasted command snippets.
   `CardImport/` (templates, copying), `Export/` (rendering, naming, metadata
   and watermarks for exports), `Suggestions/` (Vision), `Video/`.
   Everything testable lives here.
-- `Sources/PhotoUI` — UI shared by both apps: `Import/` (the import window, its
-  model and its debug-script commands), `Grid/` (`UniformGridLayout` and the
+- `Sources/PhotoUI` — UI shared by both apps: `Import/` (the import window:
+  toolbar, options inspector, the `NSCollectionView` grid of `ImportCell`s
+  with check boxes, its model, `ImportCommands` and debug-script commands), `Grid/` (`UniformGridLayout` and the
   cell images: symbols, stars, type badges), `TemplateField` (the naming
   template token field; `TemplateParts` in PhotoCore splits templates),
   `Palette`, `LaunchOptions`, and the String Catalog

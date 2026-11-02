@@ -27,7 +27,7 @@ struct PhotoApplication: App {
         .defaultSize(width: 1320, height: 860)
         .commands {
             LibraryCommands()
-            ImportCommands(includesLibraryItems: true)
+            ImportCommands(includesLibraryItems: true, includesOptionsItem: false)
         }
 
         Window(String(localized: "Import"), id: "import") {

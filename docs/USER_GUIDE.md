@@ -7,9 +7,15 @@ sidecars, videos and HDR. See the [README](../README.md) to build it.
 
 **Importing from a card**: **File ▸ Import from Card or Folder…** (⌘I) opens the
 import window; it also opens by itself when a card (any volume with a `DCIM`
-folder) is inserted, unless that is turned off in **Settings**. Pick photos
-(click, shift-click, All, None; RAW+JPEG pairs are one tile, photos already in
-the library are hidden and never imported), choose the destination folder and
+folder) is inserted, unless that is turned off in **Settings**. The source
+pop-up in the toolbar lists cards and chosen folders (⌘O chooses another,
+⌘R rescans); the subtitle shows how many shots are picked and the newest
+photo's camera with its shutter count. Each shot has a check box: click a
+tile, or Space on the focused one, to include or leave it out; shift-click
+sets a range; ⌘A and ⇧⌘A (or the toolbar's Selection menu) pick all or none,
+and the same menu shows videos and the photos already in the library (marked
+In Library and never imported). RAW+JPEG pairs are one tile. The options
+inspector (⌥⌘I) sets the destination folder and
 the subfolder and file name templates (tokens such as `{capture:yyyy-MM-dd}`,
 `{import:yyyy}`, `{model}`, `{lens}`, `{name}`, `{number}`, `{seq:4}`,
 `{counter:5}`, `{job}`, shown in the field as named pills such as Capture
@@ -18,8 +24,9 @@ field, copy and paste keep the `{…}` form, and an example under the field
 shows the result), the project (a new one named from a template, or an existing one), a
 job code and a metadata preset (creator, copyright such as
 `© {capture:yyyy} Your Name`, usage terms, contact; written to sidecars, the
-copies stay identical to the originals). Every copy is read back and compared
-by hash before it counts. Optionally, the originals that were copied and checked
+copies stay identical to the originals). **Import N Photos** in the toolbar
+(or Return) starts; it becomes **Stop** (⌘.) while copying, with progress
+beside it. Every copy is read back and compared by hash before it counts. Optionally, the originals that were copied and checked
 are deleted from the card (after a confirmation) and the card is ejected.
 
 Choose **File ▸ Add Folder Without Copying…** (⇧⌘I) to add photos where they are, without

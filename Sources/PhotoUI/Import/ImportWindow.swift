@@ -3,7 +3,8 @@ import PhotoCore
 import SwiftUI
 
 /// The import window: pick a source, choose photos, set where and how they are
-/// copied, and import. The library app and the standalone importer both show it.
+/// copied, and import (section 8 of docs/UI_REDESIGN.md). The library app and
+/// the standalone importer both show it, unchanged.
 public struct ImportWindow: View {
     @Bindable var model: CardImportModel
 
@@ -12,295 +13,256 @@ public struct ImportWindow: View {
     }
 
     public var body: some View {
-        VStack(spacing: 0) {
-            HSplitView {
-                VStack(spacing: 0) {
-                    SourceBar(model: model)
-                    Divider()
-                    ShotGrid(model: model)
+        ImportGridArea(model: model)
+            .frame(minWidth: 520, minHeight: 480)
+            .inspector(isPresented: $model.showsOptions) {
+                ImportOptionsForm(model: model)
+                    .inspectorColumnWidth(min: 300, ideal: 320, max: 400)
+            }
+            .toolbar { ImportToolbar(model: model) }
+            .navigationTitle(model.copiesOnly ? AppBranding.importerDisplayName
+                                              : String(localized: "Import", comment: "Import window title"))
+            .navigationSubtitle(subtitle)
+            .background { ImportMenuPublisher(model: model) }
+            .onAppear { model.refreshSources() }
+            .alert(deletionTitle, isPresented: Binding(get: { model.pendingDeletion != nil },
+                                                       set: { if !$0 { model.confirmDeletion(false) } })) {
+                Button("Delete", role: .destructive) { model.confirmDeletion(true) }
+                Button("Keep Them", role: .cancel) { model.confirmDeletion(false) }
+            } message: {
+                if model.copiesOnly {
+                    Text("Every one of them was copied and checked.")
+                } else {
+                    Text("Every one of them was copied and checked. Photos that were already in the library are not deleted.")
                 }
-                .frame(minWidth: 520)
-                ImportOptionsPanel(model: model)
-                    .frame(minWidth: 320, idealWidth: 360, maxWidth: 440)
             }
-            Divider()
-            CameraStatusBar(camera: model.camera)
-        }
-        .frame(minWidth: 900, minHeight: 600)
-        .background { ImportMenuPublisher(model: model) }
-        .onAppear { model.refreshSources() }
-        .alert(deletionTitle, isPresented: Binding(get: { model.pendingDeletion != nil },
-                                                   set: { if !$0 { model.confirmDeletion(false) } })) {
-            Button("Delete", role: .destructive) { model.confirmDeletion(true) }
-            Button("Keep Them", role: .cancel) { model.confirmDeletion(false) }
-        } message: {
-            if model.copiesOnly {
-                Text("Every one of them was copied and checked.")
-            } else {
-                Text("Every one of them was copied and checked. Photos that were already in the library are not deleted.")
+            .alert(model.alertText ?? "", isPresented: Binding(get: { model.alertText != nil },
+                                                               set: { if !$0 { model.alertText = nil } })) {
+                Button("OK", role: .cancel) { model.alertText = nil }
             }
-        }
     }
 
     private var deletionTitle: String {
         String(localized: "Delete \(model.pendingDeletion?.count ?? 0) files from \(model.source?.name ?? "")?")
     }
-}
 
-/// The newest photo's camera and its shutter count, centered at the bottom of
-/// the window: "Sony ILCE-7M3 - 12,345".
-private struct CameraStatusBar: View {
-    let camera: CameraSummary?
-
-    var body: some View {
-        Group {
-            if let camera {
-                Text(Self.text(camera))
-                    .help(String(localized: "Read from \(camera.fileName), the newest photo"))
-            } else {
-                Text(verbatim: " ")
-            }
-        }
-        .font(.callout)
-        .monospacedDigit()
-        .foregroundStyle(.secondary)
-        .lineLimit(1)
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 4)
-        .background(.bar)
-    }
-
-    static func text(_ camera: CameraSummary) -> String {
-        guard let count = camera.shutterCount else { return camera.name }
-        return String(localized: "\(camera.name) - \(count.formatted(.number))",
-                      comment: "Import status bar: camera make and model, then its shutter count")
+    /// "6 of 412 selected · Sony ILCE-7M3, shutter count 4,374"; after an
+    /// import, "Imported 412 files".
+    private var subtitle: String {
+        if let done = model.doneText, !model.isImporting { return done }
+        guard !model.shots.isEmpty else { return "" }
+        let selected = String(localized: "\(model.selection.count) of \(model.shots.count - model.duplicateCount) selected")
+        guard let camera = model.camera else { return selected }
+        let cameraText = camera.shutterCount.map {
+            String(localized: "\(camera.name), shutter count \($0.formatted(.number))",
+                   comment: "Import window subtitle: the newest photo's camera and its shutter count")
+        } ?? camera.name
+        return "\(selected) · \(cameraText)"
     }
 }
 
-private struct SourceBar: View {
+/// Fixed (not customizable), in three groups: the source, the activity, and
+/// the selection, options and Import.
+private struct ImportToolbar: ToolbarContent {
     @Bindable var model: CardImportModel
 
-    var body: some View {
-        HStack(spacing: 10) {
-            Picker("From", selection: $model.source) {
-                if model.sources.isEmpty {
-                    Text("No card connected").tag(ImportSource?.none)
-                }
-                ForEach(model.sources) { source in
-                    Label(source.name, systemImage: source.isCard ? "sdcard" : "folder").tag(ImportSource?.some(source))
-                }
-            }
-            .frame(maxWidth: 280)
-            Button("Choose Folder…") { model.chooseFolder() }
+    var body: some ToolbarContent {
+        ToolbarItemGroup(placement: .navigation) {
+            SourceMenu(model: model)
             Button {
                 model.rescan(keepingPicks: true)
             } label: {
-                Image(systemName: "arrow.clockwise")
+                Label("Rescan", systemImage: "arrow.clockwise")
             }
-            .help("Look at the source again")
-            .disabled(model.source == nil)
-            Spacer()
-            if model.isScanning {
-                ProgressView().controlSize(.small)
-                Text("Reading…").foregroundStyle(.secondary)
-            } else if !model.shots.isEmpty {
-                Text("\(model.selection.count) of \(model.shots.count - model.duplicateCount) selected")
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-            }
-            Button("All") { model.selectAll() }
-                .disabled(model.shots.isEmpty)
-                .help("Select every photo")
-            Button("None") { model.selectNone() }
-                .disabled(model.selection.isEmpty)
-                .help("Select no photos")
+            .help("Rescan")
+            .disabled(model.source == nil || model.isImporting)
         }
-        .padding(10)
+        ToolbarItem(placement: .status) {
+            ImportActivity(model: model)
+        }
+        ToolbarItem {
+            Menu {
+                Button("Select All") { model.selectAll() }
+                    .disabled(!model.shots.contains { !$0.isDuplicate })
+                Button("Deselect All") { model.selectNone() }
+                    .disabled(model.selection.isEmpty)
+                Divider()
+                Toggle("Show Videos", isOn: $model.includesVideos)
+                    .disabled(model.isImporting)
+                if !model.copiesOnly {
+                    Toggle("Show Photos Already in Library", isOn: $model.showsDuplicates)
+                }
+            } label: {
+                Label("Selection", systemImage: "checklist")
+            }
+            .help("Selection")
+        }
+        ToolbarItem {
+            Button {
+                model.showsOptions.toggle()
+            } label: {
+                Label(model.showsOptions ? "Hide Options" : "Show Options", systemImage: "sidebar.trailing")
+            }
+            .help(model.showsOptions ? "Hide Options" : "Show Options")
+        }
+        ToolbarItem(placement: .primaryAction) {
+            if model.isImporting {
+                Button("Stop") { model.cancelImport() }
+            } else {
+                Button("Import \(model.selectedShots.count) Photos") { model.startImport() }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(model.selectedShots.isEmpty || model.source == nil)
+            }
+        }
     }
 }
 
-private struct ShotGrid: View {
+/// Mounted cards, chosen folders, a divider, Choose Folder….
+private struct SourceMenu: View {
+    let model: CardImportModel
+
+    var body: some View {
+        Menu {
+            Picker(selection: Binding(get: { model.source }, set: { if let source = $0 { model.choose(source) } })) {
+                ForEach(model.sources) { source in
+                    Label(source.name, systemImage: source.isCard ? "sdcard" : "folder").tag(ImportSource?.some(source))
+                }
+            } label: {
+                EmptyView()
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+            Divider()
+            Button("Choose Folder…") { model.chooseFolder() }
+        } label: {
+            if let source = model.source {
+                Label(source.name, systemImage: source.isCard ? "sdcard" : "folder")
+                    .labelStyle(.titleAndIcon)
+            } else {
+                Label("No Card Connected", systemImage: "sdcard")
+                    .labelStyle(.titleAndIcon)
+            }
+        }
+        .help("Source")
+        .disabled(model.isImporting)
+    }
+}
+
+/// While scanning, a spinner and "Reading ‹source›…"; while copying, a
+/// 160 pt bar and "12 of 412 files · 1.2 of 18 GB" with the current file as
+/// its tooltip.
+private struct ImportActivity: View {
+    let model: CardImportModel
+
+    var body: some View {
+        if let progress = model.progress {
+            HStack(spacing: 8) {
+                ProgressView(value: Double(progress.bytesDone), total: Double(max(progress.bytesTotal, 1)))
+                    .frame(width: 160)
+                Text("\(progress.filesDone) of \(progress.filesTotal) files · \(ByteCountFormatter.string(fromByteCount: progress.bytesDone, countStyle: .file)) of \(ByteCountFormatter.string(fromByteCount: progress.bytesTotal, countStyle: .file))")
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+            }
+            .help(progress.currentName)
+        } else if model.isScanning, let source = model.source {
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.small)
+                Text("Reading \(source.name)…").foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+/// The grid, or what stands in for it (the states table).
+private struct ImportGridArea: View {
     @Bindable var model: CardImportModel
 
     var body: some View {
-        VStack(spacing: 0) {
-            if model.duplicateCount > 0 {
-                HStack {
-                    Text("\(model.duplicateCount) photos are already in the library and are not imported.")
-                    Spacer()
-                    Toggle("Show them", isOn: $model.showsDuplicates)
-                        .toggleStyle(.checkbox)
-                }
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                Divider()
-            }
-            if model.shots.isEmpty, !model.isScanning {
-                ContentUnavailableView(model.source == nil ? String(localized: "Insert a card or choose a folder")
-                                                           : String(localized: "No photos found"),
-                                       systemImage: "sdcard")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                ScrollView {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 150, maximum: 220), spacing: 10)], spacing: 10) {
-                        ForEach(model.visibleShots) { shot in
-                            ShotTile(shot: shot, selected: model.selection.contains(shot.id)) {
-                                model.click(shot, extend: false)
-                            }
-                                .onTapGesture {
-                                    guard !shot.isDuplicate else { return }
-                                    model.click(shot, extend: NSEvent.modifierFlags.contains(.shift))
-                                }
-                        }
-                    }
-                    .padding(10)
-                }
-            }
-        }
-        .background(Color(nsColor: Palette.gridBackground))
-    }
-}
-
-private struct ShotTile: View {
-    let shot: SourceShot
-    let selected: Bool
-    /// VoiceOver's press on the tile's check box.
-    let toggle: () -> Void
-    @State private var thumbnail: CGImage?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            ZStack(alignment: .topLeading) {
-                Rectangle()
-                    .fill(Color(nsColor: Palette.cell))
-                    .aspectRatio(1.4, contentMode: .fit)
-                    .overlay {
-                        if let thumbnail {
-                            Image(decorative: thumbnail, scale: 1)
-                                .resizable()
-                                .scaledToFit()
-                        }
-                    }
-                    .clipShape(RoundedRectangle(cornerRadius: 4))
-                Image(systemName: shot.isDuplicate ? "checkmark.seal" : (selected ? "checkmark.circle.fill" : "circle"))
-                    .font(.title3)
-                    .foregroundStyle(shot.isDuplicate ? .secondary : (selected ? Color.accentColor : .secondary))
-                    .shadow(radius: 2)
-                    .padding(6)
-            }
-            HStack {
-                Text((shot.primary.name as NSString).deletingPathExtension)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                Spacer()
-                Text(badge)
-                    .font(.caption2.weight(.bold))
-                    .padding(.horizontal, 4)
-                    .background(.quaternary, in: RoundedRectangle(cornerRadius: 3))
-            }
-            .font(.caption)
-            Text(dateText)
-                .font(.caption2)
-                .foregroundStyle(Color(nsColor: Palette.dateText))
-        }
-        .padding(6)
-        .background(selected ? Color.accentColor.opacity(0.18) : Color.clear, in: RoundedRectangle(cornerRadius: 6))
-        .opacity(shot.isDuplicate ? 0.5 : 1)
-        .contentShape(Rectangle())
-        .task(id: shot.id) {
-            thumbnail = await SourceThumbnails.shared.thumbnail(for: shot.primary.url)
-        }
-        .help(shot.isDuplicate ? String(localized: "Already in the library") : shot.files.map(\.name).joined(separator: " + "))
-        .modifier(ShotAccessibility(shot: shot, label: accessibilityLabel, selected: selected, toggle: toggle))
+        content
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(nsColor: Palette.gridBackground))
     }
 
-    /// "DSC00328, RAW plus JPEG, Oct 30, 10:46 AM".
-    private var accessibilityLabel: String {
-        AccessibilityText.list([(shot.primary.name as NSString).deletingPathExtension,
-                                AccessibilityText.fileType(shot.files.map(\.kind)), dateText])
-    }
-
-    /// In the capture's own time: cameras usually record local time without a
-    /// zone, stored as UTC (see `ImageMetadata.captureDate`).
-    private var dateText: String {
-        let metadata = shot.primary.metadata
-        var style = Date.FormatStyle.dateTime.day().month().hour().minute()
-        if metadata.captureDate != nil {
-            style.timeZone = metadata.captureOffsetSeconds.flatMap(TimeZone.init(secondsFromGMT:)) ?? TimeZone(secondsFromGMT: 0)!
-        }
-        return shot.date.formatted(style)
-    }
-
-    private var badge: String {
-        shot.files.map { FileKindText.badge($0.kind) }.joined(separator: "+")
-    }
-}
-
-/// To VoiceOver a tile is a check box (checked: it will be imported), or, for
-/// a shot already in the library, a description saying so.
-private struct ShotAccessibility: ViewModifier {
-    let shot: SourceShot
-    let label: String
-    let selected: Bool
-    let toggle: () -> Void
-
-    func body(content: Content) -> some View {
-        if shot.isDuplicate {
-            content
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(Text(verbatim: label))
-                .accessibilityValue(Text("Already in the library"))
-        } else {
-            content.accessibilityRepresentation {
-                Toggle(isOn: Binding(get: { selected }, set: { _ in toggle() })) {
-                    Text(verbatim: label)
-                }
-                .toggleStyle(.checkbox)
+    @ViewBuilder private var content: some View {
+        let name = model.source?.name ?? ""
+        switch ImportGridState.of(hasSource: model.source != nil, isScanning: model.isScanning, readError: model.readError,
+                                  shotCount: model.shots.count, duplicateCount: model.duplicateCount,
+                                  showsDuplicates: model.showsDuplicates) {
+        case .noSource:
+            ContentUnavailableView {
+                Label("Insert a Card or Choose a Folder", systemImage: "sdcard")
+            } actions: {
+                Button("Choose Folder…") { model.chooseFolder() }
             }
+        case .scanning:
+            ProgressView("Reading \(name)…")
+            case .readError(let error):
+            ContentUnavailableView {
+                Label("Can't Read \(name)", systemImage: "exclamationmark.triangle")
+            } description: {
+                Text(error)
+            } actions: {
+                Button("Rescan") { model.rescan(keepingPicks: true) }
+            }
+        case .noPhotos:
+            ContentUnavailableView {
+                Label("No Photos on \(name)", systemImage: model.source?.isCard == true ? "sdcard" : "folder")
+            } actions: {
+                Button("Choose Folder…") { model.chooseFolder() }
+            }
+        case .allImported(let count):
+            ContentUnavailableView {
+                Label("All \(count) Photos Are Already in the Library", systemImage: "checkmark.circle")
+            } actions: {
+                Button("Show Them") { model.showsDuplicates = true }
+            }
+        case .shots:
+            ImportGridView(model: model, shots: model.visibleShots, selection: model.selection)
         }
     }
 }
 
-private struct ImportOptionsPanel: View {
+/// The options inspector: a grouped form in the order the decisions are made.
+private struct ImportOptionsForm: View {
     @Bindable var model: CardImportModel
     @State private var editingPreset: MetadataPreset?
 
     var body: some View {
-        VStack(spacing: 0) {
-            Form {
-                Section("Destination") {
-                    LabeledContent("Folder") {
-                        HStack {
-                            Text(model.destination.path)
-                                .lineLimit(1)
-                                .truncationMode(.head)
-                                .help(model.destination.path)
-                            Button("Choose…") { model.chooseDestination() }
-                        }
-                    }
-                    let sample = model.exampleContext
-                    TemplateField(title: String(localized: "Subfolders"), text: $model.folderTemplate,
-                                  tokens: .importFolders, folders: true, sample: sample)
-                    TemplateField(title: String(localized: "File names"), text: $model.fileTemplate,
-                                  tokens: .importFiles, sample: sample, example: model.example)
-                }
-                Section(model.copiesOnly ? String(localized: "Job") : String(localized: "Project")) {
-                    if let library = model.library {
-                        Picker("Add to", selection: $model.existingProjectID) {
-                            Text("A new project").tag(Int64?.none)
-                            ForEach(library.projects) { summary in
-                                Text(summary.project.name).tag(Int64?.some(summary.id))
-                            }
-                        }
-                        if model.existingProjectID == nil {
-                            TemplateField(title: String(localized: "Name"), text: $model.projectNameTemplate,
-                                          tokens: .importFiles, sample: model.exampleContext)
-                        }
-                    }
+        Form {
+            Section("Destination") {
+                LabeledContent("Folder") {
                     HStack {
+                        Text(model.destination.path)
+                            .lineLimit(1)
+                            .truncationMode(.head)
+                            .help(model.destination.path)
+                        Button("Choose Folder…") { model.chooseDestination() }
+                    }
+                }
+                let sample = model.exampleContext
+                TemplateField(title: String(localized: "Subfolders"), text: $model.folderTemplate,
+                              tokens: .importFolders, folders: true, sample: sample)
+                TemplateField(title: String(localized: "File names"), text: $model.fileTemplate,
+                              tokens: .importFiles, sample: sample, example: model.example)
+            }
+            Section(model.copiesOnly ? String(localized: "Job") : String(localized: "Project")) {
+                if let library = model.library {
+                    Picker("Add to", selection: $model.existingProjectID) {
+                        Text("A New Project").tag(Int64?.none)
+                        ForEach(library.projects) { summary in
+                            Text(summary.project.name).tag(Int64?.some(summary.id))
+                        }
+                    }
+                    if model.existingProjectID == nil {
+                        TemplateField(title: String(localized: "Project name"), text: $model.projectNameTemplate,
+                                      tokens: .importFiles, sample: model.exampleContext)
+                    }
+                }
+                LabeledContent("Job code") {
+                    HStack(spacing: 6) {
                         TextField("Job code", text: $model.jobCode, prompt: Text("e.g. Smith wedding"))
+                            .textFieldStyle(.roundedBorder)
+                            .labelsHidden()
                         if !model.recentJobCodes.isEmpty {
                             Menu {
                                 ForEach(model.recentJobCodes, id: \.self) { code in
@@ -312,88 +274,70 @@ private struct ImportOptionsPanel: View {
                             .menuStyle(.borderlessButton)
                             .fixedSize()
                             .help("Recent job codes")
+                            .accessibilityLabel(Text("Recent job codes"))
                         }
                     }
                 }
-                Section("Metadata") {
-                    Picker("Apply", selection: $model.presetID) {
-                        Text("No metadata").tag(Int64?.none)
+            }
+            Section("Metadata") {
+                LabeledContent("Preset") {
+                    Menu(selectedPreset?.name ?? String(localized: "None")) {
+                        Button("None") { model.presetID = nil }
                         ForEach(model.presets) { preset in
-                            Text(preset.name).tag(preset.id)
+                            Button(preset.name) { model.presetID = preset.id }
                         }
-                    }
-                    HStack {
+                        Divider()
                         Button("New Preset…") {
                             editingPreset = MetadataPreset(name: String(localized: "Untitled Preset"),
                                                            values: SidecarValues(rights: "© {capture:yyyy} "))
                         }
-                        if let preset = model.presets.first(where: { $0.id == model.presetID }) {
-                            Button("Edit…") { editingPreset = preset }
+                        if let preset = selectedPreset {
+                            Button("Edit “\(preset.name)”…") { editingPreset = preset }
                         }
                     }
-                    .controlSize(.small)
-                    if model.presetID != nil {
-                        Text("Written to sidecar files next to the copies; the copies stay identical to the originals.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                    .fixedSize()
                 }
-                Section("Videos") {
-                    Toggle("Include videos", isOn: $model.includesVideos)
-                    if !model.copiesOnly {
-                        Text("Videos are copied and catalogued like photos and play in the loupe. They cannot be edited.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                Section("After Importing") {
-                    Toggle("Delete originals from the source", isOn: $model.deletesOriginals)
-                    Toggle("Eject the card", isOn: $model.ejectsWhenDone)
-                        .disabled(model.source?.isEjectable != true)
+                if model.presetID != nil {
+                    Caption(text: String(localized: "Written to sidecar files next to the copies; the copies stay identical to the originals."))
                 }
             }
-            .formStyle(.grouped)
-            Divider()
-            ImportFooter(model: model)
-                .padding(12)
+            Section("After Import") {
+                Toggle(isOn: $model.deletesOriginals) {
+                    Text("Delete originals from “\(sourceName)”", comment: "Import option check box")
+                }
+                .toggleStyle(.checkbox)
+                Toggle(isOn: $model.ejectsWhenDone) {
+                    Text("Eject “\(sourceName)”", comment: "Import option check box")
+                }
+                .toggleStyle(.checkbox)
+                .disabled(model.source?.isEjectable != true)
+                Caption(text: String(localized: "Originals are deleted only after every copy is verified, and you're asked first."))
+            }
         }
+        .formStyle(.grouped)
         .sheet(item: $editingPreset) { preset in
             PresetEditor(preset: preset, onSave: model.savePreset, onDelete: { model.deletePreset($0) })
         }
     }
+
+    private var selectedPreset: MetadataPreset? {
+        model.presets.first { $0.id == model.presetID }
+    }
+
+    private var sourceName: String {
+        model.source?.name ?? String(localized: "the source", comment: "Import options, when no source is chosen")
+    }
 }
 
-private struct ImportFooter: View {
-    let model: CardImportModel
+/// 11 pt secondary text under the row it explains.
+private struct Caption: View {
+    let text: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if let progress = model.progress {
-                ProgressView(value: Double(progress.bytesDone), total: Double(max(progress.bytesTotal, 1))) {
-                    Text("Copying \(progress.currentName)")
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                } currentValueLabel: {
-                    Text("\(progress.filesDone) of \(progress.filesTotal) files · \(ByteCountFormatter.string(fromByteCount: progress.bytesDone, countStyle: .file)) of \(ByteCountFormatter.string(fromByteCount: progress.bytesTotal, countStyle: .file))")
-                        .monospacedDigit()
-                }
-            } else if let message = model.message {
-                Text(message)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            HStack {
-                Spacer()
-                if model.isImporting {
-                    Button("Stop", role: .cancel) { model.cancelImport() }
-                } else {
-                    Button("Import \(model.selectedShots.count) Photos") { model.startImport() }
-                        .keyboardShortcut(.defaultAction)
-                        .disabled(model.selectedShots.isEmpty)
-                }
-            }
-        }
+        Text(text)
+            .font(.system(size: 11))
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -463,38 +407,5 @@ private struct PresetEditor: View {
             .padding(12)
         }
         .frame(width: 460, height: 560)
-    }
-}
-
-/// Thumbnails of source files from their embedded previews (no RAW decoding
-/// when the file has one), decoded off the main thread and kept while the
-/// window is open.
-actor SourceThumbnails {
-    static let shared = SourceThumbnails()
-    private var cache: [URL: CGImage] = [:]
-
-    func thumbnail(for url: URL) async -> CGImage? {
-        if let cached = cache[url] { return cached }
-        if FileKind(pathExtension: url.pathExtension) == .video {
-            let poster = try? await VideoFrames.poster(of: url, longEdge: 360)
-            if let poster { cache[url] = poster }
-            return poster
-        }
-        let image = await Task.detached(priority: .userInitiated) { () -> CGImage? in
-            guard let source = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary)
-            else { return nil }
-            let options: [CFString: Any] = [
-                kCGImageSourceCreateThumbnailFromImageIfAbsent: true,
-                kCGImageSourceThumbnailMaxPixelSize: 360,
-                kCGImageSourceCreateThumbnailWithTransform: true,
-                kCGImageSourceShouldCacheImmediately: true,
-            ]
-            return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
-        }.value
-        if let image {
-            if cache.count > 4000 { cache.removeAll() }
-            cache[url] = image
-        }
-        return image
     }
 }

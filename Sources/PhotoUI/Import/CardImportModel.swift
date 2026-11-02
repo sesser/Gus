@@ -75,11 +75,15 @@ public final class CardImportModel {
         didSet { if oldValue != source { rescan(keepingPicks: false) } }
     }
     public private(set) var shots: [SourceShot] = []
-    /// The newest photo's camera, for the status bar.
+    /// The newest photo's camera, for the window's subtitle.
     public private(set) var camera: CameraSummary?
     public private(set) var isScanning = false
+    /// Why the source could not be read; the grid says so with Rescan.
+    public private(set) var readError: String?
     var selection: Set<URL> = []
     var showsDuplicates = false
+    /// The options inspector (View ▸ Show / Hide Options).
+    public var showsOptions = true
     /// Shots the person left out of this source, kept across its scans
     /// (`ImportSelection`). Cleared when the source changes.
     @ObservationIgnored private var leftOut: Set<URL> = []
@@ -143,7 +147,11 @@ public final class CardImportModel {
     private(set) var lastResult: CopyImportResult?
     /// Verified files waiting for the person to confirm their deletion.
     public var pendingDeletion: [URL]?
-    public var message: String?
+    /// "Imported 412 files": the subtitle after an import, until the
+    /// selection or the source changes.
+    public private(set) var doneText: String?
+    /// Cancellation, failures, eject failure: a window-modal alert.
+    public var alertText: String?
     @ObservationIgnored private var importTask: Task<Void, Never>?
 
     public var isImporting: Bool { importTask != nil }
@@ -226,14 +234,31 @@ public final class CardImportModel {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
-        panel.prompt = String(localized: "Choose")
+        panel.prompt = String(localized: "Choose Folder", comment: "Open panel prompt")
         panel.message = copiesOnly
             ? String(localized: "Choose a folder to import from. Its photos are copied to the destination folder.")
             : String(localized: "Choose a folder to import from. Its photos are copied into the library's folders.")
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        let chosen = ImportSource.describe(url)
-        if !sources.contains(chosen) { sources.append(chosen) }
-        source = chosen
+        Self.run(panel, in: window) { [weak self] url in
+            guard let self else { return }
+            let chosen = ImportSource.describe(url)
+            if !self.sources.contains(chosen) { self.sources.append(chosen) }
+            self.choose(chosen)
+        }
+    }
+
+    /// The import window, for window-modal panels (set by the window).
+    @ObservationIgnored public weak var window: NSWindow?
+
+    /// Attached to the import window as a sheet; app-modal only without one.
+    private static func run(_ panel: NSOpenPanel, in window: NSWindow?, then pick: @escaping @MainActor (URL) -> Void) {
+        guard let window else {
+            if panel.runModal() == .OK, let url = panel.url { pick(url) }
+            return
+        }
+        panel.beginSheetModal(for: window) { response in
+            guard response == .OK, let url = panel.url else { return }
+            MainActor.assumeIsolated { pick(url) }
+        }
     }
 
     func chooseDestination() {
@@ -242,10 +267,15 @@ public final class CardImportModel {
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
         panel.directoryURL = destination
-        panel.prompt = String(localized: "Choose")
+        panel.prompt = String(localized: "Choose Folder", comment: "Open panel prompt")
         panel.message = String(localized: "Choose where imported photos are copied to.")
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        destination = url
+        Self.run(panel, in: window) { [weak self] url in self?.destination = url }
+    }
+
+    /// The person picked a source: what the last import said is done with.
+    func choose(_ source: ImportSource) {
+        doneText = nil
+        self.source = source
     }
 
     /// Scans the source again. `keepingPicks`: the same source, so shots the
@@ -259,6 +289,7 @@ public final class CardImportModel {
         scanTask?.cancel()
         shots = []
         camera = nil
+        readError = nil
         selection = []
         guard let source else { return }
         let reader = metadataReader
@@ -275,7 +306,9 @@ public final class CardImportModel {
                 selection = ImportSelection.selection(for: marked, leftOut: keptOut)
             } catch is CancellationError {
             } catch {
-                post(String(localized: "Could not read \(source.name): \(error.localizedDescription)"), source: source, warning: true)
+                readError = error.localizedDescription
+                report(String(localized: "Could not read \(source.name): \(error.localizedDescription)"), source: source,
+                       warning: true)
             }
             isScanning = false
         }
@@ -299,10 +332,18 @@ public final class CardImportModel {
             selection.remove(shot.id)
         }
         lastClicked = shot.id
+        doneText = nil
     }
 
-    func selectAll() { selection = Set(shots.filter { !$0.isDuplicate }.map(\.id)) }
-    func selectNone() { selection = [] }
+    func selectAll() {
+        selection = Set(shots.filter { !$0.isDuplicate }.map(\.id))
+        doneText = nil
+    }
+
+    func selectNone() {
+        selection = []
+        doneText = nil
+    }
 
     // MARK: Presets
 
@@ -359,7 +400,8 @@ public final class CardImportModel {
             jobCode: job, firstCounter: counter,
             metadata: presets.first { $0.id == presetID }?.values)
         let importer = CopyImporter(catalog: library?.catalog, sidecars: library?.sidecars)
-        message = nil
+        doneText = nil
+        alertText = nil
         lastResult = nil
         progress = CopyImportProgress()
         importTask = Task {
@@ -384,11 +426,11 @@ public final class CardImportModel {
                 progress = nil
                 switch error {
                 case is CancellationError where copiesOnly:
-                    post(String(localized: "Import cancelled. Photos copied so far are in the destination folder."), source: source)
+                    alert(String(localized: "Import cancelled. Photos copied so far are in the destination folder."), source: source)
                 case is CancellationError:
-                    post(String(localized: "Import cancelled. Photos copied so far are in the library."), source: source)
+                    alert(String(localized: "Import cancelled. Photos copied so far are in the library."), source: source)
                 default:
-                    post(String(localized: "Import failed: \(error.localizedDescription)"), source: source, warning: true)
+                    alert(String(localized: "Import failed: \(error.localizedDescription)"), source: source, warning: true)
                 }
                 await library?.refreshProjects()
                 rescan(keepingPicks: true)
@@ -407,27 +449,35 @@ public final class CardImportModel {
         if delete {
             let failed = CopyImporter.deleteSources(urls)
             if !failed.isEmpty {
-                post(String(localized: "\(failed.count) files could not be deleted from \(source.name)."), source: source, warning: true)
+                alert(String(localized: "\(failed.count) files could not be deleted from \(source.name)."), source: source, warning: true)
             }
         }
         Task { await finish(result, source: source) }
     }
 
-    /// Shows a message in the window, and in the library's Activity item
-    /// titled Import from “‹source›” (section 1 of docs/UI_REDESIGN.md).
-    private func post(_ text: String, source: ImportSource, warning: Bool = false) {
-        message = text
+    /// Posts to the library's Activity item, titled Import from “‹source›”
+    /// (section 1 of docs/UI_REDESIGN.md).
+    private func report(_ text: String, source: ImportSource, warning: Bool = false) {
         library?.report(text, action: String(localized: "Import from “\(source.name)”", comment: "Activity row title: a copying import"),
                         warning: warning)
+    }
+
+    /// A window-modal alert in the import window, and the Activity row.
+    private func alert(_ text: String, source: ImportSource, warning: Bool = false) {
+        alertText = text
+        report(text, source: source, warning: warning)
     }
 
     private func finish(_ result: CopyImportResult, source: ImportSource) async {
         let failures = result.failures.count
         let copied = result.copied + result.alreadyAtDestination
-        if message == nil {
-            post(failures > 0
-                 ? String(localized: "Imported \(copied) files. \(failures) could not be copied.")
-                 : String(localized: "Imported \(copied) files."), source: source, warning: failures > 0)
+        if alertText == nil {
+            if failures > 0 {
+                alert(String(localized: "Imported \(copied) files. \(failures) could not be copied."), source: source, warning: true)
+            } else {
+                report(String(localized: "Imported \(copied) files."), source: source)
+                doneText = String(localized: "Imported \(copied) files", comment: "Import window subtitle after an import")
+            }
         }
         await library?.didFinishCopyImport(result)
         if ejectsWhenDone, source.isEjectable {
@@ -437,7 +487,7 @@ public final class CardImportModel {
                 self.source = nil
                 refreshSources()
             } else {
-                post(String(localized: "\(source.name) could not be ejected. It may still be in use."), source: source, warning: true)
+                alert(String(localized: "\(source.name) could not be ejected. It may still be in use."), source: source, warning: true)
             }
         } else {
             rescan(keepingPicks: true)
