@@ -1,0 +1,18 @@
+name: Core Image repro (temporary)
+
+on:
+  push:
+    branches: [feature/phase6]
+    paths: ["docs/feedback/**", ".github/workflows/repro.yml"]
+
+jobs:
+  repro:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-26, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - run: swift docs/feedback/blur-above-white/repro.swift
