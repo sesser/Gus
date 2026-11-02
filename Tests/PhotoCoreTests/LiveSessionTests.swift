@@ -215,7 +215,8 @@ struct LiveSessionTests {
     /// Known issue on macOS 26 only (finding 6): there Core Image's Gaussian blur
     /// over above-white values depends on how the render is split into passes
     /// (clarity and sharpening, both unsharp masks, moved by 0.11 in linear light;
-    /// macOS 15 and 27: 0.0006), so even the strict case differs.
+    /// macOS 15 and 27: 0.0006), so even the strict case differs. A standalone
+    /// reproduction for Apple: `docs/feedback/blur-above-white/`.
     @Test("Values above white survive the cached stages", arguments: [false, true])
     func aboveWhite(withEstimates: Bool) async throws {
         try await RepositoryFiles.withTemporaryDirectory { folder in
@@ -256,7 +257,9 @@ struct LiveSessionTests {
                     #expect(worst <= 0, "cached and whole differ beyond the tolerance by \(worst)")
                 }
             } else if ProcessInfo.processInfo.operatingSystemVersion.majorVersion == 26 {
-                withKnownIssue("macOS 26: Gaussian blur above white depends on how the render is split") {
+                // Intermittent: passes, rather than fails as an unexpected pass, once Apple fixes it.
+                withKnownIssue("macOS 26: Gaussian blur above white depends on how the render is split",
+                               isIntermittent: true) {
                     #expect(worst <= 0, "cached and whole differ beyond the tolerance by \(worst)")
                 }
             } else {
