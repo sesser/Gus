@@ -1,8 +1,7 @@
 # UI redesign: window, navigation, menus and inspector
 
-Status: **proposed** (2026-11-02). The decisions below were approved,
-with three Import questions still open (see "Open"). Nothing is
-implemented yet.
+Status: **proposed** (2026-11-02). The decisions below were approved.
+Nothing is implemented yet.
 
 The library window grew one feature at a time, and it shows: the sidebar
 and the inspector are built from two different hand-made heading styles,
@@ -64,17 +63,15 @@ Import and Export).
     watermark. Import is a window with a toolbar and an options inspector,
     shared unchanged by the standalone importer. One form idiom for both
     (section 8).
-
-## Open
-
-- **New keys in the Import window:** ⌘O Choose Folder…, ⌘R Rescan, ⇧⌘A
-  Deselect All, ⌘. Stop Import. None clash with the library app.
-- **Shared grid code:** `UniformGridLayout` and the `Badges` renderer move
-  from PhotoApp into PhotoUI so the Import grid uses the library grid's
-  machinery. The fallback is a SwiftUI grid with focus and keys added,
-  which would look less alike.
-- **Template fields:** bezeled text with an Insert menu, or token pills
-  (`NSTokenField`) later.
+17. **New Import keys approved:** ⌘O Choose Folder…, ⌘R Rescan, ⇧⌘A
+    Deselect All, ⌘. Stop Import.
+18. **One grid for both windows.** `UniformGridLayout`, the `Badges`
+    renderer and the shared cell parts move from PhotoApp into PhotoUI;
+    the library grid and the Import grid are built from them. Consistency
+    and reusable modules win over a quicker SwiftUI-only Import grid.
+19. **Template fields are token fields.** Tokens such as
+    `{capture:yyyy}` show as labeled pills ("Capture Year"), so people who
+    don't know the syntax can read and edit templates.
 
 ## Audit (most severe first)
 
@@ -445,7 +442,7 @@ default size")
 | Container | `Form` with `.formStyle(.grouped)`, regular control size | one system idiom (F16) |
 | Sections | `Section("Title")`; no section for a single control; no header that repeats its only row | hierarchy (F27, F30) |
 | Text and number fields | `.textFieldStyle(.roundedBorder)`; numbers right-aligned in 72 pt with the unit after | fields must look editable (HIG: Text fields; F23, F24) |
-| Templates | a full-width bezeled monospaced field, left-aligned, with an **Insert** pull-down (`Menu`, items like "Capture year  {capture:yyyy}"); the example directly under it in 11 pt monospaced secondary text, left-aligned, wrapping | readable, never red (F23) |
+| Templates | a full-width `NSTokenField` (shared in PhotoUI, replacing `TemplateField`'s text field): each token is a pill with a readable name ("Capture Year", "File Name", "Job Code") and literal text between pills is plain; an **Insert** pull-down lists the tokens by name; copy and paste and the stored template keep the `{capture:yyyy}` syntax, so templates and presets don't change; the example directly under it in 11 pt secondary text, left-aligned, wrapping | readable by people who don't know the syntax, never red (decision 19, F23) |
 | On / off options | `Toggle` with `.toggleStyle(.checkbox)`; no switches | HIG: Toggles (F27) |
 | Choices | segmented only when the choice changes the rows below (Name, Format); pop-up otherwise; a radio group for up to five long labels (Metadata) | HIG: Toggles, Pop-up buttons |
 | Sliders | continuous (no `step:`; round in the binding), value text 44 pt, monospaced digits | no tick-mark noise (HIG: Sliders; F24) |
@@ -665,17 +662,22 @@ and updates the debug-script commands for views it removes.
    slider row, Adjust order and names, Info typography. (F2, F3, F6–F9, F15)
 9. **Color and appearance.** (F14, F9)
 10. **Import fix:** Show Videos keeps the user's picks when it rescans.
-    Can ship first. (F27)
+    Can ship first. ([sesser/Gus#19](https://github.com/sesser/Gus/issues/19), F27)
 11. **Export sheet:** single column, preview inside Watermark, bezeled
     number fields, continuous sliders, the preset pop-up, Show in Finder
     under Destination. (F16, F24–F26, F30, F31)
-12. **Import window:** toolbar, options inspector, `ImportCommands`, the
-    grid on `NSCollectionView` with check boxes, states, system appearance;
-    the standalone importer gets it unchanged. (F11, F20–F23, F27–F29, F32)
-13. **Other sheets and panels:** the look-up table browser and Presets as
+12. **Shared grid and token field in PhotoUI:** move `UniformGridLayout`,
+    `Badges` and the cell parts out of PhotoApp (library grid unchanged on
+    screen); add the template token field and use it in Import and Export.
+    (decisions 18, 19; F22, F23)
+13. **Import window:** toolbar, options inspector, `ImportCommands`, the
+    grid on the shared `NSCollectionView` with check boxes, states, system
+    appearance; the standalone importer gets it unchanged. (F11, F20–F22,
+    F27–F29, F32)
+14. **Other sheets and panels:** the look-up table browser and Presets as
     sheets with in-sheet pages, window-modal panels, the keyword popover.
     (F16)
-14. **Review mode.**
+15. **Review mode.**
 
 ## References
 
