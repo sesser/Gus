@@ -62,10 +62,34 @@ for name in PRODUCT_NAME PRODUCT_DISPLAY_NAME PRODUCT_BUNDLE_IDENTIFIER PRODUCT_
 done
 
 cd "$ROOT"
-swift build -c "$CONFIGURATION" --product "$SWIFT_PRODUCT"
-swift build -c "$CONFIGURATION" --product catalog-strings
-swift build -c "$CONFIGURATION" --product app-icon
-BIN=$(swift build -c "$CONFIGURATION" --show-bin-path)
+
+# The SDK an app links against, not its minimum, decides which design macOS
+# runs it in: built with the macOS 26 SDK or later it gets the current one.
+# Swift Build (SwiftPM's default build system) links through swiftc, which
+# hands clang the SDK as --sysroot, and clang reads the SDK version only from
+# -isysroot or SDKROOT, which Swift Build does not pass on. Without -isysroot
+# the executable records its minimum (15.0) as its SDK.
+SDK_PATH=$(xcrun --sdk macosx --show-sdk-path)
+swift_build() {
+    swift build -c "$CONFIGURATION" \
+        -Xswiftc -Xclang-linker -Xswiftc -isysroot -Xswiftc -Xclang-linker -Xswiftc "$SDK_PATH" "$@"
+}
+
+swift_build --product "$SWIFT_PRODUCT"
+swift_build --product catalog-strings
+swift_build --product app-icon
+BIN=$(swift_build --show-bin-path)
+
+LINKED_SDK=$(vtool -show-build "$BIN/$SWIFT_PRODUCT" | awk '$1 == "sdk" { print $2; exit }')
+case ${LINKED_SDK%%.*} in
+    ''|*[!0-9]*) LINKED_MAJOR=0 ;;
+    *) LINKED_MAJOR=${LINKED_SDK%%.*} ;;
+esac
+if [ "$LINKED_MAJOR" -lt 26 ]; then
+    echo "error: $SWIFT_PRODUCT links the macOS ${LINKED_SDK:-unknown} SDK; the app needs the macOS 26 SDK or later" \
+         "(Xcode 26 or later, selected with xcode-select)" >&2
+    exit 1
+fi
 
 APP="$ROOT/build/$PRODUCT_NAME.app"
 rm -rf "$APP"

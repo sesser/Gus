@@ -58,12 +58,24 @@ bundle (Info.plist from `Branding.xcconfig`, String Catalog compiled by the
 `catalog-strings` tool, ad-hoc signature); `importer` builds the standalone
 importer and `all` builds both.
 
+The app's minimum is macOS 15, but the SDK it links decides its look: linked
+with the macOS 26 SDK or later it runs in the current design on 26+, linked
+with an older one in the earlier design. `build-app.sh` needs Xcode 26 or
+later and fails if the executable records an older SDK. It passes the SDK to
+clang as `-isysroot` when linking: SwiftPM's default build system (Swift
+Build) gives clang only `--sysroot`, so a plain `swift build` executable
+records its minimum (15.0) as its SDK version (`vtool -show-build`). Use the
+bundle, not `swift run`, to look at the UI.
+
 To check UI changes without screen recording permission, run the bundle's
 executable with `--library-root <folder> --debug-script "wait 2; snapshot /tmp/a.png; quit"`
 (see `Sources/PhotoApp/Model/DebugScript.swift` for every command: keywords,
-albums, sidecars, the import window, folder drops…). App launch options must always take a
-value: AppKit treats a stray argument as a document and then does not open the
-main window. A process started from a shell is not the active app, so it has
+albums, sidecars, the import window, folder drops…). In the current design
+`snapshot` leaves the glass panes (sidebar, inspector, toolbar items) blank:
+it renders the window's layers, which cannot draw them. The content area
+comes out right; check the panes with `buttons`, `hit` and `print`. App
+launch options must always take a value: AppKit treats a stray argument as a
+document and then does not open the main window. A process started from a shell is not the active app, so it has
 no key window: scripted keys go straight to the window, and local event
 monitors (the video loupe's) never see them. To test those, launch with
 `open -W -n --stdout <log> build/*.app --args …`, which activates the app.
@@ -213,10 +225,12 @@ compatible and never put `#` comment lines inside pasted command snippets.
   and cancellable; no image decoding on the main thread. Images are fully
   decoded and converted to the window's color space (BGRA) before they reach
   layers, otherwise Core Animation converts them on the main thread at commit.
-- **No SwiftUI `ScrollView` under the toolbar.** Because the app supports macOS 15,
-  macOS 26+ runs it in the earlier design, where such a scroll view (the
-  inspector's) swallows every click. Use `AppKitScrollView`; inspector buttons
-  are `AppKitButton`s, which the debug script's `click` can drive.
+- **No SwiftUI `ScrollView` under the toolbar.** On macOS 26+ in the earlier
+  design (the app linked with the macOS 15 SDK) such a scroll view (the
+  inspector's) swallowed every click. The SDK, not the minimum, chose that
+  design, but older systems still get it, so keep `AppKitScrollView`;
+  inspector buttons are `AppKitButton`s, which the debug script's `click` can
+  drive.
 - **Metadata** goes through the `MetadataReader` protocol. ExifTool
   (`-stay_open` subprocess) is the default when installed; ImageIO is the
   in-process fallback; videos always go through AVFoundation.
