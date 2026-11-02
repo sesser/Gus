@@ -37,6 +37,46 @@ struct LoupeZoomState: Equatable {
     var isZoomed = false
     var canZoomIn = false
     var canZoomOut = false
+    /// Exactly 100 % (the toolbar's Fit / 100% shows neither at other steps).
+    var isActualSize = false
+}
+
+extension SidebarSelection {
+    /// Names the source in user defaults ("album:12"): the restored selection
+    /// and each source's filter and sort.
+    var storageKey: String {
+        switch self {
+        case .allPhotos: "all"
+        case .builtIn(let album): "builtIn:\(album.rawValue)"
+        case .year(let year): "year:\(year)"
+        case .month(let year, let month): "month:\(year)-\(month)"
+        case .project(let id): "project:\(id)"
+        case .album(let id): "album:\(id)"
+        case .smartAlbum(let id): "smartAlbum:\(id)"
+        case .keyword(let id): "keyword:\(id)"
+        case .changedOnDisk: "changedOnDisk"
+        }
+    }
+
+    init?(storageKey: String) {
+        let parts = storageKey.split(separator: ":", maxSplits: 1).map(String.init)
+        let value = parts.count > 1 ? parts[1] : ""
+        switch parts.first {
+        case "all": self = .allPhotos
+        case "changedOnDisk": self = .changedOnDisk
+        case "builtIn": guard let album = BuiltInAlbum(rawValue: value) else { return nil }; self = .builtIn(album)
+        case "year": guard let year = Int(value) else { return nil }; self = .year(year)
+        case "month":
+            let numbers = value.split(separator: "-").compactMap { Int($0) }
+            guard numbers.count == 2 else { return nil }
+            self = .month(year: numbers[0], month: numbers[1])
+        case "project": guard let id = Int64(value) else { return nil }; self = .project(id)
+        case "album": guard let id = Int64(value) else { return nil }; self = .album(id)
+        case "smartAlbum": guard let id = Int64(value) else { return nil }; self = .smartAlbum(id)
+        case "keyword": guard let id = Int64(value) else { return nil }; self = .keyword(id)
+        default: return nil
+        }
+    }
 }
 
 /// The smart albums every library has.
@@ -101,7 +141,9 @@ final class LibraryModel {
     /// Bumped when new suggestions are stored or their state changes.
     var suggestionRevision = 0
     /// Background keyword analysis in progress.
-    var suggestionProgress: (done: Int, total: Int)?
+    var suggestionProgress: (done: Int, total: Int)? {
+        didSet { if (oldValue == nil) != (suggestionProgress == nil) { suggestionStarted = suggestionProgress == nil ? nil : Date() } }
+    }
     var albums: [AlbumSummary] = []
     var smartAlbums: [SmartAlbum] = []
     var captureMonths: [CaptureMonth] = []
@@ -137,20 +179,36 @@ final class LibraryModel {
         }
     }
 
+    /// Remembered across launches; each source keeps its own filter and sort.
     var sidebarSelection: SidebarSelection = .allPhotos {
-        didSet { if oldValue != sidebarSelection { reloadItems(keepFocus: false) } }
+        didSet {
+            guard oldValue != sidebarSelection else { return }
+            UserDefaults.standard.set(sidebarSelection.storageKey, forKey: Self.sidebarSelectionKey)
+            applySourceSettings()
+            reloadItems(keepFocus: false)
+        }
     }
     var ratingRule: LibraryFilter.RatingRule = .any {
-        didSet { if oldValue != ratingRule { reloadItems(keepFocus: true) } }
+        didSet {
+            guard oldValue != ratingRule else { return }
+            saveSourceSettings()
+            reloadItems(keepFocus: true)
+        }
     }
     var flagRule: LibraryFilter.FlagRule = .any {
-        didSet { if oldValue != flagRule { reloadItems(keepFocus: true) } }
+        didSet {
+            guard oldValue != flagRule else { return }
+            saveSourceSettings()
+            reloadItems(keepFocus: true)
+        }
     }
 
-    /// The filter bar's search field; reloads a moment after typing stops.
+    /// The toolbar's search field; reloads a moment after typing stops.
     var searchText = "" {
         didSet {
-            guard LibraryFilter(search: oldValue).searchTerms != LibraryFilter(search: searchText).searchTerms else { return }
+            if oldValue != searchText { saveSourceSettings() }
+            guard LibraryFilter(search: oldValue).searchTerms != LibraryFilter(search: searchText).searchTerms,
+                  !isApplyingSourceSettings else { return }
             searchTask?.cancel()
             searchTask = Task {
                 try? await Task.sleep(for: .milliseconds(250))
@@ -162,8 +220,12 @@ final class LibraryModel {
     var sort: LibrarySort {
         didSet {
             guard oldValue != sort else { return }
-            UserDefaults.standard.set(sort.key.rawValue, forKey: Self.sortKeyKey)
-            UserDefaults.standard.set(sort.ascending, forKey: Self.sortAscendingKey)
+            // The last sort chosen is the default for sources without one.
+            if !isApplyingSourceSettings {
+                UserDefaults.standard.set(sort.key.rawValue, forKey: Self.sortKeyKey)
+                UserDefaults.standard.set(sort.ascending, forKey: Self.sortAscendingKey)
+            }
+            saveSourceSettings()
             reloadItems(keepFocus: true)
         }
     }
@@ -171,6 +233,33 @@ final class LibraryModel {
     var filter: LibraryFilter {
         LibraryFilter(scope: scope(for: sidebarSelection), rating: ratingRule, flag: flagRule, search: searchText,
                       sort: sort, groupsPairs: groupPairs)
+    }
+
+    @ObservationIgnored private let sourceSettings = SourceViewSettingsStore()
+    @ObservationIgnored private var isApplyingSourceSettings = false
+
+    /// The default sort for a source with no settings: the last one chosen.
+    private var defaultSort: LibrarySort {
+        let defaults = UserDefaults.standard
+        return LibrarySort(key: defaults.string(forKey: Self.sortKeyKey).flatMap(LibrarySort.Key.init(rawValue:)) ?? .captureDate,
+                           ascending: defaults.object(forKey: Self.sortAscendingKey) as? Bool ?? true)
+    }
+
+    /// Takes the selected source's filter and sort (one reload follows).
+    private func applySourceSettings() {
+        let settings = sourceSettings.settings(for: sidebarSelection.storageKey, defaultSort: defaultSort)
+        isApplyingSourceSettings = true
+        defer { isApplyingSourceSettings = false }
+        ratingRule = settings.rating
+        flagRule = settings.flag
+        searchText = settings.search
+        sort = settings.sort
+    }
+
+    private func saveSourceSettings() {
+        guard !isApplyingSourceSettings else { return }
+        sourceSettings.save(SourceViewSettings(rating: ratingRule, flag: flagRule, search: searchText, sort: sort),
+                            for: sidebarSelection.storageKey, defaultSort: defaultSort)
     }
 
     func clearFilter() {
@@ -309,6 +398,7 @@ final class LibraryModel {
     private static let loupeInspectorTabKey = "loupe.inspectorTab"
     private static let writesSidecarsKey = "sidecars.write"
     private static let opensImportOnCardKey = "import.openOnCard"
+    private static let sidebarSelectionKey = "sidebar.selection"
     private static let sortKeyKey = "browser.sortKey"
     private static let sortAscendingKey = "browser.sortAscending"
 
@@ -319,8 +409,45 @@ final class LibraryModel {
     private(set) var importBatch: ImportBatchPosition?
     /// Folders from Finder are being dragged over the browser.
     var isFolderDropTargeted = false
-    private(set) var warming: (done: Int, total: Int)?
-    var statusMessage: String?
+    private(set) var warming: (done: Int, total: Int)? {
+        didSet { if (oldValue == nil) != (warming == nil) { warmingStarted = warming == nil ? nil : Date() } }
+    }
+    /// Messages for the toolbar's Activity popover (the status bar is gone).
+    var statusMessage: String? {
+        didSet { if let statusMessage { activity.post(statusMessage) } }
+    }
+    private(set) var activity = ActivityLog()
+    /// Photos in the selected source before rating, flag and search.
+    private(set) var sourceTotal: Int?
+    /// When rendering previews and suggesting keywords started: the Activity
+    /// item shows them only after `ActivityLog.backgroundDelay`.
+    @ObservationIgnored private(set) var warmingStarted: Date? {
+        didSet { if warmingStarted != nil { scheduleActivityTick() } }
+    }
+    @ObservationIgnored private(set) var suggestionStarted: Date? {
+        didSet { if suggestionStarted != nil { scheduleActivityTick() } }
+    }
+    /// Bumped when a background job passes its delay, to show it.
+    private(set) var activityTick = 0
+    /// Batch Auto Exposure measuring the grid's selection.
+    private(set) var batchAutoProgress: (done: Int, total: Int)?
+    @ObservationIgnored var batchAutoTask: Task<Void, Never>?
+
+    private func scheduleActivityTick() {
+        Task {
+            try? await Task.sleep(for: .seconds(ActivityLog.backgroundDelay))
+            activityTick += 1
+        }
+    }
+
+    /// The Activity popover was opened.
+    func markActivitySeen() {
+        activity.markSeen()
+    }
+
+    func setBatchAutoProgress(_ progress: (done: Int, total: Int)?) {
+        batchAutoProgress = progress
+    }
     private(set) var onlineVolumeIDs: Set<Int64> = []
 
     @ObservationIgnored weak var observer: LibraryItemsObserver?
@@ -377,10 +504,16 @@ final class LibraryModel {
         writesSidecars = defaults.object(forKey: Self.writesSidecarsKey) as? Bool ?? true
         sort = LibrarySort(key: defaults.string(forKey: Self.sortKeyKey).flatMap(LibrarySort.Key.init(rawValue:)) ?? .captureDate,
                            ascending: defaults.object(forKey: Self.sortAscendingKey) as? Bool ?? true)
+        // The source selected last time, with its filter and sort (checked
+        // against the catalog once projects, albums and keywords are loaded).
+        if let restored = defaults.string(forKey: Self.sidebarSelectionKey).flatMap(SidebarSelection.init(storageKey:)) {
+            sidebarSelection = restored
+        }
         sidecars = SidecarSync(catalog: catalog, metadataReader: importer.metadataReader)
         cardImport = CardImportModel(metadataReader: importer.metadataReader, presets: catalog)
         opensImportOnCard = defaults.object(forKey: Self.opensImportOnCardKey) as? Bool ?? true
         cardImport.library = self
+        applySourceSettings()
         editor.library = self
         lookTableLibrary.library = self
         presetPreviews.library = self
@@ -452,6 +585,18 @@ final class LibraryModel {
                 let items = try await catalog.libraryItems(matching: filter)
                 guard !Task.isCancelled else { return }
                 apply(items, focusVersionID: focusID)
+                // For "87 of 4,623 · Filtered".
+                if isFiltered {
+                    var whole = filter
+                    whole.rating = .any
+                    whole.flag = .any
+                    whole.search = ""
+                    let total = try? await catalog.itemCount(matching: whole)
+                    guard !Task.isCancelled else { return }
+                    sourceTotal = total
+                } else {
+                    sourceTotal = items.count
+                }
             } catch is CancellationError {
             } catch {
                 Self.log.error("Loading items failed: \(error.localizedDescription, privacy: .public)")
@@ -1102,7 +1247,7 @@ final class LibraryModel {
 
 extension LibraryModel: CardImportLibrary {}
 
-/// Where a batch of folder imports stands, for the status bar.
+/// Where a batch of folder imports stands, for the Activity item.
 struct ImportBatchPosition: Equatable {
     /// The folder being imported, as its project will be named.
     var name: String

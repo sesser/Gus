@@ -31,9 +31,9 @@ the same place. Originals are never moved, copied or modified.
 You can also drag one or more folders from Finder onto the browser (grid or
 loupe) or the sidebar's Projects list. Each folder is imported the same way, in
 place, as its own project named after it; several import one after another,
-with the folder and its place in the batch shown in the status bar. Folders
+with the folder and its place in the batch shown in the toolbar's Activity item. Folders
 dropped while an import runs join the queue. Files and packages among the
-dropped items are ignored (the status bar says how many), and a folder inside
+dropped items are ignored (Activity says how many), and a folder inside
 another dropped folder is imported with it. A project of the same name already
 in the library is left alone: the import makes a new project holding only the
 photos the library does not have yet, and a folder with nothing new makes none.
@@ -59,9 +59,13 @@ photos the library does not have yet, and a folder with nothing new makes none.
 
 Changes are saved to the catalog immediately. In the grid they apply to every
 selected photo. **Photo ▸ Advance After Rating** moves on to the next photo after
-each change. Rating and flag filters live at the bottom of the sidebar; photos
-that stop matching stay visible until the filter changes, so they do not jump
-away while you cull.
+each change. Rating and flag filters, the sort order and the search field are
+in the toolbar (the Filter and Sort menu, and **View ▸ Filter** and **Sort
+By**); each sidebar source keeps its own, and the source selected last is
+selected again at launch. Photos that stop matching stay visible until the
+filter changes, so they do not jump away while you cull. The toolbar's
+Activity item shows imports, exports and other work in progress, with Stop,
+and the latest messages.
 
 A RAW file and a JPEG or HEIC with the same name in the same folder are a
 pair. **View ▸ Group RAW+JPEG Pairs** shows each pair once, as the RAW unless
@@ -186,7 +190,7 @@ from its RAW; videos are not exported. The window sets:
 Settings can be saved as **presets**. When files with the same names are
 already in the folder, the window asks once whether to keep both (the new files
 get numbered names), replace them or skip them. The export runs in the
-background, with progress and a stop button in the status bar. If anything
+background, with progress and Stop in the toolbar's Activity item. If anything
 could not be exported (an offline volume, for instance), an alert says why. The
 Finder can show the files when it is done.
 

@@ -9,12 +9,13 @@ import PhotoUI
 ///     loupe | grid          size <points>           focus <index>|<file name without extension>
 ///     zoom                  project <n>|all         rating any|unrated|<1-5>
 ///     flag any|picked|rejected|unflagged|notrejected                 quit
-///     search [<text>]       (the filter bar's search; empty clears)
+///     search [<text>]       (the toolbar's search; empty clears)
 ///     sort captureDate|rating|fileName [asc|desc]
 ///     pairs grouped|separate  pairfile raw|jpeg     advance on|off
 ///     selectall             addkeywords <a, b>      keyentry      text <typed text>
 ///     undo | redo           inspector on|off        keyword <n>   (sidebar keyword n, 0-based)
 ///     print <what>          (state for checks: selection, keywords, undo, suggestions, items, hdr, announcement,
+///                           title (title, subtitle, filter and sort), activity,
 ///                           loupe [<x> <y>]: mode, magnification, visible rect, image point under x y)
 ///     suggest               (analyzes the selection and waits)      accept <keyword>
 ///     album <name>          (from the selection)    smartalbum <name>  (rating ≥ 3)     remove
@@ -669,6 +670,13 @@ enum DebugScript {
 
     private static func printState(_ what: String, model: LibraryModel) {
         switch what {
+        case "title":
+            print("debug-script: title \(model.windowTitle) | \(model.windowSubtitle) | rating \(model.ratingRule) flag \(model.flagRule)"
+                  + " search '\(model.searchText)' sort \(model.sort.key.rawValue) \(model.sort.ascending ? "asc" : "desc")")
+        case "activity":
+            let jobs = ActivityToolbarItem.jobs(model).map(\.title).joined(separator: "; ")
+            print("debug-script: activity visible \(ActivityToolbarItem.isVisible(model)) jobs [\(jobs)] unseen \(model.activity.unseenCount)"
+                  + " last \(model.activity.messages.last?.text ?? "-")")
         case "announcement":
             print("debug-script: announcement \(AccessibilityText.lastAnnouncement ?? "-")")
         case "hdr":

@@ -1,0 +1,98 @@
+import Foundation
+import Testing
+@testable import PhotoCore
+
+@Suite("Per-source filter and sort")
+struct SourceViewSettingsTests {
+    private func store() -> (SourceViewSettingsStore, UserDefaults) {
+        let defaults = UserDefaults(suiteName: "SourceViewSettingsTests-\(UUID().uuidString)")!
+        return (SourceViewSettingsStore(defaults: defaults), defaults)
+    }
+
+    @Test func eachSourceKeepsItsOwnSettings() {
+        let (store, _) = store()
+        let picks = SourceViewSettings(rating: .atLeast(Rating(clamping: 3)), flag: .picked, search: "sony",
+                                       sort: LibrarySort(key: .rating, ascending: false))
+        store.save(picks, for: "album:4")
+        #expect(store.settings(for: "album:4") == picks)
+        #expect(store.settings(for: "all") == SourceViewSettings())
+    }
+
+    @Test func survivesANewStoreOnTheSameDefaults() {
+        let (store, defaults) = store()
+        let settings = SourceViewSettings(rating: .unrated, flag: .notRejected, sort: LibrarySort(key: .fileName))
+        store.save(settings, for: "keyword:9")
+        #expect(SourceViewSettingsStore(defaults: defaults).settings(for: "keyword:9") == settings)
+    }
+
+    @Test func aSourceWithoutSettingsTakesTheDefaultSort() {
+        let (store, _) = store()
+        let sort = LibrarySort(key: .rating, ascending: false)
+        #expect(store.settings(for: "project:2", defaultSort: sort) == SourceViewSettings(sort: sort))
+    }
+
+    @Test func defaultsAreNotStoredAndRemovedSourcesAreForgotten() {
+        let (store, defaults) = store()
+        store.save(SourceViewSettings(flag: .rejected), for: "album:1")
+        store.save(SourceViewSettings(), for: "album:2")
+        let data = defaults.data(forKey: "browser.sourceSettings") ?? Data()
+        let saved = try? JSONDecoder().decode([String: SourceViewSettings].self, from: data)
+        #expect(saved?.keys.sorted() == ["album:1"])
+        store.remove("album:1")
+        #expect(store.settings(for: "album:1") == SourceViewSettings())
+    }
+
+    @Test func everyRuleRoundTrips() throws {
+        let rules: [LibraryFilter.RatingRule] = [.any, .unrated, .atLeast(Rating(clamping: 2)), .exactly(Rating(clamping: 5))]
+        for rating in rules {
+            for flag in LibraryFilter.FlagRule.allCases {
+                let settings = SourceViewSettings(rating: rating, flag: flag, search: "a, b",
+                                                  sort: LibrarySort(key: .fileName, ascending: false))
+                let data = try JSONEncoder().encode(settings)
+                #expect(try JSONDecoder().decode(SourceViewSettings.self, from: data) == settings)
+            }
+        }
+    }
+}
+
+@Suite("Browser subtitle")
+struct BrowserSubtitleTests {
+    @Test func countsPhotosSelectionAndFilter() {
+        #expect(BrowserSubtitle.grid(shown: 4623, total: 4623, selected: 1, isFiltered: false) == .photos(4623))
+        #expect(BrowserSubtitle.grid(shown: 4623, total: 4623, selected: 12, isFiltered: false)
+            == .selected(12, of: 4623, filtered: false))
+        #expect(BrowserSubtitle.grid(shown: 87, total: 4623, selected: 1, isFiltered: true) == .filtered(87, of: 4623))
+        #expect(BrowserSubtitle.grid(shown: 87, total: 4623, selected: 5, isFiltered: true)
+            == .selected(5, of: 87, filtered: true))
+    }
+
+    @Test func aTotalNotYetCountedIsTheShownCount() {
+        #expect(BrowserSubtitle.grid(shown: 87, total: nil, selected: 0, isFiltered: true) == .filtered(87, of: 87))
+    }
+
+    @Test func theLoupeSaysWhereThePhotoIs() {
+        #expect(BrowserSubtitle.loupe(index: 11, shown: 87) == .position(12, of: 87))
+    }
+}
+
+@Suite("Activity")
+struct ActivityLogTests {
+    @Test func keepsRecentMessagesNewestLastAndCountsUnseen() {
+        var log = ActivityLog(limit: 3)
+        for text in ["a", "b", "c", "d"] { log.post(text) }
+        #expect(log.messages.map(\.text) == ["b", "c", "d"])
+        #expect(log.unseenCount == 3)
+        log.markSeen()
+        #expect(log.unseenCount == 0)
+        log.post("b")
+        #expect(log.messages.map(\.text) == ["c", "d", "b"])
+        #expect(log.unseenCount == 1)
+    }
+
+    @Test func backgroundJobsShowAfterADelay() {
+        let start = Date(timeIntervalSinceReferenceDate: 0)
+        #expect(ActivityLog.shows(background: false, startedAt: start, now: start))
+        #expect(!ActivityLog.shows(background: true, startedAt: start, now: start.addingTimeInterval(4.9)))
+        #expect(ActivityLog.shows(background: true, startedAt: start, now: start.addingTimeInterval(5)))
+    }
+}

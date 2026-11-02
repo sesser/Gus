@@ -16,6 +16,7 @@ final class Pending<Value> {
 
 enum LoupeZoomStep {
     static let zoomInKey = "zoomIn"
+    static let fitKey = "fit"
 }
 
 extension Notification.Name {
@@ -27,6 +28,8 @@ extension Notification.Name {
     /// The loupe should zoom one step in or out (View ▸ Zoom In / Zoom Out);
     /// `LoupeZoomStep.zoomInKey` says which.
     static let loupeShouldStepZoom = Notification.Name("loupeShouldStepZoom")
+    /// The loupe should fit the photo (`LoupeZoomStep.fitKey` true) or show it at 100 %.
+    static let loupeShouldSetZoom = Notification.Name("loupeShouldSetZoom")
     /// The search field should take keyboard focus (Edit ▸ Find ▸ Find…).
     static let searchShouldTakeFocus = Notification.Name("searchShouldTakeFocus")
 }

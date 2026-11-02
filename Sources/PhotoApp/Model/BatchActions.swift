@@ -15,9 +15,15 @@ extension LibraryModel {
             return BatchEdit.Candidate(versionID: item.versionID, isVideo: item.isVideo, needsMaster: needsMaster(item),
                                        isOnline: !isOffline(item))
         })
-        // TODO(UI redesign step 5): report `selection.skipped` (videos, offline
-        // masters) in the toolbar's Activity item. There is nowhere to say it
-        // before then, and no new UI is wanted for it.
+        // Said in the toolbar's Activity item.
+        if selection.skippedVideos > 0 {
+            statusMessage = String(localized: "\(selection.skippedVideos) videos were left unchanged.",
+                                   comment: "Activity, after a batch adjustment on the grid's selection")
+        }
+        if selection.skippedOffline > 0 {
+            statusMessage = String(localized: "\(selection.skippedOffline) photos were left unchanged: their originals are offline.",
+                                   comment: "Activity, after a batch adjustment that reads the originals")
+        }
         return selection
     }
 
@@ -75,21 +81,32 @@ extension LibraryModel {
         let catalog = self.catalog
         let adjuster = AutoAdjuster(generator: previews.interactiveGenerator)
         let actionName = String(localized: "Auto Exposure", comment: "Undo action name")
-        // TODO(UI redesign step 5): show this measuring in the Activity item.
-        Task {
+        // Measured one photo at a time with progress in the Activity item;
+        // Stop there writes nothing.
+        batchAutoTask?.cancel()
+        setBatchAutoProgress((0, sources.count))
+        batchAutoTask = Task {
+            defer {
+                setBatchAutoProgress(nil)
+                batchAutoTask = nil
+            }
             guard let stored = try? await catalog.editStacks(forVersions: sources.map(\.0)) else { return }
-            let measured = await Task.detached(priority: .userInitiated) {
-                var values: [Int64: Double] = [:]
-                for (id, url) in sources {
-                    guard let stack = stored.stacks[id],
-                          let ev = try? adjuster.exposure(source: url, adjustments: Adjustments(stack: stack)) else { continue }
-                    values[id] = ev
+            var measured: [Int64: Double] = [:]
+            for (index, (id, url)) in sources.enumerated() {
+                guard !Task.isCancelled else { return }
+                if let stack = stored.stacks[id],
+                   let ev = await Task.detached(priority: .userInitiated, operation: {
+                       try? adjuster.exposure(source: url, adjustments: Adjustments(stack: stack))
+                   }).value {
+                    measured[id] = ev
                 }
-                return values
-            }.value
-            changeAdjustments(ofVersions: Array(measured.keys), actionName: actionName) { id, values in
+                setBatchAutoProgress((index + 1, sources.count))
+            }
+            guard !Task.isCancelled else { return }
+            let exposures = measured
+            changeAdjustments(ofVersions: Array(exposures.keys), actionName: actionName) { id, values in
                 var values = values
-                if let ev = measured[id] { values.exposure.ev = ev }
+                if let ev = exposures[id] { values.exposure.ev = ev }
                 return values
             }
         }

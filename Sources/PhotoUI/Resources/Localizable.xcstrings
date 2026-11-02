@@ -460,29 +460,6 @@
         }
       }
     },
-    "%lld photos match the filter" : {
-      "comment" : "Window subtitle",
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld photo matches the filter"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld photos match the filter"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "%lld photos selected" : {
       "comment" : "Inspector",
       "localizations" : {
@@ -529,6 +506,29 @@
         }
       }
     },
+    "%lld photos were left unchanged: their originals are offline." : {
+      "comment" : "Activity, after a batch adjustment that reads the originals",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photo was left unchanged: its original is offline."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photos were left unchanged: their originals are offline."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld photos were skipped because their files already exist." : {
       "comment" : "Export report",
       "localizations" : {
@@ -548,6 +548,17 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "%lld selected of %lld" : {
+      "comment" : "Window subtitle: how many photos are selected, of how many shown",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld selected of %lld"
           }
         }
       }
@@ -598,6 +609,29 @@
         }
       }
     },
+    "%lld videos were left unchanged." : {
+      "comment" : "Activity, after a batch adjustment on the grid's selection",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld video was left unchanged."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld videos were left unchanged."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld videos were skipped." : {
       "comment" : "Export report",
       "localizations" : {
@@ -628,6 +662,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld × %lld px"
+          }
+        }
+      }
+    },
+    "100%" : {
+      "comment" : "Toolbar, loupe: show the photo at actual size",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "100%"
           }
         }
       }
@@ -738,6 +783,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "A short description read aloud by screen readers, under 250 characters"
+          }
+        }
+      }
+    },
+    "Activity" : {
+      "comment" : "Toolbar item: running jobs and recent messages",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activity"
           }
         }
       }
@@ -1271,16 +1327,6 @@
         }
       }
     },
-    "Any flag" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Any flag"
-          }
-        }
-      }
-    },
     "Aperture" : {
       "comment" : "Smart album rule field",
       "localizations" : {
@@ -1727,16 +1773,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cancel"
-          }
-        }
-      }
-    },
-    "Cancel Import" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cancel Import"
           }
         }
       }
@@ -3247,6 +3283,17 @@
         }
       }
     },
+    "Export the selected photos" : {
+      "comment" : "Toolbar Export button tooltip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export the selected photos"
+          }
+        }
+      }
+    },
     "Export this collection as one preset file" : {
       "comment" : "Preset manager tooltip",
       "localizations" : {
@@ -3502,6 +3549,39 @@
         }
       }
     },
+    "Filter and Sort" : {
+      "comment" : "Toolbar menu: rating and flag filters, sort order",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filter and Sort"
+          }
+        }
+      }
+    },
+    "Filter and sort the photos" : {
+      "comment" : "Toolbar Filter and Sort menu tooltip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filter and sort the photos"
+          }
+        }
+      }
+    },
+    "Filtered" : {
+      "comment" : "Window subtitle: a filter hides some photos",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filtered"
+          }
+        }
+      }
+    },
     "Find" : {
       "comment" : "Edit menu submenu",
       "localizations" : {
@@ -3542,6 +3622,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Finish cropping (Return); Esc cancels"
+          }
+        }
+      }
+    },
+    "Fit" : {
+      "comment" : "Toolbar, loupe: fit the photo in the window",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fit"
+          }
+        }
+      }
+    },
+    "Fit the photo in the window, or show it at 100%" : {
+      "comment" : "Toolbar, loupe: Fit / 100% tooltip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fit the photo in the window, or show it at 100%"
           }
         }
       }
@@ -4153,6 +4255,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Import from Card or Folder…"
+          }
+        }
+      }
+    },
+    "Import from a card or folder" : {
+      "comment" : "Toolbar Import button tooltip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import from a card or folder"
           }
         }
       }
@@ -5014,6 +5127,17 @@
         }
       }
     },
+    "Measuring exposure %lld of %lld" : {
+      "comment" : "Activity: batch Auto Exposure",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Measuring exposure %lld of %lld"
+          }
+        }
+      }
+    },
     "Merged “%@” into “%@”." : {
       "comment" : "Status after renaming a keyword onto an existing one",
       "localizations" : {
@@ -5043,17 +5167,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Midtones"
-          }
-        }
-      }
-    },
-    "Minimum rating" : {
-      "comment" : "Filter bar: accessibility label of the five stars",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Minimum rating"
           }
         }
       }
@@ -5582,12 +5695,13 @@
         }
       }
     },
-    "Not rejected" : {
+    "Nothing is running." : {
+      "comment" : "Activity popover with no jobs and no messages",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Not rejected"
+            "value" : "Nothing is running."
           }
         }
       }
@@ -7384,17 +7498,6 @@
         }
       }
     },
-    "Show every photo again" : {
-      "comment" : "Filter bar: help for the Clear button",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Show every photo again"
-          }
-        }
-      }
-    },
     "Show in Finder when done" : {
       "comment" : "Export window",
       "localizations" : {
@@ -7402,17 +7505,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Show in Finder when done"
-          }
-        }
-      }
-    },
-    "Show photos by flag" : {
-      "comment" : "Filter bar: help for the flag menu",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Show photos by flag"
           }
         }
       }
@@ -7592,17 +7684,6 @@
         }
       }
     },
-    "Sort order" : {
-      "comment" : "Filter bar: help for the sort menu",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sort order"
-          }
-        }
-      }
-    },
     "Standard" : {
       "comment" : "RAW profile: the decoder's default rendering",
       "localizations" : {
@@ -7643,17 +7724,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Stop"
-          }
-        }
-      }
-    },
-    "Stop Exporting" : {
-      "comment" : "Status bar: stops the export",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Stop Exporting"
           }
         }
       }
@@ -8691,6 +8761,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ZIP"
+          }
+        }
+      }
+    },
+    "Zoom" : {
+      "comment" : "Toolbar, loupe: Fit / 100% control (accessibility)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zoom"
           }
         }
       }

@@ -165,6 +165,8 @@ final class LoupeController: NSObject {
                                                name: .loupeShouldToggleZoom, object: model)
         NotificationCenter.default.addObserver(self, selector: #selector(zoomStepRequested(_:)),
                                                name: .loupeShouldStepZoom, object: model)
+        NotificationCenter.default.addObserver(self, selector: #selector(zoomSetRequested(_:)),
+                                               name: .loupeShouldSetZoom, object: model)
     }
 
     /// From the model, or from a view in this window (an inspector value field).
@@ -175,6 +177,14 @@ final class LoupeController: NSObject {
 
     @objc private func zoomRequested(_ notification: Notification) {
         if model.mode == .loupe { toggleZoom() }
+    }
+
+    /// The toolbar's Fit / 100%.
+    @objc private func zoomSetRequested(_ notification: Notification) {
+        guard model.mode == .loupe, let fit = notification.userInfo?[LoupeZoomStep.fitKey] as? Bool else { return }
+        zoom = fit ? .fit : .actualSize
+        applyZoom(animated: true)
+        if !fit { loadFullResolution() }
     }
 
     @objc private func zoomStepRequested(_ notification: Notification) {
@@ -464,7 +474,8 @@ final class LoupeController: NSObject {
         let fit = fitMagnification
         let state = LoupeZoomState(isZoomed: zoom != .fit,
                                    canZoomIn: LoupeZoomSteps.zoomIn(from: current, fit: fit) != nil,
-                                   canZoomOut: zoom != .fit && LoupeZoomSteps.zoomOut(from: current, fit: fit) != nil)
+                                   canZoomOut: zoom != .fit && LoupeZoomSteps.zoomOut(from: current, fit: fit) != nil,
+                                   isActualSize: zoom != .fit && abs(current - 1) < 0.01)
         if model.loupeZoom != state { model.loupeZoom = state }
     }
 

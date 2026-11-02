@@ -18,9 +18,9 @@ struct MainView: View {
                         .inspectorColumnWidth(min: 240, ideal: 280, max: 420)
                 }
         }
-        .navigationTitle(title)
-        .navigationSubtitle(subtitle)
-        .toolbar { BrowserToolbar(model: model) }
+        .navigationTitle(model.windowTitle)
+        .navigationSubtitle(model.windowSubtitle)
+        .toolbar(id: "library") { LibraryToolbar(model: model) }
         .background { LibraryMenuPublisher(model: model) }
         // Photos are judged against neutral dark surroundings.
         .preferredColorScheme(.dark)
@@ -61,16 +61,6 @@ struct MainView: View {
         }
     }
 
-    private var title: String {
-        model.title(for: model.sidebarSelection)
-    }
-
-    private var subtitle: String {
-        let count = model.itemCount
-        return model.isFiltered
-            ? String(localized: "\(count) photos match the filter")
-            : String(localized: "\(count) photos")
-    }
 }
 
 /// Grid, with the loupe laid over it while open. The grid stays alive underneath
@@ -101,13 +91,6 @@ struct BrowserView: View {
         .overlay {
             if model.isFolderDropTargeted { FolderDropHighlight() }
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            VStack(spacing: 0) {
-                FilterBar(model: model)
-                Divider()
-                StatusBar(model: model)
-            }
-        }
     }
 }
 
@@ -135,119 +118,6 @@ private struct EmptyLibraryView: View {
         }
         .foregroundStyle(.white.opacity(0.85))
         .padding(40)
-    }
-}
-
-struct StatusBar: View {
-    let model: LibraryModel
-
-    var body: some View {
-        HStack(spacing: 12) {
-            if let progress = model.importProgress {
-                if let batch = model.importBatch {
-                    Text("“\(batch.name)” (\(batch.index) of \(batch.count))")
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-                ProgressView(value: Double(progress.filesProcessed), total: Double(max(progress.filesFound, 1)))
-                    .frame(width: 140)
-                Text(importText(progress))
-                    .monospacedDigit()
-                Button {
-                    model.cancelImport()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                }
-                .buttonStyle(.borderless)
-                .help("Cancel Import")
-            } else if let progress = model.export.progress {
-                ProgressView(value: Double(progress.done), total: Double(max(progress.total, 1)))
-                    .frame(width: 140)
-                Text("Exporting \(progress.done) of \(progress.total)")
-                    .monospacedDigit()
-                Button {
-                    model.export.cancel()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                }
-                .buttonStyle(.borderless)
-                .help("Stop Exporting")
-            } else if let warming = model.warming {
-                ProgressView(value: Double(warming.done), total: Double(max(warming.total, 1)))
-                    .frame(width: 100)
-                Text("Rendering previews \(warming.done) of \(warming.total)")
-                    .monospacedDigit()
-            } else if let progress = model.suggestionProgress {
-                ProgressView(value: Double(progress.done), total: Double(max(progress.total, 1)))
-                    .frame(width: 100)
-                Text("Suggesting keywords \(progress.done) of \(progress.total)")
-                    .monospacedDigit()
-            } else if let message = model.statusMessage {
-                Text(message)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-            }
-            Spacer()
-            if let item = model.focusedItem {
-                if model.isOffline(item) {
-                    Label("Offline", systemImage: "externaldrive.badge.xmark")
-                        .help("The volume holding this original is not connected.")
-                }
-                Text(item.fileName)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
-        }
-        .font(.callout)
-        .foregroundStyle(.secondary)
-        .padding(.horizontal, 12)
-        .frame(height: 28)
-        .background(.bar)
-    }
-
-    private func importText(_ progress: ImportProgress) -> String {
-        switch progress.phase {
-        case .scanning:
-            String(localized: "Looking for photos…")
-        case .importing, .finished:
-            String(localized: "Importing \(progress.filesProcessed) of \(progress.filesFound)")
-        }
-    }
-}
-
-struct BrowserToolbar: ToolbarContent {
-    @Bindable var model: LibraryModel
-
-    var body: some ToolbarContent {
-        ToolbarItem(placement: .navigation) {
-            Button {
-                ImportPanel.run(model: model)
-            } label: {
-                Label("Import", systemImage: "square.and.arrow.down")
-            }
-            .help("Import a folder of photos")
-            .disabled(model.isImporting)
-        }
-        ToolbarItemGroup(placement: .primaryAction) {
-            Picker("View", selection: $model.mode) {
-                Label("Grid", systemImage: "square.grid.2x2").tag(BrowserMode.grid)
-                Label("Loupe", systemImage: "rectangle").tag(BrowserMode.loupe)
-            }
-            .pickerStyle(.segmented)
-            .disabled(model.itemCount == 0)
-            .help("Switch between the grid and a single photo")
-
-            Slider(value: $model.thumbnailSize, in: LibraryModel.thumbnailSizeRange) {
-                Text("Thumbnail Size")
-            } minimumValueLabel: {
-                Image(systemName: "square.grid.3x3")
-            } maximumValueLabel: {
-                Image(systemName: "square.grid.2x2")
-            }
-            .frame(width: 160)
-            .disabled(model.mode != .grid)
-            .help("Thumbnail size")
-        }
     }
 }
 
