@@ -86,7 +86,7 @@ struct LibraryToolbar: CustomizableToolbarContent {
                 .disabled(!state.canEditLoupePhoto || state.isCropping)
         }
         ToolbarItem(id: "auto", showsByDefault: false) {
-            Button { model.autoExposure() } label: { Label("Auto", systemImage: "wand.and.stars") }
+            Button { model.autoExposure() } label: { Label("Auto Exposure", systemImage: "wand.and.stars") }
                 .disabled(state.mode == .grid ? !state.targetsIncludePhoto : !state.canEditLoupePhoto || state.isCropping)
         }
         ToolbarItem(id: "copyAdjustments", showsByDefault: false) {

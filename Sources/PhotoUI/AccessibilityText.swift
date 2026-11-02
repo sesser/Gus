@@ -22,14 +22,15 @@ public enum AccessibilityText {
     /// without VoiceOver).
     @MainActor public private(set) static var lastAnnouncement: String?
 
-    /// Speaks `text` when VoiceOver is on, without moving its focus.
+    /// Speaks `text` when VoiceOver is on, without moving its focus. High
+    /// priority interrupts (culling feedback); medium waits its turn.
     @MainActor
-    public static func announce(_ text: String) {
+    public static func announce(_ text: String, priority: NSAccessibilityPriorityLevel = .high) {
         lastAnnouncement = text
         guard !text.isEmpty, NSWorkspace.shared.isVoiceOverEnabled else { return }
         NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested, userInfo: [
             .announcement: text,
-            .priority: NSAccessibilityPriorityLevel.high.rawValue,
+            .priority: priority.rawValue,
         ])
     }
 }

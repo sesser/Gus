@@ -70,8 +70,9 @@ struct BrowserSubtitleTests {
         #expect(BrowserSubtitle.grid(shown: 87, total: nil, selected: 0, isFiltered: true) == .filtered(87, of: 87))
     }
 
-    @Test func theLoupeSaysWhereThePhotoIs() {
-        #expect(BrowserSubtitle.loupe(index: 11, shown: 87) == .position(12, of: 87))
+    @Test func theLoupeNamesTheSourceAndTheFilter() {
+        #expect(BrowserSubtitle.loupe(isFiltered: false) == .source(filtered: false))
+        #expect(BrowserSubtitle.loupe(isFiltered: true) == .source(filtered: true))
     }
 }
 
@@ -87,6 +88,26 @@ struct ActivityLogTests {
         log.post("b")
         #expect(log.messages.map(\.text) == ["c", "d", "b"])
         #expect(log.unseenCount == 1)
+    }
+
+    @Test func remembersWhetherAnUnseenMessageIsAWarning() {
+        var log = ActivityLog()
+        log.post("Imported 3 look-up tables.")
+        #expect(!log.unseenHasWarning)
+        log.post("Could not save the change.", title: "Set Rating", isWarning: true)
+        log.post("Merged “a” into “b”.")
+        #expect(log.unseenHasWarning)
+        #expect(log.messages.last?.title == nil)
+        #expect(log.messages[1].title == "Set Rating")
+        log.markSeen()
+        #expect(!log.unseenHasWarning)
+    }
+
+    @Test func keepsTwentyByDefault() {
+        var log = ActivityLog()
+        for index in 0..<25 { log.post("\(index)") }
+        #expect(log.messages.count == 20)
+        #expect(log.messages.first?.text == "5")
     }
 
     @Test func backgroundJobsShowAfterADelay() {

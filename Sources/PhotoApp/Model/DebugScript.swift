@@ -682,7 +682,7 @@ enum DebugScript {
         case "activity":
             let jobs = ActivityToolbarItem.jobs(model).map(\.title).joined(separator: "; ")
             print("debug-script: activity visible \(ActivityToolbarItem.isVisible(model)) jobs [\(jobs)] unseen \(model.activity.unseenCount)"
-                  + " last \(model.activity.messages.last?.text ?? "-")")
+                  + " warning \(model.activity.unseenHasWarning) last \(model.activity.messages.last.map { "[\($0.title ?? "-")] \($0.text)" } ?? "-")")
         case "announcement":
             print("debug-script: announcement \(AccessibilityText.lastAnnouncement ?? "-")")
         case "hdr":

@@ -472,8 +472,8 @@
         }
       }
     },
-    "%lld photos were left unchanged: their edits were saved by a newer version of %@ or cannot be read." : {
-      "comment" : "After paste or a preset; %lld is a count, %@ the app's name",
+    "%lld photos were left unchanged: their edits can't be changed in this version." : {
+      "comment" : "Activity, after a batch adjustment: stacks this build cannot read",
       "localizations" : {
         "en" : {
           "variations" : {
@@ -481,13 +481,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld photo was left unchanged: its edits were saved by a newer version of %@ or cannot be read."
+                  "value" : "%lld photo was left unchanged: its edits can't be changed in this version."
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld photos were left unchanged: their edits were saved by a newer version of %@ or cannot be read."
+                  "value" : "%lld photos were left unchanged: their edits can't be changed in this version."
                 }
               }
             }
@@ -545,9 +545,21 @@
       "comment" : "Window subtitle: how many photos are selected, of how many shown",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld selected of %lld"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld selected of %lld"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld selected of %lld"
+                }
+              }
+            }
           }
         }
       }

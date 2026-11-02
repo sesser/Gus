@@ -30,7 +30,7 @@ extension LibraryModel {
 
     /// Gives the selection (grid) or the photo on screen (loupe) the preset's groups.
     func applyAdjustmentPreset(_ preset: AdjustmentPreset) {
-        changeAdjustments(ofVersions: batchSelection().versionIDs,
+        changeAdjustments(ofVersions: batchSelection(action: String(localized: "Apply Preset \(preset.name)", comment: "Undo action name")).versionIDs,
                           actionName: String(localized: "Apply Preset \(preset.name)", comment: "Undo action name")) {
             preset.applied(onto: $0)
         }
@@ -51,7 +51,7 @@ extension LibraryModel {
             let stack = try await catalog.version(id: item.versionID)?.decodedEditStack() ?? .identity
             return Adjustments(stack: stack)
         } catch {
-            statusMessage = AdjustText.unreadableMessage(EditStack.ReadFailure(error))
+            report(AdjustText.unreadableMessage(EditStack.ReadFailure(error)), warning: true)
             return nil
         }
     }
@@ -70,7 +70,7 @@ extension LibraryModel {
             do {
                 _ = try await catalog.saveAdjustmentPreset(preset)
             } catch {
-                statusMessage = String(localized: "Could not save the preset: \(error.localizedDescription)")
+                report(String(localized: "Could not save the preset: \(error.localizedDescription)"), warning: true)
             }
             await refreshAdjustmentPresets()
         }
@@ -148,7 +148,7 @@ extension LibraryModel {
         do {
             result = try await PresetImport.run(scan, catalog: catalog, store: lookTables)
         } catch {
-            statusMessage = String(localized: "Could not import the presets: \(error.localizedDescription)")
+            report(String(localized: "Could not import the presets: \(error.localizedDescription)"), warning: true)
             return nil
         }
         await refreshAdjustmentPresets()
@@ -194,7 +194,7 @@ extension LibraryModel {
         do {
             try writeAdjustmentPresets(presets, to: url)
         } catch {
-            statusMessage = String(localized: "Could not export the presets: \(error.localizedDescription)")
+            report(String(localized: "Could not export the presets: \(error.localizedDescription)"), warning: true)
         }
     }
 

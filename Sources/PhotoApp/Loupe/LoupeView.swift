@@ -869,16 +869,17 @@ struct CullingMarks: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            if item.rating != .unrated {
-                HStack(spacing: 1) {
-                    ForEach(0..<item.rating.rawValue, id: \.self) { _ in
-                        Image(systemName: "star.fill")
-                    }
+            // Five slots, the unused ones invisible: the flag and label stay put.
+            HStack(spacing: 1) {
+                ForEach(0..<5, id: \.self) { index in
+                    Image(systemName: "star.fill")
+                        .opacity(index < item.rating.rawValue ? 1 : 0)
                 }
-                .foregroundStyle(Color(nsColor: Palette.rating))
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(PhotoAccessibility.text(.rating(item.rating)))
             }
+            .foregroundStyle(Color(nsColor: Palette.rating))
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(PhotoAccessibility.text(.rating(item.rating)))
+            .accessibilityHidden(item.rating == .unrated)
             switch item.flag {
             case .picked:
                 Image(systemName: "flag.fill").foregroundStyle(Color(nsColor: Palette.pick))

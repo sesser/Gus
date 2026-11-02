@@ -37,14 +37,15 @@ struct ActivityToolbarItem: View {
                         ProgressView().controlSize(.small)
                     }
                     Text(job.title).lineLimit(1).monospacedDigit()
-                } else if let message = model.activity.messages.last {
-                    Image(systemName: "info.circle")
-                    Text(message.text).lineLimit(1).truncationMode(.tail).frame(maxWidth: 240)
+                } else if model.activity.unseenCount > 0 {
+                    // Idle with unread messages: which kind, the popover says the rest.
+                    Image(systemName: model.activity.unseenHasWarning ? "exclamationmark.triangle" : "info.circle")
+                        .accessibilityLabel(model.activity.messages.last?.text ?? "")
                 }
             }
         }
         .buttonStyle(.borderless)
-        .help("Activity")
+        .help(jobs.isEmpty ? (model.activity.messages.last?.text ?? String(localized: "Activity")) : String(localized: "Activity"))
         .popover(isPresented: $showsPopover, arrowEdge: .bottom) {
             ActivityPopover(model: model)
         }
@@ -118,15 +119,26 @@ private struct ActivityPopover: View {
             if !jobs.isEmpty, !model.activity.messages.isEmpty {
                 Divider()
             }
+            // The action's undo name, with the message as detail.
             ForEach(model.activity.messages.reversed()) { message in
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(message.text)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .textSelection(.enabled)
-                    Text(message.date, style: .relative)
-                        .font(.caption)
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Image(systemName: message.isWarning ? "exclamationmark.triangle" : "info.circle")
                         .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 2) {
+                        if let title = message.title {
+                            Text(title).fontWeight(.semibold)
+                        }
+                        Text(message.text)
+                            .foregroundStyle(message.title == nil ? .primary : .secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .textSelection(.enabled)
+                        Text(message.date, style: .relative)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
+                .accessibilityElement(children: .combine)
             }
             if jobs.isEmpty, model.activity.messages.isEmpty {
                 Text("Nothing is running.")

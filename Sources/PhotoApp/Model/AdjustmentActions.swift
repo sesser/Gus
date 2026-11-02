@@ -17,7 +17,8 @@ extension LibraryModel {
                 let stack = try await catalog.version(id: item.versionID)?.decodedEditStack() ?? .identity
                 copiedAdjustments = Adjustments(stack: stack)
             } catch {
-                statusMessage = AdjustText.unreadableMessage(EditStack.ReadFailure(error))
+                report(AdjustText.unreadableMessage(EditStack.ReadFailure(error)),
+                       action: String(localized: "Copy Adjustments"), warning: true)
             }
         }
     }
@@ -26,8 +27,8 @@ extension LibraryModel {
     /// adjustments; videos are left out (`batchSelection`).
     func pasteAdjustments() {
         guard let copiedAdjustments else { return }
-        applyAdjustments(copiedAdjustments, toVersions: batchSelection().versionIDs,
-                         actionName: String(localized: "Paste Adjustments", comment: "Undo action name"))
+        let actionName = String(localized: "Paste Adjustments", comment: "Undo action name")
+        applyAdjustments(copiedAdjustments, toVersions: batchSelection(action: actionName).versionIDs, actionName: actionName)
     }
 
     // MARK: Applying to many photos
@@ -60,9 +61,9 @@ extension LibraryModel {
         afterPendingWrites { model in
             if let value = change.value { model.showEditStacks(value.after) }
             if let count = skipped.value, count > 0 {
-                let name = AppBranding.displayName
-                model.statusMessage = String(localized: "\(count) photos were left unchanged: their edits were saved by a newer version of \(name) or cannot be read.",
-                                             comment: "After paste or a preset; %lld is a count, %@ the app's name")
+                model.report(String(localized: "\(count) photos were left unchanged: their edits can't be changed in this version.",
+                                    comment: "Activity, after a batch adjustment: stacks this build cannot read"),
+                             action: actionName, warning: true)
             }
         }
         registerEditStacksUndo(change, isUndo: true, actionName: actionName)

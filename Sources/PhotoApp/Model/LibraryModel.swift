@@ -448,11 +448,18 @@ final class LibraryModel {
     private(set) var warming: (done: Int, total: Int)? {
         didSet { if (oldValue == nil) != (warming == nil) { warmingStarted = warming == nil ? nil : Date() } }
     }
-    /// Messages for the toolbar's Activity popover (the status bar is gone).
-    var statusMessage: String? {
-        didSet { if let statusMessage { activity.post(statusMessage) } }
-    }
+    /// The newest Activity message (debug scripts).
+    var statusMessage: String? { activity.messages.last?.text }
+    /// Messages for the toolbar's Activity popover, the 20 newest until quit.
     private(set) var activity = ActivityLog()
+
+    /// Posts a message to Activity, and has VoiceOver say it (medium
+    /// priority). `action`: the undo name of the action it is about;
+    /// `warning`: something failed, as opposed to information.
+    func report(_ text: String, action: String? = nil, warning: Bool = false) {
+        activity.post(text, title: action, isWarning: warning)
+        AccessibilityText.announce(text, priority: .medium)
+    }
     /// Photos in the selected source before rating, flag and search.
     private(set) var sourceTotal: Int?
     /// When rendering previews and suggesting keywords started: the Activity
@@ -636,7 +643,7 @@ final class LibraryModel {
             } catch is CancellationError {
             } catch {
                 Self.log.error("Loading items failed: \(error.localizedDescription, privacy: .public)")
-                statusMessage = String(localized: "Could not load photos: \(error.localizedDescription)")
+                report(String(localized: "Could not load photos: \(error.localizedDescription)"), warning: true)
             }
         }
     }
@@ -1082,7 +1089,8 @@ final class LibraryModel {
                 try await work()
             } catch {
                 Self.log.error("Saving failed: \(error.localizedDescription, privacy: .public)")
-                statusMessage = String(localized: "Could not save the change: \(error.localizedDescription)")
+                report(String(localized: "Could not save the change: \(error.localizedDescription)"),
+                       action: undoManager.undoActionName.nilIfEmpty, warning: true)
             }
             scheduleSidecarSync()
         }
@@ -1121,12 +1129,11 @@ final class LibraryModel {
         }
         guard !added.isEmpty else {
             if !dropped.ignored.isEmpty {
-                statusMessage = String(localized: "Only folders can be imported. Drag in a folder of photos.")
+                report(String(localized: "Only folders can be imported. Drag in a folder of photos."), warning: true)
             }
             ignoredDropCount = 0
             return
         }
-        statusMessage = nil
         importTask = Task {
             // A drop that arrives while a finished batch reports starts another.
             repeat {
@@ -1160,7 +1167,7 @@ final class LibraryModel {
                 importBatch = nil
                 let totals = importQueue.finish()
                 ignoredDropCount = 0
-                statusMessage = String(localized: "Import cancelled.")
+                report(String(localized: "Import cancelled."))
                 await refreshProjects()
                 warmPreviews(projectIDs: totals.projectIDs)
                 reloadItems(keepFocus: true)
@@ -1232,7 +1239,7 @@ final class LibraryModel {
         if ignored > 0 {
             message += " " + String(localized: "Ignored \(ignored) items that are not folders.")
         }
-        statusMessage = message
+        report(message)
         // The first new project opens; the rest are listed in the sidebar.
         if let projectID = totals.projectIDs.first {
             if sidebarSelection == .project(projectID) {

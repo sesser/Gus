@@ -130,7 +130,7 @@ extension LibraryModel {
         persist { result.value = try await catalog.renameKeyword(id: keywordID, to: name) }
         afterPendingWrites { model in
             if case .merged(let merge)? = result.value {
-                model.statusMessage = String(localized: "Merged “\(merge.source.keyword.name)” into “\(merge.target.name)”.")
+                model.report(String(localized: "Merged “\(merge.source.keyword.name)” into “\(merge.target.name)”."))
                 if model.sidebarSelection == .keyword(keywordID), let target = merge.target.id {
                     model.sidebarSelection = .keyword(target)
                 }

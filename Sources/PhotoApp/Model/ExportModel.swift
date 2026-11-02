@@ -295,7 +295,6 @@ final class ExportModel {
         let request = ExportRequest(versionIDs: versionIDs, settings: settings, destination: destination, policy: policy)
         let reveals = revealsInFinder
         progress = (0, items.filter { !$0.isVideo }.count)
-        library.statusMessage = nil
         task = Task {
             let summary = await job.run(request, items: items) { done, total in
                 Task { @MainActor in
@@ -317,9 +316,9 @@ final class ExportModel {
         lastSummary = summary
         let folder = summary.destination.lastPathComponent
         let written = summary.written.count
-        library?.statusMessage = summary.cancelled
+        library?.report(summary.cancelled
             ? String(localized: "Export stopped after \(written) photos.")
-            : String(localized: "Exported \(written) photos to “\(folder)”.")
+            : String(localized: "Exported \(written) photos to “\(folder)”."))
         if reveals, !summary.written.isEmpty, !summary.cancelled {
             NSWorkspace.shared.activateFileViewerSelecting(summary.written)
         }

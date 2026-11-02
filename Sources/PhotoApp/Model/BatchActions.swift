@@ -9,7 +9,7 @@ extension LibraryModel {
     /// without videos, and without offline photos when `needsMaster` reads the
     /// master. Stacks this build cannot read are left out by the catalog,
     /// which says so (`changeAdjustments`).
-    func batchSelection(needsMaster: (CatalogItem) -> Bool = { _ in false }) -> BatchEdit.Selection {
+    func batchSelection(action: String, needsMaster: (CatalogItem) -> Bool = { _ in false }) -> BatchEdit.Selection {
         let selection = BatchEdit.select(actionTargets.map { index in
             let item = items[index]
             return BatchEdit.Candidate(versionID: item.versionID, isVideo: item.isVideo, needsMaster: needsMaster(item),
@@ -17,12 +17,12 @@ extension LibraryModel {
         })
         // Said in the toolbar's Activity item.
         if selection.skippedVideos > 0 {
-            statusMessage = String(localized: "\(selection.skippedVideos) videos were left unchanged.",
-                                   comment: "Activity, after a batch adjustment on the grid's selection")
+            report(String(localized: "\(selection.skippedVideos) videos were left unchanged.",
+                          comment: "Activity, after a batch adjustment on the grid's selection"), action: action)
         }
         if selection.skippedOffline > 0 {
-            statusMessage = String(localized: "\(selection.skippedOffline) photos were left unchanged: their originals are offline.",
-                                   comment: "Activity, after a batch adjustment that reads the originals")
+            report(String(localized: "\(selection.skippedOffline) photos were left unchanged: their originals are offline.",
+                          comment: "Activity, after a batch adjustment that reads the originals"), action: action)
         }
         return selection
     }
@@ -33,8 +33,8 @@ extension LibraryModel {
             editor.resetAll()
             return
         }
-        changeAdjustments(ofVersions: batchSelection().versionIDs,
-                          actionName: String(localized: "Reset Adjustments", comment: "Undo action name")) {
+        let actionName = String(localized: "Reset Adjustments", comment: "Undo action name")
+        changeAdjustments(ofVersions: batchSelection(action: actionName).versionIDs, actionName: actionName) {
             Adjustments(stack: EditStack(operations: $0.preserved))
         }
     }
@@ -47,12 +47,12 @@ extension LibraryModel {
             return
         }
         let isRaw: (CatalogItem) -> Bool = { $0.fileKind == .raw }
-        let selection = batchSelection(needsMaster: isRaw)
+        let actionName = String(localized: "Rotate", comment: "Undo action name")
+        let selection = batchSelection(action: actionName, needsMaster: isRaw)
         let raws = selection.versionIDs.compactMap { id -> (Int64, URL)? in
             guard let item = item(versionID: id), isRaw(item), let url = sourceURL(for: item) else { return nil }
             return (id, url)
         }
-        let actionName = String(localized: "Rotate", comment: "Undo action name")
         Task {
             let cameraRects = await Task.detached(priority: .userInitiated) {
                 Dictionary(uniqueKeysWithValues: raws.map { ($0.0, CameraFrame.rect(of: $0.1)) })
@@ -72,7 +72,8 @@ extension LibraryModel {
             editor.autoExposure()
             return
         }
-        let selection = batchSelection(needsMaster: { _ in true })
+        let actionName = String(localized: "Auto Exposure", comment: "Undo action name")
+        let selection = batchSelection(action: actionName, needsMaster: { _ in true })
         let sources = selection.versionIDs.compactMap { id -> (Int64, URL)? in
             guard let item = item(versionID: id), let url = sourceURL(for: item) else { return nil }
             return (id, url)
@@ -80,7 +81,6 @@ extension LibraryModel {
         guard !sources.isEmpty else { return }
         let catalog = self.catalog
         let adjuster = AutoAdjuster(generator: previews.interactiveGenerator)
-        let actionName = String(localized: "Auto Exposure", comment: "Undo action name")
         // Measured one photo at a time with progress in the Activity item;
         // Stop there writes nothing.
         batchAutoTask?.cancel()

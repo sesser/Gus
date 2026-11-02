@@ -88,7 +88,8 @@ extension AdjustmentEditor {
         var next = adjustments.local
         body(&next)
         guard MaskLimits.allows(next) else {
-            library?.statusMessage = String(localized: "That would pass the limit on masks, components or brush points.")
+            library?.report(String(localized: "That would pass the limit on masks, components or brush points."),
+                            action: actionName, warning: true)
             return false
         }
         change(actionName, phase: phase) { $0.local = next }

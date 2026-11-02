@@ -45,6 +45,7 @@ extension UTType {
 
 struct SidebarView: View {
     @Bindable var model: LibraryModel
+    @Environment(\.openWindow) private var openWindow
     // Defaults from section 3 of docs/UI_REDESIGN.md.
     @AppStorage("sidebar.section.library.expanded") private var libraryExpanded = true
     @AppStorage("sidebar.section.albums.expanded") private var albumsExpanded = true
@@ -118,7 +119,9 @@ struct SidebarView: View {
             if model.showsSidebarSection(.keywords) {
                 Section(isExpanded: $keywordsExpanded) {
                     if model.keywords.isEmpty {
-                        EmptySectionLine(text: String(localized: "No keywords"), link: String(localized: "Add Keywords…")) {
+                        // A link that cannot act is hidden, not dimmed.
+                        EmptySectionLine(text: String(localized: "No keywords"),
+                                         link: model.actionTargets.isEmpty ? nil : String(localized: "Add Keywords…")) {
                             model.beginKeywordEntry()
                         }
                     }
@@ -142,9 +145,15 @@ struct SidebarView: View {
             if model.showsSidebarSection(.projects) {
                 Section(isExpanded: $projectsExpanded) {
                     if model.projects.isEmpty {
-                        EmptySectionLine(text: String(localized: "No projects"), link: String(localized: "Add Folder Without Copying…")) {
-                            ImportPanel.run(model: model)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("No projects").foregroundStyle(.secondary)
+                            Button("Import from Card or Folder…") {
+                                model.cardImport.refreshSources()
+                                openWindow(id: "import")
+                            }
+                            .buttonStyle(.link)
                         }
+                        .selectionDisabled()
                         .onDrop(of: FolderDrop.types, isTargeted: nil) { FolderDrop.accept($0, model: model) }
                     }
                     ForEach(model.projects) { summary in

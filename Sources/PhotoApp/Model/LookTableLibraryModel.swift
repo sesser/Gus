@@ -110,7 +110,7 @@ final class LookTableLibraryModel {
     /// table it replaces.
     func apply(_ entry: LookTableEntry, editor: AdjustmentEditor) {
         guard isAvailable(entry) else {
-            library?.statusMessage = String(localized: "\(entry.name) is missing from the library.")
+            library?.report(String(localized: "\(entry.name) is missing from the library."), warning: true)
             return
         }
         let table = lookTable(entry, replacing: editor.adjustments.lookTable)
@@ -234,10 +234,10 @@ final class LookTableLibraryModel {
                 browsedCollection = collection.uuid
                 expanded.insert(collection.uuid)
             }
-            library.statusMessage = String(localized: "Imported \(result.added) look-up tables.")
+            library.report(String(localized: "Imported \(result.added) look-up tables."))
         } catch {
             Self.log.error("Importing look-up tables failed: \(error.localizedDescription, privacy: .public)")
-            library.statusMessage = String(localized: "Could not import the look-up tables: \(error.localizedDescription)")
+            library.report(String(localized: "Could not import the look-up tables: \(error.localizedDescription)"), warning: true)
         }
     }
 
@@ -280,7 +280,7 @@ final class LookTableLibraryModel {
                 try await work(catalog)
             } catch {
                 Self.log.error("Changing look-up tables failed: \(error.localizedDescription, privacy: .public)")
-                library?.statusMessage = String(localized: "Could not save the change: \(error.localizedDescription)")
+                library?.report(String(localized: "Could not save the change: \(error.localizedDescription)"), warning: true)
             }
             await reload()
         }

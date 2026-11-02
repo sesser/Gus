@@ -7,8 +7,9 @@ public enum BrowserSubtitle: Hashable, Sendable {
     case selected(Int, of: Int, filtered: Bool)
     /// "87 of 4,623 · Filtered".
     case filtered(Int, of: Int)
-    /// The loupe: "All Photos · 12 of 87" (the source's name, the position).
-    case position(Int, of: Int)
+    /// The loupe: "All Photos", or "All Photos · Filtered" (the position is
+    /// in the caption).
+    case source(filtered: Bool)
 
     /// The grid's subtitle: `shown` photos pass the filter out of `total` in
     /// the source (nil until counted), `selected` are selected.
@@ -18,8 +19,8 @@ public enum BrowserSubtitle: Hashable, Sendable {
         return .photos(shown)
     }
 
-    /// The loupe's: the photo's position (0-based `index`) among `shown`.
-    public static func loupe(index: Int, shown: Int) -> BrowserSubtitle {
-        .position(index + 1, of: shown)
+    /// The loupe's: the source's name, and whether a filter is on.
+    public static func loupe(isFiltered: Bool) -> BrowserSubtitle {
+        .source(filtered: isFiltered)
     }
 }

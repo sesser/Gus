@@ -8,13 +8,14 @@ extension LibraryModel {
         return title(for: sidebarSelection)
     }
 
-    /// "4,623 photos", "12 selected of 4,623", "87 of 4,623 · Filtered";
-    /// in the loupe "All Photos · 12 of 87".
+    /// "4,623 photos", "12 selected of 4,623", "87 of 4,623 · Filtered",
+    /// "5 selected of 87 · Filtered"; in the loupe "All Photos" or "All Photos
+    /// · Filtered" (the position is in the caption).
     var windowSubtitle: String {
         let shown = itemCount
         let filtered = String(localized: "Filtered", comment: "Window subtitle: a filter hides some photos")
-        let kind = mode == .loupe && focusIndex != nil
-            ? BrowserSubtitle.loupe(index: focusIndex ?? 0, shown: shown)
+        let kind = mode == .loupe
+            ? BrowserSubtitle.loupe(isFiltered: isFiltered)
             : BrowserSubtitle.grid(shown: shown, total: sourceTotal, selected: selection.count,
                                    isFiltered: isFiltered)
         return switch kind {
@@ -25,8 +26,8 @@ extension LibraryModel {
                 .compactMap { $0 }.joined(separator: " · ")
         case .filtered(let count, let total):
             [String(localized: "\(count) of \(total)"), filtered].joined(separator: " · ")
-        case .position(let index, let total):
-            [title(for: sidebarSelection), String(localized: "\(index) of \(total)")].joined(separator: " · ")
+        case .source(let isFiltered):
+            [title(for: sidebarSelection), isFiltered ? filtered : nil].compactMap { $0 }.joined(separator: " · ")
         }
     }
 }
