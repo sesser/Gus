@@ -30,8 +30,10 @@ Import and Export).
    culling keys are shown in menus, switched off while text is being edited.
 4. **The right-hand pane is an inspector,** not a second sidebar: visually
    distinct, built from the same parts. Info and Adjust stay two tabs.
-5. **Sliders stay in the loupe.** Presets, paste adjustments and Auto become
-   batch commands on the grid selection.
+5. **Sliders stay in the loupe.** Presets, paste adjustments, Auto, Reset
+   All Adjustments and Rotate become batch commands on the grid selection:
+   one undo step, the version the grid shows, videos and unreadable edits
+   skipped (Activity notes how many).
 6. **Filters and search belong to each sidebar source,** live in the
    toolbar, persist across relaunches, and are not shown in the loupe
    (only a Filtered badge).
@@ -329,7 +331,7 @@ by `ToolbarSpacer(.fixed)` on 26.
 | Grid / Loupe segmented (`square.grid.2x2` / `rectangle`) | automatic | yes | yes |
 | Size: thumbnail slider in the grid (`photo` icons); Fit / 100% in the loupe | automatic | yes | yes |
 | Activity: progress and label, popover; only while jobs run | `.status` | when running | no |
-| Filter menu (`line.3.horizontal.decrease.circle`, `.fill` when active): rating, flag, sort, Clear Filter; grid only | trailing | yes | yes |
+| Filter and Sort menu (`line.3.horizontal.decrease.circle`, `.fill` only while a filter is active): the Rating, Flag and Sort By sections and Clear Filter, built from the same items as View ▸ Filter and View ▸ Sort By; grid only | trailing | yes | yes |
 | Search: hosts the existing `NSSearchField`; grid only; ⌘F | trailing | yes | yes |
 | Show/Hide Inspector (`sidebar.trailing`) | far trailing | yes | no |
 | Palette only: Crop, Rotate Left/Right, Original, Auto, Copy/Paste Adjustments, Add/Suggest Keywords, Enter Review, New Album | automatic | no | yes |
@@ -371,14 +373,34 @@ Changes on Disk (moved from Photo) · Close ⌘W.
 in the grid) · Find ▸ Find… ⌘F (N; in the loupe it returns to the grid) ·
 Find ▸ Clear Filter.
 
-**View:** Show Grid / Show Loupe ⌘↩ (E) · Enter / Exit Review `F` (N) ·
-Zoom to 100% / Zoom to Fit `Z` (S) · Show Original / Show Adjustments `\`
-(S) · Larger / Smaller Thumbnails ⌘= / ⌘− (E; zoom in the loupe) · Show /
-Hide File Names · Group RAW+JPEG Pairs (checkmark) · Show / Hide HDR
-Highlights · Filter ▸ … · Sort By ▸ … · Show / Hide Sidebar ⌃⌘S (N,
-`SidebarCommands`) · Sidebar Sections ▸ · Show / Hide Inspector ⌥⌘I (E) ·
-Info ⌥⌘1 / Adjust ⌥⌘2 (N) · Show / Hide Toolbar, Customize Toolbar… ·
-Enter Full Screen.
+**View:** the system items first, where SwiftUI puts them (Show / Hide
+Toolbar, Customize Toolbar…, Show / Hide Sidebar ⌃⌘S (N,
+`SidebarCommands`)) · Show Grid / Show Loupe ⌘↩ (E) · Enter / Exit Review
+`F` (N) · Zoom to 100% / Zoom to Fit `Z` (S) · in the grid Larger
+Thumbnails / Smaller Thumbnails, in the loupe Zoom In / Zoom Out, ⌘= / ⌘−
+(E; same items, titles follow the mode) · Show Original / Show Adjustments
+`\` (S) · Show / Hide File Names · Group RAW+JPEG Pairs (checkmark) · Show /
+Hide HDR Highlights · Filter ▸ · Sort By ▸ · Sidebar Sections ▸ · Show /
+Hide Inspector ⌥⌘I (E) · Info ⌥⌘1 / Adjust ⌥⌘2 (N) · Enter Full Screen.
+
+Loupe zoom steps are 25%, 50%, 100%, 200%, 400% and 800% (100% is `Z`'s),
+using only steps larger than Fit. Zoom In from Fit goes to the first step
+above it; Zoom Out from the smallest step returns to Fit; after a pinch or
+⌥-scroll the keys snap to the next step. The visible center stays put.
+Zoom In is dimmed at 800%, Zoom Out at Fit; both are dimmed for video.
+
+Filter ▸ (checkmark sections; `Picker` with `.inline` style):
+- **Rating:** Any Rating · Unrated · ★ or Better · ★★ or Better · ★★★ or
+  Better · ★★★★ or Better · ★★★★★
+- **Flag:** Any Flag · Picked · Not Rejected · Unflagged · Rejected
+- Clear Filter (today's `clearFilter()`: rating, flag and search text)
+
+Sort By ▸ Capture Date · Rating · File Name · — · Ascending · Descending.
+
+Rating, Flag and Sort By are dimmed in the loupe; Clear Filter stays
+enabled there. These are today's filter-bar choices plus the model's
+existing `unrated` rule; `exactly` has no control and gets none. The toolbar
+Filter and Sort menu uses the same items.
 
 **Photo:** Rating ▸ No Rating 0, ★–★★★★★ 1–5, Raise ] / Lower [ (S) ·
 Flag ▸ Pick P / Reject X / Clear U (S) · Color Label ▸ ⌥0–⌥7 (S) · Advance
@@ -387,9 +409,19 @@ Album ▸ · Remove from Album ⌫ (S) · RAW+JPEG Pair ▸.
 
 **Adjust (new):** Copy Adjustments ⇧⌘C (E, moved) · Paste Adjustments ⇧⌘V
 (E, moved) · Apply Preset ▸ (moved) · Auto Exposure · Reset All
-Adjustments… · Crop `C` (N) · Rotate Left ⌘[ / Rotate Right ⌘] (N) · New
-Mask ▸ · Save Adjustments as Preset… · Import Presets… · Manage Presets… ·
-Browse Look-Up Tables….
+Adjustments · Crop / Finish Cropping `C` (N) · Rotate Left ⌘[ / Rotate
+Right ⌘] (N) · New Mask ▸ · Save Adjustments as Preset… · Import Presets… ·
+Manage Presets… · Browse Look-Up Tables….
+
+Reset All Adjustments acts at once with no dialog (it can be undone; HIG
+Alerts), so it has no ellipsis anywhere. In the grid, Paste, Apply Preset,
+Auto Exposure, Reset All Adjustments and Rotate act on every selected
+photo as one undo step (decision 5). Crop in the grid opens the loupe on
+the focused photo and starts cropping; in the loupe `C` starts the
+session, and `C` or Return finishes it, Esc cancels. Rotate outside a crop
+session commits a quarter turn at once, with no session (the inspector's
+rotate buttons do the same); inside a session it turns the frame. Crop
+and Rotate are dimmed for video.
 
 **Window:** system items, Library, Import. (F5, F11, F18)
 
@@ -406,8 +438,8 @@ the selection selects the clicked item first. (F12)
 
 | Target | Items |
 |---|---|
-| Grid photos | Open in Loupe · Rating ▸ · Flag ▸ · Color Label ▸ · Add Keywords… · Suggest Keywords · Add to Album ▸ · Remove from Album · Copy / Paste Adjustments · Apply Preset ▸ · Auto Exposure · Reset All Adjustments… · Export… · RAW+JPEG Pair ▸ |
-| Loupe | the same minus Open in Loupe, plus Zoom · Show Original · Crop |
+| Grid photos | Open in Loupe · Rating ▸ · Flag ▸ · Color Label ▸ · Add Keywords… · Suggest Keywords · Add to Album ▸ · Remove from Album · Copy / Paste Adjustments · Apply Preset ▸ · Auto Exposure · Reset All Adjustments · Rotate Left · Rotate Right · Export… · RAW+JPEG Pair ▸ |
+| Loupe | the same minus Open in Loupe, plus Zoom In / Zoom Out · Zoom to 100% / Zoom to Fit · Show Original · Crop |
 | Album / keyword | Rename… · Delete… |
 | Smart album | Edit… · Delete… |
 | Project | New Album in Project… · New Smart Album in Project… |
