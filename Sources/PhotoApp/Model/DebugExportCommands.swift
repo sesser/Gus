@@ -4,8 +4,9 @@ import PhotoUI
 
 /// The debug script's export commands (see `DebugScript`):
 ///
-///     export window                 (opens the export window for the selection)
-///     export windowshot <png>
+///     export window                 (opens the export sheet for the selection)
+///     export windowshot <png>       (the sheet)
+///     export close                  (closes the sheet)
 ///     export set <key>=<value>…     format=jpeg|tiff  bits=8|16  compression=none|lzw|zip
 ///                                   color=srgb|p3|adobe|prophoto  quality=<0…1>  ppi=<n>
 ///                                   size=full|long:<n>|short:<n>|fit:<w>x<h>|percent:<n>
@@ -14,6 +15,7 @@ import PhotoUI
 ///                                   dest=<folder>  reveal=on|off
 ///                                   watermark=<png>|off  anchor=<name>  wmsize=<n>  margin=<n>  opacity=<0…1>
 ///     export template <text>        (the file name template; also switches names to it)
+///     export tokens …               (the sheet's template field, see TemplateFieldProbe)
 ///     export run [keepboth|overwrite|skip]   (waits, then prints the summary)
 ///     export preset save|apply|delete <name>
 ///     export print                  (the targets, settings and destination)
@@ -27,11 +29,17 @@ enum DebugExportCommands {
             export.begin()
             try? await Task.sleep(for: .milliseconds(800))
         case "windowshot":
-            guard let window = NSApp.windows.first(where: { $0.isVisible && $0.title == String(localized: "Export") }) else {
-                print("debug-script: the export window is not open")
+            // A sheet on the library window; the snapshot shows the sheet.
+            guard let window = NSApp.windows.first(where: { $0.attachedSheet != nil }) else {
+                print("debug-script: the export sheet is not open")
                 return
             }
             WindowSnapshot.write(window, to: URL(fileURLWithPath: (argument as NSString).expandingTildeInPath))
+        case "tokens":
+            TemplateFieldProbe.run(Array(words.dropFirst()), in: NSApp.windows.first { $0.attachedSheet != nil }?.attachedSheet)
+        case "close":
+            model.showsExportSheet = false
+            try? await Task.sleep(for: .milliseconds(400))
         case "set":
             for pair in words.dropFirst() {
                 let parts = pair.split(separator: "=", maxSplits: 1).map(String.init)
@@ -50,7 +58,7 @@ enum DebugExportCommands {
                     print("debug-script: export conflicts \(export.conflict?.count ?? 0), using \(policy.rawValue)")
                     export.resolveConflict(policy)
                 } else {
-                    print("debug-script: export did not start: \(export.message ?? "")")
+                    print("debug-script: export did not start: \(export.issue?.text ?? "")")
                     return
                 }
             }

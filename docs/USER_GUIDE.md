@@ -7,20 +7,29 @@ sidecars, videos and HDR. See the [README](../README.md) to build it.
 
 **Importing from a card**: **File ▸ Import from Card or Folder…** (⌘I) opens the
 import window; it also opens by itself when a card (any volume with a `DCIM`
-folder) is inserted, unless that is turned off in **Settings**. Pick photos
-(click, shift-click, All, None; RAW+JPEG pairs are one tile, photos already in
-the library are hidden and never imported), choose the destination folder and
+folder) is inserted, unless that is turned off in **Settings**. The source
+pop-up in the toolbar lists cards and chosen folders (⌘O chooses another,
+⌘R rescans); the subtitle shows how many shots are picked and the newest
+photo's camera with its shutter count. Each shot has a check box: click a
+tile, or Space on the focused one, to include or leave it out; shift-click
+sets a range; ⌘A and ⇧⌘A (or the toolbar's Selection menu) pick all or none,
+and the same menu shows videos and the photos already in the library (marked
+In Library and never imported). RAW+JPEG pairs are one tile. The options
+inspector (⌥⌘I) sets the destination folder and
 the subfolder and file name templates (tokens such as `{capture:yyyy-MM-dd}`,
 `{import:yyyy}`, `{model}`, `{lens}`, `{name}`, `{number}`, `{seq:4}`,
-`{counter:5}`, `{job}`; the ⊕ menu inserts them and an example shows the
-result), the project (a new one named from a template, or an existing one), a
+`{counter:5}`, `{job}`, shown in the field as named pills such as Capture
+Year; the Insert menu adds them, typing `{…}` makes one when you leave the
+field, copy and paste keep the `{…}` form, and an example under the field
+shows the result), the project (a new one named from a template, or an existing one), a
 job code and a metadata preset (creator, copyright such as
 `© {capture:yyyy} Your Name`, usage terms, contact; written to sidecars, the
-copies stay identical to the originals). Every copy is read back and compared
-by hash before it counts. Optionally, the originals that were copied and checked
+copies stay identical to the originals). **Import N Photos** in the toolbar
+(or Return) starts; it becomes **Stop** (⌘.) while copying, with progress
+beside it. Every copy is read back and compared by hash before it counts. Optionally, the originals that were copied and checked
 are deleted from the card (after a confirmation) and the card is ejected.
 
-Choose **File ▸ Import Folder…** (⇧⌘I) to add photos where they are, without
+Choose **File ▸ Add Folder Without Copying…** (⇧⌘I) to add photos where they are, without
 copying: pick a folder. Photos in it and its
 subfolders (CR3, CR2, NEF, ARW, DNG, RAF, ORF, RW2, HEIC, JPEG, TIFF, PNG) and
 videos (MOV, MP4, M4V) are
@@ -31,9 +40,9 @@ the same place. Originals are never moved, copied or modified.
 You can also drag one or more folders from Finder onto the browser (grid or
 loupe) or the sidebar's Projects list. Each folder is imported the same way, in
 place, as its own project named after it; several import one after another,
-with the folder and its place in the batch shown in the status bar. Folders
+with the folder and its place in the batch shown in the toolbar's Activity item. Folders
 dropped while an import runs join the queue. Files and packages among the
-dropped items are ignored (the status bar says how many), and a folder inside
+dropped items are ignored (Activity says how many), and a folder inside
 another dropped folder is imported with it. A project of the same name already
 in the library is left alone: the import makes a new project holding only the
 photos the library does not have yet, and a folder with nothing new makes none.
@@ -43,7 +52,8 @@ photos the library does not have yet, and a folder with nothing new makes none.
 | arrows | move selection (⇧ extends) | ← → previous / next photo |
 | Home, End, Page Up, Page Down | jump | first / last photo |
 | Return, Space, double-click | open the loupe | back to the grid |
-| Esc | | back to the grid |
+| Esc | | leaves review, else back to the grid |
+| F | review the focused photo | enter or leave review |
 | Z, click | | toggle fit / 100 % at the clicked point (⌥-scroll and pinch zoom too; drag pans) |
 | 0–5 | set rating | set rating |
 | [ and ] | lower / raise rating | lower / raise rating |
@@ -57,23 +67,33 @@ photos the library does not have yet, and a folder with nothing new makes none.
 | ⌫ | remove from the album on screen | |
 | ⌘Z, ⇧⌘Z | undo, redo | undo, redo |
 
+**Review** (View ▸ Enter Review, F): the loupe on the focused photo with the
+sidebar and inspector hidden, full screen, and the toolbar shown only when
+the pointer reaches the top. Culling keys, arrows and Z keep working; ⌥⌘I
+brings the inspector back. F or Esc puts the window back as it was and stays
+in the loupe; Return or Space goes back to the grid.
+
 Changes are saved to the catalog immediately. In the grid they apply to every
 selected photo. **Photo ▸ Advance After Rating** moves on to the next photo after
-each change. Rating and flag filters live at the bottom of the sidebar; photos
-that stop matching stay visible until the filter changes, so they do not jump
-away while you cull.
+each change. Rating and flag filters, the sort order and the search field are
+in the toolbar (the Filter and Sort menu, and **View ▸ Filter** and **Sort
+By**); each sidebar source keeps its own, and the source selected last is
+selected again at launch. Photos that stop matching stay visible until the
+filter changes, so they do not jump away while you cull. The toolbar's
+Activity item shows imports, exports and other work in progress, with Stop,
+and the latest messages.
 
 A RAW file and a JPEG or HEIC with the same name in the same folder are a
 pair. **View ▸ Group RAW+JPEG Pairs** shows each pair once, as the RAW unless
 **Photo ▸ RAW+JPEG Pair** says otherwise; its badge reads `RAW+JPEG` (the file on
 screen first). Ratings, flags, labels, keywords and albums always apply to both
-files. **View ▸ Show File Names** toggles the name and type badge under each
+files. **View ▸ Show / Hide File Names** toggles the name and type badge under each
 thumbnail.
 
-**Keywords**: ⌘K opens a field over the grid or loupe that adds keywords to the
+**Keywords**: ⌘K opens a popover at the top of the grid or loupe that adds keywords to the
 selected photos, completing from the keywords already in the library (↓ ↑ to
 choose, Tab or Return to take one, Return to add, Esc to close). The inspector
-(**View ▸ Show Inspector**, ⌥⌘I) lists the selection's keywords with counts
+(**View ▸ Show Inspector**, ⌥⌘I; **View ▸ Info** ⌥⌘1 and **Adjust** ⌥⌘2 pick the tab) lists the selection's keywords with counts
 ("dog, 12 of 30"), removes them, and shows file details. The sidebar lists every
 keyword; click one to see its photos, or right-click to rename (renaming onto
 an existing keyword merges the two) or delete it. Keywords, ratings and labels
@@ -106,7 +126,7 @@ one), so other apps can read them. Existing sidecars are edited in place and
 keep everything other apps put in them. Sidecars present at import, or
 `IMG_0412.CR3.xmp` ones, are read. Originals are never written, JPEG, HEIC and
 DNG included. The library is the source of truth, but nothing another app
-changed is overwritten: at launch, when a volume mounts and with **Photo ▸ Check
+changed is overwritten: at launch, when a volume mounts and with **File ▸ Check
 for Changes on Disk**, sidecars and originals changed outside the app are listed
 under **Library ▸ Changed on Disk**, and the inspector compares the library's
 values with the file's so you can keep either, or choose per field (keywords can
@@ -122,31 +142,37 @@ take ratings, keywords, albums and sidecars. There is no video editing or export
 **HDR**: on a display with extended dynamic range, the loupe shows HDR photos
 with highlights above white: floating-point DNGs (such as Lightroom's HDR
 merges) and HEIC and JPEG files with a gain map or HLG or PQ encoding. An **HDR**
-badge in the info bar says so. Camera raws stay SDR. The loupe first shows the
+badge in the caption line under the photo says so. Camera raws stay SDR. The loupe first shows the
 cached preview, then the HDR render from the original, so offline originals stay
-SDR. Thumbnails and cached previews are always SDR. **View ▸ Show HDR** turns it off.
+SDR. Thumbnails and cached previews are always SDR. **View ▸ Hide HDR Highlights** turns it off.
 
-**Crop, Rotate, Straighten** is the Adjust tab's first heading. **Crop** shows
+**Crop & Straighten** follows **Presets** at the top of the Adjust tab. **Crop** shows
 the whole photo in the loupe under a crop frame with a rule-of-thirds grid: drag
 inside the frame to move it, a corner or an edge to resize it, and outside it to
 straighten. The buttons under it hold the frame to 1:1, 3:2, 4:3 or 16:9 (pick
 the same one again to swap portrait and landscape) or free it; the arrows turn
-the photo a quarter turn; the **Straighten** slider tilts it up to 45° either
+the frame a quarter turn; the **Straighten** slider tilts it up to 45° either
 way, over a finer grid, and the image grows so it always fills the frame.
-**Done** (or Return) saves the crop as one undo step and folds the heading;
-Esc cancels. Moving to another photo keeps the crop. Copy and Paste Adjustments
+**Done** (or Return, or `C` again) saves the crop as one undo step and folds
+the heading; Esc cancels. `C` (**Adjust ▸ Crop**) starts cropping, from the
+grid too. **Adjust ▸ Rotate Left / Right** (⌘[ / ⌘]) and the heading's arrows,
+outside a crop, turn the photo at once as one undo step; in the grid they turn
+every selected photo. **Auto Exposure**, **Reset All Adjustments**, **Paste
+Adjustments** and **Apply Preset** also act on every selected photo in the
+grid, as one undo step; videos are left out. Moving to another photo keeps the crop. Copy and Paste Adjustments
 carry the crop; presets never do. Photos shot at 1:1, 3:2 or 16:9 on a camera
 with a 4:3 sensor show the camera's crop; on Olympus, OM System and Panasonic
 raw files, cropping starts from that frame over the whole sensor, so it can be
 widened. Other raw formats are cropped within the frame their decoder gives.
 
-**Presets** (the Adjust tab's **Presets** heading, at its bottom, and **Photo ▸ Apply Preset**)
+**Presets** (the Adjust tab's first heading, and **Adjust ▸ Apply Preset**)
 apply saved adjustments to the photo in the loupe or to every selected photo.
 The heading shows the focused photo with each preset, by collection; in the
 loupe, hovering a picture shows the photo with that preset, and clicking it
 applies the preset. Its **Save…**, **Import…** and **Manage…** buttons match
-the menu commands below. **Copy Adjustments** and **Paste Adjustments** sit
-at the bottom of the Adjust tab. **Save Adjustments as
+the menu commands below. **Copy Adjustments**, **Paste Adjustments** and
+**Reset All Adjustments** are in the ⋯ menu at the top of the Adjust tab, next
+to **Original** (`\`). **Save Adjustments as
 Preset…** asks for a name, a collection and the groups of controls to include
 (those the photo changes are checked): applying the preset replaces only those
 and leaves the photo's other settings alone. **Import Presets…** reads this
@@ -155,14 +181,15 @@ app's preset files and Lightroom presets (`.lrtemplate`, `.xmp`, and
 its presets name their own, and a pack that holds a preset in several formats
 gives one copy. Lightroom settings with no equivalent here (calibration,
 masks, texture, crop, lens corrections and the like) are left out, and the
-import lists them. **Manage Presets…** renames, moves, exports and deletes
-presets and collections, and changes what each includes. An exported preset
+import lists them. **Manage Presets…** opens a sheet that renames, moves,
+exports and deletes presets and collections, and changes what each includes;
+changes apply at once, and Done closes it. An exported preset
 file carries the look-up tables its presets use, so it looks the same in
 another library; double-clicking one in the Finder imports it.
 
 **Export** (**File ▸ Export…**, ⇧⌘E) writes the selected photos, or the one in
 the loupe, to a folder with their adjustments. A RAW+JPEG pair is exported once,
-from its RAW; videos are not exported. The window sets:
+from its RAW; videos are not exported. A sheet on the library window sets:
 
 - **File names**: the original name, or a template with the import tokens, plus
   `{export:yyyy-MM-dd}` for today and `{seq:4}` for the position in the export.
@@ -176,12 +203,13 @@ from its RAW; videos are not exported. The window sets:
   and contact only, or none. Keywords, caption, creator and copyright come from
   the library. Ratings and labels are never included.
 - **Watermark**: a PNG (transparent areas stay see-through), placed in one of
-  nine positions with a margin, size and opacity, with a preview of the first photo.
+  nine positions with a margin, size and opacity, with a preview of the first photo
+  while a watermark is on.
 
 Settings can be saved as **presets**. When files with the same names are
-already in the folder, the window asks once whether to keep both (the new files
+already in the folder, the sheet asks once whether to keep both (the new files
 get numbered names), replace them or skip them. The export runs in the
-background, with progress and a stop button in the status bar. If anything
+background, with progress and Stop in the toolbar's Activity item. If anything
 could not be exported (an offline volume, for instance), an alert says why. The
 Finder can show the files when it is done.
 

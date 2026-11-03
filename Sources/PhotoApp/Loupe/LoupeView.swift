@@ -16,7 +16,7 @@ struct LoupeView: View {
             } else {
                 LoupeCanvas(model: model)
             }
-            LoupeInfoBar(model: model)
+            LoupeCaption(model: model)
         }
         .background(Color(nsColor: Palette.loupeBackground))
     }
@@ -42,6 +42,7 @@ struct LoupeCanvas: NSViewRepresentable {
         context.coordinator.showLiveFrame(revision: model.editor.frameRevision, active: model.editor.showsLive)
         context.coordinator.showCrop(model.editor.cropSession, image: model.editor.cropImage)
         context.coordinator.showMasks()
+        context.coordinator.updateAccessibility()
     }
 
     static func dismantleNSView(_ view: LoupeHostView, coordinator: LoupeController) {
@@ -91,7 +92,10 @@ final class LoupeController: NSObject {
     private var shownIndex: Int?
     private var zoom: Zoom = .fit {
         // Zoomed in, live frames are already stretched: drafts would make that worse.
-        didSet { model.editor.allowsDrafts = zoom == .fit }
+        didSet {
+            model.editor.allowsDrafts = zoom == .fit
+            publishZoom()
+        }
     }
     private var rendition = Rendition.placeholder
     private var loadTask: Task<Void, Never>?
@@ -156,11 +160,36 @@ final class LoupeController: NSObject {
         NotificationCenter.default.addObserver(self, selector: #selector(didEndMagnify(_:)),
                                                name: NSScrollView.didEndLiveMagnifyNotification, object: scrollView)
         NotificationCenter.default.addObserver(self, selector: #selector(takeFocus(_:)),
-                                               name: .browserShouldTakeFocus, object: model)
+                                               name: .browserShouldTakeFocus, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(zoomRequested(_:)),
+                                               name: .loupeShouldToggleZoom, object: model)
+        NotificationCenter.default.addObserver(self, selector: #selector(zoomStepRequested(_:)),
+                                               name: .loupeShouldStepZoom, object: model)
+        NotificationCenter.default.addObserver(self, selector: #selector(zoomSetRequested(_:)),
+                                               name: .loupeShouldSetZoom, object: model)
     }
 
+    /// From the model, or from a view in this window (an inspector value field).
     @objc private func takeFocus(_ notification: Notification) {
+        guard notification.object as AnyObject? === model || notification.object as AnyObject? === hostView.window else { return }
         if model.mode == .loupe { hostView.window?.makeFirstResponder(hostView) }
+    }
+
+    @objc private func zoomRequested(_ notification: Notification) {
+        if model.mode == .loupe { toggleZoom() }
+    }
+
+    /// The toolbar's Fit / 100%.
+    @objc private func zoomSetRequested(_ notification: Notification) {
+        guard model.mode == .loupe, let fit = notification.userInfo?[LoupeZoomStep.fitKey] as? Bool else { return }
+        zoom = fit ? .fit : .actualSize
+        applyZoom(animated: true)
+        if !fit { loadFullResolution() }
+    }
+
+    @objc private func zoomStepRequested(_ notification: Notification) {
+        guard model.mode == .loupe, let zoomIn = notification.userInfo?[LoupeZoomStep.zoomInKey] as? Bool else { return }
+        stepZoom(in: zoomIn)
     }
 
     func tearDown() {
@@ -418,12 +447,45 @@ final class LoupeController: NSObject {
         let clip = scrollView.contentView.bounds.size
         let document = imageView.frame.size
         guard document.width > 0, document.height > 0, clip.width > 0 else { return 1 }
+        // Fitted within a margin of the neutral surround (section 1 of docs/UI_REDESIGN.md).
+        let margin: CGFloat = 24
         let clipSize = scrollView.frame.size
-        return min(clipSize.width / document.width, clipSize.height / document.height, 1)
+        let width = max(clipSize.width - margin * 2, 1)
+        let height = max(clipSize.height - margin * 2, 1)
+        return min(width / document.width, height / document.height, 1)
+    }
+
+    /// ⌘= / ⌘−: the next step (`LoupeZoomSteps`), keeping the visible center.
+    func stepZoom(in zoomIn: Bool) {
+        let current = scrollView.magnification
+        let fit = fitMagnification
+        guard let target = zoomIn ? LoupeZoomSteps.zoomIn(from: current, fit: fit)
+                                  : LoupeZoomSteps.zoomOut(from: current, fit: fit) else { return }
+        let visible = scrollView.documentVisibleRect
+        imageView.usesNearestFiltering = target >= 1
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.15
+            scrollView.animator().setMagnification(target, centeredAt: NSPoint(x: visible.midX, y: visible.midY))
+        }
+        zoom = target > fit * 1.001 ? .actualSize : .fit
+        if zoom == .actualSize { loadFullResolution() }
+        publishZoom(magnification: target)
+    }
+
+    /// Tells the menus whether the loupe is zoomed and can zoom further.
+    private func publishZoom(magnification: CGFloat? = nil) {
+        let current = magnification ?? scrollView.magnification
+        let fit = fitMagnification
+        let state = LoupeZoomState(isZoomed: zoom != .fit,
+                                   canZoomIn: LoupeZoomSteps.zoomIn(from: current, fit: fit) != nil,
+                                   canZoomOut: zoom != .fit && LoupeZoomSteps.zoomOut(from: current, fit: fit) != nil,
+                                   isActualSize: zoom != .fit && abs(current - 1) < 0.01)
+        if model.loupeZoom != state { model.loupeZoom = state }
     }
 
     private func applyZoom(animated: Bool, centeredAt point: NSPoint? = nil) {
         let target: CGFloat = zoom == .fit ? fitMagnification : 1
+        defer { publishZoom(magnification: target) }
         let center = point ?? NSPoint(x: imageView.bounds.midX, y: imageView.bounds.midY)
         imageView.usesNearestFiltering = target >= 1
         if animated {
@@ -442,6 +504,7 @@ final class LoupeController: NSObject {
 
     @objc private func didEndMagnify(_ notification: Notification) {
         adoptMagnification()
+        publishZoom()
     }
 
     /// Option-scroll zooms between fit and the largest magnification, keeping
@@ -458,6 +521,7 @@ final class LoupeController: NSObject {
         clip.scroll(to: clip.constrainBoundsRect(NSRect(origin: origin, size: clip.bounds.size)).origin)
         scrollView.reflectScrolledClipView(clip)
         adoptMagnification()
+        publishZoom()
     }
 
     /// Takes the zoom from a magnification a pinch or Option-scroll left:
@@ -472,6 +536,44 @@ final class LoupeController: NSObject {
         } else {
             zoom = .fit
         }
+    }
+
+    // MARK: Accessibility
+
+    /// The photo the canvas describes to VoiceOver.
+    var accessibilityItem: CatalogItem? { model.focusedItem }
+    private var describedValue: String?
+
+    /// "Picked, 13 of 87".
+    var accessibilityValue: String? {
+        guard let item = accessibilityItem, let index = model.focusIndex else { return nil }
+        return PhotoAccessibility.loupeValue(for: item, offline: model.isOffline(item), index: index,
+                                             count: model.items.count)
+    }
+
+    /// Culling the photo on screen, or moving to another, changes the
+    /// canvas's value; VoiceOver is told. (The move itself is announced by
+    /// the key's handler, or with the culling result after auto-advance.)
+    func updateAccessibility() {
+        let value = accessibilityValue
+        defer { describedValue = value }
+        if describedValue != nil, value != nil, describedValue != value {
+            NSAccessibility.post(element: hostView, notification: .valueChanged)
+        }
+    }
+
+    /// The grid's culling actions, then Show Grid, Zoom and Show Original,
+    /// titled for the current state.
+    func accessibilityActions() -> [NSAccessibilityCustomAction]? {
+        guard let item = accessibilityItem else { return nil }
+        let zoomTitle = zoom == .fit ? String(localized: "Zoom to 100%") : String(localized: "Zoom to Fit")
+        let originalTitle = model.editor.showsOriginal ? String(localized: "Show Adjustments")
+                                                       : String(localized: "Show Original")
+        return PhotoAccessibility.cullingActions(forVersion: item.versionID, model: model) + [
+            PhotoAccessibility.showGrid(model),
+            PhotoAccessibility.action(zoomTitle) { [weak self] in self?.toggleZoom() },
+            PhotoAccessibility.action(originalTitle) { [weak self] in self?.model.editor.toggleOriginal() },
+        ]
     }
 
     // MARK: Keys
@@ -493,8 +595,14 @@ final class LoupeController: NSObject {
             model.perform(action)
             return true
         }
-        if event.charactersIgnoringModifiers == "\\", event.modifierFlags.intersection(.deviceIndependentFlagsMask).isEmpty {
+        let bare = event.modifierFlags.intersection(.deviceIndependentFlagsMask).isEmpty
+        if event.charactersIgnoringModifiers == "\\", bare {
             model.editor.toggleOriginal()
+            return true
+        }
+        // Starts cropping, or finishes (as Return does).
+        if event.charactersIgnoringModifiers?.lowercased() == "c", bare {
+            model.crop()
             return true
         }
         switch NavigationKey.from(event) {
@@ -502,10 +610,22 @@ final class LoupeController: NSObject {
         case .right, .down: model.moveFocus(by: 1)
         case .home: model.setFocus(0)
         case .end: model.setFocus(model.items.count - 1)
-        case .toggleLoupe, .exitLoupe: model.closeLoupe()
-        case .toggleZoom: toggleZoom()
+        case .exitLoupe where model.isReviewing:
+            // Esc backs out one level: review first, then the loupe.
+            model.exitReview()
+            return true
+        case .toggleLoupe, .exitLoupe:
+            model.closeLoupe()
+            return true
+        case .toggleReview:
+            model.toggleReview()
+            return true
+        case .toggleZoom:
+            toggleZoom()
+            return true
         case .pageUp, .pageDown, nil: return false
         }
+        model.announceLoupePhoto()
         return true
     }
 }
@@ -523,6 +643,38 @@ final class LoupeHostView: NSView {
         super.viewDidMoveToWindow()
         window?.makeFirstResponder(self)
         controller?.windowDidChange()
+    }
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        guard let model = controller?.model, model.focusedItem != nil else { return nil }
+        return PhotoContextMenu.loupe(model: model)
+    }
+
+    // MARK: Accessibility
+
+    // The canvas is one image element: the scroll view and image view inside
+    // it are hidden from VoiceOver; the crop and mask overlays are not.
+
+    override func isAccessibilityElement() -> Bool { controller?.accessibilityItem != nil }
+    override func accessibilityRole() -> NSAccessibility.Role? { .image }
+    override func accessibilityLabel() -> String? { controller?.accessibilityItem.map(PhotoAccessibility.label) }
+
+    override func accessibilityValue() -> Any? { controller?.accessibilityValue }
+
+    override func accessibilityCustomActions() -> [NSAccessibilityCustomAction]? { controller?.accessibilityActions() }
+
+    override func accessibilityChildren() -> [Any]? {
+        super.accessibilityChildren()?.filter { !($0 is LoupeScrollView) }
+    }
+
+    // Declared nonisolated, but AppKit asks accessibility questions on the main thread.
+    override func accessibilityHitTest(_ point: NSPoint) -> Any? {
+        let hit = super.accessibilityHitTest(point)
+        guard let view = hit as? NSView else { return hit }
+        let insideCanvas = MainActor.assumeIsolated {
+            subviews.first { $0 is LoupeScrollView }.map(view.isDescendant(of:)) ?? false
+        }
+        return insideCanvas ? self : hit
     }
 }
 
@@ -653,131 +805,108 @@ final class CenteringClipView: NSClipView {
     }
 }
 
-/// File name, capture details and culling state of the photo in the loupe.
-struct LoupeInfoBar: View {
+/// One line under the photo, on the surround (section 1 of
+/// docs/UI_REDESIGN.md): the position on the left; the stars, flag and color
+/// label with its name in the middle; Filtered, Original, HDR and Offline on
+/// the right. The file name is the window title; capture details are in the
+/// Info tab.
+struct LoupeCaption: View {
     let model: LibraryModel
-    @State private var details: VersionDetails?
+
+    static let height: CGFloat = 28
 
     var body: some View {
-        HStack(spacing: 16) {
-            if let item = model.focusedItem {
-                CullingBadges(item: item)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(item.fileName)
-                        .font(.headline)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    if let details {
-                        Text(Self.captureLine(details))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                }
-                Spacer()
-                if model.editor.showsOriginal {
-                    Text("Original")
-                        .font(.caption.weight(.semibold))
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 1)
-                        .background(RoundedRectangle(cornerRadius: 3).fill(.white.opacity(0.2)))
-                        .help("Showing the photo without adjustments. Press \\ to show them again.")
-                }
-                if let headroom = model.loupeHDRHeadroom {
-                    Text("HDR")
-                        .font(.caption.weight(.semibold))
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 1)
-                        .overlay(RoundedRectangle(cornerRadius: 3).stroke(.secondary))
-                        .help("Highlights up to \(headroom.formatted(.number.precision(.fractionLength(1))))× SDR white are shown with the display's extended range")
-                }
-                if let details {
-                    Text(Self.exposureLine(details.image))
-                        .font(.callout)
+        ZStack {
+            if let item = model.focusedItem, let index = model.focusIndex {
+                HStack {
+                    Text(PhotoAccessibility.position(index, of: model.items.count))
                         .monospacedDigit()
-                        .foregroundStyle(.secondary)
+                    Spacer()
+                    badges(item)
                 }
-                if model.isOffline(item) {
-                    Label("Original offline", systemImage: "externaldrive.badge.xmark")
-                        .foregroundStyle(.orange)
-                        .help("The volume \(model.volumeName(for: item) ?? "") is not connected. Showing the cached preview.")
-                }
+                CullingMarks(item: item)
             }
         }
-        .foregroundStyle(.white.opacity(0.9))
-        .padding(.horizontal, 16)
-        .frame(height: 48)
-        .background(Color(white: 0.11))
-        .task(id: model.focusedItem?.versionID) {
-            guard let id = model.focusedItem?.versionID else { details = nil; return }
-            details = try? await model.catalog.details(forVersion: id)
-        }
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 12)
+        .frame(height: Self.height)
     }
 
-    static func captureLine(_ details: VersionDetails) -> String {
-        var parts: [String] = []
-        let image = details.image
-        if let date = captureDateText(image) { parts.append(date) }
-        if let camera = [image.cameraMake, image.cameraModel].compactMap({ $0 }).joined(separator: " ").nilIfEmpty {
-            parts.append(camera)
+    @ViewBuilder
+    private func badges(_ item: CatalogItem) -> some View {
+        HStack(spacing: 6) {
+            if model.isFiltered {
+                CaptionBadge(title: String(localized: "Filtered"),
+                             help: String(localized: "A filter hides some of this source's photos"))
+            }
+            if model.editor.showsOriginal {
+                CaptionBadge(title: String(localized: "Original"),
+                             help: String(localized: "Showing the photo without adjustments. Press \\ to show them again."))
+            }
+            if let headroom = model.loupeHDRHeadroom {
+                CaptionBadge(title: String(localized: "HDR"),
+                             help: String(localized: "Highlights up to \(headroom.formatted(.number.precision(.fractionLength(1))))× SDR white are shown with the display's extended range"))
+            }
+            if model.isOffline(item) {
+                CaptionBadge(title: String(localized: "Offline"),
+                             help: String(localized: "The volume \(model.volumeName(for: item) ?? "") is not connected. Showing the cached preview."))
+            }
         }
-        if let lens = image.lensModel { parts.append(lens) }
-        if let width = image.pixelWidth, let height = image.pixelHeight {
-            parts.append(String(localized: "\(width) × \(height) px"))
-        }
-        return parts.joined(separator: "  ·  ")
-    }
-
-    static func captureDateText(_ image: ImageRecord) -> String? {
-        guard let date = image.captureDate else { return nil }
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        // Times without an offset are floating local times stored as UTC.
-        formatter.timeZone = image.captureOffsetSeconds.flatMap(TimeZone.init(secondsFromGMT:)) ?? TimeZone(secondsFromGMT: 0)
-        return formatter.string(from: date)
-    }
-
-    static func exposureLine(_ image: ImageRecord) -> String {
-        var parts: [String] = []
-        if let time = image.exposureTime, time > 0 {
-            let duration = time < 1 ? "1/\(Int((1 / time).rounded()))" : time.formatted(.number.precision(.fractionLength(0...1)))
-            parts.append(String(localized: "\(duration) s", comment: "Exposure time in seconds"))
-        }
-        if let aperture = image.fNumber {
-            parts.append(String(localized: "ƒ/\(aperture.formatted(.number.precision(.fractionLength(0...1))))"))
-        }
-        if let iso = image.iso { parts.append(String(localized: "ISO \(iso)")) }
-        if let focal = image.focalLength {
-            parts.append(String(localized: "\(Int(focal.rounded())) mm", comment: "Focal length"))
-        }
-        return parts.joined(separator: "   ")
     }
 }
 
-struct CullingBadges: View {
+/// A small outlined text badge.
+private struct CaptionBadge: View {
+    let title: String
+    let help: String
+
+    var body: some View {
+        Text(title)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .overlay(RoundedRectangle(cornerRadius: 3).stroke(.secondary.opacity(0.6)))
+            .help(help)
+    }
+}
+
+/// Stars (SF Symbols), the flag, and the color label's dot with its name.
+struct CullingMarks: View {
     let item: CatalogItem
 
     var body: some View {
-        HStack(spacing: 6) {
-            Text(item.rating.rawValue > 0 ? RatingText.stars(item.rating.rawValue) : "☆")
-                .foregroundStyle(item.rating.rawValue > 0 ? Color(nsColor: Palette.rating) : .secondary)
-                .frame(minWidth: 64, alignment: .leading)
+        HStack(spacing: 10) {
+            // Five slots, the unused ones invisible: the flag and label stay put.
+            HStack(spacing: 1) {
+                ForEach(0..<5, id: \.self) { index in
+                    Image(systemName: "star.fill")
+                        .opacity(index < item.rating.rawValue ? 1 : 0)
+                }
+            }
+            .foregroundStyle(Color(nsColor: Palette.rating))
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(PhotoAccessibility.text(.rating(item.rating)))
+            .accessibilityHidden(item.rating == .unrated)
             switch item.flag {
             case .picked:
                 Image(systemName: "flag.fill").foregroundStyle(Color(nsColor: Palette.pick))
                     .help("Picked")
+                    .accessibilityLabel(Text("Picked"))
             case .rejected:
                 Image(systemName: "xmark.circle.fill").foregroundStyle(Color(nsColor: Palette.reject))
                     .help("Rejected")
+                    .accessibilityLabel(Text("Rejected"))
             case .none:
                 EmptyView()
             }
             if let color = Palette.color(for: item.colorLabel) {
-                Circle().fill(Color(nsColor: color)).frame(width: 10, height: 10)
+                HStack(spacing: 4) {
+                    Circle().fill(Color(nsColor: color)).frame(width: 9, height: 9)
+                    Text(ColorLabelText.name(item.colorLabel))
+                }
+                .accessibilityElement(children: .combine)
             }
         }
-        .font(.callout)
     }
 }
 

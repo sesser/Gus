@@ -9,7 +9,7 @@ struct PhotoApplication: App {
     @State private var library = LibraryLoader()
 
     var body: some Scene {
-        Window(AppBranding.displayName, id: "library") {
+        Window(String(localized: "Library", comment: "The library window, in the Window menu; also a sidebar section"), id: "library") {
             Group {
                 switch library.state {
                 case .ready(let model):
@@ -26,7 +26,8 @@ struct PhotoApplication: App {
         }
         .defaultSize(width: 1320, height: 860)
         .commands {
-            LibraryCommands(model: library.model)
+            LibraryCommands()
+            ImportCommands(includesLibraryItems: true, includesOptionsItem: false)
         }
 
         Window(String(localized: "Import"), id: "import") {
@@ -35,27 +36,6 @@ struct PhotoApplication: App {
             }
         }
         .defaultSize(width: 1200, height: 780)
-
-        Window(String(localized: "Look-Up Tables"), id: "lookTables") {
-            if let model = library.model {
-                LookTableBrowserWindow(model: model)
-            }
-        }
-        .defaultSize(width: 980, height: 720)
-
-        Window(String(localized: "Export"), id: "export") {
-            if let model = library.model {
-                ExportWindow(model: model)
-            }
-        }
-        .defaultSize(width: 980, height: 760)
-
-        Window(String(localized: "Presets"), id: "presets") {
-            if let model = library.model {
-                PresetManagerWindow(model: model)
-            }
-        }
-        .defaultSize(width: 640, height: 600)
 
         Settings {
             if let model = library.model {
@@ -112,168 +92,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         true
     }
+
+    /// ⌘Q while an import or an export runs asks first (section 8, "Quitting
+    /// while copying"); closing the Import window keeps copying.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let library = Self.library, !QuitGuard.allowsQuit,
+              let confirmation = QuitConfirmation.needed(app: .library, trigger: .quit,
+                                                         isCopying: library.cardImport.isImporting,
+                                                         isAddingFolders: library.isImporting,
+                                                         isExporting: library.export.isExporting)
+        else { return .terminateNow }
+        Task { @MainActor in
+            // The window ⌘Q came from; a visible one if none is key.
+            let window = NSApp.keyWindow ?? NSApp.mainWindow ?? NSApp.windows.first { $0.isVisible && $0.canBecomeMain }
+            let stop = await QuitGuard.ask(QuitGuard.text(for: confirmation), in: window)
+            guard stop else { return }
+            // Nothing more is said: the app quits before the jobs report.
+            library.cardImport.cancelImport()
+            library.cancelImport()
+            library.export.cancel()
+            NSApp.terminate(nil)
+        }
+        // Cancelled now and asked again after Stop and Quit: with
+        // .terminateLater the app waits in a run loop mode in which the
+        // alert's task never runs.
+        return .terminateCancel
+    }
 }
 
 private struct LibraryErrorView: View {
     let message: String
 
     var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 40))
-                .foregroundStyle(.orange)
-            Text("The library could not be opened.")
-                .font(.title3)
+        ContentUnavailableView {
+            Label("Can't Open the Library", systemImage: "exclamationmark.triangle")
+        } description: {
             Text(message)
-                .foregroundStyle(.secondary)
                 .textSelection(.enabled)
-        }
-        .padding(40)
-    }
-}
-
-struct LibraryCommands: Commands {
-    let model: LibraryModel?
-    @Environment(\.openWindow) private var openWindow
-
-    var body: some Commands {
-        CommandGroup(after: .newItem) {
-            Button("Import from Card or Folder…") {
-                model?.cardImport.refreshSources()
-                openWindow(id: "import")
-            }
-            .keyboardShortcut("i", modifiers: .command)
-            .disabled(model == nil)
-            Button("New Album…") { model?.sidebarSheet = .newAlbum(projectID: model?.selectedProjectID) }
-                .keyboardShortcut("n", modifiers: .command)
-                .disabled(model == nil)
-            Button("New Smart Album…") { model?.sidebarSheet = .smartAlbum(nil, projectID: model?.selectedProjectID) }
-                .keyboardShortcut("n", modifiers: [.command, .option])
-                .disabled(model == nil)
-            Divider()
-            Button("Import Folder…") {
-                if let model { ImportPanel.run(model: model) }
-            }
-            .keyboardShortcut("i", modifiers: [.command, .shift])
-            .disabled(model == nil || model?.isImporting == true)
-            Divider()
-            Button("Export…") { model?.export.begin() }
-                .keyboardShortcut("e", modifiers: [.command, .shift])
-                .disabled(model == nil || model?.itemCount == 0 || model?.export.isExporting == true)
-        }
-
-        CommandMenu("Photo") {
-            Menu("Rating") {
-                Button("No Rating") { model?.perform(.setRating(.unrated)) }
-                ForEach(1...5, id: \.self) { stars in
-                    Button(RatingText.stars(stars)) { model?.perform(.setRating(Rating(clamping: stars))) }
-                }
-                Divider()
-                Button("Raise Rating") { model?.perform(.adjustRating(1)) }
-                Button("Lower Rating") { model?.perform(.adjustRating(-1)) }
-            }
-            Menu("Flag") {
-                Button("Pick") { model?.perform(.setFlag(.picked)) }
-                Button("Reject") { model?.perform(.setFlag(.rejected)) }
-                Button("Clear Flag") { model?.perform(.setFlag(.none)) }
-            }
-            Menu("Color Label") {
-                ForEach(ColorLabel.allCases, id: \.self) { label in
-                    Button(ColorLabelText.name(label)) { model?.perform(.setColorLabel(label)) }
-                }
-            }
-            Button("Add Keywords…") { model?.beginKeywordEntry() }
-                .keyboardShortcut("k", modifiers: .command)
-                .disabled(model == nil || model?.itemCount == 0)
-            Button("Suggest Keywords") {
-                guard let model else { return }
-                model.suggestKeywords(for: model.actionTargetVersionIDs)
-                model.showsInspector = true
-            }
-            .keyboardShortcut("k", modifiers: [.command, .shift])
-            .disabled(model == nil || model?.itemCount == 0)
-            Menu("Add to Album") {
-                ForEach(model?.albums ?? []) { album in
-                    Button(album.album.name) { model?.addToAlbum(album.id) }
-                }
-            }
-            .disabled(model?.albums.isEmpty ?? true)
-            Button("Remove from Album") { model?.removeFromCurrentAlbum() }
-                .disabled(model?.currentAlbumID == nil)
-            Divider()
-            Button("Copy Adjustments") { model?.copyAdjustments() }
-                .keyboardShortcut("c", modifiers: [.command, .shift])
-                .disabled(model?.focusedItem == nil)
-            Button("Paste Adjustments") { model?.pasteAdjustments() }
-                .keyboardShortcut("v", modifiers: [.command, .shift])
-                .disabled(model?.copiedAdjustments == nil || model?.itemCount == 0)
-            Menu("Apply Preset") {
-                ForEach(model?.adjustmentPresetCollections ?? []) { collection in
-                    if collection.name.isEmpty {
-                        ForEach(collection.presets) { preset in
-                            Button(preset.name) { model?.applyAdjustmentPreset(preset) }
-                        }
-                    } else {
-                        Menu(collection.name) {
-                            ForEach(collection.presets) { preset in
-                                Button(preset.name) { model?.applyAdjustmentPreset(preset) }
-                            }
-                        }
-                    }
-                }
-            }
-            .disabled(model?.adjustmentPresets.isEmpty ?? true)
-            Button("Save Adjustments as Preset…") { model?.promptForAdjustmentPreset() }
-                .disabled(model?.focusedItem == nil)
-            Button("Import Presets…") { model?.chooseAdjustmentPresetImport() }
-                .disabled(model == nil)
-            Button("Manage Presets…") { model?.requestsPresetWindow = true }
-                .disabled(model == nil)
-            Divider()
-            Button("Check for Changes on Disk") { model?.checkForDiskChanges() }
-                .disabled(model == nil || model?.isCheckingDisk == true)
-            Divider()
-            Menu("RAW+JPEG Pair") {
-                Button("Show the RAW File") { model?.showPairFile(raw: true) }
-                Button("Show the JPEG or HEIC File") { model?.showPairFile(raw: false) }
-            }
-            .disabled(model?.groupPairs != true)
-            Divider()
-            Toggle("Advance After Rating", isOn: Binding(
-                get: { model?.autoAdvance ?? false },
-                set: { model?.autoAdvance = $0 }
-            ))
-        }
-
-        CommandGroup(before: .toolbar) {
-            Button(model?.mode == .loupe ? String(localized: "Show Grid") : String(localized: "Show Loupe")) {
-                guard let model else { return }
-                if model.mode == .loupe { model.closeLoupe() } else { model.openLoupe() }
-            }
-            .keyboardShortcut(.return, modifiers: .command)
-            .disabled(model?.itemCount ?? 0 == 0)
-            Button("Larger Thumbnails") { model?.resizeThumbnails(by: 1.2) }
-                .keyboardShortcut("=", modifiers: .command)
-            Button("Smaller Thumbnails") { model?.resizeThumbnails(by: 1 / 1.2) }
-                .keyboardShortcut("-", modifiers: .command)
-            Toggle("Show File Names", isOn: Binding(
-                get: { model?.showFileInfo ?? true },
-                set: { model?.showFileInfo = $0 }
-            ))
-            Toggle("Show Inspector", isOn: Binding(
-                get: { model?.showsInspector ?? false },
-                set: { model?.showsInspector = $0 }
-            ))
-            .keyboardShortcut("i", modifiers: [.command, .option])
-            Toggle("Group RAW+JPEG Pairs", isOn: Binding(
-                get: { model?.groupPairs ?? true },
-                set: { model?.groupPairs = $0 }
-            ))
-            Toggle("Show HDR", isOn: Binding(
-                get: { model?.showsHDR ?? true },
-                set: { model?.showsHDR = $0 }
-            ))
-            Divider()
         }
     }
 }

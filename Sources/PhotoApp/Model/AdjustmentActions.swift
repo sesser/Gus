@@ -6,7 +6,7 @@ extension LibraryModel {
 
     /// Remembers the focused photo's adjustments for Paste Adjustments.
     func copyAdjustments() {
-        guard let item = focusedItem else { return }
+        guard let item = focusedItem, !item.isVideo else { return }
         if editor.item?.versionID == item.versionID, editor.state == .ready {
             copiedAdjustments = editor.adjustments
             return
@@ -17,16 +17,18 @@ extension LibraryModel {
                 let stack = try await catalog.version(id: item.versionID)?.decodedEditStack() ?? .identity
                 copiedAdjustments = Adjustments(stack: stack)
             } catch {
-                statusMessage = AdjustText.unreadableMessage(EditStack.ReadFailure(error))
+                report(AdjustText.unreadableMessage(EditStack.ReadFailure(error)),
+                       action: String(localized: "Copy Adjustments"), warning: true)
             }
         }
     }
 
-    /// Gives the selection (grid) or the photo on screen (loupe) the copied adjustments.
+    /// Gives the selection (grid) or the photo on screen (loupe) the copied
+    /// adjustments; videos are left out (`batchSelection`).
     func pasteAdjustments() {
         guard let copiedAdjustments else { return }
-        applyAdjustments(copiedAdjustments, toVersions: actionTargetVersionIDs,
-                         actionName: String(localized: "Paste Adjustments", comment: "Undo action name"))
+        let actionName = String(localized: "Paste Adjustments", comment: "Undo action name")
+        applyAdjustments(copiedAdjustments, toVersions: batchSelection(action: actionName).versionIDs, actionName: actionName)
     }
 
     // MARK: Applying to many photos
@@ -40,6 +42,12 @@ extension LibraryModel {
     /// Gives each of `ids` `transform` of its adjustments, as one undo step.
     func changeAdjustments(ofVersions ids: [Int64], actionName: String,
                            _ transform: @escaping @Sendable (Adjustments) -> Adjustments) {
+        changeAdjustments(ofVersions: ids, actionName: actionName) { _, values in transform(values) }
+    }
+
+    /// As above, with each version's id, for changes that differ per photo.
+    func changeAdjustments(ofVersions ids: [Int64], actionName: String,
+                           _ transform: @escaping @Sendable (Int64, Adjustments) -> Adjustments) {
         guard !ids.isEmpty else { return }
         let change = Pending<(before: [Int64: EditStack], after: [Int64: EditStack])>()
         let skipped = Pending<Int>()
@@ -53,9 +61,9 @@ extension LibraryModel {
         afterPendingWrites { model in
             if let value = change.value { model.showEditStacks(value.after) }
             if let count = skipped.value, count > 0 {
-                let name = AppBranding.displayName
-                model.statusMessage = String(localized: "\(count) photos were left unchanged: their edits were saved by a newer version of \(name) or cannot be read.",
-                                             comment: "After paste or a preset; %lld is a count, %@ the app's name")
+                model.report(String(localized: "\(count) photos were left unchanged: their edits can't be changed in this version.",
+                                    comment: "Activity, after a batch adjustment: stacks this build cannot read"),
+                             action: actionName, warning: true)
             }
         }
         registerEditStacksUndo(change, isUndo: true, actionName: actionName)

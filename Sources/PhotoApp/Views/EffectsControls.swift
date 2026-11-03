@@ -9,23 +9,21 @@ struct EffectsControls: View {
     private var editor: AdjustmentEditor { model.editor }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 2) {
             GroupLabel(.lookTable, editor: editor)
             LookTableControls(model: model)
-                .dimmedWhenOff(.lookTable, editor: editor)
+                .showsTurnedOff(.lookTable, editor: editor)
             GroupLabel(.vignette, editor: editor)
-                .padding(.top, 6)
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
                 adjustSlider(editor, String(localized: "Amount"), \.vignette.amount)
                 adjustSlider(editor, String(localized: "Size", comment: "Vignette or grain size"), \.vignette.size,
                              range: 0...100, defaultValue: 50, format: .plain)
                 adjustSlider(editor, String(localized: "Roundness"), \.vignette.roundness)
             }
-            .dimmedWhenOff(.vignette, editor: editor)
+            .showsTurnedOff(.vignette, editor: editor)
             GroupLabel(.grain, editor: editor)
-                .padding(.top, 6)
             GrainControls(editor: editor)
-                .dimmedWhenOff(.grain, editor: editor)
+                .showsTurnedOff(.grain, editor: editor)
         }
     }
 }
@@ -40,7 +38,7 @@ private struct LookTableControls: View {
 
     var body: some View {
         let table = editor.adjustments.lookTable
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 2) {
             // The Browse button sits beside the menu, or under it when the
             // inspector is too narrow for both.
             ViewThatFits(in: .horizontal) {
@@ -89,7 +87,7 @@ private struct LookTableControls: View {
     private var browseButton: AppKitButton {
         AppKitButton(title: String(localized: "Browse…"), style: .push,
                      help: String(localized: "See every table on this photo, import and manage tables")) {
-            model.requestsLookTableWindow = true
+            model.showsLookTableSheet = true
         }
     }
 
@@ -118,7 +116,7 @@ private struct GrainControls: View {
     let editor: AdjustmentEditor
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 2) {
             adjustSlider(editor, String(localized: "Strength"), \.grain.strength, range: Grain.strengthRange,
                          format: .plain)
             caption(String(localized: "Amount by Tone"))

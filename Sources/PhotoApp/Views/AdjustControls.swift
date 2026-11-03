@@ -92,6 +92,8 @@ struct AdjustSlider: NSViewRepresentable {
     var scale = SliderScale.linear
     var isEnabled = true
     let onChange: (Double, EditPhase) -> Void
+    /// False while the slider's group is turned off (`showsTurnedOff`).
+    @Environment(\.adjustGroupIsOn) private var groupIsOn
 
     func makeNSView(context: Context) -> SliderRow {
         SliderRow()
@@ -99,16 +101,54 @@ struct AdjustSlider: NSViewRepresentable {
 
     func updateNSView(_ row: SliderRow, context: Context) {
         row.configure(title: title, value: value, range: range, defaultValue: defaultValue, format: format,
-                      scale: scale, isEnabled: isEnabled, onChange: onChange)
+                      scale: scale, isEnabled: isEnabled, groupIsOn: groupIsOn, onChange: onChange)
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: SliderRow, context: Context) -> CGSize? {
-        CGSize(width: proposal.width ?? 240, height: SliderRow.height)
+        CGSize(width: proposal.width ?? 276, height: SliderRow.height)
     }
 }
 
+/// Dimensions of the inspector's rows (section 4 of docs/UI_REDESIGN.md).
+enum InspectorMetrics {
+    static let padding: CGFloat = 12
+    static let labelWidth: CGFloat = 80
+    static let gap: CGFloat = 6
+    static let valueWidth: CGFloat = 44
+    static let rowPitch: CGFloat = 24
+    static let headerHeight: CGFloat = 28
+    static let groupLabelHeight: CGFloat = 20
+    static let disclosureSlot: CGFloat = 16
+    static let checkSlot: CGFloat = 16
+    static let resetSlot: CGFloat = 20
+}
+
+private struct AdjustGroupIsOnKey: EnvironmentKey {
+    static let defaultValue = true
+}
+
+extension EnvironmentValues {
+    /// The group of the controls inside is turned off: labels and values go
+    /// secondary and slider fills hide; the controls stay usable.
+    var adjustGroupIsOn: Bool {
+        get { self[AdjustGroupIsOnKey.self] }
+        set { self[AdjustGroupIsOnKey.self] = newValue }
+    }
+}
+
+extension View {
+    /// Shows a group's controls as turned off while its edits are (they stay
+    /// usable: changing one turns the group back on).
+    func showsTurnedOff(_ group: Adjustments.Group, editor: AdjustmentEditor) -> some View {
+        environment(\.adjustGroupIsOn, editor.adjustments.isEnabled(group))
+    }
+}
+
+/// One row: an 80 pt label, a small slider filled from its default value,
+/// and a bezeled value field. Double-clicking the label or the knob resets
+/// it, as does the row's context menu.
 final class SliderRow: NSView, NSTextFieldDelegate {
-    static let height: CGFloat = 38
+    static let height: CGFloat = 22
 
     private let label = ResettingLabel(labelWithString: "")
     private let field = NSTextField()
@@ -117,21 +157,23 @@ final class SliderRow: NSView, NSTextFieldDelegate {
     private var scale = SliderScale.linear
     private var range: ClosedRange<Double> = 0...1
     private var defaultValue = 0.0
+    private var groupIsOn = true
     private var onChange: (Double, EditPhase) -> Void = { _, _ in }
 
     init() {
         super.init(frame: .zero)
-        label.font = .preferredFont(forTextStyle: .callout)
+        let small = NSFont.systemFont(ofSize: 11)
+        label.font = small
         label.textColor = .secondaryLabelColor
         label.lineBreakMode = .byTruncatingTail
         label.onDoubleClick = { [weak self] in self?.reset() }
 
-        field.font = .monospacedDigitSystemFont(ofSize: NSFont.preferredFont(forTextStyle: .callout).pointSize,
-                                                weight: .regular)
+        field.font = .monospacedDigitSystemFont(ofSize: 11, weight: .regular)
         field.alignment = .right
-        field.isBordered = false
-        field.drawsBackground = false
-        field.focusRingType = .none
+        field.controlSize = .small
+        field.isBordered = true
+        field.isBezeled = true
+        field.bezelStyle = .roundedBezel
         field.delegate = self
         field.target = self
         field.action = #selector(fieldCommitted)
@@ -145,21 +187,23 @@ final class SliderRow: NSView, NSTextFieldDelegate {
             guard let self else { return }
             self.onChange(self.sliderValue, .committed)
         }
+        slider.valueText = { [weak self] in self.map { $0.format.text($0.sliderValue) } ?? "" }
 
         for view in [label, field, slider] as [NSView] {
             view.translatesAutoresizingMaskIntoConstraints = false
             addSubview(view)
         }
+        let metrics = InspectorMetrics.self
         NSLayoutConstraint.activate([
             label.leadingAnchor.constraint(equalTo: leadingAnchor),
-            label.topAnchor.constraint(equalTo: topAnchor),
-            label.trailingAnchor.constraint(lessThanOrEqualTo: field.leadingAnchor, constant: -6),
+            label.widthAnchor.constraint(equalToConstant: metrics.labelWidth),
+            label.centerYAnchor.constraint(equalTo: centerYAnchor),
+            slider.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: metrics.gap),
+            slider.trailingAnchor.constraint(equalTo: field.leadingAnchor, constant: -metrics.gap),
+            slider.centerYAnchor.constraint(equalTo: centerYAnchor),
             field.trailingAnchor.constraint(equalTo: trailingAnchor),
-            field.firstBaselineAnchor.constraint(equalTo: label.firstBaselineAnchor),
-            field.widthAnchor.constraint(equalToConstant: 64),
-            slider.leadingAnchor.constraint(equalTo: leadingAnchor),
-            slider.trailingAnchor.constraint(equalTo: trailingAnchor),
-            slider.bottomAnchor.constraint(equalTo: bottomAnchor),
+            field.widthAnchor.constraint(equalToConstant: metrics.valueWidth),
+            field.centerYAnchor.constraint(equalTo: centerYAnchor),
         ])
     }
 
@@ -167,7 +211,7 @@ final class SliderRow: NSView, NSTextFieldDelegate {
     required init?(coder: NSCoder) { fatalError("not used") }
 
     func configure(title: String, value: Double, range: ClosedRange<Double>, defaultValue: Double,
-                   format: SliderFormat, scale: SliderScale, isEnabled: Bool,
+                   format: SliderFormat, scale: SliderScale, isEnabled: Bool, groupIsOn: Bool = true,
                    onChange: @escaping (Double, EditPhase) -> Void) {
         label.stringValue = title
         let ends = [scale.position(range.lowerBound), scale.position(range.upperBound)]
@@ -178,10 +222,10 @@ final class SliderRow: NSView, NSTextFieldDelegate {
         self.scale = scale
         self.range = range
         self.defaultValue = defaultValue
+        self.groupIsOn = groupIsOn
         self.onChange = onChange
         slider.isEnabled = isEnabled
         field.isEditable = isEnabled
-        label.textColor = isEnabled ? .secondaryLabelColor : .tertiaryLabelColor
         // Never move the knob under the person's mouse.
         if !slider.isTracking {
             slider.doubleValue = scale.position(value)
@@ -189,8 +233,26 @@ final class SliderRow: NSView, NSTextFieldDelegate {
         if field.currentEditor() == nil {
             field.stringValue = format.text(value)
         }
+        updateStyle(value: value)
         setAccessibilityLabel(title)
         slider.setAccessibilityLabel(title)
+        field.setAccessibilityLabel(String(localized: "\(title) value", comment: "VoiceOver: an adjustment slider's number field"))
+    }
+
+    /// The fill starts at the default, so an untouched slider shows none;
+    /// turned off, labels and values go secondary and the fill hides.
+    private func updateStyle(value: Double) {
+        let isChanged = abs(value - defaultValue) > format.keyIncrement / 2
+        // Labels stay secondary (never tertiary); turned off, the value goes secondary too.
+        label.textColor = .secondaryLabelColor
+        field.textColor = groupIsOn && isChanged ? .labelColor : .secondaryLabelColor
+        if #available(macOS 26, *) {
+            slider.neutralValue = scale.position(defaultValue)
+            slider.trackFillColor = groupIsOn ? nil : .clear
+        } else {
+            // No fill from a neutral value before macOS 26: a neutral gray from the minimum.
+            slider.trackFillColor = groupIsOn ? .systemGray : .clear
+        }
     }
 
     /// The value at the knob, rounded to what the field shows.
@@ -203,6 +265,7 @@ final class SliderRow: NSView, NSTextFieldDelegate {
     @objc private func sliderMoved() {
         let value = sliderValue
         field.stringValue = format.text(value)
+        updateStyle(value: value)
         // Keyboard changes arrive without a drag: each is a step of its own.
         onChange(value, slider.isTracking ? .changing : .committed)
     }
@@ -212,23 +275,82 @@ final class SliderRow: NSView, NSTextFieldDelegate {
             field.stringValue = format.text(sliderValue)
             return
         }
+        set(typed)
+    }
+
+    private func set(_ typed: Double) {
         let value = min(max(typed, range.lowerBound), range.upperBound)
         slider.doubleValue = scale.position(value)
         field.stringValue = format.text(value)
+        updateStyle(value: value)
         onChange(value, .committed)
     }
 
     private func reset() {
         guard slider.isEnabled else { return }
-        slider.doubleValue = scale.position(defaultValue)
-        field.stringValue = format.text(defaultValue)
-        onChange(defaultValue, .committed)
+        set(defaultValue)
+    }
+
+    /// Reset "Exposure", while the value is not the default.
+    override func menu(for event: NSEvent) -> NSMenu? {
+        guard slider.isEnabled, abs(scale.value(slider.doubleValue) - defaultValue) > format.keyIncrement / 2 else { return nil }
+        let menu = NSMenu()
+        menu.addItem(ActionMenuItem(String(localized: "Reset “\(label.stringValue)”",
+                                           comment: "Context menu of an adjustment slider; the slider's name")) { [weak self] in
+            self?.reset()
+        })
+        return menu
+    }
+
+    /// Return commits the typed value, Escape drops it; either way the
+    /// keyboard goes back to the grid or loupe, so culling keys work again.
+    func control(_ control: NSControl, textView: NSTextView, doCommandBy selector: Selector) -> Bool {
+        switch selector {
+        case #selector(NSResponder.insertNewline(_:)):
+            fieldCommitted()
+            handKeyboardBack()
+            return true
+        case #selector(NSResponder.cancelOperation(_:)):
+            field.abortEditing()
+            field.stringValue = format.text(sliderValue)
+            handKeyboardBack()
+            return true
+        case #selector(NSResponder.moveUp(_:)), #selector(NSResponder.moveDown(_:)):
+            // ↑ / ↓ step the value, ×10 with Shift.
+            let steps = NSEvent.modifierFlags.contains(.shift) ? 10.0 : 1.0
+            let direction = selector == #selector(NSResponder.moveUp(_:)) ? 1.0 : -1.0
+            let current = format.value(from: textView.string) ?? sliderValue
+            set(current + direction * steps * format.keyIncrement)
+            textView.string = field.stringValue
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func handKeyboardBack() {
+        guard let window else { return }
+        NotificationCenter.default.post(name: .browserShouldTakeFocus, object: window)
+    }
+
+    /// The row's title, for debug scripts.
+    var title: String { label.stringValue }
+
+    /// Puts the keyboard in the value field, for debug scripts.
+    func beginEditingValue() {
+        window?.makeFirstResponder(field)
     }
 }
 
 /// Reports the start and end of a drag, and double-clicks.
 final class TrackingSlider: NSSlider {
     var onDoubleClick: (() -> Void)?
+    /// What VoiceOver says for the value: the row's formatted number.
+    var valueText: (() -> String)?
+
+    override func accessibilityValue() -> Any? {
+        valueText?() ?? super.accessibilityValue()
+    }
     var onTrackingEnded: (() -> Void)?
     private(set) var isTracking = false
 
@@ -304,95 +426,172 @@ struct AppKitPopUp: NSViewRepresentable {
     }
 }
 
-/// A collapsible heading of the Adjust tab, with its check box and a reset button.
+/// A heading of the Adjust tab: its groups' check box (mixed when only some
+/// are on), a reset, and the context menu.
 struct AdjustSection<Content: View>: View {
     let section: Adjustments.Section
     let editor: AdjustmentEditor
     @ViewBuilder let content: Content
-    @State private var isExpanded: Bool
+    @InspectorExpanded private var isExpanded: Bool
 
     init(_ section: Adjustments.Section, editor: AdjustmentEditor, @ViewBuilder content: () -> Content) {
         self.section = section
         self.editor = editor
         self.content = content()
-        _isExpanded = State(initialValue: SectionHeaderState.isExpanded(key: Self.key(section), default: true))
+        _isExpanded = InspectorExpanded(Self.key(section), family: .adjust, default: true)
     }
 
     static func key(_ section: Adjustments.Section) -> String { "adjust.section.\(section.rawValue)" }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            SectionHeader(title: AdjustText.title(section), isExpanded: $isExpanded, key: Self.key(section)) {
+        let title = AdjustText.title(section)
+        let values = editor.adjustments
+        let modified = section.groups.filter { values.isModified($0) }
+        let isOn = !modified.isEmpty && modified.allSatisfy { values.isEnabled($0) }
+        VStack(alignment: .leading, spacing: 0) {
+            SectionHeader(title: title, isExpanded: $isExpanded, family: .adjust,
+                          turnOff: modified.isEmpty ? nil
+                              : (isOn ? String(localized: "Turn Off") : String(localized: "Turn On"),
+                                 { editor.setEnabled(section, !isOn) }),
+                          reset: values.isModified(section) ? { editor.reset(section) } : nil) {
                 SectionToggle(section: section, editor: editor)
             } trailing: {
                 AppKitButton(symbol: "arrow.counterclockwise", style: .borderless, tint: .secondaryLabelColor,
-                             help: String(localized: "Reset \(AdjustText.title(section))"),
-                             isEnabled: editor.adjustments.isModified(section)) {
+                             help: String(localized: "Reset \(title)"), isEnabled: values.isModified(section)) {
                     editor.reset(section)
                 }
             }
             if isExpanded {
                 content
+                    .padding(.bottom, 4)
             }
         }
     }
 }
 
-/// A heading's row: the disclosure chevron, a check box (or the room for
-/// one, so every title lines up), the title, then trailing controls. The
-/// chevron and the title both expand and collapse it; `key` remembers which.
+/// The line between inspector sections: 1 pt, 8 above and below.
+struct InspectorSeparator: View {
+    var body: some View {
+        Divider().padding(.vertical, 8)
+    }
+}
+
+/// Which sections Collapse All and Expand All reach: the tab's.
+enum InspectorFamily: Hashable {
+    case adjust, info
+}
+
+/// Whether each inspector heading is expanded, remembered across launches,
+/// and changed together by Collapse All / Expand All.
+@MainActor
+@Observable
+final class InspectorExpansion {
+    static let shared = InspectorExpansion()
+
+    private var values: [String: Bool] = [:]
+    @ObservationIgnored private var known: [String: InspectorFamily] = [:]
+
+    func isExpanded(_ key: String, family: InspectorFamily, default value: Bool) -> Bool {
+        known[key] = family
+        if let stored = values[key] { return stored }
+        return UserDefaults.standard.object(forKey: key) == nil ? value : UserDefaults.standard.bool(forKey: key)
+    }
+
+    func set(_ key: String, _ expanded: Bool) {
+        values[key] = expanded
+        UserDefaults.standard.set(expanded, forKey: key)
+    }
+
+    /// Collapse All / Expand All for the headings of one tab seen so far.
+    func setAll(_ family: InspectorFamily, expanded: Bool) {
+        for (key, keyFamily) in known where keyFamily == family { set(key, expanded) }
+    }
+}
+
+/// A heading's expansion in `InspectorExpansion`.
+@MainActor
+@propertyWrapper
+struct InspectorExpanded: DynamicProperty {
+    let key: String
+    let family: InspectorFamily
+    let defaultValue: Bool
+
+    init(_ key: String, family: InspectorFamily, default value: Bool) {
+        self.key = key
+        self.family = family
+        defaultValue = value
+    }
+
+    var wrappedValue: Bool {
+        get { InspectorExpansion.shared.isExpanded(key, family: family, default: defaultValue) }
+        nonmutating set { InspectorExpansion.shared.set(key, newValue) }
+    }
+
+    var projectedValue: Binding<Bool> {
+        Binding(get: { wrappedValue }, set: { wrappedValue = $0 })
+    }
+}
+
+/// A heading's row, 28 pt high (section 4 of docs/UI_REDESIGN.md): the
+/// disclosure triangle in a 16 pt slot, the title, then the check box column
+/// and a 20 pt trailing control (reset). Its context menu turns the heading
+/// off or on, resets it, and collapses or expands every heading of the tab.
 struct SectionHeader<Check: View, Trailing: View>: View {
     let title: String
     @Binding var isExpanded: Bool
-    let key: String
-    /// Leaves room for the check box (the Adjust tab lines its titles up).
-    var reservesCheck = true
-    var titleFont: NSFont = .preferredFont(forTextStyle: .headline)
+    let family: InspectorFamily
+    var turnOff: (title: String, action: () -> Void)?
+    var reset: (() -> Void)?
+    /// The trailing control's width: a reset's 20 pt, nil for its own (a count).
+    var trailingWidth: CGFloat? = InspectorMetrics.resetSlot
     @ViewBuilder let check: Check
     @ViewBuilder let trailing: Trailing
 
     var body: some View {
         let help = isExpanded ? String(localized: "Collapse") : String(localized: "Expand")
-        HStack(spacing: 4) {
-            AppKitButton(symbol: isExpanded ? "chevron.down" : "chevron.right", symbolWeight: .semibold,
-                         style: .borderless, font: .systemFont(ofSize: 10), tint: .secondaryLabelColor,
-                         help: help, action: flip)
-                .frame(width: 14)
-            if reservesCheck {
-                check
-                    .frame(width: 18)
+        HStack(spacing: 0) {
+            AppKitDisclosure(isExpanded: $isExpanded, help: help)
+                .frame(width: InspectorMetrics.disclosureSlot)
+            AppKitButton(title: title, style: .borderless, font: .systemFont(ofSize: 13, weight: .semibold), help: help) {
+                isExpanded.toggle()
             }
-            AppKitButton(title: title, style: .borderless, font: titleFont, help: help, action: flip)
-            Spacer()
+            .padding(.leading, 4)
+            Spacer(minLength: 4)
+            check
+                .frame(width: InspectorMetrics.checkSlot)
             trailing
+                .frame(width: trailingWidth, height: InspectorMetrics.resetSlot)
         }
-    }
-
-    private func flip() {
-        isExpanded.toggle()
-        UserDefaults.standard.set(isExpanded, forKey: key)
+        .frame(height: InspectorMetrics.headerHeight)
+        .contentShape(Rectangle())
+        .contextMenu {
+            if let turnOff { Button(turnOff.title, action: turnOff.action) }
+            if let reset { Button("Reset", action: reset) }
+            if turnOff != nil || reset != nil { Divider() }
+            Button("Collapse All") { InspectorExpansion.shared.setAll(family, expanded: false) }
+            Button("Expand All") { InspectorExpansion.shared.setAll(family, expanded: true) }
+        }
     }
 }
 
 extension SectionHeader where Check == Color {
     /// A heading with nothing to turn off.
-    init(title: String, isExpanded: Binding<Bool>, key: String, reservesCheck: Bool = true,
-         titleFont: NSFont = .preferredFont(forTextStyle: .headline), @ViewBuilder trailing: () -> Trailing) {
-        self.init(title: title, isExpanded: isExpanded, key: key, reservesCheck: reservesCheck, titleFont: titleFont,
+    init(title: String, isExpanded: Binding<Bool>, family: InspectorFamily, reset: (() -> Void)? = nil,
+         trailingWidth: CGFloat? = InspectorMetrics.resetSlot, @ViewBuilder trailing: () -> Trailing) {
+        self.init(title: title, isExpanded: isExpanded, family: family, reset: reset, trailingWidth: trailingWidth,
                   check: { Color.clear }, trailing: trailing)
     }
 }
 
-/// Whether a heading is expanded, remembered across launches.
-enum SectionHeaderState {
-    static func isExpanded(key: String, default value: Bool) -> Bool {
-        UserDefaults.standard.object(forKey: key) == nil ? value : UserDefaults.standard.bool(forKey: key)
+extension SectionHeader where Check == Color, Trailing == Color {
+    init(title: String, isExpanded: Binding<Bool>, family: InspectorFamily) {
+        self.init(title: title, isExpanded: isExpanded, family: family, check: { Color.clear }, trailing: { Color.clear })
     }
 }
 
-/// The round check box of a heading: checked while all its edits apply, a dash
-/// while only some do. Unchecking it shows the photo without the heading's
-/// edits (they are kept).
+/// A heading's check box: checked while all its edits apply, mixed while only
+/// some do, unchecked while they are kept but off. Shown only when the heading
+/// has edits; its slot stays.
 struct SectionToggle: View {
     let section: Adjustments.Section
     let editor: AdjustmentEditor
@@ -406,21 +605,17 @@ struct SectionToggle: View {
             let enabled = modified.filter { values.isEnabled($0) }
             let isOn = !modified.isEmpty && enabled.count == modified.count
             let title = AdjustText.title(section)
-            AppKitButton(symbol: isOn ? "checkmark.circle.fill" : enabled.isEmpty ? "circle" : "minus.circle.fill",
-                         style: .borderless, tint: enabled.isEmpty ? .tertiaryLabelColor : .controlAccentColor,
-                         help: modified.isEmpty ? String(localized: "\(title) has no edits")
-                             : isOn ? String(localized: "Turn off \(title) to compare")
-                             : String(localized: "Turn on \(title)"),
-                         isEnabled: !modified.isEmpty) {
+            AppKitCheckbox(state: isOn ? .on : enabled.isEmpty ? .off : .mixed, isVisible: !modified.isEmpty, label: title,
+                           help: isOn ? String(localized: "Turn off \(title) to compare") : String(localized: "Turn on \(title)")) {
                 editor.setEnabled(section, !isOn)
             }
         }
     }
 }
 
-/// The round check box of a group: checked while its edits apply. It checks
-/// itself when a control of the group changes; unchecking it shows the photo
-/// without that group's edits (they are kept).
+/// A group's check box: checked while its edits apply. It checks itself when
+/// a control of the group changes; unchecking it keeps the edits but shows
+/// the photo without them.
 struct GroupToggle: View {
     let group: Adjustments.Group
     let editor: AdjustmentEditor
@@ -429,18 +624,15 @@ struct GroupToggle: View {
         let isModified = editor.adjustments.isModified(group)
         let isOn = isModified && editor.adjustments.isEnabled(group)
         let title = AdjustText.title(group)
-        AppKitButton(symbol: isOn ? "checkmark.circle.fill" : "circle", style: .borderless,
-                     tint: isOn ? .controlAccentColor : .tertiaryLabelColor,
-                     help: !isModified ? String(localized: "\(title) has no edits")
-                         : isOn ? String(localized: "Turn off \(title) to compare")
-                         : String(localized: "Turn on \(title)"),
-                     isEnabled: isModified) {
+        AppKitCheckbox(state: isOn ? .on : .off, isVisible: isModified, label: title,
+                       help: isOn ? String(localized: "Turn off \(title) to compare") : String(localized: "Turn on \(title)")) {
             editor.setEnabled(group, !isOn)
         }
     }
 }
 
-/// A group's caption with its round check box.
+/// A group's label, 20 pt high with 10 above: 11 pt semibold secondary, an
+/// optional trailing control (Auto), and the check box in the heading's column.
 struct GroupLabel<Trailing: View>: View {
     let group: Adjustments.Group
     let editor: AdjustmentEditor
@@ -453,12 +645,18 @@ struct GroupLabel<Trailing: View>: View {
     }
 
     var body: some View {
-        HStack(alignment: .center, spacing: 6) {
-            GroupToggle(group: group, editor: editor)
+        HStack(spacing: 0) {
             ControlGroupLabel(text: AdjustText.title(group))
-            Spacer()
+            Spacer(minLength: 4)
             trailing
+                .padding(.trailing, InspectorMetrics.gap)
+            GroupToggle(group: group, editor: editor)
+                .frame(width: InspectorMetrics.checkSlot)
+            Color.clear
+                .frame(width: InspectorMetrics.resetSlot, height: 1)
         }
+        .frame(height: InspectorMetrics.groupLabelHeight)
+        .padding(.top, 10)
     }
 }
 
@@ -468,13 +666,119 @@ extension GroupLabel where Trailing == EmptyView {
     }
 }
 
+/// A group's caption: 11 pt semibold secondary, mixed case.
+struct ControlGroupLabel: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(.secondary)
+    }
+}
+
+/// A caption in the 80 pt label column, the pop-up starting where slider
+/// tracks start.
+struct LabeledPopUp<Content: View>: View {
+    let title: String
+    @ViewBuilder let content: Content
+    @Environment(\.adjustGroupIsOn) private var groupIsOn
+
+    var body: some View {
+        HStack(spacing: InspectorMetrics.gap) {
+            Text(title)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .frame(width: InspectorMetrics.labelWidth, alignment: .leading)
+            content
+        }
+        .frame(minHeight: SliderRow.height)
+    }
+}
+
+/// The system disclosure triangle (`NSButton` with the disclosure bezel).
+struct AppKitDisclosure: NSViewRepresentable {
+    @Binding var isExpanded: Bool
+    var help: String
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeNSView(context: Context) -> NSButton {
+        let button = NSButton(title: "", target: context.coordinator, action: #selector(Coordinator.click(_:)))
+        button.bezelStyle = .disclosure
+        button.setButtonType(.pushOnPushOff)
+        button.controlSize = .small
+        return button
+    }
+
+    func updateNSView(_ button: NSButton, context: Context) {
+        context.coordinator.toggle = { isExpanded.toggle() }
+        button.state = isExpanded ? .on : .off
+        button.toolTip = help
+        button.setAccessibilityLabel(help)
+    }
+
+    @MainActor
+    final class Coordinator: NSObject {
+        var toggle: () -> Void = {}
+
+        @objc func click(_ sender: NSButton) { toggle() }
+    }
+}
+
+/// A system check box with a mixed state, hidden (its slot kept) when there
+/// is nothing to turn on or off.
+struct AppKitCheckbox: NSViewRepresentable {
+    enum State { case on, off, mixed }
+
+    var state: State
+    var isVisible = true
+    /// What VoiceOver names it: the section or mask ("Light, checkbox, checked").
+    var label: String
+    /// The tooltip, and VoiceOver's help.
+    var help: String
+    let action: () -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeNSView(context: Context) -> NSButton {
+        let button = NSButton(checkboxWithTitle: "", target: context.coordinator, action: #selector(Coordinator.click(_:)))
+        button.allowsMixedState = true
+        button.controlSize = .small
+        return button
+    }
+
+    func updateNSView(_ button: NSButton, context: Context) {
+        context.coordinator.action = action
+        button.state = switch state {
+        case .on: .on
+        case .off: .off
+        case .mixed: .mixed
+        }
+        button.isHidden = !isVisible
+        button.toolTip = help
+        button.setAccessibilityLabel(label)
+        button.setAccessibilityHelp(help)
+    }
+
+    @MainActor
+    final class Coordinator: NSObject {
+        var action: () -> Void = {}
+
+        /// AppKit moved the state on its own; the model decides it.
+        @objc func click(_ sender: NSButton) { action() }
+    }
+}
+
 /// Names of the Adjust tab's headings and controls.
 enum AdjustText {
     static func title(_ group: Adjustments.Group) -> String {
         switch group {
         case .profile: String(localized: "Profile")
         case .whiteBalance: String(localized: "White Balance")
-        case .light: String(localized: "Light")
+        // UI names only (decision 15): the group stays `light` in edit stacks.
+        case .light: String(localized: "Tone", comment: "Adjust tab group: exposure, contrast, highlights…")
         case .presence: String(localized: "Presence")
         case .toneCurve: String(localized: "Tone Curve")
         case .sharpening: String(localized: "Sharpening")
@@ -489,8 +793,9 @@ enum AdjustText {
 
     static func title(_ section: Adjustments.Section) -> String {
         switch section {
-        case .develop: String(localized: "Develop", comment: "Adjust tab heading")
-        case .tone: String(localized: "Tone", comment: "Adjust tab heading")
+        // UI names only (decision 15): the sections stay `develop` and `tone`.
+        case .develop: String(localized: "Light", comment: "Adjust tab heading: profile, white balance, tone, presence")
+        case .tone: String(localized: "Tone Curve", comment: "Adjust tab heading")
         case .details: String(localized: "Details", comment: "Adjust tab heading")
         case .colorMixer: String(localized: "Color Mixer", comment: "Adjust tab heading")
         case .colorGrading: String(localized: "Color Grading", comment: "Adjust tab heading")
@@ -623,6 +928,8 @@ struct AppKitMenuButton: NSViewRepresentable {
     }
 
     var title: String
+    /// Shown instead of a title, borderless (the ⋯ menus).
+    var symbol: String?
     var entries: [Entry]
     var help: String?
     /// Ends the items' previews: with false when the highlight moves to an item
@@ -643,11 +950,19 @@ struct AppKitMenuButton: NSViewRepresentable {
     func updateNSView(_ button: NSPopUpButton, context: Context) {
         // The button's own menu only holds the title (a pull-down shows its first
         // item); the real menu is built when it is clicked.
-        if button.menu?.items.first?.title != title {
+        let shown = button.menu?.items.first
+        if shown?.title != title || (symbol != nil && shown?.image == nil) {
             let titleMenu = NSMenu()
-            titleMenu.addItem(withTitle: title, action: nil, keyEquivalent: "")
+            let item = titleMenu.addItem(withTitle: title, action: nil, keyEquivalent: "")
+            if let symbol {
+                item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: help)
+                button.isBordered = false
+                (button.cell as? NSPopUpButtonCell)?.arrowPosition = .noArrow
+                button.imagePosition = .imageOnly
+            }
             button.menu = titleMenu
         }
+        if let help { button.setAccessibilityLabel(help) }
         let entries = entries
         let coordinator = context.coordinator
         coordinator.endPreview = endPreview
@@ -667,6 +982,7 @@ struct AppKitMenuButton: NSViewRepresentable {
     /// As wide as the title (a pull-down would otherwise size itself to its
     /// longest item), but no wider than offered: a long title truncates.
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSPopUpButton, context: Context) -> CGSize? {
+        if symbol != nil { return CGSize(width: 24, height: 20) }
         let font = nsView.font ?? .systemFont(ofSize: NSFont.systemFontSize(for: .small))
         let titleWidth = ceil((title as NSString).size(withAttributes: [.font: font]).width) + 36
         let offered = proposal.width.map { $0.isFinite ? $0 : titleWidth } ?? titleWidth

@@ -8,7 +8,7 @@ import SwiftUI
 /// the crop frame; Done saves and folds the heading away.
 struct CropSection: View {
     let editor: AdjustmentEditor
-    @State private var isExpanded = SectionHeaderState.isExpanded(key: Self.key, default: true)
+    @InspectorExpanded(Self.key, family: .adjust, default: true) private var isExpanded
 
     static let key = "adjust.section.crop"
 
@@ -20,7 +20,8 @@ struct CropSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionHeader(title: String(localized: "Crop, Rotate, Straighten"), isExpanded: $isExpanded, key: Self.key) {
+            SectionHeader(title: String(localized: "Crop & Straighten", comment: "Adjust tab heading"), isExpanded: $isExpanded,
+                          family: .adjust, reset: isModified ? { editor.resetCrop() } : nil) {
                 AppKitButton(symbol: "arrow.counterclockwise", style: .borderless, tint: .secondaryLabelColor,
                              help: String(localized: "Reset Crop"), isEnabled: isModified) {
                     editor.resetCrop()
@@ -35,8 +36,8 @@ struct CropSection: View {
     private var controls: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
-                AppKitButton(title: String(localized: "Crop"), symbol: "crop", style: .borderless,
-                             tint: session == nil ? .tertiaryLabelColor : .controlAccentColor,
+                // A toggle like Original: its bezel shows the crop session.
+                AppKitButton(title: String(localized: "Crop"), symbol: "crop", style: .toggle(isOn: session != nil),
                              help: session == nil
                                  ? String(localized: "Show the crop frame on the photo")
                                  : String(localized: "Finish cropping (Return); Esc cancels")) {

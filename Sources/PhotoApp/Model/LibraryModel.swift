@@ -31,6 +31,84 @@ enum SidebarSelection: Hashable {
     case changedOnDisk
 }
 
+/// The loupe's zoom as the menus see it.
+struct LoupeZoomState: Equatable {
+    /// Zoomed in rather than fitted (`Z` then zooms to fit).
+    var isZoomed = false
+    var canZoomIn = false
+    var canZoomOut = false
+    /// Exactly 100 % (the toolbar's Fit / 100% shows neither at other steps).
+    var isActualSize = false
+}
+
+extension SidebarSelection {
+    /// Names the source in user defaults ("album:12"): the restored selection
+    /// and each source's filter and sort.
+    var storageKey: String {
+        switch self {
+        case .allPhotos: "all"
+        case .builtIn(let album): "builtIn:\(album.rawValue)"
+        case .year(let year): "year:\(year)"
+        case .month(let year, let month): "month:\(year)-\(month)"
+        case .project(let id): "project:\(id)"
+        case .album(let id): "album:\(id)"
+        case .smartAlbum(let id): "smartAlbum:\(id)"
+        case .keyword(let id): "keyword:\(id)"
+        case .changedOnDisk: "changedOnDisk"
+        }
+    }
+
+    init?(storageKey: String) {
+        let parts = storageKey.split(separator: ":", maxSplits: 1).map(String.init)
+        let value = parts.count > 1 ? parts[1] : ""
+        switch parts.first {
+        case "all": self = .allPhotos
+        case "changedOnDisk": self = .changedOnDisk
+        case "builtIn": guard let album = BuiltInAlbum(rawValue: value) else { return nil }; self = .builtIn(album)
+        case "year": guard let year = Int(value) else { return nil }; self = .year(year)
+        case "month":
+            let numbers = value.split(separator: "-").compactMap { Int($0) }
+            guard numbers.count == 2 else { return nil }
+            self = .month(year: numbers[0], month: numbers[1])
+        case "project": guard let id = Int64(value) else { return nil }; self = .project(id)
+        case "album": guard let id = Int64(value) else { return nil }; self = .album(id)
+        case "smartAlbum": guard let id = Int64(value) else { return nil }; self = .smartAlbum(id)
+        case "keyword": guard let id = Int64(value) else { return nil }; self = .keyword(id)
+        default: return nil
+        }
+    }
+}
+
+/// The sidebar's sections, in order (section 3 of docs/UI_REDESIGN.md).
+enum SidebarSection: String, CaseIterable, Hashable {
+    case library, albums, dates, keywords, projects
+
+    var title: String {
+        switch self {
+        case .library: String(localized: "Library")
+        case .albums: String(localized: "Albums")
+        case .dates: String(localized: "Dates")
+        case .keywords: String(localized: "Keywords")
+        case .projects: String(localized: "Projects")
+        }
+    }
+
+    /// Library cannot be hidden.
+    var canHide: Bool { self != .library }
+}
+
+extension LibraryModel {
+    func showsSidebarSection(_ section: SidebarSection) -> Bool {
+        !hiddenSidebarSections.contains(section)
+    }
+
+    /// View ▸ Sidebar Sections and the section header's Hide Section.
+    func setSidebarSection(_ section: SidebarSection, shown: Bool) {
+        guard section.canHide else { return }
+        if shown { hiddenSidebarSections.remove(section) } else { hiddenSidebarSections.insert(section) }
+    }
+}
+
 /// The smart albums every library has.
 enum BuiltInAlbum: String, CaseIterable, Hashable {
     case lastImport, picks, rejects, unrated, noKeywords
@@ -93,7 +171,9 @@ final class LibraryModel {
     /// Bumped when new suggestions are stored or their state changes.
     var suggestionRevision = 0
     /// Background keyword analysis in progress.
-    var suggestionProgress: (done: Int, total: Int)?
+    var suggestionProgress: (done: Int, total: Int)? {
+        didSet { if (oldValue == nil) != (suggestionProgress == nil) { suggestionStarted = suggestionProgress == nil ? nil : Date() } }
+    }
     var albums: [AlbumSummary] = []
     var smartAlbums: [SmartAlbum] = []
     var captureMonths: [CaptureMonth] = []
@@ -109,12 +189,15 @@ final class LibraryModel {
     var isCheckingDisk = false
     /// Set when a card mounts and the import window should open for it.
     var requestsImportWindow = false
-    /// Set to open the look-up table browser.
-    var requestsLookTableWindow = false
-    /// Set to open the preset manager.
-    var requestsPresetWindow = false
+    /// A mounted card, named in the empty library's Import button.
+    private(set) var mountedCardName: String?
+    /// The look-up table browser sheet is up on the library window.
+    var showsLookTableSheet = false
+    /// The preset manager sheet is up on the library window.
+    var showsPresetSheet = false
     /// Set to open the export window (the menu command and debug scripts).
-    var requestsExportWindow = false
+    /// The Export sheet is up on the library window.
+    var showsExportSheet = false
     /// What the last preset import did, shown in an alert.
     var presetImportSummary: PresetImportSummary?
     /// Open the import window when a card is inserted (Settings).
@@ -129,20 +212,36 @@ final class LibraryModel {
         }
     }
 
+    /// Remembered across launches; each source keeps its own filter and sort.
     var sidebarSelection: SidebarSelection = .allPhotos {
-        didSet { if oldValue != sidebarSelection { reloadItems(keepFocus: false) } }
+        didSet {
+            guard oldValue != sidebarSelection else { return }
+            UserDefaults.standard.set(sidebarSelection.storageKey, forKey: Self.sidebarSelectionKey)
+            applySourceSettings()
+            reloadItems(keepFocus: false)
+        }
     }
     var ratingRule: LibraryFilter.RatingRule = .any {
-        didSet { if oldValue != ratingRule { reloadItems(keepFocus: true) } }
+        didSet {
+            guard oldValue != ratingRule else { return }
+            saveSourceSettings()
+            reloadItems(keepFocus: true)
+        }
     }
     var flagRule: LibraryFilter.FlagRule = .any {
-        didSet { if oldValue != flagRule { reloadItems(keepFocus: true) } }
+        didSet {
+            guard oldValue != flagRule else { return }
+            saveSourceSettings()
+            reloadItems(keepFocus: true)
+        }
     }
 
-    /// The filter bar's search field; reloads a moment after typing stops.
+    /// The toolbar's search field; reloads a moment after typing stops.
     var searchText = "" {
         didSet {
-            guard LibraryFilter(search: oldValue).searchTerms != LibraryFilter(search: searchText).searchTerms else { return }
+            if oldValue != searchText { saveSourceSettings() }
+            guard LibraryFilter(search: oldValue).searchTerms != LibraryFilter(search: searchText).searchTerms,
+                  !isApplyingSourceSettings else { return }
             searchTask?.cancel()
             searchTask = Task {
                 try? await Task.sleep(for: .milliseconds(250))
@@ -154,8 +253,12 @@ final class LibraryModel {
     var sort: LibrarySort {
         didSet {
             guard oldValue != sort else { return }
-            UserDefaults.standard.set(sort.key.rawValue, forKey: Self.sortKeyKey)
-            UserDefaults.standard.set(sort.ascending, forKey: Self.sortAscendingKey)
+            // The last sort chosen is the default for sources without one.
+            if !isApplyingSourceSettings {
+                UserDefaults.standard.set(sort.key.rawValue, forKey: Self.sortKeyKey)
+                UserDefaults.standard.set(sort.ascending, forKey: Self.sortAscendingKey)
+            }
+            saveSourceSettings()
             reloadItems(keepFocus: true)
         }
     }
@@ -163,6 +266,33 @@ final class LibraryModel {
     var filter: LibraryFilter {
         LibraryFilter(scope: scope(for: sidebarSelection), rating: ratingRule, flag: flagRule, search: searchText,
                       sort: sort, groupsPairs: groupPairs)
+    }
+
+    @ObservationIgnored private let sourceSettings = SourceViewSettingsStore()
+    @ObservationIgnored private var isApplyingSourceSettings = false
+
+    /// The default sort for a source with no settings: the last one chosen.
+    private var defaultSort: LibrarySort {
+        let defaults = UserDefaults.standard
+        return LibrarySort(key: defaults.string(forKey: Self.sortKeyKey).flatMap(LibrarySort.Key.init(rawValue:)) ?? .captureDate,
+                           ascending: defaults.object(forKey: Self.sortAscendingKey) as? Bool ?? true)
+    }
+
+    /// Takes the selected source's filter and sort (one reload follows).
+    private func applySourceSettings() {
+        let settings = sourceSettings.settings(for: sidebarSelection.storageKey, defaultSort: defaultSort)
+        isApplyingSourceSettings = true
+        defer { isApplyingSourceSettings = false }
+        ratingRule = settings.rating
+        flagRule = settings.flag
+        searchText = settings.search
+        sort = settings.sort
+    }
+
+    private func saveSourceSettings() {
+        guard !isApplyingSourceSettings else { return }
+        sourceSettings.save(SourceViewSettings(rating: ratingRule, flag: flagRule, search: searchText, sort: sort),
+                            for: sidebarSelection.storageKey, defaultSort: defaultSort)
     }
 
     func clearFilter() {
@@ -213,11 +343,45 @@ final class LibraryModel {
     /// Observed stand-in for `selection`, which is not observed.
     private(set) var selectionRevision = 0
     var mode: BrowserMode = .grid
+    /// The library window is key: no sheet or other window is in front.
+    private(set) var isWindowKey = false
+    /// The grid, the loupe or the video loupe has the keyboard, so the bare
+    /// culling keys act on photos (section 6 of docs/UI_REDESIGN.md).
+    private(set) var browserHasKeyboard = false
+    @ObservationIgnored private(set) lazy var windowObserver: LibraryWindowObserver = {
+        let observer = LibraryWindowObserver { [weak self] isKey, browser in
+            guard let self else { return }
+            if isWindowKey != isKey { isWindowKey = isKey }
+            if browserHasKeyboard != browser { browserHasKeyboard = browser }
+        }
+        // Leaving full screen by a system route ends review; the window
+        // stays out of full screen.
+        observer.onDidExitFullScreen = { [weak self] in self?.exitReview(restoringFullScreen: false) }
+        return observer
+    }()
+    @ObservationIgnored private var searchFocusPending = false
+    /// The folder being added, for Activity's "Add Folder “…”".
+    @ObservationIgnored private var batchFolderName: String?
+    /// Sections hidden with View ▸ Sidebar Sections, remembered.
+    var hiddenSidebarSections: Set<SidebarSection> = Set(
+        (UserDefaults.standard.stringArray(forKey: "sidebar.hiddenSections") ?? []).compactMap(SidebarSection.init(rawValue:))
+    ) {
+        didSet { UserDefaults.standard.set(hiddenSidebarSections.map(\.rawValue).sorted(), forKey: "sidebar.hiddenSections") }
+    }
+    /// A sidebar item waiting for its deletion to be confirmed.
+    var sidebarDeletion: SidebarDeletion?
+    /// What the menus need of the loupe's zoom (its controller owns the zoom).
+    var loupeZoom = LoupeZoomState()
     /// The open ⌘K keyword field, with the photos it will tag.
     var keywordEntry: KeywordEntryRequest?
     var showsInspector: Bool {
-        didSet { UserDefaults.standard.set(showsInspector, forKey: Self.showsInspectorKey) }
+        // Review hides it for a while; the person's choice is what's kept.
+        didSet { if !review.isReviewing { UserDefaults.standard.set(showsInspector, forKey: Self.showsInspectorKey) } }
     }
+    /// The sidebar column (the split view's visibility).
+    var showsSidebar = true
+    /// Review mode (View ▸ Enter Review, F) and the layout it goes back to.
+    var review = ReviewSession()
     /// The inspector's tab, remembered separately for the grid and the loupe.
     var inspectorTab: InspectorTab {
         get { mode == .loupe ? loupeInspectorTab : gridInspectorTab }
@@ -286,6 +450,7 @@ final class LibraryModel {
     private static let loupeInspectorTabKey = "loupe.inspectorTab"
     private static let writesSidecarsKey = "sidecars.write"
     private static let opensImportOnCardKey = "import.openOnCard"
+    private static let sidebarSelectionKey = "sidebar.selection"
     private static let sortKeyKey = "browser.sortKey"
     private static let sortAscendingKey = "browser.sortAscending"
 
@@ -296,8 +461,54 @@ final class LibraryModel {
     private(set) var importBatch: ImportBatchPosition?
     /// Folders from Finder are being dragged over the browser.
     var isFolderDropTargeted = false
-    private(set) var warming: (done: Int, total: Int)?
-    var statusMessage: String?
+    private(set) var warming: (done: Int, total: Int)? {
+        didSet { if (oldValue == nil) != (warming == nil) { warmingStarted = warming == nil ? nil : Date() } }
+    }
+    /// The newest Activity message (debug scripts).
+    var statusMessage: String? { activity.messages.last?.text }
+    /// Messages for the toolbar's Activity popover, the 20 newest until quit.
+    private(set) var activity = ActivityLog()
+
+    /// Posts a message to Activity, and has VoiceOver say it (medium
+    /// priority). `action` titles the row: the undo name of the action, or the
+    /// command and its object (`ActivityTitle`). `warning`: the person asked for
+    /// something that did not happen and can make it happen by acting; anything
+    /// expected (completions, cancellations, videos skipped) is information.
+    func report(_ text: String, action: String, warning: Bool = false) {
+        activity.post(text, title: action, isWarning: warning)
+        AccessibilityText.announce(text, priority: .medium)
+    }
+    /// Photos in the selected source before rating, flag and search.
+    private(set) var sourceTotal: Int?
+    /// When rendering previews and suggesting keywords started: the Activity
+    /// item shows them only after `ActivityLog.backgroundDelay`.
+    @ObservationIgnored private(set) var warmingStarted: Date? {
+        didSet { if warmingStarted != nil { scheduleActivityTick() } }
+    }
+    @ObservationIgnored private(set) var suggestionStarted: Date? {
+        didSet { if suggestionStarted != nil { scheduleActivityTick() } }
+    }
+    /// Bumped when a background job passes its delay, to show it.
+    private(set) var activityTick = 0
+    /// Batch Auto Exposure measuring the grid's selection.
+    private(set) var batchAutoProgress: (done: Int, total: Int)?
+    @ObservationIgnored var batchAutoTask: Task<Void, Never>?
+
+    private func scheduleActivityTick() {
+        Task {
+            try? await Task.sleep(for: .seconds(ActivityLog.backgroundDelay))
+            activityTick += 1
+        }
+    }
+
+    /// The Activity popover was opened.
+    func markActivitySeen() {
+        activity.markSeen()
+    }
+
+    func setBatchAutoProgress(_ progress: (done: Int, total: Int)?) {
+        batchAutoProgress = progress
+    }
     private(set) var onlineVolumeIDs: Set<Int64> = []
 
     @ObservationIgnored weak var observer: LibraryItemsObserver?
@@ -354,10 +565,16 @@ final class LibraryModel {
         writesSidecars = defaults.object(forKey: Self.writesSidecarsKey) as? Bool ?? true
         sort = LibrarySort(key: defaults.string(forKey: Self.sortKeyKey).flatMap(LibrarySort.Key.init(rawValue:)) ?? .captureDate,
                            ascending: defaults.object(forKey: Self.sortAscendingKey) as? Bool ?? true)
+        // The source selected last time, with its filter and sort (checked
+        // against the catalog once projects, albums and keywords are loaded).
+        if let restored = defaults.string(forKey: Self.sidebarSelectionKey).flatMap(SidebarSelection.init(storageKey:)) {
+            sidebarSelection = restored
+        }
         sidecars = SidecarSync(catalog: catalog, metadataReader: importer.metadataReader)
         cardImport = CardImportModel(metadataReader: importer.metadataReader, presets: catalog)
         opensImportOnCard = defaults.object(forKey: Self.opensImportOnCardKey) as? Bool ?? true
         cardImport.library = self
+        applySourceSettings()
         editor.library = self
         lookTableLibrary.library = self
         presetPreviews.library = self
@@ -429,10 +646,23 @@ final class LibraryModel {
                 let items = try await catalog.libraryItems(matching: filter)
                 guard !Task.isCancelled else { return }
                 apply(items, focusVersionID: focusID)
+                // For "87 of 4,623 · Filtered".
+                if isFiltered {
+                    var whole = filter
+                    whole.rating = .any
+                    whole.flag = .any
+                    whole.search = ""
+                    let total = try? await catalog.itemCount(matching: whole)
+                    guard !Task.isCancelled else { return }
+                    sourceTotal = total
+                } else {
+                    sourceTotal = items.count
+                }
             } catch is CancellationError {
             } catch {
                 Self.log.error("Loading items failed: \(error.localizedDescription, privacy: .public)")
-                statusMessage = String(localized: "Could not load photos: \(error.localizedDescription)")
+                report(String(localized: "Could not load photos: \(error.localizedDescription)"), action: ActivityTitle.loadLibrary,
+                       warning: true)
             }
         }
     }
@@ -522,6 +752,7 @@ final class LibraryModel {
 
     func refreshVolumes() async {
         let mounted = await Task.detached(priority: .utility) { VolumeAvailability.mountedVolumes() }.value
+        mountedCardName = await Task.detached(priority: .utility) { ImportSource.mountedCards().first(where: \.isCard)?.name }.value
         do {
             let online = try await catalog.refreshVolumeAvailability(mounted: mounted)
             let volumes = try await catalog.volumes()
@@ -662,8 +893,38 @@ final class LibraryModel {
     }
 
     func closeLoupe() {
+        // Leaving the loupe (Return, Space, ⌘↩) leaves review too.
+        exitReview()
         mode = .grid
         observer?.libraryFocusChanged()
+    }
+
+    /// Edit ▸ Find ▸ Find…: the keyboard goes to the search field, which
+    /// filters the grid; from the loupe, back to the grid first, which hands the
+    /// keyboard on once it shows (`takesSearchFocus`).
+    func beginSearch() {
+        if mode == .loupe {
+            searchFocusPending = true
+            closeLoupe()
+        } else {
+            NotificationCenter.default.post(name: .searchShouldTakeFocus, object: self)
+        }
+    }
+
+    /// The grid is about to take the keyboard: true (once) when Find… asked
+    /// for the search field instead.
+    func takesSearchFocus() -> Bool {
+        defer { searchFocusPending = false }
+        return searchFocusPending
+    }
+
+    func indexOfVersion(_ versionID: Int64) -> Int? {
+        indexByVersionID[versionID]
+    }
+
+    /// VoiceOver's Open in Loupe on a grid cell.
+    func openLoupe(onVersion versionID: Int64) {
+        if let index = indexByVersionID[versionID] { openLoupe(at: index) }
     }
 
     // MARK: Culling
@@ -701,10 +962,40 @@ final class LibraryModel {
             after[item.versionID] = values
         }
         applyCulling(after, undoingTo: before, actionName: action.undoActionName)
+        let results = targets.map { index in
+            let item = items[index]
+            return CullingDescription.Result(
+                photo: CullingDescription.Result.photo(versionID: item.versionID, partnerVersionID: item.partnerVersionID),
+                rating: item.rating, flag: item.flag, colorLabel: item.colorLabel)
+        }
+        var announcement = CullingDescription.announcement(of: action.change, step: action.ratingStep, results: results)
+            .map(PhotoAccessibility.text) ?? ""
 
         if autoAdvance, targets.count == 1, let focusIndex, focusIndex + 1 < items.count {
             setFocus(focusIndex + 1)
+            // One announcement: two would cut each other off.
+            let next = items[focusIndex + 1]
+            announcement = PhotoAccessibility.advanced(announcement, to: next, offline: isOffline(next))
         }
+        AccessibilityText.announce(announcement)
+    }
+
+    /// Announces the photo the loupe moved to (arrows, Home, End):
+    /// "DSC00232, RAW, 3 stars, Picked, 13 of 87".
+    func announceLoupePhoto() {
+        guard mode == .loupe, let index = focusIndex, items.indices.contains(index) else { return }
+        let item = items[index]
+        AccessibilityText.announce(PhotoAccessibility.loupeMove(to: item, offline: isOffline(item), index: index,
+                                                                count: items.count))
+    }
+
+    /// A culling action VoiceOver chose on one photo. Like a context menu, it
+    /// applies to the selection when the photo is in it; otherwise the photo
+    /// is selected first.
+    func performAccessibilityAction(_ action: CullingAction, onVersion versionID: Int64) {
+        guard let index = indexByVersionID[versionID] else { return }
+        if !actionTargets.contains(index) { setFocus(index) }
+        perform(action)
     }
 
     /// Shows the new values at once, saves them in order, and registers the
@@ -820,7 +1111,8 @@ final class LibraryModel {
                 try await work()
             } catch {
                 Self.log.error("Saving failed: \(error.localizedDescription, privacy: .public)")
-                statusMessage = String(localized: "Could not save the change: \(error.localizedDescription)")
+                report(String(localized: "Could not save the change: \(error.localizedDescription)"),
+                       action: undoManager.undoActionName.nilIfEmpty ?? ActivityTitle.saveChanges, warning: true)
             }
             scheduleSidecarSync()
         }
@@ -859,12 +1151,12 @@ final class LibraryModel {
         }
         guard !added.isEmpty else {
             if !dropped.ignored.isEmpty {
-                statusMessage = String(localized: "Only folders can be imported. Drag in a folder of photos.")
+                report(String(localized: "Only folders can be imported. Drag in a folder of photos."),
+                       action: ActivityTitle.addFolder(nil), warning: true)
             }
             ignoredDropCount = 0
             return
         }
-        statusMessage = nil
         importTask = Task {
             // A drop that arrives while a finished batch reports starts another.
             repeat {
@@ -882,6 +1174,7 @@ final class LibraryModel {
         let importer = self.importer
         var folderErrors: [(name: String, error: any Error)] = []
         while let folder = importQueue.next() {
+            batchFolderName = Importer.defaultProjectName(for: folder)
             importGeneration += 1
             let generation = importGeneration
             importProgress = ImportProgress(phase: .scanning)
@@ -896,9 +1189,10 @@ final class LibraryModel {
             } catch is CancellationError {
                 importProgress = nil
                 importBatch = nil
+                let started = importQueue.started
                 let totals = importQueue.finish()
                 ignoredDropCount = 0
-                statusMessage = String(localized: "Import cancelled.")
+                report(String(localized: "Import cancelled."), action: ActivityTitle.addFolders(started, name: batchFolderName))
                 await refreshProjects()
                 warmPreviews(projectIDs: totals.projectIDs)
                 reloadItems(keepFocus: true)
@@ -970,7 +1264,8 @@ final class LibraryModel {
         if ignored > 0 {
             message += " " + String(localized: "Ignored \(ignored) items that are not folders.")
         }
-        statusMessage = message
+        report(message, action: ActivityTitle.addFolders(folderCount, name: batchFolderName),
+               warning: totals.failed > 0 || !folderErrors.isEmpty)
         // The first new project opens; the rest are listed in the sidebar.
         if let projectID = totals.projectIDs.first {
             if sidebarSelection == .project(projectID) {
@@ -1021,7 +1316,7 @@ final class LibraryModel {
 
 extension LibraryModel: CardImportLibrary {}
 
-/// Where a batch of folder imports stands, for the status bar.
+/// Where a batch of folder imports stands, for the Activity item.
 struct ImportBatchPosition: Equatable {
     /// The folder being imported, as its project will be named.
     var name: String

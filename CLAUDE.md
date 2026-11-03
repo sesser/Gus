@@ -58,15 +58,40 @@ bundle (Info.plist from `Branding.xcconfig`, String Catalog compiled by the
 `catalog-strings` tool, ad-hoc signature); `importer` builds the standalone
 importer and `all` builds both.
 
+The app's minimum is macOS 15, but the SDK it links decides its look: linked
+with the macOS 26 SDK or later it runs in the current design on 26+, linked
+with an older one in the earlier design. `build-app.sh` needs Xcode 26 or
+later and fails if the executable records an older SDK. It passes the SDK to
+clang as `-isysroot` when linking: SwiftPM's default build system (Swift
+Build) gives clang only `--sysroot`, so a plain `swift build` executable
+records its minimum (15.0) as its SDK version (`vtool -show-build`). Use the
+bundle, not `swift run`, to look at the UI.
+
 To check UI changes without screen recording permission, run the bundle's
 executable with `--library-root <folder> --debug-script "wait 2; snapshot /tmp/a.png; quit"`
 (see `Sources/PhotoApp/Model/DebugScript.swift` for every command: keywords,
-albums, sidecars, the import window, folder drops…). App launch options must always take a
-value: AppKit treats a stray argument as a document and then does not open the
-main window. A process started from a shell is not the active app, so it has
+albums, sidecars, the import window, folder drops…). In the current design
+`snapshot` leaves the glass panes (sidebar, inspector, toolbar items) blank:
+it renders the window's layers, which cannot draw them. The content area
+comes out right; check the panes with `buttons`, `hit` and `print`.
+`accessibility <role>` lists what the grid and loupe tell VoiceOver and runs
+their actions; SwiftUI builds its accessibility tree only for an attached
+assistive app, so SwiftUI elements (the import tiles) are not found this way.
+The script turns off `groupsByEvent` and opens an undo group only around
+commands that change photos (`changing` in `DebugScript`): a new command that
+changes photos without one makes `registerUndo` raise an Objective-C
+exception, which unwinds through Swift and crashes later. App
+launch options must always take a value: AppKit treats a stray argument as a
+document and then does not open the main window. A process started from a shell is not the active app, so it has
 no key window: scripted keys go straight to the window, and local event
 monitors (the video loupe's) never see them. To test those, launch with
 `open -W -n --stdout <log> build/*.app --args …`, which activates the app.
+macOS may refuse to activate it while you use another app (`print responder`
+then shows `key nil`); running `open build/<name>.app` again a few seconds in,
+while the script waits, brings it forward. Menu state needs a key window:
+`menuitems <text>` prints items as AppKit sees them (after the update an
+opening menu gets), `menupress <title>` runs one. `menukey` turns grouping
+undo by event on while its posted keys are handled.
 A FAT32 disk image (`hdiutil create -fs "MS-DOS FAT32" …`, then `hdiutil
 attach`) stands in for a camera card. `docs/PROFILING.md` has the benchmark
 commands.
@@ -114,12 +139,24 @@ compatible and never put `#` comment lines inside pasted command snippets.
   `CardImport/` (templates, copying), `Export/` (rendering, naming, metadata
   and watermarks for exports), `Suggestions/` (Vision), `Video/`.
   Everything testable lives here.
-- `Sources/PhotoUI` — UI shared by both apps: `Import/` (the import window, its
-  model and its debug-script commands), `Palette`, `LaunchOptions`, and the
-  String Catalog (`Resources/Localizable.xcstrings`).
-- `Sources/PhotoApp` — SwiftUI app shell, AppKit grid (`NSCollectionView`) and
-  loupe (with the crop and mask overlays), inspector (Info and Adjust tabs,
-  the Masks heading), sidebar, smart album editor.
+- `Sources/PhotoUI` — UI shared by both apps: `Import/` (the import window:
+  toolbar, options inspector, the `NSCollectionView` grid of `ImportCell`s
+  with check boxes, its model, `ImportCommands` and debug-script commands),
+  `Grid/` (`UniformGridLayout` and the cell images: symbols, stars, type
+  badges), `TemplateField` (the naming template token field; `TemplateParts`
+  and `TemplateToken` in PhotoCore split and read templates), `WindowModal`
+  (panels and alerts attached to the key window), `QuitGuard` (asks before
+  a quit stops an import or export; the rule is `QuitConfirmation` in
+  PhotoCore), `ToolbarMetrics` (custom toolbar items' inset and status
+  lines), `Palette` (dynamic colors
+  from `PaletteSpec` in PhotoCore), `LaunchOptions`, and the String Catalog
+  (`Resources/Localizable.xcstrings`).
+- `Sources/PhotoApp` — SwiftUI app shell (one library window with a
+  customizable toolbar, `LibraryCommands` on focused values, review mode),
+  AppKit grid (`NSCollectionView`) and loupe (with the crop and mask
+  overlays), inspector (Info and Adjust tabs, the Masks heading), sidebar,
+  smart album editor, and the sheets on the library window: Export, the
+  look-up table browser (Import and Manage as pages), the preset manager.
 - `Sources/PhotoImporter` — the standalone importer: the same import window
   with no library (copies only; presets and options in its own preferences).
 - `Sources/PhotoCore/Commands` — the command registry (`CommandRegistry`: one
@@ -213,10 +250,20 @@ compatible and never put `#` comment lines inside pasted command snippets.
   and cancellable; no image decoding on the main thread. Images are fully
   decoded and converted to the window's color space (BGRA) before they reach
   layers, otherwise Core Animation converts them on the main thread at commit.
-- **No SwiftUI `ScrollView` under the toolbar.** Because the app supports macOS 15,
-  macOS 26+ runs it in the earlier design, where such a scroll view (the
-  inspector's) swallows every click. Use `AppKitScrollView`; inspector buttons
-  are `AppKitButton`s, which the debug script's `click` can drive.
+- **No SwiftUI `ScrollView` under the toolbar.** On macOS 26+ in the earlier
+  design (the app linked with the macOS 15 SDK) such a scroll view (the
+  inspector's) swallowed every click. The SDK, not the minimum, chose that
+  design, but older systems still get it, so keep `AppKitScrollView`;
+  inspector buttons are `AppKitButton`s, which the debug script's `click` can
+  drive.
+- **Menus** read `LibraryMenuContext` / `ImportMenuContext` through
+  `@FocusedValue`, published by the window with `focusedSceneValue`; never a
+  model passed into `Commands`, which SwiftUI does not refresh. Bare-key items
+  (culling, `Z`, `\`, `C`, ⌫) are shown but the grid and loupe handle the
+  keys (AppKit offers an unmodified key to the first responder first); they
+  are enabled only while the grid, loupe or video loupe has the keyboard.
+  Text fields that hand the keyboard back on Return or Escape post
+  `.browserShouldTakeFocus` with their window.
 - **Metadata** goes through the `MetadataReader` protocol. ExifTool
   (`-stay_open` subprocess) is the default when installed; ImageIO is the
   in-process fallback; videos always go through AVFoundation.
@@ -287,7 +334,12 @@ some raws is the camera's aspect crop; with it raws decode the whole sensor
 RW2 crop tags in an in-memory copy).
 `CropGeometry` keeps the rectangle on the straightened image. Editing is a
 session in `AdjustmentEditor` shown by `CropOverlayView` over the loupe and
-saved on Done. Crop is not an `Adjustments.Group`: presets never carry it.
+saved on Done. Rotate outside a session commits at once (`Crop.turned`: a
+raw without a crop takes its camera frame as the rectangle, since any crop
+decodes the whole sensor). Crop is not an `Adjustments.Group`: presets never
+carry it. Grid batch commands (paste, presets, Auto Exposure, Reset All,
+Rotate) go through `BatchEdit` (videos, offline masters when read) and
+`changeAdjustments`, one undo step.
 
 Info tab metadata: title, description, alt text, extended description,
 copyright, usage terms and the creator's contact details (IPTC Core and
@@ -306,6 +358,14 @@ exposure, tone, white balance, presence and sharpening). Masks live in one
 for stacks that hold one), in the mask frame (the oriented decode before
 crop), read strictly and never written over when unreadable. Presets and
 paste leave them out. See `docs/PHASE6_PLAN.md`.
+
+UI redesign (`docs/UI_REDESIGN.md`, steps 1–15): built with the macOS 26
+SDK, VoiceOver for the grids and loupe, a menu bar on focused values,
+context menus, a customizable toolbar in place of the bottom bars, the loupe
+caption, system sidebar and inspector, a dynamic palette with Increase
+Contrast variants and dark only in the library window, Export, look-up
+tables and presets as sheets, the Import window on a toolbar, an options
+inspector and the shared grid, token template fields, and review mode (F).
 
 Not yet: AI masks, healing, lens corrections, DNG export, ML
 denoising, `.dcp` profiles, general (hand-made or burst) stacks, hierarchical

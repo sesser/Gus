@@ -1,19 +1,32 @@
 import AppKit
 import PhotoCore
 
-/// Neutral grays so photos are judged against a background that does not tint them.
+/// The app's colors, dynamic by appearance: the library window is always
+/// dark, the import window follows the system, and Increase Contrast has its
+/// own values. The values are `PaletteSpec`'s (PhotoCore), where
+/// `PaletteContrastTests` checks them. Layers must resolve them against their
+/// view's appearance (`resolved(for:)`).
 public enum Palette {
-    public static let gridBackground = NSColor(white: 0.12, alpha: 1)
-    public static let loupeBackground = NSColor(white: 0.09, alpha: 1)
-    public static let cell = NSColor(white: 0.17, alpha: 1)
-    public static let cellSelected = NSColor(white: 0.27, alpha: 1)
-    public static let rating = NSColor(calibratedRed: 0.98, green: 0.82, blue: 0.35, alpha: 1)
-    public static let fileName = NSColor(white: 0.78, alpha: 1)
-    public static let badgeText = NSColor(white: 0.86, alpha: 1)
-    public static let badgeFill = NSColor(white: 1, alpha: 0.13)
-    public static let rawBadgeFill = NSColor(calibratedRed: 0.95, green: 0.7, blue: 0.3, alpha: 0.3)
-    public static let pick = NSColor(calibratedRed: 0.45, green: 0.85, blue: 0.5, alpha: 1)
-    public static let reject = NSColor(calibratedRed: 0.95, green: 0.4, blue: 0.35, alpha: 1)
+    public static let gridBackground = color(.gridBackground)
+    public static let loupeBackground = color(.loupeBackground)
+    public static let cell = color(.cell)
+    public static let cellSelected = color(.cellSelected)
+    public static let fileName = color(.fileName)
+    public static let badgeText = color(.badgeText)
+    /// The import window's date line.
+    public static let dateText = color(.dateText)
+    public static let badgeFill = color(.badgeFill)
+    public static let rawBadgeFill = color(.rawBadgeFill)
+    public static let rating = color(.rating)
+    public static let pick = color(.pick)
+    public static let reject = color(.reject)
+
+    private static func color(_ role: PaletteSpec.Role) -> NSColor {
+        NSColor(name: nil) { appearance in
+            let value = PaletteSpec.color(role, in: PaletteAppearance(appearance))
+            return NSColor(srgbRed: value.red, green: value.green, blue: value.blue, alpha: value.alpha)
+        }
+    }
 
     public static func color(for label: ColorLabel) -> NSColor? {
         switch label {
@@ -58,5 +71,31 @@ public enum FileKindText {
         guard item.representsPair, let partner = item.partnerKind else { return badge(kind) }
         return String(localized: "\(badge(kind))+\(badge(partner))",
                       comment: "Grid badge for a RAW+JPEG pair; the first type is the file shown")
+    }
+}
+
+extension NSColor {
+    /// The color as `appearance` shows it, for layers (whose colors do not
+    /// follow the appearance by themselves).
+    @MainActor
+    public func resolved(for appearance: NSAppearance) -> NSColor {
+        var color = self
+        appearance.performAsCurrentDrawingAppearance {
+            color = self.usingColorSpace(.sRGB) ?? self
+        }
+        return color
+    }
+}
+
+extension PaletteAppearance {
+    /// Which of the palette's four appearances `appearance` is.
+    public init(_ appearance: NSAppearance) {
+        switch appearance.bestMatch(from: [.darkAqua, .aqua, .accessibilityHighContrastDarkAqua,
+                                           .accessibilityHighContrastAqua]) {
+        case .accessibilityHighContrastDarkAqua: self = .darkContrast
+        case .darkAqua: self = .dark
+        case .accessibilityHighContrastAqua: self = .lightContrast
+        default: self = .light
+        }
     }
 }

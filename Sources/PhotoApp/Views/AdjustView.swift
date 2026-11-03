@@ -11,26 +11,29 @@ struct AdjustView: View {
     private var editor: AdjustmentEditor { model.editor }
 
     var body: some View {
-        VStack(spacing: 0) {
-            content
-            Divider()
-            CopyPasteBar(model: model)
-        }
+        content
     }
 
     @ViewBuilder
     private var content: some View {
         if model.mode != .loupe {
+            // Sliders stay in the loupe; presets apply to the selection.
             AppKitScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    Text("Open a photo in the loupe to adjust it. Paste Adjustments and presets change every selected photo.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Divider()
+                VStack(alignment: .leading, spacing: 0) {
+                    ContentUnavailableView {
+                        Label("Open a Photo to Adjust It", systemImage: "slider.horizontal.3")
+                    } actions: {
+                        AppKitButton(title: String(localized: "Open in Loupe"), style: .push,
+                                     help: String(localized: "Show the focused photo in the loupe"),
+                                     isEnabled: model.focusedItem != nil) {
+                            model.openLoupe()
+                        }
+                    }
+                    .fixedSize(horizontal: false, vertical: true)
+                    InspectorSeparator()
                     PresetsSection(model: model)
                 }
-                .padding(14)
+                .padding(InspectorMetrics.padding)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         } else {
@@ -48,43 +51,43 @@ struct AdjustView: View {
             case .unreadable(let failure):
                 message(AdjustText.unreadableMessage(failure))
             case .ready:
+                // The workflow's order (render order is unchanged).
                 AppKitScrollView {
-                    VStack(alignment: .leading, spacing: 18) {
-                        AdjustToolbar(model: model)
+                    VStack(alignment: .leading, spacing: 0) {
+                        PresetsSection(model: model)
+                        InspectorSeparator()
                         CropSection(editor: editor)
-                        Divider()
+                        InspectorSeparator()
                         AdjustSection(.develop, editor: editor) {
                             DevelopControls(editor: editor)
                         }
-                        Divider()
+                        InspectorSeparator()
                         AdjustSection(.tone, editor: editor) {
                             ToneCurveControls(editor: editor)
-                                .dimmedWhenOff(.toneCurve, editor: editor)
+                                .showsTurnedOff(.toneCurve, editor: editor)
                         }
-                        Divider()
+                        InspectorSeparator()
+                        AdjustSection(.colorMixer, editor: editor) {
+                            ColorMixerControls(editor: editor)
+                                .showsTurnedOff(.colorMixer, editor: editor)
+                        }
+                        InspectorSeparator()
+                        AdjustSection(.colorGrading, editor: editor) {
+                            ColorGradeControls(editor: editor)
+                                .showsTurnedOff(.colorGrade, editor: editor)
+                        }
+                        InspectorSeparator()
                         AdjustSection(.details, editor: editor) {
                             DetailControls(editor: editor)
                         }
-                        Divider()
-                        AdjustSection(.colorMixer, editor: editor) {
-                            ColorMixerControls(editor: editor)
-                                .dimmedWhenOff(.colorMixer, editor: editor)
-                        }
-                        Divider()
-                        AdjustSection(.colorGrading, editor: editor) {
-                            ColorGradeControls(editor: editor)
-                                .dimmedWhenOff(.colorGrade, editor: editor)
-                        }
-                        Divider()
+                        InspectorSeparator()
                         MasksSection(editor: editor)
-                        Divider()
+                        InspectorSeparator()
                         AdjustSection(.effects, editor: editor) {
                             EffectsControls(model: model)
                         }
-                        Divider()
-                        PresetsSection(model: model)
                     }
-                    .padding(14)
+                    .padding(InspectorMetrics.padding)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
@@ -102,69 +105,36 @@ struct AdjustView: View {
 }
 
 /// The original toggle and reset for everything.
-private struct AdjustToolbar: View {
+/// The pinned row of the loupe's Adjust tab: Original (`\\`) on the left,
+/// the ⋯ menu on the right.
+struct AdjustHeader: View {
     let model: LibraryModel
 
     private var editor: AdjustmentEditor { model.editor }
 
     var body: some View {
         HStack(spacing: 8) {
-            AppKitButton(title: editor.showsOriginal ? String(localized: "Show Edit") : String(localized: "Show Original"),
-                         symbol: "square.split.2x1", style: .borderless,
-                         help: String(localized: "Compare with the original (\\)")) {
+            // A toggle: its bezel shows when the original is on screen.
+            AppKitButton(title: String(localized: "Original"), symbol: "square.split.2x1",
+                         style: .toggle(isOn: editor.showsOriginal),
+                         help: String(localized: "Compare with the original (\\)"),
+                         isEnabled: editor.cropSession == nil) {
                 editor.toggleOriginal()
             }
             Spacer()
-            AppKitButton(title: String(localized: "Reset All"), style: .push,
-                         help: String(localized: "Remove every adjustment from this photo"),
-                         isEnabled: !editor.adjustments.isDefault) {
-                editor.resetAll()
-            }
+            AppKitMenuButton(title: "", symbol: "ellipsis.circle", entries: [
+                .item(String(localized: "Copy Adjustments"), isEnabled: model.focusedItem != nil) { model.copyAdjustments() },
+                .item(String(localized: "Paste Adjustments"), isEnabled: model.copiedAdjustments != nil) {
+                    model.pasteAdjustments()
+                },
+                .separator,
+                .item(String(localized: "Save Adjustments as Preset…")) { model.promptForAdjustmentPreset() },
+                .separator,
+                .item(String(localized: "Reset All Adjustments"), isEnabled: !editor.adjustments.isDefault) {
+                    model.resetAllAdjustments()
+                },
+            ], help: String(localized: "More adjustment commands"))
         }
-    }
-}
-
-/// Copy and Paste Adjustments, under the Adjust tab: for the photo on screen
-/// or the selection.
-private struct CopyPasteBar: View {
-    let model: LibraryModel
-
-    var body: some View {
-        HStack(spacing: 6) {
-            AppKitButton(title: String(localized: "Copy Adjustments"), style: .push,
-                         help: String(localized: "Copy this photo's adjustments"),
-                         isEnabled: model.focusedItem != nil) {
-                model.copyAdjustments()
-            }
-            AppKitButton(title: String(localized: "Paste Adjustments"), style: .push,
-                         help: String(localized: "Give the copied adjustments to the photo on screen or the selection"),
-                         isEnabled: model.copiedAdjustments != nil && model.focusedItem != nil) {
-                model.pasteAdjustments()
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
-    }
-}
-
-extension View {
-    /// Shows a group's controls faded while its edits are turned off. They stay
-    /// usable: changing one turns the group back on.
-    func dimmedWhenOff(_ group: Adjustments.Group, editor: AdjustmentEditor) -> some View {
-        opacity(editor.adjustments.isEnabled(group) ? 1 : 0.45)
-    }
-}
-
-/// A small caption above a group of sliders.
-struct ControlGroupLabel: View {
-    let text: String
-
-    var body: some View {
-        Text(text.uppercased())
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(.tertiary)
-            .padding(.top, 2)
     }
 }
 
@@ -183,17 +153,17 @@ private struct DevelopControls: View {
     let editor: AdjustmentEditor
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 2) {
             if editor.isRaw {
                 GroupLabel(.profile, editor: editor)
                 profile
-                    .dimmedWhenOff(.profile, editor: editor)
+                    .showsTurnedOff(.profile, editor: editor)
             }
             GroupLabel(.whiteBalance, editor: editor)
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
                 whiteBalance
             }
-            .dimmedWhenOff(.whiteBalance, editor: editor)
+            .showsTurnedOff(.whiteBalance, editor: editor)
             GroupLabel(.light, editor: editor) {
                 AppKitButton(title: String(localized: "Auto"), style: .push,
                              help: String(localized: "Set the exposure from the photo's brightness"),
@@ -201,7 +171,7 @@ private struct DevelopControls: View {
                     editor.autoExposure()
                 }
             }
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
                 adjustSlider(editor, String(localized: "Exposure"), \.exposure.ev, range: Exposure.range, format: .stops)
                 adjustSlider(editor, String(localized: "Contrast"), \.tone.contrast)
                 adjustSlider(editor, String(localized: "Highlights"), \.tone.highlights)
@@ -209,20 +179,20 @@ private struct DevelopControls: View {
                 adjustSlider(editor, String(localized: "Whites"), \.tone.whites)
                 adjustSlider(editor, String(localized: "Blacks"), \.tone.blacks)
             }
-            .dimmedWhenOff(.light, editor: editor)
+            .showsTurnedOff(.light, editor: editor)
             GroupLabel(.presence, editor: editor)
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
                 adjustSlider(editor, String(localized: "Clarity"), \.presence.clarity)
                 adjustSlider(editor, String(localized: "Dehaze"), \.presence.dehaze)
                 adjustSlider(editor, String(localized: "Vibrance"), \.presence.vibrance)
                 adjustSlider(editor, String(localized: "Saturation"), \.presence.saturation)
             }
-            .dimmedWhenOff(.presence, editor: editor)
+            .showsTurnedOff(.presence, editor: editor)
         }
     }
 
     private var profile: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 2) {
             LabeledPopUp(title: String(localized: "Profile")) {
                 AppKitPopUp(items: RawDecode.Look.allCases.map { .init(title: Self.lookTitle($0), tag: $0.rawValue) },
                             selection: editor.adjustments.decode.look.rawValue) { tag in
@@ -273,7 +243,7 @@ private struct DevelopControls: View {
     private var whiteBalance: some View {
         let balance = editor.adjustments.whiteBalance
         let presets = editor.isRaw ? WhiteBalance.Preset.allCases : WhiteBalance.Preset.relativePresets
-        LabeledPopUp(title: String(localized: "Preset")) {
+        LabeledPopUp(title: String(localized: "Mode", comment: "White balance: As Shot, Auto, Daylight…")) {
             AppKitPopUp(items: presets.map { .init(title: Self.presetTitle($0), tag: $0.rawValue) },
                         selection: balance.preset.rawValue, isEnabled: !editor.isMeasuring) { tag in
                 pick(WhiteBalance.Preset(rawValue: tag) ?? .asShot)
@@ -433,9 +403,9 @@ private struct DetailControls: View {
     let editor: AdjustmentEditor
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 2) {
             GroupLabel(.sharpening, editor: editor)
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
                 adjustSlider(editor, String(localized: "Amount"), \.sharpen.amount, range: Sharpen.amountRange,
                              format: .plain)
                 adjustSlider(editor, String(localized: "Radius"), \.sharpen.radius, range: Sharpen.radiusRange,
@@ -444,21 +414,21 @@ private struct DetailControls: View {
                              format: .plain)
                 adjustSlider(editor, String(localized: "Masking"), \.sharpen.masking, range: 0...100, format: .plain)
             }
-            .dimmedWhenOff(.sharpening, editor: editor)
+            .showsTurnedOff(.sharpening, editor: editor)
             Text("Sharpening is easiest to judge at 1:1 (Z), once the change is saved.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             GroupLabel(.noiseReduction, editor: editor)
             let defaults = editor.rawDefaults
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
                 noiseSlider(String(localized: "Luminance"), \.noiseReduction.luminance,
                             defaultValue: editor.isRaw ? defaults?.luminanceNoiseReduction ?? 0 : 0)
                 if editor.isRaw, let color = defaults?.colorNoiseReduction {
                     noiseSlider(String(localized: "Color"), \.noiseReduction.color, defaultValue: color)
                 }
             }
-            .dimmedWhenOff(.noiseReduction, editor: editor)
+            .showsTurnedOff(.noiseReduction, editor: editor)
         }
     }
 
@@ -511,22 +481,6 @@ private struct ToneCurveControls: View {
         case .red: String(localized: "Red", comment: "Tone curve channel")
         case .green: String(localized: "Green", comment: "Tone curve channel")
         case .blue: String(localized: "Blue", comment: "Tone curve channel")
-        }
-    }
-}
-
-/// A caption on the left, a pop-up filling the rest.
-struct LabeledPopUp<Content: View>: View {
-    let title: String
-    @ViewBuilder let content: Content
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Text(title)
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .frame(width: 72, alignment: .leading)
-            content
         }
     }
 }

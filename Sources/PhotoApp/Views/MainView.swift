@@ -8,41 +8,42 @@ struct MainView: View {
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: Binding(get: { model.showsSidebar ? .all : .detailOnly },
+                                                      set: { model.showsSidebar = $0 != .detailOnly })) {
             SidebarView(model: model)
-                .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 360)
+                .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 320)
         } detail: {
             BrowserView(model: model)
                 .inspector(isPresented: $model.showsInspector) {
                     InspectorView(model: model)
-                        .inspectorColumnWidth(min: 240, ideal: 280, max: 420)
+                        .inspectorColumnWidth(min: 280, ideal: 300, max: 420)
                 }
         }
-        .navigationTitle(title)
-        .navigationSubtitle(subtitle)
-        .toolbar { BrowserToolbar(model: model) }
-        // Photos are judged against neutral dark surroundings.
+        .navigationTitle(model.windowTitle)
+        .navigationSubtitle(model.windowSubtitle)
+        .toolbar(id: "library") { LibraryToolbar(model: model) }
+        .background { LibraryMenuPublisher(model: model) }
+        // The library window only (SwiftUI sets this window's NSWindow.appearance):
+        // photos are judged against neutral dark surroundings; Import and
+        // Settings follow the system.
         .preferredColorScheme(.dark)
+        // Review: the toolbar shows only while the pointer is at the top.
+        .windowToolbarFullScreenVisibility(model.isReviewing ? .onHover : .automatic)
         .task { await model.start() }
         .onChange(of: model.requestsImportWindow) {
             guard model.requestsImportWindow else { return }
             model.requestsImportWindow = false
             openWindow(id: "import")
         }
-        .onChange(of: model.requestsLookTableWindow) {
-            guard model.requestsLookTableWindow else { return }
-            model.requestsLookTableWindow = false
-            openWindow(id: "lookTables")
+        // One sheet at a time (section 8, "The rule").
+        .sheet(isPresented: $model.showsExportSheet) {
+            ExportSheet(model: model)
         }
-        .onChange(of: model.requestsPresetWindow) {
-            guard model.requestsPresetWindow else { return }
-            model.requestsPresetWindow = false
-            openWindow(id: "presets")
+        .sheet(isPresented: $model.showsLookTableSheet) {
+            LookTableBrowserSheet(model: model)
         }
-        .onChange(of: model.requestsExportWindow) {
-            guard model.requestsExportWindow else { return }
-            model.requestsExportWindow = false
-            openWindow(id: "export")
+        .sheet(isPresented: $model.showsPresetSheet) {
+            PresetManagerSheet(model: model)
         }
         .alert(model.export.report?.title ?? "", isPresented: Binding(
             get: { model.export.report != nil }, set: { if !$0 { model.export.report = nil } }
@@ -60,15 +61,19 @@ struct MainView: View {
         }
     }
 
-    private var title: String {
-        model.title(for: model.sidebarSelection)
-    }
+}
 
-    private var subtitle: String {
-        let count = model.itemCount
-        return model.isFiltered
-            ? String(localized: "\(count) photos match the filter")
-            : String(localized: "\(count) photos")
+extension View {
+    /// On macOS 26 the grid scrolls under the toolbar for the system
+    /// scroll-edge effect; its scroll view insets its content by itself
+    /// (`automaticallyAdjustsContentInsets`). Earlier, a plain toolbar.
+    @ViewBuilder
+    func underToolbar() -> some View {
+        if #available(macOS 26, *) {
+            ignoresSafeArea(.container, edges: .top)
+        } else {
+            self
+        }
     }
 }
 
@@ -81,15 +86,22 @@ struct BrowserView: View {
         ZStack {
             Color(nsColor: Palette.gridBackground)
             GridView(model: model)
+                .underToolbar()
             if model.mode == .loupe {
                 LoupeView(model: model)
             }
-            if let request = model.keywordEntry {
-                VStack {
-                    KeywordEntryPanel(model: model, request: request)
-                    Spacer()
-                }
+            // ⌘K: a popover on the content's top edge (section 8).
+            VStack {
+                Color.clear
+                    .frame(width: 1, height: 1)
+                    .popover(item: Binding(get: { model.keywordEntry },
+                                           set: { if $0 == nil, model.keywordEntry != nil { model.endKeywordEntry(adding: []) } }),
+                             arrowEdge: .top) { request in
+                        KeywordEntryPanel(model: model, request: request)
+                    }
+                Spacer()
             }
+            .allowsHitTesting(false)
             if model.itemCount == 0, model.mode == .grid, !model.isFolderDropTargeted {
                 EmptyLibraryView(model: model)
             }
@@ -100,152 +112,38 @@ struct BrowserView: View {
         .overlay {
             if model.isFolderDropTargeted { FolderDropHighlight() }
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            VStack(spacing: 0) {
-                FilterBar(model: model)
-                Divider()
-                StatusBar(model: model)
-            }
-        }
     }
 }
 
+/// "No Photos Yet" with Import and Add Folder Without Copying, or "No Photos
+/// Match" with Clear Filter (section 9 of docs/UI_REDESIGN.md).
 private struct EmptyLibraryView: View {
     let model: LibraryModel
 
     var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: model.isFiltered ? "line.3.horizontal.decrease.circle" : "photo.stack")
-                .font(.system(size: 44, weight: .light))
-            if model.isFiltered {
-                Text("No photos match the filter.")
-                    .font(.title3)
-            } else {
-                Text("No photos yet")
-                    .font(.title3)
-                Text("Import a folder of photos, or drag folders here. Originals stay where they are; \(AppBranding.displayName) only references them.")
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: 360)
-                Button("Import Folder…") { ImportPanel.run(model: model) }
-                    .controlSize(.large)
+        if model.isFiltered {
+            ContentUnavailableView {
+                Label("No Photos Match", systemImage: "line.3.horizontal.decrease.circle")
+            } actions: {
+                Button("Clear Filter") { model.clearFilter() }
+            }
+        } else {
+            ContentUnavailableView {
+                Label("No Photos Yet", systemImage: "photo.stack")
+            } description: {
+                Text("Import copies photos from a card or folder into the folder you choose. Add Folder Without Copying uses photos where they are; \(AppBranding.displayName) only references them.",
+                     comment: "Empty library: copying versus using photos in place")
+                Text("Drag folders here to add them without copying.", comment: "Empty library hint")
+            } actions: {
+                Button(model.mountedCardName.map { String(localized: "Import from \($0)…", comment: "Empty library: a card is mounted") }
+                       ?? String(localized: "Import from Card or Folder…")) {
+                    model.cardImport.refreshSources()
+                    model.requestsImportWindow = true
+                }
+                .buttonStyle(.borderedProminent)
+                Button("Add Folder Without Copying…") { ImportPanel.run(model: model) }
                     .disabled(model.isImporting)
             }
-        }
-        .foregroundStyle(.white.opacity(0.85))
-        .padding(40)
-    }
-}
-
-struct StatusBar: View {
-    let model: LibraryModel
-
-    var body: some View {
-        HStack(spacing: 12) {
-            if let progress = model.importProgress {
-                if let batch = model.importBatch {
-                    Text("“\(batch.name)” (\(batch.index) of \(batch.count))")
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-                ProgressView(value: Double(progress.filesProcessed), total: Double(max(progress.filesFound, 1)))
-                    .frame(width: 140)
-                Text(importText(progress))
-                    .monospacedDigit()
-                Button {
-                    model.cancelImport()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                }
-                .buttonStyle(.borderless)
-                .help("Cancel Import")
-            } else if let progress = model.export.progress {
-                ProgressView(value: Double(progress.done), total: Double(max(progress.total, 1)))
-                    .frame(width: 140)
-                Text("Exporting \(progress.done) of \(progress.total)")
-                    .monospacedDigit()
-                Button {
-                    model.export.cancel()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                }
-                .buttonStyle(.borderless)
-                .help("Stop Exporting")
-            } else if let warming = model.warming {
-                ProgressView(value: Double(warming.done), total: Double(max(warming.total, 1)))
-                    .frame(width: 100)
-                Text("Rendering previews \(warming.done) of \(warming.total)")
-                    .monospacedDigit()
-            } else if let progress = model.suggestionProgress {
-                ProgressView(value: Double(progress.done), total: Double(max(progress.total, 1)))
-                    .frame(width: 100)
-                Text("Suggesting keywords \(progress.done) of \(progress.total)")
-                    .monospacedDigit()
-            } else if let message = model.statusMessage {
-                Text(message)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-            }
-            Spacer()
-            if let item = model.focusedItem {
-                if model.isOffline(item) {
-                    Label("Offline", systemImage: "externaldrive.badge.xmark")
-                        .help("The volume holding this original is not connected.")
-                }
-                Text(item.fileName)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
-        }
-        .font(.callout)
-        .foregroundStyle(.secondary)
-        .padding(.horizontal, 12)
-        .frame(height: 28)
-        .background(.bar)
-    }
-
-    private func importText(_ progress: ImportProgress) -> String {
-        switch progress.phase {
-        case .scanning:
-            String(localized: "Looking for photos…")
-        case .importing, .finished:
-            String(localized: "Importing \(progress.filesProcessed) of \(progress.filesFound)")
-        }
-    }
-}
-
-struct BrowserToolbar: ToolbarContent {
-    @Bindable var model: LibraryModel
-
-    var body: some ToolbarContent {
-        ToolbarItem(placement: .navigation) {
-            Button {
-                ImportPanel.run(model: model)
-            } label: {
-                Label("Import", systemImage: "square.and.arrow.down")
-            }
-            .help("Import a folder of photos")
-            .disabled(model.isImporting)
-        }
-        ToolbarItemGroup(placement: .primaryAction) {
-            Picker("View", selection: $model.mode) {
-                Label("Grid", systemImage: "square.grid.2x2").tag(BrowserMode.grid)
-                Label("Loupe", systemImage: "rectangle").tag(BrowserMode.loupe)
-            }
-            .pickerStyle(.segmented)
-            .disabled(model.itemCount == 0)
-            .help("Switch between the grid and a single photo")
-
-            Slider(value: $model.thumbnailSize, in: LibraryModel.thumbnailSizeRange) {
-                Text("Thumbnail Size")
-            } minimumValueLabel: {
-                Image(systemName: "square.grid.3x3")
-            } maximumValueLabel: {
-                Image(systemName: "square.grid.2x2")
-            }
-            .frame(width: 160)
-            .disabled(model.mode != .grid)
-            .help("Thumbnail size")
         }
     }
 }
@@ -259,7 +157,9 @@ enum ImportPanel {
         panel.allowsMultipleSelection = false
         panel.prompt = String(localized: "Import")
         panel.message = String(localized: "Choose a folder. Photos inside it, including subfolders, are added to a new project.")
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        model.importFolder(url)
+        Task {
+            guard await WindowModal.run(panel), let url = panel.url else { return }
+            model.importFolder(url)
+        }
     }
 }

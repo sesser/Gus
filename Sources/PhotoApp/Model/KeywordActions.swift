@@ -14,10 +14,24 @@ final class Pending<Value> {
     var value: Value?
 }
 
+enum LoupeZoomStep {
+    static let zoomInKey = "zoomIn"
+    static let fitKey = "fit"
+}
+
 extension Notification.Name {
     /// The grid or loupe, whichever is showing, should take keyboard focus back
     /// (after the keyword field closes, for instance).
     static let browserShouldTakeFocus = Notification.Name("browserShouldTakeFocus")
+    /// The loupe should switch between fit and 100% (View ▸ Zoom).
+    static let loupeShouldToggleZoom = Notification.Name("loupeShouldToggleZoom")
+    /// The loupe should zoom one step in or out (View ▸ Zoom In / Zoom Out);
+    /// `LoupeZoomStep.zoomInKey` says which.
+    static let loupeShouldStepZoom = Notification.Name("loupeShouldStepZoom")
+    /// The loupe should fit the photo (`LoupeZoomStep.fitKey` true) or show it at 100 %.
+    static let loupeShouldSetZoom = Notification.Name("loupeShouldSetZoom")
+    /// The search field should take keyboard focus (Edit ▸ Find ▸ Find…).
+    static let searchShouldTakeFocus = Notification.Name("searchShouldTakeFocus")
 }
 
 extension LibraryModel {
@@ -116,7 +130,8 @@ extension LibraryModel {
         persist { result.value = try await catalog.renameKeyword(id: keywordID, to: name) }
         afterPendingWrites { model in
             if case .merged(let merge)? = result.value {
-                model.statusMessage = String(localized: "Merged “\(merge.source.keyword.name)” into “\(merge.target.name)”.")
+                model.report(String(localized: "Merged “\(merge.source.keyword.name)” into “\(merge.target.name)”."),
+                             action: String(localized: "Rename Keyword", comment: "Undo action name"))
                 if model.sidebarSelection == .keyword(keywordID), let target = merge.target.id {
                     model.sidebarSelection = .keyword(target)
                 }

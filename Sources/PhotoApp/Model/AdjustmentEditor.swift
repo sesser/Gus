@@ -55,6 +55,8 @@ final class AdjustmentEditor {
     @ObservationIgnored private(set) var frame: LiveRenderSession.Frame?
     /// The crop being edited, while the loupe shows the crop frame.
     private(set) var cropSession: CropSession?
+    /// A version whose crop session starts once it has loaded (Crop from the grid).
+    @ObservationIgnored private var cropsWhenReady: Int64?
     /// The whole photo with its other adjustments, under the crop frame.
     private(set) var cropImage: CGImage?
     /// The mask the Masks heading and the loupe's handles edit.
@@ -197,6 +199,10 @@ final class AdjustmentEditor {
             cameraRect = camera
             session = LiveRenderSession(source: url, generator: generator, colorSpace: colorSpace)
             state = .ready
+            if cropsWhenReady == versionID {
+                cropsWhenReady = nil
+                beginCrop()
+            }
             // A frame for the histogram, once the person settles on this photo.
             try? await Task.sleep(for: .milliseconds(250))
             guard !Task.isCancelled, item?.versionID == versionID else { return }
@@ -573,10 +579,30 @@ final class AdjustmentEditor {
         cropSession = session
     }
 
-    /// Turns the photo a quarter turn, frame and all.
+    /// Crop (`C`, the grid's Crop): starts cropping `versionID` as soon as
+    /// the loupe has loaded it.
+    func beginCropWhenReady(versionID: Int64) {
+        if item?.versionID == versionID, state == .ready {
+            beginCrop()
+        } else {
+            cropsWhenReady = versionID
+        }
+    }
+
+    /// `C` and Crop / Finish Cropping: starts the session, or saves it.
+    func toggleCrop() {
+        if cropSession != nil { endCrop(save: true) } else { beginCrop() }
+    }
+
+    /// Turns the photo a quarter turn, frame and all. Outside a crop session
+    /// the turn is saved at once as one undo step; inside one, the frame turns.
     func rotate(clockwise: Bool) {
         guard var session = cropSession else {
-            beginCrop(then: { $0.rotate(clockwise: clockwise) })
+            guard state == .ready, cropImageTask == nil else { return }
+            let camera = cameraRect
+            change(String(localized: "Rotate", comment: "Undo action name"), phase: .committed) {
+                $0.crop = $0.crop.turned(clockwise: clockwise, cameraRect: camera)
+            }
             return
         }
         session.crop.quarterTurns = (session.crop.quarterTurns + (clockwise ? 1 : 3)) % 4

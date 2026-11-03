@@ -57,7 +57,7 @@ final class GridController: NSObject, NSCollectionViewDataSource, NSCollectionVi
                                                name: NSView.boundsDidChangeNotification,
                                                object: scrollView.contentView)
         NotificationCenter.default.addObserver(self, selector: #selector(takeFocus(_:)),
-                                               name: .browserShouldTakeFocus, object: model)
+                                               name: .browserShouldTakeFocus, object: nil)
         model.observer = self
     }
 
@@ -77,7 +77,11 @@ final class GridController: NSObject, NSCollectionViewDataSource, NSCollectionVi
             self.mode = mode
             scrollView.isHidden = mode != .grid
             if mode == .grid {
-                collectionView.window?.makeFirstResponder(collectionView)
+                if model.takesSearchFocus() {
+                    NotificationCenter.default.post(name: .searchShouldTakeFocus, object: model)
+                } else {
+                    collectionView.window?.makeFirstResponder(collectionView)
+                }
             }
         }
     }
@@ -174,6 +178,9 @@ final class GridController: NSObject, NSCollectionViewDataSource, NSCollectionVi
         case .toggleLoupe:
             model.openLoupe()
             return true
+        case .toggleReview:
+            model.enterReview()
+            return true
         case .exitLoupe, .toggleZoom:
             return false
         }
@@ -202,6 +209,19 @@ final class GridController: NSObject, NSCollectionViewDataSource, NSCollectionVi
     func libraryFocusChanged() {
         applyModelSelection()
         if let focus = model.focusIndex { scroll(to: focus, centered: false) }
+        postFocusedCell()
+    }
+
+    /// The focused cell, for VoiceOver.
+    var focusedCellView: NSView? {
+        guard mode == .grid, let focus = model.focusIndex else { return nil }
+        return collectionView.item(at: IndexPath(item: focus, section: 0))?.view
+    }
+
+    /// Keyboard moves in the grid make VoiceOver read the new cell.
+    private func postFocusedCell() {
+        guard let cell = focusedCellView else { return }
+        NSAccessibility.post(element: cell, notification: .focusedUIElementChanged)
     }
 
     func libraryAvailabilityChanged() {
@@ -226,18 +246,25 @@ final class GridController: NSObject, NSCollectionViewDataSource, NSCollectionVi
     func scroll(to index: Int, centered: Bool) {
         guard model.items.indices.contains(index) else { return }
         let frame = layout.frame(forItemAt: index)
-        let visible = scrollView.contentView.bounds
+        // Under the toolbar (macOS 26) the top inset is covered: a cell there
+        // is not visible.
+        let inset = scrollView.contentInsets.top
+        let bounds = scrollView.contentView.bounds
+        let visible = NSRect(x: bounds.minX, y: bounds.minY + inset, width: bounds.width, height: bounds.height - inset)
         if !centered, visible.contains(frame) { return }
-        var origin = visible.origin
+        var top = visible.minY
         if centered {
-            origin.y = frame.midY - visible.height / 2
+            top = frame.midY - visible.height / 2
         } else if frame.minY < visible.minY {
-            origin.y = frame.minY - layout.spacing
+            top = frame.minY - layout.spacing
         } else {
-            origin.y = frame.maxY + layout.spacing - visible.height
+            top = frame.maxY + layout.spacing - visible.height
         }
-        let maxY = max(0, collectionView.frame.height - visible.height)
-        origin.y = min(max(origin.y, 0), maxY)
+        // The first row scrolls all the way up.
+        if top <= layout.spacing { top = 0 }
+        let maxTop = max(0, collectionView.frame.height - visible.height)
+        var origin = bounds.origin
+        origin.y = min(max(top, 0), maxTop) - inset
         scrollView.contentView.scroll(to: origin)
         scrollView.reflectScrolledClipView(scrollView.contentView)
     }
@@ -249,6 +276,7 @@ final class GridController: NSObject, NSCollectionViewDataSource, NSCollectionVi
     func windowDidChange(_ window: NSWindow?) {
         // One undo stack for the window, so ⌘Z works wherever the focus is.
         if let undoManager = window?.undoManager { model.undoManager = undoManager }
+        model.windowObserver.attach(window)
         let center = NotificationCenter.default
         for name in [NSWindow.didChangeScreenNotification, NSWindow.didChangeScreenProfileNotification] {
             center.removeObserver(self, name: name, object: nil)
@@ -259,7 +287,10 @@ final class GridController: NSObject, NSCollectionViewDataSource, NSCollectionVi
         updateDisplayColorSpace(window)
     }
 
+    /// From the model, or from a view in this window (an inspector value field).
     @objc private func takeFocus(_ notification: Notification) {
+        let sender = notification.object as AnyObject?
+        guard sender === model || sender === collectionView.window else { return }
         if mode == .grid { collectionView.window?.makeFirstResponder(collectionView) }
     }
 
@@ -336,6 +367,12 @@ final class PhotoCollectionView: NSCollectionView {
            controller?.navigate(key, extend: event.modifierFlags.contains(.shift)) == true {
             return
         }
+        // C opens the focused photo in the loupe, cropping.
+        if event.charactersIgnoringModifiers?.lowercased() == "c",
+           event.modifierFlags.intersection([.command, .option, .control, .shift]).isEmpty {
+            controller?.model.crop()
+            return
+        }
         // ⌫ in an album takes the selection out of it.
         if event.keyCode == 51 || event.keyCode == 117, let model = controller?.model, model.currentAlbumID != nil {
             model.removeFromCurrentAlbum()
@@ -348,5 +385,24 @@ final class PhotoCollectionView: NSCollectionView {
         super.viewDidMoveToWindow()
         controller?.windowDidChange(window)
         window?.makeFirstResponder(self)
+    }
+
+    /// A right-click outside the selection selects the clicked photo first;
+    /// inside it, the selection stays and the clicked photo becomes the focus.
+    override func menu(for event: NSEvent) -> NSMenu? {
+        guard let model = controller?.model,
+              let path = indexPathForItem(at: convert(event.locationInWindow, from: nil)) else { return nil }
+        if model.selection.contains(path.item) {
+            model.gridSelectionChanged(model.selection, focus: path.item)
+        } else {
+            model.setFocus(path.item)
+        }
+        return PhotoContextMenu.grid(model: model)
+    }
+
+    // Declared nonisolated, but AppKit asks accessibility questions on the main thread.
+    override var accessibilityFocusedUIElement: Any? {
+        let cell = MainActor.assumeIsolated { controller?.focusedCellView }
+        return cell ?? super.accessibilityFocusedUIElement
     }
 }

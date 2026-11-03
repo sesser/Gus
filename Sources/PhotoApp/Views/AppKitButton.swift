@@ -9,6 +9,9 @@ struct AppKitButton: NSViewRepresentable {
         case push
         /// No bezel: a symbol, a title, or both.
         case borderless
+        /// A small push-on/push-off accessory-bar button whose bezel shows
+        /// the state (Original, Crop).
+        case toggle(isOn: Bool)
     }
 
     var title = ""
@@ -49,8 +52,15 @@ struct AppKitButton: NSViewRepresentable {
         case .borderless:
             button.isBordered = false
             button.controlSize = .regular
+        case .toggle(let isOn):
+            button.setButtonType(.pushOnPushOff)
+            button.bezelStyle = .accessoryBarAction
+            button.isBordered = true
+            button.controlSize = .small
+            button.state = isOn ? .on : .off
         }
-        let font = style == .push ? NSFont.systemFont(ofSize: NSFont.systemFontSize(for: .small)) : font
+        let isSmall = if case .borderless = style { false } else { true }
+        let font = isSmall ? NSFont.systemFont(ofSize: NSFont.systemFontSize(for: .small)) : font
         if let symbol {
             let configuration = NSImage.SymbolConfiguration(pointSize: font.pointSize * (title.isEmpty ? 1 : 0.8),
                                                             weight: symbolWeight)

@@ -25,7 +25,8 @@ extension LibraryModel {
                     let report = try await sidecars.processQueue(mountedVolumes: mounted)
                     if report.changedOnDisk > 0 { await refreshDiskChanges() }
                     if report.failed > 0 {
-                        statusMessage = String(localized: "Could not write \(report.failed) sidecar files.")
+                        self.report(String(localized: "Could not write \(report.failed) sidecar files."),
+                                    action: ActivityTitle.saveChanges, warning: true)
                     }
                 } catch is CancellationError {
                 } catch {

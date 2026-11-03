@@ -1,12 +1,15 @@
 import AppKit
 import PhotoCore
+import PhotoUI
 import SwiftUI
 
 /// Lists presets by collection: rename, move, choose what they apply, export
-/// and remove them; import more.
-struct PresetManagerWindow: View {
+/// and remove them; import more. A sheet on the library window; edits apply
+/// at once, so it ends with Done (section 8, "Other sheets").
+struct PresetManagerSheet: View {
     let model: LibraryModel
     @State private var pendingRemoval: String?
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -28,21 +31,22 @@ struct PresetManagerWindow: View {
                     }
                 }
             }
-            HStack {
-                Text("Applying a preset replaces only the settings it includes.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
+            Text("Applying a preset replaces only the settings it includes.")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+            HStack(spacing: 12) {
                 Button("Import…") { model.chooseAdjustmentPresetImport() }
                 Button("Export All…") {
                     model.exportAdjustmentPresets(model.adjustmentPresets, suggestedName: String(localized: "Presets"))
                 }
                 .disabled(model.adjustmentPresets.isEmpty)
+                Spacer()
+                Button("Done") { dismiss() }
+                    .keyboardShortcut(.defaultAction)
             }
         }
-        .padding(16)
-        .frame(minWidth: 520, minHeight: 360)
-        .preferredColorScheme(.dark)
+        .padding(20)
+        .frame(width: 560, height: 480)
         .alert(String(localized: "Remove the collection \(pendingRemoval ?? "")?"),
                isPresented: Binding(get: { pendingRemoval != nil }, set: { if !$0 { pendingRemoval = nil } })) {
             Button("Remove", role: .destructive) {
@@ -139,7 +143,7 @@ private struct PresetRow: View {
                     }
                     Divider()
                     Button("New Collection…") {
-                        if let collection = Self.askForCollectionName() { move(to: collection) }
+                        Task { if let collection = await Self.askForCollectionName() { move(to: collection) } }
                     }
                 }
                 Divider()
@@ -164,7 +168,7 @@ private struct PresetRow: View {
     }
 
     @MainActor
-    static func askForCollectionName() -> String? {
+    static func askForCollectionName() async -> String? {
         let alert = NSAlert()
         alert.messageText = String(localized: "New Collection")
         let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
@@ -173,7 +177,7 @@ private struct PresetRow: View {
         alert.addButton(withTitle: String(localized: "Move"))
         alert.addButton(withTitle: String(localized: "Cancel"))
         alert.window.initialFirstResponder = field
-        guard alert.runModal() == .alertFirstButtonReturn else { return nil }
+        guard await WindowModal.run(alert) == .alertFirstButtonReturn else { return nil }
         let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         return name.isEmpty ? nil : name
     }

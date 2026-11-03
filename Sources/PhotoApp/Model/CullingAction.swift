@@ -8,6 +8,20 @@ enum CullingAction: Equatable {
     case setFlag(Flag)
     case setColorLabel(ColorLabel)
 
+    /// Which value the action sets, for VoiceOver's announcement.
+    var change: CullingDescription.Change {
+        switch self {
+        case .setRating, .adjustRating: .rating
+        case .setFlag: .flag
+        case .setColorLabel: .colorLabel
+        }
+    }
+
+    /// Raise or Lower Rating's step; nil for the others.
+    var ratingStep: Int? {
+        if case .adjustRating(let step) = self { step } else { nil }
+    }
+
     var undoActionName: String {
         switch self {
         case .setRating, .adjustRating: String(localized: "Set Rating", comment: "Undo action name")
@@ -64,6 +78,8 @@ enum NavigationKey {
     case toggleLoupe
     case exitLoupe
     case toggleZoom
+    /// `F`: Enter / Exit Review.
+    case toggleReview
 
     static func from(_ event: NSEvent) -> NavigationKey? {
         let modifiers = event.modifierFlags.intersection([.command, .option, .control])
@@ -82,6 +98,7 @@ enum NavigationKey {
         default: break
         }
         if event.charactersIgnoringModifiers?.lowercased() == "z" { return .toggleZoom }
+        if event.charactersIgnoringModifiers?.lowercased() == "f" { return .toggleReview }
         return nil
     }
 }

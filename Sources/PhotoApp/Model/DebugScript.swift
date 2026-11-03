@@ -9,12 +9,13 @@ import PhotoUI
 ///     loupe | grid          size <points>           focus <index>|<file name without extension>
 ///     zoom                  project <n>|all         rating any|unrated|<1-5>
 ///     flag any|picked|rejected|unflagged|notrejected                 quit
-///     search [<text>]       (the filter bar's search; empty clears)
+///     search [<text>]       (the toolbar's search; empty clears)
 ///     sort captureDate|rating|fileName [asc|desc]
 ///     pairs grouped|separate  pairfile raw|jpeg     advance on|off
 ///     selectall             addkeywords <a, b>      keyentry      text <typed text>
 ///     undo | redo           inspector on|off        keyword <n>   (sidebar keyword n, 0-based)
-///     print <what>          (state for checks: selection, keywords, undo, suggestions, items, hdr,
+///     print <what>          (state for checks: selection, keywords, undo, suggestions, items, hdr, announcement,
+///                           title (title, subtitle, filter and sort), activity,
 ///                           loupe [<x> <y>]: mode, magnification, visible rect, image point under x y)
 ///     suggest               (analyzes the selection and waits)      accept <keyword>
 ///     album <name>          (from the selection)    smartalbum <name>  (rating ≥ 3)     remove
@@ -30,10 +31,20 @@ import PhotoUI
 ///     menukey <key> […]     (posts keys to the event queue, where an open menu reads them)
 ///     menupick <x> <y> <item>[/<submenu item>]   (picks from the menu of the menu button at a point)
 ///     buttons               (prints the window's AppKit buttons and where they are)
+///     menuitems [<text>]    (main menu items whose title contains text: key equivalent, enabled, checked)
+///     menupress <title>     (runs the main menu item with that title, if enabled)
+///     sidebarsection [albums|dates|keywords|projects show|hide]   (prints the hidden sidebar sections)
+///     contextmenu cell <n>|loupe|slider <title> [<item>[/<sub>]]   (prints a right-click's menu there, or runs an item)
+///     editvalue <title>     (puts the keyboard in the value field of the inspector slider with that title)
+///     accessibility <role>|any [<n> press|<action name>] | focused   (lists the window's accessibility
+///                           elements with that role, e.g. AXImage, or runs an action on the nth; see AccessibilityProbe)
 ///     scroll <y>|bottom     (scrolls the inspector's Adjust tab to a point from its top)
 ///     hdr on|off            (the View menu's Show HDR; snapshots show HDR clipped at white)
+///     review [on|off|grid|leavefullscreen]   (View ▸ Enter / Exit Review, as F; the Grid segment;
+///                           the window leaving full screen; print review shows the layout)
 ///     import open | source <path> | dest <path> | job <text> | delete on|off | eject on|off
-///            | run (waits) | confirm yes|no | snapshot <file> | print   (see ImportDebugCommands)
+///            | videos on|off | rescan | toggle <n> | accessibility … | run (waits) | confirm yes|no | snapshot <file> | print
+///            (see ImportDebugCommands)
 ///     adjust …  original on|off  tab info|adjust   (see DebugAdjustCommands)
 ///     metadata <field> [<text>]   print metadata   sidecars on|off   (see DebugMetadataCommands)
 ///     dropfolders <path>[, <path>…]   (imports dropped items the way a drop from Finder does)
@@ -42,10 +53,10 @@ import PhotoUI
 ///     lut <name>|none       (the first table of that name in any collection)
 ///     lutimport <folder> [<collection>]   (into a new collection, or an existing one of that name)
 ///     luts                  (prints the collections)
-///     lutwindow open|close|all|collection <name>|expand <name>|select <name>|apply|manage|snapshot <file>
+///     lutwindow open|close|all|collection <name>|expand <name>|select <name>|apply|manage|back|snapshot <file> (the sheet)
 ///     copyadjust            pasteadjust            preset save|apply|delete|preview <name> | preset (prints them)
 ///     preset import <path>…  (prints the summary)   preset summary <path>… (imports, shows the alert)
-///     preset export <file> [<name>]                 preset window | windowshot <png>
+///     preset export <file> [<name>]                 preset window | windowshot <png> (the sheet)
 ///     export window | windowshot <png> | set <key>=<value>… | template <text> | run [keepboth|overwrite|skip]
 ///            | preset save|apply|delete <name> | print   (see DebugExportCommands)
 ///
@@ -72,9 +83,13 @@ enum DebugScript {
             // Only commands that can change photos get a group; empty groups
             // would otherwise become undo steps that do nothing.
             let changing: Set<String> = ["key", "addkeywords", "text", "pairfile", "accept", "album", "smartalbum", "remove",
-                                         "adjust", "lut", "pasteadjust", "preset", "menupick", "lutwindow", "metadata"]
+                                         "adjust", "lut", "pasteadjust", "preset", "menupick", "lutwindow", "metadata",
+                                         "menupress", "contextmenu"]
             for command in commands where !command.isEmpty {
-                let grouped = changing.contains(String(command.prefix { $0 != " " }))
+                let words = command.split(separator: " ")
+                // "accessibility <role> <n> <action>" runs an action; listing changes nothing.
+                let grouped = changing.contains(String(words.first ?? ""))
+                    || (words.first == "accessibility" && words.count >= 4)
                 if grouped { undoManager.beginUndoGrouping() }
                 await run(command, model: model)
                 if grouped { undoManager.endUndoGrouping() }
@@ -276,10 +291,25 @@ enum DebugScript {
             }
             try? await Task.sleep(for: .milliseconds(600))
         case "menukey":
+            // Posted keys are handled after this command returns, outside its
+            // undo group; grouping by event, as for real keys, gives them one.
+            model.undoManager.groupsByEvent = true
             for key in rest {
                 send(key, posted: true)
                 try? await Task.sleep(for: .milliseconds(150))
             }
+            model.undoManager.groupsByEvent = false
+        case "review":
+            // As F; "print review" shows the layout.
+            switch rest.first {
+            case "off": model.exitReview()
+            case "on": model.enterReview()
+            // The toolbar's Grid segment, and ⌃⌘F (the window leaves full screen).
+            case "grid": model.closeLoupe()
+            case "leavefullscreen": model.windowObserver.window?.toggleFullScreen(nil)
+            default: model.toggleReview()
+            }
+            try? await Task.sleep(for: .milliseconds(1500))
         case "hdr":
             model.showsHDR = rest.first != "off"
         case "metadata", "sidecars":
@@ -323,12 +353,12 @@ enum DebugScript {
                     try? await Task.sleep(for: .milliseconds(600))
                 }
             case "window":
-                model.requestsPresetWindow = true
+                model.showsPresetSheet = true
                 try? await Task.sleep(for: .milliseconds(500))
             case "windowshot":
-                guard let window = NSApp.windows.first(where: { $0.isVisible && $0.title == String(localized: "Presets") })
-                else {
-                    print("debug-script: the presets window is not open")
+                // A sheet on the library window; the snapshot shows the sheet.
+                guard let window = NSApp.windows.first(where: { $0.attachedSheet != nil }) else {
+                    print("debug-script: the presets sheet is not open")
                     break
                 }
                 WindowSnapshot.write(window, to: URL(fileURLWithPath: (name as NSString).expandingTildeInPath))
@@ -360,8 +390,36 @@ enum DebugScript {
             if let window, let point = windowPoint(rest, in: window) { printHit(window, at: point) }
         case "buttons":
             if let window, let root = window.contentView?.superview { printButtons(in: root, window: window) }
+        case "editvalue":
+            // Puts the keyboard in the value field of the inspector slider with this title.
+            let title = rest.joined(separator: " ")
+            if let row = window?.contentView.flatMap({ findSliderRow(titled: title, in: $0) }) {
+                row.beginEditingValue()
+            } else {
+                print("debug-script: no slider titled \(title)")
+            }
+        case "sidebarsection":
+            if let section = rest.first.flatMap(SidebarSection.init(rawValue:)) {
+                model.setSidebarSection(section, shown: rest.dropFirst().first != "hide")
+            }
+            print("debug-script: hidden sections \(model.hiddenSidebarSections.map(\.rawValue).sorted())")
+        case "menuitems":
+            printMenuItems(containing: rest.joined(separator: " "))
+        case "contextmenu":
+            runContextMenu(rest)
+            try? await Task.sleep(for: .milliseconds(300))
+        case "menupress":
+            pressMenuItem(titled: rest.joined(separator: " "))
+            try? await Task.sleep(for: .milliseconds(300))
+        case "accessibility":
+            AccessibilityProbe.run(rest, in: window)
+            try? await Task.sleep(for: .milliseconds(200))
         case "print":
-            if rest.first == "loupe" {
+            if rest.first == "review" {
+                let window = model.windowObserver.window
+                print("debug-script: review \(model.isReviewing) mode \(model.mode) sidebar \(model.showsSidebar) "
+                      + "inspector \(model.showsInspector) fullscreen \(window?.styleMask.contains(.fullScreen) == true)")
+            } else if rest.first == "loupe" {
                 printLoupe(at: Array(rest.dropFirst()), model: model)
             } else if rest.first == "metadata" {
                 await DebugMetadataCommands.printSummary(model: model)
@@ -369,10 +427,16 @@ enum DebugScript {
                 printState(rest.first ?? "", model: model)
             }
         case "quit":
-            // An open sheet would keep the app from quitting.
+            // An open sheet would keep the app from quitting; SwiftUI's close
+            // through their bindings.
+            model.showsExportSheet = false
+            model.showsLookTableSheet = false
+            model.showsPresetSheet = false
+            try? await Task.sleep(for: .milliseconds(500))
             for window in NSApp.windows {
                 if let sheet = window.attachedSheet { window.endSheet(sheet) }
             }
+            QuitGuard.allowsQuit = true
             NSApp.terminate(nil)
         default:
             print("debug-script: unknown command \(verb)")
@@ -492,6 +556,128 @@ enum DebugScript {
         print("debug-script: \(Int(point.x)),\(Int(window.frame.height - point.y)) hits " + chain.joined(separator: " < "))
     }
 
+    /// `contextmenu cell <n> | loupe | slider <title> [<item>[/<sub>]]`: prints the
+    /// context menu a right-click there gets, or runs one of its items.
+    private static func runContextMenu(_ words: [String]) {
+        guard let window, let root = window.contentView else { return }
+        var view: NSView?
+        var point = NSPoint.zero
+        var path = Array(words.dropFirst())
+        switch words.first {
+        case "cell":
+            guard let index = path.first.flatMap(Int.init), let grid = descendant(of: PhotoCollectionView.self, in: root),
+                  let frame = grid.layoutAttributesForItem(at: IndexPath(item: index, section: 0))?.frame else { break }
+            path.removeFirst()
+            view = grid
+            point = grid.convert(NSPoint(x: frame.midX, y: frame.midY), to: nil)
+        case "loupe":
+            view = descendant(of: LoupeHostView.self, in: root)
+            point = view.map { $0.convert(NSPoint(x: $0.bounds.midX, y: $0.bounds.midY), to: nil) } ?? .zero
+        case "slider":
+            let title = path.first ?? ""
+            path.removeFirst()
+            view = findSliderRow(titled: title, in: root)
+            point = view.map { $0.convert(NSPoint(x: $0.bounds.midX, y: $0.bounds.midY), to: nil) } ?? .zero
+        default:
+            break
+        }
+        guard let view, let event = NSEvent.mouseEvent(with: .rightMouseDown, location: point, modifierFlags: [],
+                                                         timestamp: ProcessInfo.processInfo.systemUptime,
+                                                         windowNumber: window.windowNumber, context: nil, eventNumber: 0,
+                                                         clickCount: 1, pressure: 1),
+              let menu = view.menu(for: event) else {
+            print("debug-script: no context menu")
+            return
+        }
+        let target = path.joined(separator: " ").split(separator: "/").map(String.init)
+        if target.isEmpty {
+            func show(_ menu: NSMenu, _ prefix: String) {
+                for item in menu.items {
+                    print("debug-script: context \(item.isSeparatorItem ? "—" : prefix + item.title)")
+                    if let sub = item.submenu { show(sub, prefix + item.title + "/") }
+                }
+            }
+            show(menu, "")
+            return
+        }
+        var current = menu
+        for (depth, title) in target.enumerated() {
+            guard let index = current.items.firstIndex(where: { $0.title == title }) else {
+                print("debug-script: no context item \(title)")
+                return
+            }
+            if depth == target.count - 1 {
+                current.performActionForItem(at: index)
+            } else if let sub = current.items[index].submenu {
+                current = sub
+            }
+        }
+    }
+
+    /// Runs the enabled main menu item with this title, as a click would.
+    private static func pressMenuItem(titled title: String) {
+        func find(_ menu: NSMenu?) -> (NSMenu, Int)? {
+            guard let menu else { return nil }
+            // As if opened, like `menuitems`: SwiftUI may refresh its items only then.
+            menu.delegate?.menuNeedsUpdate?(menu)
+            menu.delegate?.menuWillOpen?(menu)
+            menu.update()
+            defer { menu.delegate?.menuDidClose?(menu) }
+            for (index, item) in menu.items.enumerated() {
+                if item.title == title { return (menu, index) }
+                if let found = find(item.submenu) { return found }
+            }
+            return nil
+        }
+        guard let (menu, index) = find(NSApp.mainMenu) else {
+            print("debug-script: no menu item \(title)")
+            return
+        }
+        guard menu.items[index].isEnabled else {
+            print("debug-script: menu item \(title) is disabled")
+            return
+        }
+        menu.performActionForItem(at: index)
+    }
+
+    private static func findSliderRow(titled title: String, in view: NSView) -> SliderRow? {
+        if let row = view as? SliderRow, row.title == title { return row }
+        for subview in view.subviews {
+            if let row = findSliderRow(titled: title, in: subview) { return row }
+        }
+        return nil
+    }
+
+    /// Main menu items whose title contains `text`: title, key equivalent and
+    /// whether they are enabled, as AppKit sees them.
+    private static func printMenuItems(containing text: String) {
+        func visit(_ menu: NSMenu?, path: String) {
+            // As if opened: SwiftUI may refresh its items only then.
+            if let menu {
+                menu.delegate?.menuNeedsUpdate?(menu)
+                menu.delegate?.menuWillOpen?(menu)
+                menu.update()
+            }
+            defer { if let menu { menu.delegate?.menuDidClose?(menu) } }
+            for item in menu?.items ?? [] where !item.isSeparatorItem {
+                let itemPath = path.isEmpty ? item.title : path + "/" + item.title
+                if text.isEmpty || item.title.localizedCaseInsensitiveContains(text) {
+                    var modifiers = ""
+                    let mask = item.keyEquivalentModifierMask
+                    if mask.contains(.control) { modifiers += "ctrl+" }
+                    if mask.contains(.option) { modifiers += "opt+" }
+                    if mask.contains(.shift) { modifiers += "shift+" }
+                    if mask.contains(.command) { modifiers += "cmd+" }
+                    let key = item.keyEquivalent.isEmpty ? "" : " key \(modifiers)\(item.keyEquivalent.debugDescription)"
+                    print("debug-script: menu \(itemPath)\(key) \(item.isEnabled ? "enabled" : "disabled")"
+                          + (item.state == .on ? " checked" : ""))
+                }
+                if let submenu = item.submenu { visit(submenu, path: itemPath) }
+            }
+        }
+        visit(NSApp.mainMenu, path: "")
+    }
+
     private static func printButtons(in view: NSView, window: NSWindow) {
         if let button = view as? NSButton, !view.isHiddenOrHasHiddenAncestor {
             let frame = button.convert(button.bounds, to: nil)
@@ -513,6 +699,28 @@ enum DebugScript {
 
     private static func printState(_ what: String, model: LibraryModel) {
         switch what {
+        case "title":
+            print("debug-script: title \(model.windowTitle) | \(model.windowSubtitle) | rating \(model.ratingRule) flag \(model.flagRule)"
+                  + " search '\(model.searchText)' sort \(model.sort.key.rawValue) \(model.sort.ascending ? "asc" : "desc")")
+        case "activity":
+            let jobs = ActivityToolbarItem.jobs(model).map {
+                $0.title + ($0.toolbarTitle.map { " (toolbar: \($0))" } ?? "") + ($0.detail.map { " | " + $0 } ?? "")
+            }
+                .joined(separator: "; ")
+            print("debug-script: activity visible \(ActivityToolbarItem.isVisible(model)) jobs [\(jobs)] unseen \(model.activity.unseenCount)"
+                  + " warning \(model.activity.unseenHasWarning) last \(model.activity.messages.last.map { "[\($0.title ?? "-")] \($0.text)" } ?? "-")")
+        case "grid":
+            if let scroll = window.flatMap({ descendant(of: PhotoCollectionView.self, in: $0.contentView) })?.enclosingScrollView {
+                print("debug-script: grid inset top \(scroll.contentInsets.top) visible \(scroll.documentVisibleRect.integral)"
+                      + " automatic \(scroll.automaticallyAdjustsContentInsets)")
+            }
+        case "appearance":
+            for window in NSApp.windows where window.isVisible {
+                print("debug-script: appearance '\(window.title)' set \(window.appearance?.name.rawValue ?? "nil")"
+                      + " effective \(window.effectiveAppearance.name.rawValue)")
+            }
+        case "announcement":
+            print("debug-script: announcement \(AccessibilityText.lastAnnouncement ?? "-")")
         case "hdr":
             let potential = window?.screen?.maximumPotentialExtendedDynamicRangeColorComponentValue ?? 1
             let headroom = model.loupeHDRHeadroom.map { String(format: "%.2f", $0) } ?? "none"

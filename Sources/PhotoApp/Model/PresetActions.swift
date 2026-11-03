@@ -1,5 +1,6 @@
 import AppKit
 import PhotoCore
+import PhotoUI
 import UniformTypeIdentifiers
 
 /// What a preset import did, shown in an alert.
@@ -30,7 +31,7 @@ extension LibraryModel {
 
     /// Gives the selection (grid) or the photo on screen (loupe) the preset's groups.
     func applyAdjustmentPreset(_ preset: AdjustmentPreset) {
-        changeAdjustments(ofVersions: actionTargetVersionIDs,
+        changeAdjustments(ofVersions: batchSelection(action: String(localized: "Apply Preset \(preset.name)", comment: "Undo action name")).versionIDs,
                           actionName: String(localized: "Apply Preset \(preset.name)", comment: "Undo action name")) {
             preset.applied(onto: $0)
         }
@@ -51,7 +52,7 @@ extension LibraryModel {
             let stack = try await catalog.version(id: item.versionID)?.decodedEditStack() ?? .identity
             return Adjustments(stack: stack)
         } catch {
-            statusMessage = AdjustText.unreadableMessage(EditStack.ReadFailure(error))
+            report(AdjustText.unreadableMessage(EditStack.ReadFailure(error)), action: ActivityTitle.saveAsPreset, warning: true)
             return nil
         }
     }
@@ -70,7 +71,8 @@ extension LibraryModel {
             do {
                 _ = try await catalog.saveAdjustmentPreset(preset)
             } catch {
-                statusMessage = String(localized: "Could not save the preset: \(error.localizedDescription)")
+                report(String(localized: "Could not save the preset: \(error.localizedDescription)"), action: ActivityTitle.saveAsPreset,
+                       warning: true)
             }
             await refreshAdjustmentPresets()
         }
@@ -81,7 +83,7 @@ extension LibraryModel {
         Task {
             guard let values = await focusedAdjustments() else { return }
             let dialog = PresetSaveDialog(collections: adjustmentPresetCollectionNames, modified: values.modifiedGroups)
-            guard let answer = dialog.run() else { return }
+            guard let answer = await dialog.run() else { return }
             saveAdjustmentPreset(named: answer.name, collection: answer.collection, groups: answer.groups)
         }
     }
@@ -136,8 +138,10 @@ extension LibraryModel {
         panel.allowedContentTypes = Self.presetFileTypes
         panel.prompt = String(localized: "Import")
         panel.message = String(localized: "Choose presets (.\(PresetFile.fileExtension), .lrtemplate, .xmp or .dng), or folders of them.")
-        guard panel.runModal() == .OK, !panel.urls.isEmpty else { return }
-        Task { await importAdjustmentPresets(panel.urls) }
+        Task {
+            guard await WindowModal.run(panel), !panel.urls.isEmpty else { return }
+            await importAdjustmentPresets(panel.urls)
+        }
     }
 
     /// Reads and saves the presets in `urls`, then shows what was imported.
@@ -148,7 +152,8 @@ extension LibraryModel {
         do {
             result = try await PresetImport.run(scan, catalog: catalog, store: lookTables)
         } catch {
-            statusMessage = String(localized: "Could not import the presets: \(error.localizedDescription)")
+            report(String(localized: "Could not import the presets: \(error.localizedDescription)"), action: ActivityTitle.importPresets,
+                   warning: true)
             return nil
         }
         await refreshAdjustmentPresets()
@@ -190,11 +195,14 @@ extension LibraryModel {
         panel.allowedContentTypes = UTType(filenameExtension: PresetFile.fileExtension).map { [$0] } ?? []
         panel.nameFieldStringValue = "\(suggestedName).\(PresetFile.fileExtension)"
         panel.message = String(localized: "Look-up tables the presets use are saved in the file.")
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        do {
-            try writeAdjustmentPresets(presets, to: url)
-        } catch {
-            statusMessage = String(localized: "Could not export the presets: \(error.localizedDescription)")
+        Task {
+            guard await WindowModal.run(panel), let url = panel.url else { return }
+            do {
+                try writeAdjustmentPresets(presets, to: url)
+            } catch {
+                report(String(localized: "Could not export the presets: \(error.localizedDescription)"), action: ActivityTitle.exportPresets,
+                       warning: true)
+            }
         }
     }
 
@@ -246,7 +254,7 @@ struct PresetSaveDialog {
     /// Checked at first.
     let modified: Set<Adjustments.Group>
 
-    func run() -> Answer? {
+    func run() async -> Answer? {
         let alert = NSAlert()
         alert.messageText = String(localized: "Save Preset")
         alert.informativeText = String(localized: "Applying the preset replaces the checked groups and leaves the others as they are. A preset with the same name in the collection is replaced.")
@@ -290,7 +298,7 @@ struct PresetSaveDialog {
         alert.addButton(withTitle: String(localized: "Save"))
         alert.addButton(withTitle: String(localized: "Cancel"))
         alert.window.initialFirstResponder = nameField
-        guard alert.runModal() == .alertFirstButtonReturn else { return nil }
+        guard await WindowModal.run(alert) == .alertFirstButtonReturn else { return nil }
         let name = nameField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return nil }
         let checked = zip(groups, boxes).filter { $0.1.state == .on }.map(\.0)

@@ -34,3 +34,25 @@ public enum ScrollZoom {
                        y: anchor.y - (anchor.y - origin.y) * scale)
     }
 }
+
+/// The loupe's Zoom In / Zoom Out steps (⌘= / ⌘−). Only steps larger than
+/// Fit are used; Zoom Out from the smallest of those returns to Fit. From any
+/// other magnification (a pinch, Option-scroll) the keys go to the next step.
+public enum LoupeZoomSteps {
+    /// 25 % … 800 % of the photo's pixels; 1 is 100 %, `Z`'s other end.
+    public static let steps: [CGFloat] = [0.25, 0.5, 1, 2, 4, 8]
+    /// Magnifications this close count as equal (rounding in the scroll view).
+    static let tolerance: CGFloat = 0.01
+
+    /// The magnification Zoom In goes to, or nil at the largest step.
+    public static func zoomIn(from current: CGFloat, fit: CGFloat) -> CGFloat? {
+        let floor = max(current, fit)
+        return steps.first { $0 > floor * (1 + tolerance) }
+    }
+
+    /// The magnification Zoom Out goes to, or nil at Fit.
+    public static func zoomOut(from current: CGFloat, fit: CGFloat) -> CGFloat? {
+        guard current > fit * (1 + tolerance) else { return nil }
+        return steps.last { $0 < current * (1 - tolerance) && $0 > fit * (1 + tolerance) } ?? fit
+    }
+}

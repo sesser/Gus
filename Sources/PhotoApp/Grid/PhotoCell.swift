@@ -39,6 +39,7 @@ final class PhotoCell: NSCollectionViewItem {
         versionID = item.versionID
         editStackHash = item.editStackHash
         cellView.showsInfo = model.showFileInfo
+        cellView.model = model
         cellView.apply(item, offline: model.isOffline(item))
         guard isNewRendition || cellView.image == nil else { return }
 
@@ -70,10 +71,13 @@ final class PhotoCell: NSCollectionViewItem {
 
 final class PhotoCellView: NSView {
     var onDoubleClick: (() -> Void)?
+    /// For VoiceOver's actions on the photo.
+    weak var model: LibraryModel?
     private(set) var image: CGImage?
 
     private let imageLayer = CALayer()
-    private let ratingLayer = CATextLayer()
+    /// SF Symbol stars, one image per rating.
+    private let ratingLayer = CALayer()
     private let nameLayer = CATextLayer()
     private let kindLayer = CALayer()
     private let flagLayer = CALayer()
@@ -114,16 +118,11 @@ final class PhotoCellView: NSView {
 
         imageLayer.contentsGravity = .resizeAspect
         imageLayer.minificationFilter = .trilinear
-        placeholderLayer.backgroundColor = NSColor(white: 0.22, alpha: 1).cgColor
+        placeholderLayer.backgroundColor = color(Palette.cellSelected).cgColor
         placeholderLayer.cornerRadius = 3
-        ratingLayer.fontSize = 11
-        ratingLayer.font = NSFont.systemFont(ofSize: 11, weight: .semibold)
-        ratingLayer.foregroundColor = Palette.rating.cgColor
-        ratingLayer.alignmentMode = .left
-        ratingLayer.truncationMode = .end
+        ratingLayer.contentsGravity = .left
         nameLayer.fontSize = 11
         nameLayer.font = NSFont.systemFont(ofSize: 11)
-        nameLayer.foregroundColor = Palette.fileName.cgColor
         nameLayer.alignmentMode = .left
         nameLayer.truncationMode = .middle
         kindLayer.contentsGravity = .resizeAspect
@@ -206,35 +205,45 @@ final class PhotoCellView: NSView {
     }
 
     func apply(_ item: CatalogItem, offline: Bool) {
+        let previous = self.item
+        let wasOffline = self.offline
         self.item = item
         self.offline = offline
+        // The same photo culled (not a reused cell): VoiceOver reads the new value.
+        if let previous, previous.versionID == item.versionID,
+           previous.rating != item.rating || previous.flag != item.flag || previous.colorLabel != item.colorLabel
+            || wasOffline != offline {
+            NSAccessibility.post(element: self, notification: .valueChanged)
+        }
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        ratingLayer.string = item.rating.rawValue > 0 ? String(repeating: "★", count: item.rating.rawValue) : ""
+        ratingLayer.contents = Symbols.stars(item.rating.rawValue, color: color(Palette.rating), pointSize: 10)
         if nameLayer.string as? String != item.baseName {
             nameLayer.string = item.baseName
         }
         let badgeText = FileKindText.badge(for: item)
         if badgeText != shownBadgeText {
             shownBadgeText = badgeText
-            let badge = Badges.image(badgeText)
+            let badge = Badges.image(badgeText, appearance: effectiveAppearance)
             kindLayer.contents = badge?.image
             kindSize = badge?.size ?? .zero
             positionInfo()
         }
         switch item.flag {
         case .picked:
-            flagLayer.contents = Symbols.image("flag.fill", color: Palette.pick, pointSize: 11)
+            flagLayer.contents = Symbols.image("flag.fill", color: color(Palette.pick), pointSize: 11)
             flagLayer.isHidden = false
         case .rejected:
-            flagLayer.contents = Symbols.image("xmark.circle.fill", color: Palette.reject, pointSize: 11)
+            flagLayer.contents = Symbols.image("xmark.circle.fill", color: color(Palette.reject), pointSize: 11)
             flagLayer.isHidden = false
         case .none:
             flagLayer.contents = nil
             flagLayer.isHidden = true
         }
-        if let color = Palette.color(for: item.colorLabel) {
-            labelLayer.backgroundColor = color.cgColor
+        // The label's name too, not only its color.
+        toolTip = item.colorLabel == .none ? nil : PhotoAccessibility.text(.colorLabel(item.colorLabel))
+        if let label = Palette.color(for: item.colorLabel) {
+            labelLayer.backgroundColor = color(label).cgColor
             labelLayer.isHidden = false
         } else {
             labelLayer.isHidden = true
@@ -252,7 +261,7 @@ final class PhotoCellView: NSView {
         unavailable = false
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        if animated, image != nil {
+        if animated, image != nil, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
             let fade = CATransition()
             fade.type = .fade
             fade.duration = 0.12
@@ -260,7 +269,7 @@ final class PhotoCellView: NSView {
         }
         imageLayer.contents = image
         placeholderLayer.isHidden = image != nil
-        placeholderLayer.backgroundColor = NSColor(white: 0.22, alpha: 1).cgColor
+        placeholderLayer.backgroundColor = color(Palette.cellSelected).cgColor
         CATransaction.commit()
     }
 
@@ -269,7 +278,7 @@ final class PhotoCellView: NSView {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         placeholderLayer.isHidden = false
-        placeholderLayer.backgroundColor = NSColor(white: 0.16, alpha: 1).cgColor
+        placeholderLayer.backgroundColor = color(Palette.cell).cgColor
         CATransaction.commit()
     }
 
@@ -277,10 +286,25 @@ final class PhotoCellView: NSView {
         guard let layer else { return }
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        layer.backgroundColor = (isSelected ? Palette.cellSelected : Palette.cell).cgColor
-        layer.borderWidth = isSelected ? 2 : 0
+        layer.backgroundColor = color(isSelected ? Palette.cellSelected : Palette.cell).cgColor
+        nameLayer.foregroundColor = color(Palette.fileName).cgColor
+        layer.borderWidth = isSelected ? PaletteSpec.selectedBorderWidth(in: PaletteAppearance(effectiveAppearance)) : 0
         layer.borderColor = NSColor.controlAccentColor.cgColor
         CATransaction.commit()
+    }
+
+    /// A palette color as this cell's appearance shows it (layers do not follow it).
+    private func color(_ dynamic: NSColor) -> NSColor {
+        dynamic.resolved(for: effectiveAppearance)
+    }
+
+    /// Increase Contrast, or the window's appearance, changed: redraw.
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updateChrome()
+        shownBadgeText = nil
+        if let item { apply(item, offline: offline) }
+        if image == nil { placeholderLayer.backgroundColor = color(unavailable ? Palette.cell : Palette.cellSelected).cgColor }
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -288,71 +312,29 @@ final class PhotoCellView: NSView {
         if event.clickCount == 2 { onDoubleClick?() }
     }
 
+    // MARK: Accessibility
+
+    // Computed when asked, so configuring cells while scrolling stays cheap.
+
+    override func isAccessibilityElement() -> Bool { item != nil }
+    override func accessibilityRole() -> NSAccessibility.Role? { .image }
+    override func accessibilityLabel() -> String? { item.map(PhotoAccessibility.label) }
+    override func accessibilityValue() -> Any? { item.map { PhotoAccessibility.value(for: $0, offline: offline) } }
+    override func isAccessibilitySelected() -> Bool { isSelected }
+
+    override func accessibilityCustomActions() -> [NSAccessibilityCustomAction]? {
+        guard let item, let model else { return nil }
+        return PhotoAccessibility.gridActions(forVersion: item.versionID, model: model)
+    }
+
+    /// The keyboard focus of the grid, which VoiceOver follows.
+    override func isAccessibilityFocused() -> Bool {
+        guard let item, let focused = model?.focusedItem else { return false }
+        return focused.versionID == item.versionID
+    }
+
     /// AppKit's default resets alpha, hiding and animations under an animator on
     /// every reuse, a visible share of cell dequeue time in fast-scroll profiles.
     /// This view never changes those, and `PhotoCell` resets what it does change.
     override func prepareForReuse() {}
-}
-
-/// SF Symbols rendered once into images layers can use.
-@MainActor
-enum Symbols {
-    private static var cache: [String: CGImage] = [:]
-
-    static func image(_ name: String, color: NSColor, pointSize: CGFloat) -> CGImage? {
-        let key = "\(name)|\(color.description)|\(pointSize)"
-        if let cached = cache[key] { return cached }
-        let configuration = NSImage.SymbolConfiguration(pointSize: pointSize, weight: .semibold)
-            .applying(NSImage.SymbolConfiguration(paletteColors: [color]))
-        guard let symbol = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
-            .withSymbolConfiguration(configuration)
-        else { return nil }
-        var rect = CGRect(origin: .zero, size: symbol.size)
-        let image = symbol.cgImage(forProposedRect: &rect, context: nil,
-                                   hints: [.ctm: AffineTransform(scale: 2)])
-        cache[key] = image
-        return image
-    }
-}
-
-/// Small rounded type badges ("RAW", "JPEG"), rendered once per label.
-@MainActor
-enum Badges {
-    struct Badge {
-        let image: CGImage
-        /// Size in points.
-        let size: CGSize
-    }
-
-    private static var cache: [String: Badge] = [:]
-
-    static func image(_ text: String?) -> Badge? {
-        guard let text, !text.isEmpty else { return nil }
-        if let cached = cache[text] { return cached }
-        let font = NSFont.systemFont(ofSize: 8.5, weight: .bold)
-        let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: Palette.badgeText, .kern: 0.4]
-        let string = NSAttributedString(string: text, attributes: attributes)
-        let textSize = string.size()
-        let size = CGSize(width: ceil(textSize.width) + 8, height: 13)
-        let scale: CGFloat = 2
-        guard let context = CGContext(data: nil, width: Int(size.width * scale), height: Int(size.height * scale),
-                                      bitsPerComponent: 8, bytesPerRow: 0,
-                                      space: CGColorSpace(name: CGColorSpace.sRGB)!,
-                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
-        else { return nil }
-        context.scaleBy(x: scale, y: scale)
-        let fill = text.hasPrefix(FileKindText.badge(.raw)) ? Palette.rawBadgeFill : Palette.badgeFill
-        context.addPath(CGPath(roundedRect: CGRect(origin: .zero, size: size), cornerWidth: 3, cornerHeight: 3,
-                               transform: nil))
-        context.setFillColor(fill.cgColor)
-        context.fillPath()
-        NSGraphicsContext.saveGraphicsState()
-        NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
-        string.draw(at: NSPoint(x: (size.width - textSize.width) / 2, y: (size.height - textSize.height) / 2 + 0.5))
-        NSGraphicsContext.restoreGraphicsState()
-        guard let image = context.makeImage() else { return nil }
-        let badge = Badge(image: image, size: size)
-        cache[text] = badge
-        return badge
-    }
 }

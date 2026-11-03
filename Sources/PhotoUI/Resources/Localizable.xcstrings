@@ -12,6 +12,17 @@
         }
       }
     },
+    "%@ (%@)" : {
+      "comment" : "Template field Insert menu: a token and its value for the first photo",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ (%2$@)"
+          }
+        }
+      }
+    },
     "%@ (%lld)" : {
       "comment" : "Preset import summary: a kind of setting and how many presets had it",
       "localizations" : {
@@ -34,17 +45,6 @@
         }
       }
     },
-    "%@ - %@" : {
-      "comment" : "Import status bar: camera make and model, then its shutter count",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ - %@"
-          }
-        }
-      }
-    },
     "%@ EV" : {
       "comment" : "Info tab: exposure compensation; the argument is a signed number such as +0.7",
       "localizations" : {
@@ -56,13 +56,13 @@
         }
       }
     },
-    "%@ MP (%@ × %@ px)" : {
-      "comment" : "Info tab: megapixels, then width and height in pixels",
+    "%@ MP · %@ × %@" : {
+      "comment" : "Info tab Size row: megapixels, then width × height in pixels",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ MP (%@ × %@ px)"
+            "value" : "%@ MP · %@ × %@"
           }
         }
       }
@@ -100,13 +100,35 @@
         }
       }
     },
-    "%@ or better" : {
+    "%@ label" : {
+      "comment" : "VoiceOver: a photo's color label, as in “Red label”",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ label"
+          }
+        }
+      }
+    },
+    "%@ or Better" : {
       "comment" : "Rating filter. The argument is a row of stars.",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ or better"
+            "value" : "%@ or Better"
+          }
+        }
+      }
+    },
+    "%@ plus %@" : {
+      "comment" : "VoiceOver: the file types of a RAW+JPEG pair, as in “RAW plus JPEG”",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ plus %@"
           }
         }
       }
@@ -122,6 +144,17 @@
         }
       }
     },
+    "%@ value" : {
+      "comment" : "VoiceOver: an adjustment slider's number field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ value"
+          }
+        }
+      }
+    },
     "%@+%@" : {
       "comment" : "Grid badge for a RAW+JPEG pair; the first type is the file shown",
       "localizations" : {
@@ -129,6 +162,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@+%@"
+          }
+        }
+      }
+    },
+    "%@, shutter count %@" : {
+      "comment" : "Import window subtitle: the newest photo's camera and its shutter count",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, shutter count %2$@"
+          }
+        }
+      }
+    },
+    "%@. %@" : {
+      "comment" : "VoiceOver: a culling result, then the photo shown next (“3 stars. DSC00232, no rating”)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@. %@"
           }
         }
       }
@@ -291,23 +346,12 @@
       }
     },
     "%lld of %lld" : {
-      "comment" : "Inspector: how many of the selected photos have a keyword",
+      "comment" : "A position in a list (“13 of 87”), or how many of the selected photos have a keyword",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld of %lld"
-          }
-        }
-      }
-    },
-    "%lld of %lld files · %@ of %@" : {
-      "comment" : "Import progress: files and bytes copied",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld of %lld files · %@ of %@"
           }
         }
       }
@@ -336,7 +380,7 @@
       }
     },
     "%lld photos" : {
-      "comment" : "Window subtitle",
+      "comment" : "Window subtitle; also VoiceOver, after the result of a culling action on several photos (“Picked, 12 photos”)",
       "localizations" : {
         "en" : {
           "variations" : {
@@ -351,29 +395,6 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "%lld photos"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "%lld photos are already in the library and are not imported." : {
-      "comment" : "Import window",
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld photo is already in the library and is not imported."
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld photos are already in the library and are not imported."
                 }
               }
             }
@@ -404,6 +425,29 @@
         }
       }
     },
+    "%lld photos could not be written." : {
+      "comment" : "Activity: an export wrote nothing",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photo could not be written."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photos could not be written."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld photos match" : {
       "comment" : "Smart album editor live count",
       "localizations" : {
@@ -427,8 +471,8 @@
         }
       }
     },
-    "%lld photos match the filter" : {
-      "comment" : "Window subtitle",
+    "%lld photos were left unchanged: their edits can't be changed in this version." : {
+      "comment" : "Activity, after a batch adjustment: stacks this build cannot read",
       "localizations" : {
         "en" : {
           "variations" : {
@@ -436,13 +480,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld photo matches the filter"
+                  "value" : "%lld photo was left unchanged: its edits can't be changed in this version."
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld photos match the filter"
+                  "value" : "%lld photos were left unchanged: their edits can't be changed in this version."
                 }
               }
             }
@@ -450,8 +494,8 @@
         }
       }
     },
-    "%lld photos selected" : {
-      "comment" : "Inspector",
+    "%lld photos were left unchanged: their originals are offline." : {
+      "comment" : "Activity, after a batch adjustment that reads the originals",
       "localizations" : {
         "en" : {
           "variations" : {
@@ -459,36 +503,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld photo selected"
+                  "value" : "%lld photo was left unchanged: its original is offline."
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld photos selected"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "%lld photos were left unchanged: their edits were saved by a newer version of %@ or cannot be read." : {
-      "comment" : "After paste or a preset; %lld is a count, %@ the app's name",
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld photo was left unchanged: its edits were saved by a newer version of %@ or cannot be read."
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld photos were left unchanged: their edits were saved by a newer version of %@ or cannot be read."
+                  "value" : "%lld photos were left unchanged: their originals are offline."
                 }
               }
             }
@@ -519,6 +540,52 @@
         }
       }
     },
+    "%lld selected of %lld" : {
+      "comment" : "Window subtitle: how many photos are selected, of how many shown",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld selected of %lld"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld selected of %lld"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld stars" : {
+      "comment" : "VoiceOver: a photo's star rating",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld star"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld stars"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld videos are not exported." : {
       "comment" : "Export window: the selection includes videos",
       "localizations" : {
@@ -535,6 +602,52 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "%lld videos are not exported."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld videos are skipped" : {
+      "comment" : "Export sheet: videos are not exported",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld video is skipped"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld videos are skipped"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld videos were left unchanged." : {
+      "comment" : "Activity, after a batch adjustment on the grid's selection",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld video was left unchanged."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld videos were left unchanged."
                 }
               }
             }
@@ -565,24 +678,24 @@
         }
       }
     },
-    "%lld × %lld px" : {
-      "comment" : "Image dimensions",
+    "100%" : {
+      "comment" : "Toolbar, loupe: show the photo at actual size",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld × %lld px"
+            "value" : "100%"
           }
         }
       }
     },
-    "16 bits per channel" : {
-      "comment" : "Export window: TIFF bit depth",
+    "16 Bits per Channel" : {
+      "comment" : "Export sheet: TIFF bit depth",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "16 bits per channel"
+            "value" : "16 Bits per Channel"
           }
         }
       }
@@ -642,13 +755,24 @@
         }
       }
     },
-    "8 bits per channel" : {
-      "comment" : "Export window: TIFF bit depth",
+    "8 Bits per Channel" : {
+      "comment" : "Export sheet: TIFF bit depth",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "8 bits per channel"
+            "value" : "8 Bits per Channel"
+          }
+        }
+      }
+    },
+    "A filter hides some of this source's photos" : {
+      "comment" : "Loupe caption: the Filtered badge tooltip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A filter hides some of this source's photos"
           }
         }
       }
@@ -664,17 +788,6 @@
         }
       }
     },
-    "A new project" : {
-      "comment" : "Import window project picker",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "A new project"
-          }
-        }
-      }
-    },
     "A short description read aloud by screen readers, under 250 characters" : {
       "comment" : "Info tab: tooltip of the Alt Text field",
       "localizations" : {
@@ -686,6 +799,17 @@
         }
       }
     },
+    "Activity" : {
+      "comment" : "Toolbar item: running jobs and recent messages",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activity"
+          }
+        }
+      }
+    },
     "Add" : {
       "comment" : "Mask operation",
       "localizations" : {
@@ -693,6 +817,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Add"
+          }
+        }
+      }
+    },
+    "Add %lld Folders" : {
+      "comment" : "Activity row title: several folders added without copying",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add %lld Folders"
+          }
+        }
+      }
+    },
+    "Add Folder" : {
+      "comment" : "Activity row title: folders added without copying",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Folder"
+          }
+        }
+      }
+    },
+    "Add Folder Without Copying…" : {
+      "comment" : "File menu: add a folder's photos to the library where they are (was Import Folder…)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Folder Without Copying…"
+          }
+        }
+      }
+    },
+    "Add Folder “%@”" : {
+      "comment" : "Activity row title: a folder added without copying",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Folder “%@”"
           }
         }
       }
@@ -995,13 +1163,13 @@
         }
       }
     },
-    "After Importing" : {
-      "comment" : "Import window section",
+    "After Import" : {
+      "comment" : "Import options section",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "After Importing"
+            "value" : "After Import"
           }
         }
       }
@@ -1017,13 +1185,25 @@
         }
       }
     },
-    "All" : {
-      "comment" : "Import window: select all",
+    "All %lld Photos Are Already in the Library" : {
+      "comment" : "Import window: every shot is in the library",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "All"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Photo Is Already in the Library"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "All %lld Photos Are Already in the Library"
+                }
+              }
+            }
           }
         }
       }
@@ -1182,12 +1362,24 @@
         }
       }
     },
-    "Any flag" : {
+    "Any Flag" : {
+      "comment" : "View ▸ Filter, Flag section: no flag filter",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Any flag"
+            "value" : "Any Flag"
+          }
+        }
+      }
+    },
+    "Any Rating" : {
+      "comment" : "View ▸ Filter, Rating section: no rating filter",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Any Rating"
           }
         }
       }
@@ -1221,17 +1413,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Apply"
-          }
-        }
-      }
-    },
-    "Apply & Close" : {
-      "comment" : "Look-up table window button: applies the picked table and closes the window",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Apply & Close"
           }
         }
       }
@@ -1324,6 +1505,17 @@
         }
       }
     },
+    "Ascending" : {
+      "comment" : "Sort order (View ▸ Sort By, filter bar)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ascending"
+          }
+        }
+      }
+    },
     "Auto" : {
       "comment" : "White balance",
       "localizations" : {
@@ -1368,6 +1560,17 @@
         }
       }
     },
+    "Back" : {
+      "comment" : "Look-up table sheet: back to the tables from a page",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Back"
+          }
+        }
+      }
+    },
     "Balance" : {
       "comment" : "Color grading slider: moves the split between shadows and highlights; also its undo action name",
       "localizations" : {
@@ -1380,7 +1583,7 @@
       }
     },
     "Bit depth" : {
-      "comment" : "Export window",
+      "comment" : "Export sheet row",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1499,6 +1702,17 @@
         }
       }
     },
+    "Browse Look-Up Tables…" : {
+      "comment" : "Adjust menu: opens the look-up table browser",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Browse Look-Up Tables…"
+          }
+        }
+      }
+    },
     "Browse…" : {
       "comment" : "Adjust tab, Effects heading: opens the look-up table window",
       "localizations" : {
@@ -1555,12 +1769,34 @@
       }
     },
     "Camera" : {
-      "comment" : "Inspector info row",
+      "comment" : "Inspector info row; template field Insert menu section",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Camera"
+          }
+        }
+      }
+    },
+    "Camera Make" : {
+      "comment" : "Template token",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Camera Make"
+          }
+        }
+      }
+    },
+    "Camera Model" : {
+      "comment" : "Template token",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Camera Model"
           }
         }
       }
@@ -1576,35 +1812,24 @@
         }
       }
     },
-    "Camera make" : {
-      "comment" : "Template token",
+    "Can't Open the Library" : {
+      "comment" : "Catalog failure view title",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Camera make"
+            "value" : "Can't Open the Library"
           }
         }
       }
     },
-    "Camera model" : {
-      "comment" : "Template token",
+    "Can't Read %@" : {
+      "comment" : "Import window: the source could not be read",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Camera model"
-          }
-        }
-      }
-    },
-    "Camera serial number" : {
-      "comment" : "Template token",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Camera serial number"
+            "value" : "Can't Read %@"
           }
         }
       }
@@ -1616,16 +1841,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cancel"
-          }
-        }
-      }
-    },
-    "Cancel Import" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cancel Import"
           }
         }
       }
@@ -1642,7 +1857,7 @@
       }
     },
     "Capture Date" : {
-      "comment" : "Smart album rule field",
+      "comment" : "Smart album rule field and template token",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1652,46 +1867,46 @@
         }
       }
     },
-    "Capture date" : {
-      "comment" : "Template token",
+    "Capture Date (%@)" : {
+      "comment" : "Template token: the capture date in a pattern of the user's, e.g. yyyyMM",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Capture date"
+            "value" : "Capture Date (%@)"
           }
         }
       }
     },
-    "Capture month name" : {
+    "Capture Month" : {
       "comment" : "Template token",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Capture month name"
+            "value" : "Capture Month"
           }
         }
       }
     },
-    "Capture time" : {
+    "Capture Time" : {
       "comment" : "Template token",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Capture time"
+            "value" : "Capture Time"
           }
         }
       }
     },
-    "Capture year" : {
+    "Capture Year" : {
       "comment" : "Template token",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Capture year"
+            "value" : "Capture Year"
           }
         }
       }
@@ -1784,6 +1999,17 @@
         }
       }
     },
+    "Choose Folder" : {
+      "comment" : "Open panel button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose Folder"
+          }
+        }
+      }
+    },
     "Choose Folder…" : {
       "comment" : "Import window: import from a folder",
       "localizations" : {
@@ -1795,13 +2021,13 @@
         }
       }
     },
-    "Choose PNG…" : {
-      "comment" : "Export window: picks the watermark image",
+    "Choose Image…" : {
+      "comment" : "Export sheet: choose the watermark image",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Choose PNG…"
+            "value" : "Choose Image…"
           }
         }
       }
@@ -1904,17 +2130,6 @@
         }
       }
     },
-    "Choose…" : {
-      "comment" : "Import window: pick the destination folder",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choose…"
-          }
-        }
-      }
-    },
     "City" : {
       "comment" : "Contact field",
       "localizations" : {
@@ -1948,23 +2163,23 @@
         }
       }
     },
+    "Clear Filter" : {
+      "comment" : "Edit ▸ Find menu: shows every photo of the sidebar selection again",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear Filter"
+          }
+        }
+      }
+    },
     "Clear Flag" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Clear Flag"
-          }
-        }
-      }
-    },
-    "Click a table to pick it, double-click to apply it." : {
-      "comment" : "Look-up table window",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Click a table to pick it, double-click to apply it."
           }
         }
       }
@@ -2009,6 +2224,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Collapse"
+          }
+        }
+      }
+    },
+    "Collapse All" : {
+      "comment" : "Inspector heading context menu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collapse All"
           }
         }
       }
@@ -2221,17 +2447,6 @@
         }
       }
     },
-    "Copy this photo's adjustments" : {
-      "comment" : "Tooltip of the Copy Adjustments button under the Adjust tab",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Copy this photo's adjustments"
-          }
-        }
-      }
-    },
     "Copying %@" : {
       "comment" : "Import progress; the argument is a file name",
       "localizations" : {
@@ -2385,17 +2600,6 @@
         }
       }
     },
-    "Counter across imports" : {
-      "comment" : "Template token",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Counter across imports"
-          }
-        }
-      }
-    },
     "Country" : {
       "comment" : "Contact field",
       "localizations" : {
@@ -2451,6 +2655,17 @@
         }
       }
     },
+    "Crop & Straighten" : {
+      "comment" : "Adjust tab heading",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Crop & Straighten"
+          }
+        }
+      }
+    },
     "Crop to %@; pick it again to swap portrait and landscape" : {
       "comment" : "Tooltip of an aspect ratio button; the argument is a ratio such as 3:2",
       "localizations" : {
@@ -2473,17 +2688,6 @@
         }
       }
     },
-    "Crop, Rotate, Straighten" : {
-      "comment" : "Adjust tab heading",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Crop, Rotate, Straighten"
-          }
-        }
-      }
-    },
     "Cross Process" : {
       "comment" : "Built-in look-up table",
       "localizations" : {
@@ -2502,6 +2706,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Custom"
+          }
+        }
+      }
+    },
+    "Date" : {
+      "comment" : "Template field Insert menu section",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Date"
           }
         }
       }
@@ -2661,13 +2876,13 @@
         }
       }
     },
-    "Delete originals from the source" : {
-      "comment" : "Import window option",
+    "Delete originals from “%@”" : {
+      "comment" : "Import option check box",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Delete originals from the source"
+            "value" : "Delete originals from “%@”"
           }
         }
       }
@@ -2679,6 +2894,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Delete the album “%@”?"
+          }
+        }
+      }
+    },
+    "Delete the export preset “%@”?" : {
+      "comment" : "Export sheet: confirm deleting a preset",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete the export preset “%@”?"
           }
         }
       }
@@ -2705,13 +2931,13 @@
         }
       }
     },
-    "Delete this mask" : {
-      "comment" : "Button help",
+    "Delete “%@”…" : {
+      "comment" : "File menu; the album, smart album or keyword selected in the sidebar",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Delete this mask"
+            "value" : "Delete “%@”…"
           }
         }
       }
@@ -2738,6 +2964,17 @@
         }
       }
     },
+    "Descending" : {
+      "comment" : "Sort order (View ▸ Sort By, filter bar)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descending"
+          }
+        }
+      }
+    },
     "Description" : {
       "comment" : "Preset editor section",
       "localizations" : {
@@ -2745,6 +2982,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Description"
+          }
+        }
+      }
+    },
+    "Deselect" : {
+      "comment" : "Import grid context menu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deselect"
+          }
+        }
+      }
+    },
+    "Deselect All" : {
+      "comment" : "Import menu and grid context menu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deselect All"
           }
         }
       }
@@ -2778,17 +3037,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Details"
-          }
-        }
-      }
-    },
-    "Develop" : {
-      "comment" : "Adjust tab heading: profile, white balance, exposure and tone",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Develop"
           }
         }
       }
@@ -2848,6 +3096,17 @@
         }
       }
     },
+    "Drag folders here to add them without copying." : {
+      "comment" : "Empty library hint",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag folders here to add them without copying."
+          }
+        }
+      }
+    },
     "Drag on the photo to paint into this mask" : {
       "comment" : "Button help",
       "localizations" : {
@@ -2903,6 +3162,28 @@
         }
       }
     },
+    "Edit Smart Album…" : {
+      "comment" : "File menu: edits the smart album selected in the sidebar",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit Smart Album…"
+          }
+        }
+      }
+    },
+    "Edit “%@”…" : {
+      "comment" : "Import options: edit the chosen metadata preset",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit “%@”…"
+          }
+        }
+      }
+    },
     "Edit…" : {
       "comment" : "Sidebar smart album context menu",
       "localizations" : {
@@ -2925,13 +3206,13 @@
         }
       }
     },
-    "Eject the card" : {
-      "comment" : "Import window option",
+    "Eject “%@”" : {
+      "comment" : "Import option check box",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Eject the card"
+            "value" : "Eject “%@”"
           }
         }
       }
@@ -2943,6 +3224,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Email"
+          }
+        }
+      }
+    },
+    "Enter Review" : {
+      "comment" : "View menu and toolbar: review mode (F)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter Review"
           }
         }
       }
@@ -2980,13 +3272,24 @@
         }
       }
     },
-    "Example" : {
-      "comment" : "Export window: the first photo's file name",
+    "Example: %@" : {
+      "comment" : "Under a naming template: what it makes of the first photo",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Example"
+            "value" : "Example: %@"
+          }
+        }
+      }
+    },
+    "Exit Review" : {
+      "comment" : "View menu and toolbar: leave review mode (F, Esc)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exit Review"
           }
         }
       }
@@ -3009,6 +3312,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Expand"
+          }
+        }
+      }
+    },
+    "Expand All" : {
+      "comment" : "Inspector heading context menu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expand All"
           }
         }
       }
@@ -3058,13 +3372,35 @@
         }
       }
     },
-    "Export date" : {
-      "comment" : "Template token menu: today's date when exporting",
+    "Export Date" : {
+      "comment" : "Template token: today's date when exporting",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Export date"
+            "value" : "Export Date"
+          }
+        }
+      }
+    },
+    "Export Date (%@)" : {
+      "comment" : "Template token: the export date in a pattern of the user's, e.g. yyyyMM",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export Date (%@)"
+          }
+        }
+      }
+    },
+    "Export Presets" : {
+      "comment" : "Activity row title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export Presets"
           }
         }
       }
@@ -3092,6 +3428,17 @@
         }
       }
     },
+    "Export the selected photos" : {
+      "comment" : "Toolbar Export button tooltip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export the selected photos"
+          }
+        }
+      }
+    },
     "Export this collection as one preset file" : {
       "comment" : "Preset manager tooltip",
       "localizations" : {
@@ -3099,6 +3446,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Export this collection as one preset file"
+          }
+        }
+      }
+    },
+    "Export to “%@”" : {
+      "comment" : "Activity row title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export to “%@”"
+          }
+        }
+      }
+    },
+    "Exported %lld of %lld photos. %lld could not be written." : {
+      "comment" : "Activity: an export finished with failures",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exported %1$lld of %2$lld photos. %3$lld could not be written."
           }
         }
       }
@@ -3126,8 +3495,8 @@
         }
       }
     },
-    "Exported %lld photos to “%@”." : {
-      "comment" : "Status bar: an export finished; count and folder name",
+    "Exported %lld photos." : {
+      "comment" : "Activity: an export finished",
       "localizations" : {
         "en" : {
           "variations" : {
@@ -3135,13 +3504,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "Exported %lld photo to “%@”."
+                  "value" : "Exported %lld photo."
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "Exported %lld photos to “%@”."
+                  "value" : "Exported %lld photos."
                 }
               }
             }
@@ -3167,6 +3536,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Exports"
+          }
+        }
+      }
+    },
+    "Exports already made are not affected." : {
+      "comment" : "Delete export preset alert",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exports already made are not affected."
           }
         }
       }
@@ -3226,6 +3606,17 @@
         }
       }
     },
+    "Extension" : {
+      "comment" : "Template token",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Extension"
+          }
+        }
+      }
+    },
     "Fade" : {
       "comment" : "Built-in look-up table",
       "localizations" : {
@@ -3260,12 +3651,23 @@
       }
     },
     "File" : {
-      "comment" : "Inspector column: the value in the sidecar or file",
+      "comment" : "Inspector column: the value in the sidecar or file; template field Insert menu section",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "File"
+          }
+        }
+      }
+    },
+    "File %lld of %lld · %@ of %@" : {
+      "comment" : "Import window and Activity: files copied, then bytes",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "File %1$lld of %2$lld · %3$@ of %4$@"
           }
         }
       }
@@ -3314,13 +3716,13 @@
         }
       }
     },
-    "Filename" : {
-      "comment" : "Info tab: label above the file's name",
+    "Files copied and checked so far: %lld of %lld. The rest stay on “%@”." : {
+      "comment" : "Quit alert in the standalone importer",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Filename"
+            "value" : "Files copied and checked so far: %1$lld of %2$lld. The rest stay on “%3$@”."
           }
         }
       }
@@ -3336,6 +3738,83 @@
         }
       }
     },
+    "Filter" : {
+      "comment" : "View menu submenu: rating and flag filters",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filter"
+          }
+        }
+      }
+    },
+    "Filter and Sort" : {
+      "comment" : "Toolbar menu: rating and flag filters, sort order",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filter and Sort"
+          }
+        }
+      }
+    },
+    "Filter and sort the photos" : {
+      "comment" : "Toolbar Filter and Sort menu tooltip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filter and sort the photos"
+          }
+        }
+      }
+    },
+    "Filtered" : {
+      "comment" : "Window subtitle: a filter hides some photos",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filtered"
+          }
+        }
+      }
+    },
+    "Find" : {
+      "comment" : "Edit menu submenu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find"
+          }
+        }
+      }
+    },
+    "Find…" : {
+      "comment" : "Edit ▸ Find: puts the keyboard in the search field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find…"
+          }
+        }
+      }
+    },
+    "Finish Cropping" : {
+      "comment" : "Adjust menu while a crop is being edited: saves it (C or Return)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finish Cropping"
+          }
+        }
+      }
+    },
     "Finish cropping (Return); Esc cancels" : {
       "comment" : "Tooltip of the Adjust tab's Crop button while cropping",
       "localizations" : {
@@ -3347,13 +3826,35 @@
         }
       }
     },
-    "Fit within" : {
-      "comment" : "Export window: sizing choice: fits inside a width and height",
+    "Fit" : {
+      "comment" : "Toolbar, loupe: fit the photo in the window",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fit within"
+            "value" : "Fit"
+          }
+        }
+      }
+    },
+    "Fit Within" : {
+      "comment" : "Export sheet: size pop-up",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fit Within"
+          }
+        }
+      }
+    },
+    "Fit the photo in the window, or show it at 100%" : {
+      "comment" : "Toolbar, loupe: Fit / 100% tooltip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fit the photo in the window, or show it at 100%"
           }
         }
       }
@@ -3445,6 +3946,17 @@
         }
       }
     },
+    "Folder %lld of %lld · %lld of %lld" : {
+      "comment" : "Activity: a batch of folders, then photos imported of found",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Folder %1$lld of %2$lld · %3$lld of %4$lld"
+          }
+        }
+      }
+    },
     "Format" : {
       "comment" : "Export window: file format picker",
       "localizations" : {
@@ -3478,24 +3990,24 @@
         }
       }
     },
-    "Full size" : {
-      "comment" : "Export window: sizing choice",
+    "From %@" : {
+      "comment" : "Export sheet: the sidebar source",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Full size"
+            "value" : "From %@"
           }
         }
       }
     },
-    "Give the copied adjustments to the photo on screen or the selection" : {
-      "comment" : "Tooltip of the Paste Adjustments button under the Adjust tab",
+    "Full Size" : {
+      "comment" : "Export sheet: size pop-up",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Give the copied adjustments to the photo on screen or the selection"
+            "value" : "Full Size"
           }
         }
       }
@@ -3607,6 +4119,61 @@
         }
       }
     },
+    "Hide File Names" : {
+      "comment" : "View menu: hides the file name and type badge under each thumbnail",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide File Names"
+          }
+        }
+      }
+    },
+    "Hide HDR Highlights" : {
+      "comment" : "View menu: the loupe clips highlights at SDR white",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide HDR Highlights"
+          }
+        }
+      }
+    },
+    "Hide Inspector" : {
+      "comment" : "View menu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide Inspector"
+          }
+        }
+      }
+    },
+    "Hide Options" : {
+      "comment" : "Import window: View menu item and toolbar button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide Options"
+          }
+        }
+      }
+    },
+    "Hide Section" : {
+      "comment" : "Sidebar section header context menu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide Section"
+          }
+        }
+      }
+    },
     "Hide Suggestion" : {
       "comment" : "Undo action name",
       "localizations" : {
@@ -3684,16 +4251,6 @@
         }
       }
     },
-    "ISO %lld" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ISO %lld"
-          }
-        }
-      }
-    },
     "Ignored %lld items that are not folders." : {
       "comment" : "Status bar, after a drop that included files",
       "localizations" : {
@@ -3762,31 +4319,19 @@
         }
       }
     },
-    "Import %lld Tables" : {
-      "comment" : "Look-up table import sheet button",
+    "Import Counter" : {
+      "comment" : "Template token",
       "localizations" : {
         "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Import %lld Table"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Import %lld Tables"
-                }
-              }
-            }
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import Counter"
           }
         }
       }
     },
     "Import Date" : {
-      "comment" : "Smart album rule field",
+      "comment" : "Smart album rule field and template token",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3796,12 +4341,13 @@
         }
       }
     },
-    "Import Folder…" : {
+    "Import Date (%@)" : {
+      "comment" : "Template token: the import date in a pattern of the user's, e.g. yyyyMM",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Import Folder…"
+            "value" : "Import Date (%@)"
           }
         }
       }
@@ -3817,6 +4363,17 @@
         }
       }
     },
+    "Import Presets" : {
+      "comment" : "Activity row title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import Presets"
+          }
+        }
+      }
+    },
     "Import Presets…" : {
       "comment" : "Photo menu and Presets menu item",
       "localizations" : {
@@ -3824,6 +4381,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Import Presets…"
+          }
+        }
+      }
+    },
+    "Import Selected Photos" : {
+      "comment" : "Import window, File menu: same as the Import button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import Selected Photos"
           }
         }
       }
@@ -3845,17 +4413,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Import a folder of photos"
-          }
-        }
-      }
-    },
-    "Import a folder of photos, or drag folders here. Originals stay where they are; %@ only references them." : {
-      "comment" : "Empty library; the argument is the app's name",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Import a folder of photos, or drag folders here. Originals stay where they are; %@ only references them."
           }
         }
       }
@@ -3892,13 +4449,13 @@
         }
       }
     },
-    "Import date" : {
-      "comment" : "Template token",
+    "Import copies photos from a card or folder into the folder you choose. Add Folder Without Copying uses photos where they are; %@ only references them." : {
+      "comment" : "Empty library: copying versus using photos in place",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Import date"
+            "value" : "Import copies photos from a card or folder into the folder you choose. Add Folder Without Copying uses photos where they are; %@ only references them."
           }
         }
       }
@@ -3909,6 +4466,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Import failed: %@"
+          }
+        }
+      }
+    },
+    "Import from %@…" : {
+      "comment" : "Empty library: a card is mounted",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import from %@…"
           }
         }
       }
@@ -3924,13 +4492,47 @@
         }
       }
     },
-    "Import or drop a folder here." : {
-      "comment" : "Sidebar, Projects section with no projects",
+    "Import from a card or folder" : {
+      "comment" : "Toolbar Import button tooltip",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Import or drop a folder here."
+            "value" : "Import from a card or folder"
+          }
+        }
+      }
+    },
+    "Import from “%@”" : {
+      "comment" : "Activity row title: a copying import",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import from “%@”"
+          }
+        }
+      }
+    },
+    "Imported %lld files" : {
+      "comment" : "Import window subtitle after an import",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Imported %lld file"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Imported %lld files"
+                }
+              }
+            }
           }
         }
       }
@@ -4035,16 +4637,6 @@
         }
       }
     },
-    "Importing %lld of %lld" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Importing %lld of %lld"
-          }
-        }
-      }
-    },
     "Import…" : {
       "comment" : "Button that imports look-up tables or presets",
       "localizations" : {
@@ -4067,6 +4659,17 @@
         }
       }
     },
+    "In Library" : {
+      "comment" : "Import grid badge: the shot is already in the library",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In Library"
+          }
+        }
+      }
+    },
     "Include" : {
       "comment" : "Save Preset dialog caption and preset manager submenu: groups of controls a preset applies",
       "localizations" : {
@@ -4074,17 +4677,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Include"
-          }
-        }
-      }
-    },
-    "Include videos" : {
-      "comment" : "Import window toggle",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Include videos"
           }
         }
       }
@@ -4100,13 +4692,24 @@
         }
       }
     },
-    "Insert a card or choose a folder" : {
-      "comment" : "Import window, no source",
+    "Insert" : {
+      "comment" : "Template field: pull-down menu of tokens",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Insert a card or choose a folder"
+            "value" : "Insert"
+          }
+        }
+      }
+    },
+    "Insert a Card or Choose a Folder" : {
+      "comment" : "Import window with no source",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Insert a Card or Choose a Folder"
           }
         }
       }
@@ -4224,12 +4827,23 @@
       }
     },
     "Job" : {
-      "comment" : "Import window section title in the standalone importer (holds the job code)",
+      "comment" : "Import window section title in the standalone importer (holds the job code); template field Insert menu section",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Job"
+          }
+        }
+      }
+    },
+    "Job Code" : {
+      "comment" : "Template token",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Job Code"
           }
         }
       }
@@ -4246,7 +4860,7 @@
       }
     },
     "Job code" : {
-      "comment" : "Import window field and template token",
+      "comment" : "Import window field",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4274,6 +4888,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Keep Both writes the new files under numbered names."
+          }
+        }
+      }
+    },
+    "Keep Exporting" : {
+      "comment" : "Quit alert button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep Exporting"
+          }
+        }
+      }
+    },
+    "Keep Importing" : {
+      "comment" : "Quit alert button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep Importing"
           }
         }
       }
@@ -4307,6 +4943,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Keep the keywords from both"
+          }
+        }
+      }
+    },
+    "Keeps counting across imports" : {
+      "comment" : "Template field Insert menu: Import Counter help",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keeps counting across imports"
           }
         }
       }
@@ -4421,7 +5068,7 @@
       }
     },
     "Lens" : {
-      "comment" : "Inspector info row",
+      "comment" : "Inspector info row and template token",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4475,6 +5122,17 @@
         }
       }
     },
+    "Load Library" : {
+      "comment" : "Activity row title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Load Library"
+          }
+        }
+      }
+    },
     "Local Adjustment" : {
       "comment" : "Undo action name",
       "localizations" : {
@@ -4497,24 +5155,13 @@
         }
       }
     },
-    "Long edge" : {
-      "comment" : "Export window: sizing choice",
+    "Long Edge" : {
+      "comment" : "Export sheet: size pop-up",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Long edge"
-          }
-        }
-      }
-    },
-    "Look at the source again" : {
-      "comment" : "Import window help",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Look at the source again"
+            "value" : "Long Edge"
           }
         }
       }
@@ -4526,6 +5173,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Look-Up Table"
+          }
+        }
+      }
+    },
+    "Look-Up Table “%@”" : {
+      "comment" : "Activity row title: a missing look-up table",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Look-Up Table “%@”"
           }
         }
       }
@@ -4612,6 +5270,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Lower Rating"
+          }
+        }
+      }
+    },
+    "Lowercase Extension" : {
+      "comment" : "Template token",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lowercase Extension"
           }
         }
       }
@@ -4737,6 +5406,17 @@
         }
       }
     },
+    "Mask commands" : {
+      "comment" : "Mask row ⋯ menu tooltip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mask commands"
+          }
+        }
+      }
+    },
     "Masking" : {
       "comment" : "Sharpening slider: limits sharpening to edges; also its undo action name",
       "localizations" : {
@@ -4781,6 +5461,17 @@
         }
       }
     },
+    "Measuring exposure %lld of %lld" : {
+      "comment" : "Activity: batch Auto Exposure",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Measuring exposure %lld of %lld"
+          }
+        }
+      }
+    },
     "Merged “%@” into “%@”." : {
       "comment" : "Status after renaming a keyword onto an existing one",
       "localizations" : {
@@ -4814,13 +5505,13 @@
         }
       }
     },
-    "Minimum rating" : {
-      "comment" : "Filter bar: accessibility label of the five stars",
+    "Mode" : {
+      "comment" : "White balance: As Shot, Auto, Daylight…",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Minimum rating"
+            "value" : "Mode"
           }
         }
       }
@@ -4836,6 +5527,17 @@
         }
       }
     },
+    "More adjustment commands" : {
+      "comment" : "Adjust tab ⋯ menu tooltip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More adjustment commands"
+          }
+        }
+      }
+    },
     "Move" : {
       "comment" : "New Collection dialog button",
       "localizations" : {
@@ -4843,6 +5545,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Move"
+          }
+        }
+      }
+    },
+    "Move Down" : {
+      "comment" : "Mask row context menu: applied later",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move Down"
           }
         }
       }
@@ -4880,24 +5593,13 @@
         }
       }
     },
-    "Move down (applied later)" : {
-      "comment" : "Button help",
+    "Move Up" : {
+      "comment" : "Mask row context menu: applied earlier",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Move down (applied later)"
-          }
-        }
-      }
-    },
-    "Move up (applied earlier)" : {
-      "comment" : "Button help",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Move up (applied earlier)"
+            "value" : "Move Up"
           }
         }
       }
@@ -5001,6 +5703,17 @@
         }
       }
     },
+    "New Mask" : {
+      "comment" : "Adjust menu submenu: the mask shapes",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Mask"
+          }
+        }
+      }
+    },
     "New Mask:" : {
       "comment" : "Masks heading: buttons that make a new mask",
       "localizations" : {
@@ -5019,6 +5732,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "New Preset…"
+          }
+        }
+      }
+    },
+    "New Project" : {
+      "comment" : "Import options: Add to pop-up",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Project"
           }
         }
       }
@@ -5067,6 +5791,17 @@
         }
       }
     },
+    "No Card Connected" : {
+      "comment" : "Import window source pop-up, with no source",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Card Connected"
+          }
+        }
+      }
+    },
     "No Collection" : {
       "comment" : "Preset manager: heading of presets in no collection; Move To item",
       "localizations" : {
@@ -5110,6 +5845,39 @@
         }
       }
     },
+    "No Photos Match" : {
+      "comment" : "Empty grid under a filter",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Photos Match"
+          }
+        }
+      }
+    },
+    "No Photos Yet" : {
+      "comment" : "Empty library",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Photos Yet"
+          }
+        }
+      }
+    },
+    "No Photos on %@" : {
+      "comment" : "Import window: the source holds no photos",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Photos on %@"
+          }
+        }
+      }
+    },
     "No Presets Imported" : {
       "comment" : "Preset import summary title",
       "localizations" : {
@@ -5131,13 +5899,24 @@
         }
       }
     },
-    "No card connected" : {
-      "comment" : "Import window source picker",
+    "No albums" : {
+      "comment" : "Sidebar: the Albums section is empty",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No card connected"
+            "value" : "No albums"
+          }
+        }
+      }
+    },
+    "No capture dates" : {
+      "comment" : "Sidebar: the Dates section is empty",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No capture dates"
           }
         }
       }
@@ -5164,13 +5943,13 @@
         }
       }
     },
-    "No metadata" : {
-      "comment" : "Import window preset picker",
+    "No label" : {
+      "comment" : "VoiceOver: a photo's color label was removed",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No metadata"
+            "value" : "No label"
           }
         }
       }
@@ -5186,33 +5965,24 @@
         }
       }
     },
-    "No photos found" : {
-      "comment" : "Import window, empty source",
+    "No projects" : {
+      "comment" : "Sidebar: the Projects section is empty",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No photos found"
+            "value" : "No projects"
           }
         }
       }
     },
-    "No photos match the filter." : {
+    "No rating" : {
+      "comment" : "VoiceOver: a photo's rating was removed",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No photos match the filter."
-          }
-        }
-      }
-    },
-    "No photos yet" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No photos yet"
+            "value" : "No rating"
           }
         }
       }
@@ -5272,6 +6042,17 @@
         }
       }
     },
+    "Not Rejected" : {
+      "comment" : "View ▸ Filter, Flag section",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not Rejected"
+          }
+        }
+      }
+    },
     "Not a readable table" : {
       "comment" : "Look-up table import sheet: a file that cannot be imported",
       "localizations" : {
@@ -5283,23 +6064,24 @@
         }
       }
     },
-    "Not rejected" : {
+    "Nothing is running." : {
+      "comment" : "Activity popover with no jobs and no messages",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Not rejected"
+            "value" : "Nothing is running."
           }
         }
       }
     },
-    "Number in the original name" : {
-      "comment" : "Template token",
+    "Numbering" : {
+      "comment" : "Template field Insert menu section",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Number in the original name"
+            "value" : "Numbering"
           }
         }
       }
@@ -5358,17 +6140,6 @@
         }
       }
     },
-    "On %@" : {
-      "comment" : "Info tab: the disk a photo's file is on; the argument is the disk's name",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "On %@"
-          }
-        }
-      }
-    },
     "Only folders can be imported. Drag in a folder of photos." : {
       "comment" : "Status bar, after a drop of files that are not folders",
       "localizations" : {
@@ -5402,13 +6173,13 @@
         }
       }
     },
-    "Open a photo in the loupe to adjust it. Paste Adjustments and presets change every selected photo." : {
+    "Open a Photo to Adjust It" : {
       "comment" : "Adjust tab in the grid",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Open a photo in the loupe to adjust it. Paste Adjustments and presets change every selected photo."
+            "value" : "Open a Photo to Adjust It"
           }
         }
       }
@@ -5420,6 +6191,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Open a photo in the loupe to preview look-up tables on it."
+          }
+        }
+      }
+    },
+    "Open in Loupe" : {
+      "comment" : "VoiceOver action on a grid photo",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open in Loupe"
           }
         }
       }
@@ -5456,6 +6238,17 @@
         }
       }
     },
+    "Order" : {
+      "comment" : "View ▸ Sort By: ascending or descending (not shown; for accessibility)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Order"
+          }
+        }
+      }
+    },
     "Original" : {
       "comment" : "Loupe badge while the photo is shown without adjustments",
       "localizations" : {
@@ -5467,29 +6260,41 @@
         }
       }
     },
-    "Original name" : {
-      "comment" : "Template token",
+    "Original Name" : {
+      "comment" : "Export sheet: keep each file's name; template token",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Original name"
+            "value" : "Original Name"
           }
         }
       }
     },
-    "Original offline" : {
+    "Original Number" : {
+      "comment" : "Template token: the digits in the original name",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Original offline"
+            "value" : "Original Number"
+          }
+        }
+      }
+    },
+    "Originals are deleted only after every copy is verified, and you're asked first." : {
+      "comment" : "Import options caption under After Import",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Originals are deleted only after every copy is verified, and you're asked first."
           }
         }
       }
     },
     "Output sharpening" : {
-      "comment" : "Export window",
+      "comment" : "Export sheet row",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -5539,6 +6344,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Paste Adjustments"
+          }
+        }
+      }
+    },
+    "Pause" : {
+      "comment" : "VoiceOver action on a video",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pause"
           }
         }
       }
@@ -5609,6 +6425,17 @@
         }
       }
     },
+    "Photos to import" : {
+      "comment" : "VoiceOver: the import window's grid",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photos to import"
+          }
+        }
+      }
+    },
     "Photos whose sidecar or file another app changed. Review them in the inspector." : {
       "comment" : "Sidebar help",
       "localizations" : {
@@ -5658,6 +6485,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Picks"
+          }
+        }
+      }
+    },
+    "Play" : {
+      "comment" : "VoiceOver action on a video",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play"
           }
         }
       }
@@ -5849,6 +6687,17 @@
         }
       }
     },
+    "Project name" : {
+      "comment" : "Import options row: the new project's name template",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Project name"
+          }
+        }
+      }
+    },
     "Projects" : {
       "comment" : "Sidebar section",
       "localizations" : {
@@ -5888,6 +6737,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Quality"
+          }
+        }
+      }
+    },
+    "Quit While Exporting?" : {
+      "comment" : "Quit alert in the library app",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quit While Exporting?"
+          }
+        }
+      }
+    },
+    "Quit While Importing?" : {
+      "comment" : "Quit alert in the library app",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quit While Importing?"
           }
         }
       }
@@ -5978,6 +6849,52 @@
         }
       }
     },
+    "Rating lowered, %lld photos" : {
+      "comment" : "VoiceOver: Lower Rating on photos with different ratings",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Rating lowered, %lld photo"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Rating lowered, %lld photos"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Rating raised, %lld photos" : {
+      "comment" : "VoiceOver: Raise Rating on photos with different ratings",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Rating raised, %lld photo"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Rating raised, %lld photos"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "Ratings, labels, keywords and copyright go into an .xmp file next to each original, so other apps can read them. Originals are never changed. Sidecars another app changed are listed under Changed on Disk instead of being overwritten." : {
       "comment" : "Settings explanation",
       "localizations" : {
@@ -5989,24 +6906,13 @@
         }
       }
     },
-    "Read from %@, the newest photo" : {
-      "comment" : "Import status bar tooltip; the argument is a file name",
+    "Reading %@…" : {
+      "comment" : "Import window: scanning a card or folder",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Read from %@, the newest photo"
-          }
-        }
-      }
-    },
-    "Reading…" : {
-      "comment" : "Import window while scanning the source",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reading…"
+            "value" : "Reading %@…"
           }
         }
       }
@@ -6103,17 +7009,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Remove Keyword"
-          }
-        }
-      }
-    },
-    "Remove every adjustment from this photo" : {
-      "comment" : "Reset All button tooltip",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Remove every adjustment from this photo"
           }
         }
       }
@@ -6272,6 +7167,17 @@
         }
       }
     },
+    "Rename “%@”…" : {
+      "comment" : "File menu; the album or keyword selected in the sidebar",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rename “%@”…"
+          }
+        }
+      }
+    },
     "Rename, move, export and delete presets" : {
       "comment" : "Tooltip of the Presets heading's Manage button",
       "localizations" : {
@@ -6315,6 +7221,28 @@
         }
       }
     },
+    "Rescan" : {
+      "comment" : "Import window, File menu: looks at the source again",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rescan"
+          }
+        }
+      }
+    },
+    "Reset" : {
+      "comment" : "Inspector heading context menu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset"
+          }
+        }
+      }
+    },
     "Reset %@" : {
       "comment" : "Undo action name and tooltip; the argument is an Adjust tab heading",
       "localizations" : {
@@ -6348,6 +7276,17 @@
         }
       }
     },
+    "Reset All Adjustments" : {
+      "comment" : "Adjust menu: resets the photo in the loupe, or every selected photo in the grid",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset All Adjustments"
+          }
+        }
+      }
+    },
     "Reset Channel" : {
       "comment" : "Button under the tone curve: resets the channel shown",
       "localizations" : {
@@ -6366,6 +7305,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Reset Crop"
+          }
+        }
+      }
+    },
+    "Reset “%@”" : {
+      "comment" : "Context menu of an adjustment slider; the slider's name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset “%@”"
           }
         }
       }
@@ -6410,6 +7360,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Right"
+          }
+        }
+      }
+    },
+    "Rotate" : {
+      "comment" : "Undo action name: a quarter turn",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rotate"
           }
         }
       }
@@ -6491,6 +7452,17 @@
         }
       }
     },
+    "Save Adjustments as Preset" : {
+      "comment" : "Activity row title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save Adjustments as Preset"
+          }
+        }
+      }
+    },
     "Save Adjustments as Preset…" : {
       "comment" : "Photo menu and Presets menu item",
       "localizations" : {
@@ -6498,6 +7470,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Save Adjustments as Preset…"
+          }
+        }
+      }
+    },
+    "Save Changes" : {
+      "comment" : "Activity row title: saving to the library failed",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save Changes"
           }
         }
       }
@@ -6612,35 +7595,35 @@
         }
       }
     },
-    "Select every photo" : {
-      "comment" : "Import window help",
+    "Select" : {
+      "comment" : "Import grid context menu",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Select every photo"
+            "value" : "Select"
           }
         }
       }
     },
-    "Select no photos" : {
-      "comment" : "Import window help",
+    "Select All" : {
+      "comment" : "Import grid context menu and toolbar Selection menu",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Select no photos"
+            "value" : "Select All"
           }
         }
       }
     },
-    "Select photos and press ⌘K to add keywords." : {
-      "comment" : "Sidebar, no keywords yet",
+    "Select a photo to see its details." : {
+      "comment" : "Inspector with nothing selected",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Select photos and press ⌘K to add keywords."
+            "value" : "Select a photo to see its details."
           }
         }
       }
@@ -6678,6 +7661,28 @@
         }
       }
     },
+    "Select this mask; double-click to rename it" : {
+      "comment" : "Mask row name tooltip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select this mask; double-click to rename it"
+          }
+        }
+      }
+    },
+    "Selection" : {
+      "comment" : "Import window toolbar: the selection pull-down",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selection"
+          }
+        }
+      }
+    },
     "Sepia" : {
       "comment" : "Built-in look-up table",
       "localizations" : {
@@ -6689,24 +7694,24 @@
         }
       }
     },
-    "Sequence in this export" : {
-      "comment" : "Template token menu: the photo's position in the export",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sequence in this export"
-          }
-        }
-      }
-    },
-    "Sequence in this import" : {
+    "Sequence Number" : {
       "comment" : "Template token",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sequence in this import"
+            "value" : "Sequence Number"
+          }
+        }
+      }
+    },
+    "Serial Number" : {
+      "comment" : "Template token",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Serial Number"
           }
         }
       }
@@ -6778,7 +7783,7 @@
       }
     },
     "Sharpen for" : {
-      "comment" : "Export window: output sharpening medium",
+      "comment" : "Export sheet row",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6821,24 +7826,24 @@
         }
       }
     },
-    "Short edge" : {
-      "comment" : "Export window: sizing choice",
+    "Short Edge" : {
+      "comment" : "Export sheet: size pop-up",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Short edge"
+            "value" : "Short Edge"
           }
         }
       }
     },
-    "Show Edit" : {
-      "comment" : "Adjust tab button while the original is shown",
+    "Show Adjustments" : {
+      "comment" : "Loupe: go back from the original to the adjusted photo (menu item, VoiceOver action)",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Show Edit"
+            "value" : "Show Adjustments"
           }
         }
       }
@@ -6864,13 +7869,13 @@
         }
       }
     },
-    "Show HDR" : {
-      "comment" : "View menu toggle: the loupe shows highlights above SDR white on displays with extended dynamic range",
+    "Show HDR Highlights" : {
+      "comment" : "View menu: the loupe shows highlights above SDR white on displays with extended dynamic range",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Show HDR"
+            "value" : "Show HDR Highlights"
           }
         }
       }
@@ -6896,6 +7901,17 @@
         }
       }
     },
+    "Show Options" : {
+      "comment" : "Import window: View menu item and toolbar button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Options"
+          }
+        }
+      }
+    },
     "Show Original" : {
       "comment" : "Adjust tab button",
       "localizations" : {
@@ -6907,13 +7923,35 @@
         }
       }
     },
-    "Show every photo again" : {
-      "comment" : "Filter bar: help for the Clear button",
+    "Show Photos Already in Library" : {
+      "comment" : "Import window, View menu (checkmark): also lists shots the library already has",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Show every photo again"
+            "value" : "Show Photos Already in Library"
+          }
+        }
+      }
+    },
+    "Show Them" : {
+      "comment" : "Import window: show the shots already in the library",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Them"
+          }
+        }
+      }
+    },
+    "Show Videos" : {
+      "comment" : "Import window, View menu (checkmark): videos on the source are listed and imported",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Videos"
           }
         }
       }
@@ -6925,17 +7963,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Show in Finder when done"
-          }
-        }
-      }
-    },
-    "Show photos by flag" : {
-      "comment" : "Filter bar: help for the flag menu",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Show photos by flag"
           }
         }
       }
@@ -6973,6 +8000,17 @@
         }
       }
     },
+    "Show the focused photo in the loupe" : {
+      "comment" : "Adjust tab in the grid: Open in Loupe tooltip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show the focused photo in the loupe"
+          }
+        }
+      }
+    },
     "Show the selected mask in red" : {
       "comment" : "Button help",
       "localizations" : {
@@ -6980,17 +8018,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Show the selected mask in red"
-          }
-        }
-      }
-    },
-    "Show them" : {
-      "comment" : "Import window toggle: show photos already in the library",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Show them"
           }
         }
       }
@@ -7035,6 +8062,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Shutter Speed"
+          }
+        }
+      }
+    },
+    "Sidebar Sections" : {
+      "comment" : "View menu submenu: which sidebar sections are shown",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sidebar Sections"
           }
         }
       }
@@ -7104,13 +8142,24 @@
         }
       }
     },
-    "Sort order" : {
-      "comment" : "Filter bar: help for the sort menu",
+    "Sort By" : {
+      "comment" : "View menu submenu",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sort order"
+            "value" : "Sort By"
+          }
+        }
+      }
+    },
+    "Source" : {
+      "comment" : "Import window toolbar help: the source pop-up",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Source"
           }
         }
       }
@@ -7159,13 +8208,35 @@
         }
       }
     },
-    "Stop Exporting" : {
-      "comment" : "Status bar: stops the export",
+    "Stop Import" : {
+      "comment" : "Import window, File menu: stops copying",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Stop Exporting"
+            "value" : "Stop Import"
+          }
+        }
+      }
+    },
+    "Stop Importing from “%@”?" : {
+      "comment" : "Quit alert in the standalone importer",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop Importing from “%@”?"
+          }
+        }
+      }
+    },
+    "Stop and Quit" : {
+      "comment" : "Quit alert button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop and Quit"
           }
         }
       }
@@ -7445,17 +8516,6 @@
         }
       }
     },
-    "The color space the table is applied in. Change it in the Adjust tab or under Manage." : {
-      "comment" : "Look-up table window: tooltip",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The color space the table is applied in. Change it in the Adjust tab or under Manage."
-          }
-        }
-      }
-    },
     "The color space the tables were made for. Most creative tables expect sRGB." : {
       "comment" : "Look-up table import sheet: tooltip",
       "localizations" : {
@@ -7463,16 +8523,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The color space the tables were made for. Most creative tables expect sRGB."
-          }
-        }
-      }
-    },
-    "The library could not be opened." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The library could not be opened."
           }
         }
       }
@@ -7495,6 +8545,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The photos stay in the library."
+          }
+        }
+      }
+    },
+    "The rest is not copied." : {
+      "comment" : "Quit alert in the library app",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The rest is not copied."
+          }
+        }
+      }
+    },
+    "The rest is not exported." : {
+      "comment" : "Quit alert in the library app",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The rest is not exported."
           }
         }
       }
@@ -7716,6 +8788,17 @@
         }
       }
     },
+    "Turn Off" : {
+      "comment" : "Inspector heading context menu: keep the heading's edits but show the photo without them",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn Off"
+          }
+        }
+      }
+    },
     "Turn Off %@" : {
       "comment" : "Undo action name; the group's name",
       "localizations" : {
@@ -7734,6 +8817,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Turn Off Mask"
+          }
+        }
+      }
+    },
+    "Turn On" : {
+      "comment" : "Inspector heading context menu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn On"
           }
         }
       }
@@ -7890,6 +8984,17 @@
         }
       }
     },
+    "Uppercase Extension" : {
+      "comment" : "Template token",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uppercase Extension"
+          }
+        }
+      }
+    },
     "Usage Terms" : {
       "comment" : "Metadata field",
       "localizations" : {
@@ -7923,13 +9028,13 @@
         }
       }
     },
-    "Use File ▸ New Album to make one." : {
-      "comment" : "Sidebar, no albums yet",
+    "Use Image" : {
+      "comment" : "Open panel button: the watermark",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Use File ▸ New Album to make one."
+            "value" : "Use Image"
           }
         }
       }
@@ -7978,28 +9083,6 @@
         }
       }
     },
-    "Videos" : {
-      "comment" : "Import window section",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Videos"
-          }
-        }
-      }
-    },
-    "Videos are copied and catalogued like photos and play in the loupe. They cannot be edited." : {
-      "comment" : "Import window note",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Videos are copied and catalogued like photos and play in the loupe. They cannot be edited."
-          }
-        }
-      }
-    },
     "View" : {
       "localizations" : {
         "en" : {
@@ -8028,6 +9111,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Vignette feather and style"
+          }
+        }
+      }
+    },
+    "Volume" : {
+      "comment" : "Info tab: the disk a photo's file is on",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Volume"
           }
         }
       }
@@ -8192,6 +9286,61 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ZIP"
+          }
+        }
+      }
+    },
+    "Zoom" : {
+      "comment" : "Toolbar, loupe: Fit / 100% control (accessibility)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zoom"
+          }
+        }
+      }
+    },
+    "Zoom In" : {
+      "comment" : "View menu in the loupe (⌘=): the next zoom step",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zoom In"
+          }
+        }
+      }
+    },
+    "Zoom Out" : {
+      "comment" : "View menu in the loupe (⌘−): the previous zoom step, or Fit",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zoom Out"
+          }
+        }
+      }
+    },
+    "Zoom to 100%" : {
+      "comment" : "Loupe: show the photo at actual size (menu item, VoiceOver action)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zoom to 100%"
+          }
+        }
+      }
+    },
+    "Zoom to Fit" : {
+      "comment" : "Loupe: fit the photo in the window (menu item, VoiceOver action)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zoom to Fit"
           }
         }
       }
@@ -8504,6 +9653,17 @@
         }
       }
     },
+    "no rating" : {
+      "comment" : "VoiceOver: an unrated photo, inside a sentence (“DSC00232, no rating”)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "no rating"
+          }
+        }
+      }
+    },
     "pixels" : {
       "comment" : "Export window: unit after a size",
       "localizations" : {
@@ -8548,6 +9708,28 @@
         }
       }
     },
+    "the source" : {
+      "comment" : "Import options, when no source is chosen",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the source"
+          }
+        }
+      }
+    },
+    "video" : {
+      "comment" : "VoiceOver: a video's type, as in “DSC00400, video, 0:42”",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "video"
+          }
+        }
+      }
+    },
     "© {capture:yyyy} Your Name" : {
       "comment" : "Copyright field placeholder; keep the token",
       "localizations" : {
@@ -8560,23 +9742,12 @@
       }
     },
     "ƒ/%@" : {
-      "comment" : "Aperture",
+      "comment" : "Aperture, as in “ƒ/2.8”",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "ƒ/%@"
-          }
-        }
-      }
-    },
-    "“%@” (%lld of %lld)" : {
-      "comment" : "Status bar during a batch of folder imports: the folder's name, its position and the folder count",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "“%@” (%lld of %lld)"
           }
         }
       }

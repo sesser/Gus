@@ -62,7 +62,7 @@ public final class PreviewDiskCache: Sendable {
     }
 
     /// Redraws `image` into a BGRA bitmap in `colorSpace`.
-    static func converted(_ image: CGImage, to colorSpace: CGColorSpace) -> CGImage? {
+    public static func converted(_ image: CGImage, to colorSpace: CGColorSpace) -> CGImage? {
         let bitmapInfo = CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
         guard colorSpace.model == .rgb,
               let context = CGContext(data: nil, width: image.width, height: image.height, bitsPerComponent: 8,
