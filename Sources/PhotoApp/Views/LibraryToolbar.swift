@@ -9,6 +9,36 @@ struct LibraryToolbar: CustomizableToolbarContent {
     @Bindable var model: LibraryModel
 
     var body: some CustomizableToolbarContent {
+        leadingItems
+        groupSpacer()
+        ToolbarItem(id: "filter") { FilterSortMenu(model: model) }
+            .hidden(model.mode != .grid)
+        ToolbarItem(id: "search") {
+            SearchField(text: $model.searchText, placeholder: String(localized: "Keywords, file type, camera, lens")) {
+                NotificationCenter.default.post(name: .browserShouldTakeFocus, object: model)
+            }
+            .frame(minWidth: 180, idealWidth: 240, maxWidth: 300)
+            .help("Commas separate alternatives: “orf, arw”. Words must all match: “sony jpg”.")
+        }
+        .hidden(model.mode != .grid)
+        paletteItems
+        morePaletteItems
+        ToolbarItem(id: "inspector") {
+            Button {
+                model.showsInspector.toggle()
+            } label: {
+                Label(model.showsInspector ? String(localized: "Hide Inspector") : String(localized: "Show Inspector"),
+                      systemImage: "sidebar.trailing")
+            }
+            .help(model.showsInspector ? String(localized: "Hide Inspector") : String(localized: "Show Inspector"))
+        }
+        .customizationBehavior(.disabled)
+    }
+
+    /// Import and export, then the view controls and Activity. A builder takes
+    /// at most ten items before the macOS 27 SDK, so the groups are split up.
+    @ToolbarContentBuilder
+    private var leadingItems: some CustomizableToolbarContent {
         ToolbarItem(id: "import") { ImportToolbarButton(model: model) }
         ToolbarItem(id: "export") {
             Button {
@@ -35,29 +65,6 @@ struct LibraryToolbar: CustomizableToolbarContent {
         ToolbarItem(id: "activity", placement: .status) { ActivityToolbarItem(model: model) }
             .customizationBehavior(.disabled)
             .hidden(!ActivityToolbarItem.isVisible(model))
-        groupSpacer()
-        ToolbarItem(id: "filter") { FilterSortMenu(model: model) }
-            .hidden(model.mode != .grid)
-        ToolbarItem(id: "search") {
-            SearchField(text: $model.searchText, placeholder: String(localized: "Keywords, file type, camera, lens")) {
-                NotificationCenter.default.post(name: .browserShouldTakeFocus, object: model)
-            }
-            .frame(minWidth: 180, idealWidth: 240, maxWidth: 300)
-            .help("Commas separate alternatives: “orf, arw”. Words must all match: “sony jpg”.")
-        }
-        .hidden(model.mode != .grid)
-        paletteItems
-        morePaletteItems
-        ToolbarItem(id: "inspector") {
-            Button {
-                model.showsInspector.toggle()
-            } label: {
-                Label(model.showsInspector ? String(localized: "Hide Inspector") : String(localized: "Show Inspector"),
-                      systemImage: "sidebar.trailing")
-            }
-            .help(model.showsInspector ? String(localized: "Hide Inspector") : String(localized: "Show Inspector"))
-        }
-        .customizationBehavior(.disabled)
     }
 
     /// Separates the groups on macOS 26; the earlier design groups by itself.
@@ -68,7 +75,7 @@ struct LibraryToolbar: CustomizableToolbarContent {
         }
     }
 
-    /// Off by default too (a builder takes at most ten items).
+    /// Off by default too (split off for the same ten-item limit).
     @ToolbarContentBuilder
     private var morePaletteItems: some CustomizableToolbarContent {
         let state = LibraryMenuState(model)
