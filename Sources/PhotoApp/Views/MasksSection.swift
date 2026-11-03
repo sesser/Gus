@@ -70,7 +70,7 @@ private struct MaskRow: View {
         let count = editor.adjustments.local.masks.count
         let name = mask.name.isEmpty ? String(localized: "Mask \(index + 1)", comment: "A new mask's name") : mask.name
         HStack(spacing: InspectorMetrics.gap) {
-            AppKitCheckbox(state: mask.isEnabled ? .on : .off,
+            AppKitCheckbox(state: mask.isEnabled ? .on : .off, label: name,
                            help: mask.isEnabled ? String(localized: "Turn off this mask") : String(localized: "Turn on this mask")) {
                 editor.setMaskEnabled(mask.id, !mask.isEnabled)
             }

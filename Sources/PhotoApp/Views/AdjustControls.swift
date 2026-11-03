@@ -605,7 +605,7 @@ struct SectionToggle: View {
             let enabled = modified.filter { values.isEnabled($0) }
             let isOn = !modified.isEmpty && enabled.count == modified.count
             let title = AdjustText.title(section)
-            AppKitCheckbox(state: isOn ? .on : enabled.isEmpty ? .off : .mixed, isVisible: !modified.isEmpty,
+            AppKitCheckbox(state: isOn ? .on : enabled.isEmpty ? .off : .mixed, isVisible: !modified.isEmpty, label: title,
                            help: isOn ? String(localized: "Turn off \(title) to compare") : String(localized: "Turn on \(title)")) {
                 editor.setEnabled(section, !isOn)
             }
@@ -624,7 +624,7 @@ struct GroupToggle: View {
         let isModified = editor.adjustments.isModified(group)
         let isOn = isModified && editor.adjustments.isEnabled(group)
         let title = AdjustText.title(group)
-        AppKitCheckbox(state: isOn ? .on : .off, isVisible: isModified,
+        AppKitCheckbox(state: isOn ? .on : .off, isVisible: isModified, label: title,
                        help: isOn ? String(localized: "Turn off \(title) to compare") : String(localized: "Turn on \(title)")) {
             editor.setEnabled(group, !isOn)
         }
@@ -734,6 +734,9 @@ struct AppKitCheckbox: NSViewRepresentable {
 
     var state: State
     var isVisible = true
+    /// What VoiceOver names it: the section or mask ("Light, checkbox, checked").
+    var label: String
+    /// The tooltip, and VoiceOver's help.
     var help: String
     let action: () -> Void
 
@@ -755,7 +758,8 @@ struct AppKitCheckbox: NSViewRepresentable {
         }
         button.isHidden = !isVisible
         button.toolTip = help
-        button.setAccessibilityLabel(help)
+        button.setAccessibilityLabel(label)
+        button.setAccessibilityHelp(help)
     }
 
     @MainActor
