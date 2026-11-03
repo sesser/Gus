@@ -702,7 +702,9 @@ enum DebugScript {
             print("debug-script: title \(model.windowTitle) | \(model.windowSubtitle) | rating \(model.ratingRule) flag \(model.flagRule)"
                   + " search '\(model.searchText)' sort \(model.sort.key.rawValue) \(model.sort.ascending ? "asc" : "desc")")
         case "activity":
-            let jobs = ActivityToolbarItem.jobs(model).map { $0.title + ($0.detail.map { " | " + $0 } ?? "") }
+            let jobs = ActivityToolbarItem.jobs(model).map {
+                $0.title + ($0.toolbarTitle.map { " (toolbar: \($0))" } ?? "") + ($0.detail.map { " | " + $0 } ?? "")
+            }
                 .joined(separator: "; ")
             print("debug-script: activity visible \(ActivityToolbarItem.isVisible(model)) jobs [\(jobs)] unseen \(model.activity.unseenCount)"
                   + " warning \(model.activity.unseenHasWarning) last \(model.activity.messages.last.map { "[\($0.title ?? "-")] \($0.text)" } ?? "-")")

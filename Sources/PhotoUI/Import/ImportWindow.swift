@@ -169,7 +169,11 @@ private struct ImportActivity: View {
         } else if model.isScanning, let source = model.source {
             HStack(spacing: 6) {
                 ProgressView().controlSize(.small)
-                Text("Reading \(source.name)…").foregroundStyle(.secondary).toolbarStatusText()
+                Text(ToolbarMetrics.statusLine(name: source.name) {
+                    String(localized: "Reading \($0)…", comment: "Import window: scanning a card or folder")
+                })
+                .foregroundStyle(.secondary)
+                .toolbarStatusText()
             }
             .toolbarCapsuleInset()
         }

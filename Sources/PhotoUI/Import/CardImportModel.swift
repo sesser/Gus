@@ -462,7 +462,11 @@ public final class CardImportModel {
     }
 
     public static func activityTitle(_ source: ImportSource) -> String {
-        String(localized: "Import from “\(source.name)”", comment: "Activity row title: a copying import")
+        activityTitle(name: source.name)
+    }
+
+    public static func activityTitle(name: String) -> String {
+        String(localized: "Import from “\(name)”", comment: "Activity row title: a copying import")
     }
 
     /// While copying: "12 of 412 files · 1.2 of 18 GB", for the import

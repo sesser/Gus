@@ -6,6 +6,9 @@ import SwiftUI
 struct ActivityJob: Identifiable {
     let id: String
     let title: String
+    /// The title as the toolbar shows it: fitted by shortening its name in
+    /// the middle (`Export to “Ex…ts”`); the popover shows `title`.
+    var toolbarTitle: String?
     /// Under the title in the popover ("12 of 24").
     var detail: String?
     let progress: Double?
@@ -39,7 +42,7 @@ struct ActivityToolbarItem: View {
                     } else {
                         ProgressView().controlSize(.small)
                     }
-                    Text(job.title).monospacedDigit().toolbarStatusText()
+                    Text(job.toolbarTitle ?? job.title).monospacedDigit().toolbarStatusText()
                 } else if model.activity.unseenCount > 0 {
                     // Idle with unread messages: which kind, the popover says the rest.
                     Image(systemName: model.activity.unseenHasWarning ? "exclamationmark.triangle" : "info.circle")
@@ -63,6 +66,9 @@ struct ActivityToolbarItem: View {
             // Add Folder “Trip” or Add 3 Folders; "Folder 1 of 3 · 12 of 412 photos".
             let batch = model.importBatch
             let title = batch.map { ActivityTitle.addFolders($0.count, name: $0.name) } ?? ActivityTitle.addFolder(nil)
+            let toolbarTitle = batch.flatMap { $0.count == 1 ? $0.name : nil }.map { name in
+                ToolbarMetrics.statusLine(name: name) { ActivityTitle.addFolder($0) }
+            }
             let counts = switch progress.phase {
             case .scanning: String(localized: "Looking for photos…")
             case .importing, .finished:
@@ -72,7 +78,7 @@ struct ActivityToolbarItem: View {
             let detail = batch.flatMap { $0.count > 1 ? $0 : nil }.map {
                 String(localized: "Folder \($0.index) of \($0.count) · \(counts)", comment: "Activity: a batch of folders")
             } ?? counts
-            jobs.append(ActivityJob(id: "import", title: title, detail: detail,
+            jobs.append(ActivityJob(id: "import", title: title, toolbarTitle: toolbarTitle, detail: detail,
                                     progress: progress.phase == .scanning ? nil
                                         : Double(progress.filesProcessed) / Double(max(progress.filesFound, 1)),
                                     stop: { model.cancelImport() }))
@@ -80,12 +86,18 @@ struct ActivityToolbarItem: View {
         // A copy goes on when the import window closes (final review Q1).
         let copy = model.cardImport
         if let progress = copy.progress, let source = copy.source {
-            jobs.append(ActivityJob(id: "copy", title: CardImportModel.activityTitle(source), detail: copy.progressDetail,
+            jobs.append(ActivityJob(id: "copy", title: CardImportModel.activityTitle(source),
+                                    toolbarTitle: ToolbarMetrics.statusLine(name: source.name) {
+                                        CardImportModel.activityTitle(name: $0)
+                                    },
+                                    detail: copy.progressDetail,
                                     progress: Double(progress.bytesDone) / Double(max(progress.bytesTotal, 1)),
                                     stop: { copy.cancelImport() }))
         }
         if let progress = model.export.progress {
-            jobs.append(ActivityJob(id: "export", title: ActivityTitle.exportTo(model.export.destination.lastPathComponent),
+            let folder = model.export.destination.lastPathComponent
+            jobs.append(ActivityJob(id: "export", title: ActivityTitle.exportTo(folder),
+                                    toolbarTitle: ToolbarMetrics.statusLine(name: folder) { ActivityTitle.exportTo($0) },
                                     detail: String(localized: "\(progress.done) of \(progress.total)"),
                                     progress: Double(progress.done) / Double(max(progress.total, 1)),
                                     stop: { model.export.cancel() }))
