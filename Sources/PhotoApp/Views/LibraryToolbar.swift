@@ -114,7 +114,7 @@ struct LibraryToolbar: CustomizableToolbarContent {
         }
         ToolbarItem(id: "copyAdjustments", showsByDefault: false) {
             Button { model.copyAdjustments() } label: { Label("Copy Adjustments", systemImage: "doc.on.doc") }
-                .disabled(!state.hasFocusedItem)
+                .disabled(!state.focusedIsPhoto)
         }
         ToolbarItem(id: "pasteAdjustments", showsByDefault: false) {
             Button { model.pasteAdjustments() } label: { Label("Paste Adjustments", systemImage: "doc.on.clipboard") }

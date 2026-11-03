@@ -6,7 +6,7 @@ extension LibraryModel {
 
     /// Remembers the focused photo's adjustments for Paste Adjustments.
     func copyAdjustments() {
-        guard let item = focusedItem else { return }
+        guard let item = focusedItem, !item.isVideo else { return }
         if editor.item?.versionID == item.versionID, editor.state == .ready {
             copiedAdjustments = editor.adjustments
             return

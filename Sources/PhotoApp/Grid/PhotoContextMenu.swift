@@ -85,10 +85,11 @@ enum PhotoContextMenu {
             menu.addItem(ActionMenuItem(String(localized: "Remove from Album")) { model.removeFromCurrentAlbum() })
         }
         let adjusts = state.mode == .grid ? state.targetsIncludePhoto : state.canEditLoupePhoto && !state.isCropping
-        if state.hasFocusedItem || adjusts {
+        // Videos have no adjustments to copy.
+        if state.focusedIsPhoto || adjusts {
             menu.addItem(.separator())
         }
-        if state.hasFocusedItem {
+        if state.focusedIsPhoto {
             menu.addItem(ActionMenuItem(String(localized: "Copy Adjustments")) { model.copyAdjustments() })
         }
         if state.hasCopiedAdjustments && state.targetsIncludePhoto {

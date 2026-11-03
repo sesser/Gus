@@ -326,7 +326,7 @@ struct LibraryCommands: Commands {
         CommandMenu("Adjust") {
             Button("Copy Adjustments") { model?.copyAdjustments() }
                 .keyboardShortcut("c", modifiers: [.command, .shift])
-                .disabled(!can { $0.hasFocusedItem })
+                .disabled(!can { $0.focusedIsPhoto })
             Button("Paste Adjustments") { model?.pasteAdjustments() }
                 .keyboardShortcut("v", modifiers: [.command, .shift])
                 .disabled(!can { $0.hasCopiedAdjustments && $0.targetsIncludePhoto })
