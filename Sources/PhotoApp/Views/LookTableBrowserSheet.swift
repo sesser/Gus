@@ -224,6 +224,8 @@ private struct LookTableTile: View {
 /// Confirms an import: where the tables go, their names and color space.
 struct LookTableImportPage: View {
     let library: LookTableLibraryModel
+    /// Cancel closes the sheet from every page; Back returns to the tables.
+    @Environment(\.dismiss) private var dismiss
     @State var draft: LookTableLibraryModel.ImportDraft
     @State private var isImporting = false
 
@@ -278,7 +280,7 @@ struct LookTableImportPage: View {
                     }
                 }
             }
-            .frame(minHeight: 220)
+            .frame(minHeight: 220, maxHeight: .infinity)
             if draft.candidates.isEmpty {
                 Text("No .cube files were found.")
                     .foregroundStyle(.secondary)
@@ -288,7 +290,7 @@ struct LookTableImportPage: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
-                Button("Cancel", role: .cancel) { library.page = nil }
+                Button("Cancel", role: .cancel) { dismiss() }
                     .keyboardShortcut(.cancelAction)
                 Button(String(localized: "Import \(draft.importable) Tables")) {
                     isImporting = true
@@ -303,12 +305,15 @@ struct LookTableImportPage: View {
             }
         }
         .padding(20)
+        // A page fills the sheet: header on top, buttons at the bottom.
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 }
 
 /// Renames and removes imported collections and their tables.
 struct LookTableManagePage: View {
     let library: LookTableLibraryModel
+    @Environment(\.dismiss) private var dismiss
     @State private var pendingRemoval: LookTableCollection?
 
     var body: some View {
@@ -317,6 +322,7 @@ struct LookTableManagePage: View {
             if library.importedCollections.isEmpty {
                 ContentUnavailableView("No Imported Collections", systemImage: "square.stack.3d.up",
                                        description: Text("Import a folder of .cube files to start a collection."))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List {
                     ForEach(library.importedCollections) { collection in
@@ -336,11 +342,15 @@ struct LookTableManagePage: View {
                     .foregroundStyle(.secondary)
                 Spacer()
                 Button("Import…") { library.chooseImportSource() }
+                Button("Cancel", role: .cancel) { dismiss() }
+                    .keyboardShortcut(.cancelAction)
                 Button("Done") { library.page = nil }
                     .keyboardShortcut(.defaultAction)
             }
         }
         .padding(20)
+        // A page fills the sheet: header on top, buttons at the bottom.
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .alert(String(localized: "Remove the collection \(pendingRemoval?.name ?? "")?"),
                isPresented: Binding(get: { pendingRemoval != nil }, set: { if !$0 { pendingRemoval = nil } })) {
             Button("Remove", role: .destructive) {
