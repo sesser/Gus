@@ -59,14 +59,19 @@ struct ActivityToolbarItem: View {
         _ = model.activityTick
         var jobs: [ActivityJob] = []
         if let progress = model.importProgress {
-            let text = switch progress.phase {
+            // Add Folder “Trip” or Add 3 Folders; "Folder 1 of 3 · 12 of 412 photos".
+            let batch = model.importBatch
+            let title = batch.map { ActivityTitle.addFolders($0.count, name: $0.name) } ?? ActivityTitle.addFolder(nil)
+            let counts = switch progress.phase {
             case .scanning: String(localized: "Looking for photos…")
-            case .importing, .finished: String(localized: "Importing \(progress.filesProcessed) of \(progress.filesFound)")
+            case .importing, .finished:
+                String(localized: "\(progress.filesProcessed) of \(progress.filesFound) photos",
+                       comment: "Activity: an in-place import's progress")
             }
-            let title = model.importBatch.map { batch in
-                String(localized: "“\(batch.name)” (\(batch.index) of \(batch.count))") + " " + text
-            } ?? text
-            jobs.append(ActivityJob(id: "import", title: title,
+            let detail = batch.flatMap { $0.count > 1 ? $0 : nil }.map {
+                String(localized: "Folder \($0.index) of \($0.count) · \(counts)", comment: "Activity: a batch of folders")
+            } ?? counts
+            jobs.append(ActivityJob(id: "import", title: title, detail: detail,
                                     progress: progress.phase == .scanning ? nil
                                         : Double(progress.filesProcessed) / Double(max(progress.filesFound, 1)),
                                     stop: { model.cancelImport() }))
