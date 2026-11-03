@@ -159,7 +159,7 @@ private struct ImportActivity: View {
             HStack(spacing: 8) {
                 ProgressView(value: Double(progress.bytesDone), total: Double(max(progress.bytesTotal, 1)))
                     .frame(width: 160)
-                Text("\(progress.filesDone) of \(progress.filesTotal) files · \(ByteCountFormatter.string(fromByteCount: progress.bytesDone, countStyle: .file)) of \(ByteCountFormatter.string(fromByteCount: progress.bytesTotal, countStyle: .file))")
+                Text(model.progressDetail ?? "")
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
             }

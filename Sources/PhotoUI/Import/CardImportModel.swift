@@ -143,7 +143,7 @@ public final class CardImportModel {
 
     // MARK: Running
 
-    private(set) var progress: CopyImportProgress?
+    public private(set) var progress: CopyImportProgress?
     private(set) var lastResult: CopyImportResult?
     /// Verified files waiting for the person to confirm their deletion.
     public var pendingDeletion: [URL]?
@@ -458,8 +458,21 @@ public final class CardImportModel {
     /// Posts to the library's Activity item, titled Import from “‹source›”
     /// (section 1 of docs/UI_REDESIGN.md).
     private func report(_ text: String, source: ImportSource, warning: Bool = false) {
-        library?.report(text, action: String(localized: "Import from “\(source.name)”", comment: "Activity row title: a copying import"),
-                        warning: warning)
+        library?.report(text, action: Self.activityTitle(source), warning: warning)
+    }
+
+    public static func activityTitle(_ source: ImportSource) -> String {
+        String(localized: "Import from “\(source.name)”", comment: "Activity row title: a copying import")
+    }
+
+    /// While copying: "12 of 412 files · 1.2 of 18 GB", for the import
+    /// window's toolbar and the library's Activity item (the copy goes on
+    /// when the window closes).
+    public var progressDetail: String? {
+        guard let progress else { return nil }
+        let done = ByteCountFormatter.string(fromByteCount: progress.bytesDone, countStyle: .file)
+        let total = ByteCountFormatter.string(fromByteCount: progress.bytesTotal, countStyle: .file)
+        return String(localized: "\(progress.filesDone) of \(progress.filesTotal) files · \(done) of \(total)")
     }
 
     /// A window-modal alert in the import window, and the Activity row.

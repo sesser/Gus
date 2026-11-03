@@ -1,4 +1,5 @@
 import PhotoCore
+import PhotoUI
 import SwiftUI
 
 /// One job the Activity item shows.
@@ -69,6 +70,13 @@ struct ActivityToolbarItem: View {
                                     progress: progress.phase == .scanning ? nil
                                         : Double(progress.filesProcessed) / Double(max(progress.filesFound, 1)),
                                     stop: { model.cancelImport() }))
+        }
+        // A copy goes on when the import window closes (final review Q1).
+        let copy = model.cardImport
+        if let progress = copy.progress, let source = copy.source {
+            jobs.append(ActivityJob(id: "copy", title: CardImportModel.activityTitle(source), detail: copy.progressDetail,
+                                    progress: Double(progress.bytesDone) / Double(max(progress.bytesTotal, 1)),
+                                    stop: { copy.cancelImport() }))
         }
         if let progress = model.export.progress {
             jobs.append(ActivityJob(id: "export", title: ActivityTitle.exportTo(model.export.destination.lastPathComponent),

@@ -7,7 +7,7 @@ import PhotoCore
 ///     import source <path> | dest <path> | job <text> | delete on|off | eject on|off
 ///            | videos on|off (waits) | rescan (waits) | toggle <index of a shown shot>
 ///            | accessibility <role>|any [<n> press|<action name>] (see AccessibilityProbe)
-///            | run (waits) | confirm yes|no | snapshot <file> | print
+///            | run (waits) | start (does not wait) | close (the window) | confirm yes|no | snapshot <file> | print
 ///            | template folder|file|project <text> | tokens … (see TemplateFieldProbe)
 ///            | grid (each cell: name, checked, focus) | key left|right|up|down|space|return (to the grid)
 ///            | contextmenu <index> [<item title>] | options on|off | duplicates on|off | gridshot <png> (the grid alone)
@@ -56,6 +56,13 @@ public enum ImportDebugCommands {
             try? await Task.sleep(for: .milliseconds(100))
             while model.isImporting { try? await Task.sleep(for: .milliseconds(100)) }
             try? await Task.sleep(for: .milliseconds(500))
+        case "start":
+            // As Import N Photos, without waiting for the copy.
+            model.startImport()
+            try? await Task.sleep(for: .milliseconds(300))
+        case "close":
+            window?.performClose(nil)
+            try? await Task.sleep(for: .milliseconds(300))
         case "confirm":
             model.confirmDeletion(argument == "yes")
             try? await Task.sleep(for: .seconds(1))
