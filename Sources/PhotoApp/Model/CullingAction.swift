@@ -78,6 +78,8 @@ enum NavigationKey {
     case toggleLoupe
     case exitLoupe
     case toggleZoom
+    /// `F`: Enter / Exit Review.
+    case toggleReview
 
     static func from(_ event: NSEvent) -> NavigationKey? {
         let modifiers = event.modifierFlags.intersection([.command, .option, .control])
@@ -96,6 +98,7 @@ enum NavigationKey {
         default: break
         }
         if event.charactersIgnoringModifiers?.lowercased() == "z" { return .toggleZoom }
+        if event.charactersIgnoringModifiers?.lowercased() == "f" { return .toggleReview }
         return nil
     }
 }

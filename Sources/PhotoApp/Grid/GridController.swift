@@ -178,6 +178,9 @@ final class GridController: NSObject, NSCollectionViewDataSource, NSCollectionVi
         case .toggleLoupe:
             model.openLoupe()
             return true
+        case .toggleReview:
+            model.enterReview()
+            return true
         case .exitLoupe, .toggleZoom:
             return false
         }

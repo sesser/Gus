@@ -39,6 +39,7 @@ struct LibraryMenuState: Equatable {
     var showsOriginal: Bool
     var loupeZoom: LoupeZoomState
     var showsInspector: Bool
+    var isReviewing: Bool
     var inspectorTab: InspectorTab
     var showFileInfo: Bool
     var groupPairs: Bool
@@ -95,6 +96,7 @@ struct LibraryMenuState: Equatable {
         showsOriginal = model.editor.showsOriginal
         loupeZoom = model.loupeZoom
         showsInspector = model.showsInspector
+        isReviewing = model.isReviewing
         inspectorTab = model.inspectorTab
         showFileInfo = model.showFileInfo
         groupPairs = model.groupPairs

@@ -8,7 +8,8 @@ struct MainView: View {
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: Binding(get: { model.showsSidebar ? .all : .detailOnly },
+                                                      set: { model.showsSidebar = $0 != .detailOnly })) {
             SidebarView(model: model)
                 .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 320)
         } detail: {
@@ -26,6 +27,8 @@ struct MainView: View {
         // photos are judged against neutral dark surroundings; Import and
         // Settings follow the system.
         .preferredColorScheme(.dark)
+        // Review: the toolbar shows only while the pointer is at the top.
+        .windowToolbarFullScreenVisibility(model.isReviewing ? .onHover : .automatic)
         .task { await model.start() }
         .onChange(of: model.requestsImportWindow) {
             guard model.requestsImportWindow else { return }

@@ -6,7 +6,7 @@ import AppKit
 /// are on only then; section 6 of docs/UI_REDESIGN.md).
 @MainActor
 final class LibraryWindowObserver {
-    private weak var window: NSWindow?
+    private(set) weak var window: NSWindow?
     private var responderObservation: NSKeyValueObservation?
     private var keyObservers: [any NSObjectProtocol] = []
     private let onChange: (_ isKey: Bool, _ browserHasKeyboard: Bool) -> Void

@@ -82,8 +82,14 @@ struct VideoLoupe: NSViewRepresentable {
         case .right, .down: model.moveFocus(by: 1)
         case .home: model.setFocus(0)
         case .end: model.setFocus(model.items.count - 1)
+        case .exitLoupe where model.isReviewing:
+            model.exitReview()
+            return true
         case .toggleLoupe, .exitLoupe:
             model.closeLoupe()
+            return true
+        case .toggleReview:
+            model.toggleReview()
             return true
         case .toggleZoom, .pageUp, .pageDown, nil: return false
         }

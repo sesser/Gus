@@ -610,8 +610,15 @@ final class LoupeController: NSObject {
         case .right, .down: model.moveFocus(by: 1)
         case .home: model.setFocus(0)
         case .end: model.setFocus(model.items.count - 1)
+        case .exitLoupe where model.isReviewing:
+            // Esc backs out one level: review first, then the loupe.
+            model.exitReview()
+            return true
         case .toggleLoupe, .exitLoupe:
             model.closeLoupe()
+            return true
+        case .toggleReview:
+            model.toggleReview()
             return true
         case .toggleZoom:
             toggleZoom()

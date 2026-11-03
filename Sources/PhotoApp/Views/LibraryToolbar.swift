@@ -45,6 +45,7 @@ struct LibraryToolbar: CustomizableToolbarContent {
         }
         .hidden(model.mode != .grid)
         paletteItems
+        morePaletteItems
         ToolbarItem(id: "inspector") {
             Button {
                 model.showsInspector.toggle()
@@ -62,6 +63,26 @@ struct LibraryToolbar: CustomizableToolbarContent {
     private func groupSpacer() -> some CustomizableToolbarContent {
         if #available(macOS 26, *) {
             ToolbarSpacer(.fixed)
+        }
+    }
+
+    /// Off by default too (a builder takes at most ten items).
+    @ToolbarContentBuilder
+    private var morePaletteItems: some CustomizableToolbarContent {
+        let state = LibraryMenuState(model)
+        ToolbarItem(id: "review", showsByDefault: false) {
+            Button { model.toggleReview() } label: {
+                Label(state.isReviewing ? "Exit Review" : "Enter Review",
+                      systemImage: "arrow.up.left.and.arrow.down.right")
+            }
+            .disabled(!state.hasFocusedItem)
+        }
+        ToolbarItem(id: "newAlbum", showsByDefault: false) {
+            Button {
+                model.sidebarSheet = .newAlbum(projectID: model.selectedProjectID)
+            } label: {
+                Label("New Album", systemImage: "rectangle.stack.badge.plus")
+            }
         }
     }
 
@@ -109,13 +130,6 @@ struct LibraryToolbar: CustomizableToolbarContent {
                 Label("Suggest Keywords", systemImage: "sparkles")
             }
             .disabled(!state.hasTargets)
-        }
-        ToolbarItem(id: "newAlbum", showsByDefault: false) {
-            Button {
-                model.sidebarSheet = .newAlbum(projectID: model.selectedProjectID)
-            } label: {
-                Label("New Album", systemImage: "rectangle.stack.badge.plus")
-            }
         }
     }
 }

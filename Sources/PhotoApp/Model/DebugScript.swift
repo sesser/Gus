@@ -40,6 +40,7 @@ import PhotoUI
 ///                           elements with that role, e.g. AXImage, or runs an action on the nth; see AccessibilityProbe)
 ///     scroll <y>|bottom     (scrolls the inspector's Adjust tab to a point from its top)
 ///     hdr on|off            (the View menu's Show HDR; snapshots show HDR clipped at white)
+///     review [on|off]       (View ▸ Enter / Exit Review, as F; print review shows the layout)
 ///     import open | source <path> | dest <path> | job <text> | delete on|off | eject on|off
 ///            | videos on|off | rescan | toggle <n> | accessibility … | run (waits) | confirm yes|no | snapshot <file> | print
 ///            (see ImportDebugCommands)
@@ -297,6 +298,10 @@ enum DebugScript {
                 try? await Task.sleep(for: .milliseconds(150))
             }
             model.undoManager.groupsByEvent = false
+        case "review":
+            // As F; "print review" shows the layout.
+            if rest.first == "off" { model.exitReview() } else if rest.first == "on" { model.enterReview() } else { model.toggleReview() }
+            try? await Task.sleep(for: .milliseconds(1500))
         case "hdr":
             model.showsHDR = rest.first != "off"
         case "metadata", "sidecars":
@@ -402,7 +407,11 @@ enum DebugScript {
             AccessibilityProbe.run(rest, in: window)
             try? await Task.sleep(for: .milliseconds(200))
         case "print":
-            if rest.first == "loupe" {
+            if rest.first == "review" {
+                let window = model.windowObserver.window
+                print("debug-script: review \(model.isReviewing) mode \(model.mode) sidebar \(model.showsSidebar) "
+                      + "inspector \(model.showsInspector) fullscreen \(window?.styleMask.contains(.fullScreen) == true)")
+            } else if rest.first == "loupe" {
                 printLoupe(at: Array(rest.dropFirst()), model: model)
             } else if rest.first == "metadata" {
                 await DebugMetadataCommands.printSummary(model: model)

@@ -134,6 +134,11 @@ struct LibraryCommands: Commands {
             }
             .keyboardShortcut(.return, modifiers: .command)
             .disabled(!can { $0.itemCount > 0 })
+            Button(menu?.state.isReviewing == true ? String(localized: "Exit Review") : String(localized: "Enter Review")) {
+                model?.toggleReview()
+            }
+            .keyboardShortcut("f", modifiers: [])
+            .disabled(!canByKey { $0.hasFocusedItem })
             Divider()
             Button(menu?.state.loupeZoom.isZoomed == true ? String(localized: "Zoom to Fit")
                                                            : String(localized: "Zoom to 100%")) {

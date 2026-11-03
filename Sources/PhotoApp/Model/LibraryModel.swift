@@ -369,8 +369,13 @@ final class LibraryModel {
     /// The open ⌘K keyword field, with the photos it will tag.
     var keywordEntry: KeywordEntryRequest?
     var showsInspector: Bool {
-        didSet { UserDefaults.standard.set(showsInspector, forKey: Self.showsInspectorKey) }
+        // Review hides it for a while; the person's choice is what's kept.
+        didSet { if !review.isReviewing { UserDefaults.standard.set(showsInspector, forKey: Self.showsInspectorKey) } }
     }
+    /// The sidebar column (the split view's visibility).
+    var showsSidebar = true
+    /// Review mode (View ▸ Enter Review, F) and the layout it goes back to.
+    var review = ReviewSession()
     /// The inspector's tab, remembered separately for the grid and the loupe.
     var inspectorTab: InspectorTab {
         get { mode == .loupe ? loupeInspectorTab : gridInspectorTab }
@@ -882,6 +887,8 @@ final class LibraryModel {
     }
 
     func closeLoupe() {
+        // Leaving the loupe (Return, Space, ⌘↩) leaves review too.
+        exitReview()
         mode = .grid
         observer?.libraryFocusChanged()
     }

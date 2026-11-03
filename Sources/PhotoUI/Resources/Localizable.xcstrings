@@ -3228,6 +3228,17 @@
         }
       }
     },
+    "Enter Review" : {
+      "comment" : "View menu and toolbar: review mode (F)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter Review"
+          }
+        }
+      }
+    },
     "Erase" : {
       "comment" : "Brush button help",
       "localizations" : {
@@ -3268,6 +3279,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Example: %@"
+          }
+        }
+      }
+    },
+    "Exit Review" : {
+      "comment" : "View menu and toolbar: leave review mode (F, Esc)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exit Review"
           }
         }
       }

@@ -52,7 +52,8 @@ photos the library does not have yet, and a folder with nothing new makes none.
 | arrows | move selection (⇧ extends) | ← → previous / next photo |
 | Home, End, Page Up, Page Down | jump | first / last photo |
 | Return, Space, double-click | open the loupe | back to the grid |
-| Esc | | back to the grid |
+| Esc | | leaves review, else back to the grid |
+| F | review the focused photo | enter or leave review |
 | Z, click | | toggle fit / 100 % at the clicked point (⌥-scroll and pinch zoom too; drag pans) |
 | 0–5 | set rating | set rating |
 | [ and ] | lower / raise rating | lower / raise rating |
@@ -65,6 +66,12 @@ photos the library does not have yet, and a folder with nothing new makes none.
 | ⌘N, ⌥⌘N | new album, new smart album | |
 | ⌫ | remove from the album on screen | |
 | ⌘Z, ⇧⌘Z | undo, redo | undo, redo |
+
+**Review** (View ▸ Enter Review, F): the loupe on the focused photo with the
+sidebar and inspector hidden, full screen, and the toolbar shown only when
+the pointer reaches the top. Culling keys, arrows and Z keep working; ⌥⌘I
+brings the inspector back. F or Esc puts the window back as it was and stays
+in the loupe; Return or Space goes back to the grid.
 
 Changes are saved to the catalog immediately. In the grid they apply to every
 selected photo. **Photo ▸ Advance After Rating** moves on to the next photo after
