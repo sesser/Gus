@@ -1,7 +1,27 @@
 # UI redesign: window, navigation, menus and inspector
 
 Status: **proposed** (2026-11-02). The decisions below were approved.
-Nothing is implemented yet.
+
+Implementation status (branch `feature/ui-redesign`; rulings recorded in
+this file are separate commits):
+
+| Step | Commits |
+|---|---|
+| 1 SDK | eb4a66a |
+| 2 Accessibility | bd81b75, 023f36d |
+| 3 Menu bar | d7393ab |
+| 4 Context menus | d70d511, 2c9a243 |
+| 5 Toolbar | 23e37e6 |
+| 6 Loupe caption | e8872e1 |
+| 7 Sidebar | 2ec379e, 4ace1d4 |
+| 8 Inspector | 8e9ed18 |
+| 9 Color and appearance | e4ab3f0, 502b333 |
+| 10 Import fix (#19) | 2fef1a4 |
+| 11 Export sheet | 7561cab |
+| 12 Shared grid and token field | c6c5a70, 510ceb0 |
+| 13 Import window | 28eaf0b |
+| 14 Other sheets and panels | df742c5 |
+| 15 Review mode | 935fc18 |
 
 The library window grew one feature at a time, and it shows: the sidebar
 and the inspector are built from two different hand-made heading styles,

@@ -141,14 +141,19 @@ compatible and never put `#` comment lines inside pasted command snippets.
   Everything testable lives here.
 - `Sources/PhotoUI` — UI shared by both apps: `Import/` (the import window:
   toolbar, options inspector, the `NSCollectionView` grid of `ImportCell`s
-  with check boxes, its model, `ImportCommands` and debug-script commands), `Grid/` (`UniformGridLayout` and the
-  cell images: symbols, stars, type badges), `TemplateField` (the naming
-  template token field; `TemplateParts` in PhotoCore splits templates),
-  `Palette`, `LaunchOptions`, and the String Catalog
+  with check boxes, its model, `ImportCommands` and debug-script commands),
+  `Grid/` (`UniformGridLayout` and the cell images: symbols, stars, type
+  badges), `TemplateField` (the naming template token field; `TemplateParts`
+  and `TemplateToken` in PhotoCore split and read templates), `WindowModal`
+  (panels and alerts attached to the key window), `Palette` (dynamic colors
+  from `PaletteSpec` in PhotoCore), `LaunchOptions`, and the String Catalog
   (`Resources/Localizable.xcstrings`).
-- `Sources/PhotoApp` — SwiftUI app shell, AppKit grid (`NSCollectionView`) and
-  loupe (with the crop and mask overlays), inspector (Info and Adjust tabs,
-  the Masks heading), sidebar, smart album editor.
+- `Sources/PhotoApp` — SwiftUI app shell (one library window with a
+  customizable toolbar, `LibraryCommands` on focused values, review mode),
+  AppKit grid (`NSCollectionView`) and loupe (with the crop and mask
+  overlays), inspector (Info and Adjust tabs, the Masks heading), sidebar,
+  smart album editor, and the sheets on the library window: Export, the
+  look-up table browser (Import and Manage as pages), the preset manager.
 - `Sources/PhotoImporter` — the standalone importer: the same import window
   with no library (copies only; presets and options in its own preferences).
 - `Sources/PhotoCore/Commands` — the command registry (`CommandRegistry`: one
@@ -350,6 +355,14 @@ exposure, tone, white balance, presence and sharpening). Masks live in one
 for stacks that hold one), in the mask frame (the oriented decode before
 crop), read strictly and never written over when unreadable. Presets and
 paste leave them out. See `docs/PHASE6_PLAN.md`.
+
+UI redesign (`docs/UI_REDESIGN.md`, steps 1–15): built with the macOS 26
+SDK, VoiceOver for the grids and loupe, a menu bar on focused values,
+context menus, a customizable toolbar in place of the bottom bars, the loupe
+caption, system sidebar and inspector, a dynamic palette with Increase
+Contrast variants and dark only in the library window, Export, look-up
+tables and presets as sheets, the Import window on a toolbar, an options
+inspector and the shared grid, token template fields, and review mode (F).
 
 Not yet: AI masks, healing, lens corrections, DNG export, ML
 denoising, `.dcp` profiles, general (hand-made or burst) stacks, hierarchical
