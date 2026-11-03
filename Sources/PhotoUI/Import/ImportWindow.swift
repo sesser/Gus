@@ -248,7 +248,7 @@ private struct ImportOptionsForm: View {
             Section(model.copiesOnly ? String(localized: "Job") : String(localized: "Project")) {
                 if let library = model.library {
                     Picker("Add to", selection: $model.existingProjectID) {
-                        Text("A New Project").tag(Int64?.none)
+                        Text("New Project").tag(Int64?.none)
                         ForEach(library.projects) { summary in
                             Text(summary.project.name).tag(Int64?.some(summary.id))
                         }

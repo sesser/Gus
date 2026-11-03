@@ -133,7 +133,7 @@ private struct EmptyLibraryView: View {
             } description: {
                 Text("Import copies photos from a card or folder into the folder you choose. Add Folder Without Copying uses photos where they are; \(AppBranding.displayName) only references them.",
                      comment: "Empty library: copying versus using photos in place")
-                Text("You can also drag folders here.", comment: "Empty library hint")
+                Text("Drag folders here to add them without copying.", comment: "Empty library hint")
             } actions: {
                 Button(model.mountedCardName.map { String(localized: "Import from \($0)…", comment: "Empty library: a card is mounted") }
                        ?? String(localized: "Import from Card or Folder…")) {

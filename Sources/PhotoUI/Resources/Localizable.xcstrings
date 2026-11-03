@@ -777,17 +777,6 @@
         }
       }
     },
-    "A New Project" : {
-      "comment" : "Import options: Add to pop-up",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "A New Project"
-          }
-        }
-      }
-    },
     "A filter hides some of this source's photos" : {
       "comment" : "Loupe caption: the Filtered badge tooltip",
       "localizations" : {
@@ -1830,6 +1819,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Camera Serial Number"
+          }
+        }
+      }
+    },
+    "Can't Open the Library" : {
+      "comment" : "Catalog failure view title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can't Open the Library"
           }
         }
       }
@@ -3103,6 +3103,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Done Picking"
+          }
+        }
+      }
+    },
+    "Drag folders here to add them without copying." : {
+      "comment" : "Empty library hint",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag folders here to add them without copying."
           }
         }
       }
@@ -5710,6 +5721,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "New Preset…"
+          }
+        }
+      }
+    },
+    "New Project" : {
+      "comment" : "Import options: Add to pop-up",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Project"
           }
         }
       }
@@ -8439,17 +8461,6 @@
         }
       }
     },
-    "The Library Could Not Be Opened" : {
-      "comment" : "Catalog failure view title",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The Library Could Not Be Opened"
-          }
-        }
-      }
-    },
     "The color space the tables were made for. Most creative tables expect sRGB." : {
       "comment" : "Look-up table import sheet: tooltip",
       "localizations" : {
@@ -9187,17 +9198,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Yellows"
-          }
-        }
-      }
-    },
-    "You can also drag folders here." : {
-      "comment" : "Empty library hint",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "You can also drag folders here."
           }
         }
       }

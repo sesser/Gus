@@ -99,7 +99,7 @@ private struct LibraryErrorView: View {
 
     var body: some View {
         ContentUnavailableView {
-            Label("The Library Could Not Be Opened", systemImage: "exclamationmark.triangle")
+            Label("Can't Open the Library", systemImage: "exclamationmark.triangle")
         } description: {
             Text(message)
                 .textSelection(.enabled)
