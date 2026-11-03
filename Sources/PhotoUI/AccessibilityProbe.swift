@@ -16,8 +16,10 @@ public enum AccessibilityProbe {
         var found: [any NSAccessibilityProtocol] = []
         var seen = Set<ObjectIdentifier>()
         func add(_ element: any NSAccessibilityProtocol) {
-            guard role == nil || element.accessibilityRole()?.rawValue == role,
-                  seen.insert(ObjectIdentifier(element)).inserted else { return }
+            // No `role == nil || …`: Xcode 26's compiler sees the autoclosure
+            // as sending `element` across isolation in release builds.
+            if let role, element.accessibilityRole()?.rawValue != role { return }
+            guard seen.insert(ObjectIdentifier(element)).inserted else { return }
             found.append(element)
         }
         func visit(_ element: any NSAccessibilityProtocol, depth: Int) {
