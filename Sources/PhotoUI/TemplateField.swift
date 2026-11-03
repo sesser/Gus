@@ -40,30 +40,32 @@ public struct TemplateField: View {
         self.example = example
     }
 
+    /// Three lines (form conventions, "Templates"): the label with Insert at
+    /// the trailing end, the field at the column's full width, the example.
     public var body: some View {
-        LabeledContent(title) {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(alignment: .top, spacing: 6) {
-                    TemplateTokenFieldView(title: title, text: $text, sample: sample, controller: controller)
-                        .frame(maxWidth: .infinity)
-                    Menu(String(localized: "Insert", comment: "Template field: pull-down menu of tokens")) {
-                        ForEach(TemplateTokenNames.groups(tokens), id: \.title) { group in
-                            Section(group.title) {
-                                ForEach(group.tokens, id: \.self) { syntax in
-                                    Button(menuTitle(syntax)) {
-                                        controller.insert(syntax, separator: folders ? "/" : nil)
-                                    }
-                                    .help(TemplateTokenNames.help(syntax) ?? "")
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Text(title)
+                Spacer(minLength: 8)
+                Menu(String(localized: "Insert", comment: "Template field: pull-down menu of tokens")) {
+                    ForEach(TemplateTokenNames.groups(tokens), id: \.title) { group in
+                        Section(group.title) {
+                            ForEach(group.tokens, id: \.self) { syntax in
+                                Button(menuTitle(syntax)) {
+                                    controller.insert(syntax, separator: folders ? "/" : nil)
                                 }
+                                .help(TemplateTokenNames.help(syntax) ?? "")
                             }
                         }
                     }
-                    .fixedSize()
-                    .help(String(localized: "Insert a token", comment: "Template field help"))
                 }
-                if let example {
-                    TemplateExample(text: example)
-                }
+                .fixedSize()
+                .help(String(localized: "Insert a token", comment: "Template field help"))
+            }
+            TemplateTokenFieldView(title: title, text: $text, sample: sample, controller: controller)
+                .frame(maxWidth: .infinity)
+            if let example {
+                TemplateExample(text: example)
             }
         }
     }
