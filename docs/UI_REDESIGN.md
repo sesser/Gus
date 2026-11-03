@@ -267,7 +267,9 @@ confirmation dialogs.
   (several: "Add 3 Folders"), Import Look-Up Tables, Import Presets, Export
   to "‹folder›", Export Presets, Save Adjustments as Preset, Look-Up Table
   "‹name›" (missing; a warning), Save Changes, Load Library. The message
-  is the detail. A running export shows "12 of 24"; its finished message
+  is the detail. A running export shows "12 of 24" (in-place imports "12 of
+  412", or "Folder 1 of 3 · 12 of 412" for several folders: no plural on
+  the second number, which the strings cannot inflect); its finished message
   is a sentence ("Exported 24 photos." / "Exported 22 of 24 photos. 2
   could not be written." / "24 photos could not be written."; the last two
   are warnings). Skipped photos are reported in
@@ -427,6 +429,13 @@ by `ToolbarSpacer(.fixed)` on 26.
 
 Search is a custom item rather than `.searchable` because it has to be
 absent in the loupe. (F10, F1, F5)
+
+Custom toolbar items (the thumbnail-size slider, Activity, the Import
+window's copy and scan status) get an 8 pt inset on both sides inside their
+capsule (`ToolbarMetrics.capsuleInset`); standard Button and Label items
+keep the system's padding and get none. Status text never truncates its
+counts or quotation marks: only the name truncates, in the middle, so the
+whole line fits in 260 pt (`Export to “Ex…ts”`, counts after it).
 
 ## 6. Menu bar
 
@@ -614,7 +623,7 @@ Toolbar (fixed, not customizable; three groups):
 | Source pop-up: mounted cards (`sdcard`), chosen folders (`folder`), a divider, Choose Folder… ⌘O | `.navigation` | replaces "From", the pop-up and the Choose Folder… button |
 | Rescan (`arrow.clockwise`) ⌘R | `.navigation` | |
 | Title and subtitle | system | title "Import" in the library app, the importer's name in the importer; subtitle "6 of 412 selected · Sony ILCE-7M3, shutter count 4,374" (F29) |
-| Activity | `.status` | while scanning, a spinner and "Reading ‹source›…"; while copying, a 160 pt progress bar and "12 of 412 files · 1.2 of 18 GB", the current file name as its tooltip |
+| Activity | `.status` | while scanning, a spinner and "Reading ‹source›…"; while copying, a 160 pt progress bar and "File 12 of 412 · 1.2 of 18 GB", the current file name as its tooltip |
 | Selection pull-down (`checklist`) | trailing | Select All ⌘A · Deselect All ⇧⌘A · Show Videos (checkmark) · Show Photos Already in Library (library app only); replaces All / None, the Videos section and the duplicates strip |
 | Show / Hide Options (`sidebar.trailing`) ⌥⌘I | trailing | toggles the options inspector |
 | **Import N Photos** (`.borderedProminent`, Return); **Stop** (⌘.) while copying | `.primaryAction`, far trailing | the window's one prominent action (HIG: Toolbars) |
@@ -664,6 +673,7 @@ scrolling once the Videos section and the footer are gone.
 | Copying | toolbar activity; Import becomes Stop. Closing the window does not stop the copy: it keeps running in the background, and the library window's Activity item shows it as Import from "‹source›" with progress, Stop and its result (user's answer, final review Q1) |
 | Done | subtitle "Imported 412 files"; the delete confirmation (existing) as a window-modal alert |
 | Cancelled, failures, eject failure | a window-modal alert with the existing message text |
+| Quitting while copying | standalone importer (closing the window or ⌘Q): a window-modal alert (`WindowModal`) "Stop Importing from “‹source›”?", "Files copied and checked so far: N of M. The rest stay on “‹source›”.", buttons Keep Importing (default, Return and Esc) and Stop and Quit (not destructive). Library app, ⌘Q while any import or export runs: "Quit While Importing?" / "Quit While Exporting?", "The rest is not copied." / "The rest is not exported.", Keep Importing / Keep Exporting and Stop and Quit; closing its Import window keeps copying. After Stop and Quit nothing more is said, and a partial copy never deletes from the card |
 
 Commands: a shared `ImportCommands` in PhotoUI, used by both apps and enabled
 while an Import window is key (`focusedSceneValue`); see section 6.
@@ -711,10 +721,18 @@ check whether it lets people resize the sheet vertically.
 
 The look-up table browser (760 × 560): a header row with the Collection
 pop-up, Import… and Manage…; the tiles as today; buttons Remove from Photo
-(leading), Cancel, Apply. Import and Manage become pages inside the sheet
-(each page's header has a Back button, leading, `chevron.backward`, ⌘[;
-Cancel stays on every page), not sheets on the sheet. Without a photo in
-the loupe it shows a note and Apply is disabled.
+(leading), Cancel, Apply. Import and Manage become pages inside the sheet,
+not sheets on the sheet. Without a photo in the loupe it shows a note and
+Apply is disabled. The pages (this supersedes "Cancel stays on every
+page"):
+
+| Page | Header | Bottom row |
+|---|---|---|
+| Tables | Collection pop-up · Import… · Manage… | Remove from Photo (leading) · Cancel · Apply |
+| Import tables | Back (`chevron.backward`, ⌘[, Esc), page title | Import (default, Return) |
+| Manage | Back (`chevron.backward`, ⌘[, Esc), page title | none (edits apply as they happen; no Done) |
+
+The sheet closes only from the Tables page.
 
 The preset manager (560 × 480): the list by collection; Import… and Export
 All… on the leading side, Done on the trailing side (edits apply at once).
