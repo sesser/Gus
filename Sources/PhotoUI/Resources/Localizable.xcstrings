@@ -4319,29 +4319,6 @@
         }
       }
     },
-    "Import %lld Tables" : {
-      "comment" : "Look-up table import sheet button",
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Import %lld Table"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Import %lld Tables"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "Import Counter" : {
       "comment" : "Template token",
       "localizations" : {

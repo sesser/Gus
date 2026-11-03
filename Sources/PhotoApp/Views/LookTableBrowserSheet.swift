@@ -110,10 +110,17 @@ private struct PageHeader: View {
 
     var body: some View {
         HStack(spacing: 8) {
+            // Esc goes back too: the sheet closes only from the tables.
             Button(action: back) {
                 Label("Back", systemImage: "chevron.backward")
             }
-            .keyboardShortcut("[", modifiers: .command)
+            .keyboardShortcut(.cancelAction)
+            .background {
+                Button("Back", action: back)
+                    .keyboardShortcut("[", modifiers: .command)
+                    .hidden()
+                    .accessibilityHidden(true)
+            }
             Text(title)
                 .font(.headline)
             Spacer()
@@ -224,8 +231,6 @@ private struct LookTableTile: View {
 /// Confirms an import: where the tables go, their names and color space.
 struct LookTableImportPage: View {
     let library: LookTableLibraryModel
-    /// Cancel closes the sheet from every page; Back returns to the tables.
-    @Environment(\.dismiss) private var dismiss
     @State var draft: LookTableLibraryModel.ImportDraft
     @State private var isImporting = false
 
@@ -290,9 +295,7 @@ struct LookTableImportPage: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
-                Button("Cancel", role: .cancel) { dismiss() }
-                    .keyboardShortcut(.cancelAction)
-                Button(String(localized: "Import \(draft.importable) Tables")) {
+                Button("Import") {
                     isImporting = true
                     Task {
                         await library.runImport(draft)
@@ -313,7 +316,6 @@ struct LookTableImportPage: View {
 /// Renames and removes imported collections and their tables.
 struct LookTableManagePage: View {
     let library: LookTableLibraryModel
-    @Environment(\.dismiss) private var dismiss
     @State private var pendingRemoval: LookTableCollection?
 
     var body: some View {
@@ -341,11 +343,6 @@ struct LookTableManagePage: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
-                Button("Import…") { library.chooseImportSource() }
-                Button("Cancel", role: .cancel) { dismiss() }
-                    .keyboardShortcut(.cancelAction)
-                Button("Done") { library.page = nil }
-                    .keyboardShortcut(.defaultAction)
             }
         }
         .padding(20)
