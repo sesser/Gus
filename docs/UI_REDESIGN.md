@@ -433,7 +433,9 @@ absent in the loupe. (F10, F1, F5)
 Custom toolbar items (the thumbnail-size slider, Activity, the Import
 window's copy and scan status) get an 8 pt inset on both sides inside their
 capsule (`ToolbarMetrics.capsuleInset`); standard Button and Label items
-keep the system's padding and get none. Status text never truncates its
+keep the system's padding and get none. The library's Import split button
+(a menu with a primary action) takes the inset too: the system draws its
+segments flush against the capsule. Status text never truncates its
 counts or quotation marks: only the name truncates, in the middle, so the
 whole line fits in 260 pt (`Export to “Ex…ts”`, counts after it).
 

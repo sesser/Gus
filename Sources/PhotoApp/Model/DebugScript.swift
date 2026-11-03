@@ -679,10 +679,13 @@ enum DebugScript {
     }
 
     private static func printButtons(in view: NSView, window: NSWindow) {
-        if let button = view as? NSButton, !view.isHiddenOrHasHiddenAncestor {
+        if let button = view as? NSControl, button is NSButton || button is NSSegmentedControl,
+           !view.isHiddenOrHasHiddenAncestor {
             let frame = button.convert(button.bounds, to: nil)
-            let name = button.title.isEmpty ? (button.toolTip ?? "") : button.title
-            print("debug-script: button '\(name)' at \(Int(frame.midX)),\(Int(window.frame.height - frame.midY))")
+            let title = (button as? NSButton)?.title ?? ""
+            let name = title.isEmpty ? (button.toolTip ?? "") : title
+            print("debug-script: button '\(name)' at \(Int(frame.midX)),\(Int(window.frame.height - frame.midY))"
+                  + " width \(Int(frame.width)) \(type(of: button))")
         }
         for subview in view.subviews { printButtons(in: subview, window: window) }
     }

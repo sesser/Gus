@@ -63,12 +63,6 @@ public enum AdjustmentEdit: Hashable, Sendable {
                 return .failure(InvalidValue("\(number) is outside \(range.lowerBound) … \(range.upperBound)"))
             }
             return .success(.number(Double(number)))
-        case .integer(let range):
-            guard let number = Int(text) else { return .failure(InvalidValue("not a whole number: \(text)")) }
-            guard range.contains(number) else {
-                return .failure(InvalidValue("\(number) is outside \(range.lowerBound) … \(range.upperBound)"))
-            }
-            return .success(.number(Double(number)))
         case .number(let range):
             guard let number = Double(text), number.isFinite else {
                 return .failure(InvalidValue("not a number: \(text)"))
