@@ -356,28 +356,6 @@
         }
       }
     },
-    "%lld of %lld files · %@ of %@" : {
-      "comment" : "Import progress: files and bytes copied",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld of %lld files · %@ of %@"
-          }
-        }
-      }
-    },
-    "%lld of %lld photos" : {
-      "comment" : "Activity: an in-place import's progress",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$lld of %2$lld photos"
-          }
-        }
-      }
-    },
     "%lld of %lld selected" : {
       "comment" : "Import window selection count",
       "localizations" : {
@@ -3683,6 +3661,17 @@
         }
       }
     },
+    "File %lld of %lld · %@ of %@" : {
+      "comment" : "Import window and Activity: files copied, then bytes",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "File %1$lld of %2$lld · %3$@ of %4$@"
+          }
+        }
+      }
+    },
     "File Name" : {
       "comment" : "Smart album rule field",
       "localizations" : {
@@ -3946,13 +3935,13 @@
         }
       }
     },
-    "Folder %lld of %lld · %@" : {
-      "comment" : "Activity: a batch of folders",
+    "Folder %lld of %lld · %lld of %lld" : {
+      "comment" : "Activity: a batch of folders, then photos imported of found",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Folder %1$lld of %2$lld · %3$@"
+            "value" : "Folder %1$lld of %2$lld · %3$lld of %4$lld"
           }
         }
       }

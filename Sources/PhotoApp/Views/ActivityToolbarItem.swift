@@ -63,21 +63,23 @@ struct ActivityToolbarItem: View {
         _ = model.activityTick
         var jobs: [ActivityJob] = []
         if let progress = model.importProgress {
-            // Add Folder “Trip” or Add 3 Folders; "Folder 1 of 3 · 12 of 412 photos".
+            // Add Folder “Trip” or Add 3 Folders; "Folder 1 of 3 · 12 of 412", no
+            // plural on a second number (the strings cannot inflect it).
             let batch = model.importBatch
             let title = batch.map { ActivityTitle.addFolders($0.count, name: $0.name) } ?? ActivityTitle.addFolder(nil)
             let toolbarTitle = batch.flatMap { $0.count == 1 ? $0.name : nil }.map { name in
                 ToolbarMetrics.statusLine(name: name) { ActivityTitle.addFolder($0) }
             }
-            let counts = switch progress.phase {
+            let several = batch.flatMap { $0.count > 1 ? $0 : nil }
+            let detail = switch progress.phase {
             case .scanning: String(localized: "Looking for photos…")
             case .importing, .finished:
-                String(localized: "\(progress.filesProcessed) of \(progress.filesFound) photos",
-                       comment: "Activity: an in-place import's progress")
+                several.map {
+                    String(localized: "Folder \($0.index) of \($0.count) · \(progress.filesProcessed) of \(progress.filesFound)",
+                           comment: "Activity: a batch of folders, then photos imported of found")
+                } ?? String(localized: "\(progress.filesProcessed) of \(progress.filesFound)",
+                            comment: "Activity: photos imported of found")
             }
-            let detail = batch.flatMap { $0.count > 1 ? $0 : nil }.map {
-                String(localized: "Folder \($0.index) of \($0.count) · \(counts)", comment: "Activity: a batch of folders")
-            } ?? counts
             jobs.append(ActivityJob(id: "import", title: title, toolbarTitle: toolbarTitle, detail: detail,
                                     progress: progress.phase == .scanning ? nil
                                         : Double(progress.filesProcessed) / Double(max(progress.filesFound, 1)),

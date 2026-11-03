@@ -469,14 +469,15 @@ public final class CardImportModel {
         String(localized: "Import from “\(name)”", comment: "Activity row title: a copying import")
     }
 
-    /// While copying: "12 of 412 files · 1.2 of 18 GB", for the import
+    /// While copying: "File 12 of 412 · 1.2 of 18 GB", for the import
     /// window's toolbar and the library's Activity item (the copy goes on
     /// when the window closes).
     public var progressDetail: String? {
         guard let progress else { return nil }
         let done = ByteCountFormatter.string(fromByteCount: progress.bytesDone, countStyle: .file)
         let total = ByteCountFormatter.string(fromByteCount: progress.bytesTotal, countStyle: .file)
-        return String(localized: "\(progress.filesDone) of \(progress.filesTotal) files · \(done) of \(total)")
+        return String(localized: "File \(progress.filesDone) of \(progress.filesTotal) · \(done) of \(total)",
+                      comment: "Import window and Activity: files copied, then bytes")
     }
 
     /// A window-modal alert in the import window, and the Activity row.

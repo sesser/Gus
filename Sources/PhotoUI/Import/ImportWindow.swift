@@ -149,7 +149,7 @@ private struct SourceMenu: View {
 }
 
 /// While scanning, a spinner and "Reading ‹source›…"; while copying, a
-/// 160 pt bar and "12 of 412 files · 1.2 of 18 GB" with the current file as
+/// 160 pt bar and "File 12 of 412 · 1.2 of 18 GB" with the current file as
 /// its tooltip.
 private struct ImportActivity: View {
     let model: CardImportModel
