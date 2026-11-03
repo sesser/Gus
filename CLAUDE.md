@@ -145,7 +145,10 @@ compatible and never put `#` comment lines inside pasted command snippets.
   `Grid/` (`UniformGridLayout` and the cell images: symbols, stars, type
   badges), `TemplateField` (the naming template token field; `TemplateParts`
   and `TemplateToken` in PhotoCore split and read templates), `WindowModal`
-  (panels and alerts attached to the key window), `Palette` (dynamic colors
+  (panels and alerts attached to the key window), `QuitGuard` (asks before
+  a quit stops an import or export; the rule is `QuitConfirmation` in
+  PhotoCore), `ToolbarMetrics` (custom toolbar items' inset and status
+  lines), `Palette` (dynamic colors
   from `PaletteSpec` in PhotoCore), `LaunchOptions`, and the String Catalog
   (`Resources/Localizable.xcstrings`).
 - `Sources/PhotoApp` — SwiftUI app shell (one library window with a
