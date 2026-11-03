@@ -47,7 +47,8 @@ Import and Export).
    beside the neutral surround, at least 24 pt from the photo's edge.
    Review mode hides both panes.
 3. **Existing shortcuts keep their meaning;** new ones are allowed. The
-   culling keys are shown in menus, switched off while text is being edited.
+   culling keys are shown in menus and act only while the grid, loupe or
+   video loupe has the keyboard (section 6).
 4. **The right-hand pane is an inspector,** not a second sidebar: visually
    distinct, built from the same parts. Info and Adjust stay two tabs.
 5. **Sliders stay in the loupe.** Presets, paste adjustments, Auto, Reset
@@ -112,7 +113,7 @@ Import and Export).
     | `{name}` / `{number}` | Original Name / Original Number | yes |
     | `{seq:4}` / `{counter:5}` (Import) | Sequence Number / Import Counter | yes |
     | `{ext}` / `{ext:lower}` / `{ext:upper}` | Extension / Lowercase Extension / Uppercase Extension | no (the extension is added automatically) |
-    | other date patterns | "Capture Date (yyyyMM)" style: source, "Date", the pattern; tooltip shows the value | no |
+    | other date patterns | "Capture Date (yyyyMM)" style: source, "Date", the pattern; the field's tooltip lists each such token with its value ("Capture Date (yyyyMM): 202610"), since `NSTokenField` has no per-token tooltip | no |
     | anything in braces the grammar doesn't know | plain text, as it renders | — |
 
 ## Audit (most severe first)
@@ -268,7 +269,8 @@ confirmation dialogs.
   "‹name›" (missing; a warning), Save Changes, Load Library. The message
   is the detail. A running export shows "12 of 24"; its finished message
   is a sentence ("Exported 24 photos." / "Exported 22 of 24 photos. 2
-  could not be written.", a warning). Skipped photos are reported in
+  could not be written." / "24 photos could not be written."; the last two
+  are warnings). Skipped photos are reported in
   plural strings, one sentence per reason: "N videos were left
   unchanged."; "N photos were left unchanged: their originals are
   offline."; "N photos were left unchanged: their edits can't be changed in
@@ -305,7 +307,10 @@ confirmation dialogs.
   if needed and hides the toolbar until hover
   (`.windowToolbarFullScreenVisibility(.onHover)`). Culling keys, arrows and
   `Z` keep working; ⌥⌘I brings the inspector back. Esc or `F` restores the
-  layout and stays in the loupe, so Esc still backs out one level.
+  layout and stays in the loupe, so Esc still backs out one level. Anything
+  that shows the grid (Return, Space, ⌘↩, the toolbar's Grid segment) ends
+  review and closes the loupe; leaving full screen by any system route ends
+  review and restores the panes.
 - Info / Adjust stay tabs, remembered per mode; View ▸ Info ⌥⌘1, Adjust ⌥⌘2.
 
 ## 3. Sidebar
@@ -511,7 +516,10 @@ and Rotate are dimmed for video.
 is key, in both apps): File ▸ Choose Folder… ⌘O (N) · Rescan ⌘R (N) ·
 Import Selected Photos (Return) · Stop Import ⌘. (N); Edit ▸ Select All ⌘A ·
 Deselect All ⇧⌘A (N); View ▸ Show Videos · Show Photos Already in Library ·
-Show / Hide Options ⌥⌘I. (F21)
+Show / Hide Options ⌥⌘I. In the library app this is the same View item as
+Show / Hide Inspector, titled and acting for whichever window is key
+(AppKit matches the first item with a key equivalent, even a disabled
+one, so one key has one item). (F21)
 
 ## 7. Context menus
 
@@ -572,7 +580,7 @@ default size")
 | Sections | `Section("Title")`; no section for a single control; no header that repeats its only row | hierarchy (F27, F30) |
 | Capitalization | row labels, check boxes and radio buttons sentence-style ("File names", "Show in Finder when done"), no trailing colon; section headers, buttons, segments, pop-up and menu items, titles title-style ("File Names", "Original Name") | HIG: Labels use sentence-style capitalization; Apple style for controls |
 | Text and number fields | `.textFieldStyle(.roundedBorder)`; numbers right-aligned in 72 pt with the unit after | fields must look editable (HIG: Text fields; F23, F24) |
-| Templates | a full-width `NSTokenField` (shared in PhotoUI, replacing `TemplateField`'s text field): each token is a pill with a readable name ("Capture Year", "File Name", "Job Code") and literal text between pills is plain; an **Insert** pull-down lists the tokens by name; copy and paste and the stored template keep the `{capture:yyyy}` syntax, so templates and presets don't change; the example directly under it in 11 pt secondary text, left-aligned, wrapping | readable by people who don't know the syntax, never red (decision 19, F23) |
+| Templates | three lines: the row label with the **Insert** pull-down at the trailing end; a full-width `NSTokenField` (shared in PhotoUI) whose tokens are pills with readable names ("Capture Year", "Original Name", "Job Code") and whose literal text is plain; the example under it in 11 pt secondary text, left-aligned, wrapping. Copy, paste and the stored template keep the `{capture:yyyy}` syntax, so templates and presets don't change | readable by people who don't know the syntax, never red; the field gets the column's full width (decision 19, F23) |
 | On / off options | `Toggle` with `.toggleStyle(.checkbox)`; no switches | HIG: Toggles (F27) |
 | Choices | segmented only when the choice changes the rows below (Name, Format); pop-up otherwise; a radio group for up to five long labels (Metadata) | HIG: Toggles, Pop-up buttons |
 | Sliders | continuous (no `step:`; round in the binding), value text 44 pt, monospaced digits | no tick-mark noise (HIG: Sliders; F24) |
@@ -640,7 +648,7 @@ scrolling once the Videos section and the footer are gone.
 | Section | Rows |
 |---|---|
 | Destination | Folder: path (truncated at the head, full path as tooltip) and Choose Folder… · Subfolders: template · File names: template, with one example under it for both fields ("Example: 2026/2026-10-30/DSC00328.ARW", the whole relative path) |
-| Project (library app) / Job (importer) | Add To pop-up (library app) · Project Name template (for a new project) · Job Code, bezeled, with the recent-codes `clock` menu |
+| Project (library app) / Job (importer) | Add to pop-up (library app; first item "New Project") · Project name template (for a new project) · Job code, bezeled, with the recent-codes `clock` menu |
 | Metadata | Metadata Preset pop-up: None · presets · New Preset… · Edit "‹name›"…; a caption when one is chosen |
 | After Import | ☐ Delete originals from "‹card›" · ☐ Eject "‹card›" (disabled for folders); caption: "Originals are deleted only after every copy is verified, and you're asked first." |
 
@@ -702,7 +710,8 @@ check whether it lets people resize the sheet vertically.
 The look-up table browser (760 × 560): a header row with the Collection
 pop-up, Import… and Manage…; the tiles as today; buttons Remove from Photo
 (leading), Cancel, Apply. Import and Manage become pages inside the sheet
-(a `NavigationStack` with Back), not sheets on the sheet. Without a photo in
+(each page's header has a Back button, leading, `chevron.backward`, ⌘[;
+Cancel stays on every page), not sheets on the sheet. Without a photo in
 the loupe it shows a note and Apply is disabled.
 
 The preset manager (560 × 480): the list by collection; Import… and Export
@@ -735,7 +744,10 @@ and its prominent Import button pick up Liquid Glass; nothing else differs.
 All `ContentUnavailableView`. Empty library: "No Photos Yet", a sentence on
 copying vs. using photos in place, a primary Import from Card or Folder…
 (or "Import from ‹card name›…" when a card is mounted), a secondary Add
-Folder Without Copying…, and a hint that folders can be dropped. Also: "No
+Folder Without Copying…, and the hint "Drag folders here to add them
+without copying." The catalog-failure view is titled "Can't Open the
+Library". Empty-state titles are title-style phrases; sentences go in the
+description. Also: "No
 Photos Match" with Clear Filter; "No Selection" in the inspector; the Import
 window's states (section 8); the catalog-failure view with selectable
 text. (F11, F16, F28)
