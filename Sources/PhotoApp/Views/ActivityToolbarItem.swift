@@ -39,13 +39,14 @@ struct ActivityToolbarItem: View {
                     } else {
                         ProgressView().controlSize(.small)
                     }
-                    Text(job.title).lineLimit(1).monospacedDigit()
+                    Text(job.title).monospacedDigit().toolbarStatusText()
                 } else if model.activity.unseenCount > 0 {
                     // Idle with unread messages: which kind, the popover says the rest.
                     Image(systemName: model.activity.unseenHasWarning ? "exclamationmark.triangle" : "info.circle")
                         .accessibilityLabel(model.activity.messages.last?.text ?? "")
                 }
             }
+            .toolbarCapsuleInset()
         }
         .buttonStyle(.borderless)
         .help(jobs.isEmpty ? (model.activity.messages.last?.text ?? String(localized: "Activity")) : String(localized: "Activity"))

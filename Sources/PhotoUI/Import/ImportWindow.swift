@@ -162,13 +162,16 @@ private struct ImportActivity: View {
                 Text(model.progressDetail ?? "")
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
+                    .toolbarStatusText()
             }
+            .toolbarCapsuleInset()
             .help(progress.currentName)
         } else if model.isScanning, let source = model.source {
             HStack(spacing: 6) {
                 ProgressView().controlSize(.small)
-                Text("Reading \(source.name)…").foregroundStyle(.secondary)
+                Text("Reading \(source.name)…").foregroundStyle(.secondary).toolbarStatusText()
             }
+            .toolbarCapsuleInset()
         }
     }
 }

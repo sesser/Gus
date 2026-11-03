@@ -177,6 +177,7 @@ private struct SizeControl: View {
                 Image(systemName: "photo").imageScale(.large)
             }
             .frame(width: 140)
+            .toolbarCapsuleInset()
             .help("Thumbnail size")
         } else {
             Picker("Zoom", selection: Binding<Zoom?>(
