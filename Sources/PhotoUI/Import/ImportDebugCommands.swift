@@ -7,7 +7,8 @@ import PhotoCore
 ///     import source <path> | dest <path> | job <text> | delete on|off | eject on|off
 ///            | videos on|off (waits) | rescan (waits) | toggle <index of a shown shot>
 ///            | accessibility <role>|any [<n> press|<action name>] (see AccessibilityProbe)
-///            | run (waits) | start (does not wait) | close (the window) | confirm yes|no | snapshot <file> | print
+///            | run (waits) | start (does not wait) | close (the window) | terminate (as ⌘Q)
+///            | alert [<button title>] (prints the window's alert, or presses a button) | confirm yes|no | snapshot <file> | print
 ///            | template folder|file|project <text> | tokens … (see TemplateFieldProbe)
 ///            | grid (each cell: name, checked, focus) | key left|right|up|down|space|return (to the grid)
 ///            | contextmenu <index> [<item title>] | options on|off | duplicates on|off | gridshot <png> (the grid alone)
@@ -62,7 +63,29 @@ public enum ImportDebugCommands {
             try? await Task.sleep(for: .milliseconds(300))
         case "close":
             window?.performClose(nil)
-            try? await Task.sleep(for: .milliseconds(300))
+            try? await Task.sleep(for: .milliseconds(600))
+        case "terminate":
+            // As ⌘Q, asking first when a job runs (QuitGuard). Later: terminate
+            // waits in a run loop of its own for the answer, and the script
+            // has to go on to give it.
+            DispatchQueue.main.async { NSApp.terminate(nil) }
+            try? await Task.sleep(for: .milliseconds(600))
+        case "alert":
+            // The alert on the window: title, message and buttons; or press one.
+            // On this window, or (a quit alert in the library app) on another.
+            guard let sheet = window?.attachedSheet ?? NSApp.windows.lazy.compactMap(\.attachedSheet).first,
+                  let alertView = sheet.contentView else {
+                print("debug-script: import alert: none")
+                return true
+            }
+            let buttons = buttons(in: alertView)
+            if argument.isEmpty {
+                let texts = textFields(in: alertView).map(\.stringValue).filter { !$0.isEmpty }
+                print("debug-script: import alert \(texts.joined(separator: " | ")) buttons [\(buttons.map { "\($0.title) key \($0.keyEquivalent.debugDescription)" }.joined(separator: ", "))]")
+            } else if let button = buttons.first(where: { $0.title == argument }) {
+                button.performClick(nil)
+                try? await Task.sleep(for: .milliseconds(600))
+            }
         case "confirm":
             model.confirmDeletion(argument == "yes")
             try? await Task.sleep(for: .seconds(1))
@@ -118,6 +141,14 @@ public enum ImportDebugCommands {
             return false
         }
         return true
+    }
+
+    private static func buttons(in view: NSView) -> [NSButton] {
+        (view as? NSButton).map { [$0] } ?? view.subviews.flatMap(buttons(in:))
+    }
+
+    private static func textFields(in view: NSView) -> [NSTextField] {
+        (view as? NSTextField).map { [$0] } ?? view.subviews.flatMap(textFields(in:))
     }
 
     private static func waitForScan(_ model: CardImportModel) async {

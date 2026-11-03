@@ -436,6 +436,7 @@ enum DebugScript {
             for window in NSApp.windows {
                 if let sheet = window.attachedSheet { window.endSheet(sheet) }
             }
+            QuitGuard.allowsQuit = true
             NSApp.terminate(nil)
         default:
             print("debug-script: unknown command \(verb)")

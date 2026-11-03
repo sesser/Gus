@@ -3716,6 +3716,17 @@
         }
       }
     },
+    "Files copied and checked so far: %lld of %lld. The rest stay on “%@”." : {
+      "comment" : "Quit alert in the standalone importer",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Files copied and checked so far: %1$lld of %2$lld. The rest stay on “%3$@”."
+          }
+        }
+      }
+    },
     "Files that could not be read: %@" : {
       "comment" : "Preset import summary; the argument lists file names and reasons",
       "localizations" : {
@@ -4877,6 +4888,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Keep Both writes the new files under numbered names."
+          }
+        }
+      }
+    },
+    "Keep Exporting" : {
+      "comment" : "Quit alert button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep Exporting"
+          }
+        }
+      }
+    },
+    "Keep Importing" : {
+      "comment" : "Quit alert button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep Importing"
           }
         }
       }
@@ -6708,6 +6741,28 @@
         }
       }
     },
+    "Quit While Exporting?" : {
+      "comment" : "Quit alert in the library app",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quit While Exporting?"
+          }
+        }
+      }
+    },
+    "Quit While Importing?" : {
+      "comment" : "Quit alert in the library app",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quit While Importing?"
+          }
+        }
+      }
+    },
     "RAW" : {
       "comment" : "Grid badge: camera raw file",
       "localizations" : {
@@ -8164,6 +8219,28 @@
         }
       }
     },
+    "Stop Importing from “%@”?" : {
+      "comment" : "Quit alert in the standalone importer",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop Importing from “%@”?"
+          }
+        }
+      }
+    },
+    "Stop and Quit" : {
+      "comment" : "Quit alert button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop and Quit"
+          }
+        }
+      }
+    },
     "Straighten" : {
       "comment" : "Adjust tab slider",
       "localizations" : {
@@ -8468,6 +8545,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The photos stay in the library."
+          }
+        }
+      }
+    },
+    "The rest is not copied." : {
+      "comment" : "Quit alert in the library app",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The rest is not copied."
+          }
+        }
+      }
+    },
+    "The rest is not exported." : {
+      "comment" : "Quit alert in the library app",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The rest is not exported."
           }
         }
       }

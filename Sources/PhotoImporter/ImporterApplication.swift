@@ -16,6 +16,7 @@ struct ImporterApplication: App {
         Window(AppBranding.importerDisplayName, id: "import") {
             ImportWindow(model: model)
                 .onAppear {
+                    ImporterDelegate.model = model
                     model.followCards()
                     ImporterDebugScript.startIfRequested(model: model)
                 }
@@ -35,6 +36,21 @@ struct ImporterApplication: App {
 }
 
 final class ImporterDelegate: NSObject, NSApplicationDelegate {
+    @MainActor static weak var model: CardImportModel?
+
+    /// ⌘Q while a copy runs asks first (closing the window asks too, in
+    /// `ImportWindow`).
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let model = Self.model, !QuitGuard.allowsQuit, model.isImporting else { return .terminateNow }
+        // Cancelled now and asked again after Stop and Quit: with
+        // .terminateLater the app waits in a run loop mode in which the
+        // alert's task never runs.
+        Task { @MainActor in
+            if await model.confirmQuit(.quit) { NSApp.terminate(nil) }
+        }
+        return .terminateCancel
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Needed when run as a bare executable (swift run) rather than an app bundle.
         NSApp.setActivationPolicy(.regular)
@@ -87,6 +103,7 @@ enum ImporterDebugScript {
                 print("debug-script: unknown import command")
             }
         case "quit":
+            QuitGuard.allowsQuit = true
             NSApp.terminate(nil)
         default:
             print("debug-script: unknown command \(verb)")

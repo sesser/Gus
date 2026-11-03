@@ -442,6 +442,21 @@ public final class CardImportModel {
         importTask?.cancel()
     }
 
+    /// The standalone importer asks before a quit or a window close stops
+    /// a copy; true when it may go ahead (Stop and Quit, or nothing running).
+    public func confirmQuit(_ trigger: QuitConfirmation.Trigger) async -> Bool {
+        guard !QuitGuard.allowsQuit,
+              let confirmation = QuitConfirmation.needed(app: copiesOnly ? .importer : .library, trigger: trigger,
+                                                         isCopying: isImporting)
+        else { return true }
+        let text = QuitGuard.text(for: confirmation, source: source?.name ?? "", copied: progress?.filesDone ?? 0,
+                                  total: progress?.filesTotal ?? 0)
+        guard await QuitGuard.ask(text, in: window) else { return false }
+        // Nothing more is said: the app quits before the copy reports.
+        cancelImport()
+        return true
+    }
+
     /// After the person answered the deletion question.
     public func confirmDeletion(_ delete: Bool) {
         guard let urls = pendingDeletion, let source, let result = lastResult else { return }

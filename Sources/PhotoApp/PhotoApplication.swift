@@ -92,6 +92,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         true
     }
+
+    /// ⌘Q while an import or an export runs asks first (section 8, "Quitting
+    /// while copying"); closing the Import window keeps copying.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let library = Self.library, !QuitGuard.allowsQuit,
+              let confirmation = QuitConfirmation.needed(app: .library, trigger: .quit,
+                                                         isCopying: library.cardImport.isImporting,
+                                                         isAddingFolders: library.isImporting,
+                                                         isExporting: library.export.isExporting)
+        else { return .terminateNow }
+        Task { @MainActor in
+            // The window ⌘Q came from; a visible one if none is key.
+            let window = NSApp.keyWindow ?? NSApp.mainWindow ?? NSApp.windows.first { $0.isVisible && $0.canBecomeMain }
+            let stop = await QuitGuard.ask(QuitGuard.text(for: confirmation), in: window)
+            guard stop else { return }
+            // Nothing more is said: the app quits before the jobs report.
+            library.cardImport.cancelImport()
+            library.cancelImport()
+            library.export.cancel()
+            NSApp.terminate(nil)
+        }
+        // Cancelled now and asked again after Stop and Quit: with
+        // .terminateLater the app waits in a run loop mode in which the
+        // alert's task never runs.
+        return .terminateCancel
+    }
 }
 
 private struct LibraryErrorView: View {

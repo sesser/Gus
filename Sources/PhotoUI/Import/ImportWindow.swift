@@ -7,6 +7,7 @@ import SwiftUI
 /// the standalone importer both show it, unchanged.
 public struct ImportWindow: View {
     @Bindable var model: CardImportModel
+    @State private var closeGuard: WindowCloseGuard?
 
     public init(model: CardImportModel) {
         self.model = model
@@ -23,7 +24,21 @@ public struct ImportWindow: View {
             .navigationTitle(model.copiesOnly ? AppBranding.importerDisplayName
                                               : String(localized: "Import", comment: "Import window title"))
             .navigationSubtitle(subtitle)
-            .background { ImportMenuPublisher(model: model) }
+            .background {
+                ImportMenuPublisher(model: model)
+                WindowReader { window in
+                    model.window = window
+                    // In the standalone importer closing the window quits, so
+                    // it asks first while a copy runs.
+                    if model.copiesOnly, let window, closeGuard == nil {
+                        closeGuard = WindowCloseGuard(window) { [model] _ in
+                            guard !QuitGuard.allowsQuit, model.isImporting else { return true }
+                            Task { if await model.confirmQuit(.closeImportWindow) { NSApp.terminate(nil) } }
+                            return false
+                        }
+                    }
+                }
+            }
             .onAppear { model.refreshSources() }
             .alert(deletionTitle, isPresented: Binding(get: { model.pendingDeletion != nil },
                                                        set: { if !$0 { model.confirmDeletion(false) } })) {
