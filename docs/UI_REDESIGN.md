@@ -310,7 +310,9 @@ confirmation dialogs.
   layout and stays in the loupe, so Esc still backs out one level. Anything
   that shows the grid (Return, Space, ⌘↩, the toolbar's Grid segment) ends
   review and closes the loupe; leaving full screen by any system route ends
-  review and restores the panes.
+  review and restores the panes. The toolbar shown on hover may briefly
+  overlap the top of the photo; that is accepted (user's answer, final
+  review Q2).
 - Info / Adjust stay tabs, remembered per mode; View ▸ Info ⌥⌘1, Adjust ⌥⌘2.
 
 ## 3. Sidebar
@@ -659,7 +661,7 @@ scrolling once the Videos section and the footer are gone.
 | No photos | "No Photos on ‹source›" with Choose Folder… |
 | All already imported | "All 412 Photos Are Already in the Library" with Show Them |
 | Read error | "Can't Read ‹source›", the error text, and Rescan |
-| Copying | toolbar activity; Import becomes Stop |
+| Copying | toolbar activity; Import becomes Stop. Closing the window does not stop the copy: it keeps running in the background, and the library window's Activity item shows it as Import from "‹source›" with progress, Stop and its result (user's answer, final review Q1) |
 | Done | subtitle "Imported 412 files"; the delete confirmation (existing) as a window-modal alert |
 | Cancelled, failures, eject failure | a window-modal alert with the existing message text |
 
