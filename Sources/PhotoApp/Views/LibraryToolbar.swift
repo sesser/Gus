@@ -21,7 +21,9 @@ struct LibraryToolbar: CustomizableToolbarContent {
         }
         groupSpacer()
         ToolbarItem(id: "mode") {
-            Picker("View", selection: $model.mode) {
+            // Through openLoupe / closeLoupe: showing the grid ends review.
+            Picker("View", selection: Binding(get: { model.mode },
+                                              set: { $0 == .loupe ? model.openLoupe() : model.closeLoupe() })) {
                 Label("Grid", systemImage: "square.grid.2x2").tag(BrowserMode.grid)
                 Label("Loupe", systemImage: "rectangle").tag(BrowserMode.loupe)
             }

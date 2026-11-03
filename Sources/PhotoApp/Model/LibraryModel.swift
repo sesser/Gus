@@ -348,11 +348,17 @@ final class LibraryModel {
     /// The grid, the loupe or the video loupe has the keyboard, so the bare
     /// culling keys act on photos (section 6 of docs/UI_REDESIGN.md).
     private(set) var browserHasKeyboard = false
-    @ObservationIgnored private(set) lazy var windowObserver = LibraryWindowObserver { [weak self] isKey, browser in
-        guard let self else { return }
-        if isWindowKey != isKey { isWindowKey = isKey }
-        if browserHasKeyboard != browser { browserHasKeyboard = browser }
-    }
+    @ObservationIgnored private(set) lazy var windowObserver: LibraryWindowObserver = {
+        let observer = LibraryWindowObserver { [weak self] isKey, browser in
+            guard let self else { return }
+            if isWindowKey != isKey { isWindowKey = isKey }
+            if browserHasKeyboard != browser { browserHasKeyboard = browser }
+        }
+        // Leaving full screen by a system route ends review; the window
+        // stays out of full screen.
+        observer.onDidExitFullScreen = { [weak self] in self?.exitReview(restoringFullScreen: false) }
+        return observer
+    }()
     @ObservationIgnored private var searchFocusPending = false
     /// The folder being added, for Activity's "Add Folder “…”".
     @ObservationIgnored private var batchFolderName: String?

@@ -10,6 +10,9 @@ final class LibraryWindowObserver {
     private var responderObservation: NSKeyValueObservation?
     private var keyObservers: [any NSObjectProtocol] = []
     private let onChange: (_ isKey: Bool, _ browserHasKeyboard: Bool) -> Void
+    /// The window left full screen, by any route (⌃⌘F, the green button,
+    /// the menu): review ends.
+    var onDidExitFullScreen: (() -> Void)?
 
     init(onChange: @escaping (_ isKey: Bool, _ browserHasKeyboard: Bool) -> Void) {
         self.onChange = onChange
@@ -28,6 +31,11 @@ final class LibraryWindowObserver {
         responderObservation = window.observe(\.firstResponder, options: [.new]) { [weak self] _, _ in
             MainActor.assumeIsolated { self?.report() }
         }
+        keyObservers.append(NotificationCenter.default.addObserver(
+            forName: NSWindow.didExitFullScreenNotification, object: window, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.onDidExitFullScreen?() }
+        })
         for name in [NSWindow.didBecomeKeyNotification, NSWindow.didResignKeyNotification] {
             keyObservers.append(NotificationCenter.default.addObserver(forName: name, object: window, queue: .main) {
                 [weak self] _ in

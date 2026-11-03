@@ -21,11 +21,14 @@ extension LibraryModel {
         apply(layout, in: window)
     }
 
-    func exitReview() {
+    /// `restoringFullScreen` false: the window left full screen by itself
+    /// and stays out of it; only the panes come back.
+    func exitReview(restoringFullScreen: Bool = true) {
         let window = windowObserver.window
-        let current = ReviewLayout(showsSidebar: showsSidebar, showsInspector: showsInspector,
-                                   isFullScreen: window?.styleMask.contains(.fullScreen) == true)
-        guard let layout = review.exit(current: current) else { return }
+        let isFullScreen = window?.styleMask.contains(.fullScreen) == true
+        let current = ReviewLayout(showsSidebar: showsSidebar, showsInspector: showsInspector, isFullScreen: isFullScreen)
+        guard var layout = review.exit(current: current) else { return }
+        if !restoringFullScreen { layout.isFullScreen = isFullScreen }
         apply(layout, in: window)
     }
 

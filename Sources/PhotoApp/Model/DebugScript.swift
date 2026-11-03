@@ -40,7 +40,8 @@ import PhotoUI
 ///                           elements with that role, e.g. AXImage, or runs an action on the nth; see AccessibilityProbe)
 ///     scroll <y>|bottom     (scrolls the inspector's Adjust tab to a point from its top)
 ///     hdr on|off            (the View menu's Show HDR; snapshots show HDR clipped at white)
-///     review [on|off]       (View ▸ Enter / Exit Review, as F; print review shows the layout)
+///     review [on|off|grid|leavefullscreen]   (View ▸ Enter / Exit Review, as F; the Grid segment;
+///                           the window leaving full screen; print review shows the layout)
 ///     import open | source <path> | dest <path> | job <text> | delete on|off | eject on|off
 ///            | videos on|off | rescan | toggle <n> | accessibility … | run (waits) | confirm yes|no | snapshot <file> | print
 ///            (see ImportDebugCommands)
@@ -300,7 +301,14 @@ enum DebugScript {
             model.undoManager.groupsByEvent = false
         case "review":
             // As F; "print review" shows the layout.
-            if rest.first == "off" { model.exitReview() } else if rest.first == "on" { model.enterReview() } else { model.toggleReview() }
+            switch rest.first {
+            case "off": model.exitReview()
+            case "on": model.enterReview()
+            // The toolbar's Grid segment, and ⌃⌘F (the window leaves full screen).
+            case "grid": model.closeLoupe()
+            case "leavefullscreen": model.windowObserver.window?.toggleFullScreen(nil)
+            default: model.toggleReview()
+            }
             try? await Task.sleep(for: .milliseconds(1500))
         case "hdr":
             model.showsHDR = rest.first != "off"
