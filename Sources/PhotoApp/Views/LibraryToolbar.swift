@@ -159,6 +159,8 @@ private struct ImportToolbarButton: View {
             openImport()
         }
         .help("Import from a card or folder")
+        // The split button draws its segments flush against the capsule.
+        .toolbarCapsuleInset()
     }
 
     private func openImport() {

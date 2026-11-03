@@ -3,7 +3,8 @@ import PhotoCore
 import SwiftUI
 
 /// Spacing for custom toolbar items (the thumbnail slider, the Activity
-/// item, the import window's copy and scan status): on macOS 26 each sits in
+/// item, the import window's copy and scan status, and the library's Import
+/// split button, whose segments the system draws flush): on macOS 26 each sits in
 /// a glass capsule whose rounded ends clip content placed flush against
 /// them. Standard Button and Label items get their padding from the system
 /// and take none of this.
