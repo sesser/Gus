@@ -102,6 +102,46 @@ commands refuse while the app has that library open (`LibraryLock`), so
 quit the app (or use another `--library-root`) before `develop`, `rate`,
 `flag` or `label`.
 
+## Claude Code setup
+
+`.claude/` is checked in so every contributor starts from the same baseline:
+
+- `.claude/settings.json` allows the commands above without a prompt
+  (`swift build`, `swift test` with its env-var variants, `Scripts/build-app.sh`,
+  `swift run photocli`, `swift run -c release photobench`, `vtool -show-build`).
+  `UPDATE_GOLDENS=1` always asks first, since it rewrites goldens (see
+  Checking image code), and `xcodebuild` is denied. Put personal additions in
+  `.claude/settings.local.json`, which is not committed.
+- `.claude/agents/` holds two project subagents. They work as a pair:
+  design decides, engineering implements.
+
+| Agent | Use it for | Tools |
+| --- | --- | --- |
+| `apple-ui-designer` | Designing or reviewing windows, toolbars, sidebars, menus, inspectors and sheets against the HIG; deciding where a command lives (menu bar, toolbar, context menu, shortcut). Records rulings in `docs/UI_REDESIGN.md`. | Read, search, web, edit docs. Never builds. |
+| `swift-macos-engineer` | Implementing an approved design, features, bug fixes, refactors and tests. Builds and tests after each step. | Full: read, edit, shell, web. |
+
+How to work with them:
+
+1. **Design first for UI work.** Ask the designer for a plan or a review, and
+   have its decisions written into `docs/UI_REDESIGN.md` (or the phase plan the
+   work belongs to) before any code changes.
+2. **Hand the spec to the engineer.** Name the spec section and the files in
+   the prompt; a subagent starts without this conversation's context.
+3. **Route design questions back.** The engineer stops on anything the spec
+   does not decide and returns a "Design questions" list. Take those to the
+   designer, record the ruling in the spec, then send the engineer on. The
+   engineer may only tick off an "Implementation status" section of the spec.
+4. **Check the report.** The engineer reports what it ran; read the diff and
+   rerun `swift build` / `swift test` before calling the work done. It cannot
+   see the UI, so look at visual changes in the bundle (debug-script
+   `snapshot`, see Commands).
+5. Non-UI work (catalog, import, rendering, `photocli`) goes straight to the
+   engineer.
+
+This file's rules win over anything in an agent's prompt: GRDB is the only
+dependency, goldens are updated only on purpose, brand values stay in
+`AppBranding.swift`, and work goes on a branch off `develop`.
+
 ## Checking image code
 
 - **Goldens** (`Tests/PhotoCoreTests/Goldens`, `GoldenTests`) pin every
