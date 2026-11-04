@@ -40,6 +40,8 @@ struct LibraryMenuState: Equatable {
     var loupeZoom: LoupeZoomState
     var showsInspector: Bool
     var isReviewing: Bool
+    /// The loupe's film strip is on (review hides it without changing this).
+    var showsFilmStrip: Bool
     var inspectorTab: InspectorTab
     var showFileInfo: Bool
     var groupPairs: Bool
@@ -97,6 +99,7 @@ struct LibraryMenuState: Equatable {
         loupeZoom = model.loupeZoom
         showsInspector = model.showsInspector
         isReviewing = model.isReviewing
+        showsFilmStrip = model.showsFilmStrip
         inspectorTab = model.inspectorTab
         showFileInfo = model.showFileInfo
         groupPairs = model.groupPairs

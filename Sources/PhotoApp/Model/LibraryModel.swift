@@ -333,7 +333,8 @@ final class LibraryModel {
 
     // MARK: Items, focus, selection
 
-    /// Not observed: the grid is told about changes through `observer`.
+    /// Not observed: the grid and the film strip are told about changes
+    /// through `LibraryItemsObserver`.
     @ObservationIgnored private(set) var items: [CatalogItem] = []
     @ObservationIgnored private var indexByVersionID: [Int64: Int] = [:]
     /// Observed stand-in for `items` for SwiftUI views (counts, titles).
@@ -439,12 +440,23 @@ final class LibraryModel {
             }
         }
     }
+    /// The loupe's film strip is shown (when not reviewing).
+    var showsFilmStrip: Bool {
+        didSet { UserDefaults.standard.set(showsFilmStrip, forKey: Self.showsFilmStripKey) }
+    }
+    /// The film strip's thumbnail step, separate from the grid's size
+    /// (`FilmStripGeometry.steps`).
+    var filmStripSize: Double {
+        didSet { UserDefaults.standard.set(filmStripSize, forKey: Self.filmStripSizeKey) }
+    }
     static let thumbnailSizeRange = 80.0...360.0
     private static let thumbnailSizeKey = "browser.thumbnailSize"
     private static let autoAdvanceKey = "culling.autoAdvance"
     private static let showFileInfoKey = "browser.showFileInfo"
     private static let groupPairsKey = "browser.groupPairs"
     private static let showsHDRKey = "loupe.showsHDR"
+    private static let showsFilmStripKey = "loupe.showsFilmStrip"
+    private static let filmStripSizeKey = "loupe.filmStripSize"
     private static let showsInspectorKey = "browser.showsInspector"
     private static let gridInspectorTabKey = "browser.inspectorTab"
     private static let loupeInspectorTabKey = "loupe.inspectorTab"
@@ -511,7 +523,8 @@ final class LibraryModel {
     }
     private(set) var onlineVolumeIDs: Set<Int64> = []
 
-    @ObservationIgnored weak var observer: LibraryItemsObserver?
+    /// The grid and the loupe's film strip, held weakly (`addObserver`).
+    @ObservationIgnored private var itemsObservers: [WeakItemsObserver] = []
     /// Held while the library is open, so command-line writes refuse instead of
     /// changing the catalog behind the window's back (`LibraryLock`).
     @ObservationIgnored private var libraryLock: LibraryLock?
@@ -531,6 +544,9 @@ final class LibraryModel {
     @ObservationIgnored var undoManager = UndoManager()
     @ObservationIgnored private var lastLiveRefresh = Date.distantPast
     @ObservationIgnored private(set) var started = false
+    /// Times the loupe canvas refitted to a new frame (debug scripts check a
+    /// film strip change refits it once).
+    @ObservationIgnored var loupeFitCount = 0
     @ObservationIgnored private var volumeObservers: [any NSObjectProtocol] = []
     @ObservationIgnored var pendingAnalysis: [Int64] = []
     @ObservationIgnored private var metadataTask: Task<Void, Never>?
@@ -558,6 +574,8 @@ final class LibraryModel {
         showFileInfo = defaults.object(forKey: Self.showFileInfoKey) as? Bool ?? true
         groupPairs = defaults.object(forKey: Self.groupPairsKey) as? Bool ?? true
         showsHDR = defaults.object(forKey: Self.showsHDRKey) as? Bool ?? true
+        showsFilmStrip = defaults.object(forKey: Self.showsFilmStripKey) as? Bool ?? true
+        filmStripSize = FilmStripGeometry.validatedSize(defaults.object(forKey: Self.filmStripSizeKey) as? Double)
         showsInspector = defaults.bool(forKey: Self.showsInspectorKey)
         gridInspectorTab = defaults.string(forKey: Self.gridInspectorTabKey).flatMap(InspectorTab.init(rawValue:)) ?? .info
         loupeInspectorTab = defaults.string(forKey: Self.loupeInspectorTabKey).flatMap(InspectorTab.init(rawValue:))
@@ -679,7 +697,7 @@ final class LibraryModel {
         selectionRevision += 1
         if items.isEmpty { mode = .grid }
         itemsRevision += 1
-        observer?.libraryItemsReloaded()
+        notifyObservers { $0.libraryItemsReloaded() }
     }
 
     func refreshProjects() async {
@@ -759,7 +777,7 @@ final class LibraryModel {
             volumesByID = Dictionary(uniqueKeysWithValues: volumes.compactMap { volume in volume.id.map { ($0, volume) } })
             if online != onlineVolumeIDs {
                 onlineVolumeIDs = online
-                observer?.libraryAvailabilityChanged()
+                notifyObservers { $0.libraryAvailabilityChanged() }
                 refreshStaleMetadata()
                 if started {
                     scheduleSidecarSync()
@@ -877,7 +895,7 @@ final class LibraryModel {
         }
         focusIndex = index
         selectionRevision += 1
-        if notify { observer?.libraryFocusChanged() }
+        if notify { notifyObservers { $0.libraryFocusChanged() } }
     }
 
     func moveFocus(by delta: Int) {
@@ -896,7 +914,7 @@ final class LibraryModel {
         // Leaving the loupe (Return, Space, ⌘↩) leaves review too.
         exitReview()
         mode = .grid
-        observer?.libraryFocusChanged()
+        notifyObservers { $0.libraryFocusChanged() }
     }
 
     /// Edit ▸ Find ▸ Find…: the keyboard goes to the search field, which
@@ -1026,7 +1044,7 @@ final class LibraryModel {
             }
         }
         itemsRevision += 1
-        if !changed.isEmpty { observer?.libraryItemsChanged(at: changed) }
+        if !changed.isEmpty { notifyObservers { $0.libraryItemsChanged(at: changed) } }
         afterPendingWrites { $0.scheduleSidebarRefresh() }
 
         undoManager.registerUndo(withTarget: self) { model in
@@ -1055,7 +1073,7 @@ final class LibraryModel {
         guard let index = indexByVersionID[versionID], items[index].editStackHash != hash else { return }
         items[index].editStackHash = hash
         itemsRevision += 1
-        observer?.libraryItemsChanged(at: IndexSet(integer: index))
+        notifyObservers { $0.libraryItemsChanged(at: IndexSet(integer: index)) }
     }
 
     // MARK: Pairs
@@ -1315,6 +1333,37 @@ final class LibraryModel {
 }
 
 extension LibraryModel: CardImportLibrary {}
+
+// MARK: Observers
+
+extension LibraryModel {
+    /// Starts telling `observer` about item, focus and availability changes.
+    /// Held weakly; released observers are dropped.
+    func addObserver(_ observer: any LibraryItemsObserver) {
+        itemsObservers.removeAll { $0.value == nil }
+        guard !itemsObservers.contains(where: { $0.value === observer }) else { return }
+        itemsObservers.append(WeakItemsObserver(value: observer))
+    }
+
+    func removeObserver(_ observer: any LibraryItemsObserver) {
+        itemsObservers.removeAll { $0.value == nil || $0.value === observer }
+    }
+
+    /// The observers still alive, in the order they were added.
+    var observers: [any LibraryItemsObserver] {
+        itemsObservers.compactMap(\.value)
+    }
+
+    /// Calls `body` on each live observer. A copy is iterated, so an
+    /// observer may add or remove observers from its callback.
+    private func notifyObservers(_ body: (any LibraryItemsObserver) -> Void) {
+        for observer in observers { body(observer) }
+    }
+}
+
+private struct WeakItemsObserver {
+    weak var value: (any LibraryItemsObserver)?
+}
 
 /// Where a batch of folder imports stands, for the Activity item.
 struct ImportBatchPosition: Equatable {

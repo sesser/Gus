@@ -9,8 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="docs/screenshots/gus-review-20261103.png"><img src="docs/screenshots/gus-review-20261103.png" alt="The library grid with the Info inspector open" width="500"></a>
-  <a href="docs/screenshots/gus-loupe-20261103.png"><img src="docs/screenshots/gus-loupe-20261103.png" alt="A RAW file in the loupe with the Adjust inspector open" width="500"></a>
+  <a href="docs/screenshots/gus-loupe-20261104.png"><img src="docs/screenshots/gus-loupe-20261104.png" alt="A RAW file in the loupe with the Adjust inspector open" width="100%"></a>
 </p>
 
 Gus catalogs photos where they already are and never changes them. Edits

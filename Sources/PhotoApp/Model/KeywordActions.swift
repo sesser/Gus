@@ -30,6 +30,9 @@ extension Notification.Name {
     static let loupeShouldStepZoom = Notification.Name("loupeShouldStepZoom")
     /// The loupe should fit the photo (`LoupeZoomStep.fitKey` true) or show it at 100 %.
     static let loupeShouldSetZoom = Notification.Name("loupeShouldSetZoom")
+    /// The film strip is about to change the canvas's frame (shown, hidden,
+    /// settled on a step): the loupe animates that one refit.
+    static let loupeShouldAnimateNextFit = Notification.Name("loupeShouldAnimateNextFit")
     /// The search field should take keyboard focus (Edit ▸ Find ▸ Find…).
     static let searchShouldTakeFocus = Notification.Name("searchShouldTakeFocus")
 }

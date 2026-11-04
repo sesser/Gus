@@ -3,9 +3,16 @@ import PhotoCore
 import PhotoUI
 import SwiftUI
 
-/// Single-photo view: the AppKit canvas with an info bar underneath.
+/// Single-photo view: the AppKit canvas (or the video loupe), the film strip
+/// (section 11 of docs/UI_REDESIGN.md), which review mode never shows, and
+/// the caption at the bottom edge.
 struct LoupeView: View {
     let model: LibraryModel
+    /// The loupe's whole height, for the strip's height cap.
+    @State private var height: CGFloat = 0
+    @State private var stripPresence = FilmStripPresence()
+
+    private var wantsStrip: Bool { model.showsFilmStrip && !model.isReviewing }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -16,9 +23,33 @@ struct LoupeView: View {
             } else {
                 LoupeCanvas(model: model)
             }
+            if stripPresence.isPresent {
+                filmStrip
+            }
             LoupeCaption(model: model)
         }
         .background(Color(nsColor: Palette.loupeBackground))
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
+        .onAppear {
+            stripPresence.model = model
+            stripPresence.set(shown: wantsStrip, animated: false)
+        }
+        // The toggle and the menu slide it; review shows and hides it at once.
+        .onChange(of: model.showsFilmStrip) { stripPresence.set(shown: wantsStrip, animated: true) }
+        .onChange(of: model.isReviewing) { stripPresence.set(shown: wantsStrip, animated: false) }
+    }
+
+    /// The layout reserves the settled step's height (the canvas refits when
+    /// that changes); the strip's view reaches above it for the handle and
+    /// for drags, over the canvas's bottom margin.
+    private var filmStrip: some View {
+        let geometry = FilmStripGeometry(storedSize: model.filmStripSize, loupeHeight: Double(height))
+        return Color.clear
+            .frame(height: stripPresence.reservesSpace ? CGFloat(geometry.stripHeight) : 0)
+            .overlay(alignment: .bottom) {
+                FilmStripView(model: model, presence: stripPresence, geometry: geometry, loupeHeight: Double(height))
+                    .frame(height: FilmStripView.frameHeight(loupeHeight: Double(height)))
+            }
     }
 }
 
@@ -106,6 +137,10 @@ final class LoupeController: NSObject {
         didSet { if hdrSetting != oldValue { shownKey = nil } }
     }
     private var neighborTasks: [Task<Void, Never>] = []
+    /// A refit before this time animates (`animateNextFit`).
+    private var animatesFitUntil = Date.distantPast
+    /// The canvas size the photo was last fitted to.
+    private var fittedSize = NSSize.zero
     private var frameObserver: (any NSObjectProtocol)?
     private var screenObserver: (any NSObjectProtocol)?
 
@@ -167,6 +202,14 @@ final class LoupeController: NSObject {
                                                name: .loupeShouldStepZoom, object: model)
         NotificationCenter.default.addObserver(self, selector: #selector(zoomSetRequested(_:)),
                                                name: .loupeShouldSetZoom, object: model)
+        NotificationCenter.default.addObserver(self, selector: #selector(animateNextFit(_:)),
+                                               name: .loupeShouldAnimateNextFit, object: model)
+    }
+
+    /// The film strip changes the canvas's frame next: that refit animates,
+    /// as long as it comes soon (otherwise a later window resize would).
+    @objc private func animateNextFit(_ notification: Notification) {
+        animatesFitUntil = Date().addingTimeInterval(0.5)
     }
 
     /// From the model, or from a view in this window (an inspector value field).
@@ -498,8 +541,16 @@ final class LoupeController: NSObject {
         }
     }
 
+    /// The canvas's frame changed. A film strip change (shown, hidden or
+    /// settled) changes it once, and that refit animates.
     private func fitIfNeeded() {
-        if zoom == .fit { applyZoom(animated: false) }
+        let size = scrollView.frame.size
+        guard size != fittedSize else { return }
+        fittedSize = size
+        model.loupeFitCount += 1
+        let animated = Date() < animatesFitUntil && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        animatesFitUntil = .distantPast
+        if zoom == .fit { applyZoom(animated: animated) }
     }
 
     @objc private func didEndMagnify(_ notification: Notification) {
@@ -851,6 +902,11 @@ struct LoupeCaption: View {
             if model.isOffline(item) {
                 CaptionBadge(title: String(localized: "Offline"),
                              help: String(localized: "The volume \(model.volumeName(for: item) ?? "") is not connected. Showing the cached preview."))
+            }
+            // The strip's toggle, 8 pt after the last badge; review hides both.
+            if !model.isReviewing {
+                FilmStripToggle(model: model)
+                    .padding(.leading, 2)
             }
         }
     }
