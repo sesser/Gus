@@ -1,9 +1,10 @@
 # UI redesign: window, navigation, menus and inspector
 
-Status: **proposed** (2026-11-02). The decisions below were approved.
-
-Implementation status (branch `feature/ui-redesign`; rulings recorded in
-this file are separate commits):
+Status: **implemented** (2026-11-04). All 15 steps are on `develop`,
+merged in [sesser/Gus#20](https://github.com/sesser/Gus/pull/20) (c8f2924)
+with the final review's fixes, and
+[sesser/Gus#21](https://github.com/sesser/Gus/pull/21) (e5bf781). Rulings
+recorded in this file are separate commits.
 
 | Step | Commits |
 |---|---|
@@ -22,6 +23,27 @@ this file are separate commits):
 | 13 Import window | 28eaf0b |
 | 14 Other sheets and panels | df742c5 |
 | 15 Review mode | 935fc18 |
+| Final review fixes | b239c41 … cef125a, f9a4acb … c544fb3 |
+| Xcode 26 build fixes | 2089ef5, 94a0c27 |
+| Import button inset | 48414ef |
+
+Not yet checked on screen: snapshots cannot draw the glass panes, so these
+were verified only by tests, the debug script and measured frames.
+
+- The toolbar: capsule insets, middle-truncated status lines, narrow
+  window widths, and the hover toolbar in review mode.
+- The grid scrolling under the toolbar without hiding the first row or the
+  focused photo; the loupe surround.
+- Inspector slider fill and columns; the Original and Crop buttons' on state.
+- The Export sheet on a 13" display; the Import inspector; Import cells in
+  light mode; Increase Contrast; the sidebar; the keyword popover's anchor.
+- Return and Esc on the library app's quit alert.
+- VoiceOver speech (labels are set; no assistive app was attached).
+- The macOS 15 path (the earlier design).
+
+One known risk: the standalone importer's close confirmation sits in front
+of SwiftUI's window delegate (`WindowCloseGuard`); a SwiftUI release that
+replaces the delegate later would drop it.
 
 The library window grew one feature at a time, and it shows: the sidebar
 and the inspector are built from two different hand-made heading styles,
