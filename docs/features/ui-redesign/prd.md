@@ -1,6 +1,6 @@
 # UI redesign: requirements addendum
 
-Status: Approved (product-manager rulings, 2026-11-04; RI-5 waits on the owner)
+Status: Approved (product-manager rulings and owner ruling on RI-5, 2026-11-04)
 Slug: ui-redesign
 Roadmap: Shipped; follow-up changes are `ui-redesign-reconcile` (Next)
 
@@ -18,7 +18,7 @@ D1 and D2 (design.md §8) stand as written; nothing here changes them.
 | RI-2 Rename projects; remove photos and projects | In scope, and consistent with principle 1 as long as files are never touched. New scope that needs its own PRD, not part of this redesign. The catalog already has `renameProject` and `deleteProject` with no UI (inventory corrected) | Roadmap `remove-from-library`, `rename-project` (Next) |
 | RI-3 Show in Finder | Wanted: it fits the vision (people keep files in their own folders). New, small scope. The title must not clash with Show Original (design's point) | Roadmap `show-in-finder` (Next) |
 | RI-4 Which metadata reader is in use | Worth showing, but new scope. If built it is passive, never an alert | Roadmap `metadata-reader-status` (Later) |
-| RI-5 `docs/USER_GUIDE.md` owner | Workflow question for the owner; see Open questions. E27 waits on it | Open question Q1 |
+| RI-5 `docs/USER_GUIDE.md` owner | **Owner ruling, 2026-11-04** ("Engineer, designer reviews"): the engineer updates the guide in the same change as the behavior it describes, and the designer checks its terms at review. Recorded in `docs/WORKFLOW.md` Ownership. E27 is unblocked | Owner rulings below |
 | RI-6 edit-history vs this design | The edit-history PRD will state the need only. ⌘Y and left-sidebar placement from issue #26 are proposals for design, not requirements. ⇧⌘Z stays the redo key for the app as shipped | Roadmap `edit-history` row (Next), intake notes |
 | RI-7 Photo pasteboard | New scope, separate from publishing-engine and partly overlapping export-extras. Until it ships, design X5 stands: Edit ▸ Copy and Cut/Paste are text-only and dimmed in the grid and loupe | Roadmap `photo-pasteboard` (Later) |
 
@@ -56,18 +56,32 @@ AC2 (R2): Manual, in each app: open Help, type "Export" (library app) or
   not cover apps with no help content; this is judgment. The owner can
   overrule it.
 
+## Owner rulings
+
+- **RI-5 (ruled 2026-11-04).** `docs/USER_GUIDE.md` is updated by the
+  engineer in the same change as the behavior it describes; the designer
+  checks its terms at review. Owner's words: "Engineer, designer reviews".
+  The row is in `docs/WORKFLOW.md` Ownership. For E27 the guide is stale in
+  four places: the Import window's "Include videos switch" (now Show
+  Videos), the key table's blank loupe column for ⌘= / ⌘− (design I30),
+  export problems raising an alert (D2, E14), and "caption" in the Export
+  metadata paragraph (Description after E16). Each is fixed in the change
+  that ships its behavior; the first two describe behavior already shipped
+  and go with E27.
+
 ## Open questions
 
-- **Q1 (owner): Who owns `docs/USER_GUIDE.md`?** It is stale in four places:
-  the Import window's "Include videos switch" (now Show Videos), the key
-  table's blank loupe column for ⌘= / ⌘− (design I30), export problems
-  raising an alert (D2, E14), and "caption" in the Export metadata paragraph
-  (Description after E16). Proposed default: the engineer updates the guide
-  in the same change as the behavior it describes, and the designer checks
-  its terms at review. Recording that needs a `docs/WORKFLOW.md` change,
-  which goes through review.
 - **Q2 (engineer): Does R1 keep R2?** Confirm that removing the default help
   item leaves the Help menu and its search field. If it doesn't, report it
   back here rather than keeping the dead item.
-- **Q3 (designer):** Update N13 and the "‹app› Help" row in design.md §4 to
-  follow R1 and R2.
+- **Q3 (designer), resolved 2026-11-04:** Update N13 and the "‹app› Help"
+  row in design.md §4 to follow R1 and R2. Done: design.md N13, the §4
+  "Help ▸ Search ⌘?" row, and engineer change E28 (verified by AC1 and AC2).
+
+## Revisions
+
+- 2026-11-04: Q1 (who owns `docs/USER_GUIDE.md`) answered by the owner with
+  the proposed default; moved to Owner rulings as RI-5. Q2 and Q3 keep their
+  numbers.
+- 2026-11-04: Q3 marked resolved; the designer updated design.md N13 and
+  the §4 Help row, and added E28 for AC1 and AC2. Q2 stays open.

@@ -15,6 +15,7 @@ Features move through three agents in order. Do not skip steps, and do not do on
 | `docs/features/<slug>/prd.md` | product-manager | read-only |
 | `docs/features/<slug>/design.md` | apple-ui-designer | read-only |
 | `docs/features/<slug>/status.md` | swift-macos-engineer | read-only |
+| `docs/USER_GUIDE.md` | swift-macos-engineer, updated in the same change as the behavior it describes | apple-ui-designer checks its terms at review; others read-only |
 
 Slugs are kebab-case. A whole-app redesign is a feature: `docs/features/ui-redesign/`.
 
