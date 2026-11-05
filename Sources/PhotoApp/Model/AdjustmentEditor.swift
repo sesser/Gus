@@ -75,7 +75,8 @@ final class AdjustmentEditor {
             // Showing the overlay ends the sharpening map: the last asked for wins (design §6).
             if showsMaskOverlay, sharpeningMap.isShown {
                 _ = sharpeningMap.end()
-                stopMapRefinement()
+                // The same exit as endSharpeningMap: frees the full-resolution input.
+                leaveSharpeningMap()
             }
             showsLive = true
             requestRender(interactive: false)
@@ -137,6 +138,8 @@ final class AdjustmentEditor {
         didSet { if loupeIsZoomed != oldValue, sharpeningMap.isShown { scheduleMapRefinement() } }
     }
     @ObservationIgnored private var mapRefiner: SharpeningMapRefiner?
+    /// The full-resolution map's input is held (for the debug script).
+    var holdsFullResolutionMap: Bool { mapRefiner != nil }
     @ObservationIgnored private var mapRefineTask: Task<Void, Never>?
     @ObservationIgnored private var mapRefinement: RenderCancellation?
     /// Tells the spinner of a superseded refinement from the current one's.
