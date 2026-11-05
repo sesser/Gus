@@ -50,6 +50,8 @@ struct LibraryMenuState: Equatable {
     /// adjustments are not at their defaults. In the grid the items can't
     /// tell (their hash leaves out turned-off groups), so it is true.
     var canResetAll: Bool
+    /// Save Adjustments as Preset… (`LibraryModel.canSaveAdjustmentPreset`).
+    var canSaveAsPreset: Bool
     var showsMaskOverlay: Bool
     /// The loupe shows a video.
     var showsLoupeVideo: Bool
@@ -122,6 +124,7 @@ struct LibraryMenuState: Equatable {
         isCropping = model.editor.cropSession != nil
         canResetCrop = canEditLoupePhoto && model.editor.canResetCrop
         canAddMask = canEditLoupePhoto && !isCropping && MaskLimits.canAddMask(to: model.editor.adjustments.local)
+        canSaveAsPreset = model.canSaveAdjustmentPreset
         hasSelectedMask = canEditLoupePhoto && model.editor.selectedMaskID != nil
         canResetAll = model.mode == .grid ? targetsIncludePhoto
             : canEditLoupePhoto && !isCropping && !model.editor.adjustments.isDefault

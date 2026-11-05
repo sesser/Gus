@@ -425,7 +425,7 @@ struct LibraryCommands: Commands {
             .disabled(!can { $0.hasSelectedMask })
             Divider()
             Button("Save Adjustments as Preset…") { model?.promptForAdjustmentPreset() }
-                .disabled(!can { $0.hasFocusedItem })
+                .disabled(!can { $0.canSaveAsPreset })
             Button("Import Presets…") { model?.chooseAdjustmentPresetImport() }
                 .disabled(!can())
             Button("Manage Presets…") { model?.showsPresetSheet = true }

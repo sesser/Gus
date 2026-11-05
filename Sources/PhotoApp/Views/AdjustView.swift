@@ -133,7 +133,9 @@ struct AdjustHeader: View {
                     model.pasteAdjustments()
                 },
                 .separator,
-                .item(String(localized: "Save Adjustments as Preset…")) { model.promptForAdjustmentPreset() },
+                .item(String(localized: "Save Adjustments as Preset…"), isEnabled: model.canSaveAdjustmentPreset) {
+                    model.promptForAdjustmentPreset()
+                },
                 .separator,
                 .item(String(localized: "Reset All Adjustments"), isEnabled: !editor.adjustments.isDefault) {
                     model.resetAllAdjustments()

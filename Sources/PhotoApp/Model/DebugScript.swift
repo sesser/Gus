@@ -884,7 +884,7 @@ enum DebugScript {
                   + " stop \(state.stoppableJob.map(\.rawValue) ?? "none")"
                   + " export \(state.canExport)"
                   + " resetCrop \(state.canResetCrop) addMask \(state.canAddMask) video \(state.showsLoupeVideo)"
-                  + " playing \(state.isVideoPlaying) resetAll \(state.canResetAll) maskSelected \(state.hasSelectedMask) overlay \(state.showsMaskOverlay)"
+                  + " playing \(state.isVideoPlaying) savePreset \(state.canSaveAsPreset) resetAll \(state.canResetAll) maskSelected \(state.hasSelectedMask) overlay \(state.showsMaskOverlay)"
                   + " bareKeys \(state.bareKeysActive) editLoupePhoto \(state.canEditLoupePhoto) cropping \(state.isCropping)")
         case "empty":
             // The browser's empty state (design.md N3), as the view chooses it.
