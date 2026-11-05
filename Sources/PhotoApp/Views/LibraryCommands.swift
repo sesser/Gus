@@ -263,10 +263,11 @@ struct LibraryCommands: Commands {
                 .keyboardShortcut("i", modifiers: [.command, .option])
                 .disabled(!can())
             }
-            Button("Info") { show(.info) }
+            // A checkmark on the tab shown while the inspector is (design.md I19).
+            Toggle("Info", isOn: tabBinding(.info))
                 .keyboardShortcut("1", modifiers: [.command, .option])
                 .disabled(!can())
-            Button("Adjust") { show(.adjust) }
+            Toggle("Adjust", isOn: tabBinding(.adjust))
                 .keyboardShortcut("2", modifiers: [.command, .option])
                 .disabled(!can())
             Divider()
@@ -355,6 +356,12 @@ struct LibraryCommands: Commands {
             }
             .disabled(!can { $0.pairDisplay != nil })
         }
+    }
+
+    /// On while the inspector shows `tab`; choosing it shows that tab.
+    private func tabBinding(_ tab: InspectorTab) -> Binding<Bool> {
+        Binding(get: { menu?.state.showsInspector == true && menu?.state.inspectorTab == tab },
+                set: { _ in show(tab) })
     }
 
     /// A RAW+JPEG Pair item. `Toggle(sources:)` is SwiftUI's only way to a
