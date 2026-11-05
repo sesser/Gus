@@ -1,12 +1,15 @@
 # ML noise reduction for RAW files: implementation status
 
 Owner: swift-macos-engineer. Implements [`prd.md`](prd.md) (Approved, owner
-rulings 2026-11-05) against [`design.md`](design.md) (Designed, RI-1 to RI-7
-ruled). Branch `feature/ml-denoise-prd`, at `054bf4e` when work started.
+rulings 1–11 and the RI-E rulings, 2026-11-05) against
+[`design.md`](design.md) (Designed; §15 and §16 rule DQ-1 to DQ-3 and
+RI-E2). Branch `feature/ml-denoise-prd`, at `054bf4e` when work started.
 
-**Status: In progress.** Everything is built and tested except AC1, which is
-blocked on a requirements issue (RI-E1 below). Open: the owner's items, the
-designer review, and the manual checks listed under each criterion.
+**Status: In progress.** Every acceptance criterion is built and tested,
+manual checks aside. One question is open: RI-E6, how the app could learn
+in production that macOS lacks the decoder's model (see Requirements
+issues). Also open: AC13 (owner), the designer review, and the manual
+checks listed under each criterion.
 
 States: Not started · In progress · Done · Blocked (waiting on a question
 below) · Shipped.
@@ -17,9 +20,9 @@ below) · Shipped.
   Xcode SDK 27.2): `swift build` clean; `swift test` 517 tests in 94 suites
   passed, 1 known issue (the `withKnownIssue` in "Live render session",
   pre-existing).
-- Latest: `swift build` clean, no warnings in the sources. `swift test`: 548
-  tests in 96 suites passed, 1 known issue (the same), 1 test disabled with
-  its reason (AC1, RI-E1). Goldens and `EditStackCorpusTests` unchanged.
+- Latest (after the RI-E rulings): `swift build` clean, no warnings in the
+  sources. `swift test`: 550 tests in 96 suites passed, 1 known issue (the
+  same). Goldens and `EditStackCorpusTests` unchanged.
   `PreviewCacheKey.currentPipelineVersion` is still 6. `UPDATE_GOLDENS` was
   never run.
 - A test file not touched here (`SmartAlbumTests.swift:165`) has an
@@ -94,6 +97,27 @@ below) · Shipped.
 - **A failed decode is not remembered** for the session (design §3 leaves
   this to the engineer). The next change of values tries again, as the
   design describes, and nothing extra appears on screen.
+- **A missing model** (owner ruling 9, design §16) is `notOnThisMac`, never
+  `failed`. `Override.modelMissing` stands in for it in tests and the debug
+  script, in two forms:
+  - `.known`: the availability says so before decoding.
+  - `.learnedOnDecode`: the first decode finds it. The fact is then
+    remembered for the session (`recordMissingModel`): for every file in the
+    app, for one file under a test's override.
+
+  The open photo takes that state with the frame (`learnUnavailability`).
+  Nothing in production sets it yet (RI-E6). No source mentions the
+  decoder's download calls; a test scans `Sources` for them.
+- **The "this Mac" texts** follow the running macOS
+  (`MachineLearningNoiseReduction.runsMacOSWithDecoder`). On macOS 27 and
+  later they don't mention updating macOS: four more keys, 27 in all, and
+  `photocli`'s message "it isn't available on this Mac".
+- **Arriving at a cached fallback** (design §15, DQ-3). The session-only
+  preview cache keeps the reason each fallback was rendered for
+  (`sessionOnlyReason`). On arrival, the photo shows S5, S6 or S8 with that
+  frame and no spinner. When a background frame of the saved values then
+  applies, the photo moves to S2 and the stale fallback is dropped
+  (`removeSessionOnly`).
 
 ## Progress
 
@@ -103,7 +127,10 @@ below) · Shipped.
 | 2 photocli and export tests | Done | `f9f492c` |
 | 3 photobench `denoise` (R14) | Done | `1482a88` |
 | 4 Inspector, Decoder pop-up, loupe caption, VoiceOver, batch and export rows, strings, debug script | Done | `1332380`, `e35c14e` |
-| 5 USER_GUIDE.md, this file | Done | this commit |
+| 5 USER_GUIDE.md, this file | Done | `c8aad44` |
+| 6 AC1 as ruled; AC4's legacy Noise Reduction off case | Done | `c48f877` |
+| 7 Missing model (ruling 9): seam, session memory, download scan, macOS-dependent texts, arrival at a cached fallback | Done | `5b44889`, `cd9c683` |
+| 8 USER_GUIDE.md and this file after the rulings | Done | this commit |
 
 ## Acceptance criteria
 
@@ -116,12 +143,12 @@ overrides and run on every Mac.
 
 | AC | State | How |
 |---|---|---|
-| AC1 | **Blocked (RI-E1)** | "Flat areas: … (AC1)" is written as the PRD words it and disabled with the reason. On every synthetic fixture tried, classical at 100 leaves *less* flat-area energy than machine learning (numbers below). |
+| AC1 | Tested (macOS 27) | As ruled on RI-E1. "Flat areas: machine learning at Luminance 100 is quieter than at 0, export path and photocli render (AC1)", on the noisy stripes DNG with a NoiseProfile tag (flat-area energy 0.00044 at 100 against 0.00144 at 0 on the export path; `photocli render` checked the same way from its 16-bit TIFF, with `applied: true`). |
 | AC2 | Tested (macOS 27) | "Edges: … not lower than classical at 100 (AC2)", on a new stripes scene with noise (edge step: machine learning 0.725, classical 0.688). Through the export path's full-resolution render (`PreviewGenerator.rendering`). |
 | AC3 | Tested | "A stack without the setting keeps its parameters, render hash and decode settings"; "The pinned default …" (pure rule); "With the decoder's default at 9.dng, a stack that does not ask for it decodes with the pinned version" (the seam: the filter is set to `9.dng` before the settings apply). All goldens and `EditStackCorpusTests` pass unchanged. |
-| AC4 | Tested | Legacy stacks with `9.dng` and `9` read as on; one with Profile off stays off; a legacy stack renders as before (pixels equal to a direct `9.dng` decode); Profile's `7.dng` is kept under machine learning and applies again when it is off; Profile-only presets, a paste of Profile and Profile off leave it on; a pre-feature Profile preset turns it on with Luminance and Color unchanged, also after a catalog save and load and a preset file round trip; the Decoder pop-up's choice; `develop` keeps one state. App: `print ml` checked the pop-up and check box agree (see Debug-script checks). |
+| AC4 | Tested | Legacy stacks with `9.dng` and `9` read as on; one with Profile off reads as off; one with Noise Reduction off reads as on inside the off group, renders classically, stays off when saved, and renders with version 9 once the group is turned on (RI-E4); a legacy stack renders as before (pixels equal to a direct `9.dng` decode); Profile's `7.dng` is kept under machine learning and applies again when it is off; Profile-only presets, a paste of Profile and Profile off leave it on; a pre-feature Profile preset turns it on with Luminance and Color unchanged, also after a catalog save and load and a preset file round trip; the Decoder pop-up's choice; `develop` keeps one state. App: `print ml` checked the pop-up and check box agree (see Debug-script checks). |
 | AC5 | Tested + debug script | Color kept across on/off; Color unavailable only while applied (`Status`); asked for and not applied, Color changes the render. Debug script: Color dimmed with its tooltip in S2, enabled in S5, S6, S7 and S8. |
-| AC6 | Tested + manual pending | "The availability rule …" (unit test of the rule); "This Mac: …" (the synthetic DNG is available on macOS 27). Debug script: a JPEG shows no check box; S3 and S4 dimmed with their captions (with the override). **Manual:** on macOS 15 or 26, any raw shows "not available on this Mac"; a real camera missing from the decoder's list shows "Not available for this camera." |
+| AC6 | Tested + manual pending | "The availability rule …" (unit test of the rule); "This Mac: …" (the synthetic DNG is available on macOS 27); "A missing model reads as not on this Mac, before decoding or from a decode, and is remembered" (the seam); "No source file calls the decoder's model downloads". Debug script: a JPEG shows no check box; S3 and S4 dimmed with their captions; `ml override nomodel` and `nomodel-decode` give S3 and S5 with the macOS 27 texts, and the next photo is "not on this Mac" at once; `ml override macos26` gives the older texts. **Manual:** on macOS 15 or 26, any raw shows "not available on this Mac"; a real camera missing from the decoder's list shows "Not available for this camera." |
 | AC7 | Tested + manual pending | Override `notOnThisMac`: render equals the classical render and says why; the stack keeps the setting after a reopen and an Exposure change; `photocli develop` on another parameter, `render` and `export` keep it and report `notOnThisMac`. Debug script: badge and caption in S5. **Manual:** the same on a Mac running macOS 15 or 26. |
 | AC7a | Tested + debug script | Override `failsDecode`: the classical render, the stack unchanged, live frames say `failed`; `photocli render` and `export` JSON give "could not be applied to this photo"; the export's Activity report has the row. Debug script: S8 caption, badge and its tooltip with `ml override fail`; the export row "3 photos were exported without machine learning noise reduction: it could not be applied to these photos." |
 | AC8 | Debug script + **manual pending** | On a 24 MP DNG the spinner was off at 0.3 s and on at 0.8 s, and `key right` moved to the next photo while the frame was rendering. **Manual (owner):** a real 24 MP raw, arrow keys and rating keys during the wait. |
@@ -138,9 +165,21 @@ Apple M4 Pro, macOS 27.2 (26B123), SDK 27.2.
 - **Is RAW 9 Apple-silicon-only?** macOS 27 runs only on Apple silicon
   (macOS 26 was the last release for Intel Macs), so an Intel Mac never has
   it. This Mac reports `arm64`. "Needs macOS 27 or later" is therefore the
-  right wording, and the design question in §11 does not arise. Not
-  measurable here: an Apple silicon Mac whose decoder model is not yet on
-  disk (see RI-E2).
+  right wording below macOS 27, and the design question in §11 does not
+  arise for Intel. A macOS 27 Mac without the decoder's model is the "this
+  Mac" case of owner ruling 9 (design §16 texts).
+- **Can the app tell that the model is missing without starting a
+  download? (ruling 9) No, not through any public API.** The macOS 27.2 SDK's
+  `CIRAWFilter` has only `downloadResources(timeout:completionHandler:)` and
+  `downloadAllResources(timeout:completionHandler:)`, which fetch the model
+  when it is missing. Nothing reports whether it is present, and
+  `supportedDecoderVersions` lists version 9 either way, as far as the
+  header says. macOS keeps RAW camera assets in a private MobileAsset folder
+  (`/System/Library/AssetsV2/com_apple_MobileAsset_RawCamera_Camera`), but
+  that is an undocumented implementation detail. I could not make the model
+  go missing on this Mac (it would mean deleting system assets), so I don't
+  know what a decode does without it: fail, fall back silently, or fetch on
+  its own. See RI-E6.
 - **`extendedDynamicRangeAmount` under RAW 9:** honored. With 1.0 the
   synthetic DNG's largest value is 1.25 under both `8.dng` and `9.dng`, so
   highlight recovery and negative exposure keep their headroom. Not
@@ -220,11 +259,62 @@ Run against the scratch library with the bundle copy:
   not be read this way: `accessibility AXCheckBox` finds none of the
   inspector's check boxes (an existing limit), so it is manual.
 
+- **After the rulings (design §15, §16):**
+  - `ml override nomodel`: S5 caption "Not applied on this Mac. Luminance
+    and Color apply instead.", badge tooltip "…which isn't available on this
+    Mac…". After `ml off`: S3 "Not available on this Mac." Export row "1
+    photo was exported without machine learning noise reduction: it isn't
+    available on this Mac."
+  - `ml override macos26`: the "needs macOS 27 or later" texts.
+  - `ml override nomodel-decode`: the photo moves to S5 (new texts) with the
+    frame. The next photo opened is "not on this Mac" as soon as it is
+    ready.
+  - DQ-3(1): a photo whose preview was cached as a failed fallback shows S8
+    on arrival (badge, caption, Color available, no spinner, no frame yet).
+    The background frame then applies, the photo moves to S2 silently, and
+    the next arrival shows S2: the fallback is gone from the session cache.
+  - RI-E3: camera raws' "9" is the machine learning version everywhere: the
+    availability rule, `chooseDecoder`, legacy stacks, the pin, and the
+    pop-up's "(machine learning)" suffix through
+    `machineLearningVersion(in:)`. Tests cover "9" in the rule, the pin, the
+    Decoder choice and legacy stacks. Not run on a real camera raw here (the
+    scratch library has only DNGs); that is part of AC13's manual check.
+
 Not checked by script: anything drawn (the inspector is a glass pane that
 `snapshot` leaves blank), Increase Contrast, Reduce Motion, VoiceOver
 speech.
 
 ## Requirements issues (for the product manager)
+
+RI-E1 to RI-E5 are ruled (prd.md Revisions; owner rulings 9–11) and
+applied. Their original text is kept below for the record. **RI-E6 is
+open.**
+
+- **RI-E6 (open). In production, nothing can tell the app the model is
+  missing.** Ruling 9 asks that a missing model read as "not on this Mac",
+  "even when the app only learns it from a failed decode". The mapping is
+  built and tested through the seam, and the session memory and texts are
+  in place. What is missing is a real signal (see the engineer question
+  above). No public API reports the model's presence, and a failed decode
+  looks the same whatever the cause: no image, or the version not taking.
+  Until something can tell, a missing model would show as "could not be
+  applied to this photo" (S8) if macOS fails the decode, or as nothing if
+  macOS falls back silently. Options:
+  - **(a) Treat every machine learning decode failure on macOS 27 as a
+    missing model.** Rules out S8 and "could not be applied" in practice;
+    that reason would then exist only for the seam. Simple, and true
+    whenever the model is the cause.
+  - **(b) Read macOS's private asset catalog.** Undocumented, may break with
+    any update, and I don't recommend it.
+  - **(c) Keep S8 for failures.** Accept that a missing model may read as
+    "could not be applied", and revisit when Apple documents a presence
+    check or someone sees a Mac without the model.
+  - **(d) Find out first.** On a test Mac or VM whose model was never
+    fetched, see what a decode does. That needs a machine I don't have, and
+    setting one up must not trigger the download.
+
+  I recommend (c) with (d) when a machine is available. (a) would hide real
+  decode failures behind a "this Mac" message that is wrong for them.
 
 - **RI-E1. AC1 cannot pass on a synthetic fixture.** AC1 says the machine
   learning render has lower high-frequency energy in flat areas than
@@ -294,6 +384,11 @@ speech.
 
 ## Design questions (for the designer)
 
+All three are ruled (design.md §15): DQ-1 approved as written; DQ-2
+intended (keep it measured); DQ-3 matches §6. DQ-3's point (1) needed a
+code change, now made and checked (`cd9c683`, Debug-script checks). Their
+original text follows.
+
 - **DQ-1. Plural "one" variations I wrote** (§9 gives only the plural forms):
   - "Machine learning noise reduction was left off for 1 photo that isn't a
     raw file."
@@ -314,7 +409,11 @@ speech.
   Confirm this matches §6's "arriving at a photo … whose preview isn't
   cached yet".
 
-## Owner open items (not answered here)
+## Owner open items
+
+Ruled: the speed ceiling (ruling 10, none) and the decoder's model (ruling
+9). AC13 stays open (ruling 11): the owner picks the cameras when doing it.
+The original items follow.
 
 - Which 2–3 cameras and high-ISO files for AC13, and whether those cameras
   are on the decoder's list. On this Mac `CIRAWFilter.supportedCameraModels(with:

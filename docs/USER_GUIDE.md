@@ -197,7 +197,8 @@ it was on, and the original if it was on and no value changed meanwhile.
 **Machine learning noise reduction** (raw files only): check **Use machine
 learning** at the top of Details ▸ Noise Reduction to decode the photo with the
 machine learning model in the macOS raw decoder, which reduces noise while
-keeping edges. It runs on this Mac; nothing is downloaded by the app. It is off
+keeping edges. It runs on this Mac, and the app never downloads anything for
+it. It is off
 unless you turn it on, photo by photo, and turning it on or off is one undo
 step. While it is on, **Luminance** sets its amount and **Color** is dimmed: its
 value is kept and applies again when you turn the check box off. The Decoder
@@ -209,10 +210,11 @@ see stays on screen, a small spinner in the caption shows after half a second,
 and you can keep moving between photos and culling meanwhile. Copy and Paste
 Adjustments, presets that include Noise Reduction and Reset All carry it or
 clear it; pasting onto files that are not raw leaves it off for them, and
-Activity says how many. It needs macOS 27 or later and a camera the decoder
-supports. Elsewhere the check box is dimmed and says why. A photo that asks for
-it where it cannot apply (on an older Mac, for an unsupported camera, or when
-the decode fails) keeps the setting, renders with Luminance and Color instead,
+Activity says how many. It needs macOS 27 or later, with the decoder's model
+already on the Mac, and a camera the decoder supports. Elsewhere the check box
+is dimmed and says why ("Not available on this Mac" covers both an older macOS
+and a missing model). A photo that asks for it where it cannot apply (on this
+Mac, for an unsupported camera, or when the decode fails) keeps the setting, renders with Luminance and Color instead,
 and shows a **Machine Learning Not Applied** badge in the caption, whose tooltip
 gives the reason. Exports say in Activity how many photos were written without it, and why.
 
