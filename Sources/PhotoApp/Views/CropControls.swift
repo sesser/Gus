@@ -24,6 +24,8 @@ struct CropSection: View {
                              help: String(localized: "Reset Crop"), isEnabled: isModified) {
                     editor.resetCrop()
                 }
+                // SwiftUI also applies its own enabled state to the control.
+                .disabled(!isModified)
             }
             if isExpanded {
                 controls
