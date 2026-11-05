@@ -12,8 +12,8 @@ below).
 - Baseline at `c436d49` (2026-11-05): `swift build` clean; `swift test` 501
   tests in 91 suites passed, 1 known issue (the `withKnownIssue` in "Live
   render session", pre-existing).
-- Latest (`2995a3f`): `swift build` clean, no warnings; `swift test` 517
-  tests in 94 suites passed, 1 known issue (the same). Goldens unchanged,
+- Latest (`8a17356`, after the designer review's fixes): `swift build`
+  clean, no warnings; `swift test` 517 tests in 94 suites passed, 1 known issue (the same). Goldens unchanged,
   `PreviewCacheKey.currentPipelineVersion` still 6, `UPDATE_GOLDENS` never run.
 - `LARGE_RENDER_TESTS=1 swift test --filter LargeSharpeningMapTests`
   measures the refine (below); it is skipped otherwise.
@@ -101,14 +101,14 @@ person at the bundled app.
 | AC5 | Manual: keyboard only, VoiceOver | Pending. Script: Esc from the value field to the loupe, then Esc hides the map (DR14) |
 | AC6 | Test "At render scale 0.1 the map still shows Masking …" (the render skips sharpening there; the map does not) | Pass. Manual (fit, 100 %, 400 %): script showed the map at fit and at 100 % |
 | AC7 | Test "After a pause the map is the full-resolution map, at 1:1 and downscaled at fit (AC7)" at Masking 25, 50, 100. Tolerance: one extra half-float rounding (2⁻¹¹) of the sharpening input, enlarged by the masks' local values before the step and by the mask's ramp (2 / threshold), as 8-bit steps plus one | Pass; mean difference under 0.5 steps |
-| AC8 | Test "Map frames never give a histogram and never count as the photo"; script | Pass. Toggling (also at 1:1) left the version row (stack, hash, `modifiedAt`), `sidecarQueue` and the undo menu unchanged; after `adjust masking 60` with the map shown, one Undo restored 85 and the map stayed; after hiding a map whose Masking changed, the loupe and the grid thumbnail show the photo (snapshots) |
-| AC9 | Script | Overlay suspended and restored: pass. Show Original suspended and restored, and not restored after a Masking change: pass. `original on` while shown ends the map: pass. Crop: toggle dimmed with "Finish cropping …", `canShowSharpenMap false`: pass. Brush drag on the photo with the map shown: manual (two `open` runs got no key window, so even the control drag without the map did not paint). By construction it cannot paint: showing the map turns Paint and Pick Colors off, turning either on ends the map, and the handle view is hidden, so its hit test passes clicks to the canvas |
+| AC8 | Test "Map frames never give a histogram and never count as the photo"; script | Pass. Toggling (also at 1:1) left the version row (stack, hash, `modifiedAt`), `sidecarQueue` and the undo menu unchanged; after `adjust masking 60` with the map shown, one Undo restored 85 and the map stayed; after hiding a map whose Masking changed, the loupe and the grid thumbnail show the photo (snapshots). Review fix 1 (`a4caeb8`): showing the mask overlay ends the map and now frees the full-resolution input; script: `print sharpenmap` shows `fullResolution true` with the map shown and refined, then `false` after `adjust mask overlay on`. Not reachable from a unit test (the editor is in PhotoApp, which the test target does not link). The histogram stays the last photo frame's while the map is shown (owner ruling, PRD R7) |
+| AC9 | Script | Overlay suspended and restored: pass. Show Original suspended and restored, and not restored after a Masking change: pass. `original on` while shown ends the map: pass. Crop: toggle dimmed with "Finish cropping …", `canShowSharpenMap false`: pass. Brush drag on the photo with the map shown: manual (two `open` runs got no key window, so even the control drag without the map did not paint). By construction it cannot paint: showing the map turns Paint and Pick Colors off, turning either on ends the map, and the handle view is hidden, so its hit test passes clicks to the canvas (manual check M7). Hover previews (D-Q1, ruled (a)): with the map shown, `preset preview LowMask` (Masking 10) puts a map frame of the previewed values on screen (`frame map of other values masking 10`), and `preset previewend` (new) returns the map of the applied values (`map of applied values masking 85`): pass |
 | AC10 | Script | `accessibility AXImage`: "Sharpening map, 1 of 105" (and the not-applied form). The arrow key, review, the grid and a relaunch all end it: pass |
 | AC11 | Test "Amount and the group's switch don't change the map (AC11)" and "Not applied only when nothing at all is sharpened (AC11's four cases)"; script with `adjust mask enable` | Pass: (a) "· Not Applied", "Amount is 0 …"; (b) "· Not Applied", "Sharpening is turned off …"; (c) plain badge, VoiceOver value without "no sharpening applied", legend plus "Masks with Sharpness …", for Amount 0 and for group off; (d) mask off: not applied again |
-| AC12 | Script | Video, offline master (detached disk image) and unreadable stack (`schemaVersion` 99): `canShowSharpenMap false`, `sharpenmap on` does nothing. `menuitems` in a key window: pending |
+| AC12 | Script | Video, offline master (detached disk image) and unreadable stack (`schemaVersion` 99): `canShowSharpenMap false`, `sharpenmap on` does nothing. `menuitems Sharpening` with `open -W -n --stdout`: in both runs macOS left the window without key status in these states (`print responder`: `key nil`), where every item reads dimmed, so the menu itself is not confirmed for them; the item's rule is `can { $0.canShowSharpeningMap }`, whose state the scripts confirm |
 | AC13 | Manual, EDR display, HDR photo | Pending. Map frames are 8-bit, clamped to white, and the layer is set to standard range; the HDR badge hides with live frames (test "Values outside 0 … 1 … show no brighter than white") |
 | AC14 | Goldens and pipeline version | Pass: unchanged |
-| DR1 | Script (`print menustate`); `menuitems` | State pass (grid, loupe, crop, review, video, offline, unreadable). Titles and placement after Mask Overlay are in code; `menuitems` in a key window pending |
+| DR1 | Script (`print menustate`); `menuitems Sharpening` launched with `open -W -n --stdout` | State pass (grid, loupe, crop, review, video, offline, unreadable). With the window key: grid, "Adjust/Show Sharpening Map" dimmed; review, dimmed: pass. Editable loupe photo (enabled, and the title flipping after `menupress`), crop, video, offline and unreadable: not confirmed, because macOS would not activate the app at those points in two runs (`key nil`; `menupress` then finds the item disabled, and "Hide Sharpening Map" absent). Pending a key-window run or the manual check |
 | DR2 | Script (`print sharpenmap` toggle line) | Under Masking, follows the state, enabled with the group off and at Amount 0, height 20–24 pt, tooltips for crop and review. Glass pane look: manual |
 | DR3 | Manual | Pending |
 | DR4 | Script; manual | Canvas value and the Show / Hide action pass; announcements recorded (`print announcement`). Spoken output: manual |
@@ -123,8 +123,23 @@ person at the bundled app.
 | DR13 | `swift test --filter "LocalizationTests|BrandingTests"`; reading | Pass; old hint removed; guide uses §1's terms |
 | DR14 | Script (`editvalue Masking`, `key escape` ×3) | Pass: value field → loupe, map hidden, then the grid |
 
-## Open
+## Pending manual checks (designer review M1–M9, `review.md`)
 
-- Design questions and a requirements issue are in the engineer's report
-  for this change (hover previews while the map is shown; the histogram
-  while values change under the map).
+| # | Check | Covers | State |
+|---|---|---|---|
+| M1 | Keyboard only: show from Help search, step Masking in its value field, Esc twice; with Keyboard Navigation on, Tab from Masking's value field to the toggle, then Space | DR3, AC5 | Pending |
+| M2 | On macOS 26, the toggle's bezel matches the Original toggle's height and style in both layouts (frame measured 20 and 24 pt); if taller, pin it to its intrinsic height | DR2, D-Q2 | Pending |
+| M3 | VoiceOver: the toggle speaks its name and state; the canvas actions offer Show / Hide Sharpening Map; announcements are spoken, with no two overlapping utterances when shown from the menu | DR4, AC5 | Pending |
+| M4 | Real compressed 24 MP raw: no spinner during a drag; after release only if the exact map takes over 0.5 s; the map darkens progressively while dragging and with keyboard steps | DR7, AC4 | Pending |
+| M5 | EDR display, HDR photo: the map's white matches the interface's; the HDR badge is hidden while it is shown | DR11, AC13 | Pending |
+| M6 | Increase Contrast and Reduce Motion: badge and legend legible, no animated transition | DR12 | Pending |
+| M7 | A film strip click ends the map; with a brush mask selected and the map shown, a drag pans and doesn't paint | DR8, AC9 | Pending |
+| M8 | The map shows at fit, 100 % and 400 % | AC6 | Pending (script showed fit and 100 %) |
+| M9 | Real photos with smooth areas at the frame's edge: is the black map edge findable against the surround? If not, a follow-up design change | design §5 | Pending |
+
+## Rulings received (2026-11-05)
+
+- D-Q1, hover previews while the map is shown: (a), as built; the guide says so.
+- D-Q2, toggle height: 20 pt and 24 pt are both acceptable.
+- Histogram while the map is shown: "Accept stale histogram" (PRD R7).
+- The fit-versus-full-size masking finding is roadmap Idea `sharpen-masking-scale`.
