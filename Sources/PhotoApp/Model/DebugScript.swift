@@ -48,6 +48,9 @@ import PhotoUI
 ///     accessibility <role>|any [<n> press|<action name>] | focused   (lists the window's accessibility
 ///                           elements with that role, e.g. AXImage, or runs an action on the nth; see AccessibilityProbe)
 ///     scroll <y>|bottom     (scrolls the inspector's Adjust tab to a point from its top)
+///     sharpenmap on|off|toggle   (Adjust ▸ Show / Hide Sharpening Map's action: reveals Masking, announces)
+///     print sharpenmap      (asked for, on screen with its badge and legend, refining, can show, the
+///                           overlay and Show Original, the inspector, the scroll position of the Adjust tab)
 ///     hdr on|off            (the View menu's Show HDR; snapshots show HDR clipped at white)
 ///     filmstrip on|off|toggle   (the loupe's film strip, as its toggle: slides)
 ///     filmstripsize <points>    (stores the nearest step, as a release does)
@@ -195,6 +198,13 @@ enum DebugScript {
             perform(Selector((verb + ":")), verb)
         case "inspector":
             model.showsInspector = rest.first != "off"
+        case "sharpenmap":
+            // The menu's path; it changes no photo, so it gets no undo group.
+            switch rest.first {
+            case "on": model.setSharpeningMap(true, from: .menu)
+            case "off": model.setSharpeningMap(false, from: .menu)
+            default: model.toggleSharpeningMap(from: .menu)
+            }
         case "keyword":
             if let index = Int(rest.first ?? ""), model.keywords.indices.contains(index) {
                 model.sidebarSelection = .keyword(model.keywords[index].id)
@@ -571,6 +581,33 @@ enum DebugScript {
 
     /// `x y` in points from the window's top-left corner, as in a 1x snapshot.
     /// The inspector's scroll view is the one whose document is a flipped clip's host.
+    /// Where the inspector is scrolled to, and whether the button titled
+    /// `title` in it lies inside the visible part (Masking revealed, design §3).
+    private static func printToggleVisibility(_ title: String, in view: NSView) {
+        if let scrollView = view as? NSScrollView, scrollView.contentView is FlippedClipView,
+           let document = scrollView.documentView {
+            let clip = scrollView.contentView
+            guard let button = descendant(of: NSButton.self, in: document, where: { $0.title == title }) else {
+                print("debug-script: sharpenmap toggle not in the inspector (offset \(Int(clip.bounds.minY)))")
+                return
+            }
+            let frame = button.convert(button.bounds, to: clip)
+            print("debug-script: sharpenmap toggle visible \(clip.bounds.contains(frame)) state \(button.state == .on ? "on" : "off")"
+                  + " enabled \(button.isEnabled) height \(Int(button.frame.height)) offset \(Int(clip.bounds.minY))"
+                  + " tip '\(button.toolTip ?? "-")'")
+            return
+        }
+        for subview in view.subviews { printToggleVisibility(title, in: subview) }
+    }
+
+    private static func descendant<V: NSView>(of type: V.Type, in view: NSView, where test: (V) -> Bool) -> V? {
+        if let match = view as? V, test(match) { return match }
+        for subview in view.subviews {
+            if let match = descendant(of: type, in: subview, where: test) { return match }
+        }
+        return nil
+    }
+
     private static func scrollInspector(_ target: String, in view: NSView) {
         if let scrollView = view as? NSScrollView, scrollView.contentView is FlippedClipView,
            let document = scrollView.documentView {
@@ -903,6 +940,18 @@ enum DebugScript {
         case "inspector":
             print("debug-script: inspector shown \(model.showsInspector) tab \(model.inspectorTab) keywords expanded "
                   + "\(InspectorExpansion.shared.isExpanded(InspectorView.keywordsKey, family: .info, default: true))")
+        case "sharpenmap":
+            let editor = model.editor
+            let shown = editor.shownSharpeningMap
+            let badge = shown.map(SharpeningMapText.badge) ?? "-"
+            let details = InspectorExpansion.shared.isExpanded(LibraryModel.detailsExpansionKey, family: .adjust, default: true)
+            print("debug-script: sharpenmap asked \(editor.showsSharpeningMap) onScreen \(shown != nil)"
+                  + " badge '\(badge)' refining \(editor.isRefiningSharpeningMap) canShow \(model.canShowSharpeningMap)")
+            print("debug-script: sharpenmap overlay \(editor.showsMaskOverlay) original \(editor.showsOriginal)"
+                  + " live \(editor.showsLive) histogram \(editor.histogram != nil) inspector \(model.showsInspector)"
+                  + " tab \(model.inspectorTab) details expanded \(details)")
+            print("debug-script: sharpenmap legend '\(shown.map(SharpeningMapText.legend) ?? SharpeningMapText.hint)'")
+            if let root = window?.contentView?.superview { printToggleVisibility(SharpeningMapText.name, in: root) }
         case "menustate":
             // What the menus read, apart from whether the window is key (a
             // scripted launch often is not the active app).
@@ -912,7 +961,9 @@ enum DebugScript {
                   + " export \(state.canExport)"
                   + " resetCrop \(state.canResetCrop) addMask \(state.canAddMask) video \(state.showsLoupeVideo)"
                   + " playing \(state.isVideoPlaying) pair \(state.pairDisplay.map { "\($0.raw)/\($0.companion)" } ?? "none") savePreset \(state.canSaveAsPreset) resetAll \(state.canResetAll) maskSelected \(state.hasSelectedMask) overlay \(state.showsMaskOverlay)"
-                  + " bareKeys \(state.bareKeysActive) editLoupePhoto \(state.canEditLoupePhoto) cropping \(state.isCropping)")
+                  + " bareKeys \(state.bareKeysActive) editLoupePhoto \(state.canEditLoupePhoto) cropping \(state.isCropping)"
+                  + " sharpenMap \(state.showsSharpeningMap) canShowSharpenMap \(state.canShowSharpeningMap)"
+                  + " sharpenMapNotApplied \(state.sharpeningMapNotApplied)")
         case "empty":
             // The browser's empty state (design.md N3), as the view chooses it.
             print("debug-script: empty \(model.emptyState.map { "\($0)" } ?? "none") source '\(model.title(for: model.sidebarSelection))'"
