@@ -125,6 +125,7 @@ final class LoupeController: NSObject {
         // Zoomed in, live frames are already stretched: drafts would make that worse.
         didSet {
             model.editor.allowsDrafts = zoom == .fit
+            model.editor.loupeIsZoomed = zoom != .fit
             publishZoom()
         }
     }
@@ -147,6 +148,8 @@ final class LoupeController: NSObject {
     init(model: LibraryModel) {
         self.model = model
         super.init()
+        // A new loupe starts at fit.
+        model.editor.loupeIsZoomed = false
         scrollView.contentView = CenteringClipView()
         scrollView.documentView = imageView
         scrollView.hasVerticalScroller = true
@@ -383,7 +386,9 @@ final class LoupeController: NSObject {
         let editor = model.editor
         _ = (editor.adjustments.local, editor.selectedMaskID, editor.isBrushing, editor.isSamplingColor,
              editor.maskFrameSize, editor.brushTemplate)
+        // Hidden under the sharpening map too: clicks then reach the canvas (zoom, pan), never a mask (R8).
         maskView.isHidden = editor.state != .ready || editor.cropSession != nil || editor.selectedMaskID == nil
+            || editor.showsSharpeningMap
         maskView.refresh()
     }
 
@@ -595,11 +600,13 @@ final class LoupeController: NSObject {
     var accessibilityItem: CatalogItem? { model.focusedItem }
     private var describedValue: String?
 
-    /// "Picked, 13 of 87".
+    /// "Picked, 13 of 87"; "Sharpening map, Picked, 13 of 87" while the map is on screen.
     var accessibilityValue: String? {
         guard let item = accessibilityItem, let index = model.focusIndex else { return nil }
-        return PhotoAccessibility.loupeValue(for: item, offline: model.isOffline(item), index: index,
-                                             count: model.items.count)
+        let value = PhotoAccessibility.loupeValue(for: item, offline: model.isOffline(item), index: index,
+                                                  count: model.items.count)
+        guard let map = model.editor.shownSharpeningMap else { return value }
+        return SharpeningMapText.canvasValue(map, photoValue: value)
     }
 
     /// Culling the photo on screen, or moving to another, changes the
@@ -620,11 +627,19 @@ final class LoupeController: NSObject {
         let zoomTitle = zoom == .fit ? String(localized: "Zoom to 100%") : String(localized: "Zoom to Fit")
         let originalTitle = model.editor.showsOriginal ? String(localized: "Show Adjustments")
                                                        : String(localized: "Show Original")
-        return PhotoAccessibility.cullingActions(forVersion: item.versionID, model: model) + [
+        var actions = PhotoAccessibility.cullingActions(forVersion: item.versionID, model: model) + [
             PhotoAccessibility.showGrid(model),
             PhotoAccessibility.action(zoomTitle) { [weak self] in self?.toggleZoom() },
             PhotoAccessibility.action(originalTitle) { [weak self] in self?.model.editor.toggleOriginal() },
         ]
+        // Matches the context menu: listed only when it can act.
+        if model.canShowSharpeningMap {
+            let titles = SharpeningMapText.menuTitle
+            actions.append(PhotoAccessibility.action(model.editor.showsSharpeningMap ? titles.hide : titles.show) {
+                [weak self] in self?.model.toggleSharpeningMap(from: .menu)
+            })
+        }
+        return actions
     }
 
     // MARK: Keys
@@ -661,6 +676,10 @@ final class LoupeController: NSObject {
         case .right, .down: model.moveFocus(by: 1)
         case .home: model.setFocus(0)
         case .end: model.setFocus(model.items.count - 1)
+        case .exitLoupe where model.editor.showsSharpeningMap:
+            // Esc backs out one level: the crop session (above), the map, review, then the loupe.
+            model.setSharpeningMap(false, from: .key)
+            return true
         case .exitLoupe where model.isReviewing:
             // Esc backs out one level: review first, then the loupe.
             model.exitReview()
@@ -891,7 +910,18 @@ struct LoupeCaption: View {
                 CaptionBadge(title: String(localized: "Filtered"),
                              help: String(localized: "A filter hides some of this source's photos"))
             }
-            if model.editor.showsOriginal {
+            // The map takes Original's place; the two are never on screen together.
+            if let map = model.editor.shownSharpeningMap {
+                CaptionBadge(title: SharpeningMapText.badge(map), help: SharpeningMapText.badgeHelp(map))
+                if model.editor.isRefiningSharpeningMap {
+                    let label = String(localized: "Refining the sharpening map",
+                                       comment: "Tooltip and VoiceOver label of the loupe caption's spinner")
+                    ProgressView()
+                        .controlSize(.mini)
+                        .help(label)
+                        .accessibilityLabel(label)
+                }
+            } else if model.editor.showsOriginal {
                 CaptionBadge(title: String(localized: "Original"),
                              help: String(localized: "Showing the photo without adjustments. Press \\ to show them again."))
             }

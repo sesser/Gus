@@ -1318,6 +1318,17 @@
         }
       }
     },
+    "Amount is 0. Raise it to sharpen the white areas, and the gray areas in part." : {
+      "comment" : "Inspector legend under Sharpening Map, Amount 0",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Amount is 0. Raise it to sharpen the white areas, and the gray areas in part."
+          }
+        }
+      }
+    },
     "And %lld more." : {
       "comment" : "Activity: failures past the listed ones",
       "localizations" : {
@@ -3350,6 +3361,17 @@
         }
       }
     },
+    "Exit Review (F) to show the sharpening map." : {
+      "comment" : "Tooltip of the dimmed Sharpening Map toggle in review mode; Exit Review is the View menu item",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exit Review (F) to show the sharpening map."
+          }
+        }
+      }
+    },
     "Exp. Comp" : {
       "comment" : "Info tab: exposure compensation tile, in EV",
       "localizations" : {
@@ -3881,6 +3903,17 @@
         }
       }
     },
+    "Finish cropping to show the sharpening map." : {
+      "comment" : "Tooltip of the dimmed Sharpening Map toggle during a crop session",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finish cropping to show the sharpening map."
+          }
+        }
+      }
+    },
     "Fit" : {
       "comment" : "Toolbar, loupe: fit the photo in the window",
       "localizations" : {
@@ -4247,6 +4280,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Hide Section"
+          }
+        }
+      }
+    },
+    "Hide Sharpening Map" : {
+      "comment" : "Returns the loupe to the photo",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide Sharpening Map"
           }
         }
       }
@@ -4969,6 +5013,17 @@
         }
       }
     },
+    "Judge Amount, Radius and Detail at 100% (Z) once the change is saved. Sharpening Map shows Masking's effect at any zoom." : {
+      "comment" : "Inspector caption under the Sharpening Map toggle while the map is hidden",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Judge Amount, Radius and Detail at 100% (Z) once the change is saved. Sharpening Map shows Masking's effect at any zoom."
+          }
+        }
+      }
+    },
     "Keep Both" : {
       "comment" : "Export window: existing files alert button",
       "localizations" : {
@@ -5545,6 +5600,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Masks and local adjustments"
+          }
+        }
+      }
+    },
+    "Masks with Sharpness still sharpen the areas they cover." : {
+      "comment" : "Added to the legend when Amount is 0 or Sharpening is off and a mask in effect has Sharpness. Must not say the masks follow the map",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Masks with Sharpness still sharpen the areas they cover."
           }
         }
       }
@@ -7103,6 +7169,17 @@
         }
       }
     },
+    "Refining the sharpening map" : {
+      "comment" : "Tooltip and VoiceOver label of the loupe caption's spinner",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Refining the sharpening map"
+          }
+        }
+      }
+    },
     "Reject" : {
       "localizations" : {
         "en" : {
@@ -7947,13 +8024,57 @@
         }
       }
     },
-    "Sharpening is easiest to judge at 1:1 (Z), once the change is saved." : {
-      "comment" : "Hint in the Details heading",
+    "Sharpening Map" : {
+      "comment" : "Name of the view of where Masking lets sharpening through: the inspector's toggle and the loupe caption's badge",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sharpening is easiest to judge at 1:1 (Z), once the change is saved."
+            "value" : "Sharpening Map"
+          }
+        }
+      }
+    },
+    "Sharpening Map · Not Applied" : {
+      "comment" : "Loupe caption badge: the map is shown while nothing is sharpened (Amount 0 or Sharpening off, and no mask in effect with Sharpness)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sharpening Map · Not Applied"
+          }
+        }
+      }
+    },
+    "Sharpening is turned off. Turn it on to sharpen the white areas, and the gray areas in part." : {
+      "comment" : "Inspector legend under Sharpening Map, the Sharpening group is off",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sharpening is turned off. Turn it on to sharpen the white areas, and the gray areas in part."
+          }
+        }
+      }
+    },
+    "Sharpening map, %@" : {
+      "comment" : "Loupe VoiceOver value while the map is shown; the argument is the photo's usual value, such as Picked, 13 of 87",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sharpening map, %@"
+          }
+        }
+      }
+    },
+    "Sharpening map, no sharpening applied, %@" : {
+      "comment" : "Loupe VoiceOver value while the map is shown and nothing is sharpened; the argument is the photo's usual value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sharpening map, no sharpening applied, %@"
           }
         }
       }
@@ -8100,6 +8221,17 @@
         }
       }
     },
+    "Show Sharpening Map" : {
+      "comment" : "Shows where Masking lets sharpening through, in place of the photo",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Sharpening Map"
+          }
+        }
+      }
+    },
     "Show Them" : {
       "comment" : "Import window: show the shots already in the library",
       "localizations" : {
@@ -8199,6 +8331,17 @@
         }
       }
     },
+    "Show where Masking lets sharpening through, in place of the photo" : {
+      "comment" : "Tooltip and VoiceOver help of the Sharpening Map toggle",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show where Masking lets sharpening through, in place of the photo"
+          }
+        }
+      }
+    },
     "Showing the photo without adjustments. Press \\ to show them again." : {
       "comment" : "Tooltip of the loupe's Original badge",
       "localizations" : {
@@ -8206,6 +8349,61 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Showing the photo without adjustments. Press \\ to show them again."
+          }
+        }
+      }
+    },
+    "Showing the photo." : {
+      "comment" : "VoiceOver, when the sharpening map is hidden",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Showing the photo."
+          }
+        }
+      }
+    },
+    "Showing the sharpening map." : {
+      "comment" : "VoiceOver, when the sharpening map is shown",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Showing the sharpening map."
+          }
+        }
+      }
+    },
+    "Showing the sharpening map. No sharpening is applied." : {
+      "comment" : "VoiceOver, when the sharpening map is shown while nothing is sharpened",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Showing the sharpening map. No sharpening is applied."
+          }
+        }
+      }
+    },
+    "Showing where Masking lets sharpening through instead of the photo: white is sharpened, black is not. Press Esc to see the photo again." : {
+      "comment" : "Tooltip of the loupe caption's badge, applied",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Showing where Masking lets sharpening through instead of the photo: white is sharpened, black is not. Press Esc to see the photo again."
+          }
+        }
+      }
+    },
+    "Showing where sharpening would go instead of the photo. No sharpening is applied now. Press Esc to see the photo again." : {
+      "comment" : "Tooltip of the loupe caption's badge, not applied",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Showing where sharpening would go instead of the photo. No sharpening is applied now. Press Esc to see the photo again."
           }
         }
       }
@@ -9354,6 +9552,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "White Balance"
+          }
+        }
+      }
+    },
+    "White areas are sharpened, gray areas in part, and black areas not at all." : {
+      "comment" : "Inspector legend under Sharpening Map, sharpening applied",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "White areas are sharpened, gray areas in part, and black areas not at all."
           }
         }
       }

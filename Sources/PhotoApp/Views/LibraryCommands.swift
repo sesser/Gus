@@ -447,6 +447,12 @@ struct LibraryCommands: Commands {
                 model?.editor.showsMaskOverlay.toggle()
             }
             .disabled(!can { $0.hasSelectedMask })
+            // The two "see a mask in the loupe" items together (sharpen-mask-preview design §3).
+            Button(menu?.state.showsSharpeningMap == true ? SharpeningMapText.menuTitle.hide
+                                                          : SharpeningMapText.menuTitle.show) {
+                model?.toggleSharpeningMap(from: .menu)
+            }
+            .disabled(!can { $0.canShowSharpeningMap })
             Divider()
             Button("Save Adjustments as Preset…") { model?.promptForAdjustmentPreset() }
                 .disabled(!can { $0.canSaveAsPreset })
