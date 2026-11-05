@@ -160,8 +160,9 @@ public enum MachineLearningNoiseReduction {
         return overrides.withLock { $0[key] ?? $0[everySource] }
     }
 
+    /// The same file under any of its paths (`/var` and `/private/var`).
     private static func key(for source: URL) -> String {
-        source.standardizedFileURL.path
+        source.resolvingSymlinksInPath().path
     }
 }
 

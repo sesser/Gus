@@ -555,3 +555,146 @@ struct MachineLearningNoiseReductionTests {
     }
 }
 
+
+/// `photocli` and export with machine learning noise reduction (AC7, AC7a,
+/// AC11), run in process against a temporary library with a DNG and a JPEG.
+@Suite("Machine learning noise reduction: photocli and export")
+struct MachineLearningCommandTests {
+    typealias ML = MachineLearningNoiseReduction
+
+    struct Library {
+        var root: URL
+        var catalog: Catalog
+        var dng: (id: Int64, url: URL)
+        var jpeg: Int64
+        var cli: CommandLineInterface
+
+        func run(_ arguments: String...) async -> JSONValue {
+            let output = await cli.run(arguments + ["--library-root", root.path])
+            return (try? JSONValue.parse(output.exitCode == 0 ? output.standardOutput : output.standardError)) ?? .null
+        }
+
+        func asks() async throws -> Bool {
+            Adjustments(stack: try await catalog.version(id: dng.id)?.decodedEditStack() ?? .identity)
+                .asksForMachineLearning
+        }
+    }
+
+    /// A library with one noisy DNG and one JPEG, the DNG given `override`.
+    static func withLibrary(_ override: ML.Override?, _ body: (Library) async throws -> Void) async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let photos = root.appending(path: "Photos", directoryHint: .isDirectory)
+            try FileManager.default.createDirectory(at: photos, withIntermediateDirectories: true)
+            let dng = photos.appending(path: "IMG_0001.dng")
+            try SyntheticDNG.write(to: dng, options: .init(width: 320, height: 240, seed: 7, noise: 0.02,
+                                                           writesNoiseProfile: true))
+            try SyntheticImages.writeJPEG(to: photos.appending(path: "IMG_0002.jpg"), width: 320, height: 240, seed: 2)
+            ML.setOverride(override, for: dng)
+            defer { ML.setOverride(nil, for: dng) }
+            let locations = LibraryLocations.rooted(at: root.appending(path: "Library", directoryHint: .isDirectory))
+            try locations.createDirectories()
+            let catalog = try Catalog.open(at: locations.catalogFileURL)
+            _ = try await Importer(catalog: catalog, metadataReader: ImageIOMetadataReader()).importFolder(photos)
+            let items = try await catalog.libraryItems(matching: LibraryFilter(groupsPairs: false))
+            let dngID = try #require(items.first { $0.fileName.hasSuffix(".dng") }?.versionID)
+            let jpegID = try #require(items.first { $0.fileName.hasSuffix(".jpg") }?.versionID)
+            try await body(Library(root: root.appending(path: "Library"), catalog: catalog, dng: (dngID, dng),
+                                   jpeg: jpegID,
+                                   cli: CommandLineInterface(environment: CommandEnvironment(currentDirectory: root))))
+        }
+    }
+
+    @Test("adjustments lists the setting; develop --dry-run prints a stack with it on (AC11)")
+    func adjustmentsAndDryRun() async throws {
+        try await Self.withLibrary(nil) { library in
+            let listed = try JSONValue.parse(await library.cli.run(["adjustments"]).standardOutput)
+            let module = listed["modules"]?.arrayValue?.first { $0["kind"] == "noiseReduction" }
+            let parameter = module?["parameters"]?.arrayValue?.first { $0["name"] == "machineLearning" }
+            #expect(parameter?["type"] == "boolean" && parameter?["default"] == .bool(false))
+
+            let dry = await library.run("develop", "--version", "\(library.dng.id)",
+                                        "--set", "noiseReduction.machineLearning=true", "--dry-run")
+            let stack = try dry["editStack"].map { try $0.decode(EditStack.self) }
+            #expect(stack.map { Adjustments(stack: $0).asksForMachineLearning } == true)
+            #expect(dry["written"] == .bool(false))
+            let before = try await library.asks()
+            #expect(!before)
+
+            let jpeg = await library.run("develop", "--version", "\(library.jpeg)",
+                                         "--set", "noiseReduction.machineLearning=true")
+            #expect(jpeg["code"] == "invalidEdit")
+        }
+    }
+
+    @Test("Without it on this Mac: develop, render and export keep the setting and say why (AC7)")
+    func notOnThisMac() async throws {
+        try await Self.withLibrary(.init(availability: .notOnThisMac)) { library in
+            _ = await library.run("develop", "--version", "\(library.dng.id)", "--set", "noiseReduction.machineLearning=true")
+            let asks1 = try await library.asks()
+            #expect(asks1)
+            _ = await library.run("develop", "--version", "\(library.dng.id)", "--set", "exposure.ev=0.5")
+            let asks2 = try await library.asks()
+            #expect(asks2)
+
+            let out = library.root.deletingLastPathComponent().appending(path: "render.png").path
+            let render = await library.run("render", "--version", "\(library.dng.id)", "--out", out)
+            #expect(render["machineLearning"]?["requested"] == .bool(true))
+            #expect(render["machineLearning"]?["applied"] == .bool(false))
+            #expect(render["machineLearning"]?["reason"] == "notOnThisMac")
+
+            let folder = library.root.deletingLastPathComponent().appending(path: "Export").path
+            let export = await library.run("export", "--version", "\(library.dng.id)", "--version", "\(library.jpeg)",
+                                           "--to", folder)
+            let results = export["machineLearning"]?.arrayValue ?? []
+            #expect(results.count == 1 && results.first?["reason"] == "notOnThisMac")
+            let asks3 = try await library.asks()
+            #expect(asks3)
+        }
+    }
+
+    @Test("A failed decode: render and export JSON and the export's Activity rows give the reason (AC7a)")
+    func failedDecode() async throws {
+        try await Self.withLibrary(.init(availability: .available, failsDecode: true)) { library in
+            _ = await library.run("develop", "--version", "\(library.dng.id)", "--set", "noiseReduction.machineLearning=true")
+            let stored = try await library.catalog.version(id: library.dng.id)?.decodedEditStack()
+
+            let out = library.root.deletingLastPathComponent().appending(path: "render.png").path
+            let render = await library.run("render", "--version", "\(library.dng.id)", "--out", out)
+            #expect(render["machineLearning"]?["reason"] == "failed")
+            #expect(render["machineLearning"]?["message"] == "could not be applied to this photo")
+
+            let folder = library.root.deletingLastPathComponent().appending(path: "Export").path
+            let export = await library.run("export", "--version", "\(library.dng.id)", "--to", folder)
+            #expect(export["machineLearning"]?.arrayValue?.first?["message"] == "could not be applied to this photo")
+
+            let job = ExportJob(catalog: library.catalog, renderer: ExportRenderer(generator: PreviewGenerator(engine: Goldens.engine)))
+            let summary = await job.run(ExportRequest(versionIDs: [library.dng.id, library.jpeg], settings: ExportSettings(),
+                                                      destination: URL(fileURLWithPath: folder)))
+            #expect(ExportActivityReport(summary).machineLearningNotApplied == [.init(reason: .failed, count: 1)])
+            let after = try await library.catalog.version(id: library.dng.id)?.decodedEditStack()
+            #expect(after == stored)
+        }
+    }
+
+    @Test("Where it applies, render and export say so", .enabled(if: MachineLearningNoiseReductionTests.hasMachineLearningDecoder,
+                                                                 "needs the RAW decoder's version 9 (macOS 27 or later)"))
+    func applied() async throws {
+        try await Self.withLibrary(nil) { library in
+            _ = await library.run("develop", "--version", "\(library.dng.id)", "--set", "rawDecode.decoderVersion=9.dng")
+            let asks4 = try await library.asks()
+            #expect(asks4)
+            let out = library.root.deletingLastPathComponent().appending(path: "render.png").path
+            let render = await library.run("render", "--version", "\(library.dng.id)", "--out", out)
+            #expect(render["machineLearning"]?["applied"] == .bool(true))
+            let original = await library.run("render", "--version", "\(library.dng.id)", "--out", out, "--original")
+            #expect(original["machineLearning"]?["requested"] == .bool(false))
+            let folder = library.root.deletingLastPathComponent().appending(path: "Export").path
+            let export = await library.run("export", "--version", "\(library.dng.id)", "--to", folder)
+            #expect(export["machineLearning"]?.arrayValue?.first?["applied"] == .bool(true))
+            let summary = await ExportJob(catalog: library.catalog, renderer: ExportRenderer())
+                .run(ExportRequest(versionIDs: [library.dng.id], settings: ExportSettings(),
+                                   destination: URL(fileURLWithPath: folder), policy: .overwrite))
+            #expect(ExportActivityReport(summary).machineLearningNotApplied.isEmpty)
+        }
+    }
+}
