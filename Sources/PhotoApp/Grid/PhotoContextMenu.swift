@@ -116,6 +116,8 @@ enum PhotoContextMenu {
         }
         if adjusts {
             menu.addItem(ActionMenuItem(String(localized: "Auto Exposure")) { model.autoExposure() })
+        }
+        if state.canResetAll {
             menu.addItem(ActionMenuItem(String(localized: "Reset All Adjustments")) { model.resetAllAdjustments() })
         }
         if state.mode == .grid ? state.targetsIncludePhoto : state.canEditLoupePhoto {

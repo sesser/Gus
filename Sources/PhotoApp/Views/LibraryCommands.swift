@@ -396,7 +396,7 @@ struct LibraryCommands: Commands {
             Button("Auto Exposure") { model?.autoExposure() }
                 .disabled(!can(adjustsTargets))
             Button("Reset All Adjustments") { model?.resetAllAdjustments() }
-                .disabled(!can(adjustsTargets))
+                .disabled(!can { $0.canResetAll })
             Divider()
             Button(menu?.state.isCropping == true ? String(localized: "Finish Cropping") : String(localized: "Crop")) {
                 model?.crop()
