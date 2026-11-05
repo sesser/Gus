@@ -88,9 +88,13 @@ R9 (Must): When the loupe shows the mask instead of the photo, this is
 evident on screen and to VoiceOver. The mask is off when the user leaves
 the loupe (grid, review mode) and after relaunch.
 
-R10 (Must, owner ruling 4): With Amount at 0 or the Sharpening group turned
-off, the mask still shows Masking's selection (where sharpening would go),
-and it is clear that no sharpening is applied right now.
+R10 (Must, owner rulings 4 and RI-1): With the global Amount at 0 or the
+Sharpening group turned off, the mask still shows Masking's selection (where
+sharpening would go). The screen says that no sharpening is applied only when
+nothing at all is sharpened, meaning no local mask in effect has Sharpness
+above 0. When local masks still sharpen, the view keeps its normal state, and
+its legend adds a sentence saying that local masks still sharpen. The wording
+is the designer's.
 
 R11 (Must): Where live editing is unavailable (videos, offline masters,
 unreadable edit stacks), the control is disabled rather than missing or
@@ -153,9 +157,15 @@ AC10 (R9): The debug script's `accessibility` output for the loupe says it
 shows the sharpening mask. Switching to the grid or review mode, or
 relaunching, ends the mask.
 
-AC11 (R10): Test. At equal Masking, the mask with Amount 0 equals the mask
-with Amount 50. Manual check: with Amount 0, the screen shows that
-sharpening is not applied.
+AC11 (R10): Test: at equal Masking, the mask with Amount 0 equals the mask
+with Amount 50. Debug-script or manual checks, with the mask shown:
+- Amount 0, and no local mask with Sharpness: the not-applied state shows.
+- Sharpening group off, and no local mask with Sharpness: the not-applied
+  state shows.
+- Amount 0 or the group off, plus one local mask in effect with Sharpness
+  50: the normal state shows, its legend has the extra sentence, and the
+  not-applied state does not show.
+- The same, with that local mask turned off: the not-applied state shows.
 
 AC12 (R11): For a video, an offline master and an unreadable stack, the
 control is disabled (menu state via `menuitems`, or the control's state).
@@ -180,6 +190,12 @@ AC14 (R13): The existing goldens pass unchanged, and
 - Changing how sharpening or Masking renders. This includes making the
   sharpening shown at fit match full size (see Q5).
 - Viewport rendering at 1:1. That is roadmap item `viewport-render-1to1`.
+- What local Sharpness renders with while the Sharpening group is off
+  (RI-2). Today it uses the default Radius 1, Detail 25 and Masking 0, not
+  the user's values. Until that is decided, the view shows the user's
+  Masking, which local sharpening then ignores. Any fix is a rendering
+  change with a pipeline bump, which R13 excludes here. Tracked as roadmap
+  item `local-sharpen-group-off`.
 
 ## Dependencies and impact
 
@@ -226,6 +242,19 @@ Owner, in chat, 2026-11-05:
 4. Amount at 0 or the group turned off: "Show mask, note no sharpening"
    (R10, now Must).
 
+Owner, in chat, 2026-11-05, on the designer's requirements issues:
+
+- RI-1, R10 with local sharpening: local Sharpness keeps sharpening through
+  the global Masking when the global Amount is 0 or the group is off. Ruling:
+  "Only when nothing sharpens". The not-applied state shows only when
+  nothing at all is sharpened, local masks included. When local masks still
+  sharpen, the normal state stays, and the legend adds a sentence (R10,
+  AC11).
+- RI-2: with the group off, `Adjustments.effective` resets Sharpening to its
+  defaults, so local Sharpness uses Masking 0, Radius 1 and Detail 25 rather
+  than the user's values. Ruling: "Roadmap item to decide". It is out of
+  scope here (R13) and tracked as `local-sharpen-group-off`.
+
 ## Open questions
 
 **Q4 (designer):**
@@ -250,3 +279,7 @@ Owner, in chat, 2026-11-05:
 - 2026-11-05: Owner rulings recorded. Q1, Q2, Q3 and Q6 are closed. R6 is no
   longer pending. R10 is raised from Should to Must. `photocli` and the
   previews for the other sliders are non-goals. Status is Approved.
+- 2026-11-05: The designer's RI-1 and RI-2 were ruled on by the owner. R10
+  and AC11 now treat local sharpening: "not applied" shows only when nothing
+  sharpens. A non-goal now points to the new roadmap item
+  `local-sharpen-group-off`.
