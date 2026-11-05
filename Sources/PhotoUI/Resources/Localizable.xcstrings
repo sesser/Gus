@@ -856,7 +856,7 @@
       }
     },
     "Add Folder" : {
-      "comment" : "Activity row title: folders added without copying",
+      "comment" : "Activity row title: folders added without copying; the open panel button of File ▸ Add Folder Without Copying…",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3043,7 +3043,7 @@
       }
     },
     "Deselect All" : {
-      "comment" : "Import menu and grid context menu",
+      "comment" : "Edit menu (⇧⌘A) in the library app (keeps only the focused photo, or deselects the Import window's shots) and the importer; Import window Selection menu and grid context menu",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -5583,7 +5583,7 @@
       }
     },
     "Metadata" : {
-      "comment" : "Settings section",
+      "comment" : "Settings section; Info tab heading; Export sheet section; Import window options section; metadata preset editor section",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6503,7 +6503,7 @@
       }
     },
     "Pause" : {
-      "comment" : "VoiceOver action on a video",
+      "comment" : "View menu (Space) and the video loupe's context menu while a video plays; VoiceOver action on a video",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6655,7 +6655,7 @@
       }
     },
     "Play" : {
-      "comment" : "VoiceOver action on a video",
+      "comment" : "View menu (Space) and the video loupe's context menu while a video is paused; VoiceOver action on a video",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7442,7 +7442,7 @@
       }
     },
     "Reset Crop" : {
-      "comment" : "Undo action name and tooltip in the Adjust tab's crop heading",
+      "comment" : "Adjust menu item; undo action name; tooltip of the reset button in the Adjust tab's Crop & Straighten heading",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8014,6 +8014,7 @@
       }
     },
     "Show Grid" : {
+      "comment" : "View menu (⌘↩) in the loupe; the video loupe's context menu; VoiceOver action in the loupe and video loupe",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8374,7 +8375,7 @@
       }
     },
     "Stop" : {
-      "comment" : "Import window: cancel the import",
+      "comment" : "Activity popover: stops a job; Import window toolbar: cancels the import; File menu (⌘.): the item's title when nothing runs (dimmed)",
       "localizations" : {
         "en" : {
           "stringUnit" : {
