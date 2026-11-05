@@ -84,6 +84,26 @@ struct FolderImportQueueTests {
         }
     }
 
+    /// Add Folder Without Copying… during an import (design.md I2): the
+    /// chosen folder goes through the same queue as a drop and is the
+    /// batch's second folder ("Folder 2 of 2").
+    @Test func aFolderChosenWhileOneImportsJoinsTheBatch() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let dropped = try makeFolder(root.appending(path: "Dropped"))
+            let chosen = try makeFolder(root.appending(path: "Chosen"))
+
+            var queue = FolderImportQueue()
+            queue.enqueue(DroppedFolders([dropped]).folders)
+            #expect(queue.next() == dropped)
+            #expect(queue.enqueue(DroppedFolders([chosen]).folders) == [chosen])
+            #expect(queue.started == 1)
+            #expect(queue.count == 2)
+            #expect(queue.next() == chosen)
+            #expect(queue.started == 2)
+            #expect(queue.count == 2)
+        }
+    }
+
     @Test func importsEachFolderAsItsOwnProjectAndAddsUpTheBatch() async throws {
         try await RepositoryFiles.withTemporaryDirectory { root in
             let beach = root.appending(path: "Beach")

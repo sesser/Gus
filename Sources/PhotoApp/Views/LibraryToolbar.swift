@@ -152,7 +152,6 @@ private struct ImportToolbarButton: View {
         Menu {
             Button("Import from Card or Folder…") { openImport() }
             Button("Add Folder Without Copying…") { ImportPanel.run(model: model) }
-                .disabled(model.isImporting)
         } label: {
             Label("Import", systemImage: "square.and.arrow.down")
         } primaryAction: {

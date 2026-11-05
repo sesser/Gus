@@ -15,7 +15,7 @@ to `ui-redesign-onscreen-check` unless noted.
 - Baseline at `adb8d95` (2026-11-04): `swift build` clean; `swift test` 468
   tests in 84 suites passed, 1 known issue (the `withKnownIssue` in "Live
   render session", pre-existing).
-- Latest (with E12): `swift build` clean, no warnings; `swift test` 478 tests
+- Latest (with E13): `swift build` clean, no warnings; `swift test` 479 tests
   in 86 suites passed, 1 known issue (the same).
 
 ## Changes
@@ -34,7 +34,7 @@ to `ui-redesign-onscreen-check` unless noted.
 | E10 | Medium | Edit ▸ Deselect All ⇧⌘A, shared item (I5) | Not started | | |
 | E11 | Medium | File ▸ Stop ‹job› ⌘., shared item (I4) | Not started | | |
 | E12 | High | Export enablement: targets include a photo, no export running (I1) | Done | Enable Export only for photo targets (E12) | Rule: `ExportTargets.canExport` (PhotoCore), suite "Export enablement" (videos only, mixed, pair, while exporting, stops at the first photo). Debug script launched with `open -W -n`: `focus MVI_00007; menuitems Export` → File/Export… disabled; `contextmenu cell 0` on a video lists no Export…; on a photo and after `selectall` it is enabled / listed. The toolbar item uses the same `LibraryMenuState.canExport`; manual on-screen check that it dims (glass) |
-| E13 | High | Add Folder Without Copying… always enabled, queues (I2) | Not started | | |
+| E13 | High | Add Folder Without Copying… always enabled, queues (I2) | Done | Keep Add Folder Without Copying… enabled during imports (E13) | Menu, toolbar Import ▸ menu and empty-library button lose their "importing" dimming; the panel already enqueues through `importFolders`, the drops' queue. Test: "aFolderChosenWhileOneImportsJoinsTheBatch" (FolderImportQueueTests). Debug script (new `addfolder <path>`, the panel's call) launched with `open -W -n` on a fresh library: two 800-photo folders; `print activity` shows "Add 2 Folders \| Folder 1 of 2 · 448 of 800", then "Folder 2 of 2 · 192 of 800"; `menuitems Add Folder` enabled before, during and after. Toolbar menu and empty-state button: manual. Guide: the queue sentence now covers chosen folders |
 | E14 | High | Export results in Activity only, no alert (I3, D2) | Not started | | |
 | E15 | Medium | Suggest Keywords shows Info ▸ Keywords (I7) | Not started | | |
 | E16 | Medium | "Caption" becomes "Description" (I8) | Not started | | |

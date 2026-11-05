@@ -55,7 +55,8 @@ struct LibraryCommands: Commands {
                 if let model { ImportPanel.run(model: model) }
             }
             .keyboardShortcut("i", modifiers: [.command, .shift])
-            .disabled(!can { !$0.isImporting })
+            // A folder chosen while another is added joins its queue, as a drop does.
+            .disabled(!can())
             Divider()
             Button("New Album…") { model?.sidebarSheet = .newAlbum(projectID: model?.selectedProjectID) }
                 .keyboardShortcut("n", modifiers: .command)

@@ -41,7 +41,7 @@ You can also drag one or more folders from Finder onto the browser (grid or
 loupe) or the sidebar's Projects list. Each folder is imported the same way, in
 place, as its own project named after it; several import one after another,
 with the folder and its place in the batch shown in the toolbar's Activity item. Folders
-dropped while an import runs join the queue. Files and packages among the
+dropped, or chosen with **Add Folder Without Copying…**, while an import runs join the queue. Files and packages among the
 dropped items are ignored (Activity says how many), and a folder inside
 another dropped folder is imported with it. A project of the same name already
 in the library is left alone: the import makes a new project holding only the

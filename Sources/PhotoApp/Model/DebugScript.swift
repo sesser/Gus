@@ -57,6 +57,7 @@ import PhotoUI
 ///     adjust …  original on|off  tab info|adjust   (see DebugAdjustCommands)
 ///     metadata <field> [<text>]   print metadata   sidecars on|off   (see DebugMetadataCommands)
 ///     dropfolders <path>[, <path>…]   (imports dropped items the way a drop from Finder does)
+///     addfolder <path>      (adds a folder the way Add Folder Without Copying… does once its panel returns)
 ///     waitimport            (waits for folder imports to finish, then prints the projects and status)
 ///     drophighlight on|off  (shows the browser's folder drop highlight)
 ///     lut <name>|none       (the first table of that name in any collection)
@@ -224,6 +225,9 @@ enum DebugScript {
             // Item providers like Finder's, read by the drop's own code.
             let providers = paths.map { NSItemProvider(object: URL(fileURLWithPath: $0) as NSURL) }
             model.importFolders(await FolderDrop.urls(from: providers))
+        case "addfolder":
+            // What Add Folder Without Copying… does with the folder its panel returns.
+            model.importFolder(URL(fileURLWithPath: (rest.joined(separator: " ") as NSString).expandingTildeInPath))
         case "waitimport":
             while model.isImportRunning { try? await Task.sleep(for: .milliseconds(100)) }
             print("debug-script: projects " + model.projects.map { "\($0.project.name)=\($0.versionCount)" }

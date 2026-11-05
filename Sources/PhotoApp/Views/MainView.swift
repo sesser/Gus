@@ -147,7 +147,6 @@ private struct EmptyBrowserView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 Button("Add Folder Without Copying…") { ImportPanel.run(model: model) }
-                    .disabled(model.isImporting)
             }
         }
     }
