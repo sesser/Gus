@@ -5,7 +5,7 @@ are ruled (§13): the product manager ruled RI-1 to RI-6 and the owner ruled
 RI-7, all on 2026-11-05. prd.md records the rulings (R3–R6, R10, AC4–AC7a,
 AC10, Revisions). The engineer's design questions DQ-1 to DQ-3 are ruled in
 §15. The owner's ruling on RI-E2 and its effect on wording are in §16.
-Nothing is open.
+Nothing is open. The designer review is in [`review.md`](review.md).
 
 **Inputs.**
 
@@ -413,8 +413,11 @@ the check box's state. It never holds a separate one.
   The spinner is a progress indicator, not decoration, and stays.
 - **Reduce Transparency.** Nothing here is on the glass layer. The
   inspector pane follows the system.
-- **Hit target.** The small check box with its title is wider and taller
-  than the 20 × 20 pt minimum (UIR §10).
+- **Hit target.** The check box is the system's small check box, the same
+  as the inspector's group check boxes. Its title widens the click area well
+  past 20 pt, but it is not 20 pt tall. That is the inspector's standard
+  control size, and UIR §10's 20 × 20 pt rule applies to icon-only targets.
+  (Corrected at review, review.md F5.)
 
 ## 9. Strings
 
