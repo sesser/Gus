@@ -55,7 +55,7 @@ the code changes needed to match.
 | N10 | Inv ▸ Masks ▸ "Combining", "Local controls"; brush and color sampling | Component rows (operation pop-up, invert, remove), Amount, local sliders, Paint / Done Painting, Pick Colors / Done Picking. UIR §4 lists only the mask rows | Keep as built, inspector only. These are parameters and tool modes of the selected mask (like slider values), not commands, so they have no menu items | Judgment: the HIG doesn't ask for parameter values in menus | none |
 | N11 | Inv ▸ Crop (aspect presets, Straighten) | Inspector and the crop overlay | Keep inspector only, for the same reason as N10 | Judgment | none |
 | N12 | Inv ▸ Grid ▸ "RAW+JPEG pairs" (Info tab) | The Info tab's File row shows a "RAW + JPEG" pill (code); UIR §4 omits it | Keep as built | none | none |
-| N13 | (no capability) Help menu | SwiftUI's default "‹app› Help" item, which says no help is available | No placement until the product decides (RI-1) | HIG The menu bar, Help menu | none |
+| N13 | (no capability) Help menu; prd.md R1, R2 | SwiftUI's default "‹app› Help" item, which says no help is available | Per prd.md R1 and R2: remove the dead "‹app› Help" item from both apps, and keep the Help menu with its system search field, which finds menu commands. Help content is new scope (`in-app-help`) | HIG The menu bar: Help menu; principle 5, every command can be found in a menu | E28 |
 
 ### 1b. Every inventory row
 
@@ -67,7 +67,8 @@ surface. Together they cover every inventory row.
 | Catalog and library | Referenced masters | Placed | Info tab File, Folder, Volume rows (UIR §4). Nothing else to show |
 | | Offline volumes | Placed + N1 | Offline badge in the caption and grid values (UIR §1, §10), Activity warnings (UIR §1), Adjust tab state (N1) |
 | | Migrations v1–v13; Versions; Data directory migration | No surface needed | Storage internals. A rename migrates silently |
-| | Projects | Placed | Sidebar Projects (UIR §3), Import options Project (UIR §8). Rename and remove are not capabilities (RI-2) |
+| | Projects | Placed | Sidebar Projects (UIR §3), Import options Project (UIR §8) |
+| | Rename and remove projects (data only) | Deferred | `Catalog.renameProject` and `Catalog.deleteProject` exist with no UI or command (the inventory row is corrected). Their UI belongs to `rename-project` and `remove-from-library`, each with its own PRD (RI-2). Until then File ▸ Rename and Delete stay dimmed for projects |
 | | Duplicate a version | Deferred | `virtual-copies`. No UI until specified |
 | | Stacks (data only) | Deferred | `stacks` |
 | | Keyword hierarchy (data only) | Deferred | `hierarchical-keywords` |
@@ -75,7 +76,7 @@ surface. Together they cover every inventory row.
 | | Unreadable edit stacks protected | Placed + N1 | Activity sentence (UIR §1), Adjust tab state (N1) |
 | Import | Add Folder Without Copying…; Folder drops; Card and folder import; Duplicate hiding; Naming templates; Metadata presets; Keep picks on rescan; Shutter count; Keeps running after close; Quit guard; Delete from card, eject; Copy and verify | Placed | UIR §5, §6, §8, §9, decision 19. Copy and verify shows only as progress and results (UIR §8) |
 | | Auto-open on card insert | N2 | Settings |
-| | Metadata reading (ExifTool / ImageIO / AVFoundation) | No surface needed | Internal. Whether ExifTool is present is invisible (RI-4) |
+| | Metadata reading (ExifTool / ImageIO / AVFoundation) | No surface needed | Internal. Showing which reader is in use is new scope (RI-4, `metadata-reader-status`) |
 | Standalone importer | Importer app; Close confirmation | Placed | UIR §8 |
 | Grid, browsing and culling | AppKit grid; RAW+JPEG pairs; Culling keys; Filter, sort, search; Sidebar; Albums and smart albums; Batch edit commands; Undo / redo; Review mode | Placed (+ N4, N12) | UIR §2, §3, §5–§7, §10 |
 | | Empty states | Placed + N3 | UIR §9 and N3 |
@@ -111,7 +112,7 @@ surface. Together they cover every inventory row.
 | X2 | UIR "Not yet checked on screen" list; §11 checklist (7 build items open, plus the on-screen item); §8 Export "check whether `.presentationSizing` lets people resize the sheet vertically" | Verification, not design | Defer to `ui-redesign-onscreen-check`. Build status belongs in `status.md` (the engineer ticks per the roadmap) |
 | X3 | Decision 9: second loupe on another display | Not a capability | Defer to `second-loupe-display` (already on the roadmap) |
 | X4 | §11 Persistence: mapping sizes stored by the slider build; §11 Strings: "Removed with the slider" | Tied to the dropped `film-strip-size-slider` | Keep the mapping, which is invisible and protects stored values. The strings note is history only |
-| X5 | §6 Edit: "Cut, Copy, Paste, Select All" listed as if they act in the grid | No capability copies photos to the pasteboard | Keep Cut, Copy and Paste as the system's text items only, dimmed in the grid and loupe. A photo pasteboard needs a product decision (RI-7) |
+| X5 | §6 Edit: "Cut, Copy, Paste, Select All" listed as if they act in the grid | No capability copies photos to the pasteboard | Keep Cut, Copy and Paste as the system's text items only, dimmed in the grid and loupe. A photo pasteboard is new scope (RI-7, `photo-pasteboard`); X5 stands until it ships |
 | X6 | §6 Filter: the model's `exactly` rating rule "gets no control" | No capability | Keep it in the model with no UI |
 | X7 | §6 Edit ▸ Find ▸ Clear Filter | Duplicates View ▸ Filter ▸ Clear Filter | Remove (I18; owner ruling D1, 2026-11-04) |
 | X8 | Decision 12 (English only, 30% room); decision 14 (AppKit-backed inspector controls) | Not a capability, but a constraint the tooling (Inv ▸ Debug script) and the macOS 15 click bug (CLAUDE.md) depend on | Keep |
@@ -124,7 +125,7 @@ Ordered by impact. "Code" means what `develop` does today.
 |---|---|---|---|---|
 | I1 | File ▸ Export…, toolbar Export, context Export… | Enabled when the **source** has items (`itemCount > 0`). The toolbar help says "Export the selected photos", but the sheet can open on 0 photos, or on videos only (all skipped) | Enabled (context: shown) only when the targets include a photo and no export runs. Pairs count once, as in the sheet | E12 |
 | I2 | File ▸ Add Folder Without Copying…, toolbar Import ▸ menu, empty-library button vs folder drops | The three commands are disabled during an in-place import, but drops at the same moment are queued (Inv ▸ Import ▸ "Folder drops") | Always enabled. The chosen folder joins the same queue as a drop and shows in Activity as "Folder N of M" (UIR §1) | E13 |
-| I3 | Export results vs UIR §1 and §8 | Code (and UG) shows an alert after a background export when files failed or were skipped by choice. UIR §1 sends warnings to Activity and keeps alerts for "when action is needed". The Import window uses window-modal alerts (UIR §8) | P4. The Import window keeps its alerts while it is open. Export, which reports after its sheet has closed, reports in Activity only: failures as a **warning** whose detail lists up to 10 files with reasons ("And N more."), and files skipped by the person's choice as **information**. No alert. UG is updated (RI-5). Owner ruling D2, 2026-11-04 | E14 |
+| I3 | Export results vs UIR §1 and §8 | Code (and UG) shows an alert after a background export when files failed or were skipped by choice. UIR §1 sends warnings to Activity and keeps alerts for "when action is needed". The Import window uses window-modal alerts (UIR §8) | P4. The Import window keeps its alerts while it is open. Export, which reports after its sheet has closed, reports in Activity only: failures as a **warning** whose detail lists up to 10 files with reasons ("And N more."), and files skipped by the person's choice as **information**. No alert. UG is updated in the same change (E27). Owner ruling D2, 2026-11-04 | E14 |
 | I4 | ⌘. Stop | The Import window has File ▸ Stop Import ⌘.. The library window's Activity Stop (export, folder adds, a card copy whose window is closed) has no menu item or key. In the library app `ImportCommands`' disabled Stop Import ⌘. would also take the key first | One File item, ⌘., per P3. With the Import window key: "Stop Import", as now. With the library window key: "Stop Export", "Stop Adding Folders" or "Stop Import", naming the newest running job in Activity, and dimmed when nothing runs. Other jobs keep their Stop in the Activity popover | E11 |
 | I5 | Edit ▸ Deselect All ⇧⌘A | The Import window has it; the library grid doesn't. The HIG lists ⇧⌘A as the standard "Deselect all" | One item per P3. In the grid it collapses a multiple selection to the focused photo (commands then act on that photo, as after a plain click). Enabled in the grid while two or more are selected, dimmed in the loupe | E10 |
 | I6 | Video loupe vs photo loupe; Space | No context menu in the video loupe (N9). Space plays and pauses in the video loupe (code, UG) while UIR §2 lists Space as a way out of the loupe | Space is Play / Pause in the video loupe, following the media convention. Return, Esc and ⌘↩ leave it. Recorded here and in the map; plus N9 | E8, E9 |
@@ -149,9 +150,9 @@ Ordered by impact. "Code" means what `develop` does today.
 | I25 | Export preset pop-up vs Import metadata preset pop-up | Different items (Save as Preset…, Update, Delete… vs New Preset…, Edit…) | Keep (UIR §8 Presets convention). An export preset captures the sheet; a metadata preset is edited in its own sheet. Confirmation per I11 | none |
 | I26 | Inv ▸ Metadata ▸ Keywords "merge" vs UI | No Merge command | Keep. Renaming onto an existing name merges, the rename sheet says so, and it can be undone | none |
 | I27 | Inv ▸ Import ▸ "Auto-open … Settings toggle" vs standalone importer | The importer has no Settings and always follows cards | Keep. The importer is the import window | none |
-| I28 | Inv ▸ UI shell ▸ "Menu bar: File, Edit, View, Photo, Adjust, Window" vs app | Help is missing from the inventory, and the app shows an empty Help item | RI-1 | none |
+| I28 | Inv ▸ UI shell ▸ "Menu bar: File, Edit, View, Photo, Adjust, Window" vs app | Help is missing from the inventory, and the app shows an empty Help item | Remove the dead item; keep the Help menu and its search (prd.md R1, R2; N13) | E28 |
 | I29 | macOS 15 vs 26 | None found beyond the intended differences in UIR "macOS 15 fallback" (slider fill, toolbar spacers, glass, scroll edge) | Keep. On-screen check under `ui-redesign-onscreen-check` | none |
-| I30 | UG vs app | UG says the Import window has an "Include videos switch" (it is Show Videos in the Selection menu and View menu). Its key table leaves the loupe column blank for ⌘= / ⌘− (they zoom). It says export problems raise an alert (changes with I3) | Update UG once RI-5 settles who owns it | E27 |
+| I30 | UG vs app | UG says the Import window has an "Include videos switch" (it is Show Videos in the Selection menu and View menu). Its key table leaves the loupe column blank for ⌘= / ⌘− (they zoom). It says export problems raise an alert (changes with I3) | The engineer updates the UG in the same change as the behavior; the designer reviews its terms (RI-5, owner ruling) | E27 |
 | I31 | UIR §11 checklist vs code | 7 build items unticked that the code appears to implement (inventory) | No design change. Status goes in `status.md`; the engineer ticks per the roadmap | none |
 | I32 | Review mode vs loupe | Consistent: film strip hidden, caption kept, toolbar on hover, ⌥⌘I brings the inspector back. Play / Pause in review is covered by N9 | Keep | none |
 
@@ -227,7 +228,7 @@ Toolbar.
 | Import Look-Up Tables… **new** | Adjust | — | — | — | LUT browser Import… page | library key |
 | Browse Look-Up Tables… | Adjust | — | — | — | Effects "Browse…" | library key |
 | Minimize, Zoom; Library; Import | Window | ⌘M | — | — | — | system |
-| ‹app› Help | Help | ⌘? | — | — | — | pending RI-1 |
+| Help ▸ Search (system field that finds menu commands) | Help | ⌘? | — | — | The dead "‹app› Help" item is removed in both apps (prd.md R1, R2; E28) | always |
 
 Inspector and sidebar local menus (unchanged from UIR §7): inspector section
 header (Turn Off / On, Reset, Collapse All, Expand All); slider row (Reset
@@ -252,6 +253,22 @@ manager) stay in the sheets (P1).
 | Metadata preset New / Edit / Delete… | — | — | — | — | Options ▸ Metadata pop-up and editor; delete asks (I11) | — |
 
 ## 5. Requirements issues (for the product manager)
+
+The product manager ruled on 2026-11-04 in [`prd.md`](prd.md) on RI-1 to
+RI-4, RI-6 and RI-7. The owner answered RI-5 the same day. All seven are
+answered.
+
+| RI | Status | Ruling |
+|---|---|---|
+| RI-1 | Answered | prd.md R1 and R2: remove the dead item and keep Help ▸ Search (N13, E28). Help content is roadmap `in-app-help` (Later) |
+| RI-2 | Answered | In scope, files are never touched, and each needs its own PRD: roadmap `remove-from-library` and `rename-project` (Next). §1b is corrected |
+| RI-3 | Answered | Wanted; roadmap `show-in-finder` (Next). Its title must not clash with Show Original |
+| RI-4 | Answered | New scope, passive if built, never an alert; roadmap `metadata-reader-status` (Later) |
+| RI-5 | Answered (owner, 2026-11-04: "Engineer, designer reviews") | prd.md Q1. The engineer updates `docs/USER_GUIDE.md` in the same change as the behavior it describes, and the designer checks its terms at review. Recorded in `docs/WORKFLOW.md`'s Ownership table. E27 no longer waits |
+| RI-6 | Answered | The edit-history PRD states the need only. ⌘Y and the left sidebar from issue #26 are proposals for design; ⇧⌘Z stays redo. This is the roadmap `edit-history` row (Next) and its intake notes |
+| RI-7 | Answered | New scope; roadmap `photo-pasteboard` (Later). X5 stands until it ships |
+
+The issues as raised:
 
 - **RI-1 Help menu.** The app shows SwiftUI's default Help ▸ "‹app› Help"
   item, which only says help isn't available. The inventory lists no help
@@ -326,7 +343,8 @@ checks on the toolbar, sidebar or inspector use `print`, `buttons`,
 | E24 | Low | Add Folder open panel prompt "Add Folder" (I17) | Manual: the panel's button reads Add Folder |
 | E25 | Low | Remove Edit ▸ Find ▸ Clear Filter (I18; owner ruling D1, 2026-11-04). View ▸ Filter ▸ Clear Filter, the toolbar Filter menu and "No Photos Match" keep it | `menuitems "Clear Filter"` lists one menu-bar item |
 | E26 | Low | View ▸ Info / Adjust show a checkmark on the current tab while the inspector is shown (I19) | `menuitems Info` shows the state |
-| E27 | Low | Update `docs/USER_GUIDE.md` for I30 and E14, once RI-5 names the owner | Review of the UG diff |
+| E27 | Low | Update `docs/USER_GUIDE.md` (owner ruling on RI-5: the engineer updates, the designer reviews). Fix each stale spot in the same change as the behavior it describes. With E14: export problems reported in Activity, not an alert. With E16: the Export metadata paragraph's "caption" becomes Description. Independent of other changes: the Import window's "Include videos switch" becomes Show Videos (Selection menu and View menu), and the key table's loupe column gets ⌘= / ⌘− zoom (I30). Every other E change that alters a described behavior updates the guide in the same change | Designer review of each change checks the guide's terms against this document (P5; §4 command map titles) |
+| E28 | Medium | Help menu (N13; prd.md R1, R2): remove SwiftUI's default "‹app› Help" item in the library app and the standalone importer, keeping the Help menu and its search field. **Engineer question (prd.md Q2):** if removing the item also removes the menu or its search field, R1 wins: ship without the dead item and report the loss in `status.md` and back to the product manager. Do not keep the dead item | AC1: `menuitems Help` in the library app lists no "‹app› Help" item, and a manual check finds none in the importer. AC2, manual in each app: open Help and type "Export" (library app) or "Rescan" (importer); the matching File item is offered and highlighted |
 
 ## 7. Strings (catalog keys)
 
@@ -364,4 +382,4 @@ this document waits on the owner.
 - **D2 (ruled 2026-11-04).** Export problems are reported in Activity, not
   in an alert. Failures are a warning; files skipped by the person's choice
   are information. This changes shipped behavior that the UG describes
-  (update under RI-5). See I3, E14.
+  (updated in the same change as E14, per E27). See I3, E14.
