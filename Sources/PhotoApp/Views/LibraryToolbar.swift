@@ -133,8 +133,7 @@ struct LibraryToolbar: CustomizableToolbarContent {
         }
         ToolbarItem(id: "suggestKeywords", showsByDefault: false) {
             Button {
-                model.suggestKeywords(for: model.actionTargetVersionIDs)
-                model.showsInspector = true
+                model.suggestKeywordsForTargets()
             } label: {
                 Label("Suggest Keywords", systemImage: "sparkles")
             }

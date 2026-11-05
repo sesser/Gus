@@ -335,11 +335,7 @@ struct LibraryCommands: Commands {
             Button("Add Keywords…") { model?.beginKeywordEntry() }
                 .keyboardShortcut("k", modifiers: .command)
                 .disabled(!can { $0.hasTargets })
-            Button("Suggest Keywords") {
-                guard let model else { return }
-                model.suggestKeywords(for: model.actionTargetVersionIDs)
-                model.showsInspector = true
-            }
+            Button("Suggest Keywords") { model?.suggestKeywordsForTargets() }
             .keyboardShortcut("k", modifiers: [.command, .shift])
             .disabled(!can { $0.hasTargets })
             Menu("Add to Album") {

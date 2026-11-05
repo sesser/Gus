@@ -6,6 +6,10 @@ import SwiftUI
 /// Right-hand panel: the focused photo's histogram, then Info (keywords and
 /// details) or Adjust (the loupe's photo).
 struct InspectorView: View {
+    /// The Info tab's Keywords heading; Suggest Keywords expands it
+    /// (`LibraryModel.suggestKeywordsForTargets`).
+    static let keywordsKey = "info.section.keywords"
+
     @Bindable var model: LibraryModel
 
     /// Pinned at the top, not scrolling: the tabs, full width; the histogram;
@@ -54,9 +58,7 @@ private struct InfoInspector: View {
     @State private var descriptive = DescriptiveSummary()
     /// The photos `descriptive` describes.
     @State private var descriptiveIDs: [Int64] = []
-    @InspectorExpanded(Self.keywordsKey, family: .info, default: true) private var keywordsExpanded
-
-    private static let keywordsKey = "info.section.keywords"
+    @InspectorExpanded(InspectorView.keywordsKey, family: .info, default: true) private var keywordsExpanded
 
     var body: some View {
         AppKitScrollView {

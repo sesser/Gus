@@ -105,7 +105,8 @@ embedded in files by other apps or the camera (IPTC, XMP) are read at import.
 looks at the new photos (nothing leaves the Mac) and the inspector shows what it
 found as chips. Click one to add it to the selected photos it was suggested
 for, or × to stop suggesting it for them. **Photo ▸ Suggest Keywords** (⇧⌘K)
-analyzes the selection, for photos imported before. The labels are generic
+analyzes the selection, for photos imported before, and shows the inspector's
+Info tab with Keywords open, where the chips appear. The labels are generic
 ("dog", "beach", "sunset"), not breeds or places.
 
 **Albums and smart albums**: the sidebar's Library section has built-in smart

@@ -86,10 +86,7 @@ enum PhotoContextMenu {
         }))
         menu.addItem(.separator())
         menu.addItem(ActionMenuItem(String(localized: "Add Keywords…")) { model.beginKeywordEntry() })
-        menu.addItem(ActionMenuItem(String(localized: "Suggest Keywords")) {
-            model.suggestKeywords(for: model.actionTargetVersionIDs)
-            model.showsInspector = true
-        })
+        menu.addItem(ActionMenuItem(String(localized: "Suggest Keywords")) { model.suggestKeywordsForTargets() })
         if !state.albums.isEmpty {
             menu.addItem(submenu(String(localized: "Add to Album"), state.albums.map { album in
                 ActionMenuItem(album.album.name) { model.addToAlbum(album.id) }

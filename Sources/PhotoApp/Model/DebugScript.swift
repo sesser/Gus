@@ -17,6 +17,7 @@ import PhotoUI
 ///     print <what>          (state for checks: selection, keywords, undo, suggestions, items, hdr, announcement,
 ///                           title (title, subtitle, filter and sort), activity, messages (every
 ///                           Activity row), empty (the browser's empty state), menustate (what the menus read),
+///                           inspector (shown, tab, Keywords expanded),
 ///                           loupe [<x> <y>]: mode, magnification, visible rect, image point under x y)
 ///     suggest               (analyzes the selection and waits)      accept <keyword>
 ///     album <name>          (from the selection)    smartalbum <name>  (rating ≥ 3)     remove
@@ -872,6 +873,9 @@ enum DebugScript {
             }
             let sheet = window?.attachedSheet.map { "\(type(of: $0)) '\($0.title)'" } ?? "none"
             print("debug-script: messages \(model.activity.messages.count), sheet or alert \(sheet)")
+        case "inspector":
+            print("debug-script: inspector shown \(model.showsInspector) tab \(model.inspectorTab) keywords expanded "
+                  + "\(InspectorExpansion.shared.isExpanded(InspectorView.keywordsKey, family: .info, default: true))")
         case "menustate":
             // What the menus read, apart from whether the window is key (a
             // scripted launch often is not the active app).
