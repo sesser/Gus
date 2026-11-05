@@ -2,7 +2,7 @@
 
 Status: Approved (product-manager rulings and owner ruling on RI-5, 2026-11-04)
 Slug: ui-redesign
-Roadmap: Shipped; follow-up changes are `ui-redesign-reconcile` (Next)
+Roadmap: Shipped; follow-up changes are `ui-redesign-reconcile` (Now, owner 2026-11-04)
 
 This is not a full PRD. The capability inventory,
 [`../_inventory.md`](../_inventory.md), stands in for the redesign's PRD
