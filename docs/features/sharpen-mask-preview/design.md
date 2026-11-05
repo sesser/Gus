@@ -2,8 +2,9 @@
 
 Owner: apple-ui-designer. Date: 2026-11-05. Status: Designed. The Q4
 answers are final (§14). The owner ruled on RI-1 and RI-2 on 2026-11-05
-(§13), and prd.md R10, AC11 and the non-goals record the rulings. Nothing is
-open.
+(§13), and prd.md R10, AC11 and the non-goals record the rulings. The
+engineer's design questions are ruled in §15. The designer review is in
+[`review.md`](review.md). Nothing is open.
 
 **Inputs.**
 
@@ -257,6 +258,7 @@ always show what is on screen.
 | **Relaunch** | Off. The state is never stored | R9, R7 |
 | **Volume goes offline / photo becomes uneditable** while shown | The map ends with the editing state | R11 |
 | **Undo / Redo** while shown | The map follows the restored values. The toggle is not an undo step (R7) | R7, AC8 |
+| **Hovering a preset or look-up table** while shown | The map shows the hovered values, as the photo would. When the hover ends, it goes back to the applied values. The map stays on (D-Q1, §15) | The loupe always shows the values under consideration, in whichever view is on |
 | Culling keys while shown | They rate, flag and label the photo as usual. If Advance After Rating moves on, the map ends as for any move | — |
 | Inspector hidden or Info tab chosen while shown | The map stays. The badge, context menu and Esc remain as ways back | The map is a view of the loupe, not of the inspector |
 | **Esc** order in the loupe | Crop session, then map, then review, then loupe. The map can't coexist with crop or review, so in practice Esc hides the map first | Extends the existing one-level rule |
@@ -489,3 +491,16 @@ fine"), and the RI rulings are applied above.
 | Which state wins | The last one asked for. The map suspends the overlay and Original and gives them back when hidden; Crop, Paint, Pick Colors and new shapes end it; it is unavailable during crop and review | §6 |
 | Whether it stays on when moving to the next photo | No: it ends, like Show Original | §6 |
 | The Adjust tab hint | Reworded, with "100%" in place of "1:1" and a pointer to the map; replaced by the legend while the map is shown | §4, §9 |
+
+## 15. Design questions from implementation (2026-11-05)
+
+Raised by the engineer on `feature/sharpen-mask-preview` (fe33e97..cd08f25).
+Both are ruled here. Owner rulings from the same day are recorded for
+context and change nothing in this design: the histogram may go stale while
+the map is shown (accepted), and the difference in where Masking cuts at fit
+versus full size is its own roadmap Idea, outside this feature.
+
+| # | Question | Ruling | Basis |
+|---|---|---|---|
+| D-Q1 | Look-up table and preset hover previews while the map is shown. (a) As built: the map follows the previewed values. (b) Hovering ends the map. (c) The map ignores hover and keeps the applied values | **(a), as built.** The map shows the hovered values, its badge and legend follow them (a preset with Amount 0 can show "Not Applied" while hovered), and it refines on pause like any change. When the hover ends, it returns to the applied values. (b) is rejected: a passive hover would end a view the person turned on, the kind of side effect HIG Accessibility warns about ("Prefer dismissing views with an explicit action"). (c) is rejected: hovering would do nothing visible, so the preview would look broken, and the map would disagree with the values the loupe is previewing. This keeps one rule: the map follows every value the loupe would show. A preset that sets Masking is exactly where the map helps. I read the PRD non-goal ("the mask in … preset or look-up table hover previews") as covering the preview *surfaces* (the preset tiles, the look-up table browser's pictures), which keep showing photos. The loupe is the map's own surface. If the product manager reads it otherwise, it is theirs to rule | §6 row "Hovering a preset or look-up table"; P5 (one rule); HIG Accessibility |
+| D-Q2 | The Sharpening Map toggle's frame measured 20 pt high in one inspector layout and 24 pt in another | **Acceptable**, provided the drawn bezel matches the Original toggle's in the same window. Both heights meet the macOS minimum control size of 20 pt (HIG Accessibility). The concern is only consistency: if the 24 pt case is the bezel itself stretching rather than its hit area, pin the button to its intrinsic height. That is a manual check at review (review.md) | HIG Accessibility (20 × 20 pt minimum); UIR §4, I15 (inspector toggles share one look) |
