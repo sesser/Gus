@@ -45,6 +45,17 @@
         }
       }
     },
+    "%@ (machine learning)" : {
+      "comment" : "Decoder pop-up item for the RAW decoder's machine learning version; the argument is the version, e.g. “9.dng”. Pattern of “%@ (default)”",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ (machine learning)"
+          }
+        }
+      }
+    },
     "%@ EV" : {
       "comment" : "Info tab: exposure compensation; the argument is a signed number such as +0.7",
       "localizations" : {
@@ -441,6 +452,75 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "%lld photos match"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld photos were exported without machine learning noise reduction: it could not be applied to these photos." : {
+      "comment" : "Activity information row after an export. Plural. The “one” variation ends “…: it could not be applied to this photo.” (AC7a)",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photo was exported without machine learning noise reduction: it could not be applied to this photo."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photos were exported without machine learning noise reduction: it could not be applied to these photos."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld photos were exported without machine learning noise reduction: their cameras aren't supported." : {
+      "comment" : "Activity information row after an export. Plural",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photo was exported without machine learning noise reduction: its camera isn't supported."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photos were exported without machine learning noise reduction: their cameras aren't supported."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld photos were exported without machine learning noise reduction: this Mac needs macOS 27 or later." : {
+      "comment" : "Activity information row after an export. Plural",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photo was exported without machine learning noise reduction: this Mac needs macOS 27 or later."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photos were exported without machine learning noise reduction: this Mac needs macOS 27 or later."
                 }
               }
             }
@@ -1480,6 +1560,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Applying a preset replaces only the settings it includes."
+          }
+        }
+      }
+    },
+    "Applying machine learning noise reduction" : {
+      "comment" : "Tooltip and VoiceOver label of the loupe caption's spinner while a machine learning frame renders. No visible label (HIG Progress indicators)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Applying machine learning noise reduction"
           }
         }
       }
@@ -5461,6 +5552,62 @@
         }
       }
     },
+    "Luminance sets the amount. Color is kept but not used while this is on." : {
+      "comment" : "Caption under the Use machine learning check box while it applies",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Luminance sets the amount. Color is kept but not used while this is on."
+          }
+        }
+      }
+    },
+    "Machine Learning Not Applied" : {
+      "comment" : "Loupe caption badge. Title-style, as the other badges",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Machine Learning Not Applied"
+          }
+        }
+      }
+    },
+    "Machine learning noise reduction was left off for %lld photos that aren't raw files." : {
+      "comment" : "Activity information row after a batch command that carried machine learning noise reduction on. Plural. Follows “%lld videos were left unchanged.”",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Machine learning noise reduction was left off for %lld photo that isn't a raw file."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Machine learning noise reduction was left off for %lld photos that aren't raw files."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Machine learning not applied" : {
+      "comment" : "VoiceOver: one part of the loupe canvas's value, like “Offline” (“Picked, Machine learning not applied, 13 of 87”)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Machine learning not applied"
+          }
+        }
+      }
+    },
     "Magentas" : {
       "comment" : "Color mixer band",
       "localizations" : {
@@ -6269,6 +6416,72 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Not a readable table"
+          }
+        }
+      }
+    },
+    "Not applied on this Mac: it needs macOS 27 or later. Luminance and Color apply instead." : {
+      "comment" : "Caption and check box help: the photo asks for machine learning noise reduction; the setting is kept",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not applied on this Mac: it needs macOS 27 or later. Luminance and Color apply instead."
+          }
+        }
+      }
+    },
+    "Not applied: it could not be applied to this photo. Luminance and Color apply instead." : {
+      "comment" : "Caption and check box help: the machine learning decode failed for this file; the setting is kept. “Could not be applied to this photo” is the PRD's reason (R5, AC7a)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not applied: it could not be applied to this photo. Luminance and Color apply instead."
+          }
+        }
+      }
+    },
+    "Not applied: this camera isn't supported. Luminance and Color apply instead." : {
+      "comment" : "Caption and check box help: the photo asks for machine learning noise reduction; the setting is kept",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not applied: this camera isn't supported. Luminance and Color apply instead."
+          }
+        }
+      }
+    },
+    "Not available for this camera." : {
+      "comment" : "Caption and help of the dimmed Use machine learning check box: the macOS raw decoder's machine learning version doesn't list the camera",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not available for this camera."
+          }
+        }
+      }
+    },
+    "Not available on this Mac: it needs macOS 27 or later." : {
+      "comment" : "Caption and help of the dimmed Use machine learning check box",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not available on this Mac: it needs macOS 27 or later."
+          }
+        }
+      }
+    },
+    "Not used with machine learning. Your value is kept and applies again when you turn off Use machine learning." : {
+      "comment" : "Tooltip and VoiceOver help of the dimmed Color row; “Use machine learning” is the check box title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not used with machine learning. Your value is kept and applies again when you turn off Use machine learning."
           }
         }
       }
@@ -7165,6 +7378,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Reds"
+          }
+        }
+      }
+    },
+    "Reduce noise with the machine learning model in the macOS raw decoder. Luminance sets the amount; Color isn't used." : {
+      "comment" : "Tooltip and VoiceOver help of the Use machine learning check box",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reduce noise with the machine learning model in the macOS raw decoder. Luminance sets the amount; Color isn't used."
           }
         }
       }
@@ -9044,6 +9268,39 @@
         }
       }
     },
+    "This photo is set to use machine learning noise reduction, but it could not be applied to this photo. It's shown with Luminance and Color instead." : {
+      "comment" : "Tooltip of the Machine Learning Not Applied badge: the decode failed for this file",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This photo is set to use machine learning noise reduction, but it could not be applied to this photo. It's shown with Luminance and Color instead."
+          }
+        }
+      }
+    },
+    "This photo is set to use machine learning noise reduction, which doesn't support its camera. It's shown with Luminance and Color instead." : {
+      "comment" : "Tooltip of the Machine Learning Not Applied badge: this camera",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This photo is set to use machine learning noise reduction, which doesn't support its camera. It's shown with Luminance and Color instead."
+          }
+        }
+      }
+    },
+    "This photo is set to use machine learning noise reduction, which needs macOS 27 or later. It's shown with Luminance and Color instead." : {
+      "comment" : "Tooltip of the Machine Learning Not Applied badge: this Mac",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This photo is set to use machine learning noise reduction, which needs macOS 27 or later. It's shown with Luminance and Color instead."
+          }
+        }
+      }
+    },
     "This table is missing from the library, so it is not applied." : {
       "comment" : "Warning next to a look-up table whose copy in the library is gone",
       "localizations" : {
@@ -9196,6 +9453,17 @@
         }
       }
     },
+    "Turn Off Machine Learning" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn Off Machine Learning"
+          }
+        }
+      }
+    },
     "Turn Off Mask" : {
       "comment" : "Undo action name",
       "localizations" : {
@@ -9229,6 +9497,17 @@
         }
       }
     },
+    "Turn On Machine Learning" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn On Machine Learning"
+          }
+        }
+      }
+    },
     "Turn On Mask" : {
       "comment" : "Undo action name",
       "localizations" : {
@@ -9247,6 +9526,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Turn off %@ to compare"
+          }
+        }
+      }
+    },
+    "Turn off Use machine learning to choose another decoder." : {
+      "comment" : "Tooltip of the dimmed Decoder pop-up while machine learning noise reduction is asked for and not applied",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn off Use machine learning to choose another decoder."
           }
         }
       }
@@ -9410,6 +9700,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Use Image"
+          }
+        }
+      }
+    },
+    "Use machine learning" : {
+      "comment" : "Check box in Details ▸ Noise Reduction. Decodes the raw file with the macOS raw decoder's machine learning model, which reduces noise. Sentence-style: it is a check box",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use machine learning"
           }
         }
       }

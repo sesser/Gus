@@ -91,6 +91,8 @@ struct AdjustSlider: NSViewRepresentable {
     var format = SliderFormat.signed
     var scale = SliderScale.linear
     var isEnabled = true
+    /// The row's tooltip and VoiceOver help (the label, slider and field); nil for none.
+    var help: String?
     let onChange: (Double, EditPhase) -> Void
     /// False while the slider's group is turned off (`showsTurnedOff`).
     @Environment(\.adjustGroupIsOn) private var groupIsOn
@@ -101,7 +103,7 @@ struct AdjustSlider: NSViewRepresentable {
 
     func updateNSView(_ row: SliderRow, context: Context) {
         row.configure(title: title, value: value, range: range, defaultValue: defaultValue, format: format,
-                      scale: scale, isEnabled: isEnabled, groupIsOn: groupIsOn, onChange: onChange)
+                      scale: scale, isEnabled: isEnabled, groupIsOn: groupIsOn, help: help, onChange: onChange)
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: SliderRow, context: Context) -> CGSize? {
@@ -120,6 +122,9 @@ enum InspectorMetrics {
     static let groupLabelHeight: CGFloat = 20
     static let disclosureSlot: CGFloat = 16
     static let checkSlot: CGFloat = 16
+    /// From a small check box's leading edge to its title's: a caption under
+    /// it starts there, so it reads as the check box's note.
+    static let checkBoxTitleInset: CGFloat = 20
     static let resetSlot: CGFloat = 20
 }
 
@@ -158,6 +163,7 @@ final class SliderRow: NSView, NSTextFieldDelegate {
     private var range: ClosedRange<Double> = 0...1
     private var defaultValue = 0.0
     private var groupIsOn = true
+    private var isEnabled = true
     private var onChange: (Double, EditPhase) -> Void = { _, _ in }
 
     init() {
@@ -212,7 +218,7 @@ final class SliderRow: NSView, NSTextFieldDelegate {
 
     func configure(title: String, value: Double, range: ClosedRange<Double>, defaultValue: Double,
                    format: SliderFormat, scale: SliderScale, isEnabled: Bool, groupIsOn: Bool = true,
-                   onChange: @escaping (Double, EditPhase) -> Void) {
+                   help: String? = nil, onChange: @escaping (Double, EditPhase) -> Void) {
         label.stringValue = title
         let ends = [scale.position(range.lowerBound), scale.position(range.upperBound)]
         slider.minValue = ends.min() ?? 0
@@ -223,9 +229,16 @@ final class SliderRow: NSView, NSTextFieldDelegate {
         self.range = range
         self.defaultValue = defaultValue
         self.groupIsOn = groupIsOn
+        self.isEnabled = isEnabled
         self.onChange = onChange
         slider.isEnabled = isEnabled
         field.isEditable = isEnabled
+        for view in [self, label, slider, field] as [NSView] {
+            view.toolTip = help
+        }
+        for element in [slider, field] as [NSView] {
+            element.setAccessibilityHelp(help)
+        }
         // Never move the knob under the person's mouse.
         if !slider.isTracking {
             slider.doubleValue = scale.position(value)
@@ -244,8 +257,10 @@ final class SliderRow: NSView, NSTextFieldDelegate {
     private func updateStyle(value: Double) {
         let isChanged = abs(value - defaultValue) > format.keyIncrement / 2
         // Labels stay secondary (never tertiary); turned off, the value goes secondary too.
-        label.textColor = .secondaryLabelColor
-        field.textColor = groupIsOn && isChanged ? .labelColor : .secondaryLabelColor
+        // A disabled row draws its text as AppKit draws a disabled control's own.
+        label.textColor = isEnabled ? .secondaryLabelColor : .disabledControlTextColor
+        field.textColor = !isEnabled ? .disabledControlTextColor
+            : groupIsOn && isChanged ? .labelColor : .secondaryLabelColor
         if #available(macOS 26, *) {
             slider.neutralValue = scale.position(defaultValue)
             slider.trackFillColor = groupIsOn ? nil : .clear
@@ -253,6 +268,11 @@ final class SliderRow: NSView, NSTextFieldDelegate {
             // No fill from a neutral value before macOS 26: a neutral gray from the minimum.
             slider.trackFillColor = groupIsOn ? .systemGray : .clear
         }
+    }
+
+    /// For the debug script: whether the row takes input, its value and tooltip.
+    var debugState: String {
+        "enabled \(slider.isEnabled) value \(field.stringValue) tip '\(toolTip ?? "-")'"
     }
 
     /// The value at the knob, rounded to what the field shows.
@@ -385,6 +405,8 @@ struct AppKitPopUp: NSViewRepresentable {
     var items: [Item]
     var selection: String
     var isEnabled = true
+    /// The tooltip and VoiceOver help; nil for none.
+    var help: String?
     let onSelect: (String) -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -413,6 +435,8 @@ struct AppKitPopUp: NSViewRepresentable {
             button.selectItem(at: index)
         }
         button.isEnabled = isEnabled
+        button.toolTip = help
+        button.setAccessibilityHelp(help)
     }
 
     @MainActor
@@ -738,6 +762,10 @@ struct AppKitCheckbox: NSViewRepresentable {
     var label: String
     /// The tooltip, and VoiceOver's help.
     var help: String
+    /// Shown on the trailing side at the slider labels' size; nil for a bare
+    /// check box. A titled one is named by its title.
+    var title: String?
+    var isEnabled = true
     let action: () -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -746,6 +774,7 @@ struct AppKitCheckbox: NSViewRepresentable {
         let button = NSButton(checkboxWithTitle: "", target: context.coordinator, action: #selector(Coordinator.click(_:)))
         button.allowsMixedState = true
         button.controlSize = .small
+        button.font = .systemFont(ofSize: 11)
         return button
     }
 
@@ -756,10 +785,16 @@ struct AppKitCheckbox: NSViewRepresentable {
         case .off: .off
         case .mixed: .mixed
         }
+        button.title = title ?? ""
+        button.isEnabled = isEnabled
         button.isHidden = !isVisible
         button.toolTip = help
-        button.setAccessibilityLabel(label)
+        button.setAccessibilityLabel(title == nil ? label : nil)
         button.setAccessibilityHelp(help)
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSButton, context: Context) -> CGSize? {
+        title == nil ? nil : nsView.fittingSize
     }
 
     @MainActor

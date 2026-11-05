@@ -346,6 +346,10 @@ final class ExportModel {
         if let skipped = report.skippedByChoice {
             library?.report(Self.skippedMessage(skipped), action: action)
         }
+        // Information, one row per reason, before the export's own (ml-denoise design §7).
+        for row in report.machineLearningNotApplied {
+            library?.report(MachineLearningText.exportedWithout(row.reason, count: row.count), action: action)
+        }
         let finished = Self.finishedMessage(summary)
         library?.report(Self.detail(finished, report), action: action, warning: report.isWarning, announcing: finished)
         if reveals, !summary.written.isEmpty, !summary.cancelled {

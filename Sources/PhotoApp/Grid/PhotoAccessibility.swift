@@ -22,9 +22,10 @@ enum PhotoAccessibility {
         AccessibilityText.list(parts(item, offline: offline).map { text($0) })
     }
 
-    /// The loupe's value: the photo's, then where it is ("Picked, 13 of 87").
-    static func loupeValue(for item: CatalogItem, offline: Bool, index: Int, count: Int) -> String {
-        AccessibilityText.list([value(for: item, offline: offline), position(index, of: count)])
+    /// The loupe's value: the photo's, notes on what is shown, then where it
+    /// is ("Picked, Machine learning not applied, 13 of 87").
+    static func loupeValue(for item: CatalogItem, offline: Bool, notes: [String] = [], index: Int, count: Int) -> String {
+        AccessibilityText.list([value(for: item, offline: offline)] + notes + [position(index, of: count)])
     }
 
     /// Said on moving to another photo in the loupe: "DSC00232, RAW, 3 stars,

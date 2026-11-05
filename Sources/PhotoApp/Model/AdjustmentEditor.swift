@@ -145,6 +145,27 @@ final class AdjustmentEditor {
     /// Tells the spinner of a superseded refinement from the current one's.
     @ObservationIgnored private var mapRefineGeneration = 0
 
+    // MARK: Machine learning noise reduction state
+
+    /// What machine learning noise reduction does for the values being
+    /// edited (ml-denoise design §3): the inspector's check box, caption,
+    /// Color row and Decoder pop-up read it. Nil until the photo is ready.
+    private(set) var machineLearning: MachineLearningNoiseReduction.Status?
+    /// Why the values on screen (a hover preview's included) asked for it
+    /// and did not get it: the caption's badge and the canvas's VoiceOver
+    /// value (design §6). Changes with the frame that shows it.
+    private(set) var machineLearningNotApplied: MachineLearningNoiseReduction.Reason?
+    /// The loupe has waited more than 0.5 s for a frame decoded with it (design §6).
+    private(set) var isAwaitingMachineLearningFrame = false
+    /// The latest values asked for whose frame decodes with it, until that frame arrives.
+    @ObservationIgnored private var awaitedMachineLearningValues: Adjustments?
+    @ObservationIgnored private var machineLearningSpinnerTask: Task<Void, Never>?
+    /// The loupe had the photo's preview cached when it arrived, so the
+    /// first frame (for the histogram) is not something the person waits on.
+    @ObservationIgnored private var previewWasCached = true
+    /// An offline photo's stack asks for it (only "this Mac" can be told then).
+    @ObservationIgnored private var offlineAsksMachineLearning = false
+
     @ObservationIgnored private var committed = Adjustments()
 
     /// The values last saved for the photo; `adjustments` runs ahead of them
@@ -203,6 +224,7 @@ final class AdjustmentEditor {
         }
         guard let url = library.sourceURL(for: newItem) else {
             state = .offline
+            loadOfflineMachineLearning(newItem, catalog: library.catalog)
             return
         }
         state = .loading
@@ -212,6 +234,8 @@ final class AdjustmentEditor {
         let generator = library.previews.interactiveGenerator
         let colorSpace = library.previews.displayColorSpace
         let versionID = newItem.versionID
+        let cache = library.previews.cache
+        let previewKey = library.previewRequest(for: newItem, tier: .preview)?.key
         loadTask = Task {
             let stack: EditStack
             do {
@@ -225,14 +249,17 @@ final class AdjustmentEditor {
                 ? await Task.detached(priority: .userInitiated) { RawDefaults(source: url) }.value : nil
             let camera = SupportedFormats.isRaw(pathExtension: url.pathExtension)
                 ? await Task.detached(priority: .userInitiated) { CameraFrame.rect(of: url) }.value : nil
+            let cached = await Task.detached(priority: .userInitiated) { previewKey.map(cache.contains) ?? false }.value
             guard !Task.isCancelled, item?.versionID == versionID else { return }
             let loaded = Adjustments(stack: stack)
             adjustments = loaded
             committed = loaded
             rawDefaults = defaults
+            previewWasCached = cached
             cameraRect = camera
             session = LiveRenderSession(source: url, generator: generator, colorSpace: colorSpace)
             state = .ready
+            refreshMachineLearning()
             if cropsWhenReady == versionID {
                 cropsWhenReady = nil
                 beginCrop()
@@ -242,6 +269,13 @@ final class AdjustmentEditor {
             guard !Task.isCancelled, item?.versionID == versionID else { return }
             requestRender(interactive: false)
         }
+    }
+
+    /// Loads the open photo again (the debug script, after changing what this Mac reports).
+    func reload() {
+        let current = item
+        follow(nil)
+        follow(current)
     }
 
     private func finishSession() {
@@ -279,6 +313,11 @@ final class AdjustmentEditor {
         isBrushing = false
         isSamplingColor = false
         maskFrameSize = nil
+        stopAwaitingMachineLearning()
+        offlineAsksMachineLearning = false
+        previewWasCached = true
+        if machineLearning != nil { machineLearning = nil }
+        if machineLearningNotApplied != nil { machineLearningNotApplied = nil }
         pruneRenditions()
         adjustments = Adjustments()
         committed = Adjustments()
@@ -326,6 +365,7 @@ final class AdjustmentEditor {
             adjustments = next
             sharpeningMap.valuesChanged()
             showsLive = true
+            refreshMachineLearning()
             requestRender(interactive: phase == .changing)
             if cropSession != nil, phase == .committed { renderCropImage() }
         } else if phase == .committed, lastFrameWasInteractive || renderingInteractive
@@ -478,6 +518,8 @@ final class AdjustmentEditor {
     /// Puts a frame on screen and updates what follows it.
     private func show(_ rendered: LiveRenderSession.Frame) {
         frame = rendered
+        if rendered.adjustments == awaitedMachineLearningValues { stopAwaitingMachineLearning() }
+        defer { refreshMachineLearning() }
         if rendered.content == .sharpeningMap {
             showsLive = true
             let status = SharpeningMapStatus(rendered.adjustments)
@@ -511,6 +553,7 @@ final class AdjustmentEditor {
                 adjustments = values
                 sharpeningMap.valuesChanged()
                 showsLive = true
+                refreshMachineLearning()
                 requestRender(interactive: false)
             }
         }
@@ -535,6 +578,7 @@ final class AdjustmentEditor {
         item?.editStackHash = stack.renderHash
         showsOriginal = false
         sharpeningMap.valuesChanged()
+        refreshMachineLearning()
         // The map stays on screen until its next frame; the photo's renditions follow otherwise.
         if !sharpeningMap.isShown { showsLive = false }
         // For the histogram; the loupe loads the new edit's renditions itself.
@@ -551,6 +595,95 @@ final class AdjustmentEditor {
         else { return }
         library.previews.insertIntoMemory(frame.image.cgImage, for: request)
         showsLive = false
+    }
+
+    // MARK: Machine learning noise reduction
+
+    /// Turns machine learning noise reduction on or off, as one undo step (R9).
+    func setMachineLearning(_ isOn: Bool) {
+        change(isOn ? String(localized: "Turn On Machine Learning", comment: "Undo action name")
+                    : String(localized: "Turn Off Machine Learning", comment: "Undo action name"),
+               phase: .committed) { $0.noiseReduction.machineLearning = isOn }
+    }
+
+    /// The Decoder pop-up's choice: the machine learning version turns it on,
+    /// another turns it off and becomes Profile's decoder (R3), in one undo step.
+    func chooseDecoder(_ version: String) {
+        guard let defaults = rawDefaults else { return }
+        change(String(localized: "Decoder"), phase: .committed) {
+            $0.chooseDecoder(version, defaultVersion: defaults.defaultDecoderVersion)
+        }
+    }
+
+    /// Luminance's default for the values being edited: the machine learning
+    /// decoder's while it applies, otherwise the classical decoder's.
+    var luminanceNoiseReductionDefault: Double {
+        guard isRaw, let defaults = rawDefaults else { return 0 }
+        if machineLearning?.isApplied == true, let learned = defaults.machineLearningLuminanceNoiseReduction {
+            return learned
+        }
+        return defaults.luminanceNoiseReduction ?? 0
+    }
+
+    /// `values` render through the machine learning decoder here (a failure
+    /// is only known once its frame arrives).
+    private func decodesWithMachineLearning(_ values: Adjustments) -> Bool {
+        isRaw && values.asksForMachineLearning && values.isEnabled(.noiseReduction)
+            && rawDefaults?.machineLearning == .available
+    }
+
+    private func status(for values: Adjustments) -> MachineLearningNoiseReduction.Status {
+        let failed = frame.map { $0.adjustments == values && $0.machineLearning == .notApplied(.failed) } ?? false
+        return MachineLearningNoiseReduction.Status(
+            asks: values.asksForMachineLearning, groupIsOn: values.isEnabled(.noiseReduction),
+            availability: isRaw ? rawDefaults?.machineLearning : .notRaw, renderFailed: failed)
+    }
+
+    /// Recomputes the inspector's status and the badge's reason.
+    private func refreshMachineLearning() {
+        let edited: MachineLearningNoiseReduction.Status? = state == .ready ? status(for: adjustments) : nil
+        if machineLearning != edited { machineLearning = edited }
+        let onScreen = previewValues ?? (showsOriginal ? .none : adjustments)
+        let reason = state == .ready ? status(for: onScreen).notAppliedReason : nil
+        if machineLearningNotApplied != reason { machineLearningNotApplied = reason }
+    }
+
+    /// Starts waiting for a frame of `values`; the spinner shows if it has
+    /// not come 0.5 s after the wait began (design §6). Newer values asked
+    /// for during the wait extend it without restarting the delay.
+    private func awaitMachineLearning(_ values: Adjustments) {
+        awaitedMachineLearningValues = values
+        guard machineLearningSpinnerTask == nil, !isAwaitingMachineLearningFrame else { return }
+        machineLearningSpinnerTask = Task {
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled else { return }
+            machineLearningSpinnerTask = nil
+            // On arrival with the preview cached, the right image is already on screen.
+            if awaitedMachineLearningValues != nil, showsLive || !previewWasCached {
+                isAwaitingMachineLearningFrame = true
+            }
+        }
+    }
+
+    private func stopAwaitingMachineLearning() {
+        awaitedMachineLearningValues = nil
+        machineLearningSpinnerTask?.cancel()
+        machineLearningSpinnerTask = nil
+        if isAwaitingMachineLearningFrame { isAwaitingMachineLearningFrame = false }
+    }
+
+    /// An offline photo: the badge can still say "this Mac" (design §6),
+    /// which needs only the stack.
+    private func loadOfflineMachineLearning(_ item: CatalogItem, catalog: Catalog) {
+        guard item.fileKind == .raw, !MachineLearningNoiseReduction.systemSupportsMachineLearning else { return }
+        let versionID = item.versionID
+        loadTask = Task {
+            let stack = (try? await catalog.version(id: versionID)?.decodedEditStack()) ?? .identity
+            guard !Task.isCancelled, self.item?.versionID == versionID, state == .offline else { return }
+            let values = Adjustments(stack: stack)
+            offlineAsksMachineLearning = values.asksForMachineLearning && values.isEnabled(.noiseReduction)
+            if offlineAsksMachineLearning { machineLearningNotApplied = .notOnThisMac }
+        }
     }
 
     // MARK: Previewing
@@ -573,6 +706,7 @@ final class AdjustmentEditor {
             previewValues = nil
         }
         requestRender(interactive: false)
+        refreshMachineLearning()
     }
 
     /// Back to the applied values (the menu closed without a pick).
@@ -585,6 +719,7 @@ final class AdjustmentEditor {
             showsLive = false
         }
         requestRender(interactive: false)
+        refreshMachineLearning()
     }
 
     // MARK: Rendering
@@ -598,6 +733,11 @@ final class AdjustmentEditor {
             refinement = cancellation
         }
         pendingRender = (previewValues ?? (showsOriginal ? .none : adjustments), interactive, cancellation)
+        if let values = pendingRender?.values, decodesWithMachineLearning(values) {
+            awaitMachineLearning(values)
+        } else {
+            stopAwaitingMachineLearning()
+        }
         guard renderTask == nil, let session else { return }
         renderTask = Task {
             while let next = pendingRender, !Task.isCancelled {
@@ -633,6 +773,8 @@ final class AdjustmentEditor {
                     // Superseded by newer input; the draft stays on screen.
                 } catch {
                     Self.log.error("Live render failed: \(error.localizedDescription, privacy: .public)")
+                    // No frame will come for these values.
+                    if next.values == awaitedMachineLearningValues { stopAwaitingMachineLearning() }
                 }
             }
             if session === self.session { renderTask = nil }
