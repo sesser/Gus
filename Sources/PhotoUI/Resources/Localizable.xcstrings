@@ -6097,17 +6097,6 @@
         }
       }
     },
-    "No photo" : {
-      "comment" : "Adjust tab, when nothing is shown",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No photo"
-          }
-        }
-      }
-    },
     "No photo meets this smart album's rules." : {
       "comment" : "Empty smart album",
       "localizations" : {

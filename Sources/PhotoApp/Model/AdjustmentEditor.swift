@@ -23,7 +23,7 @@ enum EditPhase {
 @Observable
 final class AdjustmentEditor {
     enum State: Equatable {
-        /// No photo, or the loupe is closed.
+        /// Nothing to edit yet, or the loupe is closed.
         case idle
         case loading
         case ready

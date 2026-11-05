@@ -39,7 +39,9 @@ struct AdjustView: View {
         } else {
             switch model.loupeAdjustState {
             case .idle:
-                message(String(localized: "No photo"))
+                // Only while the loupe opens, before the spinner: an empty pane
+                // (design.md N1, D-Q3).
+                Color.clear
             case .loading:
                 ProgressView()
                     .controlSize(.small)
@@ -97,15 +99,6 @@ struct AdjustView: View {
                 }
             }
         }
-    }
-
-    private func message(_ text: String) -> some View {
-        Text(text)
-            .font(.callout)
-            .foregroundStyle(.secondary)
-            .multilineTextAlignment(.center)
-            .padding(20)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
