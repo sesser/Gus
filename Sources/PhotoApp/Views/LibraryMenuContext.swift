@@ -52,6 +52,8 @@ struct LibraryMenuState: Equatable {
     var canResetAll: Bool
     /// Save Adjustments as Preset… (`LibraryModel.canSaveAdjustmentPreset`).
     var canSaveAsPreset: Bool
+    /// RAW+JPEG Pair ▸: which file the targeted pairs show; nil with no pair.
+    var pairDisplay: PairDisplay?
     var showsMaskOverlay: Bool
     /// The loupe shows a video.
     var showsLoupeVideo: Bool
@@ -125,6 +127,7 @@ struct LibraryMenuState: Equatable {
         canResetCrop = canEditLoupePhoto && model.editor.canResetCrop
         canAddMask = canEditLoupePhoto && !isCropping && MaskLimits.canAddMask(to: model.editor.adjustments.local)
         canSaveAsPreset = model.canSaveAdjustmentPreset
+        pairDisplay = PairDisplay(model.actionTargets.lazy.map { model.items[$0] })
         hasSelectedMask = canEditLoupePhoto && model.editor.selectedMaskID != nil
         canResetAll = model.mode == .grid ? targetsIncludePhoto
             : canEditLoupePhoto && !isCropping && !model.editor.adjustments.isDefault

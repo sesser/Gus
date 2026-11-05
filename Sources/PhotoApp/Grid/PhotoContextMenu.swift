@@ -124,17 +124,26 @@ enum PhotoContextMenu {
             menu.addItem(ActionMenuItem(String(localized: "Rotate Left")) { model.rotate(clockwise: false) })
             menu.addItem(ActionMenuItem(String(localized: "Rotate Right")) { model.rotate(clockwise: true) })
         }
-        let showsPair = state.groupPairs && model.focusedItem?.representsPair == true
+        let showsPair = state.pairDisplay != nil
         if state.canExport || showsPair {
             menu.addItem(.separator())
         }
         if state.canExport {
             menu.addItem(ActionMenuItem(String(localized: "Export…")) { model.export.begin() })
         }
-        if showsPair {
+        if let display = state.pairDisplay {
+            func item(_ title: String, raw: Bool, _ shown: PairDisplay.State) -> NSMenuItem {
+                let item = ActionMenuItem(title) { model.showPairFile(raw: raw) }
+                item.state = switch shown {
+                case .on: .on
+                case .off: .off
+                case .mixed: .mixed
+                }
+                return item
+            }
             menu.addItem(submenu(String(localized: "RAW+JPEG Pair"), [
-                ActionMenuItem(String(localized: "Show the RAW File")) { model.showPairFile(raw: true) },
-                ActionMenuItem(String(localized: "Show the JPEG or HEIC File")) { model.showPairFile(raw: false) },
+                item(String(localized: "Show the RAW File"), raw: true, display.raw),
+                item(String(localized: "Show the JPEG or HEIC File"), raw: false, display.companion),
             ]))
         }
     }

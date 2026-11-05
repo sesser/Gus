@@ -348,12 +348,29 @@ struct LibraryCommands: Commands {
                 .keyboardShortcut(.delete, modifiers: [])
                 .disabled(!canByKey { $0.hasTargets && $0.isInAlbum })
             Divider()
+            // Checkmarks for the file the pairs show, mixed when they differ (design.md I14).
             Menu("RAW+JPEG Pair") {
-                Button("Show the RAW File") { model?.showPairFile(raw: true) }
-                Button("Show the JPEG or HEIC File") { model?.showPairFile(raw: false) }
+                pairToggle(String(localized: "Show the RAW File"), raw: true)
+                pairToggle(String(localized: "Show the JPEG or HEIC File"), raw: false)
             }
-            .disabled(!can { $0.groupPairs && $0.hasFocusedItem })
+            .disabled(!can { $0.pairDisplay != nil })
         }
+    }
+
+    /// A RAW+JPEG Pair item. `Toggle(sources:)` is SwiftUI's only way to a
+    /// mixed state: one source per state shown (on and off for mixed), and
+    /// only the first one's setter acts, so a choice runs once.
+    private func pairToggle(_ title: String, raw: Bool) -> some View {
+        let display = can() ? menu?.state.pairDisplay : nil
+        let values: [Bool] = switch display.map({ raw ? $0.raw : $0.companion }) {
+        case .on: [true]
+        case .mixed: [true, false]
+        case .off, nil: [false]
+        }
+        let sources = values.enumerated().map { index, value in
+            Binding(get: { value }, set: { _ in if index == 0 { model?.showPairFile(raw: raw) } })
+        }
+        return Toggle(sources: sources, isOn: \.self) { Text(title) }
     }
 
     /// Batch adjust commands: the grid's selected photos, or the loupe's photo

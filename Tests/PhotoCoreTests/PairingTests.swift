@@ -180,3 +180,33 @@ struct PairingTests {
         #expect(grouped.map(\.fileName) == ["A.CR2", "B.CR2", "C.JPG"])
     }
 }
+
+@Suite("RAW+JPEG Pair menu state")
+struct PairDisplayTests {
+    private func item(_ id: Int64, _ path: String, pair: Bool) -> CatalogItem {
+        var item = CatalogItem(versionID: id, imageID: id, volumeID: 1, rating: .unrated, flag: .none, colorLabel: .none,
+                               contentHash: "", editStackHash: "", relativePath: path, pixelWidth: 10, pixelHeight: 10,
+                               orientation: 1)
+        item.representsPair = pair
+        return item
+    }
+
+    @Test func noPairIsNil() {
+        #expect(PairDisplay([CatalogItem]()) == nil)
+        #expect(PairDisplay([item(1, "a.jpg", pair: false), item(2, "b.ORF", pair: false)]) == nil)
+    }
+
+    @Test func checksTheFileThePairsShow() {
+        #expect(PairDisplay([item(1, "a.ORF", pair: true)]) == PairDisplay(raw: .on, companion: .off))
+        #expect(PairDisplay([item(1, "a.JPG", pair: true), item(2, "b.HEIC", pair: true)])
+            == PairDisplay(raw: .off, companion: .on))
+        // Single files among the targets don't count.
+        #expect(PairDisplay([item(1, "a.ORF", pair: true), item(2, "c.jpg", pair: false)])
+            == PairDisplay(raw: .on, companion: .off))
+    }
+
+    @Test func aMixedSelectionIsMixed() {
+        #expect(PairDisplay([item(1, "a.ORF", pair: true), item(2, "b.JPG", pair: true)])
+            == PairDisplay(raw: .mixed, companion: .mixed))
+    }
+}
