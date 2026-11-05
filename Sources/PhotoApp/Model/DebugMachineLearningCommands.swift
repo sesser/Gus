@@ -62,7 +62,9 @@ enum DebugMachineLearningCommands {
         } else {
             print("debug-script: ml checkbox not shown")
         }
-        if let root, let row = find(SliderRow.self, in: root, where: { $0.accessibilityLabel() == String(localized: "Color") }) {
+        // Noise Reduction's Color comes before Grain's; files that are not RAW have only Grain's.
+        if editor.isRaw, let root,
+           let row = find(SliderRow.self, in: root, where: { $0.accessibilityLabel() == String(localized: "Color") }) {
             print("debug-script: ml color \(row.debugState)")
         } else {
             print("debug-script: ml color not shown")
@@ -78,7 +80,7 @@ enum DebugMachineLearningCommands {
         }
         let frame = editor.frame.map { "\($0.machineLearning)" + ($0.adjustments == editor.adjustments ? "" : " (other values)") }
         print("debug-script: ml badge \(badge(editor)) spinner \(editor.isAwaitingMachineLearningFrame)"
-              + " frame \(frame ?? "none")")
+              + " frame \(frame ?? "none") undo '\(model.undoManager.undoActionName)'")
     }
 
     private static func badge(_ editor: AdjustmentEditor) -> String {

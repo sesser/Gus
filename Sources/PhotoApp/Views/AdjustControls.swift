@@ -122,9 +122,16 @@ enum InspectorMetrics {
     static let groupLabelHeight: CGFloat = 20
     static let disclosureSlot: CGFloat = 16
     static let checkSlot: CGFloat = 16
-    /// From a small check box's leading edge to its title's: a caption under
-    /// it starts there, so it reads as the check box's note.
-    static let checkBoxTitleInset: CGFloat = 20
+    /// From a small check box's leading edge to its title's, as AppKit lays
+    /// it out in the current design: a caption under it starts there, so it
+    /// reads as the check box's note.
+    @MainActor static let checkBoxTitleInset: CGFloat = {
+        let button = NSButton(checkboxWithTitle: "M", target: nil, action: nil)
+        button.controlSize = .small
+        button.font = .systemFont(ofSize: 11)
+        button.sizeToFit()
+        return button.cell?.titleRect(forBounds: button.bounds).minX ?? 18
+    }()
     static let resetSlot: CGFloat = 20
 }
 

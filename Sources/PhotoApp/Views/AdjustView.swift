@@ -212,7 +212,7 @@ private struct DevelopControls: View {
     /// A second view of machine learning noise reduction's one state (ml-denoise
     /// design §4): the machine learning version is selected while it applies,
     /// otherwise the decoder that renders. It is listed only where it is available.
-    private func decoderPopUp(_ defaults: RawDefaults) -> AppKitPopUp {
+    private func decoderPopUp(_ defaults: RawDefaults) -> some View {
         let status = editor.machineLearning
         let versions = defaults.decoderVersions.filter {
             !MachineLearningNoiseReduction.isMachineLearningVersion($0) || defaults.machineLearning == .available
@@ -229,6 +229,8 @@ private struct DevelopControls: View {
            isEnabled: isEnabled, help: isEnabled ? nil : MachineLearningText.decoderDimmedHelp) { tag in
             editor.chooseDecoder(tag)
         }
+        // SwiftUI sets a hosted control's enabled state from its environment too.
+        .disabled(!isEnabled)
     }
 
     static func lookTitle(_ look: RawDecode.Look) -> String {
@@ -479,6 +481,7 @@ private struct DetailControls: View {
                            isEnabled: status.checkBoxIsEnabled) {
                 editor.setMachineLearning(!status.asks)
             }
+            .disabled(!status.checkBoxIsEnabled)
             .frame(minHeight: SliderRow.height)
             if let caption {
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
