@@ -19,6 +19,9 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+        // Check boxes, not switches (section 8 of docs/UI_REDESIGN.md, Form
+        // conventions; design.md I10).
+        .toggleStyle(.checkbox)
         .frame(width: 480)
     }
 }

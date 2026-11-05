@@ -35,6 +35,7 @@ import PhotoUI
 ///     menuitems [<text>]    (main menu items whose title contains text: key equivalent, enabled, checked)
 ///     menupress <title>     (runs the main menu item with that title, if enabled)
 ///     helpmenu              (the Help menu: whether AppKit treats it as the help menu, and its items)
+///     windowshot <title text> <file.png>   (snapshots another visible window, e.g. Settings)
 ///     sidebarsection [albums|dates|keywords|projects show|hide]   (prints the hidden sidebar sections)
 ///     contextmenu cell <n>|loupe|slider <title> [<item>[/<sub>]]   (prints a right-click's menu there, or runs an item)
 ///     editvalue <title>     (puts the keyboard in the value field of the inspector slider with that title)
@@ -447,6 +448,14 @@ enum DebugScript {
             printMenuItems(containing: rest.joined(separator: " "))
         case "helpmenu":
             HelpMenuProbe.print()
+        case "windowshot":
+            // Another window by part of its title (Settings), as `snapshot` does the library's.
+            if let path = rest.last, rest.count >= 2,
+               let other = NSApp.windows.first(where: { $0.isVisible && $0.title.contains(rest.dropLast().joined(separator: " ")) }) {
+                WindowSnapshot.write(other, to: URL(fileURLWithPath: (path as NSString).expandingTildeInPath))
+            } else {
+                print("debug-script: no window for windowshot \(rest.joined(separator: " "))")
+            }
         case "contextmenu":
             runContextMenu(rest)
             try? await Task.sleep(for: .milliseconds(300))
