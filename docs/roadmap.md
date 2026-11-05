@@ -12,6 +12,11 @@ exists is listed in [`features/_inventory.md`](features/_inventory.md).
 are in [`features/ui-redesign/prd.md`](features/ui-redesign/prd.md); new
 scope is below as `Idea` rows citing the RI.
 
+2026-11-05: specified sharpen-mask-preview (owner's idea, follow-up to issue
+#35 / PR #36) and placed it at the top of Next. Now is full, so I did not move
+anything out. The owner answered its four questions the same day, and the
+PRD is approved.
+
 Where specs live: new features get `docs/features/<slug>/`. The phase plans
 (`docs/PHASE1_PLAN.md` … `PHASE6_PLAN.md`) and `docs/UI_REDESIGN.md` stay
 where they are as the historical record (owner, 2026-11-04).
@@ -61,6 +66,7 @@ Order is my proposal, not owner-confirmed.
 
 | Slug | Problem | Status | Why this order | Source |
 |------|---------|--------|----------------|--------|
+| sharpen-mask-preview | Sharpening's Masking changes where sharpening goes, which can't be seen while setting it | Specified | Ahead of edit-history: the owner raised it right after PR #36, its spec is written and edit-history still needs intake. Moderate effort: a live estimate, then a full-resolution mask when input pauses (owner, 2026-11-05). Does not wait for viewport-render-1to1 | Owner 2026-11-05; issue #35, PR #36. [`features/sharpen-mask-preview/`](features/sharpen-mask-preview/) |
 | edit-history | No way to see or jump back to an earlier state of a photo's edits | Idea | Intake before any spec (owner, 2026-11-04). Need: see a photo's edit steps and return to an earlier one. Open for the owner: does history survive relaunch. Placement and keys belong to design, not the PRD: issue #26's ⌘Y redo and left-sidebar placement are proposals, and they conflict with the shipped ⇧⌘Z (the HIG's standard redo) and a sidebar that holds sources (UIR §3). RI-6 | Issue #26; `ui-redesign/design.md` RI-6 |
 | viewport-render-1to1 | At 100% zoom, sliders show a stretched 2560 px frame until the edit is saved | Idea | Named on the phase 6 roadmap; affects every edit at 1:1 | `PHASE6_PLAN.md` "Roadmap" |
 | dehaze-above-white | Dehaze and local tone estimates jump on extended-range (above white) input | Idea | Named on the phase 6 roadmap; a rendering change with a pipeline bump | `PHASE6_PLAN.md` "Roadmap", finding 4 |
