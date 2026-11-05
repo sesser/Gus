@@ -57,6 +57,13 @@ extension LibraryModel {
         }
     }
 
+    /// Save Adjustments as Preset… can act: the focused item is a photo whose
+    /// adjustments can be read (in the loupe, the editor has them; design.md I13).
+    var canSaveAdjustmentPreset: Bool {
+        guard let item = focusedItem, !item.isVideo else { return false }
+        return mode == .grid || editor.state == .ready
+    }
+
     /// Saves the focused photo's adjustments under `name` in `collection`
     /// (replacing a preset of that name there), with `groups` or the photo's
     /// modified ones.

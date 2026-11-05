@@ -81,6 +81,17 @@ public enum MaskLimits {
         }
     }
 
+    /// New Mask can act: the photo has room for one more mask
+    /// (design.md N8; the menu and the heading dim at the limit).
+    public static func canAddMask(to local: LocalAdjustments) -> Bool {
+        local.masks.count < masks
+    }
+
+    /// Add to Mask can act: the mask has room for one more component.
+    public static func canAddComponent(to mask: Mask) -> Bool {
+        mask.components.count < componentsPerMask
+    }
+
     /// Whether `local` may be saved: the check the editor and commands make
     /// before adding to a mask.
     public static func allows(_ local: LocalAdjustments) -> Bool {

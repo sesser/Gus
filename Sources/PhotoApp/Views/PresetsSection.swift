@@ -54,12 +54,14 @@ struct PresetsSection: View {
         }
     }
 
-    private var saveButton: AppKitButton {
+    private var saveButton: some View {
         AppKitButton(title: String(localized: "Save…", comment: "Save a preset"), style: .push,
                      help: String(localized: "Save this photo's adjustments as a preset"),
-                     isEnabled: model.focusedItem != nil) {
+                     isEnabled: model.canSaveAdjustmentPreset) {
             model.promptForAdjustmentPreset()
         }
+        // SwiftUI applies its own enabled state to the control as well.
+        .disabled(!model.canSaveAdjustmentPreset)
     }
 
     private var importButton: AppKitButton {

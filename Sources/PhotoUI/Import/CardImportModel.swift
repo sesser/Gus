@@ -143,7 +143,11 @@ public final class CardImportModel {
 
     // MARK: Running
 
-    public private(set) var progress: CopyImportProgress?
+    public private(set) var progress: CopyImportProgress? {
+        didSet { if (oldValue == nil) != (progress == nil) { progressStarted = progress == nil ? nil : Date() } }
+    }
+    /// When the running copy started (File ▸ Stop names the newest job).
+    public private(set) var progressStarted: Date?
     private(set) var lastResult: CopyImportResult?
     /// Verified files waiting for the person to confirm their deletion.
     public var pendingDeletion: [URL]?
@@ -334,6 +338,13 @@ public final class CardImportModel {
         lastClicked = shot.id
         doneText = nil
     }
+
+    /// A copy is running (or starting): the selection can't change
+    /// (design.md I16: the Edit menu, the Selection pull-down and the grid's
+    /// context menu share these rules).
+    var isCopying: Bool { progress != nil || isImporting }
+    public var canSelectAll: Bool { !isCopying && shots.contains { !$0.isDuplicate } }
+    public var canDeselectAll: Bool { !isCopying && !selection.isEmpty }
 
     func selectAll() {
         selection = Set(shots.filter { !$0.isDuplicate }.map(\.id))

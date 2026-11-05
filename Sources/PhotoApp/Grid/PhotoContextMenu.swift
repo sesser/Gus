@@ -45,6 +45,20 @@ enum PhotoContextMenu {
         return menu
     }
 
+    /// For the video in the loupe (design.md N9): the photo items that apply
+    /// to a video (culling, keywords, albums), then Play / Pause and Show Grid.
+    static func videoLoupe(model: LibraryModel) -> NSMenu {
+        let state = LibraryMenuState(model)
+        let menu = NSMenu()
+        addPhotoItems(to: menu, model: model, state: state)
+        if !menu.items.isEmpty { menu.addItem(.separator()) }
+        menu.addItem(ActionMenuItem(state.isVideoPlaying ? String(localized: "Pause") : String(localized: "Play")) {
+            model.playback.toggle()
+        })
+        menu.addItem(ActionMenuItem(String(localized: "Show Grid")) { model.closeLoupe() })
+        return menu
+    }
+
     private static func stepZoom(_ model: LibraryModel, in zoomIn: Bool) {
         NotificationCenter.default.post(name: .loupeShouldStepZoom, object: model,
                                         userInfo: [LoupeZoomStep.zoomInKey: zoomIn])
@@ -72,10 +86,7 @@ enum PhotoContextMenu {
         }))
         menu.addItem(.separator())
         menu.addItem(ActionMenuItem(String(localized: "Add Keywords…")) { model.beginKeywordEntry() })
-        menu.addItem(ActionMenuItem(String(localized: "Suggest Keywords")) {
-            model.suggestKeywords(for: model.actionTargetVersionIDs)
-            model.showsInspector = true
-        })
+        menu.addItem(ActionMenuItem(String(localized: "Suggest Keywords")) { model.suggestKeywordsForTargets() })
         if !state.albums.isEmpty {
             menu.addItem(submenu(String(localized: "Add to Album"), state.albums.map { album in
                 ActionMenuItem(album.album.name) { model.addToAlbum(album.id) }
@@ -105,20 +116,34 @@ enum PhotoContextMenu {
         }
         if adjusts {
             menu.addItem(ActionMenuItem(String(localized: "Auto Exposure")) { model.autoExposure() })
+        }
+        if state.canResetAll {
             menu.addItem(ActionMenuItem(String(localized: "Reset All Adjustments")) { model.resetAllAdjustments() })
         }
         if state.mode == .grid ? state.targetsIncludePhoto : state.canEditLoupePhoto {
             menu.addItem(ActionMenuItem(String(localized: "Rotate Left")) { model.rotate(clockwise: false) })
             menu.addItem(ActionMenuItem(String(localized: "Rotate Right")) { model.rotate(clockwise: true) })
         }
-        menu.addItem(.separator())
-        if state.itemCount > 0 && !state.isExporting {
+        let showsPair = state.pairDisplay != nil
+        if state.canExport || showsPair {
+            menu.addItem(.separator())
+        }
+        if state.canExport {
             menu.addItem(ActionMenuItem(String(localized: "Export…")) { model.export.begin() })
         }
-        if state.groupPairs, model.focusedItem?.representsPair == true {
+        if let display = state.pairDisplay {
+            func item(_ title: String, raw: Bool, _ shown: PairDisplay.State) -> NSMenuItem {
+                let item = ActionMenuItem(title) { model.showPairFile(raw: raw) }
+                item.state = switch shown {
+                case .on: .on
+                case .off: .off
+                case .mixed: .mixed
+                }
+                return item
+            }
             menu.addItem(submenu(String(localized: "RAW+JPEG Pair"), [
-                ActionMenuItem(String(localized: "Show the RAW File")) { model.showPairFile(raw: true) },
-                ActionMenuItem(String(localized: "Show the JPEG or HEIC File")) { model.showPairFile(raw: false) },
+                item(String(localized: "Show the RAW File"), raw: true, display.raw),
+                item(String(localized: "Show the JPEG or HEIC File"), raw: false, display.companion),
             ]))
         }
     }

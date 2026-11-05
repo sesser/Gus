@@ -9,6 +9,8 @@ import SwiftUI
 struct PresetManagerSheet: View {
     let model: LibraryModel
     @State private var pendingRemoval: String?
+    /// A preset waiting for its deletion to be confirmed (design.md I11).
+    @State private var pendingDeletion: AdjustmentPreset?
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -21,7 +23,7 @@ struct PresetManagerSheet: View {
                     ForEach(model.adjustmentPresetCollections) { collection in
                         Section {
                             ForEach(collection.presets) { preset in
-                                PresetRow(model: model, preset: preset)
+                                PresetRow(model: model, preset: preset) { pendingDeletion = preset }
                             }
                         } header: {
                             PresetCollectionHeader(model: model, collection: collection) {
@@ -56,6 +58,17 @@ struct PresetManagerSheet: View {
             Button("Cancel", role: .cancel) { pendingRemoval = nil }
         } message: {
             Text("Its presets are removed. Photos keep the adjustments they were given.")
+        }
+        .alert(String(localized: "Delete the preset “\(pendingDeletion?.name ?? "")”?",
+                      comment: "Alert before deleting an adjustment or metadata preset; its name"),
+               isPresented: Binding(get: { pendingDeletion != nil }, set: { if !$0 { pendingDeletion = nil } })) {
+            Button("Delete", role: .destructive) {
+                if let pendingDeletion { model.deleteAdjustmentPreset(pendingDeletion) }
+                pendingDeletion = nil
+            }
+            Button("Cancel", role: .cancel) { pendingDeletion = nil }
+        } message: {
+            Text("Photos it was applied to keep their adjustments.", comment: "Delete adjustment preset alert")
         }
     }
 }
@@ -104,6 +117,8 @@ private struct PresetCollectionHeader: View {
 private struct PresetRow: View {
     let model: LibraryModel
     let preset: AdjustmentPreset
+    /// Asks before deleting (the sheet's alert).
+    let onDelete: () -> Void
     @State private var name = ""
 
     var body: some View {
@@ -148,7 +163,7 @@ private struct PresetRow: View {
                 }
                 Divider()
                 Button("Export…") { model.exportAdjustmentPresets([preset], suggestedName: preset.name) }
-                Button("Delete", role: .destructive) { model.deleteAdjustmentPreset(preset) }
+                Button("Delete…", role: .destructive) { onDelete() }
             } label: {
                 Image(systemName: "ellipsis.circle")
             }

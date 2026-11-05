@@ -55,7 +55,8 @@ struct LibraryCommands: Commands {
                 if let model { ImportPanel.run(model: model) }
             }
             .keyboardShortcut("i", modifiers: [.command, .shift])
-            .disabled(!can { !$0.isImporting })
+            // A folder chosen while another is added joins its queue, as a drop does.
+            .disabled(!can())
             Divider()
             Button("New Album…") { model?.sidebarSheet = .newAlbum(projectID: model?.selectedProjectID) }
                 .keyboardShortcut("n", modifiers: .command)
@@ -89,10 +90,34 @@ struct LibraryCommands: Commands {
             Divider()
             Button("Export…") { model?.export.begin() }
                 .keyboardShortcut("e", modifiers: [.command, .shift])
-                .disabled(!can { $0.itemCount > 0 && !$0.isExporting })
+                .disabled(!can { $0.canExport })
             Button("Check for Changes on Disk") { model?.checkForDiskChanges() }
                 .disabled(!can { !$0.isCheckingDisk })
+            // One item for ⌘. (design.md P3, I4): the import window's Stop
+            // Import while it is key, else the newest job Activity shows.
+            if menu == nil, let importMenu {
+                Button("Stop Import") { importMenu.stopImport() }
+                    .keyboardShortcut(".", modifiers: .command)
+                    .disabled(!importMenu.canStopImport)
+            } else {
+                Button(stopTitle) {
+                    if let job = menu?.state.stoppableJob { model?.stop(job) }
+                }
+                .keyboardShortcut(".", modifiers: .command)
+                .disabled(!can { $0.stoppableJob != nil })
+            }
             Divider()
+        }
+    }
+
+    /// "Stop Export", "Stop Adding Folders" or "Stop Import"; "Stop" when
+    /// nothing runs.
+    private var stopTitle: String {
+        switch can() ? menu?.state.stoppableJob : nil {
+        case .export: String(localized: "Stop Export", comment: "File menu (⌘.): stops the running export")
+        case .addFolders: String(localized: "Stop Adding Folders", comment: "File menu (⌘.): stops adding folders")
+        case .cardImport: String(localized: "Stop Import")
+        case nil: String(localized: "Stop")
         }
     }
 
@@ -111,13 +136,24 @@ struct LibraryCommands: Commands {
 
     private var editCommands: some Commands {
         CommandGroup(after: .pasteboard) {
+            // One item for ⇧⌘A (design.md P3, I5): the import window's while it
+            // is key, else the grid's, which keeps only the focused photo.
+            if menu == nil, let importMenu {
+                Button("Deselect All") { importMenu.deselectAll() }
+                    .keyboardShortcut("a", modifiers: [.command, .shift])
+                    .disabled(!importMenu.canDeselectAll)
+            } else {
+                Button("Deselect All") { model?.collapseSelection() }
+                    .keyboardShortcut("a", modifiers: [.command, .shift])
+                    .disabled(!canByKey { $0.mode == .grid && $0.selectedCount > 1 })
+            }
             Divider()
             Menu("Find") {
+                // Find holds find commands only; Clear Filter lives in View ▸
+                // Filter (owner ruling D1).
                 Button("Find…") { model?.beginSearch() }
                 .keyboardShortcut("f", modifiers: .command)
                 .disabled(!can())
-                Button("Clear Filter") { model?.clearFilter() }
-                    .disabled(!can { $0.isFiltered })
             }
         }
     }
@@ -166,6 +202,13 @@ struct LibraryCommands: Commands {
             }
             .keyboardShortcut("b", modifiers: [.command, .option])
             .disabled(!can { $0.mode == .loupe && !$0.isReviewing })
+            // A bare key: the video loupe's event monitor plays and pauses on
+            // Space; the grid's Space opens the loupe (design.md N9, I6).
+            Button(menu?.state.isVideoPlaying == true ? String(localized: "Pause") : String(localized: "Play")) {
+                model?.playback.toggle()
+            }
+            .keyboardShortcut(.space, modifiers: [])
+            .disabled(!canByKey { $0.showsLoupeVideo })
             Divider()
             Button(menu?.state.showFileInfo == false ? String(localized: "Show File Names")
                                                      : String(localized: "Hide File Names")) {
@@ -220,10 +263,11 @@ struct LibraryCommands: Commands {
                 .keyboardShortcut("i", modifiers: [.command, .option])
                 .disabled(!can())
             }
-            Button("Info") { show(.info) }
+            // A checkmark on the tab shown while the inspector is (design.md I19).
+            Toggle("Info", isOn: tabBinding(.info))
                 .keyboardShortcut("1", modifiers: [.command, .option])
                 .disabled(!can())
-            Button("Adjust") { show(.adjust) }
+            Toggle("Adjust", isOn: tabBinding(.adjust))
                 .keyboardShortcut("2", modifiers: [.command, .option])
                 .disabled(!can())
             Divider()
@@ -292,11 +336,7 @@ struct LibraryCommands: Commands {
             Button("Add Keywords…") { model?.beginKeywordEntry() }
                 .keyboardShortcut("k", modifiers: .command)
                 .disabled(!can { $0.hasTargets })
-            Button("Suggest Keywords") {
-                guard let model else { return }
-                model.suggestKeywords(for: model.actionTargetVersionIDs)
-                model.showsInspector = true
-            }
+            Button("Suggest Keywords") { model?.suggestKeywordsForTargets() }
             .keyboardShortcut("k", modifiers: [.command, .shift])
             .disabled(!can { $0.hasTargets })
             Menu("Add to Album") {
@@ -309,12 +349,35 @@ struct LibraryCommands: Commands {
                 .keyboardShortcut(.delete, modifiers: [])
                 .disabled(!canByKey { $0.hasTargets && $0.isInAlbum })
             Divider()
+            // Checkmarks for the file the pairs show, mixed when they differ (design.md I14).
             Menu("RAW+JPEG Pair") {
-                Button("Show the RAW File") { model?.showPairFile(raw: true) }
-                Button("Show the JPEG or HEIC File") { model?.showPairFile(raw: false) }
+                pairToggle(String(localized: "Show the RAW File"), raw: true)
+                pairToggle(String(localized: "Show the JPEG or HEIC File"), raw: false)
             }
-            .disabled(!can { $0.groupPairs && $0.hasFocusedItem })
+            .disabled(!can { $0.pairDisplay != nil })
         }
+    }
+
+    /// On while the inspector shows `tab`; choosing it shows that tab.
+    private func tabBinding(_ tab: InspectorTab) -> Binding<Bool> {
+        Binding(get: { menu?.state.showsInspector == true && menu?.state.inspectorTab == tab },
+                set: { _ in show(tab) })
+    }
+
+    /// A RAW+JPEG Pair item. `Toggle(sources:)` is SwiftUI's only way to a
+    /// mixed state: one source per state shown (on and off for mixed), and
+    /// only the first one's setter acts, so a choice runs once.
+    private func pairToggle(_ title: String, raw: Bool) -> some View {
+        let display = can() ? menu?.state.pairDisplay : nil
+        let values: [Bool] = switch display.map({ raw ? $0.raw : $0.companion }) {
+        case .on: [true]
+        case .mixed: [true, false]
+        case .off, nil: [false]
+        }
+        let sources = values.enumerated().map { index, value in
+            Binding(get: { value }, set: { _ in if index == 0 { model?.showPairFile(raw: raw) } })
+        }
+        return Toggle(sources: sources, isOn: \.self) { Text(title) }
     }
 
     /// Batch adjust commands: the grid's selected photos, or the loupe's photo
@@ -357,13 +420,15 @@ struct LibraryCommands: Commands {
             Button("Auto Exposure") { model?.autoExposure() }
                 .disabled(!can(adjustsTargets))
             Button("Reset All Adjustments") { model?.resetAllAdjustments() }
-                .disabled(!can(adjustsTargets))
+                .disabled(!can { $0.canResetAll })
             Divider()
             Button(menu?.state.isCropping == true ? String(localized: "Finish Cropping") : String(localized: "Crop")) {
                 model?.crop()
             }
             .keyboardShortcut("c", modifiers: [])
             .disabled(!canByKey { $0.mode == .grid ? $0.focusedIsPhoto : $0.canEditLoupePhoto })
+            Button("Reset Crop") { model?.editor.resetCrop() }
+                .disabled(!can { $0.canResetCrop })
             Button("Rotate Left") { model?.rotate(clockwise: false) }
                 .keyboardShortcut("[", modifiers: .command)
                 .disabled(!can { $0.mode == .grid ? $0.targetsIncludePhoto : $0.canEditLoupePhoto })
@@ -375,13 +440,23 @@ struct LibraryCommands: Commands {
                     Button(kind.title) { model?.editor.addMask(kind) }
                 }
             }
-            .disabled(!can { $0.canEditLoupePhoto && !$0.isCropping })
+            .disabled(!can { $0.canAddMask })
+            // The Masks heading's eye button (design.md N7).
+            Button(menu?.state.showsMaskOverlay == true ? String(localized: "Hide Mask Overlay")
+                                                        : String(localized: "Show Mask Overlay")) {
+                model?.editor.showsMaskOverlay.toggle()
+            }
+            .disabled(!can { $0.hasSelectedMask })
             Divider()
             Button("Save Adjustments as Preset…") { model?.promptForAdjustmentPreset() }
-                .disabled(!can { $0.hasFocusedItem })
+                .disabled(!can { $0.canSaveAsPreset })
             Button("Import Presets…") { model?.chooseAdjustmentPresetImport() }
                 .disabled(!can())
             Button("Manage Presets…") { model?.showsPresetSheet = true }
+                .disabled(!can())
+            // Preset items, then the look-up table items (design.md N5, D-Q4).
+            Divider()
+            Button("Import Look-Up Tables…") { model?.lookTableLibrary.chooseImportFromMenu() }
                 .disabled(!can())
             Button("Browse Look-Up Tables…") { model?.showsLookTableSheet = true }
                 .disabled(!can())

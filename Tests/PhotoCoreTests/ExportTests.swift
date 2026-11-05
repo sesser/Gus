@@ -502,3 +502,91 @@ struct RGBA {
         return (bytes[offset], bytes[offset + 1], bytes[offset + 2])
     }
 }
+
+@Suite("Export enablement")
+struct ExportEnablementTests {
+    private func item(_ id: Int64, _ path: String) -> CatalogItem {
+        CatalogItem(versionID: id, imageID: id, volumeID: 1, rating: .unrated, flag: .none, colorLabel: .none,
+                    contentHash: "", editStackHash: "", relativePath: path, pixelWidth: 100, pixelHeight: 100,
+                    orientation: 1)
+    }
+
+    @Test func needsAPhotoAmongTheTargets() {
+        let photo = item(1, "Shoot/a.jpg")
+        let video = item(2, "Shoot/clip.mov")
+        #expect(!ExportTargets.canExport([CatalogItem](), isExporting: false))
+        #expect(!ExportTargets.canExport([video], isExporting: false))
+        #expect(ExportTargets.canExport([video, photo], isExporting: false))
+        #expect(ExportTargets.canExport([photo], isExporting: false))
+    }
+
+    @Test func aPairCountsAsAPhoto() {
+        var pair = item(3, "Shoot/b.ORF")
+        pair.partnerVersionID = 4
+        pair.partnerKind = .jpeg
+        pair.representsPair = true
+        #expect(ExportTargets.canExport([pair], isExporting: false))
+    }
+
+    @Test func notWhileAnExportRuns() {
+        #expect(!ExportTargets.canExport([item(1, "Shoot/a.jpg")], isExporting: true))
+    }
+
+    @Test func stopsAtTheFirstPhoto() {
+        var visited = 0
+        let targets = (0..<50_000).lazy.map { index -> CatalogItem in
+            visited += 1
+            return item(Int64(index), index == 0 ? "Shoot/a.mov" : "Shoot/a.jpg")
+        }
+        #expect(ExportTargets.canExport(targets, isExporting: false))
+        #expect(visited == 2)
+    }
+}
+
+@Suite("Export results in Activity")
+struct ExportActivityReportTests {
+    private func summary(written: Int = 0, failed: Int = 0, skipped: Int = 0, videos: Int = 0) -> ExportSummary {
+        var summary = ExportSummary(destination: URL(fileURLWithPath: "/tmp/Out", isDirectory: true))
+        summary.written = (0..<written).map { URL(fileURLWithPath: "/tmp/Out/\($0).jpg") }
+        summary.failures = (0..<failed).map {
+            ExportSummary.Failure(fileName: "IMG_\($0).ORF", reason: .offline(volumeName: "Card"))
+        }
+        summary.skippedExisting = skipped
+        summary.skippedVideos = videos
+        return summary
+    }
+
+    @Test func aCleanExportIsInformationWithNothingListed() {
+        let report = ExportActivityReport(summary(written: 24, videos: 3))
+        #expect(!report.isWarning)
+        #expect(report.listedFailures.isEmpty)
+        #expect(report.unlistedFailureCount == 0)
+        #expect(report.skippedByChoice == nil)
+    }
+
+    @Test func failuresAreAWarningListingEachFile() {
+        let report = ExportActivityReport(summary(written: 22, failed: 2))
+        #expect(report.isWarning)
+        #expect(report.listedFailures.map(\.fileName) == ["IMG_0.ORF", "IMG_1.ORF"])
+        #expect(report.unlistedFailureCount == 0)
+    }
+
+    @Test func listsTenFailuresAndCountsTheRest() {
+        let ten = ExportActivityReport(summary(failed: 10))
+        #expect(ten.listedFailures.count == 10)
+        #expect(ten.unlistedFailureCount == 0)
+        let thirteen = ExportActivityReport(summary(failed: 13))
+        #expect(thirteen.listedFailures.count == 10)
+        #expect(thirteen.listedFailures.last?.fileName == "IMG_9.ORF")
+        #expect(thirteen.unlistedFailureCount == 3)
+    }
+
+    @Test func filesSkippedByChoiceAreInformationNotAWarning() {
+        let report = ExportActivityReport(summary(written: 4, skipped: 2))
+        #expect(!report.isWarning)
+        #expect(report.skippedByChoice == 2)
+        let both = ExportActivityReport(summary(written: 4, failed: 1, skipped: 2))
+        #expect(both.isWarning)
+        #expect(both.skippedByChoice == 2)
+    }
+}

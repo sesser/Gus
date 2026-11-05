@@ -26,6 +26,8 @@ struct LibraryMenuState: Equatable {
     var itemCount: Int
     /// Culling and batch commands have photos to act on.
     var hasTargets: Bool
+    /// Photos selected in the grid (Edit ▸ Deselect All needs two or more).
+    var selectedCount: Int
     var hasFocusedItem: Bool
     /// The focused photo is not a video (Crop from the grid).
     var focusedIsPhoto: Bool
@@ -36,6 +38,27 @@ struct LibraryMenuState: Equatable {
     /// The loupe shows a photo whose adjustments can be edited.
     var canEditLoupePhoto: Bool
     var isCropping: Bool
+    /// Adjust ▸ Reset Crop: an editable loupe photo with a crop, or a crop
+    /// session that has one.
+    var canResetCrop: Bool
+    /// Adjust ▸ New Mask ▸: an editable loupe photo, not cropping, under the
+    /// mask limit.
+    var canAddMask: Bool
+    /// Adjust ▸ Show / Hide Mask Overlay: a mask is selected in the loupe.
+    var hasSelectedMask: Bool
+    /// Reset All Adjustments has something to reset. In the loupe: the photo's
+    /// adjustments are not at their defaults. In the grid the items can't
+    /// tell (their hash leaves out turned-off groups), so it is true.
+    var canResetAll: Bool
+    /// Save Adjustments as Preset… (`LibraryModel.canSaveAdjustmentPreset`).
+    var canSaveAsPreset: Bool
+    /// RAW+JPEG Pair ▸: which file the targeted pairs show; nil with no pair.
+    var pairDisplay: PairDisplay?
+    var showsMaskOverlay: Bool
+    /// The loupe shows a video.
+    var showsLoupeVideo: Bool
+    /// The video loupe's player is playing (View ▸ Play / Pause's title).
+    var isVideoPlaying: Bool
     var showsOriginal: Bool
     var loupeZoom: LoupeZoomState
     var showsInspector: Bool
@@ -56,8 +79,11 @@ struct LibraryMenuState: Equatable {
     var albums: [AlbumSummary]
     var isInAlbum: Bool
     var sidebarItem: SidebarItem?
-    var isImporting: Bool
     var isExporting: Bool
+    /// File ▸ Stop's job (⌘.), nil when none runs.
+    var stoppableJob: StoppableJob?
+    /// File ▸ Export…, the toolbar's Export and the context menu's Export….
+    var canExport: Bool
     var isCheckingDisk: Bool
     var hiddenSidebarSections: Set<SidebarSection>
 
@@ -89,12 +115,23 @@ struct LibraryMenuState: Equatable {
         mode = model.mode
         itemCount = model.itemCount
         hasTargets = !model.actionTargets.isEmpty
+        selectedCount = model.selectedCount
         hasFocusedItem = model.focusedItem != nil
         focusedIsPhoto = model.focusedItem.map { !$0.isVideo } ?? false
         targetsIncludePhoto = model.actionTargets.contains { !model.items[$0].isVideo }
         showsLoupePhoto = model.mode == .loupe && model.focusedItem?.isVideo == false
+        showsLoupeVideo = model.mode == .loupe && model.focusedItem?.isVideo == true
+        isVideoPlaying = model.playback.isPlaying
         canEditLoupePhoto = showsLoupePhoto && model.editor.state == .ready
         isCropping = model.editor.cropSession != nil
+        canResetCrop = canEditLoupePhoto && model.editor.canResetCrop
+        canAddMask = canEditLoupePhoto && !isCropping && MaskLimits.canAddMask(to: model.editor.adjustments.local)
+        canSaveAsPreset = model.canSaveAdjustmentPreset
+        pairDisplay = PairDisplay(model.actionTargets.lazy.map { model.items[$0] })
+        hasSelectedMask = canEditLoupePhoto && model.editor.selectedMaskID != nil
+        canResetAll = model.mode == .grid ? targetsIncludePhoto
+            : canEditLoupePhoto && !isCropping && !model.editor.adjustments.isDefault
+        showsMaskOverlay = model.editor.showsMaskOverlay
         showsOriginal = model.editor.showsOriginal
         loupeZoom = model.loupeZoom
         showsInspector = model.showsInspector
@@ -119,8 +156,9 @@ struct LibraryMenuState: Equatable {
         case .keyword(let id): model.keywords.first { $0.id == id }.map(SidebarItem.keyword)
         default: nil
         }
-        isImporting = model.isImporting
         isExporting = model.export.isExporting
+        stoppableJob = model.newestStoppableJob
+        canExport = ExportTargets.canExport(model.actionTargets.lazy.map { model.items[$0] }, isExporting: isExporting)
         isCheckingDisk = model.isCheckingDisk
         hiddenSidebarSections = model.hiddenSidebarSections
     }

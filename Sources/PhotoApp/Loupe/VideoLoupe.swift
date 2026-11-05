@@ -3,8 +3,9 @@ import PhotoCore
 import SwiftUI
 
 /// Plays a video in the loupe. Space plays and pauses; the arrow, culling,
-/// Return and Escape keys work as they do for photos, and a double-click on the
-/// picture goes back to the grid.
+/// Return and Escape keys work as they do for photos, a double-click on the
+/// picture goes back to the grid, and a right-click or Control-click on it
+/// shows the context menu.
 ///
 /// AVKit gives keyboard focus to a view of its own, which would take the arrow
 /// keys for scrubbing, and takes the mouse in views of its own, so those keys
@@ -25,17 +26,27 @@ struct VideoLoupe: NSViewRepresentable {
         let view = host.playerView
         view.controlsStyle = .inline
         view.showsFullScreenToggleButton = true
-        view.player = AVPlayer(url: url)
-        context.coordinator.monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .leftMouseDown]) {
-            [weak view, weak model] event in
-            guard let view, let model, let window = view.window, event.window === window else { return event }
+        let player = AVPlayer(url: url)
+        view.player = player
+        model.playback.attach(player)
+        context.coordinator.monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .leftMouseDown, .rightMouseDown]) {
+            [weak host, weak view, weak model] event in
+            guard let host, let view, let model, let window = view.window, event.window === window else { return event }
+            let isContextClick = event.type == .rightMouseDown
+                || (event.type == .leftMouseDown && event.modifierFlags.contains(.control))
+            if isContextClick {
+                // AVKit's views take the click otherwise; its controls keep theirs.
+                guard let menu = host.menu(for: event) else { return event }
+                NSMenu.popUpContextMenu(menu, with: event, for: host)
+                return nil
+            }
             if event.type == .leftMouseDown {
-                guard Self.isDoubleClickOnPicture(event, in: view) else { return event }
+                guard event.clickCount == 2, Self.isOnPicture(event, in: view) else { return event }
                 model.closeLoupe()
                 return nil
             }
             guard !(window.firstResponder is NSText) else { return event }
-            return Self.handle(event, model: model, player: view.player) ? nil : event
+            return Self.handle(event, model: model) ? nil : event
         }
         return host
     }
@@ -48,15 +59,19 @@ struct VideoLoupe: NSViewRepresentable {
 
     static func dismantleNSView(_ host: VideoLoupeHostView, coordinator: Coordinator) {
         if let monitor = coordinator.monitor { NSEvent.removeMonitor(monitor) }
-        host.playerView.player?.pause()
+        if let player = host.playerView.player {
+            player.pause()
+            host.model?.playback.detach(player)
+        }
         host.playerView.player = nil
     }
 
-    /// A double-click on the picture or the margins around it. AVKit's playback
-    /// controls are controls on visual effect views; clicks on them stay theirs.
+    /// A click on the picture or the margins around it (double-clicks and the
+    /// context menu). AVKit's playback controls are controls on visual effect
+    /// views; clicks on them stay theirs.
     @MainActor
-    static func isDoubleClickOnPicture(_ event: NSEvent, in view: AVPlayerView) -> Bool {
-        guard event.clickCount == 2, let superview = view.superview else { return false }
+    static func isOnPicture(_ event: NSEvent, in view: AVPlayerView) -> Bool {
+        guard let superview = view.superview else { return false }
         var hit = view.hitTest(superview.convert(event.locationInWindow, from: nil))
         guard hit != nil else { return false }
         while let current = hit, current !== view {
@@ -68,9 +83,9 @@ struct VideoLoupe: NSViewRepresentable {
 
     /// Returns true when the key was handled.
     @MainActor
-    static func handle(_ event: NSEvent, model: LibraryModel, player: AVPlayer?) -> Bool {
+    static func handle(_ event: NSEvent, model: LibraryModel) -> Bool {
         if event.keyCode == 49, event.modifierFlags.intersection([.command, .option, .control]).isEmpty {
-            if player?.timeControlStatus == .playing { player?.pause() } else { player?.play() }
+            model.playback.toggle()
             return true
         }
         if let action = CullingKeymap.action(for: event) {
@@ -103,7 +118,7 @@ struct VideoLoupe: NSViewRepresentable {
 /// controls stay inside it as its children.
 final class VideoLoupeHostView: NSView {
     let playerView = AVPlayerView()
-    private weak var model: LibraryModel?
+    private(set) weak var model: LibraryModel?
     private var describedValue: String?
 
     init(model: LibraryModel) {
@@ -137,6 +152,12 @@ final class VideoLoupeHostView: NSView {
 
     private var item: CatalogItem? { model?.focusedItem }
 
+    /// The photo items, Play / Pause and Show Grid, over the picture only.
+    override func menu(for event: NSEvent) -> NSMenu? {
+        guard let model, VideoLoupe.isOnPicture(event, in: playerView) else { return nil }
+        return PhotoContextMenu.videoLoupe(model: model)
+    }
+
     override func isAccessibilityElement() -> Bool { item != nil }
     override func accessibilityRole() -> NSAccessibility.Role? { .group }
     override func accessibilityLabel() -> String? { item.map(PhotoAccessibility.label) }
@@ -151,14 +172,10 @@ final class VideoLoupeHostView: NSView {
 
     override func accessibilityCustomActions() -> [NSAccessibilityCustomAction]? {
         guard let model, let item else { return nil }
-        let playing = playerView.player?.timeControlStatus == .playing
-        let playTitle = playing ? String(localized: "Pause", comment: "VoiceOver action on a video")
-                                : String(localized: "Play", comment: "VoiceOver action on a video")
+        let playTitle = model.playback.isPlaying ? String(localized: "Pause", comment: "VoiceOver action on a video")
+                                                 : String(localized: "Play", comment: "VoiceOver action on a video")
         return PhotoAccessibility.cullingActions(forVersion: item.versionID, model: model) + [
-            PhotoAccessibility.action(playTitle) { [weak self] in
-                guard let player = self?.playerView.player else { return }
-                if player.timeControlStatus == .playing { player.pause() } else { player.play() }
-            },
+            PhotoAccessibility.action(playTitle) { [weak model] in model?.playback.toggle() },
             PhotoAccessibility.showGrid(model),
         ]
     }

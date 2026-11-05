@@ -134,3 +134,33 @@ struct DescriptiveFieldTests {
         #expect(iim.title == "Name" && iim.jobTitle == "Position")
     }
 }
+
+@Suite("Field labels")
+struct FieldLabelTests {
+    @Test func everyDescriptiveFieldHasItsOwnLabel() {
+        let labels = DescriptiveField.allCases.map(FieldLabel.init)
+        #expect(Set(labels).count == DescriptiveField.allCases.count)
+    }
+
+    @Test func changedOnDiskUsesTheInfoTabsLabelForTheSameField() {
+        for field in SidecarValues.Field.allCases {
+            guard let descriptive = DescriptiveField(rawValue: field.rawValue) else { continue }
+            #expect(FieldLabel(field) == FieldLabel(descriptive), "\(field)")
+        }
+        let labels = SidecarValues.Field.allCases.map(FieldLabel.init)
+        #expect(Set(labels).count == SidecarValues.Field.allCases.count)
+    }
+
+    @Test func thePresetEditorsFieldsEachHaveOneLabel() {
+        let fields = MetadataPreset.editorFields.metadata + MetadataPreset.editorFields.contact
+        #expect(Set(fields).count == fields.count)
+        #expect(Set(fields.map(FieldLabel.init)).count == fields.count)
+        // Its contact section is the Info tab's contact details, without creator and job title.
+        #expect(Set(MetadataPreset.editorFields.contact) == Set(DescriptiveField.contact).subtracting([.creator, .jobTitle]))
+    }
+
+    @Test func everyLabelIsUsed() {
+        let used = Set(DescriptiveField.allCases.map(FieldLabel.init) + SidecarValues.Field.allCases.map(FieldLabel.init))
+        #expect(used == Set(FieldLabel.allCases))
+    }
+}

@@ -153,6 +153,8 @@ final class LibraryModel {
     let lookTableLibrary = LookTableLibraryModel()
     let presetPreviews = PresetPreviewModel()
     let export = ExportModel()
+    /// The video loupe's player (View ▸ Play / Pause).
+    let playback = VideoPlayback()
     /// Adjustments taken by Copy Adjustments.
     var copiedAdjustments: Adjustments?
     var adjustmentPresets: [AdjustmentPreset] = []
@@ -331,6 +333,23 @@ final class LibraryModel {
         ratingRule != .any || flagRule != .any || !LibraryFilter(search: searchText).searchTerms.isEmpty
     }
 
+    /// What the loupe's Adjust tab shows. The video loupe replaces the photo
+    /// loupe, which leaves the editor idle, so a focused video decides.
+    var loupeAdjustState: AdjustmentEditor.State {
+        focusedItem?.isVideo == true ? .video : editor.state
+    }
+
+    /// What the browser shows instead of the grid, nil while it has photos.
+    var emptyState: EmptySourceState? {
+        let kind: EmptySourceState.SourceKind = switch sidebarSelection {
+        case .album: .album
+        case .smartAlbum: .smartAlbum
+        default: .other
+        }
+        return EmptySourceState.resolve(shownCount: itemCount, libraryCount: libraryCount, isFiltered: isFiltered,
+                                        source: kind)
+    }
+
     // MARK: Items, focus, selection
 
     /// Not observed: the grid and the film strip are told about changes
@@ -468,7 +487,11 @@ final class LibraryModel {
 
     // MARK: Background work
 
-    private(set) var importProgress: ImportProgress?
+    private(set) var importProgress: ImportProgress? {
+        didSet { if (oldValue == nil) != (importProgress == nil) { importStarted = importProgress == nil ? nil : Date() } }
+    }
+    /// When the running batch of folder adds started (File ▸ Stop).
+    @ObservationIgnored private(set) var importStarted: Date?
     /// The folder being imported, while a batch of several runs.
     private(set) var importBatch: ImportBatchPosition?
     /// Folders from Finder are being dragged over the browser.
@@ -487,8 +510,14 @@ final class LibraryModel {
     /// something that did not happen and can make it happen by acting; anything
     /// expected (completions, cancellations, videos skipped) is information.
     func report(_ text: String, action: String, warning: Bool = false) {
+        report(text, action: action, warning: warning, announcing: text)
+    }
+
+    /// Posts to Activity; VoiceOver hears `announcing`, such as a long
+    /// message's first sentence.
+    func report(_ text: String, action: String, warning: Bool, announcing: String) {
         activity.post(text, title: action, isWarning: warning)
-        AccessibilityText.announce(text, priority: .medium)
+        AccessibilityText.announce(announcing, priority: .medium)
     }
     /// Photos in the selected source before rating, flag and search.
     private(set) var sourceTotal: Int?
@@ -885,6 +914,37 @@ final class LibraryModel {
         selectionRevision += 1
     }
 
+    /// Photos selected in the grid (observed through the selection's revision).
+    var selectedCount: Int {
+        _ = selectionRevision
+        return selection.count
+    }
+
+    /// File ▸ Stop's job from the library window: the newest running export,
+    /// batch of folder adds or copying import (design.md I4).
+    var newestStoppableJob: StoppableJob? {
+        var running: [StoppableJob: Date] = [:]
+        running[.export] = export.progressStarted
+        running[.addFolders] = importProgress == nil ? nil : importStarted
+        running[.cardImport] = cardImport.progressStarted
+        return StoppableJob.newest(running)
+    }
+
+    func stop(_ job: StoppableJob) {
+        switch job {
+        case .export: export.cancel()
+        case .addFolders: cancelImport()
+        case .cardImport: cardImport.cancelImport()
+        }
+    }
+
+    /// Edit ▸ Deselect All: the selection becomes the focused photo alone, so
+    /// commands act on it as after a plain click (design.md I5).
+    func collapseSelection() {
+        guard selection.count > 1, let focusIndex else { return }
+        setFocus(focusIndex)
+    }
+
     /// Moves focus and selection; `extend` grows the selection instead (shift).
     func setFocus(_ index: Int, extend: Bool = false, notify: Bool = true) {
         guard items.indices.contains(index) else { return }
@@ -1055,6 +1115,9 @@ final class LibraryModel {
 
     /// The selection in the grid, or the photo on screen in the loupe.
     var actionTargets: IndexSet {
+        // `selection` is not observed: menus and toolbar items that depend on
+        // the targets refresh through its revision.
+        _ = selectionRevision
         if mode == .loupe || selection.isEmpty {
             return focusIndex.map { IndexSet(integer: $0) } ?? []
         }

@@ -81,4 +81,13 @@ public enum ExportTargets {
         }
         return (ids, videos)
     }
+
+    /// File ▸ Export…, the toolbar's Export and the context menu's Export…:
+    /// only when the targets include a photo (videos are never exported) and
+    /// no export runs (design.md I1). Pass a lazy sequence: the first photo
+    /// ends the search, so a large selection costs nothing.
+    public static func canExport<Items: Sequence>(_ targets: Items, isExporting: Bool) -> Bool
+    where Items.Element == CatalogItem {
+        !isExporting && targets.contains { !$0.isVideo }
+    }
 }

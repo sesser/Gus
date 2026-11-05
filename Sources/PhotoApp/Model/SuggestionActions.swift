@@ -7,6 +7,16 @@ extension LibraryModel {
     /// Queues the masters behind `versionIDs` for on-device analysis. Masters
     /// analyzed before are skipped; ones whose thumbnail cannot be produced
     /// (offline and never cached) stay queued for a later request.
+    /// Photo ▸ Suggest Keywords, the context menu's and the toolbar's: the
+    /// action targets, with the suggestions in view (Info tab, Keywords
+    /// expanded; design.md I7).
+    func suggestKeywordsForTargets() {
+        suggestKeywords(for: actionTargetVersionIDs)
+        showsInspector = true
+        inspectorTab = .info
+        InspectorExpansion.shared.set(InspectorView.keywordsKey, true)
+    }
+
     func suggestKeywords(for versionIDs: [Int64]) {
         guard !versionIDs.isEmpty else { return }
         pendingAnalysis += versionIDs

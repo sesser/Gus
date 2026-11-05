@@ -164,6 +164,7 @@ public enum ImportDebugCommands {
         parts.append("deletion \(model.pendingDeletion?.count ?? 0) alert \(model.alertText ?? "-") done \(model.doneText ?? "-")")
         parts.append("error \(model.readError ?? "-") camera \(camera ?? "-") options \(model.showsOptions)")
         parts.append("folders \(model.folderTemplate) files \(model.fileTemplate) project \(model.projectNameTemplate)")
+        parts.append("copying \(model.isCopying) selectAll \(model.canSelectAll) deselectAll \(model.canDeselectAll)")
         print("debug-script: " + parts.joined(separator: " "))
     }
 }

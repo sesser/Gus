@@ -15,7 +15,9 @@ import PhotoUI
 ///     selectall             addkeywords <a, b>      keyentry      text <typed text>
 ///     undo | redo           inspector on|off        keyword <n>   (sidebar keyword n, 0-based)
 ///     print <what>          (state for checks: selection, keywords, undo, suggestions, items, hdr, announcement,
-///                           title (title, subtitle, filter and sort), activity,
+///                           title (title, subtitle, filter and sort), activity, messages (every
+///                           Activity row), empty (the browser's empty state), menustate (what the menus read),
+///                           inspector (shown, tab, Keywords expanded),
 ///                           loupe [<x> <y>]: mode, magnification, visible rect, image point under x y)
 ///     suggest               (analyzes the selection and waits)      accept <keyword>
 ///     album <name>          (from the selection)    smartalbum <name>  (rating ≥ 3)     remove
@@ -33,8 +35,15 @@ import PhotoUI
 ///     buttons               (prints the window's AppKit buttons and where they are)
 ///     menuitems [<text>]    (main menu items whose title contains text: key equivalent, enabled, checked)
 ///     menupress <title>     (runs the main menu item with that title, if enabled)
+///     helpmenu              (the Help menu: whether AppKit treats it as the help menu, and its items)
+///     playpause             (View ▸ Play / Pause's action on the video loupe)
+///     deselectall           (Edit ▸ Deselect All's action in the grid)
+///     toolbar [add <text>]  (lists the toolbar's items; add inserts an allowed item whose identifier contains text)
+///     stop                  (File ▸ Stop's action in the library window: the newest running job)
+///     windowshot <title text> <file.png>   (snapshots another visible window, e.g. Settings)
 ///     sidebarsection [albums|dates|keywords|projects show|hide]   (prints the hidden sidebar sections)
-///     contextmenu cell <n>|loupe|slider <title> [<item>[/<sub>]]   (prints a right-click's menu there, or runs an item)
+///     contextmenu cell <n>|loupe|video [controls]|slider <title> [<item>[/<sub>]]   (prints a right-click's menu there,
+///                           or runs an item; video controls aims at AVKit's control bar)
 ///     editvalue <title>     (puts the keyboard in the value field of the inspector slider with that title)
 ///     accessibility <role>|any [<n> press|<action name>] | focused   (lists the window's accessibility
 ///                           elements with that role, e.g. AXImage, or runs an action on the nth; see AccessibilityProbe)
@@ -57,12 +66,15 @@ import PhotoUI
 ///     adjust …  original on|off  tab info|adjust   (see DebugAdjustCommands)
 ///     metadata <field> [<text>]   print metadata   sidecars on|off   (see DebugMetadataCommands)
 ///     dropfolders <path>[, <path>…]   (imports dropped items the way a drop from Finder does)
+///     addfolder <path>      (adds a folder the way Add Folder Without Copying… does once its panel returns)
 ///     waitimport            (waits for folder imports to finish, then prints the projects and status)
 ///     drophighlight on|off  (shows the browser's folder drop highlight)
 ///     lut <name>|none       (the first table of that name in any collection)
 ///     lutimport <folder> [<collection>]   (into a new collection, or an existing one of that name)
 ///     luts                  (prints the collections)
 ///     lutwindow open|close|all|collection <name>|expand <name>|select <name>|apply|manage|back|snapshot <file> (the sheet)
+///            | importmenu <folder> (Adjust ▸ Import Look-Up Tables… once its panel returns the folder) | importrun
+///            (the import page's Import) | page (prints it)
 ///     copyadjust            pasteadjust            preset save|apply|delete|preview <name> | preset (prints them)
 ///     preset import <path>…  (prints the summary)   preset summary <path>… (imports, shows the alert)
 ///     preset export <file> [<name>]                 preset window | windowshot <png> (the sheet)
@@ -224,6 +236,9 @@ enum DebugScript {
             // Item providers like Finder's, read by the drop's own code.
             let providers = paths.map { NSItemProvider(object: URL(fileURLWithPath: $0) as NSURL) }
             model.importFolders(await FolderDrop.urls(from: providers))
+        case "addfolder":
+            // What Add Folder Without Copying… does with the folder its panel returns.
+            model.importFolder(URL(fileURLWithPath: (rest.joined(separator: " ") as NSString).expandingTildeInPath))
         case "waitimport":
             while model.isImportRunning { try? await Task.sleep(for: .milliseconds(100)) }
             print("debug-script: projects " + model.projects.map { "\($0.project.name)=\($0.versionCount)" }
@@ -439,6 +454,49 @@ enum DebugScript {
             print("debug-script: hidden sections \(model.hiddenSidebarSections.map(\.rawValue).sorted())")
         case "menuitems":
             printMenuItems(containing: rest.joined(separator: " "))
+        case "helpmenu":
+            HelpMenuProbe.print()
+        case "stop":
+            // File ▸ Stop's action in the library window: the newest job.
+            if let job = model.newestStoppableJob { model.stop(job) }
+            try? await Task.sleep(for: .milliseconds(500))
+        case "toolbar":
+            // `toolbar` lists the items; `toolbar add <text>` inserts the first
+            // allowed item whose identifier contains text (palette items).
+            guard let toolbar = window?.toolbar else { return }
+            if rest.first == "add", let text = rest.dropFirst().first,
+               let allowed = toolbar.delegate?.toolbarAllowedItemIdentifiers?(toolbar),
+               let identifier = allowed.first(where: { $0.rawValue.contains(text) }) {
+                toolbar.insertItem(withItemIdentifier: identifier, at: toolbar.items.count)
+                try? await Task.sleep(for: .milliseconds(300))
+            }
+            print("debug-script: toolbar " + toolbar.items.map(\.itemIdentifier.rawValue).joined(separator: " "))
+            // Buttons inside the palette's items, with their state (a toggle's bezel).
+            for item in toolbar.items {
+                func visit(_ view: NSView) {
+                    if let button = view as? NSButton {
+                        print("debug-script: toolbar item \(item.itemIdentifier.rawValue) button '\(button.title)'"
+                              + " state \(button.state == .on ? "on" : "off") \(button.isEnabled ? "enabled" : "disabled")")
+                    }
+                    view.subviews.forEach(visit)
+                }
+                if let view = item.view { visit(view) }
+            }
+        case "deselectall":
+            // Edit ▸ Deselect All's action in the library window.
+            model.collapseSelection()
+        case "playpause":
+            // View ▸ Play / Pause's action (a scripted launch may have no key window for the menu).
+            model.playback.toggle()
+            try? await Task.sleep(for: .milliseconds(500))
+        case "windowshot":
+            // Another window by part of its title (Settings), as `snapshot` does the library's.
+            if let path = rest.last, rest.count >= 2,
+               let other = NSApp.windows.first(where: { $0.isVisible && $0.title.contains(rest.dropLast().joined(separator: " ")) }) {
+                WindowSnapshot.write(other, to: URL(fileURLWithPath: (path as NSString).expandingTildeInPath))
+            } else {
+                print("debug-script: no window for windowshot \(rest.joined(separator: " "))")
+            }
         case "contextmenu":
             runContextMenu(rest)
             try? await Task.sleep(for: .milliseconds(300))
@@ -666,6 +724,13 @@ enum DebugScript {
         case "loupe":
             view = descendant(of: LoupeHostView.self, in: root)
             point = view.map { $0.convert(NSPoint(x: $0.bounds.midX, y: $0.bounds.midY), to: nil) } ?? .zero
+        case "video":
+            // The middle of the picture, or `controls`: 30 pt above the bottom, where AVKit's bar is.
+            view = descendant(of: VideoLoupeHostView.self, in: root)
+            let onControls = path.first == "controls"
+            if onControls { path.removeFirst() }
+            point = view.map { $0.convert(NSPoint(x: $0.bounds.midX, y: onControls ? ($0.isFlipped ? $0.bounds.maxY - 30 : 30)
+                                                      : $0.bounds.midY), to: nil) } ?? .zero
         case "slider":
             let title = path.first ?? ""
             path.removeFirst()
@@ -686,7 +751,8 @@ enum DebugScript {
         if target.isEmpty {
             func show(_ menu: NSMenu, _ prefix: String) {
                 for item in menu.items {
-                    print("debug-script: context \(item.isSeparatorItem ? "—" : prefix + item.title)")
+                    let mark = item.state == .on ? " checked" : item.state == .mixed ? " mixed" : ""
+                    print("debug-script: context \(item.isSeparatorItem ? "—" : prefix + item.title)\(mark)")
                     if let sub = item.submenu { show(sub, prefix + item.title + "/") }
                 }
             }
@@ -752,8 +818,10 @@ enum DebugScript {
                 menu.update()
             }
             defer { if let menu { menu.delegate?.menuDidClose?(menu) } }
-            for item in menu?.items ?? [] where !item.isSeparatorItem {
+            let items = menu?.items ?? []
+            for (index, item) in items.enumerated() where !item.isSeparatorItem {
                 let itemPath = path.isEmpty ? item.title : path + "/" + item.title
+                let afterSeparator = index > 0 && items[index - 1].isSeparatorItem
                 if text.isEmpty || item.title.localizedCaseInsensitiveContains(text) {
                     var modifiers = ""
                     let mask = item.keyEquivalentModifierMask
@@ -763,7 +831,8 @@ enum DebugScript {
                     if mask.contains(.command) { modifiers += "cmd+" }
                     let key = item.keyEquivalent.isEmpty ? "" : " key \(modifiers)\(item.keyEquivalent.debugDescription)"
                     print("debug-script: menu \(itemPath)\(key) \(item.isEnabled ? "enabled" : "disabled")"
-                          + (item.state == .on ? " checked" : ""))
+                          + (item.state == .on ? " checked" : item.state == .mixed ? " mixed" : "")
+                          + (afterSeparator ? " (after a separator)" : ""))
                 }
                 if let submenu = item.submenu { visit(submenu, path: itemPath) }
             }
@@ -776,9 +845,11 @@ enum DebugScript {
            !view.isHiddenOrHasHiddenAncestor {
             let frame = button.convert(button.bounds, to: nil)
             let title = (button as? NSButton)?.title ?? ""
-            let name = title.isEmpty ? (button.toolTip ?? "") : title
+            let name = title.isEmpty ? (button.accessibilityLabel() ?? button.toolTip ?? "") : title
+            // Dimmed buttons and tooltips that say something other than the name.
+            let tip = button.toolTip.flatMap { $0 == name ? nil : " tip '\($0)'" } ?? ""
             print("debug-script: button '\(name)' at \(Int(frame.midX)),\(Int(window.frame.height - frame.midY))"
-                  + " width \(Int(frame.width)) \(type(of: button))")
+                  + " width \(Int(frame.width)) \(type(of: button))" + (button.isEnabled ? "" : " disabled") + tip)
         }
         for subview in view.subviews { printButtons(in: subview, window: window) }
     }
@@ -821,6 +892,32 @@ enum DebugScript {
             let potential = window?.screen?.maximumPotentialExtendedDynamicRangeColorComponentValue ?? 1
             let headroom = model.loupeHDRHeadroom.map { String(format: "%.2f", $0) } ?? "none"
             print("debug-script: hdr setting \(model.showsHDR) screen potential \(potential) loupe headroom \(headroom)")
+        case "messages":
+            // Every Activity row, oldest first, and whether an alert or sheet is up.
+            for message in model.activity.messages {
+                print("debug-script: message [\(message.title ?? "-")] \(message.isWarning ? "warning" : "information"): "
+                      + message.text.replacingOccurrences(of: "\n", with: " / "))
+            }
+            let sheet = window?.attachedSheet.map { "\(type(of: $0)) '\($0.title)'" } ?? "none"
+            print("debug-script: messages \(model.activity.messages.count), sheet or alert \(sheet)")
+        case "inspector":
+            print("debug-script: inspector shown \(model.showsInspector) tab \(model.inspectorTab) keywords expanded "
+                  + "\(InspectorExpansion.shared.isExpanded(InspectorView.keywordsKey, family: .info, default: true))")
+        case "menustate":
+            // What the menus read, apart from whether the window is key (a
+            // scripted launch often is not the active app).
+            let state = LibraryMenuState(model)
+            print("debug-script: menustate key \(state.isWindowKey) mode \(state.mode) selected \(state.selectedCount)"
+                  + " stop \(state.stoppableJob.map(\.rawValue) ?? "none")"
+                  + " export \(state.canExport)"
+                  + " resetCrop \(state.canResetCrop) addMask \(state.canAddMask) video \(state.showsLoupeVideo)"
+                  + " playing \(state.isVideoPlaying) pair \(state.pairDisplay.map { "\($0.raw)/\($0.companion)" } ?? "none") savePreset \(state.canSaveAsPreset) resetAll \(state.canResetAll) maskSelected \(state.hasSelectedMask) overlay \(state.showsMaskOverlay)"
+                  + " bareKeys \(state.bareKeysActive) editLoupePhoto \(state.canEditLoupePhoto) cropping \(state.isCropping)")
+        case "empty":
+            // The browser's empty state (design.md N3), as the view chooses it.
+            print("debug-script: empty \(model.emptyState.map { "\($0)" } ?? "none") source '\(model.title(for: model.sidebarSelection))'"
+                  + " symbol \(SidebarSymbols.symbol(for: model.sidebarSelection))"
+                  + " showing \(model.itemCount) library \(model.libraryCount) filtered \(model.isFiltered)")
         case "selection":
             print("debug-script: selection \(model.selection.count), focus \(model.focusIndex.map(String.init) ?? "-")")
         case "keywords":
@@ -850,6 +947,7 @@ enum DebugScript {
             ImportDebugCommands.printState(model.cardImport)
         case "adjustments":
             DebugAdjustCommands.printState(model.editor)
+            print("debug-script: adjust tab \(model.mode == .loupe ? "\(model.loupeAdjustState)" : "grid")")
         case "items":
             print("debug-script: items " + model.items.prefix(12).map { "\($0.baseName):\($0.rating.rawValue)" }.joined(separator: " "))
         default:

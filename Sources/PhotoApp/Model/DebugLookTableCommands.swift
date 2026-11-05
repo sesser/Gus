@@ -74,6 +74,27 @@ enum DebugLookTableCommands {
         case "back":
             library.page = nil
             try? await Task.sleep(for: .milliseconds(300))
+        case "importmenu":
+            // Adjust ▸ Import Look-Up Tables… after its panel returns this folder.
+            let folder = URL(fileURLWithPath: (argument as NSString).expandingTildeInPath, isDirectory: true)
+            await library.openImportPage(for: [folder])
+            try? await Task.sleep(for: .milliseconds(500))
+        case "importrun":
+            // As the import page's Import button.
+            guard case .importing(let draft) = library.page else {
+                print("debug-script: the import page is not shown")
+                return
+            }
+            await library.runImport(draft)
+            library.page = nil
+            try? await Task.sleep(for: .milliseconds(300))
+        case "page":
+            let page = switch library.page {
+            case .importing(let draft): "import (\(draft.importable) of \(draft.candidates.count) tables)"
+            case .manage: "manage"
+            case nil: "tables"
+            }
+            print("debug-script: lutwindow sheet \(model.showsLookTableSheet) attached \(NSApp.windows.contains { $0.attachedSheet != nil }) page \(page)")
         case "snapshot":
             // A sheet on the library window; the snapshot shows the sheet.
             guard let window = NSApp.windows.first(where: { $0.attachedSheet != nil }) else {

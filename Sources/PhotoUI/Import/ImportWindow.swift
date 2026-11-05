@@ -98,9 +98,9 @@ private struct ImportToolbar: ToolbarContent {
         ToolbarItem {
             Menu {
                 Button("Select All") { model.selectAll() }
-                    .disabled(!model.shots.contains { !$0.isDuplicate })
+                    .disabled(!model.canSelectAll)
                 Button("Deselect All") { model.selectNone() }
-                    .disabled(model.selection.isEmpty)
+                    .disabled(!model.canDeselectAll)
                 Divider()
                 Toggle("Show Videos", isOn: $model.includesVideos)
                     .disabled(model.isImporting)
@@ -368,6 +368,8 @@ private struct PresetEditor: View {
     @State var preset: MetadataPreset
     let onSave: (MetadataPreset) -> Void
     let onDelete: (Int64) -> Void
+    /// Delete Preset… asks first (design.md I11).
+    @State private var confirmsDeletion = false
     @Environment(\.dismiss) private var dismiss
 
     private func text(_ path: WritableKeyPath<SidecarValues, String?>) -> Binding<String> {
@@ -384,25 +386,43 @@ private struct PresetEditor: View {
                 })
     }
 
+    private func field(_ field: DescriptiveField) -> some View {
+        TextField(FieldLabelText.text(field), text: binding(field),
+                  prompt: field == .rights ? Text("© {capture:yyyy} Your Name") : nil)
+    }
+
+    private func binding(_ field: DescriptiveField) -> Binding<String> {
+        switch field {
+        case .creator: text(\.creator)
+        case .rights: text(\.rights)
+        case .usageTerms: text(\.usageTerms)
+        case .caption: text(\.caption)
+        case .title: text(\.title)
+        case .altText: text(\.altText)
+        case .extendedDescription: text(\.extendedDescription)
+        case .jobTitle: text(\.jobTitle)
+        case .email: contact(\.email)
+        case .phone: contact(\.phone)
+        case .url: contact(\.url)
+        case .address: contact(\.address)
+        case .city: contact(\.city)
+        case .region: contact(\.region)
+        case .postalCode: contact(\.postalCode)
+        case .country: contact(\.country)
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Form {
                 TextField("Preset name", text: $preset.name)
-                Section("Description") {
-                    TextField("Creator", text: text(\.creator))
-                    TextField("Copyright", text: text(\.rights), prompt: Text("© {capture:yyyy} Your Name"))
-                    TextField("Usage terms", text: text(\.usageTerms))
-                    TextField("Caption", text: text(\.caption))
+                // The shared field labels (design.md I9), in the editor's order.
+                // The Info tab's heading for these fields (design.md I8).
+                Section("Metadata") {
+                    ForEach(MetadataPreset.editorFields.metadata, id: \.self, content: field)
                 }
                 Section("Contact") {
-                    TextField("Email", text: contact(\.email))
-                    TextField("Phone", text: contact(\.phone))
-                    TextField("Website", text: contact(\.url))
-                    TextField("Address", text: contact(\.address))
-                    TextField("City", text: contact(\.city))
-                    TextField("Region", text: contact(\.region))
-                    TextField("Postal code", text: contact(\.postalCode))
-                    TextField("Country", text: contact(\.country))
+                    ForEach(MetadataPreset.editorFields.contact, id: \.self, content: field)
                 }
                 Text("Text can use the same tokens as templates, such as {capture:yyyy}.")
                     .font(.caption)
@@ -410,11 +430,8 @@ private struct PresetEditor: View {
             }
             .formStyle(.grouped)
             HStack {
-                if let id = preset.id {
-                    Button("Delete Preset", role: .destructive) {
-                        onDelete(id)
-                        dismiss()
-                    }
+                if preset.id != nil {
+                    Button("Delete Preset…", role: .destructive) { confirmsDeletion = true }
                 }
                 Spacer()
                 Button("Cancel", role: .cancel) { dismiss() }
@@ -429,5 +446,16 @@ private struct PresetEditor: View {
             .padding(12)
         }
         .frame(width: 460, height: 560)
+        .alert(String(localized: "Delete the preset “\(preset.name)”?",
+                      comment: "Alert before deleting an adjustment or metadata preset; its name"),
+               isPresented: $confirmsDeletion) {
+            Button("Delete", role: .destructive) {
+                if let id = preset.id { onDelete(id) }
+                dismiss()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Copies already imported keep their metadata.", comment: "Delete metadata preset alert")
+        }
     }
 }

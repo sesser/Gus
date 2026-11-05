@@ -23,7 +23,7 @@ enum EditPhase {
 @Observable
 final class AdjustmentEditor {
     enum State: Equatable {
-        /// No photo, or the loupe is closed.
+        /// Nothing to edit yet, or the loupe is closed.
         case idle
         case loading
         case ready
@@ -545,6 +545,12 @@ final class AdjustmentEditor {
         cropImage = nil
         guard save, session.saved != adjustments.crop else { return }
         change(String(localized: "Crop", comment: "Undo action name"), phase: .committed) { $0.crop = session.saved }
+    }
+
+    /// Reset Crop can act: the photo has a crop, or the open crop session
+    /// has one (the heading's reset button and Adjust ▸ Reset Crop).
+    var canResetCrop: Bool {
+        cropSession.map { $0.saved != Crop() } ?? !adjustments.crop.isIdentity
     }
 
     /// The photo's own frame again, without turns or straightening.

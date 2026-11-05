@@ -1,5 +1,6 @@
 import AppKit
 import PhotoCore
+import PhotoUI
 import SwiftUI
 
 /// The Info tab's Metadata heading: title, description, accessibility texts and
@@ -80,25 +81,9 @@ struct MetadataSection: View {
 }
 
 enum DescriptiveFieldText {
+    /// The shared label set (`FieldLabelText`).
     static func name(_ field: DescriptiveField) -> String {
-        switch field {
-        case .title: String(localized: "Title")
-        case .caption: String(localized: "Description", comment: "Metadata field: the photo's description (caption)")
-        case .altText: String(localized: "Alt Text")
-        case .extendedDescription: String(localized: "Extended Description")
-        case .rights: String(localized: "Copyright")
-        case .usageTerms: String(localized: "Usage Terms")
-        case .creator: String(localized: "Creator")
-        case .jobTitle: String(localized: "Job Title")
-        case .address: String(localized: "Address")
-        case .city: String(localized: "City")
-        case .region: String(localized: "State/Province")
-        case .postalCode: String(localized: "Postal Code")
-        case .country: String(localized: "Country/Region")
-        case .phone: String(localized: "Phone")
-        case .email: String(localized: "E-Mail")
-        case .url: String(localized: "Website")
-        }
+        FieldLabelText.text(field)
     }
 
     static func help(_ field: DescriptiveField) -> String? {

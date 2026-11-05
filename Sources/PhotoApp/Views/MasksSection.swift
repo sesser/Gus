@@ -25,7 +25,10 @@ struct MasksSection: View {
                 Text("Presets and Paste Adjustments leave masks out.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                ShapeButtons(prompt: String(localized: "New Mask:")) { editor.addMask($0) }
+                ShapeButtons(prompt: String(localized: "New Mask:"),
+                             limit: MaskLimits.canAddMask(to: editor.adjustments.local) ? nil
+                                 : String(localized: "A photo can have up to \(MaskLimits.masks) masks.",
+                                          comment: "Tooltip: New Mask is dimmed at the limit")) { editor.addMask($0) }
                 ForEach(Array(editor.adjustments.local.masks.enumerated()), id: \.element.id) { index, mask in
                     MaskRow(editor: editor, mask: mask, index: index)
                 }
@@ -38,9 +41,11 @@ struct MasksSection: View {
     }
 }
 
-/// A row of buttons, one per shape.
+/// A row of buttons, one per shape; dimmed, with `limit` as their tooltip,
+/// when the limit is reached (design.md N8).
 private struct ShapeButtons: View {
     let prompt: String
+    var limit: String?
     let action: (MaskShapeKind) -> Void
 
     var body: some View {
@@ -49,7 +54,11 @@ private struct ShapeButtons: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             ForEach(MaskShapeKind.allCases, id: \.self) { kind in
-                AppKitButton(symbol: kind.symbol, style: .borderless, help: kind.title) { action(kind) }
+                AppKitButton(symbol: kind.symbol, style: .borderless, help: limit ?? kind.title,
+                             accessibilityLabel: kind.title, isEnabled: limit == nil) { action(kind) }
+                    // SwiftUI also applies its own enabled state to the
+                    // control; without this it can turn the button back on.
+                    .disabled(limit != nil)
                     .frame(width: 26)
             }
             Spacer()
@@ -208,7 +217,12 @@ private struct MaskDetail: View {
             ForEach(Array(mask.components.enumerated()), id: \.offset) { index, component in
                 ComponentRow(editor: editor, component: component, index: index)
             }
-            ShapeButtons(prompt: String(localized: "Add to Mask:")) { editor.addComponent($0, operation: .add) }
+            ShapeButtons(prompt: String(localized: "Add to Mask:"),
+                         limit: MaskLimits.canAddComponent(to: mask) ? nil
+                             : String(localized: "A mask can combine up to \(MaskLimits.componentsPerMask) shapes.",
+                                      comment: "Tooltip: Add to Mask is dimmed at the limit")) {
+                editor.addComponent($0, operation: .add)
+            }
             if mask.components.contains(where: { $0.shape.brushComponent }) || editor.isBrushing {
                 BrushControls(editor: editor)
             }

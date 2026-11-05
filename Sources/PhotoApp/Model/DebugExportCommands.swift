@@ -16,7 +16,7 @@ import PhotoUI
 ///                                   watermark=<png>|off  anchor=<name>  wmsize=<n>  margin=<n>  opacity=<0…1>
 ///     export template <text>        (the file name template; also switches names to it)
 ///     export tokens …               (the sheet's template field, see TemplateFieldProbe)
-///     export run [keepboth|overwrite|skip]   (waits, then prints the summary)
+///     export run [keepboth|overwrite|skip] [nowait]   (waits, then prints the summary; nowait returns at once)
 ///     export preset save|apply|delete <name>
 ///     export print                  (the targets, settings and destination)
 @MainActor
@@ -61,6 +61,11 @@ enum DebugExportCommands {
                     print("debug-script: export did not start: \(export.issue?.text ?? "")")
                     return
                 }
+            }
+            // `nowait` returns at once (File ▸ Stop's checks run while it exports).
+            if words.contains("nowait") {
+                try? await Task.sleep(for: .milliseconds(200))
+                return
             }
             while export.isExporting { try? await Task.sleep(for: .milliseconds(100)) }
             if let summary = export.lastSummary {

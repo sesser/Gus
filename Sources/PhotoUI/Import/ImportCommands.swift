@@ -13,11 +13,16 @@ public struct ImportCommands: Commands {
     /// toggles the options while an import window is key: AppKit stops at the
     /// first item with a key equivalent, even a disabled one.
     let includesOptionsItem: Bool
+    /// Off in the library app, whose own Deselect All (⇧⌘A) and Stop (⌘.)
+    /// act for the import window while it is key (design.md P3, I4, I5), for
+    /// the same reason.
+    let includesSharedItems: Bool
     @FocusedValue(\.importMenu) private var menu
 
-    public init(includesLibraryItems: Bool, includesOptionsItem: Bool = true) {
+    public init(includesLibraryItems: Bool, includesOptionsItem: Bool = true, includesSharedItems: Bool = true) {
         self.includesLibraryItems = includesLibraryItems
         self.includesOptionsItem = includesOptionsItem
+        self.includesSharedItems = includesSharedItems
     }
 
     private var model: CardImportModel? { menu?.model }
@@ -37,15 +42,19 @@ public struct ImportCommands: Commands {
             Button("Import Selected Photos") { model?.startImport() }
                 .keyboardShortcut(.return, modifiers: [])
                 .disabled(!can { $0.hasSource && $0.selectedCount > 0 && !$0.isImporting })
-            Button("Stop Import") { model?.cancelImport() }
-                .keyboardShortcut(".", modifiers: .command)
-                .disabled(!can { $0.isImporting })
+            if includesSharedItems {
+                Button("Stop Import") { menu?.stopImport() }
+                    .keyboardShortcut(".", modifiers: .command)
+                    .disabled(!(menu?.canStopImport ?? false))
+            }
             Divider()
         }
         CommandGroup(after: .pasteboard) {
-            Button("Deselect All") { model?.selectNone() }
-                .keyboardShortcut("a", modifiers: [.command, .shift])
-                .disabled(!can { $0.selectedCount > 0 && !$0.isImporting })
+            if includesSharedItems {
+                Button("Deselect All") { menu?.deselectAll() }
+                    .keyboardShortcut("a", modifiers: [.command, .shift])
+                    .disabled(!(menu?.canDeselectAll ?? false))
+            }
         }
         CommandGroup(after: .sidebar) {
             if includesOptionsItem {
@@ -89,6 +98,22 @@ public struct ImportMenuContext: Equatable {
     public func toggleOptions() {
         model.showsOptions.toggle()
     }
+
+    /// Edit ▸ Deselect All (⇧⌘A) for the import window.
+    public var canDeselectAll: Bool { state.canDeselectAll }
+
+    @MainActor
+    public func deselectAll() {
+        model.selectNone()
+    }
+
+    /// File ▸ Stop Import (⌘.) for the import window.
+    public var canStopImport: Bool { state.isImporting }
+
+    @MainActor
+    public func stopImport() {
+        model.cancelImport()
+    }
 }
 
 struct ImportMenuState: Equatable {
@@ -99,6 +124,7 @@ struct ImportMenuState: Equatable {
     var showsDuplicates: Bool
     var copiesOnly: Bool
     var showsOptions: Bool
+    var canDeselectAll: Bool
 
     @MainActor
     init(_ model: CardImportModel) {
@@ -110,6 +136,7 @@ struct ImportMenuState: Equatable {
         showsDuplicates = model.showsDuplicates
         copiesOnly = model.copiesOnly
         showsOptions = model.showsOptions
+        canDeselectAll = model.canDeselectAll
     }
 }
 

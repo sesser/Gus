@@ -23,7 +23,7 @@ Year; the Insert menu adds them, typing `{…}` makes one when you leave the
 field, copy and paste keep the `{…}` form, and an example under the field
 shows the result), the project (a new one named from a template, or an existing one), a
 job code and a metadata preset (creator, copyright such as
-`© {capture:yyyy} Your Name`, usage terms, contact; written to sidecars, the
+`© {capture:yyyy} Your Name`, usage terms, description, contact; written to sidecars, the
 copies stay identical to the originals). **Import N Photos** in the toolbar
 (or Return) starts; it becomes **Stop** (⌘.) while copying, with progress
 beside it. Every copy is read back and compared by hash before it counts. Optionally, the originals that were copied and checked
@@ -41,7 +41,7 @@ You can also drag one or more folders from Finder onto the browser (grid or
 loupe) or the sidebar's Projects list. Each folder is imported the same way, in
 place, as its own project named after it; several import one after another,
 with the folder and its place in the batch shown in the toolbar's Activity item. Folders
-dropped while an import runs join the queue. Files and packages among the
+dropped, or chosen with **Add Folder Without Copying…**, while an import runs join the queue. Files and packages among the
 dropped items are ignored (Activity says how many), and a folder inside
 another dropped folder is imported with it. A project of the same name already
 in the library is left alone: the import makes a new project holding only the
@@ -59,8 +59,10 @@ photos the library does not have yet, and a folder with nothing new makes none.
 | [ and ] | lower / raise rating | lower / raise rating |
 | P, X, U | pick, reject, clear flag | pick, reject, clear flag |
 | ⌥1–⌥7, ⌥0 | color label red…gray, clear | color label |
-| ⌘= and ⌘− | thumbnail size | |
+| ⌘= and ⌘− | thumbnail size | zoom in / out |
 | ⌘Return | switch grid / loupe | switch grid / loupe |
+| ⇧⌘A | keep only the focused photo selected | |
+| ⌘. | stop the newest export, folder add or import (**File ▸ Stop Export**, **Stop Adding Folders** or **Stop Import**) | same |
 | ⌘K | add keywords | add keywords |
 | ⌘I | import from a card or folder | |
 | ⌘N, ⌥⌘N | new album, new smart album | |
@@ -103,7 +105,8 @@ embedded in files by other apps or the camera (IPTC, XMP) are read at import.
 looks at the new photos (nothing leaves the Mac) and the inspector shows what it
 found as chips. Click one to add it to the selected photos it was suggested
 for, or × to stop suggesting it for them. **Photo ▸ Suggest Keywords** (⇧⌘K)
-analyzes the selection, for photos imported before. The labels are generic
+analyzes the selection, for photos imported before, and shows the inspector's
+Info tab with Keywords open, where the chips appear. The labels are generic
 ("dog", "beach", "sunset"), not breeds or places.
 
 **Albums and smart albums**: the sidebar's Library section has built-in smart
@@ -116,10 +119,10 @@ library). **File ▸ New Smart Album…** (⌥⌘N) opens the rule editor: match
 or any of rules on rating, flag, label, keywords, file type and name, capture
 and import dates, project, camera, lens, serial number, ISO, aperture, shutter
 speed, focal length, exposure compensation, flash, white balance, location,
-artist, copyright and caption, with a live count. Right-click albums to rename,
+artist, copyright and description, with a live count. Right-click albums to rename,
 edit or delete them.
 
-**XMP sidecars**: ratings, flags, labels, keywords, creator, copyright, caption,
+**XMP sidecars**: ratings, flags, labels, keywords, creator, copyright, description,
 usage terms and contact details are written to an `.xmp` file next to each
 original a moment after they change (`IMG_0412.xmp`; a RAW+JPEG pair shares
 one), so other apps can read them. Existing sidecars are edited in place and
@@ -133,10 +136,13 @@ values with the file's so you can keep either, or choose per field (keywords can
 be merged). Writing can be turned off in **Settings**.
 
 **Videos** (MOV, MP4, M4V) are catalogued like photos by both kinds of import
-(the import window has an **Include videos** switch): their poster frame is the
-thumbnail, the grid shows their length, and the loupe plays them (space plays
-and pauses; the arrow and culling keys still move between and rate items, and a
-double-click on the picture goes back to the grid). They
+(in the import window, **Show Videos** in the Selection menu or the View menu
+lists them): their poster frame is the
+thumbnail, the grid shows their length, and the loupe plays them (Space, or
+**View ▸ Play / Pause**, plays and pauses; the arrow and culling keys still move between and rate items, a
+double-click on the picture goes back to the grid, and a right-click or
+Control-click on it shows the rating, flag, label, keyword and album commands,
+**Play** / **Pause** and **Show Grid**). They
 take ratings, keywords, albums and sidecars. There is no video editing or export.
 
 **HDR**: on a display with extended dynamic range, the loupe shows HDR photos
@@ -155,7 +161,8 @@ the frame a quarter turn; the **Straighten** slider tilts it up to 45° either
 way, over a finer grid, and the image grows so it always fills the frame.
 **Done** (or Return, or `C` again) saves the crop as one undo step and folds
 the heading; Esc cancels. `C` (**Adjust ▸ Crop**) starts cropping, from the
-grid too. **Adjust ▸ Rotate Left / Right** (⌘[ / ⌘]) and the heading's arrows,
+grid too. **Adjust ▸ Reset Crop** (or the heading's reset button) gives the photo
+in the loupe its own frame back, without turns or straightening, as one undo step. **Adjust ▸ Rotate Left / Right** (⌘[ / ⌘]) and the heading's arrows,
 outside a crop, turn the photo at once as one undo step; in the grid they turn
 every selected photo. **Auto Exposure**, **Reset All Adjustments**, **Paste
 Adjustments** and **Apply Preset** also act on every selected photo in the
@@ -183,7 +190,8 @@ gives one copy. Lightroom settings with no equivalent here (calibration,
 masks, texture, crop, lens corrections and the like) are left out, and the
 import lists them. **Manage Presets…** opens a sheet that renames, moves,
 exports and deletes presets and collections, and changes what each includes;
-changes apply at once, and Done closes it. An exported preset
+changes apply at once (deleting a preset or a collection asks first), and Done
+closes it. An exported preset
 file carries the look-up tables its presets use, so it looks the same in
 another library; double-clicking one in the Finder imports it.
 
@@ -200,7 +208,7 @@ from its RAW; videos are not exported. A sheet on the library window sets:
   Photos are never enlarged. Pixels per inch only change the print size. Resized
   exports can get output sharpening for screen or print.
 - **Metadata**: all of it, all except location (GPS and place names), copyright
-  and contact only, or none. Keywords, caption, creator and copyright come from
+  and contact only, or none. Keywords, description, creator and copyright come from
   the library. Ratings and labels are never included.
 - **Watermark**: a PNG (transparent areas stay see-through), placed in one of
   nine positions with a margin, size and opacity, with a preview of the first photo
@@ -209,9 +217,12 @@ from its RAW; videos are not exported. A sheet on the library window sets:
 Settings can be saved as **presets**. When files with the same names are
 already in the folder, the sheet asks once whether to keep both (the new files
 get numbered names), replace them or skip them. The export runs in the
-background, with progress and Stop in the toolbar's Activity item. If anything
-could not be exported (an offline volume, for instance), an alert says why. The
-Finder can show the files when it is done.
+background, with progress and Stop in the toolbar's Activity item. When it
+ends, Activity reports the result; there is no alert. If any photos could not
+be exported (an offline volume, for instance), the report is a warning that
+lists up to ten of them with the reason for each. Photos skipped because you
+chose to skip existing files get a note of their own. The Finder can show the
+files when it is done.
 
 **Undo**: ⌘Z and ⇧⌘Z undo and redo culling, keyword, album and pair changes,
 adjustments, crop and rotation, and the Info tab's descriptive fields (title,

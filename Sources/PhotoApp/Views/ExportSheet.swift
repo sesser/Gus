@@ -209,7 +209,7 @@ private struct ExportForm: View {
                     Text("None").tag(ExportSettings.Metadata.none)
                 }
                 .pickerStyle(.radioGroup)
-                Caption(text: String(localized: "Keywords and captions come from the library. Ratings and labels are never included."))
+                Caption(text: String(localized: "Keywords and descriptions come from the library. Ratings and labels are never included."))
             }
             watermarkSection(settings)
         }

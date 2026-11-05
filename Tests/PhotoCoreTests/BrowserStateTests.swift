@@ -76,6 +76,76 @@ struct BrowserSubtitleTests {
     }
 }
 
+@Suite("Empty source states")
+struct EmptySourceStateTests {
+    private let kinds: [EmptySourceState.SourceKind] = [.album, .smartAlbum, .other]
+
+    @Test func aSourceShowingPhotosHasNoEmptyState() {
+        for kind in kinds {
+            for filtered in [false, true] {
+                #expect(EmptySourceState.resolve(shownCount: 3, libraryCount: 40, isFiltered: filtered, source: kind) == nil)
+            }
+        }
+    }
+
+    @Test func anEmptyLibraryIsNoPhotosYetWhateverTheSourceOrFilter() {
+        for kind in kinds {
+            for filtered in [false, true] {
+                #expect(EmptySourceState.resolve(shownCount: 0, libraryCount: 0, isFiltered: filtered, source: kind)
+                    == .emptyLibrary)
+            }
+        }
+    }
+
+    @Test func aFilterHidingEverythingIsNoPhotosMatchForEveryKind() {
+        for kind in kinds {
+            #expect(EmptySourceState.resolve(shownCount: 0, libraryCount: 40, isFiltered: true, source: kind) == .noMatches)
+        }
+    }
+
+    @Test func anEmptyAlbumSaysHowToAddPhotos() {
+        #expect(EmptySourceState.resolve(shownCount: 0, libraryCount: 40, isFiltered: false, source: .album)
+            == .emptySource(.album))
+    }
+
+    @Test func anEmptySmartAlbumPointsAtItsRules() {
+        #expect(EmptySourceState.resolve(shownCount: 0, libraryCount: 40, isFiltered: false, source: .smartAlbum)
+            == .emptySource(.smartAlbum))
+    }
+
+    @Test func otherEmptySourcesGetTheTitleOnly() {
+        #expect(EmptySourceState.resolve(shownCount: 0, libraryCount: 40, isFiltered: false, source: .other)
+            == .emptySource(.other))
+    }
+}
+
+@Suite("File ▸ Stop's job")
+struct StoppableJobTests {
+    private let start = Date(timeIntervalSinceReferenceDate: 1000)
+
+    @Test func nothingRunningIsNil() {
+        #expect(StoppableJob.newest([:]) == nil)
+    }
+
+    @Test func aSingleJobIsTheOne() {
+        for job in StoppableJob.allCases {
+            #expect(StoppableJob.newest([job: start]) == job)
+        }
+    }
+
+    @Test func theNewestStartWins() {
+        #expect(StoppableJob.newest([.export: start, .addFolders: start.addingTimeInterval(5)]) == .addFolders)
+        #expect(StoppableJob.newest([.export: start.addingTimeInterval(9), .addFolders: start.addingTimeInterval(5),
+                                     .cardImport: start]) == .export)
+        #expect(StoppableJob.newest([.cardImport: start.addingTimeInterval(1), .export: start]) == .cardImport)
+    }
+
+    @Test func equalStartsAreDecidedTheSameWayEveryTime() {
+        let all = Dictionary(uniqueKeysWithValues: StoppableJob.allCases.map { ($0, start) })
+        #expect(StoppableJob.newest(all) == .cardImport)
+    }
+}
+
 @Suite("Activity")
 struct ActivityLogTests {
     @Test func keepsRecentMessagesNewestLastAndCountsUnseen() {
