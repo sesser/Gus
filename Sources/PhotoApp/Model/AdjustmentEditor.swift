@@ -528,6 +528,9 @@ final class AdjustmentEditor {
         frame = rendered
         if rendered.adjustments == awaitedMachineLearningValues { stopAwaitingMachineLearning() }
         if let reason = rendered.machineLearning.reason { learnUnavailability(reason) }
+        if rendered.machineLearning == .applied, rendered.adjustments == committed {
+            dropFallbackPreview()
+        }
         defer { refreshMachineLearning() }
         if rendered.content == .sharpeningMap {
             showsLive = true
@@ -652,6 +655,20 @@ final class AdjustmentEditor {
         return MachineLearningNoiseReduction.Status(
             asks: values.asksForMachineLearning, groupIsOn: values.isEnabled(.noiseReduction),
             availability: isRaw ? rawDefaults?.machineLearning : .notRaw, renderFailed: failed)
+    }
+
+    /// The saved values rendered with machine learning: a fallback kept for
+    /// the session under their key is out of date, so the next arrival
+    /// renders (and caches) them again instead of showing it.
+    private func dropFallbackPreview() {
+        guard let item, let library,
+              let key = library.previewRequest(for: item, tier: .preview)?.key,
+              library.previews.cache.sessionOnlyReason(for: key) != nil else { return }
+        arrivedWithFailedFallback = false
+        library.previews.cache.removeSessionOnly(key)
+        if let thumbnail = PreviewCacheKey(contentHash: key.contentHash, editStackHash: key.editStackHash, tier: .thumbnail) {
+            library.previews.cache.removeSessionOnly(thumbnail)
+        }
     }
 
     /// A render found the decoder unavailable where the photo looked

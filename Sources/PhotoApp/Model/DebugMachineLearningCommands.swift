@@ -13,7 +13,7 @@ import PhotoCore
 ///   before decoding; `nomodel-decode`: found out by the first decode, then
 ///   remembered. `macos26`: "not on this Mac" with the older texts. `clear`
 ///   also forgets a missing model learned from a decode.
-/// - `ml ready`: waits (up to 5 s) until the open photo is ready, and no longer.
+/// - `ml ready`: waits (up to 5 s) until the editor has the focused photo ready, and no longer.
 /// - `ml wait`: waits (up to 30 s) until no machine learning frame is pending.
 /// - `print ml`: the state the inspector, pop-up, caption and badge show,
 ///   read from the AppKit controls where there is one.
@@ -44,7 +44,8 @@ enum DebugMachineLearningCommands {
                 try? await Task.sleep(for: .milliseconds(50))
             }
         case "ready":
-            for _ in 0..<500 where editor.state != .ready {
+            // The loupe hands the editor a new focus on its next update.
+            for _ in 0..<500 where editor.state != .ready || editor.item?.versionID != model.focusedItem?.versionID {
                 try? await Task.sleep(for: .milliseconds(10))
             }
         case "wait":
@@ -91,6 +92,12 @@ enum DebugMachineLearningCommands {
                   + " items [\(decoder.itemTitles.joined(separator: ", "))] tip '\(decoder.toolTip ?? "-")'")
         } else {
             print("debug-script: ml decoder not shown")
+        }
+        if let item = editor.item, let key = model.previewRequest(for: item, tier: .preview)?.key {
+            let cache = model.previews.cache
+            print("debug-script: ml preview cached \(cache.contains(key)) onDisk "
+                  + "\(FileManager.default.fileExists(atPath: cache.url(for: key).path))"
+                  + " sessionReason \(cache.sessionOnlyReason(for: key).map(\.rawValue) ?? "none") hash \(key.editStackHash.prefix(12))")
         }
         let frame = editor.frame.map { "\($0.machineLearning)" + ($0.adjustments == editor.adjustments ? "" : " (other values)") }
         print("debug-script: ml badge \(badge(editor)) spinner \(editor.isAwaitingMachineLearningFrame)"

@@ -54,6 +54,12 @@ public final class PreviewDiskCache: Sendable {
         sessionOnly.withLock { entries in entries.last { $0.key == key }?.data }
     }
 
+    /// Drops the session-only rendition for `key` (its stack has since
+    /// rendered with machine learning). Touches no file.
+    public func removeSessionOnly(_ key: PreviewCacheKey) {
+        sessionOnly.withLock { $0.removeAll { $0.key == key } }
+    }
+
     /// Why the session-only rendition for `key` was rendered without the
     /// machine learning its stack asks for; nil when there is none.
     public func sessionOnlyReason(for key: PreviewCacheKey) -> MachineLearningNoiseReduction.Reason? {

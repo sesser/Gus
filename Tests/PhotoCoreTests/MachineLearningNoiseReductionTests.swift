@@ -533,6 +533,10 @@ struct MachineLearningNoiseReductionTests {
             #expect(cache.loadImage(for: key) != nil)
             // The loupe shows the state the fallback was rendered in (design §15, DQ-3).
             #expect(cache.sessionOnlyReason(for: key) == .notOnThisMac)
+            // Once the stack renders with it, the session-only fallback goes.
+            cache.removeSessionOnly(key)
+            #expect(!cache.contains(key) && cache.sessionOnlyReason(for: key) == nil)
+            _ = try await service.image(for: request)
             cache.remove(key)
             #expect(!cache.contains(key))
         }
