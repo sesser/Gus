@@ -75,6 +75,8 @@ enum RenderCommands {
                     object["type"] = "text"
                 case .points:
                     object["type"] = "points"
+                case .boolean:
+                    object["type"] = "boolean"
                 }
                 return .object(object)
             }),
@@ -181,7 +183,8 @@ enum RenderCommands {
         let generator = PreviewGenerator(engine: engine, renderer: AdjustmentRenderer(lookTables: library?.lookTables))
         let clock = ContinuousClock()
         let started = clock.now
-        let image = try generator.image(source: source, stack: stack, longEdge: arguments.integer("longEdge"))
+        let rendering = try generator.rendering(source: source, stack: stack, longEdge: arguments.integer("longEdge"))
+        let image = rendering.image
         guard let cgImage = engine.makeCGImage(image, colorSpace: colorSpace.cgColorSpace,
                                                bitsPerComponent: format.bitsPerComponent)
         else { throw CommandError(.renderFailed, "Rendering \(source.path) failed") }
@@ -203,7 +206,23 @@ enum RenderCommands {
             "editStack": try JSONValue(encoding: stack),
         ]
         if let versionID { result["versionID"] = JSONValue(versionID) }
+        result["machineLearning"] = machineLearningJSON(rendering.machineLearning)
         return .object(result)
+    }
+
+    /// Whether a stack's machine learning noise reduction was asked for and
+    /// applied, and why not (PRD R13): `requested`, `applied`, and with a
+    /// reason, `reason` (`MachineLearningNoiseReduction.Reason`) and `message`.
+    static func machineLearningJSON(_ outcome: MachineLearningNoiseReduction.Outcome) -> JSONValue {
+        var object: [String: JSONValue] = [
+            "requested": .bool(outcome != .notRequested),
+            "applied": .bool(outcome.isApplied),
+        ]
+        if let reason = outcome.reason {
+            object["reason"] = .string(reason.rawValue)
+            object["message"] = .string(reason.message)
+        }
+        return .object(object)
     }
 
     /// Writes next to the target, then moves into place: the file appears complete or not at all.

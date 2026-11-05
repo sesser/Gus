@@ -7,31 +7,54 @@ public struct RawDefaults: Sendable, Hashable {
     public var temperature: Double
     public var tint: Double
     public var decoderVersions: [String]
+    /// The version a photo without a decoder choice decodes with: the
+    /// decoder's default, pinned below the machine learning version
+    /// (`MachineLearningNoiseReduction.pinnedVersion`).
     public var defaultDecoderVersion: String
     /// 0 … 100, nil when the decoder does not offer it for this camera.
     public var luminanceNoiseReduction: Double?
     public var colorNoiseReduction: Double?
+    /// Whether machine learning noise reduction is available for this file on this Mac.
+    public var machineLearning: MachineLearningNoiseReduction.Availability
+    /// Luminance's default under the machine learning decoder (nil when it
+    /// is not available or does not offer the amount).
+    public var machineLearningLuminanceNoiseReduction: Double?
 
     public init(temperature: Double, tint: Double, decoderVersions: [String], defaultDecoderVersion: String,
-                luminanceNoiseReduction: Double?, colorNoiseReduction: Double?) {
+                luminanceNoiseReduction: Double?, colorNoiseReduction: Double?,
+                machineLearning: MachineLearningNoiseReduction.Availability = .notOnThisMac,
+                machineLearningLuminanceNoiseReduction: Double? = nil) {
         self.temperature = temperature
         self.tint = tint
         self.decoderVersions = decoderVersions
         self.defaultDecoderVersion = defaultDecoderVersion
         self.luminanceNoiseReduction = luminanceNoiseReduction
         self.colorNoiseReduction = colorNoiseReduction
+        self.machineLearning = machineLearning
+        self.machineLearningLuminanceNoiseReduction = machineLearningLuminanceNoiseReduction
     }
 
     public init?(source: URL) {
         guard SupportedFormats.isRaw(pathExtension: source.pathExtension), let raw = CIRAWFilter(imageURL: source) else {
             return nil
         }
+        let versions = raw.supportedDecoderVersions.map(\.rawValue)
+        // The defaults of the version an untouched photo decodes with.
+        RAWDecodeSettings.none.apply(to: raw)
+        let availability = MachineLearningNoiseReduction.availability(for: source, decoderVersions: versions)
         self.init(temperature: Double(raw.neutralTemperature), tint: Double(raw.neutralTint),
-                  decoderVersions: raw.supportedDecoderVersions.map(\.rawValue),
+                  decoderVersions: versions,
                   defaultDecoderVersion: raw.decoderVersion.rawValue,
                   luminanceNoiseReduction: raw.isLuminanceNoiseReductionSupported
                       ? Double(raw.luminanceNoiseReductionAmount) * 100 : nil,
-                  colorNoiseReduction: raw.isColorNoiseReductionSupported ? Double(raw.colorNoiseReductionAmount) * 100 : nil)
+                  colorNoiseReduction: raw.isColorNoiseReductionSupported ? Double(raw.colorNoiseReductionAmount) * 100 : nil,
+                  machineLearning: availability)
+        if availability == .available, let version = MachineLearningNoiseReduction.machineLearningVersion(in: versions) {
+            raw.decoderVersion = CIRAWDecoderVersion(rawValue: version)
+            if raw.decoderVersion.rawValue == version, raw.isLuminanceNoiseReductionSupported {
+                machineLearningLuminanceNoiseReduction = Double(raw.luminanceNoiseReductionAmount) * 100
+            }
+        }
     }
 }
 

@@ -85,6 +85,12 @@ public enum AdjustmentEdit: Hashable, Sendable {
                   values.allSatisfy({ (0...1).contains($0) })
             else { return .failure(InvalidValue("a list x0,y0,x1,y1,… of at least two points, each 0 … 1")) }
             return .success(.list(values.map(EditParameter.number)))
+        case .boolean:
+            switch text {
+            case "true": return .success(.bool(true))
+            case "false": return .success(.bool(false))
+            default: return .failure(InvalidValue("true or false"))
+            }
         }
     }
 }
@@ -122,6 +128,17 @@ extension EditStack {
                     throw .unknownParameter(kind: kind.rawValue, parameter: name)
                 }
                 let value = try AdjustmentEdit.value(text, for: parameter, of: kind)
+                if kind == RawDecode.kind, name == "decoderVersion",
+                   MachineLearningNoiseReduction.isMachineLearningVersion(text) {
+                    // One state (PRD R3): the machine learning decoder is
+                    // machine learning noise reduction on, as in the Decoder pop-up.
+                    stack.changeOperation(kind) { $0[name] = nil }
+                    stack.changeOperation(NoiseReduction.kind) { $0["machineLearning"] = .bool(true) }
+                    expected["\(kind.rawValue).\(name)"] = nil
+                    expected["\(NoiseReduction.kind.rawValue).machineLearning"] = (NoiseReduction.kind, "machineLearning",
+                                                                                   .bool(true))
+                    continue
+                }
                 stack.changeOperation(kind) { $0[name] = value }
                 expected["\(kind.rawValue).\(name)"] = (kind, name, value == parameter.defaultValue ? nil : value)
             }

@@ -187,14 +187,22 @@ public final class PreviewService: Sendable {
             }
             let tiers = Set(keys.keys)
             let encoded: [PreviewTier: Data]
+            var machineLearning = MachineLearningNoiseReduction.Outcome.notRequested
             if FileKind(pathExtension: source.pathExtension) == .video {
                 let poster = try await VideoFrames.poster(of: source, longEdge: tiers.map(\.longEdge).max())
                 encoded = try generator.jpegData(decoded: poster, stack: stack, tiers: tiers)
             } else {
-                encoded = try generator.jpegData(source: source, stack: stack, tiers: tiers)
+                (encoded, machineLearning) = try generator.encodedRendering(source: source, stack: stack, tiers: tiers)
             }
             for (tier, data) in encoded {
-                if let tierKey = keys[tier] { try cache.store(data, for: tierKey) }
+                guard let tierKey = keys[tier] else { continue }
+                if machineLearning.reason != nil {
+                    // Rendered without the machine learning the stack asks
+                    // for: the same key may render with it next time.
+                    cache.storeForSession(data, for: tierKey)
+                } else {
+                    try cache.store(data, for: tierKey)
+                }
             }
             return true
         }

@@ -58,9 +58,18 @@ public struct ExportSummary: Sendable, Hashable {
         public var reason: Reason
     }
 
+    /// A written file whose stack asked for machine learning noise reduction.
+    public struct MachineLearningResult: Sendable, Hashable {
+        public var fileName: String
+        public var output: URL
+        public var outcome: MachineLearningNoiseReduction.Outcome
+    }
+
     public var destination: URL
     /// In completion order.
     public var written: [URL] = []
+    /// The written files that asked for machine learning noise reduction, in completion order.
+    public var machineLearning: [MachineLearningResult] = []
     public var skippedExisting = 0
     public var skippedVideos = 0
     public var failures: [Failure] = []
@@ -153,7 +162,9 @@ public struct ExportJob: Sendable {
             while let outcome = await group.next() {
                 running -= 1
                 switch outcome {
-                case .written(let url): summary.written.append(url)
+                case .written(let url, let result):
+                    summary.written.append(url)
+                    if let result { summary.machineLearning.append(result) }
                 case .skipped: summary.skippedExisting += 1
                 case .failed(let failure): summary.failures.append(failure)
                 }
@@ -167,7 +178,7 @@ public struct ExportJob: Sendable {
     }
 
     private enum Outcome: Sendable {
-        case written(URL)
+        case written(URL, ExportSummary.MachineLearningResult?)
         case skipped
         case failed(ExportSummary.Failure)
     }
@@ -179,9 +190,10 @@ public struct ExportJob: Sendable {
         guard item.isOnline else { return .failed(.init(fileName: name, reason: .offline(volumeName: item.details.volume.name))) }
         do {
             let stack = try item.details.version.decodedEditStack()
-            try renderer.export(source: item.sourceURL, stack: stack, values: item.values, settings: settings,
-                                to: url, replacing: replacing)
-            return .written(url)
+            let machineLearning = try renderer.export(source: item.sourceURL, stack: stack, values: item.values,
+                                                      settings: settings, to: url, replacing: replacing)
+            return .written(url, machineLearning == .notRequested ? nil
+                                 : .init(fileName: name, output: url, outcome: machineLearning))
         } catch ExportRenderer.Failure.missingWatermark {
             return .failed(.init(fileName: name, reason: .missingWatermark))
         } catch PreviewGenerator.Failure.undecodable {

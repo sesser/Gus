@@ -13,6 +13,8 @@ public struct AdjustmentParameter: Hashable, Sendable {
         case text
         /// A curve: a flat list `[x0, y0, x1, y1, …]`, each 0 … 1, at least two points.
         case points
+        /// On or off, written `true` or `false`.
+        case boolean
     }
 
     public var name: String
@@ -155,6 +157,8 @@ extension Vignette {
 extension NoiseReduction {
     public static let parameterDescriptions: [AdjustmentParameter] = [
         .percent("luminance", default: nil), .percent("color", default: nil),
+        // RAW files: the decoder's machine learning model, where this Mac and camera have it.
+        AdjustmentParameter("machineLearning", .boolean, default: .bool(false)),
     ]
 }
 

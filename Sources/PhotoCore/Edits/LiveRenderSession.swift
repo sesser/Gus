@@ -35,6 +35,9 @@ public actor LiveRenderSession {
         public let seconds: Double
         /// The render stored something in the stage cache (a slower frame, once).
         public let filledCache: Bool
+        /// What the decode did with the values' machine learning request:
+        /// the loupe's not-applied state follows the frame on screen.
+        public let machineLearning: MachineLearningNoiseReduction.Outcome
 
         /// The frame shows the photo as it is (no overlay, not the map): only
         /// such a frame may give the histogram or become a cached preview.
@@ -83,6 +86,7 @@ public actor LiveRenderSession {
         var context: RenderContext
         /// Distinguishes decodes, so the stage caches never mix two.
         var serial = 0
+        var machineLearning = MachineLearningNoiseReduction.Outcome.notRequested
         var longEdge: Int { max(image.width, image.height) }
     }
 
@@ -280,7 +284,7 @@ public actor LiveRenderSession {
         return Frame(image: DecodedImage(cgImage: rendered), histogram: histogram, content: content,
                      hasOverlay: overlaid, adjustments: adjustments,
                      maskFrameSize: CGSize(width: base.image.width, height: base.image.height),
-                     scale: factor, seconds: seconds, filledCache: filledCache)
+                     scale: factor, seconds: seconds, filledCache: filledCache, machineLearning: base.machineLearning)
     }
 
     /// The render in the working space before output (cached stages or whole).
@@ -407,7 +411,8 @@ public actor LiveRenderSession {
               })
         else { throw PreviewGenerator.Failure.renderFailed }
         nextSerial += 1
-        return touch(key, Base(image: image, context: decoded.context, serial: nextSerial))
+        return touch(key, Base(image: image, context: decoded.context, serial: nextSerial,
+                               machineLearning: decoded.machineLearning))
     }
 
     /// Keeps the three most recently used bases (current settings, the original,

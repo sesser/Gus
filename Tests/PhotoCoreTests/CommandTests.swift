@@ -301,6 +301,8 @@ struct AdjustmentParameterTests {
             return .string("test")
         case .points:
             return .list([0, 0.1, 1, 0.9].map(EditParameter.number))
+        case .boolean:
+            return .bool(parameter.defaultValue != .bool(true))
         }
     }
 

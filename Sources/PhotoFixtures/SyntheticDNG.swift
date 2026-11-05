@@ -18,15 +18,52 @@ public enum SyntheticDNG {
         /// Standard deviation of Gaussian noise added to every photosite, as a
         /// fraction of the white level (0: none). Drawn from `seed`.
         public var noise: Double
+        /// Writes the DNG `NoiseProfile` tag for `noise` (constant variance
+        /// noise²), so a decoder that reads it knows the noise level.
+        public var writesNoiseProfile: Bool
+        /// EXIF ISO speed, nil for none.
+        public var iso: Int?
+        /// What the sensor sees.
+        public var scene: Scene
 
         public init(width: Int, height: Int, seed: UInt64, dateTimeOriginal: String? = nil, orientation: Int = 1,
-                    noise: Double = 0) {
+                    noise: Double = 0, writesNoiseProfile: Bool = false, iso: Int? = nil, scene: Scene = .pattern) {
             self.width = width
             self.height = height
             self.seed = seed
             self.dateTimeOriginal = dateTimeOriginal
             self.orientation = orientation
             self.noise = noise
+            self.writesNoiseProfile = writesNoiseProfile
+            self.iso = iso
+            self.scene = scene
+        }
+    }
+
+    /// The image the mosaic samples.
+    public enum Scene: Sendable, Hashable {
+        /// `SyntheticImages.makeImage`: a gradient, ellipses and the seed's bar code.
+        case pattern
+        /// Vertical stripes `period` pixels wide, alternating between two greys
+        /// (sRGB 0.25 and 0.75): flat areas and sharp edges, every row alike.
+        case stripes(period: Int)
+
+        func image(width: Int, height: Int, seed: UInt64) -> CGImage? {
+            switch self {
+            case .pattern:
+                return SyntheticImages.makeImage(width: width, height: height, seed: seed)
+            case .stripes(let period):
+                guard period > 0, let context = CGContext(
+                    data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                    space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)
+                else { return nil }
+                for x in stride(from: 0, to: width, by: period) {
+                    let grey: CGFloat = (x / period).isMultiple(of: 2) ? 0.25 : 0.75
+                    context.setFillColor(CGColor(srgbRed: grey, green: grey, blue: grey, alpha: 1))
+                    context.fill(CGRect(x: x, y: 0, width: period, height: height))
+                }
+                return context.makeImage()
+            }
         }
     }
 
@@ -38,7 +75,7 @@ public enum SyntheticDNG {
         let width = options.width & ~1
         let height = options.height & ~1
         guard width >= 16, height >= 16,
-              let scene = SyntheticImages.makeImage(width: width, height: height, seed: options.seed)
+              let scene = options.scene.image(width: width, height: height, seed: options.seed)
         else { throw CocoaError(.fileWriteInvalidFileName) }
         let mosaic = try mosaic(scene, width: width, height: height, noise: options.noise, seed: options.seed)
 
@@ -47,6 +84,9 @@ public enum SyntheticDNG {
         var exif = TIFFWriter.IFD()
         exif.ascii(36867, date) // DateTimeOriginal
         exif.ascii(36868, date) // DateTimeDigitized
+        if let iso = options.iso {
+            exif.short(34855, [UInt16(clamping: iso)]) // ISOSpeedRatings
+        }
 
         var ifd = TIFFWriter.IFD()
         ifd.long(254, [0])                         // NewSubfileType: main image
@@ -78,6 +118,10 @@ public enum SyntheticDNG {
         ])
         ifd.rational(50728, [1, 1, 1])             // AsShotNeutral
         ifd.short(50778, [21])                     // CalibrationIlluminant1: D65
+        if options.writesNoiseProfile {
+            // NoiseProfile: variance = S·x + O per plane, x normalized to white.
+            ifd.double(51041, [0, options.noise * options.noise])
+        }
         return tiff.write(ifd)
     }
 
@@ -158,14 +202,14 @@ public enum SyntheticDNG {
 /// Just enough of a little-endian TIFF writer for `SyntheticDNG`.
 struct TIFFWriter {
     enum FieldType: UInt16 {
-        case byte = 1, ascii = 2, short = 3, long = 4, rational = 5, srational = 10
+        case byte = 1, ascii = 2, short = 3, long = 4, rational = 5, srational = 10, double = 12
 
         var size: Int {
             switch self {
             case .byte, .ascii: 1
             case .short: 2
             case .long: 4
-            case .rational, .srational: 8
+            case .rational, .srational, .double: 8
             }
         }
     }
@@ -224,6 +268,12 @@ struct TIFFWriter {
                 data.append(littleEndian: UInt32(10_000))
             }
             entries.append(Entry(tag: tag, type: .srational, count: values.count, payload: .value(data)))
+        }
+
+        mutating func double(_ tag: UInt16, _ values: [Double]) {
+            var data = Data()
+            for value in values { data.append(littleEndian: value.bitPattern) }
+            entries.append(Entry(tag: tag, type: .double, count: values.count, payload: .value(data)))
         }
 
         /// One strip of image data; writes both the offset and the byte count tag.
