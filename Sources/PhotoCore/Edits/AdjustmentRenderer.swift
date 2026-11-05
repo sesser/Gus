@@ -715,9 +715,11 @@ public struct AdjustmentRenderer: EditStackRenderer {
         return table
     }
 
-    /// Unsharp mask in the perceptual encoding. Below 100, Detail limits how far a
-    /// pixel may overshoot the range of its neighborhood (the halos at strong
-    /// edges) without touching texture inside that range; Masking limits it to edges.
+    /// Unsharp mask in the perceptual encoding. Amount scales the whole effect.
+    /// Detail is the share of each halo kept: where a pixel overshoots the
+    /// range of its neighborhood (the bright and dark rims at strong edges),
+    /// only that share of the overshoot stays, while texture inside the range
+    /// is sharpened in full. Masking limits sharpening to edges.
     static func sharpen(_ image: CIImage, _ settings: Sharpen, scale: Double, extent: CGRect) -> CIImage {
         // Sharpening for full-resolution pixels has no visible effect on small renditions.
         guard scale >= 0.2 else { return image }
@@ -731,24 +733,36 @@ public struct AdjustmentRenderer: EditStackRenderer {
         mask.intensity = Float(settings.amount / 100)
         guard var sharpened = mask.outputImage else { return image }
 
-        if settings.detail < 100 {
-            let margin = CGFloat(haloMargin(detail: settings.detail / 100))
-            let low = CIFilter.morphologyMinimum()
-            low.inputImage = base
-            low.radius = Float(max(1, radius))
-            let high = CIFilter.morphologyMaximum()
-            high.inputImage = base
-            high.radius = Float(max(1, radius))
+        let neighborhood = Float(max(1, radius))
+        let low = CIFilter.morphologyMinimum()
+        low.inputImage = base
+        low.radius = neighborhood
+        let high = CIFilter.morphologyMaximum()
+        high.inputImage = base
+        high.radius = neighborhood
+
+        let share = haloShare(detail: settings.detail)
+        if share < 1 {
+            // The sharpened value held to its neighborhood's range ...
             let floor = CIFilter.maximumCompositing()
             floor.inputImage = sharpened
-            floor.backgroundImage = shifted(low.outputImage, by: -margin)
+            floor.backgroundImage = low.outputImage
             let ceiling = CIFilter.minimumCompositing()
             ceiling.inputImage = floor.outputImage
-            ceiling.backgroundImage = shifted(high.outputImage, by: margin)
-            sharpened = ceiling.outputImage ?? sharpened
+            ceiling.backgroundImage = high.outputImage
+            // ... plus the share of the overshoot that Detail keeps.
+            if let inRange = ceiling.outputImage {
+                let keep = CIFilter.blendWithMask()
+                keep.inputImage = sharpened
+                keep.backgroundImage = inRange
+                keep.maskImage = constant(share)
+                sharpened = keep.outputImage ?? sharpened
+            }
         }
 
-        if settings.masking > 0, let edgeMask = edgeMask(base, masking: settings.masking / 100, radius: radius) {
+        if settings.masking > 0,
+           let edgeMask = edgeMask(low: low.outputImage, high: high.outputImage, masking: settings.masking / 100,
+                                   radius: radius) {
             let blend = CIFilter.blendWithMask()
             blend.inputImage = sharpened
             blend.backgroundImage = base
@@ -769,43 +783,55 @@ public struct AdjustmentRenderer: EditStackRenderer {
         return max((radius * scale * radius * scale + resampling * resampling).squareRoot(), 0.25)
     }
 
-    /// How far past its neighborhood's range Detail (0 … 1) lets a pixel go, in
-    /// the perceptual encoding.
-    static func haloMargin(detail: Double) -> Double {
-        0.01 + 0.25 * pow(detail, 1.5)
+    /// The share (0 … 1) of a halo's overshoot that Detail (0 … 100) keeps.
+    static func haloShare(detail: Double) -> Double {
+        min(max(detail / 100, 0), 1)
     }
 
-    /// `image` with `offset` added to its color components.
-    static func shifted(_ image: CIImage?, by offset: CGFloat) -> CIImage? {
-        let filter = CIFilter.colorMatrix()
-        filter.inputImage = image
-        filter.biasVector = CIVector(x: offset, y: offset, z: offset, w: 0)
-        return filter.outputImage
+    /// The neighborhood range (perceptual) at which Masking (0 … 1) starts to
+    /// let sharpening through; it is full at twice that. Noise and fine
+    /// texture span a few hundredths, strong edges several tenths; the curve
+    /// spends the lower half of the slider on the former.
+    static func maskingThreshold(_ masking: Double) -> Double {
+        0.25 * pow(min(max(masking, 0), 1), 1.5)
     }
 
-    /// White where the image (perceptually encoded) has edges stronger than the threshold `masking` sets.
-    static func edgeMask(_ image: CIImage, masking: Double, radius: Double) -> CIImage? {
-        let edges = CIFilter.edges()
-        edges.inputImage = image
-        edges.intensity = 1
-        let threshold = CGFloat(masking * 0.25)
-        let gain = CGFloat(1 / max(0.02, masking * 0.25)) / 3
+    /// A grey image of `value` in the working space, for a constant blend.
+    static func constant(_ value: Double) -> CIImage {
+        CIImage(color: CIColor(red: value, green: value, blue: value, colorSpace: RenderEngine.workingColorSpace)!)
+    }
+
+    /// White where the range of the neighborhood (from `low` to `high`, the
+    /// perceptually encoded image's local minimum and maximum) reaches twice
+    /// the threshold `masking` sets, black below the threshold, a ramp between;
+    /// widened to cover the halos an edge gets at `radius`.
+    static func edgeMask(low: CIImage?, high: CIImage?, masking: Double, radius: Double) -> CIImage? {
+        // high - low, never negative.
+        let range = CIFilter.differenceBlendMode()
+        range.inputImage = high
+        range.backgroundImage = low
+        let threshold = maskingThreshold(masking)
+        let gain = 1 / max(threshold, 0.005)
         // Average the channels, then map the threshold to 0 and twice it to 1.
         let mono = CIFilter.colorMatrix()
-        mono.inputImage = edges.outputImage
-        let row = CIVector(x: gain, y: gain, z: gain, w: 0)
+        mono.inputImage = range.outputImage
+        let row = CIVector(x: gain / 3, y: gain / 3, z: gain / 3, w: 0)
         mono.rVector = row
         mono.gVector = row
         mono.bVector = row
         mono.aVector = CIVector(x: 0, y: 0, z: 0, w: 0)
-        mono.biasVector = CIVector(x: -threshold * gain * 3, y: -threshold * gain * 3, z: -threshold * gain * 3, w: 1)
+        let bias = -threshold * gain
+        mono.biasVector = CIVector(x: bias, y: bias, z: bias, w: 1)
         let clamp = CIFilter.colorClamp()
         clamp.inputImage = mono.outputImage
         clamp.minComponents = CIVector(x: 0, y: 0, z: 0, w: 1)
         clamp.maxComponents = CIVector(x: 1, y: 1, z: 1, w: 1)
+        let widen = CIFilter.morphologyMaximum()
+        widen.inputImage = clamp.outputImage
+        widen.radius = Float(max(1, 2 * radius))
         let blur = CIFilter.gaussianBlur()
-        blur.inputImage = clamp.outputImage
-        blur.radius = Float(radius)
+        blur.inputImage = widen.outputImage
+        blur.radius = Float(radius * 0.5)
         return blur.outputImage
     }
 }
