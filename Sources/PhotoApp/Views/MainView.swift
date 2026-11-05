@@ -183,7 +183,8 @@ enum ImportPanel {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
-        panel.prompt = String(localized: "Import")
+        // The command's own words, not a third meaning of "Import" (design.md I17).
+        panel.prompt = String(localized: "Add Folder", comment: "Open panel button: Add Folder Without Copying")
         panel.message = String(localized: "Choose a folder. Photos inside it, including subfolders, are added to a new project.")
         Task {
             guard await WindowModal.run(panel), let url = panel.url else { return }
