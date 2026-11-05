@@ -41,14 +41,13 @@ Idea, Specified (has prd.md), Designed (has design.md), In progress, Shipped, Dr
 
 ## Now (maximum three)
 
-Slots 2 and 3 chosen by owner 2026-11-04. The film strip's spec stays in
-`docs/UI_REDESIGN.md` §11 while it is in flight (owner, 2026-11-04).
+Both items chosen by owner 2026-11-04. One slot is free since the film strip
+shipped; filling it is the owner's choice.
 
 | Slug | Problem | Status | Folder | Source |
 |------|---------|--------|--------|--------|
-| loupe-film-strip | Moving between photos in the loupe needs the keyboard; no visual context of neighbours | In progress | none; spec in `docs/UI_REDESIGN.md` §11, branch `feature/loupe-film-strip` (not on `develop`) | Issue #25 (open); UI_REDESIGN §11 "Implementation status": 8 of 18 items open |
 | publishing-engine | Getting edited photos into Apple Photos or Immich means exporting to a folder and uploading by hand | Idea | none yet | Issue #28; `PHASE4_PLAN.md` out of scope ("export to services") |
-| ui-redesign-onscreen-check | Parts of the shipped redesign were only checked by tests, never seen on screen (glass panes, VoiceOver speech, macOS 15 path, 13" Export sheet) | Idea | none yet | `UI_REDESIGN.md` status, "Not yet checked on screen" |
+| ui-redesign-onscreen-check | Parts of the shipped redesign and the film strip were only checked by tests, never seen on screen (glass panes, VoiceOver speech, macOS 15 path, 13" Export sheet; film strip steps, height cap, show/hide, resize drag, crop session, Increase Contrast) | Idea | none yet | `UI_REDESIGN.md` status, "Not yet checked on screen"; §11 "Implementation status", last item |
 
 ## Next
 
@@ -118,6 +117,7 @@ Dates are from git history (first commit of the work) or the phase document.
 | local-adjustments-masks | 2026-11-01 | Phase 6 first pass, with stage caching and drafts. `PHASE6_PLAN.md` |
 | import-keep-picks | 2026-11-02 | Bug, issue #19 (closed); UI_REDESIGN step 10 |
 | ui-redesign | 2026-11-04 | Steps 1–15 incl. review mode; PRs #20, #21. Not everything checked on screen (see ui-redesign-onscreen-check) |
+| loupe-film-strip | 2026-11-04 | Issue #25 (closed); merged via PR #27. Spec stayed in `UI_REDESIGN.md` §11 (owner, 2026-11-04). Its on-screen checks are under ui-redesign-onscreen-check. §11's checklist still shows 7 build items open that the code appears to implement; the engineer should tick them |
 
 ## Dropped
 

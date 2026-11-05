@@ -1,7 +1,7 @@
 # Capability inventory
 
-What the app does today, as of 2026-11-04 (branch `feature/loupe-film-strip`,
-one commit ahead of `develop`). Owned by the product-manager agent; a
+What the app does today: `develop` as of 2026-11-04, after the film strip
+merged (PR #27). Owned by the product-manager agent; a
 reference for spotting duplicates and conflicts before a feature is specified.
 
 Markers:
@@ -79,7 +79,7 @@ Abbreviations: P1–P6 = `docs/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR =
 | Caption line | Position, stars, flag, label name, Filtered/Original/HDR/Offline badges | UIR §1 |
 | Show Original (`\`) | Before/after while editing | P3 sidebar; UIR §4 |
 | HDR display | HDR sources (float DNG, gain maps, HLG/PQ) render HDR on EDR screens; View ▸ Hide HDR Highlights | CL Rendering; UG |
-| Film strip (in progress) | Strip of the source's photos under the loupe; click to focus; drag handle in steps; ⌥⌘B. Done: geometry, persistence, cells, toggle, menu item, crop/mask clicks, contrast tests. Open: centering rules, wheel, resize handle, slide animation, thumbnail sizing, video loupe, VoiceOver, on-screen check | Issue #25; UIR §11 Implementation status; `Loupe/FilmStrip*.swift`, `Browser/FilmStripGeometry.swift`. Not on `develop` |
+| Film strip | The source's photos in a strip between the loupe (or video loupe) and the caption. Clicking a photo focuses it, and the focused photo stays centered. A drag handle resizes it in steps (48–120 pt, capped at 25% of the loupe height). Caption toggle and ⌥⌘B show or hide it with a slide. VoiceOver list and splitter. Never shown in review mode | Issue #25 (closed); UIR §11; `Loupe/FilmStrip*.swift`, `Browser/FilmStripGeometry.swift`. Not yet checked on screen. §11's checklist leaves 7 build items unticked that the code appears to implement |
 
 ## Metadata, keywords and sidecars
 
