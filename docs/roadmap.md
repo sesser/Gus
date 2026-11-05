@@ -12,9 +12,15 @@ exists is listed in [`features/_inventory.md`](features/_inventory.md).
 are in [`features/ui-redesign/prd.md`](features/ui-redesign/prd.md); new
 scope is below as `Idea` rows citing the RI.
 
+2026-11-05: specified ml-denoise (owner accepted every intake default) and
+moved it to the top of Next; added classical-noise-strength. Both come from
+issue #35.
+
 Where specs live: new features get `docs/features/<slug>/`. The phase plans
-(`docs/PHASE1_PLAN.md` … `PHASE6_PLAN.md`) and `docs/UI_REDESIGN.md` stay
-where they are as the historical record (owner, 2026-11-04).
+(`docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`) and `docs/UI_REDESIGN.md`
+stay as the historical record (owner, 2026-11-04). Bare `PHASE<n>_PLAN.md`
+names below refer to `docs/archive/` (the plans moved there; path corrected
+2026-11-05).
 
 ## Vision and principles
 
@@ -61,6 +67,8 @@ Order is my proposal, not owner-confirmed.
 
 | Slug | Problem | Status | Why this order | Source |
 |------|---------|--------|----------------|--------|
+| ml-denoise | Noise reduction is classical only and mild at 100; no on-device ML option for RAW files | Specified | Owner, 2026-11-05: top of Next. Open bug report (#35), and the slice is small: Apple's macOS 27 RAW 9 decoder, no model to ship. [`features/ml-denoise/`](features/ml-denoise/) | Issue #35; CLAUDE.md Not yet; `PHASE3_PLAN.md` out of scope |
+| classical-noise-strength | The classical noise sliders (RAW decoder and Core Image filter) are mild at 100; the non-RAW filter runs after the vignette and ignores preview scale | Idea | Owner, 2026-11-05: split out of ml-denoise. The only noise fix for JPEG/HEIC. Changes existing edits' rendering (pipeline bump, goldens); intake must decide whether existing stacks keep their look | Issue #35; `PHASE6_PLAN.md` finding 6; `ml-denoise/prd.md` Non-goals |
 | edit-history | No way to see or jump back to an earlier state of a photo's edits | Idea | Intake before any spec (owner, 2026-11-04). Need: see a photo's edit steps and return to an earlier one. Open for the owner: does history survive relaunch. Placement and keys belong to design, not the PRD: issue #26's ⌘Y redo and left-sidebar placement are proposals, and they conflict with the shipped ⇧⌘Z (the HIG's standard redo) and a sidebar that holds sources (UIR §3). RI-6 | Issue #26; `ui-redesign/design.md` RI-6 |
 | viewport-render-1to1 | At 100% zoom, sliders show a stretched 2560 px frame until the edit is saved | Idea | Named on the phase 6 roadmap; affects every edit at 1:1 | `PHASE6_PLAN.md` "Roadmap" |
 | dehaze-above-white | Dehaze and local tone estimates jump on extended-range (above white) input | Idea | Named on the phase 6 roadmap; a rendering change with a pipeline bump | `PHASE6_PLAN.md` "Roadmap", finding 4 |
@@ -80,7 +88,6 @@ the gap. Ordering below the first row is judgment.
 | healing | No spot removal or healing | Idea | Phase 5's test loop was built with healing and lens corrections in mind | CLAUDE.md Not yet; `PHASE5_PLAN.md` intro; `PHASE6_PLAN.md` out of scope |
 | lens-corrections | No distortion, vignetting or chromatic aberration correction | Idea | Interacts with the decoder's own lens correction on camera-cropped raws | CLAUDE.md Not yet; `PHASE6_PLAN.md` finding 1 |
 | ai-masks | No subject, sky, object or people masks | Idea | | CLAUDE.md Not yet; `PHASE6_PLAN.md` out of scope |
-| ml-denoise | Noise reduction is classical only | Idea | | CLAUDE.md Not yet; `PHASE3_PLAN.md` out of scope |
 | dcp-profiles | Adobe `.dcp` camera profiles not supported | Idea | | CLAUDE.md Not yet; `PHASE3_PLAN.md` out of scope |
 | stacks | No hand-made or burst stacks | Idea | `stack` / `stackMember` tables and `Catalog.createStack` exist, no UI | CLAUDE.md Not yet; `PHASE2_PLAN.md` out of scope |
 | virtual-copies | No second version of a photo with different edits | Idea | `Catalog.duplicateVersion` exists, no UI | Issue #26 ("future feature") |
