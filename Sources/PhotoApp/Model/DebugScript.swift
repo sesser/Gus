@@ -35,6 +35,7 @@ import PhotoUI
 ///     menuitems [<text>]    (main menu items whose title contains text: key equivalent, enabled, checked)
 ///     menupress <title>     (runs the main menu item with that title, if enabled)
 ///     helpmenu              (the Help menu: whether AppKit treats it as the help menu, and its items)
+///     playpause             (View ▸ Play / Pause's action on the video loupe)
 ///     windowshot <title text> <file.png>   (snapshots another visible window, e.g. Settings)
 ///     sidebarsection [albums|dates|keywords|projects show|hide]   (prints the hidden sidebar sections)
 ///     contextmenu cell <n>|loupe|slider <title> [<item>[/<sub>]]   (prints a right-click's menu there, or runs an item)
@@ -450,6 +451,10 @@ enum DebugScript {
             printMenuItems(containing: rest.joined(separator: " "))
         case "helpmenu":
             HelpMenuProbe.print()
+        case "playpause":
+            // View ▸ Play / Pause's action (a scripted launch may have no key window for the menu).
+            model.playback.toggle()
+            try? await Task.sleep(for: .milliseconds(500))
         case "windowshot":
             // Another window by part of its title (Settings), as `snapshot` does the library's.
             if let path = rest.last, rest.count >= 2,
@@ -855,7 +860,8 @@ enum DebugScript {
             // scripted launch often is not the active app).
             let state = LibraryMenuState(model)
             print("debug-script: menustate key \(state.isWindowKey) mode \(state.mode) export \(state.canExport)"
-                  + " resetCrop \(state.canResetCrop) addMask \(state.canAddMask) editLoupePhoto \(state.canEditLoupePhoto) cropping \(state.isCropping)")
+                  + " resetCrop \(state.canResetCrop) addMask \(state.canAddMask) video \(state.showsLoupeVideo)"
+                  + " playing \(state.isVideoPlaying) bareKeys \(state.bareKeysActive) editLoupePhoto \(state.canEditLoupePhoto) cropping \(state.isCropping)")
         case "empty":
             // The browser's empty state (design.md N3), as the view chooses it.
             print("debug-script: empty \(model.emptyState.map { "\($0)" } ?? "none") source '\(model.title(for: model.sidebarSelection))'"

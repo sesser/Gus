@@ -153,6 +153,8 @@ final class LibraryModel {
     let lookTableLibrary = LookTableLibraryModel()
     let presetPreviews = PresetPreviewModel()
     let export = ExportModel()
+    /// The video loupe's player (View ▸ Play / Pause).
+    let playback = VideoPlayback()
     /// Adjustments taken by Copy Adjustments.
     var copiedAdjustments: Adjustments?
     var adjustmentPresets: [AdjustmentPreset] = []

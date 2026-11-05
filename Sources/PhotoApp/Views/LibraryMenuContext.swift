@@ -42,6 +42,10 @@ struct LibraryMenuState: Equatable {
     /// Adjust ▸ New Mask ▸: an editable loupe photo, not cropping, under the
     /// mask limit.
     var canAddMask: Bool
+    /// The loupe shows a video.
+    var showsLoupeVideo: Bool
+    /// The video loupe's player is playing (View ▸ Play / Pause's title).
+    var isVideoPlaying: Bool
     var showsOriginal: Bool
     var loupeZoom: LoupeZoomState
     var showsInspector: Bool
@@ -100,6 +104,8 @@ struct LibraryMenuState: Equatable {
         focusedIsPhoto = model.focusedItem.map { !$0.isVideo } ?? false
         targetsIncludePhoto = model.actionTargets.contains { !model.items[$0].isVideo }
         showsLoupePhoto = model.mode == .loupe && model.focusedItem?.isVideo == false
+        showsLoupeVideo = model.mode == .loupe && model.focusedItem?.isVideo == true
+        isVideoPlaying = model.playback.isPlaying
         canEditLoupePhoto = showsLoupePhoto && model.editor.state == .ready
         isCropping = model.editor.cropSession != nil
         canResetCrop = canEditLoupePhoto && model.editor.canResetCrop

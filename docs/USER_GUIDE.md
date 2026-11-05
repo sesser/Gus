@@ -134,8 +134,8 @@ be merged). Writing can be turned off in **Settings**.
 
 **Videos** (MOV, MP4, M4V) are catalogued like photos by both kinds of import
 (the import window has an **Include videos** switch): their poster frame is the
-thumbnail, the grid shows their length, and the loupe plays them (space plays
-and pauses; the arrow and culling keys still move between and rate items, and a
+thumbnail, the grid shows their length, and the loupe plays them (Space, or
+**View ▸ Play / Pause**, plays and pauses; the arrow and culling keys still move between and rate items, and a
 double-click on the picture goes back to the grid). They
 take ratings, keywords, albums and sidecars. There is no video editing or export.
 

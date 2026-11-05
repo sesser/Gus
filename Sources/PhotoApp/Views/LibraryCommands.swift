@@ -167,6 +167,13 @@ struct LibraryCommands: Commands {
             }
             .keyboardShortcut("b", modifiers: [.command, .option])
             .disabled(!can { $0.mode == .loupe && !$0.isReviewing })
+            // A bare key: the video loupe's event monitor plays and pauses on
+            // Space; the grid's Space opens the loupe (design.md N9, I6).
+            Button(menu?.state.isVideoPlaying == true ? String(localized: "Pause") : String(localized: "Play")) {
+                model?.playback.toggle()
+            }
+            .keyboardShortcut(.space, modifiers: [])
+            .disabled(!canByKey { $0.showsLoupeVideo })
             Divider()
             Button(menu?.state.showFileInfo == false ? String(localized: "Show File Names")
                                                      : String(localized: "Hide File Names")) {
