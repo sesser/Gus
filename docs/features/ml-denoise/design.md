@@ -3,7 +3,9 @@
 Owner: apple-ui-designer. Date: 2026-11-05. Status: Designed. RI-1 to RI-7
 are ruled (§13): the product manager ruled RI-1 to RI-6 and the owner ruled
 RI-7, all on 2026-11-05. prd.md records the rulings (R3–R6, R10, AC4–AC7a,
-AC10, Revisions). Nothing is open.
+AC10, Revisions). The engineer's design questions DQ-1 to DQ-3 are ruled in
+§15. The owner's ruling on RI-E2 and its effect on wording are in §16.
+Nothing is open.
 
 **Inputs.**
 
@@ -632,3 +634,65 @@ The issues as raised:
 | Mixed selection | The inspector edits one photo, so there is no mixed state. Batch commands give raws the setting, leave non-RAW photos off, and post an Activity information row when they did | §2, §7; RI-4, RI-5 |
 | Accessibility | Check box name and help, the dimmed Color row with help, spinner label, canvas value part. System colors only. Text always carries state | §8 |
 | Strings | 23 new keys, none with the product name | §9 |
+
+## 15. Design questions from implementation (2026-11-05)
+
+Raised by the engineer in [`status.md`](status.md) ("Design questions").
+All three are ruled here. I checked them against
+`Model/MachineLearningText.swift` and `Localizable.xcstrings`, not on
+screen. Seeing them on screen is part of the designer review.
+
+| # | Question | Ruling | Basis |
+|---|---|---|---|
+| DQ-1 | The singular ("one") forms the engineer wrote for three Activity rows that §9 gives only in the plural | **Approved as written.** "Machine learning noise reduction was left off for %lld photo that isn't a raw file." "%lld photo was exported without machine learning noise reduction: this Mac needs macOS 27 or later." "%lld photo was exported without machine learning noise reduction: its camera isn't supported." Each agrees in number throughout ("photo … isn't a raw file", "its camera"). Each keeps the numeral, like the existing "%lld video was left unchanged." The fourth row's "one" form ("…: it could not be applied to this photo.") follows §9 and AC7a. §9's comments stand. Writing the one forms was the engineer's job, since the catalog needs them | P5 (one pattern for Activity counts); the existing video row |
+| DQ-2 | The caption under the check box is indented by the small check box's title inset as AppKit reports it at run time (18 pt in the current design) | **Yes, that is the intent.** §3 says the caption starts at the check box title's leading edge, wherever AppKit draws it. Measuring at run time is better than a fixed number: the box and its gap differ between the current design (macOS 26 SDK on 26+) and the earlier one, and could change in a later release. Keep it measured, not hard-coded. The wrapped caption's second line keeps the same indent. At review I check on screen, in both designs, that the caption's first letter lines up with the "U" of "Use machine learning" and that the triangle (S5, S6, S8) starts at that edge too | HIG Toggles (alignment along the check box shows grouping); §3 |
+| DQ-3 | No spinner when arriving at a photo whose preview is already cached. The 250 ms histogram frame doesn't count as waiting | **Matches §6.** The spinner means the picture on screen is not yet the result asked for. A cached preview of the current values is the result, so the person waits for nothing, and a spinner for a background frame would be false feedback (HIG Progress indicators: indicators are for an operation people wait on). Two points follow. (1) If the cached preview is a session-only fallback (S5, S6 or S8, kept in memory per status.md), the badge, caption and Color row must show that state with the cached frame on arrival, again with no spinner. A background frame that retries ML and succeeds swaps in silently and moves the photo to S2. (2) Any later frame the person *does* wait on still follows §6's 0.5 s rule: a change of values, Undo, a hover, or a zoom that needs a new ML render | §6 ("When it shows"); HIG Progress indicators |
+
+**Code changes from §15.** DQ-1 and DQ-2 need none. DQ-3 needs none for
+the question asked. Its point (1) is a check: if arriving at a photo whose
+cached preview is a session-only fallback doesn't show S5, S6 or S8 (badge,
+caption, Color row) with that frame, that is a code change.
+
+## 16. Owner ruling RI-E2: a missing RAW 9 model (2026-11-05)
+
+**Ruling (owner).** The app never starts a download of Apple's RAW 9 model.
+A Mac whose RAW 9 model is missing counts as "not available on this Mac":
+S3 when the box is off, S5 when the stack asks for ML. The states, the
+dimmed check box, the badge and the Activity rows are unchanged.
+
+**One wording consequence (design ruling).** The "this Mac" texts say "it
+needs macOS 27 or later". On a Mac already running macOS 27 that lacks the
+model, that sentence is false, and it would send the person looking for an
+update they already have. On macOS 27 or later, the "this Mac" reason
+therefore drops the macOS clause. Below 27, the existing texts stay. I don't
+name a fix for a missing model: the app doesn't fetch it, and I won't guess
+how macOS does.
+
+| Where | macOS 15 or 26 (unchanged) | macOS 27 or later, model missing (new key) |
+|---|---|---|
+| Caption and check box help, S3 | "Not available on this Mac: it needs macOS 27 or later." | "Not available on this Mac." |
+| Caption and check box help, S5 | "Not applied on this Mac: it needs macOS 27 or later. Luminance and Color apply instead." | "Not applied on this Mac. Luminance and Color apply instead." |
+| Badge tooltip, S5 | "This photo is set to use machine learning noise reduction, which needs macOS 27 or later. It's shown with Luminance and Color instead." | "This photo is set to use machine learning noise reduction, which isn't available on this Mac. It's shown with Luminance and Color instead." |
+| Export Activity row (plural; the "one" form is "%lld photo was …") | "%lld photos were exported without machine learning noise reduction: this Mac needs macOS 27 or later." | "%lld photos were exported without machine learning noise reduction: it isn't available on this Mac." |
+
+- **These are four new String Catalog keys** (27 in all), with comments
+  saying they are for macOS 27 or later without the decoder's model. The
+  VoiceOver value part ("Machine learning not applied") and the spinner are
+  unchanged.
+- **If the app only finds out the model is missing when a decode fails**,
+  the photo still shows the "this Mac" state, not S8 ("could not be applied
+  to this photo"). It changes with the fallback frame, as S8 does (§3), and
+  the export row uses the "this Mac" reason. The availability rule (§11)
+  holds `notOnThisMac` for the rest of the session once that is known, so
+  every photo says the same thing.
+- **Code change: yes.**
+  - Add the four keys and choose the text by the running macOS version.
+  - Map a missing model to `notOnThisMac`, whether it is known before
+    decoding or learned from a failed decode.
+  - Add a debug-script way to force "macOS 27, model missing", so DR1 and
+    DR8 can check the new texts.
+
+**RI-E3 note (no new ruling).** Camera raws call RAW 9 "9", and DNG files
+call it "9.dng" (PRD R3 as amended). The Decoder pop-up's "(machine
+learning)" suffix and every rule in §4 apply to both names. If the engineer
+already handles "9", this needs no code change.
