@@ -62,6 +62,10 @@ We will know it worked when:
 7. **Export and command line.** Export and `photocli` (develop, render,
    export) support it. Tests are directional, with no pixel goldens. The
    owner does a manual check on 2–3 of their high-ISO raws.
+8. **Future macOS defaults (RI-7, "Yes, pin old default").** R2 covers
+   these too. A raw whose stack does not ask for ML keeps decoding with the
+   pre-RAW 9 default decoder, even if a later macOS makes RAW 9 Apple's
+   default. The engineer pins that default.
 
 ## Users and scenarios
 
@@ -89,29 +93,48 @@ photo is decoded with RAW 9.
 
 **R2 (Must).** It is off by default. Adding the feature changes nothing in
 the rendering, previews or exports of any photo that has not turned it on.
+This also covers future macOS releases (owner, RI-7). A raw whose stack does
+not ask for ML keeps decoding with the pre-RAW 9 default decoder, even if a
+later macOS makes RAW 9 Apple's default. The engineer pins that default.
 
-**R3 (Must).** Exactly one state means "ML noise reduction on". The new
-control and the Decoder pop-up's `9.dng` choice cannot disagree. A stack
-that already chose `9.dng` before this feature shipped shows as ML noise
-reduction on, and its rendering does not change.
+**R3 (Must).** Exactly one state means "ML noise reduction on". It belongs
+to the Noise Reduction group (R10). The new control and the Decoder pop-up's
+`9.dng` choice cannot disagree:
 
-**R4 (Must).** While it is on, Luminance is its amount. Color is shown as
-unavailable, because RAW 9 ignores it. The stored Color value is kept and
-applies again when ML is turned off.
+- Choosing `9.dng` in the pop-up turns ML on. Choosing another version
+  turns ML off and makes that version the Profile group's decoder.
+- While ML is on, the photo decodes with `9.dng`. The Profile group's own
+  decoder choice is kept, and applies again when ML is turned off.
+- Profile-only presets, a paste of Profile, and turning the Profile group
+  off never turn ML on or off.
+- Turning the Noise Reduction group off stops ML in the render and keeps
+  the setting, as for any group.
+- A stack saved before this feature with Profile's decoder at `9.dng` reads
+  as ML on, with Profile's decoder at the default. Its rendering does not
+  change.
+- A preset saved before this feature with Profile's decoder at `9.dng`
+  turns ML on when applied, and changes nothing else in Noise Reduction.
 
-**R5 (Must).** For the photo being edited, the app shows whether ML noise
-reduction applies. If it does not, it names one of these reasons:
+**R4 (Must).** While ML is on and applied, Luminance is its amount and
+Color is unavailable, because RAW 9 ignores it. The stored Color value is
+kept, and applies again when ML is turned off. When ML is requested but not
+applied (R6), Color stays available and renders as usual.
+
+**R5 (Must).** For a RAW photo being edited, the app shows whether ML noise
+reduction applies. If it does not, the app names one of these reasons:
 
 - this Mac's macOS has no RAW 9;
 - this camera is not supported by RAW 9;
-- the file is not RAW.
+- it could not be applied to this photo (the RAW 9 decode failed).
 
-**R6 (Must).** When a stack asks for ML noise reduction where it is
-unavailable (R5's first two reasons), the photo renders with the default
-decoder and the stack's classical values. The app shows that ML was not
-applied. Opening, viewing, exporting, or editing any other control never
-removes the setting from the stack. The only exception is the person turning
-it off.
+For files that are not RAW, the control is not offered (R7).
+
+**R6 (Must).** When a stack asks for ML noise reduction and it does not
+apply (any of R5's reasons), the photo renders with the default decoder and
+the stack's classical values. The app shows that ML was not applied, and
+why. This holds in the loupe, in export and in `photocli`. Opening, viewing,
+exporting, or editing any other control never removes the setting from the
+stack. The only exception is the person turning it off.
 
 **R7 (Must).** Files that are not RAW keep today's Core Image filter
 unchanged. The ML control is not offered for them. Videos are unaffected.
@@ -129,7 +152,9 @@ is one undo step per gesture, as today.
 presets that include that group, the grid's batch commands (Paste, Apply
 Preset) and Reset All carry it or clear it. Applied to a selection that
 mixes file types, it takes effect on RAW files only. Non-RAW photos never
-show it as on.
+show it as on. It is stored on every RAW file a command reaches, including
+raws where ML is not available on this Mac or for this camera; there R6
+applies until the Mac or Apple's camera list catches up.
 
 **R11 (Must).** For a RAW+JPEG pair, it applies to the RAW file's edits
 only. Edits are already per file, so this changes nothing about how pairs
@@ -166,21 +191,38 @@ render's edge contrast is not lower than classical at 100.
 
 **AC3 (R2).** Every existing golden, and the edit-stack corpus
 (`EditStackCorpusTests`), pass unchanged. A stack without the setting
-produces the same render hash and preview cache key as before.
+produces the same render hash and preview cache key as before. With the
+decoder's default reported as `9.dng` (through a test seam), a stack that
+does not ask for ML still decodes with the pinned pre-RAW 9 default, not
+`9.dng`.
 
-**AC4 (R3).** A stack saved with `decode.decoderVersion = "9.dng"` loads as
-ML on. A stack with ML on reports `9.dng` as its decoder. The two can never
-be set to disagree, through the app or through `photocli develop`.
+**AC4 (R3).** Each of these is checked:
 
-**AC5 (R4).** With ML on, the Color control is unavailable. Turning ML off
-restores the stored Color value: the stack's `color` is unchanged across
-the on/off round trip.
+- A stack saved with `decode.decoderVersion = "9.dng"` loads as ML on, with
+  Profile's decoder at the default, and renders as before.
+- A stack with ML on and Profile's decoder at `7.dng` decodes with `9.dng`.
+  Turning ML off makes it decode with `7.dng`.
+- On a photo with ML on, each of these leaves ML on: applying a
+  Profile-only preset, pasting only Profile, and turning the Profile group
+  off.
+- A pre-feature preset with Profile's decoder at `9.dng` turns ML on and
+  leaves the target's Luminance and Color unchanged.
+- ML and the decoder choice can never be set to disagree, through the app
+  or through `photocli develop`.
 
-**AC6 (R5, R7).** Manual check, and a unit test of the availability rule. A
-supported raw on macOS 27 shows ML as available. A JPEG shows the "not RAW"
-reason, or no ML control at all. A camera missing from RAW 9's
-`supportedCameraModels` shows "camera not supported". On macOS 15 or 26,
-any raw shows "not available on this Mac".
+**AC5 (R4).** With ML on and applied, the Color control is unavailable.
+Turning ML off restores the stored Color value: the stack's `color` is
+unchanged across the on/off round trip. With ML requested but not applied
+(on macOS 15 or 26, or an unsupported camera), Color is available and
+changing it changes the render.
+
+**AC6 (R5, R7).** Manual check, and a unit test of the availability rule:
+
+- A supported raw on macOS 27 shows ML as available.
+- A JPEG shows no ML control.
+- A camera missing from RAW 9's `supportedCameraModels` shows "camera not
+  supported".
+- On macOS 15 or 26, any raw shows "not available on this Mac".
 
 **AC7 (R6).** On a Mac without RAW 9, take a stack with ML on and do all of
 the following:
@@ -193,6 +235,14 @@ the following:
 Afterwards the stack still has ML on. The export used the default decoder.
 The loupe shows that ML was not applied.
 
+**AC7a (R5, R6).** On macOS 27, with a RAW 9 decode failure forced through a
+test seam on a supported file:
+
+- the render uses the default decoder and the stack's classical values;
+- the stack is unchanged;
+- the loupe, the export's Activity row and `photocli render` and `export`
+  JSON all give the reason "could not be applied to this photo".
+
 **AC8 (R8).** Manual check on the owner's Mac. Turn ML on for a 24 MP raw.
 Progress shows until the frame arrives. Meanwhile, the arrow keys move to
 the next photo and rating keys still work.
@@ -200,10 +250,19 @@ the next photo and rating keys still work.
 **AC9 (R9).** Turning ML on, then pressing ⌘Z, returns the stack to its
 previous bytes. A Luminance drag is one undo step.
 
-**AC10 (R10, R11).** Copy from a raw with ML on, then paste onto a selection
-of one raw, one JPEG and one RAW+JPEG pair. The raw and the pair's RAW have
-ML on. The JPEG and the pair's JPEG do not. A preset saved with the Noise
-Reduction group carries the setting, and Reset All clears it.
+**AC10 (R10, R11).** Copy from a raw with ML on. Paste onto a selection of
+one raw, one JPEG and one RAW+JPEG pair; the pair shows its RAW, which is
+the default.
+
+- The raw and the pair's RAW have ML on.
+- The JPEG and the pair's JPEG do not.
+- A preset saved with the Noise Reduction group carries the setting.
+- Reset All clears it.
+- Run the same paste on macOS 15 or 26, or onto a raw from an unsupported
+  camera. The raw stores ML on and shows that ML was not applied.
+
+A pair shown as its JPEG is not covered: batch commands reach the file the
+grid shows, and a JPEG never gets ML (R11).
 
 **AC11 (R13).** `photocli adjustments` lists the parameter. `photocli
 develop --dry-run` with it on prints a stack with ML on. `render` and
@@ -294,10 +353,33 @@ To fill in from R14 on the owner's Mac.
   AC2 need another fixture we may commit; say what.
 - **Engineer.** Do draft mode and `scaleFactor` work under RAW 9 for
   interactive frames and thumbnails?
-- **Designer.** Where the control lives and its name. Whether it merges with
-  the Decoder pop-up (R3). How availability, "not applied" and progress are
-  shown (R5, R6, R8).
+- **Designer.** Answered in `design.md` §14.
+- **Engineer.** A test seam to force a RAW 9 decode failure on a supported
+  file (AC7a).
 
 ## Revisions
 
 - 2026-11-05: first version, from intake answered with all defaults.
+- 2026-11-05: product manager's rulings on design.md §13 RI-1 to RI-6. The
+  designer's recommendation was accepted in each case; none needed the owner,
+  since each follows from owner rulings 3 and 6. RI-7 is with the owner.
+  - **RI-1.** ML belongs to Noise Reduction. Profile's decoder choice
+    applies only while ML is off, and comes back when ML is turned off.
+    Profile presets, paste and the Profile group's on/off never touch ML.
+    Pre-feature stacks and presets holding `9.dng` read as ML on.
+    Addition: such a preset changes nothing else in Noise Reduction, so it
+    keeps doing what it did. Changed R3 and AC4.
+  - **RI-2.** Color is unavailable only while ML is on and applied. In the
+    fallback it is available and renders. Changed R4 and AC5.
+  - **RI-3.** Non-RAW is "not offered", not a named reason. Changed R5 and
+    AC6.
+  - **RI-4.** Batch commands store ML on every RAW file they reach, even
+    where it is not available. R6 applies there. Changed R10 and AC10.
+  - **RI-5.** AC10 now says the pair shows its RAW. R11 is unchanged.
+  - **RI-6.** A failed RAW 9 decode on a supported file is a fourth reason,
+    "could not be applied to this photo", handled as in R6. Changed R5 and
+    R6; added AC7a.
+- 2026-11-05: owner ruling on design.md §13 RI-7, "Yes, pin old default":
+  R2 covers future macOS defaults, and the pre-RAW 9 default decoder is
+  pinned for stacks that do not ask for ML. Added owner ruling 8; changed R2
+  and AC3.
