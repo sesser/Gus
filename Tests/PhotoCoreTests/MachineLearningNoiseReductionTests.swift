@@ -181,6 +181,28 @@ struct MachineLearningNoiseReductionTests {
         #expect(values.isEnabled(.profile) && values.decodeSettings == .none)
     }
 
+    @Test("A legacy stack whose Noise Reduction group was off reads as on inside the off group, which stays off (AC4, RI-E4)")
+    func legacyStackWithNoiseReductionOff() throws {
+        let stored = try Self.stack("""
+            {"operations":[{"id":"00000000-0000-4000-8000-000000000001","isEnabled":true,"kind":"rawDecode",\
+            "kindVersion":1,"parameters":{"decoderVersion":"9.dng"}},{"id":"00000000-0000-4000-8000-000000000011",\
+            "isEnabled":false,"kind":"noiseReduction","kindVersion":1,"parameters":{"luminance":20}}],"schemaVersion":1}
+            """)
+        let values = Adjustments(stack: stored)
+        #expect(values.asksForMachineLearning)
+        #expect(!values.isEnabled(.noiseReduction))
+        // Renders classically: the group asks for nothing while it is off.
+        #expect(!values.decodeSettings.machineLearning && values.decodeSettings.luminanceNoiseReduction == nil)
+        // Saved again, the group is still off and keeps the setting.
+        let saved = values.editStack.operations.first { $0.kind == NoiseReduction.kind }
+        #expect(saved?.isEnabled == false && saved?.parameters["machineLearning"] == .bool(true))
+        #expect(!values.editStack.operations.contains { $0.kind == RawDecode.kind })
+        // Turning the group on brings the machine learning decoder back.
+        var on = values
+        on.setEnabled(.noiseReduction, true)
+        #expect(on.decodeSettings.machineLearning)
+    }
+
     @Test("A legacy stack renders as before: with version 9 (AC4)", .enabled(if: hasMachineLearningDecoder, "needs the RAW decoder's version 9 (macOS 27 or later)"))
     func legacyStackRendersAsBefore() throws {
         let url = try Self.noisyDNG("legacy-render")
@@ -520,38 +542,43 @@ struct MachineLearningNoiseReductionTests {
         #expect(ml >= standard, "edge step: machine learning \(ml), classical \(standard)")
     }
 
-    @Test("Luminance is the machine learning amount: 100 leaves less noise than 0 (R4)",
+    /// AC1 (as ruled on RI-E1): on a synthetic DNG with 2 % noise and a
+    /// `NoiseProfile` tag, Luminance 100 under machine learning leaves less
+    /// high-frequency energy in flat areas than Luminance 0, through the
+    /// full-resolution export path and through `photocli render`. Whether it
+    /// beats the classical decoder is the owner's check on real raws (AC13).
+    @Test("Flat areas: machine learning at Luminance 100 is quieter than at 0, export path and photocli render (AC1)",
           .enabled(if: hasMachineLearningDecoder, "needs the RAW decoder's version 9 (macOS 27 or later)"))
-    func luminanceIsTheAmount() throws {
-        let url = try Self.stripes("amount")
+    func flatAreasAreQuieter() async throws {
+        let url = try Self.stripes("flat")
         let none = try Self.render(Self.adjustments {
             $0.noiseReduction = NoiseReduction(luminance: 0, machineLearning: true)
         }, source: url)
         let full = try Self.render(Self.adjustments {
             $0.noiseReduction = NoiseReduction(luminance: 100, machineLearning: true)
         }, source: url)
+        #expect(none.outcome == .applied && full.outcome == .applied)
         let low = Self.stripeMeasures(full.image).flat, high = Self.stripeMeasures(none.image).flat
-        #expect(low < high, "flat-area energy: Luminance 100 \(low), Luminance 0 \(high)")
-    }
+        #expect(low < high, "export path, flat-area energy: Luminance 100 \(low), Luminance 0 \(high)")
 
-    /// AC1 as the PRD words it. On the synthetic fixtures the classical
-    /// decoder at 100 leaves less high-frequency energy in flat areas than the
-    /// machine learning decoder (status.md, requirements issue RI-E1), so it
-    /// is disabled until the product manager rules on the fixture or the
-    /// measure.
-    @Test("Flat areas: the machine learning render has less high-frequency energy than classical at 100 (AC1)",
-          .disabled("Requirements issue RI-E1 in docs/features/ml-denoise/status.md: fails on synthetic DNGs"),
-          .enabled(if: hasMachineLearningDecoder, "needs the RAW decoder's version 9 (macOS 27 or later)"))
-    func flatAreasAreQuieter() throws {
-        let url = try Self.stripes("flat")
-        let learned = try Self.render(Self.adjustments {
-            $0.noiseReduction = NoiseReduction(luminance: 100, machineLearning: true)
-        }, source: url)
-        let classical = try Self.render(Self.adjustments {
-            $0.noiseReduction = NoiseReduction(luminance: 100, color: 100)
-        }, source: url)
-        let ml = Self.stripeMeasures(learned.image).flat, standard = Self.stripeMeasures(classical.image).flat
-        #expect(ml < standard, "flat-area energy: machine learning \(ml), classical \(standard)")
+        // The same through photocli render (16-bit TIFF, read back).
+        try await RepositoryFiles.withTemporaryDirectory { folder in
+            let cli = CommandLineInterface(environment: CommandEnvironment(currentDirectory: folder))
+            func rendered(_ luminance: Int) async throws -> (flat: Double, applied: JSONValue?) {
+                let out = folder.appending(path: "flat-\(luminance).tif")
+                let output = await cli.run(["render", url.path, "--out", out.path,
+                                            "--set", "noiseReduction.machineLearning=true",
+                                            "--set", "noiseReduction.luminance=\(luminance)"])
+                let json = try JSONValue.parse(output.standardOutput)
+                let image = try #require(CIImage(contentsOf: out))
+                return (Self.stripeMeasures(ReferenceTests.renderLinear(image)).flat, json["machineLearning"]?["applied"])
+            }
+            let cliNone = try await rendered(0)
+            let cliFull = try await rendered(100)
+            #expect(cliNone.applied == .bool(true) && cliFull.applied == .bool(true))
+            #expect(cliFull.flat < cliNone.flat,
+                    "photocli render, flat-area energy: Luminance 100 \(cliFull.flat), Luminance 0 \(cliNone.flat)")
+        }
     }
 }
 
