@@ -15,7 +15,7 @@ import PhotoUI
 ///     selectall             addkeywords <a, b>      keyentry      text <typed text>
 ///     undo | redo           inspector on|off        keyword <n>   (sidebar keyword n, 0-based)
 ///     print <what>          (state for checks: selection, keywords, undo, suggestions, items, hdr, announcement,
-///                           title (title, subtitle, filter and sort), activity,
+///                           title (title, subtitle, filter and sort), activity, empty (the browser's empty state),
 ///                           loupe [<x> <y>]: mode, magnification, visible rect, image point under x y)
 ///     suggest               (analyzes the selection and waits)      accept <keyword>
 ///     album <name>          (from the selection)    smartalbum <name>  (rating ≥ 3)     remove
@@ -821,6 +821,10 @@ enum DebugScript {
             let potential = window?.screen?.maximumPotentialExtendedDynamicRangeColorComponentValue ?? 1
             let headroom = model.loupeHDRHeadroom.map { String(format: "%.2f", $0) } ?? "none"
             print("debug-script: hdr setting \(model.showsHDR) screen potential \(potential) loupe headroom \(headroom)")
+        case "empty":
+            // The browser's empty state (design.md N3), as the view chooses it.
+            print("debug-script: empty \(model.emptyState.map { "\($0)" } ?? "none") source '\(model.title(for: model.sidebarSelection))'"
+                  + " showing \(model.itemCount) library \(model.libraryCount) filtered \(model.isFiltered)")
         case "selection":
             print("debug-script: selection \(model.selection.count), focus \(model.focusIndex.map(String.init) ?? "-")")
         case "keywords":

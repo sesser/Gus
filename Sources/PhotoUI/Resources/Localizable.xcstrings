@@ -3141,6 +3141,17 @@
         }
       }
     },
+    "Drag photos onto the album in the sidebar, or choose Photo ▸ Add to Album." : {
+      "comment" : "Empty album",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag photos onto the album in the sidebar, or choose Photo ▸ Add to Album."
+          }
+        }
+      }
+    },
     "Drag to resize the film strip" : {
       "comment" : "Tooltip of the film strip's resize handle",
       "localizations" : {
@@ -5945,6 +5956,17 @@
         }
       }
     },
+    "No Photos in “%@”" : {
+      "comment" : "Empty album, smart album, keyword, date, project or built-in source; its name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Photos in “%@”"
+          }
+        }
+      }
+    },
     "No Photos on %@" : {
       "comment" : "Import window: the source holds no photos",
       "localizations" : {
@@ -6039,6 +6061,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No photo"
+          }
+        }
+      }
+    },
+    "No photo meets this smart album's rules." : {
+      "comment" : "Empty smart album",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No photo meets this smart album's rules."
           }
         }
       }

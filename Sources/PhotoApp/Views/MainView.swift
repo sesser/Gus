@@ -102,8 +102,8 @@ struct BrowserView: View {
                 Spacer()
             }
             .allowsHitTesting(false)
-            if model.itemCount == 0, model.mode == .grid, !model.isFolderDropTargeted {
-                EmptyLibraryView(model: model)
+            if model.mode == .grid, !model.isFolderDropTargeted, let state = model.emptyState {
+                EmptyBrowserView(model: model, state: state)
             }
         }
         .onDrop(of: FolderDrop.types, isTargeted: $model.isFolderDropTargeted) { providers in
@@ -115,19 +115,24 @@ struct BrowserView: View {
     }
 }
 
-/// "No Photos Yet" with Import and Add Folder Without Copying, or "No Photos
-/// Match" with Clear Filter (section 9 of docs/UI_REDESIGN.md).
-private struct EmptyLibraryView: View {
+/// "No Photos Yet" with Import and Add Folder Without Copying, "No Photos
+/// Match" with Clear Filter (section 9 of docs/UI_REDESIGN.md), or "No Photos
+/// in “‹source›”" (design.md N3).
+private struct EmptyBrowserView: View {
     let model: LibraryModel
+    let state: EmptySourceState
 
     var body: some View {
-        if model.isFiltered {
+        switch state {
+        case .noMatches:
             ContentUnavailableView {
                 Label("No Photos Match", systemImage: "line.3.horizontal.decrease.circle")
             } actions: {
                 Button("Clear Filter") { model.clearFilter() }
             }
-        } else {
+        case .emptySource(let kind):
+            emptySource(kind)
+        case .emptyLibrary:
             ContentUnavailableView {
                 Label("No Photos Yet", systemImage: "photo.stack")
             } description: {
@@ -145,6 +150,36 @@ private struct EmptyLibraryView: View {
                     .disabled(model.isImporting)
             }
         }
+    }
+
+    /// The source's own state: an album says how photos get in, a smart album
+    /// points at its rules; other sources have the title only.
+    @ViewBuilder
+    private func emptySource(_ kind: EmptySourceState.SourceKind) -> some View {
+        let title = String(localized: "No Photos in “\(model.title(for: model.sidebarSelection))”",
+                           comment: "Empty album, smart album, keyword, date, project or built-in source; its name")
+        ContentUnavailableView {
+            Label(title, systemImage: "photo.stack")
+        } description: {
+            switch kind {
+            case .album:
+                Text("Drag photos onto the album in the sidebar, or choose Photo ▸ Add to Album.",
+                     comment: "Empty album")
+            case .smartAlbum:
+                Text("No photo meets this smart album's rules.", comment: "Empty smart album")
+            case .other:
+                EmptyView()
+            }
+        } actions: {
+            if kind == .smartAlbum, let album = selectedSmartAlbum {
+                Button("Edit Smart Album…") { model.sidebarSheet = .smartAlbum(album, projectID: album.projectID) }
+            }
+        }
+    }
+
+    private var selectedSmartAlbum: SmartAlbum? {
+        guard case .smartAlbum(let id) = model.sidebarSelection else { return nil }
+        return model.smartAlbums.first { $0.id == id }
     }
 }
 

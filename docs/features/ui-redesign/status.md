@@ -5,7 +5,8 @@ Owner: swift-macos-engineer. Tracks the engineer changes E1–E28 in
 `feature/ui-redesign-reconcile-impl`, cut from `develop` at `adb8d95`.
 
 States: Not started · In progress · Done · Blocked (waiting on a question
-below) · Deferred. "Commit" is the commit that finished the change.
+below) · Deferred. "Commit" is the subject of the commit that finished the
+change (`git log --grep "(E1)"` finds it).
 "Manual" means a person has to look at the bundled app; those checks belong
 to `ui-redesign-onscreen-check` unless noted.
 
@@ -14,13 +15,14 @@ to `ui-redesign-onscreen-check` unless noted.
 - Baseline at `adb8d95` (2026-11-04): `swift build` clean; `swift test` 468
   tests in 84 suites passed, 1 known issue (the `withKnownIssue` in "Live
   render session", pre-existing).
-- Latest: see the last commit on the branch; updated with each change below.
+- Latest (with E1): `swift build` clean, no warnings; `swift test` 474 tests
+  in 85 suites passed, 1 known issue (the same).
 
 ## Changes
 
 | # | Pri | Change | State | Commit | Verified by |
 |---|---|---|---|---|---|
-| E1 | High | Empty-source states (N3) | Not started | | |
+| E1 | High | Empty-source states (N3) | Done | Show a source's own empty state (E1) | Rule: `EmptySourceState` (PhotoCore), suite "Empty source states" (each kind, library empty, filtered, non-empty). Debug script on a scratch library: `album`, `sidebar album 0`, `remove`, `print empty` → `emptySource(album)`; `smartalbum`, `sidebar smart 0` → `emptySource(smartAlbum)`; `sidebar builtin picks` → `emptySource(other)`; `rating 5` → `noMatches`. `snapshot` of the album and smart album shows the title, description, Edit Smart Album… and no Import buttons. Manual: Edit Smart Album… opens the editor; symbol choice is provisional (D-Q1) |
 | E2 | Medium | Adjust tab states as `ContentUnavailableView` (N1) | Not started | | |
 | E3 | Medium | Settings check boxes (I10) | Not started | | |
 | E4 | Medium | Adjust ▸ Import Look-Up Tables… (N5) | Not started | | |
@@ -53,7 +55,13 @@ to `ui-redesign-onscreen-check` unless noted.
 
 ### Design questions (apple-ui-designer)
 
-None yet.
+- **D-Q1 (E1): symbol for "No Photos in “‹source›”".** N3 gives the title,
+  descriptions and button but no symbol. Built with `photo.stack`, the
+  empty library's symbol, as a placeholder. Options: keep `photo.stack`
+  (no cost); use the source's sidebar symbol (`rectangle.stack`, the smart
+  album symbol, `calendar`, `tag`, `folder`…; a small mapping shared with
+  the sidebar); or no symbol (title only; no cost). Recommendation: the
+  source's sidebar symbol, which ties the state to the selected row.
 
 ### Requirements issues (product-manager)
 

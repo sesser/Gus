@@ -331,6 +331,17 @@ final class LibraryModel {
         ratingRule != .any || flagRule != .any || !LibraryFilter(search: searchText).searchTerms.isEmpty
     }
 
+    /// What the browser shows instead of the grid, nil while it has photos.
+    var emptyState: EmptySourceState? {
+        let kind: EmptySourceState.SourceKind = switch sidebarSelection {
+        case .album: .album
+        case .smartAlbum: .smartAlbum
+        default: .other
+        }
+        return EmptySourceState.resolve(shownCount: itemCount, libraryCount: libraryCount, isFiltered: isFiltered,
+                                        source: kind)
+    }
+
     // MARK: Items, focus, selection
 
     /// Not observed: the grid and the film strip are told about changes
