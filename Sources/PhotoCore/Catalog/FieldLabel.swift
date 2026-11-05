@@ -50,9 +50,9 @@ public enum FieldLabel: String, CaseIterable, Hashable, Sendable {
 }
 
 extension MetadataPreset {
-    /// The fields the metadata preset editor shows, in order: its
-    /// Description section, then Contact.
-    public static let editorFields: (description: [DescriptiveField], contact: [DescriptiveField]) = (
+    /// The fields the metadata preset editor shows, in order: its Metadata
+    /// section, then Contact.
+    public static let editorFields: (metadata: [DescriptiveField], contact: [DescriptiveField]) = (
         [.creator, .rights, .usageTerms, .caption],
         [.email, .phone, .url, .address, .city, .region, .postalCode, .country]
     )

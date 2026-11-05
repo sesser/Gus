@@ -417,8 +417,9 @@ private struct PresetEditor: View {
             Form {
                 TextField("Preset name", text: $preset.name)
                 // The shared field labels (design.md I9), in the editor's order.
-                Section("Description") {
-                    ForEach(MetadataPreset.editorFields.description, id: \.self, content: field)
+                // The Info tab's heading for these fields (design.md I8).
+                Section("Metadata") {
+                    ForEach(MetadataPreset.editorFields.metadata, id: \.self, content: field)
                 }
                 Section("Contact") {
                     ForEach(MetadataPreset.editorFields.contact, id: \.self, content: field)

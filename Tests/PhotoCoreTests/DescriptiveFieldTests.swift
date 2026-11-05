@@ -152,7 +152,7 @@ struct FieldLabelTests {
     }
 
     @Test func thePresetEditorsFieldsEachHaveOneLabel() {
-        let fields = MetadataPreset.editorFields.description + MetadataPreset.editorFields.contact
+        let fields = MetadataPreset.editorFields.metadata + MetadataPreset.editorFields.contact
         #expect(Set(fields).count == fields.count)
         #expect(Set(fields.map(FieldLabel.init)).count == fields.count)
         // Its contact section is the Info tab's contact details, without creator and job title.
