@@ -98,9 +98,9 @@ private struct ImportToolbar: ToolbarContent {
         ToolbarItem {
             Menu {
                 Button("Select All") { model.selectAll() }
-                    .disabled(!model.shots.contains { !$0.isDuplicate })
+                    .disabled(!model.canSelectAll)
                 Button("Deselect All") { model.selectNone() }
-                    .disabled(model.selection.isEmpty)
+                    .disabled(!model.canDeselectAll)
                 Divider()
                 Toggle("Show Videos", isOn: $model.includesVideos)
                     .disabled(model.isImporting)

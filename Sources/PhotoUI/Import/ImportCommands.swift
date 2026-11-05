@@ -100,7 +100,7 @@ public struct ImportMenuContext: Equatable {
     }
 
     /// Edit ▸ Deselect All (⇧⌘A) for the import window.
-    public var canDeselectAll: Bool { state.selectedCount > 0 && !state.isImporting }
+    public var canDeselectAll: Bool { state.canDeselectAll }
 
     @MainActor
     public func deselectAll() {
@@ -124,6 +124,7 @@ struct ImportMenuState: Equatable {
     var showsDuplicates: Bool
     var copiesOnly: Bool
     var showsOptions: Bool
+    var canDeselectAll: Bool
 
     @MainActor
     init(_ model: CardImportModel) {
@@ -135,6 +136,7 @@ struct ImportMenuState: Equatable {
         showsDuplicates = model.showsDuplicates
         copiesOnly = model.copiesOnly
         showsOptions = model.showsOptions
+        canDeselectAll = model.canDeselectAll
     }
 }
 

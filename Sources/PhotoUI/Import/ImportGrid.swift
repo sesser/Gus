@@ -173,11 +173,10 @@ final class ImportGridController: NSObject, NSCollectionViewDataSource, NSCollec
                 menu.addItem(.separator())
             }
         }
-        let selectable = shots.contains { !$0.isDuplicate }
         let all = ClosureMenuItem(String(localized: "Select All")) { [weak self] in self?.model.selectAll() }
-        all.isEnabled = selectable
+        all.isEnabled = model.canSelectAll
         let none = ClosureMenuItem(String(localized: "Deselect All")) { [weak self] in self?.model.selectNone() }
-        none.isEnabled = !selection.isEmpty
+        none.isEnabled = model.canDeselectAll
         menu.addItem(all)
         menu.addItem(none)
         menu.autoenablesItems = false
@@ -224,8 +223,11 @@ final class ImportCollectionView: NSCollectionView {
     /// Edit ▸ Select All (⌘A) while the grid has the focus; text fields keep
     /// theirs.
     override func selectAll(_ sender: Any?) {
+        guard controller?.model.canSelectAll == true else { return }
         controller?.model.selectAll()
     }
+
+
 
     override func becomeFirstResponder() -> Bool {
         let became = super.becomeFirstResponder()
@@ -281,5 +283,14 @@ final class ClosureMenuItem: NSMenuItem {
 
     @objc private func run() {
         handler()
+    }
+}
+
+/// Edit ▸ Select All is dimmed while copying, as the Selection pull-down's is
+/// (design.md I16). Other items stay enabled, as without validation.
+extension ImportCollectionView: NSMenuItemValidation {
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(selectAll(_:)) { return controller?.model.canSelectAll == true }
+        return true
     }
 }
