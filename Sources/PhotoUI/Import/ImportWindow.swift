@@ -368,6 +368,8 @@ private struct PresetEditor: View {
     @State var preset: MetadataPreset
     let onSave: (MetadataPreset) -> Void
     let onDelete: (Int64) -> Void
+    /// Delete Preset… asks first (design.md I11).
+    @State private var confirmsDeletion = false
     @Environment(\.dismiss) private var dismiss
 
     private func text(_ path: WritableKeyPath<SidecarValues, String?>) -> Binding<String> {
@@ -427,11 +429,8 @@ private struct PresetEditor: View {
             }
             .formStyle(.grouped)
             HStack {
-                if let id = preset.id {
-                    Button("Delete Preset", role: .destructive) {
-                        onDelete(id)
-                        dismiss()
-                    }
+                if preset.id != nil {
+                    Button("Delete Preset…", role: .destructive) { confirmsDeletion = true }
                 }
                 Spacer()
                 Button("Cancel", role: .cancel) { dismiss() }
@@ -446,5 +445,16 @@ private struct PresetEditor: View {
             .padding(12)
         }
         .frame(width: 460, height: 560)
+        .alert(String(localized: "Delete the preset “\(preset.name)”?",
+                      comment: "Alert before deleting an adjustment or metadata preset; its name"),
+               isPresented: $confirmsDeletion) {
+            Button("Delete", role: .destructive) {
+                if let id = preset.id { onDelete(id) }
+                dismiss()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Copies already imported keep their metadata.", comment: "Delete metadata preset alert")
+        }
     }
 }

@@ -2470,6 +2470,17 @@
         }
       }
     },
+    "Copies already imported keep their metadata." : {
+      "comment" : "Delete metadata preset alert",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copies already imported keep their metadata."
+          }
+        }
+      }
+    },
     "Copy Adjustments" : {
       "comment" : "Photo menu and Presets menu item",
       "localizations" : {
@@ -2877,13 +2888,13 @@
         }
       }
     },
-    "Delete Preset" : {
-      "comment" : "Preset editor button",
+    "Delete Preset…" : {
+      "comment" : "Metadata preset editor: deletes the preset after asking",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Delete Preset"
+            "value" : "Delete Preset…"
           }
         }
       }
@@ -2939,6 +2950,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Delete the keyword “%@”?"
+          }
+        }
+      }
+    },
+    "Delete the preset “%@”?" : {
+      "comment" : "Alert before deleting an adjustment or metadata preset; its name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete the preset “%@”?"
           }
         }
       }
@@ -6542,6 +6564,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Photos are never enlarged."
+          }
+        }
+      }
+    },
+    "Photos it was applied to keep their adjustments." : {
+      "comment" : "Delete adjustment preset alert",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photos it was applied to keep their adjustments."
           }
         }
       }

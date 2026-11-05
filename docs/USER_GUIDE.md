@@ -190,7 +190,8 @@ gives one copy. Lightroom settings with no equivalent here (calibration,
 masks, texture, crop, lens corrections and the like) are left out, and the
 import lists them. **Manage Presets…** opens a sheet that renames, moves,
 exports and deletes presets and collections, and changes what each includes;
-changes apply at once, and Done closes it. An exported preset
+changes apply at once (deleting a preset or a collection asks first), and Done
+closes it. An exported preset
 file carries the look-up tables its presets use, so it looks the same in
 another library; double-clicking one in the Finder imports it.
 
