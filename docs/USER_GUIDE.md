@@ -23,7 +23,7 @@ Year; the Insert menu adds them, typing `{…}` makes one when you leave the
 field, copy and paste keep the `{…}` form, and an example under the field
 shows the result), the project (a new one named from a template, or an existing one), a
 job code and a metadata preset (creator, copyright such as
-`© {capture:yyyy} Your Name`, usage terms, contact; written to sidecars, the
+`© {capture:yyyy} Your Name`, usage terms, description, contact; written to sidecars, the
 copies stay identical to the originals). **Import N Photos** in the toolbar
 (or Return) starts; it becomes **Stop** (⌘.) while copying, with progress
 beside it. Every copy is read back and compared by hash before it counts. Optionally, the originals that were copied and checked
@@ -62,7 +62,7 @@ photos the library does not have yet, and a folder with nothing new makes none.
 | ⌘= and ⌘− | thumbnail size | zoom in / out |
 | ⌘Return | switch grid / loupe | switch grid / loupe |
 | ⇧⌘A | keep only the focused photo selected | |
-| ⌘. | stop the newest export, folder add or import (**File ▸ Stop …**) | same |
+| ⌘. | stop the newest export, folder add or import (**File ▸ Stop Export**, **Stop Adding Folders** or **Stop Import**) | same |
 | ⌘K | add keywords | add keywords |
 | ⌘I | import from a card or folder | |
 | ⌘N, ⌥⌘N | new album, new smart album | |
