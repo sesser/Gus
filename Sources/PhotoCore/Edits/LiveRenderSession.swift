@@ -10,11 +10,21 @@ import Synchronization
 /// noise reduction of a RAW file) decodes again, at half size in draft mode while
 /// a control is being dragged.
 public actor LiveRenderSession {
+    /// What a frame shows.
+    public enum Content: Sendable, Equatable {
+        case photo
+        /// The sharpening map in place of the photo (`AdjustmentRenderer.sharpeningMask`).
+        case sharpeningMap
+    }
+
     /// One rendered frame, ready for a layer.
     public struct Frame: Sendable {
         public let image: DecodedImage
-        /// Nil while a mask overlay is drawn over the frame.
+        /// Nil while a mask overlay is drawn over the frame, and for the sharpening map.
         public let histogram: Histogram?
+        public let content: Content
+        /// The mask overlay is drawn over the photo.
+        public let hasOverlay: Bool
         public let adjustments: Adjustments
         /// The mask frame's size in pixels (the decoded image before turns,
         /// straightening and crop): its proportions place masks on screen.
@@ -25,6 +35,10 @@ public actor LiveRenderSession {
         public let seconds: Double
         /// The render stored something in the stage cache (a slower frame, once).
         public let filledCache: Bool
+
+        /// The frame shows the photo as it is (no overlay, not the map): only
+        /// such a frame may give the histogram or become a cached preview.
+        public var showsPhoto: Bool { content == .photo && !hasOverlay }
     }
 
     /// An interactive frame slower than this (seconds) makes the next one a
@@ -93,14 +107,18 @@ public actor LiveRenderSession {
     ///
     /// With `prefill`, only fills the cache for a coming drag of the mask at
     /// that index of the rendered masks, and returns once it is filled.
+    ///
+    /// With `untilSharpening`, returns the image entering the sharpening
+    /// step instead of the frame (for the sharpening map).
     private func staged(_ adjustments: Adjustments, renderer: AdjustmentRenderer, source: CIImage,
                         context: RenderContext, baseKey: String, cancellation: RenderCancellation?,
-                        prefill: Int? = nil) throws -> CIImage {
+                        prefill: Int? = nil, untilSharpening: Bool = false) throws -> CIImage {
         let values = adjustments.effective
         let masks = values.local.renderedMasks
         guard !values.isDefault, !masks.isEmpty else {
             stages = StageCache()
-            return renderer.render(values, to: source, context: context)
+            return untilSharpening ? renderer.sharpeningInput(values, to: source, context: context)
+                                   : renderer.render(values, to: source, context: context)
         }
         let crop = AdjustmentRenderer.crop(values, context: context)
         var upstream = values
@@ -168,6 +186,7 @@ public actor LiveRenderSession {
             sharpening += step.sharpening
             try cancellation?.check()
         }
+        if untilSharpening { return renderer.beforeSharpening(values, image, context: context) }
         return renderer.downstream(values, image, sharpening: sharpening, context: context)
     }
 
@@ -202,8 +221,13 @@ public actor LiveRenderSession {
     /// reduced copy of the decoded master, with `RenderContext.scale` reduced
     /// to match, so radii keep their size relative to the photo. Other frames
     /// are always full size.
+    ///
+    /// With `content` `.sharpeningMap` the frame shows the sharpening map of
+    /// `adjustments` at the frame's scale (an estimate of the full-resolution
+    /// map, `SharpeningMapRefiner`), with no overlay and no histogram.
     public func render(_ adjustments: Adjustments, interactive: Bool = false, allowsDrafts: Bool = true,
-                       overlayMask: UUID? = nil, cancellation: RenderCancellation? = nil) throws -> Frame {
+                       overlayMask: UUID? = nil, content: Content = .photo,
+                       cancellation: RenderCancellation? = nil) throws -> Frame {
         let clock = ContinuousClock()
         let started = clock.now
         let drafting = interactive && allowsDrafts
@@ -225,10 +249,15 @@ public actor LiveRenderSession {
             (source, context) = try draft(of: base, key: baseKey, factor: factor)
         }
         var image = try linear(adjustments, source: source, context: context, level: level, baseKey: baseKey,
-                               cancellation: cancellation)
+                               cancellation: cancellation, untilSharpening: content == .sharpeningMap)
         try cancellation?.check()
+        if content == .sharpeningMap {
+            // The stored Sharpening values, also while the group is turned off (design §11).
+            image = AdjustmentRenderer.sharpeningMapDisplay(
+                AdjustmentRenderer.sharpeningMask(image, adjustments.sharpen, scale: context.scale))
+        }
         var overlaid = false
-        if let overlayMask, let adjusting = renderer as? AdjustmentRenderer,
+        if content == .photo, let overlayMask, let adjusting = renderer as? AdjustmentRenderer,
            let alpha = adjusting.maskAlpha(adjustments, id: overlayMask, to: source, context: context) {
             // Red at half the mask's alpha over the photo.
             let red = CIImage(color: CIColor(red: 1, green: 0.1, blue: 0.1)).cropped(to: image.extent)
@@ -243,27 +272,35 @@ public actor LiveRenderSession {
         guard let rendered = generator.engine.makeCGImage(image, colorSpace: colorSpace) else {
             throw PreviewGenerator.Failure.renderFailed
         }
-        let histogram = overlaid ? nil : Histogram(image: rendered)
+        let histogram = overlaid || content != .photo ? nil : Histogram(image: rendered)
         let elapsed = (clock.now - started).components
         let seconds = Double(elapsed.seconds) + Double(elapsed.attoseconds) / 1e18
         // A frame that filled the stage cache is slow once; it says nothing about the next.
         if drafting, !filledCache { adapt(level: level, seconds: seconds) }
-        return Frame(image: DecodedImage(cgImage: rendered), histogram: histogram, adjustments: adjustments,
+        return Frame(image: DecodedImage(cgImage: rendered), histogram: histogram, content: content,
+                     hasOverlay: overlaid, adjustments: adjustments,
                      maskFrameSize: CGSize(width: base.image.width, height: base.image.height),
                      scale: factor, seconds: seconds, filledCache: filledCache)
     }
 
     /// The render in the working space before output (cached stages or whole).
+    /// With `untilSharpening`, the image entering the sharpening step instead.
     private func linear(_ adjustments: Adjustments, source: CIImage, context: RenderContext, level: Int,
-                        baseKey: String, cancellation: RenderCancellation?) throws -> CIImage {
+                        baseKey: String, cancellation: RenderCancellation?, untilSharpening: Bool = false) throws -> CIImage {
         let renderer = generator.renderer
+        if untilSharpening, !cachesStages {
+            // The map is the adjustment renderer's sharpening step; no other renderer has one.
+            guard let adjusting = renderer as? AdjustmentRenderer else { throw PreviewGenerator.Failure.renderFailed }
+            return adjusting.sharpeningInput(adjustments, to: source, context: context)
+        }
         guard cachesStages, let adjusting = renderer as? AdjustmentRenderer else {
+            if untilSharpening { throw PreviewGenerator.Failure.renderFailed }
             return try renderer.apply(adjustments.editStack, to: source, context: context)
         }
         stages = stageCaches[level] ?? StageCache()
         defer { stageCaches[level] = stages }
         return try staged(adjustments, renderer: adjusting, source: source, context: context, baseKey: baseKey,
-                          cancellation: cancellation)
+                          cancellation: cancellation, untilSharpening: untilSharpening)
     }
 
     /// A full-size frame in the extended linear working space, as 32-bit
