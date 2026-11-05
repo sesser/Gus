@@ -81,6 +81,7 @@ import PhotoUI
 ///     copyadjust            pasteadjust            preset save|apply|delete|preview <name> | preset (prints them)
 ///     preset import <path>…  (prints the summary)   preset summary <path>… (imports, shows the alert)
 ///     preset export <file> [<name>]                 preset window | windowshot <png> (the sheet)
+///     preset previewend     (ends a preset preview, as the pointer leaving it does)
 ///     export window | windowshot <png> | set <key>=<value>… | template <text> | run [keepboth|overwrite|skip]
 ///            | preset save|apply|delete <name> | print   (see DebugExportCommands)
 ///
@@ -411,6 +412,10 @@ enum DebugScript {
                     model.previewAdjustmentPreset(preset)
                     try? await Task.sleep(for: .milliseconds(600))
                 }
+            case "previewend":
+                // The pointer leaves the preset: the applied values again.
+                model.editor.endPreview()
+                try? await Task.sleep(for: .milliseconds(600))
             case "window":
                 model.showsPresetSheet = true
                 try? await Task.sleep(for: .milliseconds(500))
@@ -946,7 +951,14 @@ enum DebugScript {
             let badge = shown.map(SharpeningMapText.badge) ?? "-"
             let details = InspectorExpansion.shared.isExpanded(LibraryModel.detailsExpansionKey, family: .adjust, default: true)
             print("debug-script: sharpenmap asked \(editor.showsSharpeningMap) onScreen \(shown != nil)"
-                  + " badge '\(badge)' refining \(editor.isRefiningSharpeningMap) canShow \(model.canShowSharpeningMap)")
+                  + " badge '\(badge)' refining \(editor.isRefiningSharpeningMap) canShow \(model.canShowSharpeningMap)"
+                  + " fullResolution \(editor.holdsFullResolutionMap)")
+            let frame = editor.frame.map { frame in
+                "\(frame.content == .sharpeningMap ? "map" : "photo") of "
+                    + (frame.adjustments == editor.adjustments ? "applied values" : "other values")
+                    + " masking \(Int(frame.adjustments.sharpen.masking))"
+            } ?? "none"
+            print("debug-script: sharpenmap frame \(frame)")
             print("debug-script: sharpenmap overlay \(editor.showsMaskOverlay) original \(editor.showsOriginal)"
                   + " live \(editor.showsLive) histogram \(editor.histogram != nil) inspector \(model.showsInspector)"
                   + " tab \(model.inspectorTab) details expanded \(details)")
