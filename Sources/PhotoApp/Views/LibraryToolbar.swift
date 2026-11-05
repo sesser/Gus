@@ -47,7 +47,7 @@ struct LibraryToolbar: CustomizableToolbarContent {
                 Label("Export", systemImage: "square.and.arrow.up")
             }
             .help("Export the selected photos")
-            .disabled(model.itemCount == 0 || model.export.isExporting)
+            .disabled(!LibraryMenuState(model).canExport)
         }
         groupSpacer()
         ToolbarItem(id: "mode") {

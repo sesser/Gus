@@ -89,7 +89,7 @@ struct LibraryCommands: Commands {
             Divider()
             Button("Export…") { model?.export.begin() }
                 .keyboardShortcut("e", modifiers: [.command, .shift])
-                .disabled(!can { $0.itemCount > 0 && !$0.isExporting })
+                .disabled(!can { $0.canExport })
             Button("Check for Changes on Disk") { model?.checkForDiskChanges() }
                 .disabled(!can { !$0.isCheckingDisk })
             Divider()

@@ -1066,6 +1066,9 @@ final class LibraryModel {
 
     /// The selection in the grid, or the photo on screen in the loupe.
     var actionTargets: IndexSet {
+        // `selection` is not observed: menus and toolbar items that depend on
+        // the targets refresh through its revision.
+        _ = selectionRevision
         if mode == .loupe || selection.isEmpty {
             return focusIndex.map { IndexSet(integer: $0) } ?? []
         }

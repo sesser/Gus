@@ -58,6 +58,8 @@ struct LibraryMenuState: Equatable {
     var sidebarItem: SidebarItem?
     var isImporting: Bool
     var isExporting: Bool
+    /// File ▸ Export…, the toolbar's Export and the context menu's Export….
+    var canExport: Bool
     var isCheckingDisk: Bool
     var hiddenSidebarSections: Set<SidebarSection>
 
@@ -121,6 +123,7 @@ struct LibraryMenuState: Equatable {
         }
         isImporting = model.isImporting
         isExporting = model.export.isExporting
+        canExport = ExportTargets.canExport(model.actionTargets.lazy.map { model.items[$0] }, isExporting: isExporting)
         isCheckingDisk = model.isCheckingDisk
         hiddenSidebarSections = model.hiddenSidebarSections
     }

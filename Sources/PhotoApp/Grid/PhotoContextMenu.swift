@@ -111,11 +111,14 @@ enum PhotoContextMenu {
             menu.addItem(ActionMenuItem(String(localized: "Rotate Left")) { model.rotate(clockwise: false) })
             menu.addItem(ActionMenuItem(String(localized: "Rotate Right")) { model.rotate(clockwise: true) })
         }
-        menu.addItem(.separator())
-        if state.itemCount > 0 && !state.isExporting {
+        let showsPair = state.groupPairs && model.focusedItem?.representsPair == true
+        if state.canExport || showsPair {
+            menu.addItem(.separator())
+        }
+        if state.canExport {
             menu.addItem(ActionMenuItem(String(localized: "Export…")) { model.export.begin() })
         }
-        if state.groupPairs, model.focusedItem?.representsPair == true {
+        if showsPair {
             menu.addItem(submenu(String(localized: "RAW+JPEG Pair"), [
                 ActionMenuItem(String(localized: "Show the RAW File")) { model.showPairFile(raw: true) },
                 ActionMenuItem(String(localized: "Show the JPEG or HEIC File")) { model.showPairFile(raw: false) },

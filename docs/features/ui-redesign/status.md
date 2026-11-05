@@ -15,8 +15,8 @@ to `ui-redesign-onscreen-check` unless noted.
 - Baseline at `adb8d95` (2026-11-04): `swift build` clean; `swift test` 468
   tests in 84 suites passed, 1 known issue (the `withKnownIssue` in "Live
   render session", pre-existing).
-- Latest (with E1): `swift build` clean, no warnings; `swift test` 474 tests
-  in 85 suites passed, 1 known issue (the same).
+- Latest (with E12): `swift build` clean, no warnings; `swift test` 478 tests
+  in 86 suites passed, 1 known issue (the same).
 
 ## Changes
 
@@ -33,7 +33,7 @@ to `ui-redesign-onscreen-check` unless noted.
 | E9 | Medium | Video loupe context menu (N9) | Not started | | |
 | E10 | Medium | Edit ▸ Deselect All ⇧⌘A, shared item (I5) | Not started | | |
 | E11 | Medium | File ▸ Stop ‹job› ⌘., shared item (I4) | Not started | | |
-| E12 | High | Export enablement: targets include a photo, no export running (I1) | Not started | | |
+| E12 | High | Export enablement: targets include a photo, no export running (I1) | Done | Enable Export only for photo targets (E12) | Rule: `ExportTargets.canExport` (PhotoCore), suite "Export enablement" (videos only, mixed, pair, while exporting, stops at the first photo). Debug script launched with `open -W -n`: `focus MVI_00007; menuitems Export` → File/Export… disabled; `contextmenu cell 0` on a video lists no Export…; on a photo and after `selectall` it is enabled / listed. The toolbar item uses the same `LibraryMenuState.canExport`; manual on-screen check that it dims (glass) |
 | E13 | High | Add Folder Without Copying… always enabled, queues (I2) | Not started | | |
 | E14 | High | Export results in Activity only, no alert (I3, D2) | Not started | | |
 | E15 | Medium | Suggest Keywords shows Info ▸ Keywords (I7) | Not started | | |

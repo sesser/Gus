@@ -502,3 +502,43 @@ struct RGBA {
         return (bytes[offset], bytes[offset + 1], bytes[offset + 2])
     }
 }
+
+@Suite("Export enablement")
+struct ExportEnablementTests {
+    private func item(_ id: Int64, _ path: String) -> CatalogItem {
+        CatalogItem(versionID: id, imageID: id, volumeID: 1, rating: .unrated, flag: .none, colorLabel: .none,
+                    contentHash: "", editStackHash: "", relativePath: path, pixelWidth: 100, pixelHeight: 100,
+                    orientation: 1)
+    }
+
+    @Test func needsAPhotoAmongTheTargets() {
+        let photo = item(1, "Shoot/a.jpg")
+        let video = item(2, "Shoot/clip.mov")
+        #expect(!ExportTargets.canExport([CatalogItem](), isExporting: false))
+        #expect(!ExportTargets.canExport([video], isExporting: false))
+        #expect(ExportTargets.canExport([video, photo], isExporting: false))
+        #expect(ExportTargets.canExport([photo], isExporting: false))
+    }
+
+    @Test func aPairCountsAsAPhoto() {
+        var pair = item(3, "Shoot/b.ORF")
+        pair.partnerVersionID = 4
+        pair.partnerKind = .jpeg
+        pair.representsPair = true
+        #expect(ExportTargets.canExport([pair], isExporting: false))
+    }
+
+    @Test func notWhileAnExportRuns() {
+        #expect(!ExportTargets.canExport([item(1, "Shoot/a.jpg")], isExporting: true))
+    }
+
+    @Test func stopsAtTheFirstPhoto() {
+        var visited = 0
+        let targets = (0..<50_000).lazy.map { index -> CatalogItem in
+            visited += 1
+            return item(Int64(index), index == 0 ? "Shoot/a.mov" : "Shoot/a.jpg")
+        }
+        #expect(ExportTargets.canExport(targets, isExporting: false))
+        #expect(visited == 2)
+    }
+}
