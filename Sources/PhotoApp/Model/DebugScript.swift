@@ -40,6 +40,15 @@ import PhotoUI
 ///                           elements with that role, e.g. AXImage, or runs an action on the nth; see AccessibilityProbe)
 ///     scroll <y>|bottom     (scrolls the inspector's Adjust tab to a point from its top)
 ///     hdr on|off            (the View menu's Show HDR; snapshots show HDR clipped at white)
+///     filmstrip on|off|toggle   (the loupe's film strip, as its toggle: slides)
+///     filmstripsize <points>    (stores the nearest step, as a release does)
+///     windowsize <width> <height>   (the library window's content size, e.g. a short window for the strip's cap)
+///     filmstripclick <n>    (a click on the strip's cell n, through the event queue like click; it must be on screen)
+///     filmstripdrag <dy> [hold] | release | reset   (a drag on the resize handle by dy points, up positive,
+///                           through the handle's own mouse methods, then release; hold leaves it mid-drag for a
+///                           snapshot; reset is a double-click on the handle)
+///     print filmstrip       (setting, stored and shown step, cell, height, offset, the centered index, the
+///                           visible range, and the canvas fits since the last print)
 ///     review [on|off|grid|leavefullscreen]   (View ▸ Enter / Exit Review, as F; the Grid segment;
 ///                           the window leaving full screen; print review shows the layout)
 ///     import open | source <path> | dest <path> | job <text> | delete on|off | eject on|off
@@ -81,10 +90,11 @@ enum DebugScript {
             let undoManager = model.undoManager
             undoManager.groupsByEvent = false
             // Only commands that can change photos get a group; empty groups
-            // would otherwise become undo steps that do nothing.
+            // would otherwise become undo steps that do nothing. A film strip
+            // click moves focus, which saves a crop being edited.
             let changing: Set<String> = ["key", "addkeywords", "text", "pairfile", "accept", "album", "smartalbum", "remove",
                                          "adjust", "lut", "pasteadjust", "preset", "menupick", "lutwindow", "metadata",
-                                         "menupress", "contextmenu"]
+                                         "menupress", "contextmenu", "filmstripclick"]
             for command in commands where !command.isEmpty {
                 let words = command.split(separator: " ")
                 // "accessibility <role> <n> <action>" runs an action; listing changes nothing.
@@ -223,18 +233,42 @@ enum DebugScript {
         case "click":
             if let window, let point = windowPoint(rest, in: window) {
                 printHit(window, at: point)
-                // Both events at once: a control's tracking loop waits for the mouse up.
-                // SwiftUI buttons inside a scroll view ignore these synthetic clicks.
-                for (index, type) in [NSEvent.EventType.leftMouseDown, .leftMouseUp].enumerated() {
-                    guard let event = NSEvent.mouseEvent(
-                        with: type, location: point, modifierFlags: [],
-                        timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber,
-                        context: nil, eventNumber: index + 1, clickCount: 1,
-                        pressure: type == .leftMouseDown ? 1 : 0) else { continue }
-                    NSApp.postEvent(event, atStart: false)
-                }
+                postClick(at: point, in: window)
                 try? await Task.sleep(for: .milliseconds(300))
             }
+        case "filmstrip":
+            switch rest.first {
+            case "off": model.showsFilmStrip = false
+            case "toggle": model.showsFilmStrip.toggle()
+            default: model.showsFilmStrip = true
+            }
+            try? await Task.sleep(for: .milliseconds(200))
+        case "filmstripsize":
+            if let size = Double(rest.first ?? "") {
+                model.filmStripSize = FilmStripGeometry.nearestStep(size)
+            }
+            try? await Task.sleep(for: .milliseconds(200))
+        case "windowsize":
+            if let window, rest.count == 2, let width = Double(rest[0]), let height = Double(rest[1]) {
+                window.setContentSize(NSSize(width: width, height: height))
+            }
+            try? await Task.sleep(for: .milliseconds(500))
+        case "filmstripdrag":
+            guard let window, let strip = filmStrip(in: window) else {
+                print("debug-script: no film strip")
+                break
+            }
+            dragFilmStripHandle(strip.handle, rest, in: window)
+            try? await Task.sleep(for: .milliseconds(500))
+        case "filmstripclick":
+            guard let window, let index = Int(rest.first ?? "") else { break }
+            guard let strip = filmStrip(in: window), let point = strip.windowPoint(ofCell: index) else {
+                print("debug-script: film strip cell \(index) is not on screen")
+                break
+            }
+            printHit(window, at: point)
+            postClick(at: point, in: window)
+            try? await Task.sleep(for: .milliseconds(400))
         case "doubleclick":
             if let window, let point = windowPoint(rest, in: window) {
                 printHit(window, at: point)
@@ -421,6 +455,11 @@ enum DebugScript {
                       + "inspector \(model.showsInspector) fullscreen \(window?.styleMask.contains(.fullScreen) == true)")
             } else if rest.first == "loupe" {
                 printLoupe(at: Array(rest.dropFirst()), model: model)
+            } else if rest.first == "filmstrip" {
+                let strip = window.flatMap(filmStrip(in:))
+                print("debug-script: filmstrip setting \(model.showsFilmStrip) stored \(model.filmStripSize) shown \(strip != nil)"
+                      + (strip.map { " " + $0.debugState } ?? "") + " fits \(model.loupeFitCount)")
+                model.loupeFitCount = 0
             } else if rest.first == "metadata" {
                 await DebugMetadataCommands.printSummary(model: model)
             } else {
@@ -519,6 +558,60 @@ enum DebugScript {
     private static func windowPoint(_ words: [String], in window: NSWindow) -> NSPoint? {
         guard words.count >= 2, let x = Double(words[0]), let y = Double(words[1]) else { return nil }
         return NSPoint(x: x, y: window.frame.height - y)
+    }
+
+    /// A mouse down and up at a window point, through the event queue. Both
+    /// at once: a control's tracking loop waits for the mouse up. SwiftUI
+    /// buttons inside a scroll view ignore these synthetic clicks.
+    private static func postClick(at point: NSPoint, in window: NSWindow) {
+        for (index, type) in [NSEvent.EventType.leftMouseDown, .leftMouseUp].enumerated() {
+            guard let event = NSEvent.mouseEvent(
+                with: type, location: point, modifierFlags: [],
+                timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber,
+                context: nil, eventNumber: index + 1, clickCount: 1,
+                pressure: type == .leftMouseDown ? 1 : 0) else { continue }
+            NSApp.postEvent(event, atStart: false)
+        }
+    }
+
+    /// The handle's mouse methods with events at its zone, so a drag takes
+    /// the path a real one does (without needing the app to be active).
+    private static var heldDrag: NSPoint?
+
+    private static func dragFilmStripHandle(_ handle: FilmStripHandleView, _ words: [String], in window: NSWindow) {
+        func event(_ type: NSEvent.EventType, at point: NSPoint, clicks: Int = 1) -> NSEvent? {
+            NSEvent.mouseEvent(with: type, location: point, modifierFlags: [],
+                               timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber,
+                               context: nil, eventNumber: 0, clickCount: clicks, pressure: type == .leftMouseUp ? 0 : 1)
+        }
+        let start = handle.zoneCenterInWindow
+        switch words.first {
+        case "release":
+            if let point = heldDrag, let up = event(.leftMouseUp, at: point) { handle.mouseUp(with: up) }
+            heldDrag = nil
+        case "reset":
+            if let down = event(.leftMouseDown, at: start, clicks: 2) { handle.mouseDown(with: down) }
+            if let up = event(.leftMouseUp, at: start, clicks: 2) { handle.mouseUp(with: up) }
+        case let value?:
+            guard let dy = Double(value) else { return }
+            if let down = event(.leftMouseDown, at: start) { handle.mouseDown(with: down) }
+            var point = start
+            for step in 1...8 {
+                point = NSPoint(x: start.x, y: start.y + CGFloat(dy) * CGFloat(step) / 8)
+                if let drag = event(.leftMouseDragged, at: point) { handle.mouseDragged(with: drag) }
+            }
+            if words.dropFirst().first == "hold" {
+                heldDrag = point
+            } else if let up = event(.leftMouseUp, at: point) {
+                handle.mouseUp(with: up)
+            }
+        case nil:
+            break
+        }
+    }
+
+    private static func filmStrip(in window: NSWindow) -> FilmStripController? {
+        descendant(of: FilmStripCollectionView.self, in: window.contentView)?.controller
     }
 
     private static func printLoupe(at words: [String], model: LibraryModel) {

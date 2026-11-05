@@ -74,6 +74,11 @@ public enum PaletteSpec {
         appearance.increasesContrast ? 3 : 2
     }
 
+    /// The backing under the film strip's marks (flag, label, video,
+    /// offline): black at 75% over the thumbnail, so the pick and reject
+    /// colors stand out over a white image too.
+    public static let filmStripMarkBacking = PaletteColor.gray(0, alpha: 0.75)
+
     private typealias Values = (PaletteColor, PaletteColor, PaletteColor, PaletteColor)
 
     private static func gray(_ dark: Double, _ darkContrast: Double, _ light: Double, _ lightContrast: Double) -> Values {

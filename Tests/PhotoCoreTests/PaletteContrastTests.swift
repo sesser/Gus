@@ -44,6 +44,25 @@ struct PaletteContrastTests {
         }
     }
 
+    /// The film strip's marks sit on a black backing over the thumbnail, so
+    /// they are checked over the extremes the photo can be: white and black.
+    /// Only the dark appearances: the strip is in the library window, which
+    /// is always dark (decision 8).
+    @Test(arguments: [PaletteAppearance.dark, .darkContrast])
+    func filmStripMarksReadOnTheirBacking(_ appearance: PaletteAppearance) {
+        let needed = appearance.increasesContrast ? 4.5 : 3.0
+        let white = PaletteColor.gray(1)
+        for (name, image) in [("white", PaletteColor.gray(1)), ("black", PaletteColor.gray(0))] {
+            let backing = PaletteSpec.filmStripMarkBacking.over(image)
+            let glyph = white.contrast(with: backing)
+            #expect(glyph >= needed, "white glyph on the backing over \(name) in \(appearance): \(glyph)")
+            for mark in [PaletteSpec.Role.pick, .reject] {
+                let ratio = color(mark, appearance).contrast(with: backing)
+                #expect(ratio >= needed, "\(mark) on the backing over \(name) in \(appearance): \(ratio)")
+            }
+        }
+    }
+
     @Test func graysAreNeutral() {
         let grays: [PaletteSpec.Role] = [.gridBackground, .loupeBackground, .cell, .cellSelected, .fileName, .badgeText,
                                          .dateText, .badgeFill]

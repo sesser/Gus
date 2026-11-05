@@ -85,11 +85,16 @@ final class ScrollBenchmark: NSObject {
         self.output = output
     }
 
+    /// The grid among the model's observers (the film strip is another).
+    private var gridController: GridController? {
+        model.observers.lazy.compactMap { $0 as? GridController }.first
+    }
+
     private func run() async {
-        for _ in 0..<300 where model.itemCount == 0 || model.observer == nil {
+        for _ in 0..<300 where model.itemCount == 0 || gridController == nil {
             try? await Task.sleep(for: .milliseconds(200))
         }
-        guard let grid = model.observer as? GridController else {
+        guard let grid = gridController else {
             finish(Report(itemCount: 0, screenScale: 0, maximumFramesPerSecond: 0, results: []))
             return
         }

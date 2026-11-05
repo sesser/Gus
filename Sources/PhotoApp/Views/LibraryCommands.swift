@@ -159,6 +159,13 @@ struct LibraryCommands: Commands {
             }
             .keyboardShortcut("\\", modifiers: [])
             .disabled(!canByKey { $0.canEditLoupePhoto && !$0.isCropping })
+            // Mirrors the caption's toggle (section 11); review hides the strip.
+            Button(menu?.state.showsFilmStrip == false ? String(localized: "Show Film Strip")
+                                                       : String(localized: "Hide Film Strip")) {
+                model?.showsFilmStrip.toggle()
+            }
+            .keyboardShortcut("b", modifiers: [.command, .option])
+            .disabled(!can { $0.mode == .loupe && !$0.isReviewing })
             Divider()
             Button(menu?.state.showFileInfo == false ? String(localized: "Show File Names")
                                                      : String(localized: "Hide File Names")) {

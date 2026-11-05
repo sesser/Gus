@@ -58,7 +58,7 @@ final class GridController: NSObject, NSCollectionViewDataSource, NSCollectionVi
                                                object: scrollView.contentView)
         NotificationCenter.default.addObserver(self, selector: #selector(takeFocus(_:)),
                                                name: .browserShouldTakeFocus, object: nil)
-        model.observer = self
+        model.addObserver(self)
     }
 
     func update(cellSize: Double, mode: BrowserMode, showsInfo: Bool) {

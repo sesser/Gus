@@ -540,6 +540,29 @@
         }
       }
     },
+    "%lld points" : {
+      "comment" : "VoiceOver value of the film strip's resize handle: the thumbnail step shown (“120 points”)",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld point"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld points"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld selected of %lld" : {
       "comment" : "Window subtitle: how many photos are selected, of how many shown",
       "localizations" : {
@@ -3118,6 +3141,17 @@
         }
       }
     },
+    "Drag to resize the film strip" : {
+      "comment" : "Tooltip of the film strip's resize handle",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag to resize the film strip"
+          }
+        }
+      }
+    },
     "Drop folders to import each one as a project" : {
       "comment" : "Shown over the browser while folders are dragged over it",
       "localizations" : {
@@ -3738,6 +3772,28 @@
         }
       }
     },
+    "Film Strip" : {
+      "comment" : "Loupe: the row of thumbnails under the photo; the caption toggle's and the strip's VoiceOver label",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Film Strip"
+          }
+        }
+      }
+    },
+    "Film Strip Size" : {
+      "comment" : "VoiceOver label of the film strip's resize handle",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Film Strip Size"
+          }
+        }
+      }
+    },
     "Filter" : {
       "comment" : "View menu submenu: rating and flag filters",
       "localizations" : {
@@ -4130,6 +4186,17 @@
         }
       }
     },
+    "Hide Film Strip" : {
+      "comment" : "View menu: hides the loupe's film strip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide Film Strip"
+          }
+        }
+      }
+    },
     "Hide HDR Highlights" : {
       "comment" : "View menu: the loupe clips highlights at SDR white",
       "localizations" : {
@@ -4181,6 +4248,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Hide Suggestion"
+          }
+        }
+      }
+    },
+    "Hide the film strip" : {
+      "comment" : "Tooltip of the loupe caption's film strip toggle while the strip is shown",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide the film strip"
           }
         }
       }
@@ -7859,6 +7937,17 @@
         }
       }
     },
+    "Show Film Strip" : {
+      "comment" : "View menu: shows the loupe's film strip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Film Strip"
+          }
+        }
+      }
+    },
     "Show Grid" : {
       "localizations" : {
         "en" : {
@@ -7996,6 +8085,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Show the crop frame on the photo"
+          }
+        }
+      }
+    },
+    "Show the film strip" : {
+      "comment" : "Tooltip of the loupe caption's film strip toggle while the strip is hidden",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show the film strip"
           }
         }
       }

@@ -94,7 +94,8 @@ Import and Export).
 12. **English only;** side labels leave about 30% room for longer text.
 13. **New keys approved:** `F` review, `C` crop, ⌘[ / ⌘] rotate, ⌥⌘1 / ⌥⌘2
     Info and Adjust, ⌘F find, ⌃⌘S sidebar. ⌘= / ⌘− zoom the loupe while it
-    is open (they resize thumbnails in the grid, as now).
+    is open (they resize thumbnails in the grid, as now). ⌥⌘B shows or
+    hides the loupe's film strip (section 11; owner's choice over ⇧⌘F).
 14. **Inspector controls stay AppKit-backed** (`AppKitButton`, `SliderRow`…)
     so the debug script's `click` keeps driving them, but become real system
     controls (disclosure buttons, check boxes, bezeled fields).
@@ -501,7 +502,8 @@ Toolbar, Customize Toolbar…, Show / Hide Sidebar ⌃⌘S (N,
 `F` (N) · Zoom to 100% / Zoom to Fit `Z` (S) · in the grid Larger
 Thumbnails / Smaller Thumbnails, in the loupe Zoom In / Zoom Out, ⌘= / ⌘−
 (E; same items, titles follow the mode) · Show Original / Show Adjustments
-`\` (S) · Show / Hide File Names · Group RAW+JPEG Pairs (checkmark) · Show /
+`\` (S) · Show / Hide Film Strip ⌥⌘B (N; loupe only, dimmed in review;
+section 11) · Show / Hide File Names · Group RAW+JPEG Pairs (checkmark) · Show /
 Hide HDR Highlights · Filter ▸ · Sort By ▸ · Sidebar Sections ▸ · Show /
 Hide Inspector ⌥⌘I (E) · Info ⌥⌘1 / Adjust ⌥⌘2 (N) · Enter Full Screen.
 
@@ -850,6 +852,362 @@ text. (F11, F16, F28)
 - Default focus rings; Tab order sidebar → content → inspector; the grid
   fade is skipped with Reduce Motion; every icon-only hit area at least
   20 × 20 pt.
+
+## 11. Film strip (issue #25)
+
+A row of the current source's photos (`model.items`: the sidebar source,
+filtered and sorted) along the bottom of the loupe, for moving between
+photos with the pointer. It is navigation only: the loupe's keys stay the
+primary path, and the strip mirrors what they do. (HIG Hierarchy: the photo
+leads, the strip is a quiet aid beneath it.)
+
+### Owner's decisions (2026-11-04)
+
+1. Under the photo, horizontal, across the full width of the loupe,
+   between the photo and the caption line (revised 2026-11-04: the caption
+   is now at the bottom edge).
+2. The focused photo is centered in the strip when the loupe opens.
+   Clicking a thumbnail focuses that photo and the strip recenters on it,
+   animated. Anything else that moves focus (arrows, Home, End,
+   auto-advance) recenters it too. Scrolling the strip (trackpad, wheel,
+   scroller) only scrolls and never changes focus; the next focus change
+   recenters.
+3. No size slider (revised 2026-11-04; the first build's trailing slider
+   pushed the centered thumbnail off the photo's center). A drag handle
+   centered on the strip's top edge resizes the strip, and the thumbnails
+   with it, in fixed steps: the strip follows the pointer during the drag
+   and settles on the nearest step on release. It stops at the smallest
+   step (dragging never hides the strip) and at 120 pt; the 25% height cap
+   stays. The size is separate from the grid's and remembered across
+   launches; the default is 120 pt.
+4. Show / hide with a toggle button at the trailing end of the loupe
+   caption, after the badges. Shown by default; the last state is
+   remembered across launches. No toolbar button.
+5. Review mode (`F`) never shows the strip; leaving review brings it back
+   if it was on.
+6. A click only moves focus: no multi-selection, batch commands, drag or
+   batch context-menu actions from the strip.
+7. Crop and mask sessions are treated as normal: the strip works exactly as
+   the keyboard does in them (the arrows keep navigating, as today), so a
+   click focuses the photo as usual. No dimming, no disabled state.
+8. The video loupe gets it too (it shares `LoupeView`).
+9. A View menu item, **Show Film Strip / Hide Film Strip ⌥⌘B**, mirrors the
+   caption button (accepted 2026-11-04). The owner suggested ⇧⌘F; ⌥⌘B was
+   recommended instead and the owner accepted it (see "Shortcut" below).
+10. Showing and hiding slide the strip up out of, and down into, the
+    caption line, animated, respecting Reduce Motion (revised 2026-11-04;
+    supersedes the earlier "not animated" ruling).
+11. The strip's size is changed only by dragging its handle (or VoiceOver's
+    increment and decrement on it): no Larger / Smaller Film Strip menu
+    items (owner, 2026-11-04).
+
+### Anatomy
+
+```
+┌ loupe (content column) ───────────────────────────────────────────────┐
+│                     photo, fitted within 24 pt                        │
+│                                                                       │
+│                              ━━━━                                     │  handle on the strip's top edge
+│ ▢ ▢ ▢ ▢ ▢ ▢ ▢ ▢ [▣] ▢ ▢ ▢ ▢ ▢ ▢ ▢ ▢ ▢                                 │  strip, size + 16 pt, full width
+│ 12 of 87            ★★★ ⚑ ● Red                 Filtered  HDR  [▭]   │  caption, 28 pt, bottom edge
+└───────────────────────────────────────────────────────────────────────┘
+```
+
+- **Stacking (revised):** canvas (or video loupe), then the strip, then the
+  caption at the bottom edge. The strip spans the loupe's full width, so
+  the centered thumbnail sits under the photo's center. The caption keeps a
+  fixed place whether or not the strip is shown, and the strip opens out of
+  it.
+- **Surface:** the strip draws on `Palette.loupeBackground`, the same
+  surround as the caption: no bar, divider, material or glass. Scrolling
+  thumbnails are content, and glass belongs to the controls layer (decision
+  2; HIG Materials). It keeps 0.09 under Increase Contrast like the rest of
+  the surround.
+
+### Dimensions
+
+| Element | Spec |
+|---|---|
+| Thumbnail steps (`s`) | 48 · 64 · 80 · 96 · 120 pt; default 120. The steps grow by a third or less, so each one looks different from its neighbor without a jump that skips a useful size |
+| Strip height | `s` + 16 (8 above, 8 below): 64 · 80 · 96 · 112 · 136 pt |
+| Height cap | the strip never takes more than 25% of the loupe's height (canvas + strip + caption). The size shown is the stored step, or the **largest step whose strip fits** under the cap if it does not, never below 48 (at a loupe under 256 pt the 48 step shows anyway). Always a step, never an in-between size. The stored step does not change, so the strip grows back with the window |
+| Cells | square, `s` × `s`, 4 pt apart (pitch `s` + 4); `Palette.cell` fill, corner radius 4 |
+| Image | aspect-fit inside the cell with 3 pt padding, never cropped: the strip is for recognizing frames, and a square crop hides the composition and the orientation that tell burst frames apart. Rejected photos at 35% opacity, as in the grid |
+| Focused cell | `Palette.cellSelected` fill and the accent border at `PaletteSpec.selectedBorderWidth` (2 pt, 3 pt with Increase Contrast): the grid's "this photo" treatment, so one look means one thing |
+| Marks | bottom-trailing on the image, on one backing (black at 75%, `PaletteSpec.filmStripMarkBacking`; radius 3; 2 pt padding, 2 pt between marks, 2 pt in from the image's corner): the flag (`flag.fill` in `Palette.pick`, `xmark.circle.fill` in `Palette.reject`, 9 pt) and the color-label dot (7 pt). Videos: `video.fill`, white, 9 pt, bottom-leading on the same backing. Offline: `externaldrive.badge.xmark`, white, 9 pt, top-leading on the same backing. No stars, file names or type badges: they don't fit 48 pt and the caption shows them for the focused photo |
+| Tooltip (cell) | "DSC00231, RAW plus JPEG · 3 stars, Picked, Red label, Offline": `PhotoAccessibility.label`, then `value` when not empty, so stars and the label's name are never color or position only |
+| Scroll region | the loupe's full width; nothing else in the strip's row |
+| Scroller | overlay style, auto-hiding |
+
+### Resize handle
+
+| Aspect | Spec |
+|---|---|
+| Look | a capsule 36 × 4 pt, centered horizontally, centered in the strip's 8 pt top margin. `NSColor.secondaryLabelColor` at rest (dynamic, so Increase Contrast strengthens it; on the 0.09 surround it clears the 3:1 that WCAG asks of a control's visual); `NSColor.labelColor` while the pointer is in the resize zone or dragging. No other chrome |
+| Resize zone | the whole top edge of the strip, full width, 8 pt tall (4 pt above the edge, 4 pt below), as a split view's divider is draggable along its length; the capsule marks it. The 4 pt above lie in the canvas's 24 pt margin, never on the fitted photo. Thumbnails start 8 pt below the edge, so a click on one never starts a resize |
+| Cursor | the system up/down resize cursor in the zone; up-only at the smallest step that fits, down-only at the largest. Use AppKit's frame-resize cursor API on macOS 15 (`NSCursor.frameResize(position: .top, directions:)`), checked to exist in the SDK; the older `resizeUpDown` / `resizeUp` / `resizeDown` only if it does not |
+| Drag | the strip's height follows the pointer between the smallest and largest step that fit under the cap; the thumbnails scale with it (`height − 16`), and the focused thumbnail stays centered, with no animation (direct manipulation). The pointer leaving the window keeps the drag |
+| Release | settles on the step nearest the final height (ties go to the larger), 0.15 s ease-out; immediate with Reduce Motion. The step is stored, except when the release settles on the largest step that fits under the cap and the stored step is larger: then the stored step is kept, so the strip still grows back with the window (owner, 2026-11-04) |
+| Double-click | back to the default, 120 pt (or the largest step that fits), with the same settle animation: the app's reset gesture, as double-clicking an inspector slider resets it (section 4). It never hides the strip |
+| Tooltip | "Drag to resize the film strip" |
+| Keyboard | not in the Tab loop and never first responder, like the rest of the strip. The size is a display preference, and VoiceOver can change it (below) |
+| VoiceOver | role `.splitter` (what it is: the divider of a resizable pane; `NSSplitView`'s dividers use it), label "Film Strip Size", value "120 points" (the plural "%lld points" string; the step shown), increment and decrement move one step and post a value change; at the ends they do nothing |
+
+### Behavior
+
+- **Centering with insets:** the scroll region has a content inset of
+  `(visible width − cell)/2` on both ends, so the first and the last photo
+  can reach the center. With that inset, centering photo `i` is a scroll
+  offset of `i × pitch`, clamped to `0…(count − 1) × pitch`. The focused
+  photo is centered at every count, including one or two photos: the strip
+  never left-aligns a short source, so the focused photo is always in the
+  same place.
+- **Recentering** happens on: the loupe opening, any focus change, the item
+  list reloading (a culling key that removes the photo from a filtered
+  source moves focus), the strip's width or the thumbnail size changing
+  (every frame of a resize drag), and the strip being shown. Only focus
+  changes animate; the rest jump.
+- **Show and hide (decision 10):** the strip slides out of the caption
+  line: its height animates from 0 to its step's height (0.25 s ease-out)
+  on show and back to 0 (0.2 s ease-in) on hide, its contents pinned to its
+  bottom so the thumbnails rise out of the caption rather than stretch. The
+  canvas refits **once per change, never per frame**, timed so the photo is
+  never under the strip: on show the canvas takes its smaller frame at the
+  start and the photo animates to its new fit (the loupe's existing 0.15 s
+  zoom animation) while the strip rises into the space it vacated; on hide
+  the strip slides down over the old space first, then the canvas takes
+  its larger frame and the photo animates up. The earlier objection (a
+  height animation refits the photo every frame) is met by keeping the
+  canvas frame fixed during the slide. Reduce Motion: the strip appears and
+  disappears and the photo refits, all at once.
+- **Refit during a resize drag:** the same rule. The canvas keeps its frame
+  while the pointer moves (the strip draws over the canvas's bottom margin
+  while it grows, and leaves a strip of surround while it shrinks), and
+  refits once, animated, when the strip settles on its step. A long drag
+  upward may briefly cover the photo's bottom edge; accepted, since it
+  ends at release.
+- **Animation:** 0.2 s ease-in-out scroll of the clip view. It animates
+  only when the target is within one visible width of the current offset;
+  further (Home, End, a focus change after the person scrolled away) it
+  jumps, so an animation never streams thumbnails for the photos it passes.
+  Key repeats (holding an arrow) jump, so the strip keeps up with the key. A
+  new focus change during an animation retargets it from where it is. Reduce
+  Motion: never animated. (HIG Motion: brief, interruptible, never needed
+  to understand state.)
+- **Scrolling:** trackpad, Shift-wheel and the scroller scroll the strip
+  freely, with no snapping, and never change focus. A plain vertical mouse
+  wheel (no precise deltas, no horizontal component) scrolls it
+  horizontally, since a strip with no vertical axis has nothing else to do
+  with it. Option-scroll is not a zoom here.
+- **Mouse:** a single click on a thumbnail focuses that photo (as arrows
+  do, with the same VoiceOver announcement); a click on the focused
+  thumbnail does nothing. Double-click is two clicks, not "back to grid".
+  No context menu, no drag, no selection, no hover effect.
+- **Keyboard:** the strip never becomes first responder, so the loupe keeps
+  arrows, Home, End, the culling keys, `Z`, `\`, `C` and Esc. The strip is
+  not in the Tab loop; it duplicates navigation the keyboard already has.
+  ⌘= / ⌘− still zoom the loupe (section 6); they do not resize the strip.
+  ⌥⌘B shows and hides it (View menu, below).
+- **Crop and mask sessions:** treated as normal (decision 7). A click on a
+  thumbnail does what the arrow keys do in that session today, through the
+  same `model.setFocus(_:)` path: no dimming, no disabled state, no session
+  tooltip. Whatever moving focus does to an open crop or a selected mask,
+  it does the same from the strip and from the keys.
+- **Review:** the strip and its toggle are not shown (a control that cannot
+  act is hidden, as in section 3); `showsFilmStrip` is not changed, so
+  leaving review shows the strip again if it was on.
+- **Video loupe:** the same strip between the video loupe and the caption.
+  Clicking a thumbnail focuses that photo as the arrows do, which replaces
+  the player.
+- **Thumbnails:** the `thumbnail` preview tier at the largest step's
+  pixels (120 × backing) whatever the step, so resizing (live or settled)
+  only rescales images already loaded and never reloads them;
+  memory-cached image first (as `PhotoCell.configure`), loaded at
+  `.visible` priority, cancelled on reuse, with the grid's 0.12 s fade
+  (skipped with Reduce Motion). Cells outside the visible range are not
+  loaded.
+
+### Toggle button
+
+| Aspect | Spec |
+|---|---|
+| Place | the caption's trailing end, 8 pt after the last badge (the badges' 6 pt spacing + 2, confirmed 2026-11-04); shown whenever the loupe is open and not reviewing |
+| Control | SwiftUI `Toggle` with `.toggleStyle(.button)`, `.buttonStyle(.borderless)`, the caption's secondary style; on = the strip is shown. The strip itself shows the state, so no tint is needed |
+| Symbol | `rectangle.bottomthird.inset.filled`, the bottom-panel member of the panel-toggle family `sidebar.leading` / `sidebar.trailing` belong to. Not verified against the SF Symbols catalog for this document: confirm the name resolves on macOS 15 (`NSImage(systemSymbolName:)` in a test); if it does not, use `rectangle.split.3x1`. Not `film`: in a library with videos it reads as "movie" |
+| Hit area | at least 20 × 20 pt (section 10) |
+| Tooltip | "Hide the film strip" when shown, "Show the film strip" when hidden |
+| VoiceOver | label "Film Strip"; a toggle, value on or off |
+
+### VoiceOver
+
+- The strip's collection view is a list: role `.list`, label "Film
+  Strip". Order, top to bottom: the canvas, the resize handle, the strip,
+  the caption.
+- Each cell is an image element: label `PhotoAccessibility.label(for:)`,
+  value `PhotoAccessibility.value(for:offline:)`, selected when it is the
+  focused photo (`isAccessibilitySelected`). The press action
+  (`accessibilityPerformPress`) focuses that photo, followed by
+  `announceLoupePhoto()` as for the arrow keys. No custom actions: culling
+  from the strip would act on a photo that is not on screen (decision 6).
+- The resize handle: a splitter with increment and decrement (see
+  "Resize handle"). Its value comes from the plural catalog string "%lld
+  points" (one: "%lld point"), e.g. "120 points": a bare number says
+  nothing about its unit (section 10).
+- The strip is not in the tree while hidden or in review.
+
+### Persistence
+
+`UserDefaults`, in `LibraryModel` beside `thumbnailSize`:
+`loupe.showsFilmStrip` (Bool, true when absent) and `loupe.filmStripSize`
+(Double: 120 when absent; any stored value that is not a step, including
+ones from the slider build, maps to the nearest step, ties to the larger,
+values outside 48–120 to the nearer end).
+
+### Strings (keys in `Localizable.xcstrings`)
+
+"Film Strip" · "Show the film strip" · "Hide the film strip" · "Show Film
+Strip" · "Hide Film Strip" (the menu item) · "Film Strip Size" (the
+handle's VoiceOver label) · "Drag to resize the film strip" (its tooltip) ·
+"%lld points" (plural; one: "%lld point"; the handle's VoiceOver value).
+Removed with the slider: "Film Strip Thumbnail Size", "Film strip
+thumbnail size".
+
+### View menu item
+
+**View ▸ Show Film Strip / Hide Film Strip ⌥⌘B** (N), after Show Original
+/ Show Adjustments (section 6). The title follows state. It is enabled in
+the loupe when not reviewing, with no sheet open, wherever focus is in the
+key library window (a Command-key item, section 6), and dimmed otherwise,
+so ⌥⌘B works exactly where the item is enabled. It flips the same
+`showsFilmStrip` as the caption button. Why a menu item: the HIG asks for
+app commands in the menu bar "even when commands are available elsewhere
+in your app", for discoverability and Full Keyboard Access, and for
+show/hide titles that reflect state (HIG: The menu bar, View menu); every
+other show/hide in this window has one.
+
+**Shortcut: ⌥⌘B, not ⇧⌘F.** ⇧⌘F adds Shift to this app's ⌘F (Find), an
+unrelated command, which the HIG asks us to avoid ("Avoid creating a new
+shortcut by adding a modifier to an existing shortcut for an unrelated
+command", HIG: Keyboards). It also sits beside ⌥⌘F (standard: jump to the
+search field) and ⌃⌘F (Enter Full Screen), and other Mac apps use ⇧⌘F for
+something else (a wider Find, such as Xcode's Find in Workspace; Finder's
+Recents). ⌥⌘B follows this window's own pane-toggle pattern (⌥⌘I
+inspector, ⌥⌘T toolbar: Option-Command plus a letter), "B" for the bottom
+pane. It is not in the HIG's standard table, the app has no ⌘B (no text
+styling) or other B shortcut, and `ImportCommands` has none either. It
+uses only a letter, so it is on every keyboard layout.
+
+### macOS 15
+
+Nothing here needs macOS 26: `NSCollectionView`, SwiftUI `Toggle`, the
+menu item and the resize cursor exist on 15, and the strip uses no
+material.
+
+### Implementation notes
+
+- **Where:** `LoupeView` (`Sources/PhotoApp/Loupe/LoupeView.swift`)
+  becomes canvas or `VideoLoupe` · the strip (when
+  `model.showsFilmStrip && !model.isReviewing`) · `LoupeCaption`. The
+  toggle goes at the end of `LoupeCaption.badges`' row. The strip is an
+  AppKit view in `Sources/PhotoApp/Loupe/` (`NSViewRepresentable` over an
+  `NSScrollView` + `NSCollectionView` with a small custom
+  `NSCollectionViewLayout`, like `UniformGridLayout`), full width, with the
+  resize handle as an AppKit subview on its top edge (cursor rect,
+  tracking area, `mouseDown`/`mouseDragged`/`mouseUp`, accessibility). The
+  SwiftUI slider is removed. Its cell is a new, lighter view built from the shared
+  parts (`Symbols`, `Palette`, `PaletteSpec`), not `PhotoCell` with flags:
+  `PhotoCell`'s layout is the grid's.
+- **Never first responder:** the collection view and cells return false
+  from `acceptsFirstResponder` (and `refusesFirstResponder`), with
+  `isSelectable` false; the focused look comes from `model.focusIndex`, not
+  collection-view selection. Clicks are handled in `mouseDown` on the cell
+  and call `model.setFocus(_:)` then `model.announceLoupePhoto()`. Check
+  that a click leaves `LoupeHostView` (or the video loupe's host) as first
+  responder (`print responder`).
+- **Observers:** `LibraryModel.observer` is a single weak
+  `LibraryItemsObserver`; the grid holds it while the loupe is open. Make it
+  a list of weak observers (`addObserver` / `removeObserver`, pruned of
+  released ones) so the grid and the strip both hear `libraryItemsReloaded`,
+  `libraryItemsChanged(at:)`, `libraryFocusChanged` and
+  `libraryAvailabilityChanged`. Update `ScrollBenchmark`, which reads
+  `model.observer as? GridController`. Focus changes made by the strip
+  itself still reach the grid (it must follow in the background), and the
+  strip recenters from `libraryFocusChanged`.
+- **Geometry in PhotoCore:** a pure `FilmStripGeometry` in
+  `Sources/PhotoCore/Browser/` next to `ReviewLayout`: the steps; the
+  nearest step for any value (stored sizes, the height at release; ties to
+  the larger); the step shown for a stored step and loupe height (largest
+  that fits the 25% cap, 48 floor); the drag's height range; strip height,
+  pitch, end insets for a visible width, the centering offset for an
+  index, clamping, the visible index range, and whether a move animates
+  (distance vs. visible width, key repeat, Reduce Motion). Unit tests in
+  `Tests/PhotoCoreTests` cover one photo, two, first, last, a window
+  narrower than one cell, the cap choosing a smaller step, snapping
+  (midpoints and ties), and mapping old non-step stored sizes.
+- **Animation and refit:** the canvas must not refit per frame. Animate
+  the strip's height inside a container whose frame changes once (or drive
+  a height constraint while the canvas's bottom is pinned to a separate,
+  once-changed constraint); the canvas's existing `fitIfNeeded` on frame
+  change then runs once, animated. Check with the debug script that a show,
+  a hide and a resize each produce one fit.
+- **Menu item:** in `LibraryCommands` (View, after Show Original / Show
+  Adjustments), `.keyboardShortcut("b", modifiers: [.command, .option])`,
+  reading `LibraryMenuContext` through `@FocusedValue` like the other View
+  items (never a model passed into `Commands`). The context needs whether
+  the loupe is open, whether review is on, and `showsFilmStrip`. Check it
+  with `menuitems Film Strip` and `menupress`.
+- **Persistence:** `showsFilmStrip` and `filmStripSize` on `LibraryModel`
+  with `didSet` writes, read in the initializer the way `thumbnailSize` is
+  (the steps from `FilmStripGeometry`, default 120, non-steps mapped to
+  the nearest step on read).
+- **Contrast:** add the strip's marks to `PaletteContrastTests`: pick,
+  reject and the white glyphs on the 75% black backing, composited over
+  white and over black, at 3:1 (4.5:1 with Increase Contrast), in the dark
+  appearances (the library window is always dark).
+  Ruling 2026-11-04: at 60% reject failed over white (2.21:1; 2.55:1 and
+  pick 4.11:1 with Increase Contrast), so the backing went to 75%, one
+  constant for every mark. Not strip-only pick and reject colors: the same
+  flag should look the same in the grid, caption and strip. If any dark
+  case still fails at 75%, raise the backing (80% at most) rather than
+  loosen the ratio or accept it.
+- **Strings:** the keys above, added by hand to
+  `Sources/PhotoUI/Resources/Localizable.xcstrings` (`LocalizationTests`).
+- **Debug script** (`Sources/PhotoApp/Model/DebugScript.swift`), so the
+  strip can be checked in snapshots (it is content, not glass, so
+  `snapshot` draws it): `filmstrip on|off|toggle`, `filmstripsize <points>`
+  (snaps to the nearest step, as a release does), `filmstripclick <index>`
+  (a click on that cell, through the same path as the mouse),
+  `filmstripdrag <dy>` (a resize drag on the handle by `dy` points, up
+  positive, through the handle's own mouse path, then release), and `print
+  filmstrip` (shown, stored and shown step, strip height, offset, the
+  centered index, the visible range, and the number of canvas fits since
+  the last print).
+
+### Implementation status
+
+Reset 2026-11-04 for the revision (slider removed, strip above the
+caption, resize handle with steps, show/hide animation, default 120).
+
+- [x] `FilmStripGeometry` in PhotoCore, with tests (steps, snapping, cap by step)
+- [x] `LibraryModel`: weak observer list; `ScrollBenchmark` updated
+- [x] `LibraryModel`: `showsFilmStrip`, `filmStripSize` persisted (default 120, non-steps mapped)
+- [x] Cell (marks, focused look, rejected and offline)
+- [x] Strip view: full width, between the canvas and the caption; slider removed
+- [ ] Centering, recentering (including during a resize) and the scroll animation rules
+- [ ] Vertical wheel scrolls horizontally
+- [ ] Resize handle: look, zone, cursor, live drag, settle, double-click, tooltip
+- [x] Height cap by step
+- [ ] Show / hide slide, one canvas refit per change, Reduce Motion
+- [ ] Thumbnails loaded at the largest step's pixel size
+- [x] Caption toggle (symbol checked on macOS 15), hidden in review
+- [x] View ▸ Show / Hide Film Strip ⌥⌘B (focused-value context; enabled in the loupe, not reviewing)
+- [x] Clicks work during crop and mask sessions as the arrow keys do
+- [ ] Video loupe (new stacking)
+- [ ] VoiceOver: list, cells, press, handle (splitter, increment / decrement), toggle
+- [x] Contrast tests for the marks
+- [x] Strings in the catalog (slider strings removed, handle strings added)
+- [x] Debug-script commands (`filmstripsize` snaps, `filmstripdrag`, fit count)
+- [ ] Checked on screen: every step; the cap on a short window; 1, 2 and many photos; show / hide; a resize drag; crop session; Increase Contrast
 
 ## macOS 15 fallback
 

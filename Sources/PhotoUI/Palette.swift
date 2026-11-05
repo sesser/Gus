@@ -20,6 +20,11 @@ public enum Palette {
     public static let rating = color(.rating)
     public static let pick = color(.pick)
     public static let reject = color(.reject)
+    /// Under the film strip's marks; the same in every appearance.
+    public static let filmStripMarkBacking: NSColor = {
+        let value = PaletteSpec.filmStripMarkBacking
+        return NSColor(srgbRed: value.red, green: value.green, blue: value.blue, alpha: value.alpha)
+    }()
 
     private static func color(_ role: PaletteSpec.Role) -> NSColor {
         NSColor(name: nil) { appearance in
