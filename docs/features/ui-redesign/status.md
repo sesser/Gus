@@ -15,8 +15,13 @@ to `ui-redesign-onscreen-check` unless noted.
 - Baseline at `adb8d95` (2026-11-04): `swift build` clean; `swift test` 468
   tests in 84 suites passed, 1 known issue (the `withKnownIssue` in "Live
   render session", pre-existing).
-- Latest (with E21): `swift build` clean, no warnings; `swift test` 495 tests
-  in 90 suites passed, 1 known issue (the same). No golden changed.
+- Latest (with E26, all E changes built): `swift build` clean, no warnings;
+  `swift test` 495 tests in 90 suites passed, 1 known issue (the same). No
+  golden changed.
+- Debug-script runs since batch 3 use a copy of the bundle with the bundle
+  identifier `me.sesser.gus.debugtest`, so they never write the owner's
+  `me.sesser.gus` preferences (the earlier batches did; reported to the
+  owner).
 
 ## Changes
 
