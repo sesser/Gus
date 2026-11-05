@@ -3,6 +3,12 @@
 What the app does today: `develop` as of 2026-11-04, after the film strip
 merged (PR #27). Owned by the product-manager agent; a
 reference for spotting duplicates and conflicts before a feature is specified.
+It stands in for a `prd.md` for the UI redesign (owner, 2026-11-04);
+`ui-redesign/prd.md` adds only the rulings on design.md's requirements issues.
+
+Corrected 2026-11-04 after the UI redesign reconciliation: project rename and
+removal (data only), drag and drop, export's reveal in the Finder, the Help
+menu, and the metadata reader's visibility.
 
 Markers:
 
@@ -22,6 +28,7 @@ Abbreviations: P1–P6 = `docs/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR =
 | Offline volumes | Masters on unmounted volumes show offline with cached previews; rows never deleted; volumes matched by UUID | CL; P1; UG |
 | Migrations v1–v13 | 21 tables incl. `imagePair`, `importRun`, `keywordSuggestion`, `smartAlbum`, `importPreset`, `metadataSync`, `sidecarQueue`, `exportPreset` | P1–P4; `Catalog/CatalogSchema.swift` (CL's table list omits eight of them) |
 | Projects | Each master belongs to one project, named after the imported folder or a template | P1 Import; P2 §7 |
+| Rename and remove projects (data only) | `Catalog.renameProject`; `Catalog.deleteProject` removes a project's catalog rows (masters, versions, album memberships) and never touches files. No UI or command uses either; nothing removes single photos | `Catalog/Catalog.swift:152`, `:160`; `CatalogTests.deletingAProjectCascadesToItsCatalogRowsOnly` **[inferred from code]**. Roadmap: rename-project, remove-from-library |
 | Versions | Ratings, flags, labels and edit stack live on a version; one default version per master | P1 schema; CL |
 | Duplicate a version | `Catalog.duplicateVersion` copies a version's stack and culling; no UI or command uses it | `Catalog/Catalog.swift:492` **[inferred from code]** |
 | Stacks (data only) | `stack`/`stackMember` tables and `Catalog.createStack`; no UI | `Catalog/Catalog.swift:536` **[inferred from code]**; P1 schema lists the tables |
@@ -47,7 +54,7 @@ Abbreviations: P1–P6 = `docs/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR =
 | Shutter count in subtitle | Newest photo's camera and shutter count | UIR §8; `CardImport/CameraSummary.swift` |
 | Import keeps running after window closes | Shown in library window's Activity item | UIR §8 states table |
 | Quit guard | Asks before quitting stops an import or export | UIR §8; `PhotoUI/QuitGuard.swift` |
-| Metadata reading | ExifTool `-stay_open` process pool when installed; ImageIO fallback; AVFoundation for video | CL; P1 Profiling |
+| Metadata reading | ExifTool `-stay_open` process pool when installed; ImageIO fallback; AVFoundation for video. Nothing in the app says which reader is in use | CL; P1 Profiling; README. Roadmap: metadata-reader-status |
 
 ## Standalone importer
 
@@ -66,6 +73,7 @@ Abbreviations: P1–P6 = `docs/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR =
 | Filter, sort, search per source | Toolbar Filter and Sort menu, search field (⌘F), remembered per sidebar source | UIR decision 6, §2 |
 | Sidebar | Library (built-in smart albums, Changed on Disk), Albums, Dates, Keywords, Projects; sections collapse and hide; selection restored | UIR §3; P2 §5 |
 | Albums and smart albums | Albums library-wide or in a project; smart albums with ~25 rule fields, match all/any, live | P2 §5; UG |
+| Drag and drop of photos | Grid photos drag onto album and keyword rows in the sidebar. The drag carries a private type, so nothing can be dropped into other apps or the Finder; Edit ▸ Copy does not copy photos | `Grid/GridController.swift:130`, `Views/SidebarView.swift:43` **[inferred from code]**; UG. Roadmap: photo-pasteboard |
 | Batch edit commands in the grid | Paste, Apply Preset, Auto Exposure, Reset All, Rotate on the selection as one undo step | UIR decision 5; CL |
 | Undo / redo | ⌘Z / ⇧⌘Z for culling, keywords, albums, pairs, edits, crop, descriptive fields | P2 §3, As built; CL Undo |
 | Review mode (F) | Full-screen loupe, panes hidden, toolbar on hover | UIR §2; `Model/ReviewActions.swift` |
@@ -149,7 +157,7 @@ Abbreviations: P1–P6 = `docs/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR =
 | Watermark | One PNG, nine anchors, margin, size, opacity; preview in the sheet | P4; UIR §8 |
 | Naming and conflicts | Original name or template; batch names decided first; keep both / replace / skip asked once | P4 |
 | Export presets | `exportPreset` table | P4 |
-| Background export | Progress and Stop in the toolbar Activity item | UIR §1, §8 |
+| Background export | Progress and Stop in the toolbar Activity item. Can reveal the written files in the Finder when done; the only Finder reveal in the app | UIR §1, §8; UG; `Model/ExportModel.swift:348` |
 
 ## Command line (`photocli`)
 
@@ -166,7 +174,7 @@ Abbreviations: P1–P6 = `docs/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR =
 | One library window | `NavigationSplitView` with inspector; dark appearance on the library window only | UIR decisions 8–9, §1 |
 | Customizable toolbar | Import menu, Export, Grid/Loupe, size/zoom, Activity, Filter, Search, inspector; palette items | UIR §5 |
 | Activity item | Progress, Stop, last 20 messages; warnings vs information | UIR §1 |
-| Menu bar | File, Edit, View, Photo, Adjust, Window; bare keys shown, enabled only when grid/loupe has focus | UIR §6; CL Menus |
+| Menu bar | File, Edit, View, Photo, Adjust, Window, Help; bare keys shown, enabled only when grid/loupe has focus. Help has only SwiftUI's default "‹app› Help" item, which says no help is available (both apps); ruled for removal in `ui-redesign/prd.md` R1 | UIR §6; CL Menus; `ui-redesign/design.md` N13, I28 |
 | Context menus | Photos, loupe, sidebar items, inspector headers, slider rows, presets, masks, import cells | UIR §7 |
 | Inspector | Info / Adjust tabs, pinned histogram, Original toggle and ⋯ menu | UIR §4 |
 | Sheets and panels | Export, LUT browser, presets as sheets; panels and alerts window-modal | UIR §8 |
