@@ -4218,6 +4218,17 @@
         }
       }
     },
+    "Hide Mask Overlay" : {
+      "comment" : "Adjust menu: hides the selected mask's red overlay",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide Mask Overlay"
+          }
+        }
+      }
+    },
     "Hide Options" : {
       "comment" : "Import window: View menu item and toolbar button",
       "localizations" : {
@@ -8051,6 +8062,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Show Loupe"
+          }
+        }
+      }
+    },
+    "Show Mask Overlay" : {
+      "comment" : "Adjust menu: shows the selected mask in red",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Mask Overlay"
           }
         }
       }

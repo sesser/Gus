@@ -884,7 +884,8 @@ enum DebugScript {
                   + " stop \(state.stoppableJob.map(\.rawValue) ?? "none")"
                   + " export \(state.canExport)"
                   + " resetCrop \(state.canResetCrop) addMask \(state.canAddMask) video \(state.showsLoupeVideo)"
-                  + " playing \(state.isVideoPlaying) bareKeys \(state.bareKeysActive) editLoupePhoto \(state.canEditLoupePhoto) cropping \(state.isCropping)")
+                  + " playing \(state.isVideoPlaying) maskSelected \(state.hasSelectedMask) overlay \(state.showsMaskOverlay)"
+                  + " bareKeys \(state.bareKeysActive) editLoupePhoto \(state.canEditLoupePhoto) cropping \(state.isCropping)")
         case "empty":
             // The browser's empty state (design.md N3), as the view chooses it.
             print("debug-script: empty \(model.emptyState.map { "\($0)" } ?? "none") source '\(model.title(for: model.sidebarSelection))'"

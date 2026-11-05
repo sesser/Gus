@@ -44,6 +44,9 @@ struct LibraryMenuState: Equatable {
     /// Adjust ▸ New Mask ▸: an editable loupe photo, not cropping, under the
     /// mask limit.
     var canAddMask: Bool
+    /// Adjust ▸ Show / Hide Mask Overlay: a mask is selected in the loupe.
+    var hasSelectedMask: Bool
+    var showsMaskOverlay: Bool
     /// The loupe shows a video.
     var showsLoupeVideo: Bool
     /// The video loupe's player is playing (View ▸ Play / Pause's title).
@@ -115,6 +118,8 @@ struct LibraryMenuState: Equatable {
         isCropping = model.editor.cropSession != nil
         canResetCrop = canEditLoupePhoto && model.editor.canResetCrop
         canAddMask = canEditLoupePhoto && !isCropping && MaskLimits.canAddMask(to: model.editor.adjustments.local)
+        hasSelectedMask = canEditLoupePhoto && model.editor.selectedMaskID != nil
+        showsMaskOverlay = model.editor.showsMaskOverlay
         showsOriginal = model.editor.showsOriginal
         loupeZoom = model.loupeZoom
         showsInspector = model.showsInspector

@@ -417,6 +417,12 @@ struct LibraryCommands: Commands {
                 }
             }
             .disabled(!can { $0.canAddMask })
+            // The Masks heading's eye button (design.md N7).
+            Button(menu?.state.showsMaskOverlay == true ? String(localized: "Hide Mask Overlay")
+                                                        : String(localized: "Show Mask Overlay")) {
+                model?.editor.showsMaskOverlay.toggle()
+            }
+            .disabled(!can { $0.hasSelectedMask })
             Divider()
             Button("Save Adjustments as Preset…") { model?.promptForAdjustmentPreset() }
                 .disabled(!can { $0.hasFocusedItem })
