@@ -99,7 +99,7 @@ enum DiskChangeText {
         case .keywords: String(localized: "Keywords")
         case .creator: String(localized: "Creator")
         case .rights: String(localized: "Copyright")
-        case .caption: String(localized: "Caption")
+        case .caption: String(localized: "Description", comment: "Metadata field: the photo's description (caption)")
         case .usageTerms: String(localized: "Usage Terms")
         case .contact: String(localized: "Contact")
         case .title: String(localized: "Title")

@@ -377,7 +377,7 @@ enum RuleText {
         case .hasLocation: String(localized: "Location", comment: "Smart album rule field")
         case .artist: String(localized: "Artist", comment: "Smart album rule field")
         case .copyright: String(localized: "Copyright", comment: "Smart album rule field")
-        case .caption: String(localized: "Caption", comment: "Smart album rule field")
+        case .caption: String(localized: "Description", comment: "Metadata field: the photo's description (caption)")
         }
     }
 

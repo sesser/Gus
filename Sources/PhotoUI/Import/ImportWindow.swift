@@ -392,7 +392,7 @@ private struct PresetEditor: View {
                     TextField("Creator", text: text(\.creator))
                     TextField("Copyright", text: text(\.rights), prompt: Text("© {capture:yyyy} Your Name"))
                     TextField("Usage terms", text: text(\.usageTerms))
-                    TextField("Caption", text: text(\.caption))
+                    TextField("Description", text: text(\.caption))
                 }
                 Section("Contact") {
                     TextField("Email", text: contact(\.email))

@@ -119,10 +119,10 @@ library). **File ▸ New Smart Album…** (⌥⌘N) opens the rule editor: match
 or any of rules on rating, flag, label, keywords, file type and name, capture
 and import dates, project, camera, lens, serial number, ISO, aperture, shutter
 speed, focal length, exposure compensation, flash, white balance, location,
-artist, copyright and caption, with a live count. Right-click albums to rename,
+artist, copyright and description, with a live count. Right-click albums to rename,
 edit or delete them.
 
-**XMP sidecars**: ratings, flags, labels, keywords, creator, copyright, caption,
+**XMP sidecars**: ratings, flags, labels, keywords, creator, copyright, description,
 usage terms and contact details are written to an `.xmp` file next to each
 original a moment after they change (`IMG_0412.xmp`; a RAW+JPEG pair shares
 one), so other apps can read them. Existing sidecars are edited in place and
@@ -207,7 +207,7 @@ from its RAW; videos are not exported. A sheet on the library window sets:
   Photos are never enlarged. Pixels per inch only change the print size. Resized
   exports can get output sharpening for screen or print.
 - **Metadata**: all of it, all except location (GPS and place names), copyright
-  and contact only, or none. Keywords, caption, creator and copyright come from
+  and contact only, or none. Keywords, description, creator and copyright come from
   the library. Ratings and labels are never included.
 - **Watermark**: a PNG (transparent areas stay see-through), placed in one of
   nine positions with a margin, size and opacity, with a preview of the first photo

@@ -1868,17 +1868,6 @@
         }
       }
     },
-    "Caption" : {
-      "comment" : "Smart album rule field",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Caption"
-          }
-        }
-      }
-    },
     "Capture Date" : {
       "comment" : "Smart album rule field and template token",
       "localizations" : {
@@ -5068,13 +5057,13 @@
         }
       }
     },
-    "Keywords and captions come from the library. Ratings and labels are never included." : {
+    "Keywords and descriptions come from the library. Ratings and labels are never included." : {
       "comment" : "Export window: metadata note",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Keywords and captions come from the library. Ratings and labels are never included."
+            "value" : "Keywords and descriptions come from the library. Ratings and labels are never included."
           }
         }
       }
