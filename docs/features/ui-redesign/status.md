@@ -62,6 +62,17 @@ to `ui-redesign-onscreen-check` unless noted.
   album symbol, `calendar`, `tag`, `folder`…; a small mapping shared with
   the sidebar); or no symbol (title only; no cost). Recommendation: the
   source's sidebar symbol, which ties the state to the selected row.
+- **D-Q2 (E14, built; confirm): how an export's results split into rows.**
+  I3 says failures are a warning and skips by choice are information, but
+  not whether they share a row. Built: one row per export (the finished
+  sentence; when photos failed, a warning that also lists them), plus a
+  separate information row for skips by choice, posted first so the
+  summary is newest. Videos skipped by design are no longer mentioned after
+  the export (the old alert listed them only when it showed; the sheet's
+  header already says "3 videos are skipped"). Options: keep as built (no
+  cost); fold the skip sentence into the export's row when nothing failed
+  (small); also add a videos sentence (small, one plural string).
+  Recommendation: keep as built.
 
 ### Requirements issues (product-manager)
 
