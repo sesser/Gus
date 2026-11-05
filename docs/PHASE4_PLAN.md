@@ -74,6 +74,9 @@ than one destination per export, export to services, and watermarks with text.
   ends, the status bar says how many files were written. An alert lists
   failures (offline volume, unreadable original, missing watermark, write
   error) and skipped files. The Finder can show the written files.
+  Superseded 2026-11-04: Export is a sheet on the library window, not a
+  window, and progress, Stop and the result show in the toolbar's Activity
+  item; there is no status bar (`docs/UI_REDESIGN.md`, Export sheet).
 
 ## Code
 
@@ -85,6 +88,7 @@ than one destination per export, export to services, and watermarks with text.
   lists, shared by import and export.
 - `Sources/PhotoApp/Model/ExportModel.swift`, `Views/ExportWindow.swift`,
   `Model/DebugExportCommands.swift`.
+  Superseded 2026-11-04: the view is now `Views/ExportSheet.swift`.
 - Tests: `Tests/PhotoCoreTests/ExportTests.swift`.
 
 ## Debug script

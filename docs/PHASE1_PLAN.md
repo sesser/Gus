@@ -41,6 +41,9 @@ Tests/PhotoCoreTests/         Swift Testing suites
 Scripts/                      POSIX sh helpers (build-app.sh, …)
 ```
 
+Superseded 2026-11-04: the String Catalog moved to the shared UI module and is
+now `Sources/PhotoUI/Resources/Localizable.xcstrings`.
+
 ## Catalog schema (SQLite via GRDB, migration `v1`)
 
 | table | key columns |

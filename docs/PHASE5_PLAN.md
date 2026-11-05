@@ -351,3 +351,6 @@ suites, run alone: goldens 0.27 s, harness
   scratch folder outside the repository, for its command registry and its
   CPU-against-GPU equivalence tests; nothing was ported, so there is no
   `THIRD_PARTY_NOTICES.md`.
+  Superseded 2026-11-04: Phase 6 reimplemented some of LightCraft's mask
+  math (the brush dab profile, the color range distance), so
+  `THIRD_PARTY_NOTICES.md` now exists and lists it.
