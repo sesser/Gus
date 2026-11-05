@@ -142,7 +142,10 @@ applied (R6), Color stays available and renders as usual.
 reduction applies. If it does not, the app names one of these reasons:
 
 - this Mac's macOS has no RAW 9, or macOS does not have the RAW 9 model on
-  this Mac yet (owner ruling 9; the app never starts a download);
+  this Mac yet (owner ruling 9; the app never starts a download). The
+  missing-model case applies once the app can tell (RI-E6). Until then, a
+  missing model that fails the decode shows "could not be applied to this
+  photo";
 - this camera is not supported by RAW 9;
 - it could not be applied to this photo (the RAW 9 decode failed).
 
@@ -252,7 +255,7 @@ changing it changes the render.
 - On macOS 15 or 26, any raw shows "not available on this Mac".
 - On macOS 27 with the RAW 9 model reported missing (through a test seam),
   a supported raw shows "not available on this Mac", not "could not be
-  applied".
+  applied". Nothing in production reports a missing model yet (RI-E6).
 - No source file calls `downloadResources` or `downloadAllResources`. A
   test checks this, the way `BrandingTests` scans sources.
 
@@ -402,10 +405,14 @@ from the table, not a measurement. There is no time ceiling (owner ruling
   text reads "this Mac needs macOS 27 or later", which would be false on
   such a Mac. Owner ruling 9 adds no new reason, so only the wording may
   need to change.
-- **Engineer.** Can the app tell that the RAW 9 model is missing without
-  asking for a download, so it reports "not available on this Mac" rather
-  than "could not be applied"? If macOS gives no way to tell, return a
-  requirements issue.
+- **Engineer, follow-up (Should, RI-E6 option d).** On a test Mac or VM
+  whose RAW 9 model was never fetched, see what a decode does without
+  triggering a download. Does it fail, or fall back silently? If it falls
+  back silently, the app would claim ML applied when it did not, which
+  breaks owner ruling 3. That would come back as a requirements issue.
+  Should be done before the roadmap marks the feature Shipped, if such a
+  machine can be had. If none can be had, the owner decides whether to ship
+  without it.
 
 Closed: the time ceiling (owner ruling 10: none) and RI-E2 (owner ruling
 9).
@@ -490,3 +497,19 @@ in `status.md`):
   - **AC13.** The owner does it later and picks the cameras then. I added
     that AC13 holds the roadmap short of Shipped but does not hold up a
     merge, because the feature is off unless chosen.
+- 2026-11-05: product manager's ruling on RI-E6. The macOS 27.2 SDK has no
+  public way to tell whether the RAW 9 model is present without
+  downloading it.
+  - **Ruling: (c) now, (d) as a follow-up.** For now, a failed decode keeps
+    the "could not be applied to this photo" reason. When a Mac or VM that
+    never fetched the model can be had, check what a decode does there.
+  - Rejected (a): calling every failure "not available on this Mac" would
+    give real decode failures a false reason, against owner ruling 3.
+  - Rejected (b): reading macOS's undocumented private asset folder is
+    fragile and unsupported.
+  - Owner ruling 9's mapping (missing model shows "not available on this
+    Mac") stays the goal. It is built and tested through a test seam;
+    nothing in production triggers it until the app can tell the model is
+    missing.
+  - Ruling 9's "never trigger a download" is unaffected.
+  - Changed R5, AC6 and Open questions.
