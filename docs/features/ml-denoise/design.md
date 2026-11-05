@@ -1,9 +1,9 @@
 # ML noise reduction for RAW files: design
 
-Owner: apple-ui-designer. Date: 2026-11-05. Status: Designed, with
-requirements issues RI-1 to RI-7 open (§13). The design states what it does
-under each recommended option, so the engineer can start on everything RI-1
-and RI-2 don't touch.
+Owner: apple-ui-designer. Date: 2026-11-05. Status: Designed. RI-1 to RI-7
+are ruled (§13): the product manager ruled RI-1 to RI-6 and the owner ruled
+RI-7, all on 2026-11-05. prd.md records the rulings (R3–R6, R10, AC4–AC7a,
+AC10, Revisions). Nothing is open.
 
 **Inputs.**
 
@@ -106,8 +106,9 @@ Color       ───●──────────────────�
   reasoning is to **hide what can never apply to this file, and dim what
   could apply on another Mac or after a macOS update** (judgment; the HIG
   doesn't decide it for inspectors). A JPEG never becomes a raw. A camera can
-  gain support and a Mac can be upgraded. AC6 allows "no ML control at all"
-  for a JPEG. RI-3 asks the product manager to align R5's wording with it.
+  gain support and a Mac can be upgraded. R5 and R7 now say the same: for a
+  non-RAW file the control is not offered, and "not RAW" is not a reason
+  (RI-3, ruled).
 
 ### States
 
@@ -122,14 +123,26 @@ offers 9.dng for this file (§11, one availability rule).
 | S4 | Off, camera not supported (macOS 27) | Off, **dimmed** | "Not available for this camera." | As today | As today |
 | S5 | **Asks, not available on this Mac** (R6) | **On, enabled**, so it can be turned off | Orange `exclamationmark.triangle`, then "Not applied on this Mac: it needs macOS 27 or later. Luminance and Color apply instead." | **Available**, because Color applies (§5, RI-2) | **Machine Learning Not Applied** badge (§6) |
 | S6 | **Asks, camera not supported** (R6) | On, enabled | Triangle, then "Not applied: this camera isn't supported. Luminance and Color apply instead." | Available | Badge |
-| S7 | Asks, Noise Reduction group turned off | On, enabled. Group-off styling as for the sliders: the group check box is off and the slider fills hide | The S2, S5 or S6 caption, unchanged | As in S2, S5 or S6 | No badge and no spinner: the group asks for nothing while it is off |
+| S8 | **Asks, available, but the RAW 9 decode failed** (R5 fourth reason, R6, AC7a) | On, enabled | Triangle, then "Not applied: it could not be applied to this photo. Luminance and Color apply instead." | Available | Badge |
+| S7 | Asks, Noise Reduction group turned off | On, enabled. Group-off styling as for the sliders: the group check box is off and the slider fills hide | The S2, S5, S6 or S8 caption, unchanged | **Available**, with the group-off styling: ML is not applied while the group is off (R4 as ruled) | No badge and no spinner: the group asks for nothing while it is off |
 
 Notes on the states:
 
-- **Why S5 and S6 keep the check box enabled.** R6 says only the person may
-  remove the setting. A checked box that is dimmed couldn't be unchecked, so
-  the person would be stuck with it. Unchecking moves to S3 or S4: off and
-  dimmed. Undo (⌘Z) brings it back.
+- **Why S5, S6 and S8 keep the check box enabled.** R6 says only the person
+  may remove the setting. A checked box that is dimmed couldn't be unchecked,
+  so the person would be stuck with it. Unchecking moves to S3 or S4 (off and
+  dimmed), or to S1 after a failure. Undo (⌘Z) brings it back.
+- **S8 is learned from a render, not known in advance.** S5 and S6 follow
+  from the Mac and the file. S8 appears only when an ML render for the
+  current values has failed. Until then the photo is in S2, with the
+  spinner. When the failed render's fallback frame arrives, the photo moves
+  to S8: the spinner goes, and the caption, badge and Color row change with
+  that frame, so nothing claims a state that is not on screen (the same rule
+  as SMP §5). The next change of values tries ML again. If that render
+  succeeds, the photo returns to S2. Whether to remember a failure for the
+  rest of the session, so a slow failing decode isn't repeated on every
+  change, is the engineer's call. Return a design question if it changes
+  what is on screen.
 - **Why S3 and S4 dim the check box instead of letting it be checked.** A
   check box that changes nothing on screen looks broken. The HIG asks that a
   control show its effect. Dimming with the reason next to it says what is
@@ -165,35 +178,60 @@ the check box's state. It never holds a separate one.
 | Situation | Pop-up shows | Choosing in the pop-up |
 |---|---|---|
 | ML available, off | The decoder in use, as today. Its list includes **"9.dng (machine learning)"** | Choosing 9.dng is the same as checking the box: ML turns on in the Noise Reduction group. One undo step, named "Decoder" (the control used, as today) |
-| ML available, on | **9.dng (machine learning)** selected | Choosing another version turns ML off and selects that version, in one undo step |
-| ML asks, not available (S5, S6) | The decoder that actually renders, since 9.dng is not in this Mac's list. The pop-up is **dimmed**, with the tooltip "Turn off Use machine learning to choose another decoder." | Nothing, because it is dimmed |
+| ML available, on | **9.dng (machine learning)** selected | Choosing any other version turns ML off **and makes that version the Profile group's decoder**, in one undo step named "Decoder" (R3 as ruled). The Profile group's earlier choice is replaced, because the person just chose a decoder |
+| ML asks, not available or failed (S5, S6, S8) | The decoder that actually renders: Profile's choice, or the default. The pop-up is **dimmed**, with the tooltip "Turn off Use machine learning to choose another decoder." | Nothing, because it is dimmed |
 | ML not available, off (S3, S4) | As today (9.dng is not listed) | As today |
+| ML asks, Noise Reduction turned off (S7) | Profile's own decoder choice (or the default), which is what renders | As in the ML-on row: another version turns ML off and becomes Profile's decoder. 9.dng turns the Noise Reduction group back on with ML |
 
 - **The suffix.** The 9.dng item's suffix is what the PRD's problem
   statement asks for: "nothing tells a person that this is the ML denoise".
   It follows the existing "(default)" suffix, which is lowercase and in
   parentheses.
-- **Why the pop-up is dimmed in S5 and S6.** Picking a decoder there would
-  either silently drop ML, which R6 rules out ("the only exception is the
-  person turning it off", and a decoder pick is not obviously that), or do
-  nothing visible. The check box is the one place that turns it off, and the
-  tooltip says so.
-- **Group ownership.** The pop-up lives in the Profile group. ML belongs to
-  Noise Reduction (R10). Under RI-1's recommended option, the pop-up shows
-  9.dng while ML is on and applied, and otherwise shows the Profile group's
-  own decoder choice. When ML is turned off, Profile's choice comes back, the
-  same way Color's value comes back (R4). Turning Profile off doesn't turn ML
-  off. Turning Noise Reduction off does. RI-1 asks the product manager to
-  confirm, because it decides what Profile-only presets and paste carry.
+- **"(default)" means the app's default** (RI-7 as ruled). Raws that don't
+  ask for ML keep the decoder that was the default before RAW 9, even if a
+  future macOS changes Apple's default. The "(default)" suffix goes on that
+  pinned version, the one an untouched raw decodes with, so the label stays
+  true. It never goes on 9.dng while the pin holds.
+- **Why the pop-up is dimmed in S5, S6 and S8.** Picking a decoder there
+  would either silently drop ML, which R6 rules out ("the only exception is
+  the person turning it off", and a decoder pick is not obviously that), or
+  do nothing visible. The check box is the one place that turns it off, and
+  the tooltip says so.
+- **Group ownership** (RI-1, ruled). ML belongs to Noise Reduction (R3,
+  R10). The pop-up shows 9.dng while ML is on and applied. Otherwise it
+  shows the Profile group's own decoder choice, which is kept while ML is on
+  and comes back when ML is turned off, the same way Color's value comes
+  back (R4).
+  - Profile-only presets, a paste of Profile, and turning Profile off or on
+    never turn ML on or off.
+  - Turning Noise Reduction off stops ML in the render and keeps the
+    setting (S7).
+  - A stack saved before this feature with Profile's decoder at 9.dng opens
+    as ML on (the box is checked, the pop-up shows 9.dng), with Profile's own
+    choice at the default.
+  - A preset saved before this feature with Profile's decoder at 9.dng turns
+    ML on when applied. It leaves the target's Luminance and Color as they
+    were (§7).
 
 ## 5. Color while ML is on (R4)
 
-- **Rule:** Color is unavailable while the stack asks for ML **and ML is
-  available for this file**, with the group on or off. In S5 and S6 Color
-  stays available, because the fallback renders the stack's classical
-  values, Color included (R6). A dimmed control that still changes the photo
-  would be false. RI-2 asks the product manager to confirm this reading of
-  R4 and AC5 next to R6.
+- **Rule** (RI-2, ruled; R4): Color is unavailable only while ML is on
+  **and applied**. That means the stack asks for it, the Noise Reduction
+  group is on, ML is available for this file, and the last ML render did not
+  fail. Only S2 has Color unavailable. In S5, S6 and S8 Color stays
+  available, because the fallback renders the stack's classical values,
+  Color included (R6). A dimmed control that still changes the photo would
+  be false. In S7 (group off) Color is available with the group-off styling,
+  like Luminance.
+- **One consequence of S7, accepted.** Changing Color while the group is off
+  turns the group back on, as any control does. ML then applies, so Color
+  dims with the next frame and the value just set is kept but not used. The
+  caption under the check box ("Color is kept but not used while this is
+  on") already says so. I don't treat this as an issue: dimming Color while
+  the group is off would contradict the ruling, and the case is rare.
+- **In S8 the row changes with the fallback frame**, not before (§3). Until
+  the failed render's fallback is on screen, the photo is in S2 and Color is
+  unavailable.
 - **How it looks.** The existing `AdjustSlider(isEnabled: false)`: the
   system's disabled slider, and a value field that can't be edited. The field
   shows the stored value (or the decoder's default when nothing is stored),
@@ -231,8 +269,9 @@ the check box's state. It never holds a separate one.
   - a preset or look-up table hover;
   - arriving at a photo with ML whose preview isn't cached yet.
 
-  It goes away when the ML frame is on screen, or when the wait ends some
-  other way (moving to another photo, turning ML off).
+  It goes away when the ML frame is on screen, when a failed ML render's
+  fallback frame is on screen (S8, with the badge), or when the wait ends
+  some other way (moving to another photo, turning ML off).
 - **No visible label.** The person usually just started the work, and the
   HIG says: "Avoid labeling a spinning progress indicator. Because a spinner
   typically appears when people initiate a process, a label is usually
@@ -256,9 +295,15 @@ the check box's state. It never holds a separate one.
 - **Caption badge: Machine Learning Not Applied.** It uses the existing
   `CaptionBadge` and comes after HDR, before Offline. Offline is the other
   "you are seeing a fallback" badge, and the two read together. The tooltip
-  gives the reason (§9). The badge shows whenever the values on screen ask
-  for ML, the Noise Reduction group is on, and ML is not available here.
-  Hover previews count, as they do for the map's badge.
+  gives the reason (§9): this Mac (S5), this camera (S6), or "could not be
+  applied to this photo" (S8). The badge shows whenever the values on screen
+  ask for ML, the Noise Reduction group is on, and ML did not apply to the
+  frame on screen, because it is not available here or because its render
+  failed. Hover previews count, as they do for the map's badge.
+- **S8 shows with the fallback frame** that follows the failure, never
+  before it (§3). A failure during a hover preview shows the badge for that
+  preview only. When the hover ends, the badge follows the applied values
+  again.
 - **Why a badge as well as the inspector caption.** AC7 asks that the loupe
   show it. The badge is also visible in review mode and with the inspector
   hidden or on the Info tab, which is where people look at photos.
@@ -266,7 +311,7 @@ the check box's state. It never holds a separate one.
   badge shows. The camera reason needs the file or its camera model. If the
   engineer can't decide it from the catalog, the badge is left out while the
   original is offline. The Offline badge already says a cached preview is
-  shown.
+  shown. S8 never applies offline: nothing is decoded.
 - **When ML is on and applied, there is no badge.** The caption marks
   departures from the expected rendering, not settings.
 
@@ -274,9 +319,9 @@ the check box's state. It never holds a separate one.
 
 - **Paste Adjustments, Apply Preset, Reset All** on a grid selection (R10,
   AC10):
-  - Raws get the setting. Under RI-4's recommended reading, that includes
-    raws where it is not available, so the setting is kept and the photo
-    shows S5 or S6.
+  - Every raw the batch reaches gets the setting (RI-4, ruled; R10),
+    including raws where it is not available. The setting is kept and the
+    photo shows S5 or S6.
   - Non-RAW photos never get it, and their other values still apply.
   - When the batch carried ML on and the selection included non-RAW photos,
     one Activity information row says so: "Machine learning noise reduction
@@ -289,9 +334,18 @@ the check box's state. It never holds a separate one.
   no extra indicator is added.
 - **Save Adjustments as Preset…** No change. ML travels with the Noise
   Reduction group's check box in that sheet.
+- **Profile-only presets and pastes** never turn ML on or off (RI-1, R3).
+- **Presets saved before this feature** whose Profile holds 9.dng (RI-1
+  addition, R3): applying one turns ML on in the target. It leaves the
+  target's Luminance and Color as they were, so the preset still does what
+  it did. On a non-RAW target it does nothing for ML, as for any preset. The
+  UI needs nothing new for this. The inspector and the pop-up show the
+  result like any ML-on stack, and a batch with non-RAW photos posts the
+  same Activity row as above.
 - **RAW+JPEG pairs** (R11). Edits stay per file. In the loupe, the pair's
   JPEG shows no check box. A batch command on a pair reaches the file the
-  grid shows, as today (RI-5).
+  grid shows, as today. AC10 now states that the pair shows its RAW (RI-5,
+  ruled).
 - **Export** (R12). Export renders ML where available. When ML was asked for
   and not applied for some photos, the export reports it in Activity as
   **information**, one row per reason, posted before the export's own row:
@@ -299,6 +353,9 @@ the check box's state. It never holds a separate one.
     Mac needs macOS 27 or later."
   - "N photos were exported without machine learning noise reduction: their
     cameras aren't supported."
+  - "N photos were exported without machine learning noise reduction: it
+    could not be applied to these photos." For one photo: "…: it could not
+    be applied to this photo." (AC7a, RI-6)
 
   This follows P4 and I3 (background tasks report in Activity, and skips by
   design are information). Without it, an export from the grid on an older
@@ -323,13 +380,13 @@ the check box's state. It never holds a separate one.
 
 | Element | Label | Value or state | Help |
 |---|---|---|---|
-| Check box | "Use machine learning" (the visible title) | Checked or unchecked. "Dimmed" in S3 and S4 | S1, S2: the tooltip. S3–S6: the caption text, so the reason is spoken where the person is |
+| Check box | "Use machine learning" (the visible title) | Checked or unchecked. "Dimmed" in S3 and S4 | S1, S2: the tooltip. S3–S6 and S8: the caption text, so the reason is spoken where the person is |
 | Caption | Static text, read in order after the check box | — | — |
-| Triangle (S5, S6) | Hidden from VoiceOver. The caption's "Not applied…" says it | — | — |
+| Triangle (S5, S6, S8) | Hidden from VoiceOver. The caption's "Not applied…" says it | — | — |
 | Color row (S2) | "Color" (unchanged) | The stored value, "dimmed" | The §5 tooltip |
-| Decoder pop-up | "Decoder" (unchanged) | "9.dng (machine learning)" when on | The dimmed tooltip in S5 and S6 |
+| Decoder pop-up | "Decoder" (unchanged) | "9.dng (machine learning)" when on | The dimmed tooltip in S5, S6 and S8 |
 | Caption spinner | "Applying machine learning noise reduction" | — | — |
-| Loupe canvas | Unchanged (file name, kind) | In S5 and S6, the value gains one part after Offline: "Machine learning not applied" (e.g. "Picked, Machine learning not applied, 13 of 87"). The capitalization matches the other parts ("Red label", "Offline") | — |
+| Loupe canvas | Unchanged (file name, kind) | In S5, S6 and S8, the value gains one part after Offline: "Machine learning not applied" (e.g. "Picked, Machine learning not applied, 13 of 87"). The capitalization matches the other parts ("Red label", "Offline") | — |
 
 - **No announcements.** The check box speaks its own new state. A finished
   ML render isn't announced: it changes nothing a VoiceOver user acts on, the
@@ -372,19 +429,22 @@ are plural variations (stringsdict), as the existing Activity counts are.
 | Not available for this camera. | Caption and check box help, S4 | The macOS raw decoder's machine learning version doesn't list the camera |
 | Not applied on this Mac: it needs macOS 27 or later. Luminance and Color apply instead. | Caption and check box help, S5 | The photo asks for it; the setting is kept |
 | Not applied: this camera isn't supported. Luminance and Color apply instead. | Caption and check box help, S6 | Same |
+| Not applied: it could not be applied to this photo. Luminance and Color apply instead. | Caption and check box help, S8 | The machine learning decode failed for this file; the setting is kept. "Could not be applied to this photo" is the PRD's reason (R5, AC7a) |
 | Not used with machine learning. Your value is kept and applies again when you turn off Use machine learning. | Color row tooltip and VoiceOver help, S2 | "Use machine learning" is the check box title |
 | %@ (machine learning) | Decoder pop-up item for the RAW 9 version | %@ is the decoder version, e.g. "9.dng". Pattern of the existing "%@ (default)" |
-| Turn off Use machine learning to choose another decoder. | Decoder pop-up tooltip, dimmed (S5, S6) | |
+| Turn off Use machine learning to choose another decoder. | Decoder pop-up tooltip, dimmed (S5, S6, S8) | |
 | Turn On Machine Learning | Undo and Redo action name | Title-style, as the other undo names |
 | Turn Off Machine Learning | Undo and Redo action name | |
 | Applying machine learning noise reduction | Caption spinner tooltip and VoiceOver label | No visible label (HIG Progress indicators) |
-| Machine Learning Not Applied | Loupe caption badge, S5 and S6 | Title-style, as the other badges |
+| Machine Learning Not Applied | Loupe caption badge, S5, S6 and S8 | Title-style, as the other badges |
 | This photo is set to use machine learning noise reduction, which needs macOS 27 or later. It's shown with Luminance and Color instead. | Badge tooltip, S5 | |
 | This photo is set to use machine learning noise reduction, which doesn't support its camera. It's shown with Luminance and Color instead. | Badge tooltip, S6 | |
+| This photo is set to use machine learning noise reduction, but it could not be applied to this photo. It's shown with Luminance and Color instead. | Badge tooltip, S8 | The decode failed for this file |
 | Machine learning not applied | Loupe canvas VoiceOver value part | One part of the list, like "Offline" |
 | Machine learning noise reduction was left off for %lld photos that aren't raw files. | Activity information row after a batch command that carried ML on | Plural. Follows "%lld videos were left unchanged." |
 | %lld photos were exported without machine learning noise reduction: this Mac needs macOS 27 or later. | Activity information row after an export | Plural |
 | %lld photos were exported without machine learning noise reduction: their cameras aren't supported. | Activity information row after an export | Plural |
+| %lld photos were exported without machine learning noise reduction: it could not be applied to these photos. | Activity information row after an export | Plural. The "one" variation ends "…: it could not be applied to this photo." (AC7a) |
 
 **Reused, with no new uses:** "Noise Reduction", "Luminance", "Color",
 "Decoder", "Offline", "HDR", "Turn On %@" and "Turn Off %@" (the group check
@@ -410,10 +470,17 @@ Nothing goes on the glass layer.
 ## 11. Notes for the engineer (behavior, not code)
 
 - **One availability rule.** It gives `available`, `notOnThisMac`,
-  `cameraNotSupported` or `notRaw` for a file on this Mac. The check box,
-  caption, Color row, Decoder pop-up, caption badge, VoiceOver value,
+  `cameraNotSupported` or `notRaw` for a file on this Mac. `notRaw` only
+  hides the control and is never shown as a reason (R5 as ruled). The check
+  box, caption, Color row, Decoder pop-up, caption badge, VoiceOver value,
   Activity rows and `photocli`'s "applied" field (R13) all read it. AC6's
   unit test is on this rule.
+- **One render outcome, for the fourth reason.** The result of the last ML
+  render for the values on screen (and, separately, of each export) is
+  `applied` or `failed`. `failed` gives S8 and the reason "could not be
+  applied to this photo", and it reaches the same surfaces as the
+  availability reasons. AC7a forces it through a test seam. The debug script
+  should be able to force it too, so DR1 can check S8.
   - `notOnThisMac` is "this macOS has no RAW 9", which is a system check and
     needs no file.
   - `cameraNotSupported` is macOS 27 or later with 9.dng missing from the
@@ -422,15 +489,18 @@ Nothing goes on the glass layer.
     entirely. If it can, that is `notOnThisMac`, and the "needs macOS 27"
     wording would be wrong there. Return a design question if so.
 - **Three derived facts.**
-  - *asks*: the stack's state, whichever storage R3 lands on.
-  - *applied*: asks, the Noise Reduction group is on, and `available`.
-  - *Color unavailable*: asks and `available` (§5).
+  - *asks*: ML on in the Noise Reduction group (R3 as ruled).
+  - *applied*: asks, the Noise Reduction group is on, `available`, and the
+    last render outcome is not `failed`.
+  - *Color unavailable*: exactly *applied* (§5, R4 as ruled).
 
-  The badge shows when the group is on, asks is true and the file is not
-  `available`.
-- **The Decoder pop-up** shows the decoder that renders. Choosing 9.dng
-  writes the ML state. Choosing another version while ML is applied clears
-  it in the same undo step. It is dimmed in S5 and S6 (§4).
+  The badge shows when the group is on, asks is true and *applied* is false.
+- **The Decoder pop-up** shows the decoder that renders: 9.dng while
+  *applied*, otherwise Profile's own choice or the pinned default. Choosing
+  9.dng turns ML on. Choosing another version turns ML off and writes that
+  version as Profile's decoder, in the same undo step. It is dimmed in S5,
+  S6 and S8 (§4). The "(default)" suffix marks the pinned pre-RAW 9 default
+  (RI-7).
 - **Spinner.** It is one "waiting for an ML frame for more than 0.5 s" flag
   on the editor, next to `isRefiningSharpeningMap`, and the caption shows one
   spinner when either is set. It is never stored.
@@ -456,22 +526,36 @@ Nothing goes on the glass layer.
 
 | # | Check | How |
 |---|---|---|
-| DR1 | States S1–S7: check box state and enabled state, caption text and triangle, Color row availability, per §3. A JPEG shows no check box and no caption (AC6) | `print` with the availability override; manual on screen (glass pane) on macOS 27 and on 15 or 26 |
-| DR2 | One state (R3, AC4): checking the box selects "9.dng (machine learning)" in the pop-up. Choosing 9.dng checks the box. Choosing another version while on unchecks it, in one undo step. A stack saved with `9.dng` before the feature opens checked. In S5 and S6 the pop-up is dimmed with its tooltip | `print`, `menupress`/`click`, a fixture stack |
-| DR3 | Color (AC5): disabled with its value shown in S2, with its tooltip. Available in S5 and S6. Unchecking ML restores it with the same stored value | `print`; manual |
+| DR1 | States S1–S8: check box state and enabled state, caption text and triangle, Color row availability, per §3. S8 appears with the fallback frame, not before. A JPEG shows no check box and no caption (AC6) | `print` with the availability and render-outcome overrides; manual on screen (glass pane) on macOS 27 and on 15 or 26 |
+| DR2 | One state (R3, AC4): checking the box selects "9.dng (machine learning)" in the pop-up. Choosing 9.dng checks the box. Choosing another version while on unchecks it and shows that version as Profile's decoder, in one undo step. A stack saved with `9.dng` before the feature opens checked, with Profile's own choice at the default. A Profile-only preset leaves the box alone. A pre-feature preset with Profile at `9.dng` checks it and leaves Luminance and Color unchanged. In S5, S6 and S8 the pop-up is dimmed with its tooltip. "(default)" is on the pinned version | `print`, `menupress`/`click`, fixture stacks and presets |
+| DR3 | Color (AC5): disabled with its value shown in S2, with its tooltip. Available in S5, S6, S7 and S8. Unchecking ML restores it with the same stored value | `print`; manual |
 | DR4 | Spinner (AC8): appears only after 0.5 s of waiting for an ML frame, in the caption slot of §6, and goes when the frame arrives. Meanwhile arrow keys, culling keys, the film strip and other sliders work. The loupe is never blank. It is one spinner when the sharpening map also refines | Manual on a 24 MP raw on the owner's Mac |
-| DR5 | Badge (AC7): "Machine Learning Not Applied" in S5 and S6 after HDR and before Offline, with the right tooltip. It is absent when the group is off and when ML applies. It also shows in review mode | `print`; manual |
+| DR5 | Badge (AC7, AC7a): "Machine Learning Not Applied" in S5, S6 and S8 after HDR and before Offline, with the tooltip for its reason. It is absent when the group is off and when ML applies. It also shows in review mode | `print`; manual |
 | DR6 | Undo (AC9): "Undo Turn On Machine Learning" in the Edit menu. ⌘Z restores the stack | `menuitems "Undo"` |
-| DR7 | Batch (AC10): the Activity row for non-RAW photos appears only when the batch carried ML on. A pair is handled per RI-5's ruling | Debug script paste on a mixed selection; `print` Activity |
-| DR8 | Export: the information rows per reason when ML was not applied. No row when everything applied | Manual on macOS 26 or with the override |
+| DR7 | Batch (AC10): every raw reached gets ML, including raws where it is not available (they show S5 or S6). The Activity row for non-RAW photos appears only when the batch carried ML on. A pair shown as its RAW gets ML on the RAW | Debug script paste on a mixed selection; `print` Activity |
+| DR8 | Export (AC7, AC7a): the information rows per reason when ML was not applied, including "could not be applied to this photo" with a forced failure. No row when everything applied | Manual on macOS 26, or with the overrides |
 | DR9 | VoiceOver: the check box name, state and help. The Color row dimmed with help. The spinner label. The canvas value part "Machine learning not applied" | Manual; `accessibility image` |
 | DR10 | Increase Contrast: no new color, and the triangle, captions and disabled row are legible. Reduce Motion: no transition when the ML frame arrives | Manual |
 | DR11 | Strings: every §9 key is present with its comment, plurals for the counts, `LocalizationTests` pass, and USER_GUIDE.md uses §1's terms and never "ML" or "RAW 9" | `swift test --filter LocalizationTests`; reading |
 
-## 13. Requirements issues (for the product manager)
+## 13. Requirements issues (ruled)
 
-Open. Each has a recommendation, and the design above follows it until it is
-ruled.
+All seven are ruled. RI-1 to RI-6 were ruled by the product manager on
+2026-11-05, and prd.md records them (Revisions; R3–R6, R10, AC4–AC7a,
+AC10). RI-7 was ruled by the owner on 2026-11-05, and the product manager is
+recording it in prd.md. Nothing is open.
+
+| RI | Ruling | Where this design applies it |
+|---|---|---|
+| RI-1 | Option A, with an addition. ML belongs to Noise Reduction. Profile's decoder choice applies only while ML is off, and comes back when ML is turned off. Profile presets, a paste of Profile, and the Profile group's on/off never touch ML. Pre-feature stacks holding `9.dng` read as ML on. **Addition:** applying a pre-feature preset whose Profile holds `9.dng` turns ML on and leaves the target's Luminance and Color alone. Choosing any non-9 version in the Decoder pop-up turns ML off and makes that version Profile's decoder | §4 (pop-up table, group ownership), §7 (presets), §11, DR2 |
+| RI-2 | As recommended, worded "only while ML is on and actually applied". Color is unavailable only in S2. It is available in the fallback (S5, S6, S8) and while the group is off (S7) | §3 (states table), §5 (rule and the S7 consequence), §11 (*Color unavailable* = *applied*), DR3 |
+| RI-3 | As recommended. For non-RAW files the control is not offered, and "not RAW" is no longer a reason | §3, §11 |
+| RI-4 | As recommended. Batch commands store ML on every RAW they reach, even where it is not available | §7, DR7 |
+| RI-5 | As recommended. AC10 says the pair shows its RAW. R11 is unchanged | §7, DR7 |
+| RI-6 | As recommended. A fourth reason, "could not be applied to this photo", with the same fallback as R6. New AC7a | §3 (S8), §5, §6 (badge), §7 (export row), §8, §9 (three strings), §11 (render outcome), DR1, DR5, DR8 |
+| RI-7 | Owner: pin the old default. Raws that don't ask for ML keep the pre-RAW 9 default decoder even if a future macOS changes Apple's default. No UI change | §4 and §11: "(default)" marks the pinned version |
+
+The issues as raised:
 
 1. **RI-1. Which group owns the decoder choice?** R10 puts ML in Noise
    Reduction. R3 makes it the same state as the Decoder pop-up, which is in
@@ -540,11 +624,11 @@ ruled.
 | Question | Answer | Section |
 |---|---|---|
 | Where the control lives and its name | Details ▸ Noise Reduction, first row: the **Use machine learning** check box. No menu item, context menu, toolbar item or shortcut (a group parameter, N10) | §1, §2, §3 |
-| Whether it merges with the Decoder pop-up (R3) | One state with two views. The pop-up's "9.dng (machine learning)" is checked exactly when the box is. Choosing it turns ML on, and choosing another version turns it off. The pop-up is dimmed when ML is asked for but not available | §4; RI-1 |
-| How Color shows as unavailable (R4) | The system disabled slider and field, with the stored value shown, a tooltip, and a caption under the check box. It is available again in the fallback | §5; RI-2 |
-| Availability and the three reasons (R5) | Available: an enabled check box. This Mac or this camera: a dimmed check box with the reason as a caption and help. Not RAW: no control (the app's RAW-only convention) | §3; RI-3 |
-| "Not applied" on a Mac without RAW 9 (R6) | A checked, enabled box with an orange triangle and the reason; the **Machine Learning Not Applied** caption badge; a VoiceOver value part; Activity rows after export | §3, §6, §7, §8 |
+| Whether it merges with the Decoder pop-up (R3) | One state with two views. The pop-up's "9.dng (machine learning)" is checked exactly when the box is. Choosing it turns ML on. Choosing another version turns ML off and makes that version Profile's decoder. The pop-up is dimmed when ML is asked for but not applied | §4; RI-1 |
+| How Color shows as unavailable (R4) | The system disabled slider and field, with the stored value shown, a tooltip, and a caption under the check box. Only while ML is on and applied; it is available in the fallback and while the group is off | §5; RI-2 |
+| Availability and the reasons (R5) | Available: an enabled check box. This Mac or this camera: a dimmed check box with the reason as a caption and help. A failed decode: S8. Not RAW: no control, and not a reason (the app's RAW-only convention) | §3; RI-3, RI-6 |
+| "Not applied" (R6) | A checked, enabled box with an orange triangle and the reason (this Mac, this camera, or "could not be applied to this photo"); the **Machine Learning Not Applied** caption badge; a VoiceOver value part; Activity rows after export | §3, §6, §7, §8 |
 | Progress while an ML render is pending (R8) | One mini spinner in the loupe caption's existing spinner slot after 0.5 s, with no label, a tooltip and a VoiceOver label. Nothing is blocked and the loupe is never blank | §6 |
 | Mixed selection | The inspector edits one photo, so there is no mixed state. Batch commands give raws the setting, leave non-RAW photos off, and post an Activity information row when they did | §2, §7; RI-4, RI-5 |
 | Accessibility | Check box name and help, the dimmed Color row with help, spinner label, canvas value part. System colors only. Text always carries state | §8 |
-| Strings | 20 new keys, none with the product name | §9 |
+| Strings | 23 new keys, none with the product name | §9 |
