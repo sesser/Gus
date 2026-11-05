@@ -15,7 +15,7 @@ for an on-device ML denoise. The only alternative is to export and run
 another app, which goes against keeping editing in one non-destructive
 library.
 
-macOS 27's RAW decoder version 9 (`9.dng`, "RAW 9") is itself an on-device
+macOS 27's RAW decoder version 9 ("RAW 9") is itself an on-device
 Core ML model. It demosaics and denoises in one step on the Neural Engine
 (WWDC26 session 305). It is not on by default, so the app has to opt in per
 file. On macOS 27 the app's Decoder pop-up already offers `9.dng` for
@@ -66,6 +66,16 @@ We will know it worked when:
    these too. A raw whose stack does not ask for ML keeps decoding with the
    pre-RAW 9 default decoder, even if a later macOS makes RAW 9 Apple's
    default. The engineer pins that default.
+9. **Apple's on-demand model (RI-E2, "Allowed, never trigger it").**
+   macOS's own on-demand RAW 9 model may be used, but only when macOS
+   already has it. The app never calls `downloadResources` or
+   `downloadAllResources` and never starts a download. A missing model
+   counts as "not available on this Mac", the existing reason, so nothing
+   new is needed in the UI. This narrows ruling 1's "no downloaded model".
+10. **Speed ceiling: "No ceiling."** The measured times are recorded and
+    nothing more is required.
+11. **Real-raw check (AC13).** The owner will do it later and pick the
+    cameras then. It stays an open manual check for the owner.
 
 ## Users and scenarios
 
@@ -99,7 +109,9 @@ later macOS makes RAW 9 Apple's default. The engineer pins that default.
 
 **R3 (Must).** Exactly one state means "ML noise reduction on". It belongs
 to the Noise Reduction group (R10). The new control and the Decoder pop-up's
-`9.dng` choice cannot disagree:
+RAW 9 choice cannot disagree. In this PRD, `9.dng` means RAW 9 whichever way
+the decoder names it for the file: `9` for camera raws, `9.dng` for DNG
+(RI-E3).
 
 - Choosing `9.dng` in the pop-up turns ML on. Choosing another version
   turns ML off and makes that version the Profile group's decoder.
@@ -111,7 +123,13 @@ to the Noise Reduction group (R10). The new control and the Decoder pop-up's
   the setting, as for any group.
 - A stack saved before this feature with Profile's decoder at `9.dng` reads
   as ML on, with Profile's decoder at the default. Its rendering does not
-  change.
+  change. Two exceptions (RI-E4):
+  - If its Profile group was off, the `9.dng` was never rendering. It reads
+    as ML off and the inactive choice is dropped, so rendering stays
+    unchanged.
+  - If its Noise Reduction group was off, it reads as ML on inside an off
+    group and renders classically, where it used RAW 9 before. Turning the
+    group on brings RAW 9 back. The group is not turned on for the person.
 - A preset saved before this feature with Profile's decoder at `9.dng`
   turns ML on when applied, and changes nothing else in Noise Reduction.
 
@@ -123,7 +141,8 @@ applied (R6), Color stays available and renders as usual.
 **R5 (Must).** For a RAW photo being edited, the app shows whether ML noise
 reduction applies. If it does not, the app names one of these reasons:
 
-- this Mac's macOS has no RAW 9;
+- this Mac's macOS has no RAW 9, or macOS does not have the RAW 9 model on
+  this Mac yet (owner ruling 9; the app never starts a download);
 - this camera is not supported by RAW 9;
 - it could not be applied to this photo (the RAW 9 decode failed).
 
@@ -165,7 +184,9 @@ same way the loupe shows it.
 
 **R13 (Must).** `photocli` supports it:
 
-- `develop` sets and resets it;
+- `develop` sets and resets it. On a file that is not RAW, `develop`
+  refuses to turn it on (`invalidEdit`), as it already refuses values that
+  would have no effect (RI-E5);
 - `adjustments` lists it among the parameters;
 - `render` and `export` render with it.
 
@@ -179,12 +200,14 @@ export. Times measured on the owner's Mac are recorded in this PRD
 
 ## Acceptance criteria
 
-**AC1 (R1, R12).** On macOS 27, a synthetic Bayer DNG with 2 % noise (the
-`RAWDecodeTests` fixture) is rendered twice: with ML at Luminance 100, and
-classical at Luminance 100 and Color 100. The ML render has lower
-high-frequency energy in flat areas. Both the full-resolution export path
-and `photocli render` show this. On a Mac without RAW 9 the test is skipped,
-and the skip names the reason.
+**AC1 (R1, R4, R12).** On macOS 27, a synthetic Bayer DNG with 2 % noise and
+a DNG `NoiseProfile` tag is rendered with ML at Luminance 0 and at Luminance
+100. The render at 100 has lower high-frequency energy in flat areas. Both
+the full-resolution export path and `photocli render` show this. On a Mac
+without RAW 9 the test is skipped, and the skip names the reason.
+
+Whether ML is quieter than classical at 100 is not tested on synthetic data
+(RI-E1); AC13 decides it on real raws.
 
 **AC2 (R1).** On the same kind of fixture made from an edge scene, the ML
 render's edge contrast is not lower than classical at 100.
@@ -198,8 +221,12 @@ does not ask for ML still decodes with the pinned pre-RAW 9 default, not
 
 **AC4 (R3).** Each of these is checked:
 
-- A stack saved with `decode.decoderVersion = "9.dng"` loads as ML on, with
-  Profile's decoder at the default, and renders as before.
+- A stack saved with `decode.decoderVersion` at `9.dng` (a DNG) or `9` (a
+  camera raw) loads as ML on, with Profile's decoder at the default, and
+  renders as before.
+- The same stack with its Profile group off loads as ML off and renders as
+  before. With its Noise Reduction group off, it loads as ML on inside the
+  off group (RI-E4).
 - A stack with ML on and Profile's decoder at `7.dng` decodes with `9.dng`.
   Turning ML off makes it decode with `7.dng`.
 - On a photo with ML on, each of these leaves ML on: applying a
@@ -223,6 +250,11 @@ changing it changes the render.
 - A camera missing from RAW 9's `supportedCameraModels` shows "camera not
   supported".
 - On macOS 15 or 26, any raw shows "not available on this Mac".
+- On macOS 27 with the RAW 9 model reported missing (through a test seam),
+  a supported raw shows "not available on this Mac", not "could not be
+  applied".
+- No source file calls `downloadResources` or `downloadAllResources`. A
+  test checks this, the way `BrandingTests` scans sources.
 
 **AC7 (R6).** On a Mac without RAW 9, take a stack with ML on and do all of
 the following:
@@ -265,8 +297,9 @@ A pair shown as its JPEG is not covered: batch commands reach the file the
 grid shows, and a JPEG never gets ML (R11).
 
 **AC11 (R13).** `photocli adjustments` lists the parameter. `photocli
-develop --dry-run` with it on prints a stack with ML on. `render` and
-`export` JSON say whether ML was applied.
+develop --dry-run` with it on prints a stack with ML on. On a JPEG, the
+same command fails with `invalidEdit`. `render` and `export` JSON say
+whether ML was applied.
 
 **AC12 (R14).** The photobench case runs. Its six times appear under
 Measurements.
@@ -275,15 +308,34 @@ Measurements.
 at 1:1. Noise is clearly lower than classical at 100 and there are no new
 artifacts. The cameras used are recorded here.
 
+Since RI-E1, this is the only check that ML beats classical. The owner does
+it later and picks the cameras then (owner ruling 11). Until it passes, the
+roadmap keeps the feature short of Shipped. Merging the branch doesn't wait
+for it, because the feature is off unless chosen. A real raw committed as a
+test fixture would automate the check, but only with the owner's file and
+consent.
+
 ## Measurements
 
-To fill in from R14 on the owner's Mac.
+R14, measured by the engineer on 2026-11-05:
+
+- File: a synthetic 6000 × 4000 DNG (24 MP), not a real camera raw.
+- Build and method: release build, median of 5 runs.
+- Machine: Apple M4 Pro, macOS 27.2.
 
 | Output | ML off | ML on |
 |---|---|---|
-| Thumbnail | | |
-| 2560 px preview | | |
-| Full-resolution export | | |
+| Thumbnail | 0.06 s | 0.32 s |
+| 2560 px preview | 0.07 s | 1.34 s |
+| Full-resolution export | 0.11 s | 1.38 s |
+
+The first ML decode in a cold process took 3.05 s, because the model has to
+load.
+
+At these times, generating thumbnails for 500 photos with ML on would take
+roughly 160 s of decode time, against 30 s with ML off. That is an estimate
+from the table, not a measurement. There is no time ceiling (owner ruling
+10).
 
 ## Non-goals
 
@@ -310,8 +362,9 @@ To fill in from R14 on the owner's Mac.
   - Whether a pipeline version bump is needed is the engineer's call, under
     R2 and AC3.
 - **Live editing.** A change re-decodes the photo (`LiveRenderSession`).
-  RAW 9 is heavier than earlier versions. Draft and scaled decodes behave
-  differently under RAW 9; see the open questions.
+  RAW 9 is heavier than earlier versions. Under RAW 9 only `scaleFactor`
+  speeds up interactive frames; draft mode is ignored (see the engineer's
+  answers under Open questions).
 - **Defaults and sliders.** `RawDefaults` reads the decoder's defaults at its
   default version. With RAW 9, the defaults for Luminance and Color may
   differ.
@@ -337,25 +390,40 @@ To fill in from R14 on the owner's Mac.
 
 ## Open questions
 
-- **Owner.** Which 2–3 cameras and high-ISO files for AC13? Are those
-  cameras on RAW 9's supported list?
-- **Owner.** The time ceiling, if any, once R14's measurements are in. None
-  was named; none is assumed here.
-- **Engineer.** I assumed macOS 27 runs only on Apple silicon, so the Neural
-  Engine is always present where RAW 9 exists. If an Intel Mac can run 27,
-  does RAW 9 still appear in `supportedDecoderVersions` there, and how fast
-  is it?
-- **Engineer.** Does RAW 9 honor `extendedDynamicRangeAmount`? This matters
-  for highlight recovery, negative exposure and the HDR rendition of float
-  DNGs. If not, what do the loupe and export show? Return a requirements
-  issue if this needs a ruling.
-- **Engineer.** Does the synthetic DNG decode through RAW 9? If not, AC1 and
-  AC2 need another fixture we may commit; say what.
-- **Engineer.** Do draft mode and `scaleFactor` work under RAW 9 for
-  interactive frames and thumbnails?
+- **Owner, AC13 (open manual check).** The owner picks 2–3 cameras and
+  high-ISO files when doing the check (ruling 11). Tip for that check: if
+  you use DNGs made by a converter, include one. The engineer found that
+  RAW 9 barely denoises a DNG with no `NoiseProfile` tag.
+- **Owner.** Optional: may one of those files be committed as a test fixture
+  to automate the ML-against-classical comparison (RI-E1)? Default: no; AC13
+  stays manual.
+- **Designer.** For a Mac on macOS 27 whose RAW 9 model is missing, check
+  that the "not available on this Mac" text stays true there. One planned
+  text reads "this Mac needs macOS 27 or later", which would be false on
+  such a Mac. Owner ruling 9 adds no new reason, so only the wording may
+  need to change.
+- **Engineer.** Can the app tell that the RAW 9 model is missing without
+  asking for a download, so it reports "not available on this Mac" rather
+  than "could not be applied"? If macOS gives no way to tell, return a
+  requirements issue.
+
+Closed: the time ceiling (owner ruling 10: none) and RI-E2 (owner ruling
+9).
+
+Answered by the engineer, 2026-11-05, on an M4 Pro with macOS 27.2 (details
+in `status.md`):
+
+- **Apple silicon.** macOS 27 is Apple-silicon-only, so RAW 9 never appears
+  on an Intel Mac. The earlier assumption holds.
+- **Extended range.** `extendedDynamicRangeAmount` is honored under RAW 9.
+  Floating-point DNGs were not measured; if their decoder doesn't list
+  version 9, they are "camera not supported" and render as today.
+- **Synthetic DNG.** It decodes through RAW 9, but is barely denoised without
+  a `NoiseProfile` tag. The fixture writer now has that tag as an opt-in.
+- **Draft and scale.** `scaleFactor` is honored; draft mode is ignored. ML
+  frames get faster only from a smaller decode, which R8 allows.
+- **Failure seam.** The test seam for AC7a exists.
 - **Designer.** Answered in `design.md` §14.
-- **Engineer.** A test seam to force a RAW 9 decode failure on a supported
-  file (AC7a).
 
 ## Revisions
 
@@ -383,3 +451,42 @@ To fill in from R14 on the owner's Mac.
   R2 covers future macOS defaults, and the pre-RAW 9 default decoder is
   pinned for stacks that do not ask for ML. Added owner ruling 8; changed R2
   and AC3.
+- 2026-11-05: product manager's rulings on the engineer's requirements
+  issues (`status.md`). RI-E2 is with the owner.
+  - **RI-E1.** On synthetic noise, classical at 100 smooths more than RAW 9.
+    AC1 now checks that ML at Luminance 100 is quieter than ML at 0, on the
+    synthetic DNG with a `NoiseProfile` tag. The ML-against-classical
+    comparison moves entirely to AC13, the owner's check on real raws, which
+    now gates shipping. AC2 is unchanged and passes.
+    - Why: owner ruling 7 asked for directional tests that show ML beats
+      classical, but the synthetic fixture can't show that. The comparison
+      is kept; only where it is checked has moved.
+    - The owner may still provide a real raw as a test fixture to automate
+      it.
+  - **RI-E3.** Confirmed. RAW 9 is `9` for camera raws and `9.dng` for DNG,
+    and both count as ML everywhere. Changed R3 and AC4, and the Problem
+    text.
+  - **RI-E4.** The engineer's handling is intended:
+    - Legacy `9.dng` with the Profile group off reads as ML off, so
+      rendering stays unchanged.
+    - Legacy `9.dng` with the Noise Reduction group off reads as ML on in
+      the off group, and renders classically until the group is turned on.
+    - Why: turning on a group the person turned off would override their
+      choice. The case is rare, shows on screen, and one click recovers it.
+    - Changed R3 and AC4.
+  - **RI-E5.** Confirmed. `photocli develop` refuses ML on a file that is not
+    RAW with `invalidEdit`. Batch commands in the app skip such files and
+    count them in Activity, because they act on many files at once. Changed
+    R13 and AC11.
+  - Measurements filled in from R14. The engineer's answers to the open
+    questions are recorded.
+- 2026-11-05: owner rulings 9–11.
+  - **RI-E2, "Allowed, never trigger it".** macOS's own on-demand model may
+    be used only when macOS already has it. The app never starts a
+    download, and a missing model reads as "not available on this Mac".
+    Changed R5 and AC6.
+  - **Speed: "No ceiling".** The open question is closed; the Measurements
+    section is updated.
+  - **AC13.** The owner does it later and picks the cameras then. I added
+    that AC13 holds the roadmap short of Shipped but does not hold up a
+    merge, because the feature is off unless chosen.
