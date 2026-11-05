@@ -158,6 +158,8 @@ collection from the library never deletes its file.
   first expanded; only expanded panes render previews, on a 360 px copy of the
   photo with its saved adjustments and no effects. Click picks; Apply & Close
   applies and closes the window, a double-click applies and keeps it open.
+  Superseded 2026-11-04: the button is now Apply; it still applies and
+  closes the browser (`docs/UI_REDESIGN.md`, Secondary windows).
 - **Manage** renames collections and tables, changes a table's default color
   space, and removes tables and collections.
 - **Color space**: each table is applied in its color space (sRGB by default;
@@ -293,4 +295,6 @@ Where the implementation settled details the plan left open, or differs:
   Hovering a picture previews it in the loupe; moving straight to another
   keeps previewing. A picture is outlined when the photo already has the
   preset's settings. Copy and Paste Adjustments are buttons under the tab.
+  Superseded 2026-11-04: they moved to the Adjust tab's ⋯ menu (also the
+  Adjust menu and context menus; `docs/UI_REDESIGN.md`, Inspector).
 - **Debug script**: `adjust mix …`, `preset import|export|preview|window|windowshot|summary`.

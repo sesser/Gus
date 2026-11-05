@@ -160,6 +160,9 @@ by another app is overwritten or discarded without asking.
   convention. A RAW+JPEG pair shares one sidecar, which matches pairs sharing
   their metadata. `IMG_0412.CR3.xmp` sidecars (darktable, digiKam) are read but
   never created.
+  Superseded 2026-11-04: when two unpaired masters in a folder share a stem,
+  each gets a `name.ext.xmp` sidecar so they do not overwrite each other
+  (`SidecarFiles.preferredName`).
 - **Always review**: even an outside change that conflicts with nothing in the
   library waits in Changed on Disk until you choose; bulk actions keep that
   quick for many photos.

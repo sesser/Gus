@@ -3,6 +3,9 @@
 Guidance for working in this repository: a native macOS photo DAM and RAW editor.
 The product name is a placeholder (see Naming rules); refer to it as "the app".
 
+## Workflow
+See @docs/WORKFLOW.md
+
 ## Clean-room constraint
 
 This is an original application. Do not copy names, icons, assets, UI strings, or
@@ -97,10 +100,13 @@ attach`) stands in for a camera card. `docs/PROFILING.md` has the benchmark
 commands.
 
 `photocli` renders, queries and edits a library without the app (every
-command prints one JSON object; see `docs/PHASE5_PLAN.md`). Its write
-commands refuse while the app has that library open (`LibraryLock`), so
-quit the app (or use another `--library-root`) before `develop`, `rate`,
-`flag` or `label`.
+command prints one JSON object; see `docs/PHASE5_PLAN.md`, and
+`docs/PHASE6_PLAN.md` for `mask list`, `mask add`, `mask set` and
+`mask remove`). Its write commands refuse while the app has that library
+open (`LibraryLock`), so quit the app (or use another `--library-root`)
+before `develop`, `rate`, `flag`, `label`, `mask add`, `mask set` or
+`mask remove` (`--dry-run` on `develop` and the mask commands changes
+nothing and needs no lock).
 
 ## Claude Code setup
 
@@ -112,31 +118,20 @@ quit the app (or use another `--library-root`) before `develop`, `rate`,
   `UPDATE_GOLDENS=1` always asks first, since it rewrites goldens (see
   Checking image code), and `xcodebuild` is denied. Put personal additions in
   `.claude/settings.local.json`, which is not committed.
-- `.claude/agents/` holds two project subagents. They work as a pair:
-  design decides, engineering implements.
+- `.claude/agents/` holds three project subagents. Product decides what to
+  build, design decides how it looks, engineering builds it.
 
 | Agent | Use it for | Tools |
 | --- | --- | --- |
-| `apple-ui-designer` | Designing or reviewing windows, toolbars, sidebars, menus, inspectors and sheets against the HIG; deciding where a command lives (menu bar, toolbar, context menu, shortcut). Records rulings in `docs/UI_REDESIGN.md`. | Read, search, web, edit docs. Never builds. |
-| `swift-macos-engineer` | Implementing an approved design, features, bug fixes, refactors and tests. Builds and tests after each step. | Full: read, edit, shell, web. |
+| `product-manager` | Turning an idea into requirements: a PRD with testable acceptance criteria and non-goals in `docs/features/<slug>/prd.md`. Keeps `docs/roadmap.md`. Does not design UI or write code. | Read, Write, Edit, Grep, Glob, WebSearch, WebFetch. Never builds. |
+| `apple-ui-designer` | Designing or reviewing windows, toolbars, sidebars, menus, inspectors and sheets against the HIG; deciding where a command lives (menu bar, toolbar, context menu, shortcut). Writes `docs/features/<slug>/design.md`. | Read, search, web, edit docs. Never builds. |
+| `swift-macos-engineer` | Implementing against the PRD and design, bug fixes, refactors and tests. Keeps `docs/features/<slug>/status.md`. Builds and tests after each step. | Full: read, edit, shell, web. |
 
-How to work with them:
-
-1. **Design first for UI work.** Ask the designer for a plan or a review, and
-   have its decisions written into `docs/UI_REDESIGN.md` (or the phase plan the
-   work belongs to) before any code changes.
-2. **Hand the spec to the engineer.** Name the spec section and the files in
-   the prompt; a subagent starts without this conversation's context.
-3. **Route design questions back.** The engineer stops on anything the spec
-   does not decide and returns a "Design questions" list. Take those to the
-   designer, record the ruling in the spec, then send the engineer on. The
-   engineer may only tick off an "Implementation status" section of the spec.
-4. **Check the report.** The engineer reports what it ran; read the diff and
-   rerun `swift build` / `swift test` before calling the work done. It cannot
-   see the UI, so look at visual changes in the bundle (debug-script
-   `snapshot`, see Commands).
-5. Non-UI work (catalog, import, rendering, `photocli`) goes straight to the
-   engineer.
+How to work with them, who owns which file, and how questions go back to
+their owner: see `docs/WORKFLOW.md`. Work done before that workflow was
+recorded in `docs/UI_REDESIGN.md` and the phase plans
+(`docs/PHASE1_PLAN.md` … `docs/PHASE6_PLAN.md`); they stay the historical
+record of those decisions.
 
 This file's rules win over anything in an agent's prompt: GRDB is the only
 dependency, goldens are updated only on purpose, brand values stay in
@@ -245,9 +240,11 @@ compatible and never put `#` comment lines inside pasted command snippets.
   missing. Volumes are matched by identity (UUID) so a remount elsewhere is found.
 - **Catalog** is SQLite via GRDB with numbered migrations from day one. Tables:
   `volume`, `project`, `image` (master), `version`, `album`, `albumMember`,
-  `stack`, `stackMember`, `keyword`, `versionKeyword`, `adjustmentPreset`
+  `smartAlbum`, `stack`, `stackMember`, `keyword`, `versionKeyword`,
+  `keywordSuggestion`, `imagePair`, `importRun`, `importPreset`,
+  `metadataSync`, `sidecarQueue`, `adjustmentPreset`
   (with `collection` and `groups`, null for all), `lookTableCollection`,
-  `lookTableEntry`. Ratings 0–5, flags
+  `lookTableEntry`, `exportPreset`. Ratings 0–5, flags
   (-1 reject, 0 none, 1 pick) and color labels (0–7) live on versions.
   Never edit an existing migration; add a new one.
 - **Edit stack**: each version stores an ordered, versioned JSON list of
@@ -409,5 +406,6 @@ inspector and the shared grid, token template fields, and review mode (F).
 
 Not yet: AI masks, healing, lens corrections, DNG export, ML
 denoising, `.dcp` profiles, general (hand-made or burst) stacks, hierarchical
-keywords, PTP cameras, a second backup destination, writing metadata into
-originals.
+keywords, PTP cameras, a second backup destination. Writing metadata into
+originals was dropped (2026-11-04, `docs/roadmap.md`): originals are never
+written.

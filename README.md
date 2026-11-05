@@ -77,7 +77,8 @@ app doesn't have open.
 Healing, lens corrections, DNG export, ML noise reduction and automatic
 (subject/sky) masks, DCP camera profiles, hand-made and burst stacks,
 hierarchical keywords, importing straight from a camera over USB, a second
-backup destination on import, and writing metadata into original files.
+backup destination on import. Metadata is never written into original
+files; it goes to XMP sidecars.
 
 ## Requirements
 

@@ -213,8 +213,9 @@ background, with progress and Stop in the toolbar's Activity item. If anything
 could not be exported (an offline volume, for instance), an alert says why. The
 Finder can show the files when it is done.
 
-**Undo**: ⌘Z and ⇧⌘Z undo and redo culling, keyword, album and pair changes, including
-changes made to many photos at once.
+**Undo**: ⌘Z and ⇧⌘Z undo and redo culling, keyword, album and pair changes,
+adjustments, crop and rotation, and the Info tab's descriptive fields (title,
+description and the like), including changes made to many photos at once.
 
 Photos on a volume that is not connected show an offline badge. Their cached
 previews still display, and nothing is removed from the catalog.
@@ -245,11 +246,13 @@ generation, cache reads and catalog queries. See
 from the terminal: `render` a file or a version to PNG, JPEG or TIFF with
 adjustments, `query projects` and `query images` (smart-album rules as JSON),
 `develop` (set and reset adjustments; `--dry-run` only shows the result),
-`rate`, `flag`, `label` and `export`. `photocli adjustments` lists every
-adjustment and its range; `photocli help` lists the commands. Each prints one
-JSON object. Pass `--library-root` as for the app; without it the standard
-library is used.
+`rate`, `flag`, `label`, `export`, and `mask list`, `mask add`, `mask set` and
+`mask remove` (a version's local adjustments; `--dry-run` only shows the
+result). `photocli adjustments` lists every adjustment and its range;
+`photocli help` lists the commands. Each prints one JSON object. Pass
+`--library-root` as for the app; without it the standard library is used.
 
 It can read a library at any time, but it changes one only while the app has
-it closed: while the app is open, `develop`, `rate`, `flag` and `label` refuse
-and say so. Changes made from the terminal cannot be undone in the app.
+it closed: while the app is open, `develop`, `rate`, `flag`, `label`,
+`mask add`, `mask set` and `mask remove` refuse and say so. Changes made from
+the terminal cannot be undone in the app.
