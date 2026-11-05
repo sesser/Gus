@@ -45,13 +45,6 @@ struct MainView: View {
         .sheet(isPresented: $model.showsPresetSheet) {
             PresetManagerSheet(model: model)
         }
-        .alert(model.export.report?.title ?? "", isPresented: Binding(
-            get: { model.export.report != nil }, set: { if !$0 { model.export.report = nil } }
-        )) {
-            Button("OK") { model.export.report = nil }
-        } message: {
-            Text(model.export.report?.message ?? "")
-        }
         .alert(model.presetImportSummary?.title ?? "", isPresented: Binding(
             get: { model.presetImportSummary != nil }, set: { if !$0 { model.presetImportSummary = nil } }
         )) {

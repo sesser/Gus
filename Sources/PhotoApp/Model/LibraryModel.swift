@@ -498,8 +498,14 @@ final class LibraryModel {
     /// something that did not happen and can make it happen by acting; anything
     /// expected (completions, cancellations, videos skipped) is information.
     func report(_ text: String, action: String, warning: Bool = false) {
+        report(text, action: action, warning: warning, announcing: text)
+    }
+
+    /// Posts to Activity; VoiceOver hears `announcing`, such as a long
+    /// message's first sentence.
+    func report(_ text: String, action: String, warning: Bool, announcing: String) {
         activity.post(text, title: action, isWarning: warning)
-        AccessibilityText.announce(text, priority: .medium)
+        AccessibilityText.announce(announcing, priority: .medium)
     }
     /// Photos in the selected source before rating, flag and search.
     private(set) var sourceTotal: Int?

@@ -209,9 +209,12 @@ from its RAW; videos are not exported. A sheet on the library window sets:
 Settings can be saved as **presets**. When files with the same names are
 already in the folder, the sheet asks once whether to keep both (the new files
 get numbered names), replace them or skip them. The export runs in the
-background, with progress and Stop in the toolbar's Activity item. If anything
-could not be exported (an offline volume, for instance), an alert says why. The
-Finder can show the files when it is done.
+background, with progress and Stop in the toolbar's Activity item. When it
+ends, Activity reports the result; there is no alert. If any photos could not
+be exported (an offline volume, for instance), the report is a warning that
+lists up to ten of them with the reason for each. Photos skipped because you
+chose to skip existing files get a note of their own. The Finder can show the
+files when it is done.
 
 **Undo**: ⌘Z and ⇧⌘Z undo and redo culling, keyword, album and pair changes,
 adjustments, crop and rotation, and the Info tab's descriptive fields (title,

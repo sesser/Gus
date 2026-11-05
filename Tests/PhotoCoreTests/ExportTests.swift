@@ -542,3 +542,51 @@ struct ExportEnablementTests {
         #expect(visited == 2)
     }
 }
+
+@Suite("Export results in Activity")
+struct ExportActivityReportTests {
+    private func summary(written: Int = 0, failed: Int = 0, skipped: Int = 0, videos: Int = 0) -> ExportSummary {
+        var summary = ExportSummary(destination: URL(fileURLWithPath: "/tmp/Out", isDirectory: true))
+        summary.written = (0..<written).map { URL(fileURLWithPath: "/tmp/Out/\($0).jpg") }
+        summary.failures = (0..<failed).map {
+            ExportSummary.Failure(fileName: "IMG_\($0).ORF", reason: .offline(volumeName: "Card"))
+        }
+        summary.skippedExisting = skipped
+        summary.skippedVideos = videos
+        return summary
+    }
+
+    @Test func aCleanExportIsInformationWithNothingListed() {
+        let report = ExportActivityReport(summary(written: 24, videos: 3))
+        #expect(!report.isWarning)
+        #expect(report.listedFailures.isEmpty)
+        #expect(report.unlistedFailureCount == 0)
+        #expect(report.skippedByChoice == nil)
+    }
+
+    @Test func failuresAreAWarningListingEachFile() {
+        let report = ExportActivityReport(summary(written: 22, failed: 2))
+        #expect(report.isWarning)
+        #expect(report.listedFailures.map(\.fileName) == ["IMG_0.ORF", "IMG_1.ORF"])
+        #expect(report.unlistedFailureCount == 0)
+    }
+
+    @Test func listsTenFailuresAndCountsTheRest() {
+        let ten = ExportActivityReport(summary(failed: 10))
+        #expect(ten.listedFailures.count == 10)
+        #expect(ten.unlistedFailureCount == 0)
+        let thirteen = ExportActivityReport(summary(failed: 13))
+        #expect(thirteen.listedFailures.count == 10)
+        #expect(thirteen.listedFailures.last?.fileName == "IMG_9.ORF")
+        #expect(thirteen.unlistedFailureCount == 3)
+    }
+
+    @Test func filesSkippedByChoiceAreInformationNotAWarning() {
+        let report = ExportActivityReport(summary(written: 4, skipped: 2))
+        #expect(!report.isWarning)
+        #expect(report.skippedByChoice == 2)
+        let both = ExportActivityReport(summary(written: 4, failed: 1, skipped: 2))
+        #expect(both.isWarning)
+        #expect(both.skippedByChoice == 2)
+    }
+}

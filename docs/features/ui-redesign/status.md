@@ -15,8 +15,8 @@ to `ui-redesign-onscreen-check` unless noted.
 - Baseline at `adb8d95` (2026-11-04): `swift build` clean; `swift test` 468
   tests in 84 suites passed, 1 known issue (the `withKnownIssue` in "Live
   render session", pre-existing).
-- Latest (with E13): `swift build` clean, no warnings; `swift test` 479 tests
-  in 86 suites passed, 1 known issue (the same).
+- Latest (with E14): `swift build` clean, no warnings; `swift test` 483 tests
+  in 87 suites passed, 1 known issue (the same). No golden changed.
 
 ## Changes
 
@@ -35,7 +35,7 @@ to `ui-redesign-onscreen-check` unless noted.
 | E11 | Medium | File ▸ Stop ‹job› ⌘., shared item (I4) | Not started | | |
 | E12 | High | Export enablement: targets include a photo, no export running (I1) | Done | Enable Export only for photo targets (E12) | Rule: `ExportTargets.canExport` (PhotoCore), suite "Export enablement" (videos only, mixed, pair, while exporting, stops at the first photo). Debug script launched with `open -W -n`: `focus MVI_00007; menuitems Export` → File/Export… disabled; `contextmenu cell 0` on a video lists no Export…; on a photo and after `selectall` it is enabled / listed. The toolbar item uses the same `LibraryMenuState.canExport`; manual on-screen check that it dims (glass) |
 | E13 | High | Add Folder Without Copying… always enabled, queues (I2) | Done | Keep Add Folder Without Copying… enabled during imports (E13) | Menu, toolbar Import ▸ menu and empty-library button lose their "importing" dimming; the panel already enqueues through `importFolders`, the drops' queue. Test: "aFolderChosenWhileOneImportsJoinsTheBatch" (FolderImportQueueTests). Debug script (new `addfolder <path>`, the panel's call) launched with `open -W -n` on a fresh library: two 800-photo folders; `print activity` shows "Add 2 Folders \| Folder 1 of 2 · 448 of 800", then "Folder 2 of 2 · 192 of 800"; `menuitems Add Folder` enabled before, during and after. Toolbar menu and empty-state button: manual. Guide: the queue sentence now covers chosen folders |
-| E14 | High | Export results in Activity only, no alert (I3, D2) | Not started | | |
+| E14 | High | Export results in Activity only, no alert (I3, D2) | Done | Report export results in Activity only (E14) | Rule: `ExportActivityReport` (PhotoCore), suite "Export results in Activity" (clean, failures listed, 10 listed + rest counted, skips as information). The alert and `ExportModel.Report` are removed. Debug script (new `print messages`) on a scratch project with one original moved away: one warning row "Exported 5 of 6 photos. 1 could not be written." plus the file and reason; no sheet or alert attached once the debug-opened Export sheet is closed. Again with the original back and `export run skip`: information rows "5 photos were skipped because their files already exist." and "Exported 1 photo.". VoiceOver hears the sentence, not the list (manual). Guide: export paragraph |
 | E15 | Medium | Suggest Keywords shows Info ▸ Keywords (I7) | Not started | | |
 | E16 | Medium | "Caption" becomes "Description" (I8) | Not started | | |
 | E17 | Medium | One shared field-label set (I9) | Not started | | |
@@ -48,7 +48,7 @@ to `ui-redesign-onscreen-check` unless noted.
 | E24 | Low | Add Folder open panel prompt (I17) | Not started | | |
 | E25 | Low | Remove Edit ▸ Find ▸ Clear Filter (I18, D1) | Not started | | |
 | E26 | Low | View ▸ Info / Adjust checkmarks (I19) | Not started | | |
-| E27 | Low | User guide kept current (I30, RI-5) | In progress | | Each change's guide edits are listed in its row; the two stand-alone fixes (Show Videos, ⌘= / ⌘− in the loupe column) are not started |
+| E27 | Low | User guide kept current (I30, RI-5) | In progress | | Done with their changes: E13 (folders chosen during an import join the queue), E14 (export results in Activity, no alert). Not started: Show Videos instead of "Include videos switch", ⌘= / ⌘− in the key table's loupe column, and "caption" with E16. Designer review of the terms pending |
 | E28 | Medium | Remove the dead Help item (N13, R1, R2) | Not started | | |
 
 ## Open questions

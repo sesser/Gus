@@ -72,17 +72,9 @@ final class ExportModel {
 
     private(set) var progress: (done: Int, total: Int)?
     var isExporting: Bool { progress != nil }
-    /// How the last export went, when it is worth an alert.
-    var report: Report?
     private(set) var lastSummary: ExportSummary?
     @ObservationIgnored private var task: Task<Void, Never>?
     @ObservationIgnored private var previewTask: Task<Void, Never>?
-
-    struct Report: Identifiable {
-        let id = UUID()
-        let title: String
-        let message: String
-    }
 
     private static let log = Logger(subsystem: AppBranding.bundleIdentifier, category: "export")
 
@@ -337,35 +329,39 @@ final class ExportModel {
         task?.cancel()
     }
 
+    /// Reports in Activity only, never an alert: the sheet has closed
+    /// (design.md I3, owner ruling D2). Files skipped by choice are an
+    /// information row; the export's own row follows, a warning listing the
+    /// files that failed when any did.
     private func finish(_ summary: ExportSummary, reveals: Bool) {
         progress = nil
         task = nil
         lastSummary = summary
-        let folder = summary.destination.lastPathComponent
-        let written = summary.written.count
-        library?.report(Self.finishedMessage(summary), action: ActivityTitle.exportTo(folder),
-                        warning: !summary.failures.isEmpty)
+        let action = ActivityTitle.exportTo(summary.destination.lastPathComponent)
+        let report = ExportActivityReport(summary)
+        if let skipped = report.skippedByChoice {
+            library?.report(Self.skippedMessage(skipped), action: action)
+        }
+        let finished = Self.finishedMessage(summary)
+        library?.report(Self.detail(finished, report), action: action, warning: report.isWarning, announcing: finished)
         if reveals, !summary.written.isEmpty, !summary.cancelled {
             NSWorkspace.shared.activateFileViewerSelecting(summary.written)
         }
-        var lines: [String] = []
-        if summary.skippedExisting > 0 {
-            lines.append(String(localized: "\(summary.skippedExisting) photos were skipped because their files already exist."))
+    }
+
+    static func skippedMessage(_ count: Int) -> String {
+        String(localized: "\(count) photos were skipped because their files already exist.",
+               comment: "Activity: an export skipped photos whose names were taken, as the person chose")
+    }
+
+    /// The finished sentence, then one line per listed failure and "And N more.".
+    static func detail(_ finished: String, _ report: ExportActivityReport) -> String {
+        var lines = [finished] + report.listedFailures.map(text)
+        if report.unlistedFailureCount > 0 {
+            lines.append(String(localized: "And \(report.unlistedFailureCount) more.",
+                                comment: "Activity: failures past the listed ones"))
         }
-        if summary.skippedVideos > 0 {
-            lines.append(String(localized: "\(summary.skippedVideos) videos were skipped."))
-        }
-        for failure in summary.failures.prefix(10) {
-            lines.append(Self.text(failure))
-        }
-        if summary.failures.count > 10 {
-            lines.append(String(localized: "And \(summary.failures.count - 10) more."))
-        }
-        guard !summary.failures.isEmpty || summary.skippedExisting > 0 else { return }
-        let title = summary.failures.isEmpty
-            ? String(localized: "Exported \(written) photos")
-            : String(localized: "\(summary.failures.count) photos could not be exported")
-        report = Report(title: title, message: lines.joined(separator: "\n"))
+        return lines.joined(separator: "\n")
     }
 
     /// The Activity row's message when an export ends (section 1 of

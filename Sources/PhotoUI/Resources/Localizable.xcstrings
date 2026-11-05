@@ -402,29 +402,6 @@
         }
       }
     },
-    "%lld photos could not be exported" : {
-      "comment" : "Export report title",
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld photo could not be exported"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld photos could not be exported"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "%lld photos could not be written." : {
       "comment" : "Activity: an export wrote nothing",
       "localizations" : {
@@ -518,7 +495,7 @@
       }
     },
     "%lld photos were skipped because their files already exist." : {
-      "comment" : "Export report",
+      "comment" : "Activity: an export skipped photos whose names were taken, as the person chose",
       "localizations" : {
         "en" : {
           "variations" : {
@@ -671,29 +648,6 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "%lld videos were left unchanged."
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "%lld videos were skipped." : {
-      "comment" : "Export report",
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld video was skipped."
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld videos were skipped."
                 }
               }
             }
@@ -1330,7 +1284,7 @@
       }
     },
     "And %lld more." : {
-      "comment" : "Export report: more failures than listed",
+      "comment" : "Activity: failures past the listed ones",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3513,29 +3467,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Exported %1$lld of %2$lld photos. %3$lld could not be written."
-          }
-        }
-      }
-    },
-    "Exported %lld photos" : {
-      "comment" : "Export report title",
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Exported %lld photo"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Exported %lld photos"
-                }
-              }
-            }
           }
         }
       }

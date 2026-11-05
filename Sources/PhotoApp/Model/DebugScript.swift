@@ -15,7 +15,8 @@ import PhotoUI
 ///     selectall             addkeywords <a, b>      keyentry      text <typed text>
 ///     undo | redo           inspector on|off        keyword <n>   (sidebar keyword n, 0-based)
 ///     print <what>          (state for checks: selection, keywords, undo, suggestions, items, hdr, announcement,
-///                           title (title, subtitle, filter and sort), activity, empty (the browser's empty state),
+///                           title (title, subtitle, filter and sort), activity, messages (every
+///                           Activity row), empty (the browser's empty state),
 ///                           loupe [<x> <y>]: mode, magnification, visible rect, image point under x y)
 ///     suggest               (analyzes the selection and waits)      accept <keyword>
 ///     album <name>          (from the selection)    smartalbum <name>  (rating ≥ 3)     remove
@@ -825,6 +826,14 @@ enum DebugScript {
             let potential = window?.screen?.maximumPotentialExtendedDynamicRangeColorComponentValue ?? 1
             let headroom = model.loupeHDRHeadroom.map { String(format: "%.2f", $0) } ?? "none"
             print("debug-script: hdr setting \(model.showsHDR) screen potential \(potential) loupe headroom \(headroom)")
+        case "messages":
+            // Every Activity row, oldest first, and whether an alert or sheet is up.
+            for message in model.activity.messages {
+                print("debug-script: message [\(message.title ?? "-")] \(message.isWarning ? "warning" : "information"): "
+                      + message.text.replacingOccurrences(of: "\n", with: " / "))
+            }
+            let sheet = window?.attachedSheet.map { "\(type(of: $0)) '\($0.title)'" } ?? "none"
+            print("debug-script: messages \(model.activity.messages.count), sheet or alert \(sheet)")
         case "empty":
             // The browser's empty state (design.md N3), as the view chooses it.
             print("debug-script: empty \(model.emptyState.map { "\($0)" } ?? "none") source '\(model.title(for: model.sidebarSelection))'"
