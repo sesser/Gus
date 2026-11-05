@@ -165,6 +165,10 @@ final class AdjustmentEditor {
     @ObservationIgnored private var previewWasCached = true
     /// An offline photo's stack asks for it (only "this Mac" can be told then).
     @ObservationIgnored private var offlineAsksMachineLearning = false
+    /// The cached preview the photo arrived with is a fallback from a failed
+    /// machine learning decode of the saved values: S8 shows with it until a
+    /// frame says otherwise (design §15, DQ-3).
+    @ObservationIgnored private var arrivedWithFailedFallback = false
 
     @ObservationIgnored private var committed = Adjustments()
 
@@ -250,12 +254,15 @@ final class AdjustmentEditor {
             let camera = SupportedFormats.isRaw(pathExtension: url.pathExtension)
                 ? await Task.detached(priority: .userInitiated) { CameraFrame.rect(of: url) }.value : nil
             let cached = await Task.detached(priority: .userInitiated) { previewKey.map(cache.contains) ?? false }.value
+            let fallback = previewKey.flatMap(cache.sessionOnlyReason)
             guard !Task.isCancelled, item?.versionID == versionID else { return }
             let loaded = Adjustments(stack: stack)
             adjustments = loaded
             committed = loaded
             rawDefaults = defaults
             previewWasCached = cached
+            arrivedWithFailedFallback = fallback == .failed
+            if let fallback { learnUnavailability(fallback) }
             cameraRect = camera
             session = LiveRenderSession(source: url, generator: generator, colorSpace: colorSpace)
             state = .ready
@@ -315,6 +322,7 @@ final class AdjustmentEditor {
         maskFrameSize = nil
         stopAwaitingMachineLearning()
         offlineAsksMachineLearning = false
+        arrivedWithFailedFallback = false
         previewWasCached = true
         if machineLearning != nil { machineLearning = nil }
         if machineLearningNotApplied != nil { machineLearningNotApplied = nil }
@@ -519,6 +527,7 @@ final class AdjustmentEditor {
     private func show(_ rendered: LiveRenderSession.Frame) {
         frame = rendered
         if rendered.adjustments == awaitedMachineLearningValues { stopAwaitingMachineLearning() }
+        if let reason = rendered.machineLearning.reason { learnUnavailability(reason) }
         defer { refreshMachineLearning() }
         if rendered.content == .sharpeningMap {
             showsLive = true
@@ -633,10 +642,28 @@ final class AdjustmentEditor {
     }
 
     private func status(for values: Adjustments) -> MachineLearningNoiseReduction.Status {
-        let failed = frame.map { $0.adjustments == values && $0.machineLearning == .notApplied(.failed) } ?? false
+        let failed: Bool
+        if let frame, frame.adjustments == values {
+            failed = frame.machineLearning == .notApplied(.failed)
+        } else {
+            // Before a frame of these values: the cached fallback shown on arrival.
+            failed = frame == nil && arrivedWithFailedFallback && values == committed
+        }
         return MachineLearningNoiseReduction.Status(
             asks: values.asksForMachineLearning, groupIsOn: values.isEnabled(.noiseReduction),
             availability: isRaw ? rawDefaults?.machineLearning : .notRaw, renderFailed: failed)
+    }
+
+    /// A render found the decoder unavailable where the photo looked
+    /// available (macOS lacks its model, owner ruling 9): the photo takes
+    /// that state with the frame, and keeps it while it stays open.
+    private func learnUnavailability(_ reason: MachineLearningNoiseReduction.Reason) {
+        guard rawDefaults?.machineLearning == .available else { return }
+        switch reason {
+        case .notOnThisMac: rawDefaults?.machineLearning = .notOnThisMac
+        case .cameraNotSupported: rawDefaults?.machineLearning = .cameraNotSupported
+        case .failed: break
+        }
     }
 
     /// Recomputes the inspector's status and the badge's reason.

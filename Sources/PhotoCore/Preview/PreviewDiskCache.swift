@@ -13,7 +13,7 @@ public final class PreviewDiskCache: Sendable {
     public let root: URL
     private static let log = Logger(subsystem: AppBranding.bundleIdentifier, category: "preview-cache")
     /// Renditions kept for this session only (`storeForSession`), oldest first.
-    private let sessionOnly = Mutex<[(key: PreviewCacheKey, data: Data)]>([])
+    private let sessionOnly = Mutex<[(key: PreviewCacheKey, data: Data, reason: MachineLearningNoiseReduction.Reason?)]>([])
     /// Bytes of encoded renditions `sessionOnly` keeps at most.
     public let sessionOnlyLimit: Int
 
@@ -35,11 +35,14 @@ public final class PreviewDiskCache: Sendable {
     /// for machine learning noise reduction rendered without it, which a
     /// macOS update or a newly supported camera changes). The oldest are
     /// dropped past `sessionOnlyLimit` bytes.
-    public func storeForSession(_ data: Data, for key: PreviewCacheKey) {
+    /// `reason` is why the rendition lacks machine learning noise
+    /// reduction: the loupe shows that state with it (design §15, DQ-3).
+    public func storeForSession(_ data: Data, for key: PreviewCacheKey,
+                                reason: MachineLearningNoiseReduction.Reason? = nil) {
         let limit = sessionOnlyLimit
         sessionOnly.withLock { entries in
             entries.removeAll { $0.key == key }
-            entries.append((key, data))
+            entries.append((key, data, reason))
             var total = entries.reduce(0) { $0 + $1.data.count }
             while total > limit, entries.count > 1 {
                 total -= entries.removeFirst().data.count
@@ -49,6 +52,12 @@ public final class PreviewDiskCache: Sendable {
 
     private func sessionData(for key: PreviewCacheKey) -> Data? {
         sessionOnly.withLock { entries in entries.last { $0.key == key }?.data }
+    }
+
+    /// Why the session-only rendition for `key` was rendered without the
+    /// machine learning its stack asks for; nil when there is none.
+    public func sessionOnlyReason(for key: PreviewCacheKey) -> MachineLearningNoiseReduction.Reason? {
+        sessionOnly.withLock { entries in entries.last { $0.key == key }?.reason }
     }
 
     /// Writes atomically, so readers never see a partial file.

@@ -196,10 +196,10 @@ public final class PreviewService: Sendable {
             }
             for (tier, data) in encoded {
                 guard let tierKey = keys[tier] else { continue }
-                if machineLearning.reason != nil {
+                if let reason = machineLearning.reason {
                     // Rendered without the machine learning the stack asks
                     // for: the same key may render with it next time.
-                    cache.storeForSession(data, for: tierKey)
+                    cache.storeForSession(data, for: tierKey, reason: reason)
                 } else {
                     try cache.store(data, for: tierKey)
                 }

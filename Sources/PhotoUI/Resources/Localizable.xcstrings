@@ -482,6 +482,29 @@
         }
       }
     },
+    "%lld photos were exported without machine learning noise reduction: it isn't available on this Mac." : {
+      "comment" : "Activity information row after an export, on macOS 27 or later without the decoder's model. Plural (design §16)",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photo was exported without machine learning noise reduction: it isn't available on this Mac."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photos were exported without machine learning noise reduction: it isn't available on this Mac."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld photos were exported without machine learning noise reduction: their cameras aren't supported." : {
       "comment" : "Activity information row after an export. Plural",
       "localizations" : {
@@ -6420,6 +6443,17 @@
         }
       }
     },
+    "Not applied on this Mac. Luminance and Color apply instead." : {
+      "comment" : "Caption and check box help on macOS 27 or later without the decoder's model: the photo asks for machine learning noise reduction; the setting is kept (design §16)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not applied on this Mac. Luminance and Color apply instead."
+          }
+        }
+      }
+    },
     "Not applied on this Mac: it needs macOS 27 or later. Luminance and Color apply instead." : {
       "comment" : "Caption and check box help: the photo asks for machine learning noise reduction; the setting is kept",
       "localizations" : {
@@ -6460,6 +6494,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Not available for this camera."
+          }
+        }
+      }
+    },
+    "Not available on this Mac." : {
+      "comment" : "Caption and help of the dimmed Use machine learning check box, on macOS 27 or later without the decoder's model (design §16)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not available on this Mac."
           }
         }
       }
@@ -9286,6 +9331,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "This photo is set to use machine learning noise reduction, which doesn't support its camera. It's shown with Luminance and Color instead."
+          }
+        }
+      }
+    },
+    "This photo is set to use machine learning noise reduction, which isn't available on this Mac. It's shown with Luminance and Color instead." : {
+      "comment" : "Tooltip of the Machine Learning Not Applied badge: this Mac, on macOS 27 or later without the decoder's model (design §16)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This photo is set to use machine learning noise reduction, which isn't available on this Mac. It's shown with Luminance and Color instead."
           }
         }
       }

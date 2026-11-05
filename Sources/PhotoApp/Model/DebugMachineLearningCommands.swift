@@ -6,10 +6,14 @@ import PhotoCore
 ///
 /// - `ml on` / `ml off`: the check box's command (one undo step).
 /// - `ml decoder <version>`: a pick in the Decoder pop-up.
-/// - `ml override available|notOnThisMac|cameraNotSupported|fail|clear`:
-///   replaces this Mac's answer for every file (`fail`: available, and the
-///   machine learning decode fails), then reloads the open photo, so one Mac
-///   can show every state.
+/// - `ml override available|notOnThisMac|cameraNotSupported|fail|nomodel|nomodel-decode|macos26|clear`:
+///   replaces this Mac's answer for every file, then reloads the open photo,
+///   so one Mac can show every state. `fail`: available, and the machine
+///   learning decode fails. `nomodel`: macOS lacks the decoder's model, known
+///   before decoding; `nomodel-decode`: found out by the first decode, then
+///   remembered. `macos26`: "not on this Mac" with the older texts. `clear`
+///   also forgets a missing model learned from a decode.
+/// - `ml ready`: waits (up to 5 s) until the open photo is ready, and no longer.
 /// - `ml wait`: waits (up to 30 s) until no machine learning frame is pending.
 /// - `print ml`: the state the inspector, pop-up, caption and badge show,
 ///   read from the AppKit controls where there is one.
@@ -25,13 +29,23 @@ enum DebugMachineLearningCommands {
         case "override":
             let override: MachineLearningNoiseReduction.Override? = switch words.dropFirst().first {
             case "fail": .init(availability: .available, failsDecode: true)
+            // macOS 27 without the decoder's model, known before decoding or only from a decode.
+            case "nomodel": .init(modelMissing: .known)
+            case "nomodel-decode": .init(availability: .available, modelMissing: .learnedOnDecode)
+            // "Not on this Mac" with the texts of macOS 15 or 26.
+            case "macos26": .init(olderMacOS: true)
             case let name?: MachineLearningNoiseReduction.Availability(rawValue: name).map { .init(availability: $0) }
             case nil: nil
             }
+            if override == nil { MachineLearningNoiseReduction.forgetMissingModel() }
             MachineLearningNoiseReduction.setOverride(override)
             editor.reload()
             for _ in 0..<100 where editor.state != .ready {
                 try? await Task.sleep(for: .milliseconds(50))
+            }
+        case "ready":
+            for _ in 0..<500 where editor.state != .ready {
+                try? await Task.sleep(for: .milliseconds(10))
             }
         case "wait":
             try? await Task.sleep(for: .milliseconds(100))

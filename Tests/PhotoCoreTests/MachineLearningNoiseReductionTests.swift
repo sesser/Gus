@@ -92,6 +92,54 @@ struct MachineLearningNoiseReductionTests {
         #expect(ML.availability(for: other) != .cameraNotSupported)
     }
 
+    /// Owner ruling 9: a missing model is "not on this Mac", never "could not
+    /// be applied", whether it is known before decoding or found by a decode,
+    /// which is then remembered (AC6, design §16).
+    @Test("A missing model reads as not on this Mac, before decoding or from a decode, and is remembered (AC6)")
+    func missingModelIsNotOnThisMac() throws {
+        let known = try Self.noisyDNG("model-known")
+        ML.setOverride(.init(modelMissing: .known), for: known)
+        defer { ML.setOverride(nil, for: known) }
+        let asking = Self.adjustments { $0.noiseReduction = NoiseReduction(luminance: 40, machineLearning: true) }
+        #expect(ML.availability(for: known) == .notOnThisMac)
+        #expect(RawDefaults(source: known)?.machineLearning == .notOnThisMac)
+        #expect(try Self.render(asking, source: known).outcome == .notApplied(.notOnThisMac))
+
+        let learned = try Self.noisyDNG("model-learned")
+        ML.setOverride(.init(availability: .available, modelMissing: .learnedOnDecode), for: learned)
+        defer { ML.setOverride(nil, for: learned) }
+        #expect(ML.availability(for: learned) == .available)
+        let first = try Self.render(asking, source: learned)
+        #expect(first.outcome == .notApplied(.notOnThisMac))
+        // The classical render, as for any reason.
+        var classical = asking
+        classical.noiseReduction.machineLearning = false
+        #expect(first.image == (try Self.render(classical, source: learned)).image)
+        // Remembered: availability and later renders say "not on this Mac" too.
+        #expect(ML.availability(for: learned) == .notOnThisMac)
+        #expect(RawDefaults(source: learned)?.machineLearning == .notOnThisMac)
+        #expect(try Self.render(asking, source: learned).outcome == .notApplied(.notOnThisMac))
+        // On macOS 27 the reason no longer says to update macOS (design §16).
+        #expect(ML.Reason.notOnThisMac.message == (ML.systemSupportsMachineLearning
+            ? "it isn't available on this Mac" : "this Mac needs macOS 27 or later"))
+    }
+
+    /// Owner ruling 9: macOS's model is used only when macOS already has it;
+    /// the app never asks for it to be fetched (AC6). Any mention fails,
+    /// comments and selector strings included.
+    @Test("No source file calls the decoder's model downloads (AC6, owner ruling 9)")
+    func neverStartsADownload() throws {
+        let names = ["downloadResources", "downloadAllResources"].map { $0.lowercased() }
+        var found: [String] = []
+        for path in RepositoryFiles.files(under: "Sources") {
+            guard let text = try? String(contentsOf: RepositoryFiles.url(path), encoding: .utf8) else { continue }
+            let lowered = text.lowercased()
+            for name in names where lowered.contains(name) { found.append("\(path): \(name)") }
+        }
+        #expect(!RepositoryFiles.files(under: "Sources").isEmpty)
+        #expect(found.isEmpty, "\(found)")
+    }
+
     @Test("Decoder versions: 9 and 9.dng are the machine learning decoder")
     func versions() {
         #expect(ML.isMachineLearningVersion("9.dng") && ML.isMachineLearningVersion("9"))
@@ -483,6 +531,8 @@ struct MachineLearningNoiseReductionTests {
             #expect(cache.contains(key))
             #expect(!FileManager.default.fileExists(atPath: cache.url(for: key).path))
             #expect(cache.loadImage(for: key) != nil)
+            // The loupe shows the state the fallback was rendered in (design §15, DQ-3).
+            #expect(cache.sessionOnlyReason(for: key) == .notOnThisMac)
             cache.remove(key)
             #expect(!cache.contains(key))
         }

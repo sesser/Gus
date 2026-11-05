@@ -4,6 +4,10 @@ import PhotoCore
 /// (ml-denoise design §9). The interface never says "ML" or names the
 /// decoder's internal version.
 enum MachineLearningText {
+    /// This macOS has the decoder, so "this Mac" means its model is missing:
+    /// the texts don't send the person looking for a macOS update (design §16).
+    static var newEnoughMacOS: Bool { MachineLearningNoiseReduction.runsMacOSWithDecoder }
+
     static let checkBoxTitle = String(
         localized: "Use machine learning",
         comment: "Check box in Details ▸ Noise Reduction. Decodes the raw file with the macOS raw decoder's machine learning model, which reduces noise. Sentence-style: it is a check box")
@@ -23,6 +27,9 @@ enum MachineLearningText {
         case .applied:
             String(localized: "Luminance sets the amount. Color is kept but not used while this is on.",
                    comment: "Caption under the Use machine learning check box while it applies")
+        case .unavailable(.notOnThisMac) where newEnoughMacOS:
+            String(localized: "Not available on this Mac.",
+                   comment: "Caption and help of the dimmed Use machine learning check box, on macOS 27 or later without the decoder's model")
         case .unavailable(.notOnThisMac):
             String(localized: "Not available on this Mac: it needs macOS 27 or later.",
                    comment: "Caption and help of the dimmed Use machine learning check box")
@@ -31,6 +38,9 @@ enum MachineLearningText {
                    comment: "Caption and help of the dimmed Use machine learning check box: the macOS raw decoder's machine learning version doesn't list the camera")
         case .unavailable(.failed):
             nil
+        case .notApplied(.notOnThisMac) where newEnoughMacOS:
+            String(localized: "Not applied on this Mac. Luminance and Color apply instead.",
+                   comment: "Caption and check box help on macOS 27 or later without the decoder's model: the photo asks for machine learning noise reduction; the setting is kept")
         case .notApplied(.notOnThisMac):
             String(localized: "Not applied on this Mac: it needs macOS 27 or later. Luminance and Color apply instead.",
                    comment: "Caption and check box help: the photo asks for machine learning noise reduction; the setting is kept")
@@ -77,6 +87,9 @@ enum MachineLearningText {
 
     static func badgeHelp(_ reason: MachineLearningNoiseReduction.Reason) -> String {
         switch reason {
+        case .notOnThisMac where newEnoughMacOS:
+            String(localized: "This photo is set to use machine learning noise reduction, which isn't available on this Mac. It's shown with Luminance and Color instead.",
+                   comment: "Tooltip of the Machine Learning Not Applied badge: this Mac, on macOS 27 or later without the decoder's model")
         case .notOnThisMac:
             String(localized: "This photo is set to use machine learning noise reduction, which needs macOS 27 or later. It's shown with Luminance and Color instead.",
                    comment: "Tooltip of the Machine Learning Not Applied badge: this Mac")
@@ -101,6 +114,9 @@ enum MachineLearningText {
     /// One Activity information row after an export, per reason (design §7).
     static func exportedWithout(_ reason: MachineLearningNoiseReduction.Reason, count: Int) -> String {
         switch reason {
+        case .notOnThisMac where newEnoughMacOS:
+            String(localized: "\(count) photos were exported without machine learning noise reduction: it isn't available on this Mac.",
+                   comment: "Activity information row after an export, on macOS 27 or later without the decoder's model. Plural")
         case .notOnThisMac:
             String(localized: "\(count) photos were exported without machine learning noise reduction: this Mac needs macOS 27 or later.",
                    comment: "Activity information row after an export. Plural")

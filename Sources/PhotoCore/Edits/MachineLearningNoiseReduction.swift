@@ -36,7 +36,8 @@ public enum MachineLearningNoiseReduction {
         /// In English, for `photocli`'s JSON (the app has its own strings).
         public var message: String {
             switch self {
-            case .notOnThisMac: "this Mac needs macOS 27 or later"
+            case .notOnThisMac: MachineLearningNoiseReduction.runsMacOSWithDecoder
+                ? "it isn't available on this Mac" : "this Mac needs macOS 27 or later"
             case .cameraNotSupported: "this camera is not supported"
             case .failed: "could not be applied to this photo"
             }
@@ -105,6 +106,14 @@ public enum MachineLearningNoiseReduction {
         if #available(macOS 27, *) { true } else { false }
     }
 
+    /// This macOS has the machine learning decoder, so "not on this Mac"
+    /// means macOS lacks its model, not that macOS is too old (design §16):
+    /// the texts drop "needs macOS 27 or later". The debug script can make
+    /// one Mac show the older texts (`Override.olderMacOS`).
+    public static var runsMacOSWithDecoder: Bool {
+        systemSupportsMachineLearning && overrides.withLock { $0[everySource] }?.olderMacOS != true
+    }
+
     /// The availability rule (design §11): one place the inspector, the
     /// loupe, export and `photocli` read.
     public static func availability(isRaw: Bool, systemSupports: Bool, decoderVersions: [String]) -> Availability {
@@ -119,7 +128,11 @@ public enum MachineLearningNoiseReduction {
     public static func availability(for source: URL, decoderVersions: [String]? = nil) -> Availability {
         let isRaw = SupportedFormats.isRaw(pathExtension: source.pathExtension)
         guard isRaw else { return .notRaw }
-        if let forced = override(for: source)?.availability { return forced }
+        let override = override(for: source)
+        if override?.olderMacOS == true || override?.modelMissing == .known || modelIsKnownMissing(for: source) {
+            return .notOnThisMac
+        }
+        if let forced = override?.availability { return forced }
         guard systemSupportsMachineLearning else { return .notOnThisMac }
         let versions = decoderVersions ?? CIRAWFilter(imageURL: source)?.supportedDecoderVersions.map(\.rawValue) ?? []
         return availability(isRaw: true, systemSupports: true, decoderVersions: versions)
@@ -136,11 +149,50 @@ public enum MachineLearningNoiseReduction {
         /// Every decode with the machine learning version fails, as a failed
         /// model run would (AC7a).
         public var failsDecode: Bool
+        /// macOS does not have the decoder's model (owner ruling 9, AC6).
+        public var modelMissing: ModelMissing?
+        /// Report "not on this Mac" with the texts of macOS 15 or 26 (debug script only).
+        public var olderMacOS: Bool
 
-        public init(availability: Availability? = nil, failsDecode: Bool = false) {
+        /// How the app finds out that the model is missing.
+        public enum ModelMissing: Hashable, Sendable {
+            /// Before decoding: the availability says "not on this Mac".
+            case known
+            /// Only when a decode with the machine learning version is tried.
+            case learnedOnDecode
+        }
+
+        public init(availability: Availability? = nil, failsDecode: Bool = false, modelMissing: ModelMissing? = nil,
+                    olderMacOS: Bool = false) {
             self.availability = availability
             self.failsDecode = failsDecode
+            self.modelMissing = modelMissing
+            self.olderMacOS = olderMacOS
         }
+    }
+
+    // MARK: A missing model (owner ruling 9)
+
+    /// Scopes in which a decode found the model missing: the rest of the
+    /// session, every file says "not on this Mac". A file with an override
+    /// of its own (a test) keeps what it learns to itself.
+    private static let missingModel = Mutex<Set<String>>([])
+
+    /// Remembers that the model is missing, learned from a decode of `source`.
+    static func recordMissingModel(for source: URL) {
+        let key = key(for: source)
+        let scope = overrides.withLock { $0[key] } != nil ? key : everySource
+        missingModel.withLock { _ = $0.insert(scope) }
+    }
+
+    static func modelIsKnownMissing(for source: URL) -> Bool {
+        let key = key(for: source)
+        return missingModel.withLock { $0.contains(key) || $0.contains(everySource) }
+    }
+
+    /// Forgets what decodes learned (the debug script, when it clears its overrides).
+    public static func forgetMissingModel() {
+        missingModel.withLock { $0.removeAll() }
     }
 
     private static let overrides = Mutex<[String: Override]>([:])

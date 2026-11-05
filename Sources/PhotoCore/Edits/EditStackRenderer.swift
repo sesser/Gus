@@ -115,8 +115,16 @@ public struct RAWDecodeSettings: Sendable, Hashable {
                 isRaw: true, systemSupports: MachineLearningNoiseReduction.systemSupportsMachineLearning,
                 decoderVersions: supported)
         if let reason = MachineLearningNoiseReduction.Reason(availability) { return .notApplied(reason) }
-        guard availability == .available,
-              source.flatMap(MachineLearningNoiseReduction.override(for:))?.failsDecode != true,
+        let override = source.flatMap(MachineLearningNoiseReduction.override(for:))
+        if let source, override?.modelMissing == .learnedOnDecode {
+            // A missing model is "not on this Mac", never "could not be
+            // applied", also when only a decode finds it (owner ruling 9).
+            // Only this test seam says so: macOS offers no way to tell
+            // without starting a download (status.md, RI-E6).
+            MachineLearningNoiseReduction.recordMissingModel(for: source)
+            return .notApplied(.notOnThisMac)
+        }
+        guard availability == .available, override?.failsDecode != true,
               let version = MachineLearningNoiseReduction.machineLearningVersion(in: supported)
         else { return .notApplied(.failed) }
         raw.decoderVersion = CIRAWDecoderVersion(rawValue: version)
