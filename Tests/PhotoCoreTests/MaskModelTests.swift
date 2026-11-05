@@ -125,6 +125,33 @@ struct MaskModelTests {
             ColorRange(samples: samples)))])])))
     }
 
+    @Test("New Mask and Add to Mask stop at the limits")
+    func canAddStopsAtTheLimits() {
+        func masks(_ count: Int) -> LocalAdjustments {
+            LocalAdjustments(masks: (0..<count).map { _ in Mask() })
+        }
+        #expect(MaskLimits.masks == 32)
+        #expect(MaskLimits.canAddMask(to: masks(0)))
+        #expect(MaskLimits.canAddMask(to: masks(31)))
+        #expect(!MaskLimits.canAddMask(to: masks(32)))
+        // The check agrees with what may be saved: one more fits at 31, not at 32.
+        var last = masks(31)
+        last.masks.append(Mask())
+        #expect(MaskLimits.allows(last))
+
+        func mask(_ count: Int) -> Mask {
+            Mask(components: (0..<count).map { _ in
+                MaskComponent(.radial(RadialGradient(center: MaskPoint(x: 0.5, y: 0.5), radiusX: 0.2, radiusY: 0.2)))
+            })
+        }
+        #expect(MaskLimits.componentsPerMask == 16)
+        #expect(MaskLimits.canAddComponent(to: mask(1)))
+        #expect(MaskLimits.canAddComponent(to: mask(15)))
+        #expect(!MaskLimits.canAddComponent(to: mask(16)))
+        #expect(MaskLimits.allows(LocalAdjustments(masks: [mask(16)])))
+        #expect(!MaskLimits.allows(LocalAdjustments(masks: [mask(17)])))
+    }
+
     @Test("Paste and presets leave masks alone")
     func pasteAndPresetsSkipMasks() {
         let masked = Self.sample()

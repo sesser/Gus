@@ -378,7 +378,7 @@ struct LibraryCommands: Commands {
                     Button(kind.title) { model?.editor.addMask(kind) }
                 }
             }
-            .disabled(!can { $0.canEditLoupePhoto && !$0.isCropping })
+            .disabled(!can { $0.canAddMask })
             Divider()
             Button("Save Adjustments as Preset…") { model?.promptForAdjustmentPreset() }
                 .disabled(!can { $0.hasFocusedItem })

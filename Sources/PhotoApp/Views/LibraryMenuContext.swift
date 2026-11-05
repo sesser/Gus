@@ -39,6 +39,9 @@ struct LibraryMenuState: Equatable {
     /// Adjust ▸ Reset Crop: an editable loupe photo with a crop, or a crop
     /// session that has one.
     var canResetCrop: Bool
+    /// Adjust ▸ New Mask ▸: an editable loupe photo, not cropping, under the
+    /// mask limit.
+    var canAddMask: Bool
     var showsOriginal: Bool
     var loupeZoom: LoupeZoomState
     var showsInspector: Bool
@@ -100,6 +103,7 @@ struct LibraryMenuState: Equatable {
         canEditLoupePhoto = showsLoupePhoto && model.editor.state == .ready
         isCropping = model.editor.cropSession != nil
         canResetCrop = canEditLoupePhoto && model.editor.canResetCrop
+        canAddMask = canEditLoupePhoto && !isCropping && MaskLimits.canAddMask(to: model.editor.adjustments.local)
         showsOriginal = model.editor.showsOriginal
         loupeZoom = model.loupeZoom
         showsInspector = model.showsInspector

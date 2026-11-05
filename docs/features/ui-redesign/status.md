@@ -15,7 +15,7 @@ to `ui-redesign-onscreen-check` unless noted.
 - Baseline at `adb8d95` (2026-11-04): `swift build` clean; `swift test` 468
   tests in 84 suites passed, 1 known issue (the `withKnownIssue` in "Live
   render session", pre-existing).
-- Latest (with E5): `swift build` clean, no warnings; `swift test` 483 tests
+- Latest (with E7): `swift build` clean, no warnings; `swift test` 484 tests
   in 87 suites passed, 1 known issue (the same). No golden changed.
 
 ## Changes
@@ -28,7 +28,7 @@ to `ui-redesign-onscreen-check` unless noted.
 | E4 | Medium | Adjust ▸ Import Look-Up Tables… (N5) | Done (flow to confirm, D-Q4) | Add Adjust ▸ Import Look-Up Tables… (E4) | The import page needs a chosen source, so the item runs the sheet's Import… panel on the library window, then opens the sheet on the import page (`LookTableLibraryModel.chooseImportFromMenu` / `openImportPage`); cancelling opens nothing. Placed after Manage Presets…, before Browse Look-Up Tables… (§4 order). Debug script (new `lutwindow importmenu <folder>`, `importrun`, `page`): sheet attached on "import (2 of 2 tables)", snapshot shows the Import Look-Up Tables page with Back; `lutwindow back` → tables; importing from that page posts "[Import Look-Up Tables] Imported 2 look-up tables.". `menuitems Look-Up` lists the item; its enablement is the same `can()` as Browse; a key-window run is pending (macOS refused to activate the app on two tries). Manual: the panel itself. Guide: no change (it doesn't describe look-up tables) |
 | E5 | Medium | Adjust ▸ Reset Crop (N6) | Done | Add Adjust ▸ Reset Crop (E5) | After Crop / Finish Cropping; runs `editor.resetCrop()`, the heading's action. `AdjustmentEditor.canResetCrop` is now the one rule for the heading button and the menu (`LibraryMenuState.canResetCrop` adds "editable loupe photo"). Debug script (new `print menustate`): grid → false; loupe, uncropped → false; during a session with a crop and after Done → true; video → false. `adjust crop reset` (the same call) clears the crop; `print undo` shows one step "Reset Crop"; `undo` gives the crop back. `menuitems` / `menupress` in a key window: pending (macOS refused to activate the app); the item's enablement is `can { $0.canResetCrop }`. Guide: the crop paragraph names it |
 | E6 | Low | Adjust ▸ Show / Hide Mask Overlay (N7) | Not started | | |
-| E7 | Medium | Mask and component limits dim their commands (N8) | Not started | | |
+| E7 | Medium | Mask and component limits dim their commands (N8) | Done | Dim New Mask and Add to Mask at their limits (E7) | `MaskLimits.canAddMask(to:)` and `canAddComponent(to:)` beside `MaskLimits`; test "New Mask and Add to Mask stop at the limits" (31/32 masks, 15/16 components, agreeing with `allows`). Adjust ▸ New Mask ▸ reads `LibraryMenuState.canAddMask`; the heading's shape rows dim with the plural tooltips, and VoiceOver keeps each shape's name (`AppKitButton.accessibilityLabel`). The brush-point warning in Activity is unchanged. Debug script (`buttons` now prints disabled and tooltips; `print menustate`): after 32 × `adjust mask add`, menustate `addMask false`; the New Mask row "disabled tip 'A photo can have up to 32 masks.'"; a mask with 16 components: Add to Mask row "disabled tip 'A mask can combine up to 16 shapes.'"; a photo without masks: enabled. `menuitems "New Mask"` in a key window: pending (activation refused). Found: an `AppKitButton` with `isEnabled: false` can show enabled (SwiftUI applies its own enabled state to the control); the shape rows add `.disabled(…)`; the wider problem is listed below |
 | E8 | Medium | View ▸ Play / Pause, Space (N9, I6) | Not started | | |
 | E9 | Medium | Video loupe context menu (N9) | Not started | | |
 | E10 | Medium | Edit ▸ Deselect All ⇧⌘A, shared item (I5) | Not started | | |
@@ -90,6 +90,16 @@ to `ui-redesign-onscreen-check` unless noted.
   §4 lists it after Manage Presets…, next to Browse Look-Up Tables…; built
   per §4, which keeps the two look-up table items together. One line to
   move if N5 is meant literally.
+
+### Found, not fixed (outside these changes)
+
+- `AppKitButton(isEnabled: false)` doesn't reliably dim: SwiftUI applies
+  its own enabled state to the hosted `NSButton` after `updateNSView`.
+  Seen with the Crop heading's reset button on an uncropped photo; the
+  mask eye button and the Adjust tab's other `isEnabled:` buttons are
+  likely affected. A fix belongs in `AppKitButton` (for example,
+  `.disabled(!isEnabled)` at each use, or a wrapper view), as its own
+  change.
 
 ### Requirements issues (product-manager)
 

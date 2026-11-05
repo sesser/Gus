@@ -795,9 +795,11 @@ enum DebugScript {
            !view.isHiddenOrHasHiddenAncestor {
             let frame = button.convert(button.bounds, to: nil)
             let title = (button as? NSButton)?.title ?? ""
-            let name = title.isEmpty ? (button.toolTip ?? "") : title
+            let name = title.isEmpty ? (button.accessibilityLabel() ?? button.toolTip ?? "") : title
+            // Dimmed buttons and tooltips that say something other than the name.
+            let tip = button.toolTip.flatMap { $0 == name ? nil : " tip '\($0)'" } ?? ""
             print("debug-script: button '\(name)' at \(Int(frame.midX)),\(Int(window.frame.height - frame.midY))"
-                  + " width \(Int(frame.width)) \(type(of: button))")
+                  + " width \(Int(frame.width)) \(type(of: button))" + (button.isEnabled ? "" : " disabled") + tip)
         }
         for subview in view.subviews { printButtons(in: subview, window: window) }
     }
@@ -853,7 +855,7 @@ enum DebugScript {
             // scripted launch often is not the active app).
             let state = LibraryMenuState(model)
             print("debug-script: menustate key \(state.isWindowKey) mode \(state.mode) export \(state.canExport)"
-                  + " resetCrop \(state.canResetCrop) editLoupePhoto \(state.canEditLoupePhoto) cropping \(state.isCropping)")
+                  + " resetCrop \(state.canResetCrop) addMask \(state.canAddMask) editLoupePhoto \(state.canEditLoupePhoto) cropping \(state.isCropping)")
         case "empty":
             // The browser's empty state (design.md N3), as the view chooses it.
             print("debug-script: empty \(model.emptyState.map { "\($0)" } ?? "none") source '\(model.title(for: model.sidebarSelection))'"

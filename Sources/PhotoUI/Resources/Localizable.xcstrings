@@ -765,6 +765,52 @@
         }
       }
     },
+    "A mask can combine up to %lld shapes." : {
+      "comment" : "Tooltip: Add to Mask is dimmed at the limit",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "A mask can combine up to %lld shape."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "A mask can combine up to %lld shapes."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "A photo can have up to %lld masks." : {
+      "comment" : "Tooltip: New Mask is dimmed at the limit",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "A photo can have up to %lld mask."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "A photo can have up to %lld masks."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "A short description read aloud by screen readers, under 250 characters" : {
       "comment" : "Info tab: tooltip of the Alt Text field",
       "localizations" : {

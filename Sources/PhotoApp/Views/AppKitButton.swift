@@ -27,6 +27,9 @@ struct AppKitButton: NSViewRepresentable {
     var font = NSFont.preferredFont(forTextStyle: .callout)
     var tint: NSColor?
     var help: String?
+    /// VoiceOver's name for a button without a title, when it differs from
+    /// `help` (a dimmed button's help says why it is dimmed).
+    var accessibilityLabel: String?
     var isEnabled = true
     let action: () -> Void
 
@@ -64,7 +67,7 @@ struct AppKitButton: NSViewRepresentable {
         if let symbol {
             let configuration = NSImage.SymbolConfiguration(pointSize: font.pointSize * (title.isEmpty ? 1 : 0.8),
                                                             weight: symbolWeight)
-            button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: help)?
+            button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: accessibilityLabel ?? help)?
                 .withSymbolConfiguration(configuration)
             button.imagePosition = imagePosition ?? (title.isEmpty ? .imageOnly : .imageLeading)
         } else if let image {
@@ -84,7 +87,7 @@ struct AppKitButton: NSViewRepresentable {
         button.attributedTitle = text
         button.contentTintColor = tint
         button.toolTip = help
-        if title.isEmpty, let help { button.setAccessibilityLabel(help) }
+        if title.isEmpty, let label = accessibilityLabel ?? help { button.setAccessibilityLabel(label) }
         button.isEnabled = isEnabled
     }
 
