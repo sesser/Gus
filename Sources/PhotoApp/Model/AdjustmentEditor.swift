@@ -72,6 +72,11 @@ final class AdjustmentEditor {
     var showsMaskOverlay = false {
         didSet {
             guard oldValue != showsMaskOverlay, state == .ready else { return }
+            // Showing the overlay ends the sharpening map: the last asked for wins (design §6).
+            if showsMaskOverlay, sharpeningMap.isShown {
+                _ = sharpeningMap.end()
+                stopMapRefinement()
+            }
             showsLive = true
             requestRender(interactive: false)
         }
@@ -80,16 +85,19 @@ final class AdjustmentEditor {
     /// while the loupe is zoomed in.
     @ObservationIgnored var allowsDrafts = true
     /// Drags on the photo paint into the selected mask's brush.
-    var isBrushing = false
+    var isBrushing = false {
+        // Painting needs the photo on screen.
+        didSet { if isBrushing { endSharpeningMap() } }
+    }
     /// The settings the next stroke paints with (its points are unused).
     var brushTemplate = BrushStroke(size: 0.03)
     /// Clicks on the photo add a color to the selected mask's color range.
-    var isSamplingColor = false
+    var isSamplingColor = false {
+        didSet { if isSamplingColor { endSharpeningMap() } }
+    }
     /// The mask frame's size in pixels, from the latest frame: its proportions
     /// place masks on screen.
     private(set) var maskFrameSize: CGSize?
-    /// The frame on screen has the mask overlay drawn in: not a preview to keep.
-    @ObservationIgnored private var frameHasOverlay = false
     /// The stroke being painted: its mask, component and index.
     @ObservationIgnored var paintingStroke: (mask: UUID, component: Int, stroke: Int)?
     /// The camera's crop of a RAW file's whole sensor, if it has one.
@@ -110,6 +118,27 @@ final class AdjustmentEditor {
             }
         }
     }
+
+    // MARK: Sharpening map state
+
+    /// Whether the sharpening map is asked for, and what it suspended (design §6).
+    private(set) var sharpeningMap = SharpeningMapState()
+    var showsSharpeningMap: Bool { sharpeningMap.isShown }
+    /// What the sharpening map on screen says (badge, legend, VoiceOver);
+    /// nil while the photo is on screen. Set with the frame that shows it,
+    /// so nothing claims a map that is not on screen (design §5).
+    private(set) var shownSharpeningMap: SharpeningMapStatus?
+    /// The full-resolution map is still rendering about 0.5 s after the last input.
+    private(set) var isRefiningSharpeningMap = false
+    /// The loupe is zoomed in: the refined map renders at full size, not the fit size.
+    @ObservationIgnored var loupeIsZoomed = false {
+        didSet { if loupeIsZoomed != oldValue, sharpeningMap.isShown { scheduleMapRefinement() } }
+    }
+    @ObservationIgnored private var mapRefiner: SharpeningMapRefiner?
+    @ObservationIgnored private var mapRefineTask: Task<Void, Never>?
+    @ObservationIgnored private var mapRefinement: RenderCancellation?
+    /// Tells the spinner of a superseded refinement from the current one's.
+    @ObservationIgnored private var mapRefineGeneration = 0
 
     @ObservationIgnored private var committed = Adjustments()
 
@@ -211,6 +240,11 @@ final class AdjustmentEditor {
     }
 
     private func finishSession() {
+        // Another photo, or no loupe: the map ends, the overlay's preference stays.
+        let restore = sharpeningMap.end()
+        stopMapRefinement()
+        mapRefiner = nil
+        shownSharpeningMap = nil
         loadTask?.cancel()
         loadTask = nil
         renderTask?.cancel()
@@ -243,6 +277,12 @@ final class AdjustmentEditor {
         pruneRenditions()
         adjustments = Adjustments()
         committed = Adjustments()
+        if restore.overlay {
+            // With no session this renders nothing; drop what it asked for.
+            showsMaskOverlay = true
+            pendingRender = nil
+            showsLive = false
+        }
     }
 
     /// Deletes the cached renditions of intermediate edits of the photo being closed.
@@ -269,6 +309,7 @@ final class AdjustmentEditor {
         refinement?.cancel()
         prefillTask?.cancel()
         prefill?.cancel()
+        stopMapRefinement()
         var next = adjustments
         body(&next)
         next.enableModules(changedFrom: adjustments)
@@ -278,6 +319,7 @@ final class AdjustmentEditor {
         isChanging = phase == .changing
         if next != adjustments {
             adjustments = next
+            sharpeningMap.valuesChanged()
             showsLive = true
             requestRender(interactive: phase == .changing)
             if cropSession != nil, phase == .committed { renderCropImage() }
@@ -323,7 +365,123 @@ final class AdjustmentEditor {
 
     func toggleOriginal() {
         guard state == .ready, cropSession == nil else { return }
+        if sharpeningMap.isShown {
+            // Show Original while the map is shown ends the map (design §6).
+            endSharpeningMap()
+            showsOriginal = true
+            return
+        }
         showsOriginal.toggle()
+    }
+
+    // MARK: Sharpening map
+
+    /// The map can be shown: an editable photo, not cropping. (Review mode
+    /// is the model's rule, `LibraryModel.canShowSharpeningMap`.)
+    var canShowSharpeningMap: Bool {
+        state == .ready && cropSession == nil && cropImageTask == nil
+    }
+
+    /// Shows the sharpening map in place of the photo. It suspends the mask
+    /// overlay and Show Original and turns the mask tools off; the photo
+    /// stays until the first map frame is ready.
+    func showSharpeningMap() {
+        guard canShowSharpeningMap, !sharpeningMap.isShown else { return }
+        isBrushing = false
+        isSamplingColor = false
+        sharpeningMap.show(overlay: showsMaskOverlay, original: showsOriginal)
+        showsMaskOverlay = false
+        showsOriginal = false
+        requestRender(interactive: false)
+    }
+
+    /// The person hid the map: the loupe goes back to what it showed,
+    /// with the overlay and Show Original if they were on (design §6).
+    func hideSharpeningMap() {
+        guard sharpeningMap.isShown else { return }
+        let restore = sharpeningMap.hide()
+        leaveSharpeningMap()
+        if restore.overlay { showsMaskOverlay = true }
+        if restore.original { showsOriginal = true }
+        requestRender(interactive: false)
+    }
+
+    /// Something that needs the photo ended the map: the overlay's
+    /// preference comes back, Show Original does not.
+    func endSharpeningMap() {
+        guard sharpeningMap.isShown else { return }
+        let restore = sharpeningMap.end()
+        leaveSharpeningMap()
+        if restore.overlay { showsMaskOverlay = true }
+        requestRender(interactive: false)
+    }
+
+    /// Stops refining and frees the full-resolution map's memory. The map
+    /// stays on screen until the photo's frame replaces it.
+    private func leaveSharpeningMap() {
+        stopMapRefinement()
+        mapRefiner = nil
+    }
+
+    private func stopMapRefinement() {
+        mapRefineTask?.cancel()
+        mapRefineTask = nil
+        mapRefinement?.cancel()
+        mapRefinement = nil
+        mapRefineGeneration += 1
+        if isRefiningSharpeningMap { isRefiningSharpeningMap = false }
+    }
+
+    /// Once input pauses for about 150 ms, renders the map from the
+    /// full-resolution master at the loupe's zoom (prd.md R6); the estimate
+    /// stays on screen until it is ready. A spinner shows if it is still
+    /// running about 0.5 s after the last input.
+    private func scheduleMapRefinement() {
+        stopMapRefinement()
+        guard sharpeningMap.isShown, let session, let url = sourceURL, let library else { return }
+        let refiner = mapRefiner ?? SharpeningMapRefiner(source: url, generator: library.previews.interactiveGenerator,
+                                                         colorSpace: library.previews.displayColorSpace)
+        mapRefiner = refiner
+        let values = previewValues ?? adjustments
+        let longEdge = loupeIsZoomed ? nil : session.longEdge
+        let generation = mapRefineGeneration
+        mapRefineTask = Task {
+            try? await Task.sleep(for: .milliseconds(150))
+            guard !Task.isCancelled, sharpeningMap.isShown, pendingRender == nil else { return }
+            let token = RenderCancellation()
+            mapRefinement = token
+            let spinner = Task {
+                try? await Task.sleep(for: .milliseconds(350))
+                if !Task.isCancelled, generation == mapRefineGeneration { isRefiningSharpeningMap = true }
+            }
+            defer {
+                spinner.cancel()
+                if generation == mapRefineGeneration { isRefiningSharpeningMap = false }
+            }
+            do {
+                let refined = try await refiner.render(values, longEdge: longEdge, cancellation: token)
+                guard !Task.isCancelled, generation == mapRefineGeneration, sharpeningMap.isShown,
+                      session === self.session, (previewValues ?? adjustments) == values else { return }
+                show(refined)
+            } catch is CancellationError {
+                // Newer input; its frame schedules another refinement.
+            } catch {
+                Self.log.error("Sharpening map refinement failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+    }
+
+    /// Puts a frame on screen and updates what follows it.
+    private func show(_ rendered: LiveRenderSession.Frame) {
+        frame = rendered
+        if rendered.content == .sharpeningMap {
+            showsLive = true
+            let status = SharpeningMapStatus(rendered.adjustments)
+            if shownSharpeningMap != status { shownSharpeningMap = status }
+        } else if shownSharpeningMap != nil {
+            shownSharpeningMap = nil
+        }
+        frameRevision += 1
     }
 
     private func commit(_ actionName: String) {
@@ -347,6 +505,7 @@ final class AdjustmentEditor {
             if adjustments != values {
                 // Undo or redo on the open photo.
                 adjustments = values
+                sharpeningMap.valuesChanged()
                 showsLive = true
                 requestRender(interactive: false)
             }
@@ -371,7 +530,9 @@ final class AdjustmentEditor {
         adjustments = values
         item?.editStackHash = stack.renderHash
         showsOriginal = false
-        showsLive = false
+        sharpeningMap.valuesChanged()
+        // The map stays on screen until its next frame; the photo's renditions follow otherwise.
+        if !sharpeningMap.isShown { showsLive = false }
         // For the histogram; the loupe loads the new edit's renditions itself.
         requestRender(interactive: false)
     }
@@ -379,7 +540,7 @@ final class AdjustmentEditor {
     /// Once the frame on screen shows the saved values, it becomes the cached
     /// preview of the new edit hash and the loupe goes back to its renditions.
     private func seedPreviewIfRendered() {
-        guard let library, let item, let frame, !isChanging, !showsOriginal, !lastFrameWasInteractive, !frameHasOverlay,
+        guard let library, let item, let frame, !isChanging, !showsOriginal, !lastFrameWasInteractive, frame.showsPhoto,
               frame.adjustments == committed, adjustments == committed,
               item.editStackHash == committed.editStack.renderHash,
               let request = library.previewRequest(for: item, tier: .preview)
@@ -441,20 +602,29 @@ final class AdjustmentEditor {
                 defer { renderingInteractive = false }
                 do {
                     let overlay = showsMaskOverlay && !showsOriginal ? selectedMaskID : nil
+                    let content: LiveRenderSession.Content = sharpeningMap.isShown ? .sharpeningMap : .photo
                     let rendered = try await session.render(next.values, interactive: next.interactive,
                                                             allowsDrafts: allowsDrafts, overlayMask: overlay,
-                                                            cancellation: next.cancellation)
+                                                            content: content, cancellation: next.cancellation)
                     guard !Task.isCancelled, session === self.session else { break }
-                    frame = rendered
-                    frameHasOverlay = overlay != nil && rendered.histogram == nil
+                    // A map frame rendered before the map was hidden: the photo's frame follows.
+                    if rendered.content == .sharpeningMap, !sharpeningMap.isShown { continue }
                     maskFrameSize = rendered.maskFrameSize
                     lastFrameWasInteractive = next.interactive
-                    if (!showsOriginal || next.values == .none), let histogram = rendered.histogram {
+                    // Only frames showing the photo give the histogram (R7).
+                    if (!showsOriginal || next.values == .none), rendered.showsPhoto, let histogram = rendered.histogram {
                         self.histogram = histogram
                     }
-                    frameRevision += 1
+                    show(rendered)
                     seedPreviewIfRendered()
-                    if next.interactive { scheduleRefinement() } else { schedulePrefill() }
+                    if rendered.content == .sharpeningMap {
+                        // The map's refinement is the full-resolution one, not a full-size frame.
+                        if pendingRender == nil { scheduleMapRefinement() }
+                    } else if next.interactive {
+                        scheduleRefinement()
+                    } else {
+                        schedulePrefill()
+                    }
                 } catch is CancellationError {
                     // Superseded by newer input; the draft stays on screen.
                 } catch {
@@ -517,6 +687,8 @@ final class AdjustmentEditor {
     func beginCrop() {
         guard state == .ready, cropSession == nil, cropImageTask == nil, let url = sourceURL,
               let versionID = item?.versionID else { return }
+        // Crop ends the map; it does not come back after Done (design §6).
+        endSharpeningMap()
         showsOriginal = false
         isPreviewing = false
         previewValues = nil

@@ -59,7 +59,7 @@ public actor LiveRenderSession {
     private var filledCache = false
 
     public let source: URL
-    public let longEdge: Int
+    public nonisolated let longEdge: Int
     private let generator: PreviewGenerator
     private let colorSpace: CGColorSpace?
     private var bases: [BaseKey: Base] = [:]

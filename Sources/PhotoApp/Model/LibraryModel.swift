@@ -394,6 +394,9 @@ final class LibraryModel {
     var loupeZoom = LoupeZoomState()
     /// The open ⌘K keyword field, with the photos it will tag.
     var keywordEntry: KeywordEntryRequest?
+    /// Masking's row should scroll into view once the inspector shows it
+    /// (showing the sharpening map from a menu; design §3).
+    var revealsMaskingRow = false
     var showsInspector: Bool {
         // Review hides it for a while; the person's choice is what's kept.
         didSet { if !review.isReviewing { UserDefaults.standard.set(showsInspector, forKey: Self.showsInspectorKey) } }

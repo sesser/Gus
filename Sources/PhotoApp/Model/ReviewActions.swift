@@ -17,6 +17,8 @@ extension LibraryModel {
         let current = ReviewLayout(showsSidebar: showsSidebar, showsInspector: showsInspector,
                                    isFullScreen: window?.styleMask.contains(.fullScreen) == true)
         guard let layout = review.enter(from: current) else { return }
+        // Review shows photos only (prd.md R9).
+        editor.endSharpeningMap()
         if mode != .loupe { openLoupe() }
         apply(layout, in: window)
     }

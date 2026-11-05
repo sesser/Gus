@@ -37,6 +37,12 @@ enum PhotoContextMenu {
                 model.editor.toggleOriginal()
             })
         }
+        if state.canShowSharpeningMap {
+            let titles = SharpeningMapText.menuTitle
+            menu.addItem(ActionMenuItem(state.showsSharpeningMap ? titles.hide : titles.show) {
+                model.toggleSharpeningMap(from: .menu)
+            })
+        }
         if state.canEditLoupePhoto {
             menu.addItem(ActionMenuItem(state.isCropping ? String(localized: "Finish Cropping") : String(localized: "Crop")) {
                 model.crop()

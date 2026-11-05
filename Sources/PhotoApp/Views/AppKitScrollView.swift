@@ -75,3 +75,57 @@ struct AppKitScrollView<Content: View>: NSViewRepresentable {
 final class FlippedClipView: NSClipView {
     override var isFlipped: Bool { true }
 }
+
+/// Scrolls the view it is the background of into view in the enclosing
+/// `AppKitScrollView` when `isRequested` turns true, then calls `done`.
+/// Animated, or a jump with Reduce Motion. A SwiftUI `ScrollViewReader`
+/// can't reach an AppKit scroll view, hence a view of its own.
+struct InspectorRevealAnchor: NSViewRepresentable {
+    let isRequested: Bool
+    let done: () -> Void
+
+    func makeNSView(context: Context) -> NSView { NSView() }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        guard isRequested else { return }
+        let done = done
+        // The request often comes with the inspector, tab or heading that
+        // shows this view: scroll once that layout has settled.
+        Task { @MainActor [weak view] in
+            await Task.yield()
+            await Task.yield()
+            guard let view else { return }
+            done()
+            Self.reveal(view)
+        }
+    }
+
+    static func reveal(_ view: NSView) {
+        guard let scrollView = view.enclosingScrollView, let document = scrollView.documentView else { return }
+        document.layoutSubtreeIfNeeded()
+        let clip = scrollView.contentView
+        let margin = InspectorMetrics.padding
+        let target = view.convert(view.bounds, to: document).insetBy(dx: 0, dy: -margin)
+        let visible = clip.bounds
+        var origin = visible.origin
+        // The clip view and the hosting view are flipped: y grows downward.
+        if target.minY < visible.minY {
+            origin.y = target.minY
+        } else if target.maxY > visible.maxY {
+            origin.y = min(target.minY, target.maxY - visible.height)
+        } else {
+            return
+        }
+        origin = clip.constrainBoundsRect(NSRect(origin: origin, size: visible.size)).origin
+        if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            clip.scroll(to: origin)
+            scrollView.reflectScrolledClipView(clip)
+        } else {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.25
+                clip.animator().setBoundsOrigin(origin)
+            }
+            scrollView.reflectScrolledClipView(clip)
+        }
+    }
+}

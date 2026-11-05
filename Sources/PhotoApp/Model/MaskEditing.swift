@@ -108,6 +108,8 @@ extension AdjustmentEditor {
     /// A new mask of `kind`, selected; gradients start in the middle of what the loupe shows.
     func addMask(_ kind: MaskShapeKind) {
         guard let component = newComponent(kind, operation: .add) else { return }
+        // The new shape's handles need the photo on screen (sharpen-mask-preview design §6).
+        endSharpeningMap()
         let count = adjustments.local.masks.count
         var values = LocalValues()
         values.exposure = kind == .linear ? -0.5 : 0.3
@@ -123,6 +125,7 @@ extension AdjustmentEditor {
     /// Adds a component of `kind` to the selected mask.
     func addComponent(_ kind: MaskShapeKind, operation: MaskOperation) {
         guard let component = newComponent(kind, operation: operation) else { return }
+        endSharpeningMap()
         changeSelectedMask(String(localized: "Add to Mask"), phase: .committed) { $0.components.append(component) }
         isBrushing = kind == .brush
         isSamplingColor = kind == .colorRange
