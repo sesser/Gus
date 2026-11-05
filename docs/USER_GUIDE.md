@@ -186,8 +186,9 @@ caption shows while that takes more than half a second). With Amount at 0 or
 Sharpening turned off, the map still shows where sharpening would go; the badge
 reads **Sharpening Map · Not Applied** when nothing at all is sharpened, and the
 text under the toggle says why. Masks with Sharpness still sharpen the areas they
-cover. Press Esc, the toggle or **Adjust ▸ Hide Sharpening Map** to see the photo
-again. The map is only a view: it is not saved, has no undo step, and never
+cover. Press Esc, click the toggle, or choose **Adjust ▸ Hide Sharpening Map** to see
+the photo again. While the map is shown, hovering a preset or look-up table
+shows the map with it. The map is only a view: it is not saved, has no undo step, and never
 reaches thumbnails, previews or exports. It ends when you move to another photo,
 crop, paint, pick colors, add a mask, show the original or the mask overlay,
 enter review or go back to the grid. Hiding it brings back the mask overlay if
