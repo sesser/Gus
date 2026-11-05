@@ -67,6 +67,8 @@ import PhotoUI
 ///     lutimport <folder> [<collection>]   (into a new collection, or an existing one of that name)
 ///     luts                  (prints the collections)
 ///     lutwindow open|close|all|collection <name>|expand <name>|select <name>|apply|manage|back|snapshot <file> (the sheet)
+///            | importmenu <folder> (Adjust ▸ Import Look-Up Tables… once its panel returns the folder) | importrun
+///            (the import page's Import) | page (prints it)
 ///     copyadjust            pasteadjust            preset save|apply|delete|preview <name> | preset (prints them)
 ///     preset import <path>…  (prints the summary)   preset summary <path>… (imports, shows the alert)
 ///     preset export <file> [<name>]                 preset window | windowshot <png> (the sheet)

@@ -181,6 +181,31 @@ final class LookTableLibraryModel {
 
     /// Asks for a folder (or `.cube` files), reads it, and shows the import page.
     func chooseImportSource(into collectionID: Int64? = nil) {
+        let panel = Self.importPanel()
+        Task {
+            guard await WindowModal.run(panel), !panel.urls.isEmpty else { return }
+            await prepareImport(panel.urls, into: collectionID)
+        }
+    }
+
+    /// Adjust ▸ Import Look-Up Tables… (design.md N5): the sheet's Import…
+    /// panel on the library window, then the sheet opens on the import page,
+    /// whose Back goes to the tables. Cancelling the panel opens nothing.
+    func chooseImportFromMenu() {
+        let panel = Self.importPanel()
+        Task {
+            guard await WindowModal.run(panel), !panel.urls.isEmpty else { return }
+            await openImportPage(for: panel.urls)
+        }
+    }
+
+    /// Reads `urls`, then shows the sheet on the import page.
+    func openImportPage(for urls: [URL]) async {
+        await prepareImport(urls)
+        library?.showsLookTableSheet = true
+    }
+
+    private static func importPanel() -> NSOpenPanel {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = true
@@ -188,30 +213,25 @@ final class LookTableLibraryModel {
         panel.allowsMultipleSelection = true
         panel.prompt = String(localized: "Choose")
         panel.message = String(localized: "Choose a folder of .cube look-up tables, or the files themselves.")
-        Task {
-            guard await WindowModal.run(panel), !panel.urls.isEmpty else { return }
-            prepareImport(panel.urls, into: collectionID)
-        }
+        return panel
     }
 
     /// Reads `urls` (one folder, or files) and shows the import page.
-    func prepareImport(_ urls: [URL], into collectionID: Int64? = nil) {
+    func prepareImport(_ urls: [URL], into collectionID: Int64? = nil) async {
         isScanning = true
-        Task {
-            let candidates = await Task.detached(priority: .userInitiated) { () -> [LookTableImport.Candidate] in
-                if urls.count == 1, urls[0].hasDirectoryPath {
-                    return LookTableImport.candidates(in: urls[0])
-                }
-                return LookTableImport.candidates(for: urls.flatMap { url in
-                    url.hasDirectoryPath ? LookTableBrowsing.files(in: url) : [url]
-                })
-            }.value
-            isScanning = false
-            let folder = urls.count == 1 && urls[0].hasDirectoryPath ? urls[0] : urls[0].deletingLastPathComponent()
-            let existing = collectionID.flatMap { id in importedCollections.first { $0.rowID == id }?.rowID }
-            page = .importing(ImportDraft(source: folder.path, candidates: candidates, collectionID: existing,
-                                           newName: LookTableNaming.cleanedFileName(folder.lastPathComponent)))
-        }
+        let candidates = await Task.detached(priority: .userInitiated) { () -> [LookTableImport.Candidate] in
+            if urls.count == 1, urls[0].hasDirectoryPath {
+                return LookTableImport.candidates(in: urls[0])
+            }
+            return LookTableImport.candidates(for: urls.flatMap { url in
+                url.hasDirectoryPath ? LookTableBrowsing.files(in: url) : [url]
+            })
+        }.value
+        isScanning = false
+        let folder = urls.count == 1 && urls[0].hasDirectoryPath ? urls[0] : urls[0].deletingLastPathComponent()
+        let existing = collectionID.flatMap { id in importedCollections.first { $0.rowID == id }?.rowID }
+        page = .importing(ImportDraft(source: folder.path, candidates: candidates, collectionID: existing,
+                                      newName: LookTableNaming.cleanedFileName(folder.lastPathComponent)))
     }
 
     /// Imports a confirmed draft and shows its collection.

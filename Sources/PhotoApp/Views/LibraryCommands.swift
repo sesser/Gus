@@ -384,6 +384,8 @@ struct LibraryCommands: Commands {
                 .disabled(!can())
             Button("Manage Presets…") { model?.showsPresetSheet = true }
                 .disabled(!can())
+            Button("Import Look-Up Tables…") { model?.lookTableLibrary.chooseImportFromMenu() }
+                .disabled(!can())
             Button("Browse Look-Up Tables…") { model?.showsLookTableSheet = true }
                 .disabled(!can())
         }

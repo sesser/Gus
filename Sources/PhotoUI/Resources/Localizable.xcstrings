@@ -4394,6 +4394,17 @@
         }
       }
     },
+    "Import Look-Up Tables…" : {
+      "comment" : "Adjust menu: chooses .cube files, then shows the look-up table sheet on its import page",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import Look-Up Tables…"
+          }
+        }
+      }
+    },
     "Import Presets" : {
       "comment" : "Activity row title",
       "localizations" : {
