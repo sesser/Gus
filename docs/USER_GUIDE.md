@@ -52,7 +52,7 @@ photos the library does not have yet, and a folder with nothing new makes none.
 | arrows | move selection (⇧ extends) | ← → previous / next photo |
 | Home, End, Page Up, Page Down | jump | first / last photo |
 | Return, Space, double-click | open the loupe | back to the grid |
-| Esc | | leaves review, else back to the grid |
+| Esc | | hides the sharpening map, else leaves review, else back to the grid |
 | F | review the focused photo | enter or leave review |
 | Z, click | | toggle fit / 100 % at the clicked point (⌥-scroll and pinch zoom too; drag pans) |
 | 0–5 | set rating | set rating |
@@ -171,6 +171,27 @@ carry the crop; presets never do. Photos shot at 1:1, 3:2 or 16:9 on a camera
 with a 4:3 sensor show the camera's crop; on Olympus, OM System and Panasonic
 raw files, cropping starts from that frame over the whole sensor, so it can be
 widened. Other raw formats are cropped within the frame their decoder gives.
+
+**Sharpening Map**: Masking (Details ▸ Sharpening) holds sharpening back where
+the photo is smooth, such as skies and skin, and keeps it on edges. To see where
+it goes, turn on the **Sharpening Map** toggle under Masking, or choose
+**Adjust ▸ Show Sharpening Map** (also in the loupe's context menu, which, like
+the menu item, shows the inspector with Masking in view). The loupe then shows
+the sharpening map in place of the photo, in the same frame and at any zoom:
+white areas are sharpened, gray areas in part, and black areas not at all. A
+**Sharpening Map** badge in the caption says so. The map follows Masking and
+the other controls as you change them; once you pause, it is replaced by the map
+of the full-size photo, which is what an export sharpens (a small spinner in the
+caption shows while that takes more than half a second). With Amount at 0 or
+Sharpening turned off, the map still shows where sharpening would go; the badge
+reads **Sharpening Map · Not Applied** when nothing at all is sharpened, and the
+text under the toggle says why. Masks with Sharpness still sharpen the areas they
+cover. Press Esc, the toggle or **Adjust ▸ Hide Sharpening Map** to see the photo
+again. The map is only a view: it is not saved, has no undo step, and never
+reaches thumbnails, previews or exports. It ends when you move to another photo,
+crop, paint, pick colors, add a mask, show the original or the mask overlay,
+enter review or go back to the grid. Hiding it brings back the mask overlay if
+it was on, and the original if it was on and no value changed meanwhile.
 
 **Presets** (the Adjust tab's first heading, and **Adjust ▸ Apply Preset**)
 apply saved adjustments to the photo in the loupe or to every selected photo.
