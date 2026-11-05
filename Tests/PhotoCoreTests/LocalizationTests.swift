@@ -12,7 +12,7 @@ struct LocalizationTests {
     static let localizingCalls = [
         "Text(\"", "String(localized: \"", "Button(\"", "Label(\"", "Section(\"", "Picker(\"",
         "Toggle(\"", "Menu(\"", "CommandMenu(\"", ".help(\"", "TextField(\"", ".alert(\"",
-        ".confirmationDialog(\"",
+        ".confirmationDialog(\"", "ContentUnavailableView(\"",
     ]
 
     enum Segment: Equatable {

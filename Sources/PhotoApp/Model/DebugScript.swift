@@ -871,6 +871,7 @@ enum DebugScript {
             ImportDebugCommands.printState(model.cardImport)
         case "adjustments":
             DebugAdjustCommands.printState(model.editor)
+            print("debug-script: adjust tab \(model.mode == .loupe ? "\(model.loupeAdjustState)" : "grid")")
         case "items":
             print("debug-script: items " + model.items.prefix(12).map { "\($0.baseName):\($0.rating.rawValue)" }.joined(separator: " "))
         default:

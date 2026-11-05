@@ -1097,17 +1097,6 @@
         }
       }
     },
-    "Adjustments are not available for videos." : {
-      "comment" : "Adjust tab, when a video is shown",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Adjustments are not available for videos."
-          }
-        }
-      }
-    },
     "Adobe RGB" : {
       "comment" : "Color space",
       "localizations" : {
@@ -1789,6 +1778,17 @@
         }
       }
     },
+    "Can't Edit This Photo" : {
+      "comment" : "Adjust tab: the photo's edits can't be read by this version",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can't Edit This Photo"
+          }
+        }
+      }
+    },
     "Can't Open the Library" : {
       "comment" : "Catalog failure view title",
       "localizations" : {
@@ -2376,6 +2376,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Compression"
+          }
+        }
+      }
+    },
+    "Connect its volume to adjust this photo." : {
+      "comment" : "Adjust tab: the photo's original is offline",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connect its volume to adjust this photo."
           }
         }
       }
@@ -5811,6 +5822,17 @@
         }
       }
     },
+    "No Adjustments for Videos" : {
+      "comment" : "Adjust tab: a video is in the loupe",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Adjustments for Videos"
+          }
+        }
+      }
+    },
     "No Card Connected" : {
       "comment" : "Import window source pop-up, with no source",
       "localizations" : {
@@ -5909,6 +5931,17 @@
         }
       }
     },
+    "No Presets" : {
+      "comment" : "Preset manager: the library has no adjustment presets",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Presets"
+          }
+        }
+      }
+    },
     "No Presets Imported" : {
       "comment" : "Preset import summary title",
       "localizations" : {
@@ -5926,6 +5959,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No Rating"
+          }
+        }
+      }
+    },
+    "No Selection" : {
+      "comment" : "Inspector: nothing is selected",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Selection"
           }
         }
       }
@@ -6320,6 +6364,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Original Number"
+          }
+        }
+      }
+    },
+    "Original Offline" : {
+      "comment" : "Adjust tab: the photo's original is offline",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Original Offline"
           }
         }
       }
@@ -8587,17 +8642,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The color space the tables were made for. Most creative tables expect sRGB."
-          }
-        }
-      }
-    },
-    "The original is offline. Connect its volume to adjust this photo." : {
-      "comment" : "Adjust tab, when the master's volume is offline",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The original is offline. Connect its volume to adjust this photo."
           }
         }
       }

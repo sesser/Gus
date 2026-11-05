@@ -37,19 +37,24 @@ struct AdjustView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         } else {
-            switch editor.state {
+            switch model.loupeAdjustState {
             case .idle:
                 message(String(localized: "No photo"))
             case .loading:
                 ProgressView()
                     .controlSize(.small)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // design.md N1; the symbols are the ones the grid, the film strip
+            // and the app's other "Can't …" states use.
             case .video:
-                message(String(localized: "Adjustments are not available for videos."))
+                ContentUnavailableView("No Adjustments for Videos", systemImage: "video")
             case .offline:
-                message(String(localized: "The original is offline. Connect its volume to adjust this photo."))
+                ContentUnavailableView("Original Offline", systemImage: "externaldrive.badge.xmark",
+                                       description: Text("Connect its volume to adjust this photo.",
+                                                         comment: "Adjust tab: the photo's original is offline"))
             case .unreadable(let failure):
-                message(AdjustText.unreadableMessage(failure))
+                ContentUnavailableView("Can't Edit This Photo", systemImage: "exclamationmark.triangle",
+                                       description: Text(AdjustText.unreadableMessage(failure)))
             case .ready:
                 // The workflow's order (render order is unchanged).
                 AppKitScrollView {

@@ -331,6 +331,12 @@ final class LibraryModel {
         ratingRule != .any || flagRule != .any || !LibraryFilter(search: searchText).searchTerms.isEmpty
     }
 
+    /// What the loupe's Adjust tab shows. The video loupe replaces the photo
+    /// loupe, which leaves the editor idle, so a focused video decides.
+    var loupeAdjustState: AdjustmentEditor.State {
+        focusedItem?.isVideo == true ? .video : editor.state
+    }
+
     /// What the browser shows instead of the grid, nil while it has photos.
     var emptyState: EmptySourceState? {
         let kind: EmptySourceState.SourceKind = switch sidebarSelection {

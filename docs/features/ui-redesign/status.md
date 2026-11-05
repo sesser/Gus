@@ -15,7 +15,7 @@ to `ui-redesign-onscreen-check` unless noted.
 - Baseline at `adb8d95` (2026-11-04): `swift build` clean; `swift test` 468
   tests in 84 suites passed, 1 known issue (the `withKnownIssue` in "Live
   render session", pre-existing).
-- Latest (with E28): `swift build` clean, no warnings; `swift test` 483 tests
+- Latest (with E2): `swift build` clean, no warnings; `swift test` 483 tests
   in 87 suites passed, 1 known issue (the same). No golden changed.
 
 ## Changes
@@ -23,7 +23,7 @@ to `ui-redesign-onscreen-check` unless noted.
 | # | Pri | Change | State | Commit | Verified by |
 |---|---|---|---|---|---|
 | E1 | High | Empty-source states (N3) | Done | Show a source's own empty state (E1) | Rule: `EmptySourceState` (PhotoCore), suite "Empty source states" (each kind, library empty, filtered, non-empty). Debug script on a scratch library: `album`, `sidebar album 0`, `remove`, `print empty` → `emptySource(album)`; `smartalbum`, `sidebar smart 0` → `emptySource(smartAlbum)`; `sidebar builtin picks` → `emptySource(other)`; `rating 5` → `noMatches`. `snapshot` of the album and smart album shows the title, description, Edit Smart Album… and no Import buttons. Symbol (D-Q1, follow-up commit "Show the source's sidebar symbol in its empty state (E1)"): `SidebarSymbols.symbol(for:)` feeds every sidebar row and the empty state; `print empty` reports album `rectangle.stack`, smart album `square.stack.3d.up.badge.automatic`, Picks `flag`, and the snapshots show them untinted. An empty keyword can't be reached: a keyword with no photos leaves the sidebar and the selection moves to All Photos (seen with `addkeywords`, `keyword 0`, `undo`); a keyword source reports `symbol tag` from the same mapping. Manual: Edit Smart Album… opens the editor |
-| E2 | Medium | Adjust tab states as `ContentUnavailableView` (N1) | Not started | | |
+| E2 | Medium | Adjust tab states as `ContentUnavailableView` (N1) | Done (symbols to confirm, D-Q3) | Show the Adjust tab's states as content-unavailable views (E2) | Video, offline and unreadable are `ContentUnavailableView`s with N1's titles and descriptions; loading keeps its spinner; the header stays hidden. Found and fixed: a video in the loupe left the editor idle (the video loupe tears down the photo loupe), so the tab said "No photo"; `LibraryModel.loupeAdjustState` now lets a focused video decide, and the view and the debug script read it. Debug script (`print adjustments` now also prints `adjust tab`) on a scratch library: a video → `video`; a master on a detached disk image → `offline`; a version whose stack has `schemaVersion` 99 → `unreadable(newerVersion(99))`; a plain photo → `ready`. `LocalizationTests` now also scans `ContentUnavailableView("…")`, which found "No Selection" and "No Presets" missing from the catalog (added). Manual: the three views in the inspector (glass) |
 | E3 | Medium | Settings check boxes (I10) | Not started | | |
 | E4 | Medium | Adjust ▸ Import Look-Up Tables… (N5) | Not started | | |
 | E5 | Medium | Adjust ▸ Reset Crop (N6) | Not started | | |
@@ -70,6 +70,16 @@ to `ui-redesign-onscreen-check` unless noted.
   cost); fold the skip sentence into the export's row when nothing failed
   (small); also add a videos sentence (small, one plural string).
   Recommendation: keep as built.
+
+- **D-Q3 (E2, built; confirm): symbols for the Adjust tab states.** N1
+  gives titles and descriptions only. Built with the pictures the app
+  already uses for each thing: `video` (the film strip marks videos with
+  `video.fill`), `externaldrive.badge.xmark` (the grid's offline badge),
+  and `exclamationmark.triangle` ("Can't Open the Library", "Can't Read
+  ‹source›"). Options: keep these (no cost), or name others (no cost
+  beyond the edit). Recommendation: keep. Also: N1 doesn't rule on the
+  idle "No photo" text, which stays as plain text; it shows only for a
+  moment while the loupe opens.
 
 ### Requirements issues (product-manager)
 
