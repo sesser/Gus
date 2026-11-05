@@ -59,7 +59,7 @@ photos the library does not have yet, and a folder with nothing new makes none.
 | [ and ] | lower / raise rating | lower / raise rating |
 | P, X, U | pick, reject, clear flag | pick, reject, clear flag |
 | ⌥1–⌥7, ⌥0 | color label red…gray, clear | color label |
-| ⌘= and ⌘− | thumbnail size | |
+| ⌘= and ⌘− | thumbnail size | zoom in / out |
 | ⌘Return | switch grid / loupe | switch grid / loupe |
 | ⌘K | add keywords | add keywords |
 | ⌘I | import from a card or folder | |
@@ -133,7 +133,8 @@ values with the file's so you can keep either, or choose per field (keywords can
 be merged). Writing can be turned off in **Settings**.
 
 **Videos** (MOV, MP4, M4V) are catalogued like photos by both kinds of import
-(the import window has an **Include videos** switch): their poster frame is the
+(in the import window, **Show Videos** in the Selection menu or the View menu
+lists them): their poster frame is the
 thumbnail, the grid shows their length, and the loupe plays them (Space, or
 **View ▸ Play / Pause**, plays and pauses; the arrow and culling keys still move between and rate items, a
 double-click on the picture goes back to the grid, and a right-click or
