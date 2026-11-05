@@ -13,8 +13,9 @@ public struct ImportCommands: Commands {
     /// toggles the options while an import window is key: AppKit stops at the
     /// first item with a key equivalent, even a disabled one.
     let includesOptionsItem: Bool
-    /// Off in the library app, whose own Deselect All (⇧⌘A) acts for the
-    /// import window while it is key (design.md P3, I5), for the same reason.
+    /// Off in the library app, whose own Deselect All (⇧⌘A) and Stop (⌘.)
+    /// act for the import window while it is key (design.md P3, I4, I5), for
+    /// the same reason.
     let includesSharedItems: Bool
     @FocusedValue(\.importMenu) private var menu
 
@@ -41,9 +42,11 @@ public struct ImportCommands: Commands {
             Button("Import Selected Photos") { model?.startImport() }
                 .keyboardShortcut(.return, modifiers: [])
                 .disabled(!can { $0.hasSource && $0.selectedCount > 0 && !$0.isImporting })
-            Button("Stop Import") { model?.cancelImport() }
-                .keyboardShortcut(".", modifiers: .command)
-                .disabled(!can { $0.isImporting })
+            if includesSharedItems {
+                Button("Stop Import") { menu?.stopImport() }
+                    .keyboardShortcut(".", modifiers: .command)
+                    .disabled(!(menu?.canStopImport ?? false))
+            }
             Divider()
         }
         CommandGroup(after: .pasteboard) {
@@ -102,6 +105,14 @@ public struct ImportMenuContext: Equatable {
     @MainActor
     public func deselectAll() {
         model.selectNone()
+    }
+
+    /// File ▸ Stop Import (⌘.) for the import window.
+    public var canStopImport: Bool { state.isImporting }
+
+    @MainActor
+    public func stopImport() {
+        model.cancelImport()
     }
 }
 

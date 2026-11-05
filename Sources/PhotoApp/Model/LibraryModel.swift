@@ -487,7 +487,11 @@ final class LibraryModel {
 
     // MARK: Background work
 
-    private(set) var importProgress: ImportProgress?
+    private(set) var importProgress: ImportProgress? {
+        didSet { if (oldValue == nil) != (importProgress == nil) { importStarted = importProgress == nil ? nil : Date() } }
+    }
+    /// When the running batch of folder adds started (File ▸ Stop).
+    @ObservationIgnored private(set) var importStarted: Date?
     /// The folder being imported, while a batch of several runs.
     private(set) var importBatch: ImportBatchPosition?
     /// Folders from Finder are being dragged over the browser.
@@ -914,6 +918,24 @@ final class LibraryModel {
     var selectedCount: Int {
         _ = selectionRevision
         return selection.count
+    }
+
+    /// File ▸ Stop's job from the library window: the newest running export,
+    /// batch of folder adds or copying import (design.md I4).
+    var newestStoppableJob: StoppableJob? {
+        var running: [StoppableJob: Date] = [:]
+        running[.export] = export.progressStarted
+        running[.addFolders] = importProgress == nil ? nil : importStarted
+        running[.cardImport] = cardImport.progressStarted
+        return StoppableJob.newest(running)
+    }
+
+    func stop(_ job: StoppableJob) {
+        switch job {
+        case .export: export.cancel()
+        case .addFolders: cancelImport()
+        case .cardImport: cardImport.cancelImport()
+        }
     }
 
     /// Edit ▸ Deselect All: the selection becomes the focused photo alone, so

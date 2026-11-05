@@ -93,7 +93,31 @@ struct LibraryCommands: Commands {
                 .disabled(!can { $0.canExport })
             Button("Check for Changes on Disk") { model?.checkForDiskChanges() }
                 .disabled(!can { !$0.isCheckingDisk })
+            // One item for ⌘. (design.md P3, I4): the import window's Stop
+            // Import while it is key, else the newest job Activity shows.
+            if menu == nil, let importMenu {
+                Button("Stop Import") { importMenu.stopImport() }
+                    .keyboardShortcut(".", modifiers: .command)
+                    .disabled(!importMenu.canStopImport)
+            } else {
+                Button(stopTitle) {
+                    if let job = menu?.state.stoppableJob { model?.stop(job) }
+                }
+                .keyboardShortcut(".", modifiers: .command)
+                .disabled(!can { $0.stoppableJob != nil })
+            }
             Divider()
+        }
+    }
+
+    /// "Stop Export", "Stop Adding Folders" or "Stop Import"; "Stop" when
+    /// nothing runs.
+    private var stopTitle: String {
+        switch can() ? menu?.state.stoppableJob : nil {
+        case .export: String(localized: "Stop Export", comment: "File menu (⌘.): stops the running export")
+        case .addFolders: String(localized: "Stop Adding Folders", comment: "File menu (⌘.): stops adding folders")
+        case .cardImport: String(localized: "Stop Import")
+        case nil: String(localized: "Stop")
         }
     }
 

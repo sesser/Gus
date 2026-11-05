@@ -37,6 +37,7 @@ import PhotoUI
 ///     helpmenu              (the Help menu: whether AppKit treats it as the help menu, and its items)
 ///     playpause             (View ▸ Play / Pause's action on the video loupe)
 ///     deselectall           (Edit ▸ Deselect All's action in the grid)
+///     stop                  (File ▸ Stop's action in the library window: the newest running job)
 ///     windowshot <title text> <file.png>   (snapshots another visible window, e.g. Settings)
 ///     sidebarsection [albums|dates|keywords|projects show|hide]   (prints the hidden sidebar sections)
 ///     contextmenu cell <n>|loupe|video [controls]|slider <title> [<item>[/<sub>]]   (prints a right-click's menu there,
@@ -453,6 +454,10 @@ enum DebugScript {
             printMenuItems(containing: rest.joined(separator: " "))
         case "helpmenu":
             HelpMenuProbe.print()
+        case "stop":
+            // File ▸ Stop's action in the library window: the newest job.
+            if let job = model.newestStoppableJob { model.stop(job) }
+            try? await Task.sleep(for: .milliseconds(500))
         case "deselectall":
             // Edit ▸ Deselect All's action in the library window.
             model.collapseSelection()
@@ -872,6 +877,7 @@ enum DebugScript {
             // scripted launch often is not the active app).
             let state = LibraryMenuState(model)
             print("debug-script: menustate key \(state.isWindowKey) mode \(state.mode) selected \(state.selectedCount)"
+                  + " stop \(state.stoppableJob.map(\.rawValue) ?? "none")"
                   + " export \(state.canExport)"
                   + " resetCrop \(state.canResetCrop) addMask \(state.canAddMask) video \(state.showsLoupeVideo)"
                   + " playing \(state.isVideoPlaying) bareKeys \(state.bareKeysActive) editLoupePhoto \(state.canEditLoupePhoto) cropping \(state.isCropping)")

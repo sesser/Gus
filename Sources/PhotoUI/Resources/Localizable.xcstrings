@@ -8384,6 +8384,28 @@
         }
       }
     },
+    "Stop Adding Folders" : {
+      "comment" : "File menu (⌘.): stops adding folders",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop Adding Folders"
+          }
+        }
+      }
+    },
+    "Stop Export" : {
+      "comment" : "File menu (⌘.): stops the running export",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop Export"
+          }
+        }
+      }
+    },
     "Stop Import" : {
       "comment" : "Import window, File menu: stops copying",
       "localizations" : {

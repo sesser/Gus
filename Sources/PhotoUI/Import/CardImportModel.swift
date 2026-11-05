@@ -143,7 +143,11 @@ public final class CardImportModel {
 
     // MARK: Running
 
-    public private(set) var progress: CopyImportProgress?
+    public private(set) var progress: CopyImportProgress? {
+        didSet { if (oldValue == nil) != (progress == nil) { progressStarted = progress == nil ? nil : Date() } }
+    }
+    /// When the running copy started (File ▸ Stop names the newest job).
+    public private(set) var progressStarted: Date?
     private(set) var lastResult: CopyImportResult?
     /// Verified files waiting for the person to confirm their deletion.
     public var pendingDeletion: [URL]?

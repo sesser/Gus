@@ -69,6 +69,8 @@ struct LibraryMenuState: Equatable {
     var isInAlbum: Bool
     var sidebarItem: SidebarItem?
     var isExporting: Bool
+    /// File ▸ Stop's job (⌘.), nil when none runs.
+    var stoppableJob: StoppableJob?
     /// File ▸ Export…, the toolbar's Export and the context menu's Export….
     var canExport: Bool
     var isCheckingDisk: Bool
@@ -138,6 +140,7 @@ struct LibraryMenuState: Equatable {
         default: nil
         }
         isExporting = model.export.isExporting
+        stoppableJob = model.newestStoppableJob
         canExport = ExportTargets.canExport(model.actionTargets.lazy.map { model.items[$0] }, isExporting: isExporting)
         isCheckingDisk = model.isCheckingDisk
         hiddenSidebarSections = model.hiddenSidebarSections

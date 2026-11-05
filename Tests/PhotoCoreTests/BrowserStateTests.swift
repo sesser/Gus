@@ -119,6 +119,33 @@ struct EmptySourceStateTests {
     }
 }
 
+@Suite("File ▸ Stop's job")
+struct StoppableJobTests {
+    private let start = Date(timeIntervalSinceReferenceDate: 1000)
+
+    @Test func nothingRunningIsNil() {
+        #expect(StoppableJob.newest([:]) == nil)
+    }
+
+    @Test func aSingleJobIsTheOne() {
+        for job in StoppableJob.allCases {
+            #expect(StoppableJob.newest([job: start]) == job)
+        }
+    }
+
+    @Test func theNewestStartWins() {
+        #expect(StoppableJob.newest([.export: start, .addFolders: start.addingTimeInterval(5)]) == .addFolders)
+        #expect(StoppableJob.newest([.export: start.addingTimeInterval(9), .addFolders: start.addingTimeInterval(5),
+                                     .cardImport: start]) == .export)
+        #expect(StoppableJob.newest([.cardImport: start.addingTimeInterval(1), .export: start]) == .cardImport)
+    }
+
+    @Test func equalStartsAreDecidedTheSameWayEveryTime() {
+        let all = Dictionary(uniqueKeysWithValues: StoppableJob.allCases.map { ($0, start) })
+        #expect(StoppableJob.newest(all) == .cardImport)
+    }
+}
+
 @Suite("Activity")
 struct ActivityLogTests {
     @Test func keepsRecentMessagesNewestLastAndCountsUnseen() {

@@ -62,6 +62,7 @@ photos the library does not have yet, and a folder with nothing new makes none.
 | ⌘= and ⌘− | thumbnail size | zoom in / out |
 | ⌘Return | switch grid / loupe | switch grid / loupe |
 | ⇧⌘A | keep only the focused photo selected | |
+| ⌘. | stop the newest export, folder add or import (**File ▸ Stop …**) | same |
 | ⌘K | add keywords | add keywords |
 | ⌘I | import from a card or folder | |
 | ⌘N, ⌥⌘N | new album, new smart album | |

@@ -70,7 +70,11 @@ final class ExportModel {
         let text: String
     }
 
-    private(set) var progress: (done: Int, total: Int)?
+    private(set) var progress: (done: Int, total: Int)? {
+        didSet { if (oldValue == nil) != (progress == nil) { progressStarted = progress == nil ? nil : Date() } }
+    }
+    /// When the running export started (File ▸ Stop names the newest job).
+    private(set) var progressStarted: Date?
     var isExporting: Bool { progress != nil }
     private(set) var lastSummary: ExportSummary?
     @ObservationIgnored private var task: Task<Void, Never>?
