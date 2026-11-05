@@ -175,18 +175,8 @@ public struct AdjustmentRenderer: EditStackRenderer {
     /// reduction, sharpening (then each mask's), grain.
     public func downstream(_ adjustments: Adjustments, _ input: CIImage, sharpening: [MaskSharpening],
                            context: RenderContext) -> CIImage {
-        var image = input
+        var image = beforeSharpening(adjustments, input, context: context)
         let extent = input.extent
-        let table = adjustments.lookTable
-        if let identifier = table.identifier, table.intensity > 0, let cube = lookTables?.cube(for: identifier) {
-            image = Self.lookTable(image, cube, intensity: table.intensity / 100, colorSpace: table.colorSpace)
-        }
-        if !adjustments.vignette.isIdentity {
-            image = Self.vignette(image, adjustments.vignette, extent: extent)
-        }
-        if !context.isRaw, let luminance = adjustments.noiseReduction.luminance, luminance > 0 {
-            image = denoiser.denoise(image, amount: luminance / 100, context: context).cropped(to: extent)
-        }
         if adjustments.sharpen.amount > 0 {
             image = Self.sharpen(image, adjustments.sharpen, scale: context.scale, extent: extent)
         }
@@ -201,6 +191,68 @@ public struct AdjustmentRenderer: EditStackRenderer {
             image = Self.grain(image, adjustments.grain, extent: extent)
         }
         return image.cropped(to: extent)
+    }
+
+    /// The steps after the masks and before sharpening: the look-up table,
+    /// vignette and noise reduction. Its result is what the sharpening step,
+    /// and so the sharpening map, works on.
+    public func beforeSharpening(_ adjustments: Adjustments, _ input: CIImage, context: RenderContext) -> CIImage {
+        var image = input
+        let extent = input.extent
+        let table = adjustments.lookTable
+        if let identifier = table.identifier, table.intensity > 0, let cube = lookTables?.cube(for: identifier) {
+            image = Self.lookTable(image, cube, intensity: table.intensity / 100, colorSpace: table.colorSpace)
+        }
+        if !adjustments.vignette.isIdentity {
+            image = Self.vignette(image, adjustments.vignette, extent: extent)
+        }
+        if !context.isRaw, let luminance = adjustments.noiseReduction.luminance, luminance > 0 {
+            image = denoiser.denoise(image, amount: luminance / 100, context: context).cropped(to: extent)
+        }
+        return image
+    }
+
+    // MARK: Sharpening map
+
+    /// The image entering the sharpening step for `values` over a decoded
+    /// image: `render` up to and including noise reduction.
+    public func sharpeningInput(_ values: Adjustments, to input: CIImage, context: RenderContext) -> CIImage {
+        let adjustments = values.effective
+        guard !adjustments.isDefault else { return input }
+        let crop = Self.crop(adjustments, context: context)
+        let selection = upstream(adjustments, to: input, crop: crop, context: context)
+        let masks = adjustments.local.renderedMasks
+        let estimates = localEstimates(masks, over: selection)
+        var image = selection
+        for mask in masks {
+            image = applyMask(mask, to: image, selection: selection, estimates: estimates, maskFrame: input.extent,
+                              crop: crop, context: context).image
+        }
+        return beforeSharpening(adjustments, image, context: context)
+    }
+
+    /// The sharpening map of `values` over a decoded image: the mask
+    /// (`sharpeningMask`) for the stored Sharpening values, which are used
+    /// even while the group is turned off (design §11), over the image
+    /// entering the sharpening step. Grey, 0 … 1, not yet for display
+    /// (`sharpeningMapDisplay`).
+    public func sharpeningMap(_ values: Adjustments, to input: CIImage, context: RenderContext) -> CIImage {
+        Self.sharpeningMask(sharpeningInput(values, to: input, context: context), values.sharpen, scale: context.scale)
+    }
+
+    /// A sharpening mask (grey, 0 … 1) as an image to show: mask value v
+    /// becomes the grey that the sRGB curve (the interface's, and Display
+    /// P3's) encodes as v, so equal steps of the mask look like equal steps
+    /// of lightness and 0.5 is the interface's middle grey. In standard
+    /// range: nothing is brighter than white.
+    public static func sharpeningMapDisplay(_ mask: CIImage) -> CIImage {
+        let clamp = CIFilter.colorClamp()
+        clamp.inputImage = mask
+        clamp.minComponents = CIVector(x: 0, y: 0, z: 0, w: 1)
+        clamp.maxComponents = CIVector(x: 1, y: 1, z: 1, w: 1)
+        let decode = CIFilter.sRGBToneCurveToLinear()
+        decode.inputImage = clamp.outputImage
+        return decode.outputImage?.cropped(to: mask.extent) ?? mask
     }
 
     // MARK: Masks
@@ -724,32 +776,23 @@ public struct AdjustmentRenderer: EditStackRenderer {
         // Sharpening for full-resolution pixels has no visible effect on small renditions.
         guard scale >= 0.2 else { return image }
         let radius = sharpeningRadius(settings.radius, scale: scale)
-        let encode = CIFilter.linearToSRGBToneCurve()
-        encode.inputImage = image.clampedToExtent()
-        guard let base = encode.outputImage else { return image }
+        guard let neighborhood = SharpeningNeighborhood(image, radius: radius) else { return image }
+        let base = neighborhood.base
         let mask = CIFilter.unsharpMask()
         mask.inputImage = base
         mask.radius = Float(radius)
         mask.intensity = Float(settings.amount / 100)
         guard var sharpened = mask.outputImage else { return image }
 
-        let neighborhood = Float(max(1, radius))
-        let low = CIFilter.morphologyMinimum()
-        low.inputImage = base
-        low.radius = neighborhood
-        let high = CIFilter.morphologyMaximum()
-        high.inputImage = base
-        high.radius = neighborhood
-
         let share = haloShare(detail: settings.detail)
         if share < 1 {
             // The sharpened value held to its neighborhood's range ...
             let floor = CIFilter.maximumCompositing()
             floor.inputImage = sharpened
-            floor.backgroundImage = low.outputImage
+            floor.backgroundImage = neighborhood.low
             let ceiling = CIFilter.minimumCompositing()
             ceiling.inputImage = floor.outputImage
-            ceiling.backgroundImage = high.outputImage
+            ceiling.backgroundImage = neighborhood.high
             // ... plus the share of the overshoot that Detail keeps.
             if let inRange = ceiling.outputImage {
                 let keep = CIFilter.blendWithMask()
@@ -760,9 +803,7 @@ public struct AdjustmentRenderer: EditStackRenderer {
             }
         }
 
-        if settings.masking > 0,
-           let edgeMask = edgeMask(low: low.outputImage, high: high.outputImage, masking: settings.masking / 100,
-                                   radius: radius) {
+        if let edgeMask = maskingMask(neighborhood, masking: settings.masking, radius: radius) {
             let blend = CIFilter.blendWithMask()
             blend.inputImage = sharpened
             blend.backgroundImage = base
@@ -772,6 +813,56 @@ public struct AdjustmentRenderer: EditStackRenderer {
         let decode = CIFilter.sRGBToneCurveToLinear()
         decode.inputImage = sharpened
         return decode.outputImage?.cropped(to: extent) ?? image
+    }
+
+    /// The perceptually encoded image sharpening works on and the range of
+    /// each pixel's neighborhood in it, which Detail and Masking both read.
+    struct SharpeningNeighborhood {
+        /// The encoded image, clamped to its extent (infinite).
+        var base: CIImage
+        /// The neighborhood's minimum and maximum.
+        var low: CIImage?
+        var high: CIImage?
+
+        /// `radius` is the blur radius in rendered pixels (`sharpeningRadius`).
+        init?(_ image: CIImage, radius: Double) {
+            let encode = CIFilter.linearToSRGBToneCurve()
+            encode.inputImage = image.clampedToExtent()
+            guard let base = encode.outputImage else { return nil }
+            self.base = base
+            let neighborhood = Float(max(1, radius))
+            let low = CIFilter.morphologyMinimum()
+            low.inputImage = base
+            low.radius = neighborhood
+            let high = CIFilter.morphologyMaximum()
+            high.inputImage = base
+            high.radius = neighborhood
+            self.low = low.outputImage
+            self.high = high.outputImage
+        }
+    }
+
+    /// The mask the sharpening step blends with (sharpened where 1, the
+    /// input where 0), for `masking` 0 … 100; nil at 0, where the step
+    /// sharpens everything and blends with nothing.
+    static func maskingMask(_ neighborhood: SharpeningNeighborhood, masking: Double, radius: Double) -> CIImage? {
+        guard masking > 0 else { return nil }
+        return edgeMask(low: neighborhood.low, high: neighborhood.high, masking: masking / 100, radius: radius)
+    }
+
+    /// How much of the sharpening `settings` Masking lets through at each
+    /// pixel of `image` (the image as it enters the sharpening step), from 0
+    /// (none) to 1 (full), as a grey image over `image`'s extent: the mask
+    /// `sharpen` blends with, through the same code. Full everywhere at
+    /// Masking 0. Computed at every scale, also below the scale where
+    /// `sharpen` skips sharpening; Amount and Detail do not change it.
+    public static func sharpeningMask(_ image: CIImage, _ settings: Sharpen, scale: Double) -> CIImage {
+        let extent = image.extent
+        let radius = sharpeningRadius(settings.radius, scale: scale)
+        guard let neighborhood = SharpeningNeighborhood(image, radius: radius),
+              let mask = maskingMask(neighborhood, masking: settings.masking, radius: radius)
+        else { return constant(1).cropped(to: extent) }
+        return mask.cropped(to: extent)
     }
 
     /// The blur radius in rendered pixels for `radius` full-resolution pixels. A
