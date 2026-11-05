@@ -581,11 +581,24 @@ struct MachineLearningNoiseReductionTests {
                 flatCount += 1
             }
         }
-        let columns = (0..<w).map { x in (8..<(h - 8)).map { luma[$0 * w + x] }.reduce(0, +) / Double(h - 16) }
-        let steps = stride(from: period * 2, to: w - period * 2, by: period).map { x in
-            (-2...2).map { abs(columns[x + $0] - columns[x + $0 - 1]) }.max() ?? 0
+        // Plain loops with explicit types: the macOS 15 runner's compiler
+        // times out type-checking the nested-closure form.
+        var columns = [Double](repeating: 0, count: w)
+        for x in 0..<w {
+            var sum = 0.0
+            for y in 8..<(h - 8) { sum += luma[y * w + x] }
+            columns[x] = sum / Double(h - 16)
         }
-        return (flat / Double(flatCount), steps.reduce(0, +) / Double(steps.count))
+        var steps: [Double] = []
+        for x in stride(from: period * 2, to: w - period * 2, by: period) {
+            var largest = 0.0
+            for offset in -2...2 {
+                largest = max(largest, abs(columns[x + offset] - columns[x + offset - 1]))
+            }
+            steps.append(largest)
+        }
+        let edge = steps.reduce(0.0, +) / Double(steps.count)
+        return (flat / Double(flatCount), edge)
     }
 
     static func stripes(_ name: String) throws -> URL {
