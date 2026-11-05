@@ -149,11 +149,11 @@ struct LibraryCommands: Commands {
             }
             Divider()
             Menu("Find") {
+                // Find holds find commands only; Clear Filter lives in View ▸
+                // Filter (owner ruling D1).
                 Button("Find…") { model?.beginSearch() }
                 .keyboardShortcut("f", modifiers: .command)
                 .disabled(!can())
-                Button("Clear Filter") { model?.clearFilter() }
-                    .disabled(!can { $0.isFiltered })
             }
         }
     }
