@@ -365,6 +365,8 @@ struct LibraryCommands: Commands {
             }
             .keyboardShortcut("c", modifiers: [])
             .disabled(!canByKey { $0.mode == .grid ? $0.focusedIsPhoto : $0.canEditLoupePhoto })
+            Button("Reset Crop") { model?.editor.resetCrop() }
+                .disabled(!can { $0.canResetCrop })
             Button("Rotate Left") { model?.rotate(clockwise: false) }
                 .keyboardShortcut("[", modifiers: .command)
                 .disabled(!can { $0.mode == .grid ? $0.targetsIncludePhoto : $0.canEditLoupePhoto })

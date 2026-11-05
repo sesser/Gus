@@ -14,9 +14,7 @@ struct CropSection: View {
 
     private var session: CropSession? { editor.cropSession }
 
-    private var isModified: Bool {
-        session.map { $0.saved != Crop() } ?? !editor.adjustments.crop.isIdentity
-    }
+    private var isModified: Bool { editor.canResetCrop }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {

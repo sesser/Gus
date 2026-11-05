@@ -155,7 +155,8 @@ the frame a quarter turn; the **Straighten** slider tilts it up to 45° either
 way, over a finer grid, and the image grows so it always fills the frame.
 **Done** (or Return, or `C` again) saves the crop as one undo step and folds
 the heading; Esc cancels. `C` (**Adjust ▸ Crop**) starts cropping, from the
-grid too. **Adjust ▸ Rotate Left / Right** (⌘[ / ⌘]) and the heading's arrows,
+grid too. **Adjust ▸ Reset Crop** (or the heading's reset button) gives the photo
+in the loupe its own frame back, without turns or straightening, as one undo step. **Adjust ▸ Rotate Left / Right** (⌘[ / ⌘]) and the heading's arrows,
 outside a crop, turn the photo at once as one undo step; in the grid they turn
 every selected photo. **Auto Exposure**, **Reset All Adjustments**, **Paste
 Adjustments** and **Apply Preset** also act on every selected photo in the

@@ -36,6 +36,9 @@ struct LibraryMenuState: Equatable {
     /// The loupe shows a photo whose adjustments can be edited.
     var canEditLoupePhoto: Bool
     var isCropping: Bool
+    /// Adjust ▸ Reset Crop: an editable loupe photo with a crop, or a crop
+    /// session that has one.
+    var canResetCrop: Bool
     var showsOriginal: Bool
     var loupeZoom: LoupeZoomState
     var showsInspector: Bool
@@ -96,6 +99,7 @@ struct LibraryMenuState: Equatable {
         showsLoupePhoto = model.mode == .loupe && model.focusedItem?.isVideo == false
         canEditLoupePhoto = showsLoupePhoto && model.editor.state == .ready
         isCropping = model.editor.cropSession != nil
+        canResetCrop = canEditLoupePhoto && model.editor.canResetCrop
         showsOriginal = model.editor.showsOriginal
         loupeZoom = model.loupeZoom
         showsInspector = model.showsInspector

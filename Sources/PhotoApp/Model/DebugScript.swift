@@ -16,7 +16,7 @@ import PhotoUI
 ///     undo | redo           inspector on|off        keyword <n>   (sidebar keyword n, 0-based)
 ///     print <what>          (state for checks: selection, keywords, undo, suggestions, items, hdr, announcement,
 ///                           title (title, subtitle, filter and sort), activity, messages (every
-///                           Activity row), empty (the browser's empty state),
+///                           Activity row), empty (the browser's empty state), menustate (what the menus read),
 ///                           loupe [<x> <y>]: mode, magnification, visible rect, image point under x y)
 ///     suggest               (analyzes the selection and waits)      accept <keyword>
 ///     album <name>          (from the selection)    smartalbum <name>  (rating ≥ 3)     remove
@@ -848,6 +848,12 @@ enum DebugScript {
             }
             let sheet = window?.attachedSheet.map { "\(type(of: $0)) '\($0.title)'" } ?? "none"
             print("debug-script: messages \(model.activity.messages.count), sheet or alert \(sheet)")
+        case "menustate":
+            // What the menus read, apart from whether the window is key (a
+            // scripted launch often is not the active app).
+            let state = LibraryMenuState(model)
+            print("debug-script: menustate key \(state.isWindowKey) mode \(state.mode) export \(state.canExport)"
+                  + " resetCrop \(state.canResetCrop) editLoupePhoto \(state.canEditLoupePhoto) cropping \(state.isCropping)")
         case "empty":
             // The browser's empty state (design.md N3), as the view chooses it.
             print("debug-script: empty \(model.emptyState.map { "\($0)" } ?? "none") source '\(model.title(for: model.sidebarSelection))'"

@@ -547,6 +547,12 @@ final class AdjustmentEditor {
         change(String(localized: "Crop", comment: "Undo action name"), phase: .committed) { $0.crop = session.saved }
     }
 
+    /// Reset Crop can act: the photo has a crop, or the open crop session
+    /// has one (the heading's reset button and Adjust ▸ Reset Crop).
+    var canResetCrop: Bool {
+        cropSession.map { $0.saved != Crop() } ?? !adjustments.crop.isIdentity
+    }
+
     /// The photo's own frame again, without turns or straightening.
     func resetCrop() {
         if var session = cropSession {
