@@ -1285,13 +1285,13 @@
         }
       }
     },
-    "Alt Text" : {
-      "comment" : "Metadata field: short accessibility text (IPTC Alt Text)",
+    "Alt text" : {
+      "comment" : "Metadata field: alternative text for accessibility",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Alt Text"
+            "value" : "Alt text"
           }
         }
       }
@@ -2349,6 +2349,17 @@
         }
       }
     },
+    "Color label" : {
+      "comment" : "Metadata field: the photo's color label",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color label"
+          }
+        }
+      }
+    },
     "Color space" : {
       "comment" : "Export window",
       "localizations" : {
@@ -2619,17 +2630,6 @@
                 }
               }
             }
-          }
-        }
-      }
-    },
-    "Country" : {
-      "comment" : "Contact field",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Country"
           }
         }
       }
@@ -3174,17 +3174,6 @@
         }
       }
     },
-    "E-Mail" : {
-      "comment" : "Metadata field: creator's contact email address",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "E-Mail"
-          }
-        }
-      }
-    },
     "EV" : {
       "comment" : "Unit after an exposure compensation value",
       "localizations" : {
@@ -3617,13 +3606,13 @@
         }
       }
     },
-    "Extended Description" : {
-      "comment" : "Metadata field: long accessibility description (IPTC Extended Description)",
+    "Extended description" : {
+      "comment" : "Metadata field: a longer accessibility description",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Extended Description"
+            "value" : "Extended description"
           }
         }
       }
@@ -4925,17 +4914,6 @@
         }
       }
     },
-    "Job Title" : {
-      "comment" : "Metadata field: the creator's job title",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Job Title"
-          }
-        }
-      }
-    },
     "Job code" : {
       "comment" : "Import window field",
       "localizations" : {
@@ -4943,6 +4921,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Job code"
+          }
+        }
+      }
+    },
+    "Job title" : {
+      "comment" : "Metadata field: the creator's job title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Job title"
           }
         }
       }
@@ -6665,17 +6654,6 @@
         }
       }
     },
-    "Postal Code" : {
-      "comment" : "Metadata field: creator's contact postal code",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Postal Code"
-          }
-        }
-      }
-    },
     "Postal code" : {
       "comment" : "Contact field",
       "localizations" : {
@@ -7088,17 +7066,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Reds"
-          }
-        }
-      }
-    },
-    "Region" : {
-      "comment" : "Contact field: state or province",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Region"
           }
         }
       }
@@ -9167,17 +9134,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Uppercase Extension"
-          }
-        }
-      }
-    },
-    "Usage Terms" : {
-      "comment" : "Metadata field",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Usage Terms"
           }
         }
       }

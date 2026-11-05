@@ -1,4 +1,5 @@
 import PhotoCore
+import PhotoUI
 import SwiftUI
 
 /// Review of what another app changed in the selected photos' sidecars or
@@ -91,22 +92,9 @@ struct DiskChangeSection: View {
 }
 
 enum DiskChangeText {
+    /// The shared label set (`FieldLabelText`).
     static func field(_ field: SidecarValues.Field) -> String {
-        switch field {
-        case .rating: String(localized: "Rating")
-        case .flag: String(localized: "Flag")
-        case .colorLabel: String(localized: "Color Label")
-        case .keywords: String(localized: "Keywords")
-        case .creator: String(localized: "Creator")
-        case .rights: String(localized: "Copyright")
-        case .caption: String(localized: "Description", comment: "Metadata field: the photo's description (caption)")
-        case .usageTerms: String(localized: "Usage Terms")
-        case .contact: String(localized: "Contact")
-        case .title: String(localized: "Title")
-        case .altText: String(localized: "Alt Text")
-        case .extendedDescription: String(localized: "Extended Description")
-        case .jobTitle: String(localized: "Job Title")
-        }
+        FieldLabelText.text(FieldLabel(field))
     }
 
     static func value(_ field: SidecarValues.Field, _ values: SidecarValues) -> String {
