@@ -840,6 +840,7 @@ enum DebugScript {
         case "empty":
             // The browser's empty state (design.md N3), as the view chooses it.
             print("debug-script: empty \(model.emptyState.map { "\($0)" } ?? "none") source '\(model.title(for: model.sidebarSelection))'"
+                  + " symbol \(SidebarSymbols.symbol(for: model.sidebarSelection))"
                   + " showing \(model.itemCount) library \(model.libraryCount) filtered \(model.isFiltered)")
         case "selection":
             print("debug-script: selection \(model.selection.count), focus \(model.focusIndex.map(String.init) ?? "-")")

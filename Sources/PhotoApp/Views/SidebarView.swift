@@ -58,11 +58,11 @@ struct SidebarView: View {
     var body: some View {
         List(selection: $model.sidebarSelection) {
             Section(isExpanded: $libraryExpanded) {
-                Label("All Photos", systemImage: "photo.on.rectangle")
+                Label("All Photos", systemImage: SidebarSymbols.symbol(for: .allPhotos))
                     .badge(model.libraryCount)
                     .tag(SidebarSelection.allPhotos)
                 ForEach(BuiltInAlbum.allCases, id: \.self) { album in
-                    Label(album.title, systemImage: album.symbol)
+                    Label(album.title, systemImage: SidebarSymbols.symbol(for: .builtIn(album)))
                         .badge(model.sidebarCounts[.builtIn(album)] ?? 0)
                         .tag(SidebarSelection.builtIn(album))
                 }
@@ -70,7 +70,7 @@ struct SidebarView: View {
                     Label {
                         Text("Changed on Disk")
                     } icon: {
-                        Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange)
+                        Image(systemName: SidebarSymbols.symbol(for: .changedOnDisk)).foregroundStyle(.orange)
                     }
                     .badge(model.diskChangeCount)
                     .tag(SidebarSelection.changedOnDisk)
@@ -102,12 +102,13 @@ struct SidebarView: View {
                     ForEach(years, id: \.year) { year in
                         DisclosureGroup(isExpanded: expansion(of: year.year, in: $expandedYears)) {
                             ForEach(year.months) { month in
-                                Label(MonthText.monthOnly(year: month.year, month: month.month), systemImage: "calendar")
+                                Label(MonthText.monthOnly(year: month.year, month: month.month),
+                                      systemImage: SidebarSymbols.symbol(for: .month(year: month.year, month: month.month)))
                                     .badge(month.count)
                                     .tag(SidebarSelection.month(year: month.year, month: month.month))
                             }
                         } label: {
-                            Label(String(year.year), systemImage: "calendar")
+                            Label(String(year.year), systemImage: SidebarSymbols.symbol(for: .year(year.year)))
                                 .badge(year.count)
                                 .tag(SidebarSelection.year(year.year))
                         }
@@ -126,7 +127,7 @@ struct SidebarView: View {
                         }
                     }
                     ForEach(model.keywords) { keyword in
-                        Label(keyword.name, systemImage: "tag")
+                        Label(keyword.name, systemImage: SidebarSymbols.symbol(for: .keyword(keyword.id)))
                             .badge(keyword.count)
                             .tag(SidebarSelection.keyword(keyword.id))
                             .onDrop(of: [.photoVersions], isTargeted: nil) { _ in
@@ -217,7 +218,7 @@ struct SidebarView: View {
         // Album and smart album ids come from different tables, so they can
         // coincide; the uuids keep the rows apart.
         ForEach(albums, id: \.album.uuid) { album in
-            Label(album.album.name, systemImage: "rectangle.stack")
+            Label(album.album.name, systemImage: SidebarSymbols.symbol(for: .album(album.id)))
                 .badge(album.count)
                 .tag(SidebarSelection.album(album.id))
                 .onDrop(of: [.photoVersions], isTargeted: nil) { _ in
@@ -230,7 +231,7 @@ struct SidebarView: View {
                 }
         }
         ForEach(smart, id: \.uuid) { album in
-            Label(album.name, systemImage: SidebarSymbols.smartAlbum)
+            Label(album.name, systemImage: SidebarSymbols.symbol(for: .smartAlbum(album.id)))
                 .badge(model.sidebarCounts[.smartAlbum(album.id)] ?? 0)
                 .tag(SidebarSelection.smartAlbum(album.id))
                 .contextMenu {
@@ -241,7 +242,7 @@ struct SidebarView: View {
     }
 
     private func projectRow(_ summary: ProjectSummary) -> some View {
-        Label(summary.project.name, systemImage: "folder")
+        Label(summary.project.name, systemImage: SidebarSymbols.symbol(for: .project(summary.id)))
             .badge(summary.versionCount)
             .tag(SidebarSelection.project(summary.id))
             .help(summary.project.sourcePath ?? summary.project.name)
@@ -307,6 +308,21 @@ private struct EmptySectionLine: View {
 enum SidebarSymbols {
     /// A stack with the "automatic" badge: an album that fills itself from rules.
     static let smartAlbum = "square.stack.3d.up.badge.automatic"
+
+    /// Each source's symbol, for its sidebar row and its empty state
+    /// (design.md N3, D-Q1). Rows add any tint themselves.
+    static func symbol(for selection: SidebarSelection) -> String {
+        switch selection {
+        case .allPhotos: "photo.on.rectangle"
+        case .builtIn(let album): album.symbol
+        case .year, .month: "calendar"
+        case .project: "folder"
+        case .album: "rectangle.stack"
+        case .smartAlbum: smartAlbum
+        case .keyword: "tag"
+        case .changedOnDisk: "exclamationmark.triangle"
+        }
+    }
 }
 
 enum RatingText {

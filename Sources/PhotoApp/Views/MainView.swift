@@ -151,7 +151,8 @@ private struct EmptyBrowserView: View {
         let title = String(localized: "No Photos in “\(model.title(for: model.sidebarSelection))”",
                            comment: "Empty album, smart album, keyword, date, project or built-in source; its name")
         ContentUnavailableView {
-            Label(title, systemImage: "photo.stack")
+            // The source's sidebar symbol, untinted (design.md D-Q1).
+            Label(title, systemImage: SidebarSymbols.symbol(for: model.sidebarSelection))
         } description: {
             switch kind {
             case .album:

@@ -22,7 +22,7 @@ to `ui-redesign-onscreen-check` unless noted.
 
 | # | Pri | Change | State | Commit | Verified by |
 |---|---|---|---|---|---|
-| E1 | High | Empty-source states (N3) | Done | Show a source's own empty state (E1) | Rule: `EmptySourceState` (PhotoCore), suite "Empty source states" (each kind, library empty, filtered, non-empty). Debug script on a scratch library: `album`, `sidebar album 0`, `remove`, `print empty` → `emptySource(album)`; `smartalbum`, `sidebar smart 0` → `emptySource(smartAlbum)`; `sidebar builtin picks` → `emptySource(other)`; `rating 5` → `noMatches`. `snapshot` of the album and smart album shows the title, description, Edit Smart Album… and no Import buttons. Manual: Edit Smart Album… opens the editor; symbol choice is provisional (D-Q1) |
+| E1 | High | Empty-source states (N3) | Done | Show a source's own empty state (E1) | Rule: `EmptySourceState` (PhotoCore), suite "Empty source states" (each kind, library empty, filtered, non-empty). Debug script on a scratch library: `album`, `sidebar album 0`, `remove`, `print empty` → `emptySource(album)`; `smartalbum`, `sidebar smart 0` → `emptySource(smartAlbum)`; `sidebar builtin picks` → `emptySource(other)`; `rating 5` → `noMatches`. `snapshot` of the album and smart album shows the title, description, Edit Smart Album… and no Import buttons. Symbol (D-Q1, follow-up commit "Show the source's sidebar symbol in its empty state (E1)"): `SidebarSymbols.symbol(for:)` feeds every sidebar row and the empty state; `print empty` reports album `rectangle.stack`, smart album `square.stack.3d.up.badge.automatic`, Picks `flag`, and the snapshots show them untinted. An empty keyword can't be reached: a keyword with no photos leaves the sidebar and the selection moves to All Photos (seen with `addkeywords`, `keyword 0`, `undo`); a keyword source reports `symbol tag` from the same mapping. Manual: Edit Smart Album… opens the editor |
 | E2 | Medium | Adjust tab states as `ContentUnavailableView` (N1) | Not started | | |
 | E3 | Medium | Settings check boxes (I10) | Not started | | |
 | E4 | Medium | Adjust ▸ Import Look-Up Tables… (N5) | Not started | | |
@@ -55,14 +55,11 @@ to `ui-redesign-onscreen-check` unless noted.
 
 ### Design questions (apple-ui-designer)
 
-- **D-Q1 (E1): symbol for "No Photos in “‹source›”".** N3 gives the title,
-  descriptions and button but no symbol. Built with `photo.stack`, the
-  empty library's symbol, as a placeholder. Options: keep `photo.stack`
-  (no cost); use the source's sidebar symbol (`rectangle.stack`, the smart
-  album symbol, `calendar`, `tag`, `folder`…; a small mapping shared with
-  the sidebar); or no symbol (title only; no cost). Recommendation: the
-  source's sidebar symbol, which ties the state to the selected row.
-- **D-Q2 (E14, built; confirm): how an export's results split into rows.**
+- **D-Q1 (E1): symbol for "No Photos in “‹source›”".** Ruled 2026-11-04
+  (design.md §9): the source's sidebar symbol, untinted, from one mapping.
+  Built.
+- **D-Q2 (E14): how an export's results split into rows.** Ruled
+  2026-11-04 (design.md §9): keep as built. The question as raised:
   I3 says failures are a warning and skips by choice are information, but
   not whether they share a row. Built: one row per export (the finished
   sentence; when photos failed, a warning that also lists them), plus a
