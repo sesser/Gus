@@ -28,6 +28,9 @@ struct PhotoApplication: App {
         .commands {
             LibraryCommands()
             ImportCommands(includesLibraryItems: true, includesOptionsItem: false)
+            // No help content yet: SwiftUI's "‹app› Help" only says so. The
+            // Help menu and its search field stay (prd.md R1, R2).
+            CommandGroup(replacing: .help) {}
         }
 
         Window(String(localized: "Import"), id: "import") {

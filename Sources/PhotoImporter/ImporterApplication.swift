@@ -25,6 +25,9 @@ struct ImporterApplication: App {
         .commands {
             CommandGroup(replacing: .newItem) {}
             ImportCommands(includesLibraryItems: false)
+            // No help content yet: SwiftUI's "‹app› Help" only says so. The
+            // Help menu and its search field stay (prd.md R1, R2).
+            CommandGroup(replacing: .help) {}
         }
     }
 
@@ -64,7 +67,7 @@ final class ImporterDelegate: NSObject, NSApplicationDelegate {
 
 /// `--debug-script "<commands>"` for the importer, separated by ";":
 ///
-///     wait <seconds>    snapshot <file.png>    quit
+///     wait <seconds>    snapshot <file.png>    helpmenu (the Help menu and its items)    quit
 ///     import …          (the library app's import commands, see ImportDebugCommands)
 @MainActor
 enum ImporterDebugScript {
@@ -102,6 +105,8 @@ enum ImporterDebugScript {
             if !(await ImportDebugCommands.run(rest, model: model, window: window)) {
                 print("debug-script: unknown import command")
             }
+        case "helpmenu":
+            HelpMenuProbe.print()
         case "quit":
             QuitGuard.allowsQuit = true
             NSApp.terminate(nil)

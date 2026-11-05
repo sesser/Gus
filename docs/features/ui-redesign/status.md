@@ -15,7 +15,7 @@ to `ui-redesign-onscreen-check` unless noted.
 - Baseline at `adb8d95` (2026-11-04): `swift build` clean; `swift test` 468
   tests in 84 suites passed, 1 known issue (the `withKnownIssue` in "Live
   render session", pre-existing).
-- Latest (with E14): `swift build` clean, no warnings; `swift test` 483 tests
+- Latest (with E28): `swift build` clean, no warnings; `swift test` 483 tests
   in 87 suites passed, 1 known issue (the same). No golden changed.
 
 ## Changes
@@ -49,7 +49,7 @@ to `ui-redesign-onscreen-check` unless noted.
 | E25 | Low | Remove Edit ▸ Find ▸ Clear Filter (I18, D1) | Not started | | |
 | E26 | Low | View ▸ Info / Adjust checkmarks (I19) | Not started | | |
 | E27 | Low | User guide kept current (I30, RI-5) | In progress | | Done with their changes: E13 (folders chosen during an import join the queue), E14 (export results in Activity, no alert). Not started: Show Videos instead of "Include videos switch", ⌘= / ⌘− in the key table's loupe column, and "caption" with E16. Designer review of the terms pending |
-| E28 | Medium | Remove the dead Help item (N13, R1, R2) | Not started | | |
+| E28 | Medium | Remove the dead Help item (N13, R1, R2) | Done | Remove the dead Help item from both apps (E28) | `CommandGroup(replacing: .help) {}` in each app. New debug command `helpmenu` (both apps, `HelpMenuProbe` in PhotoUI). Before: Help held "‹app› Help ⌘?" in both. After, AC1: library `menuitems Help` lists only the Help menu itself, no item; `helpmenu` in the library app and in the importer: Help is still in the menu bar and is still `NSApp.helpMenu`, with no items. AC2 (type "Export" / "Rescan" in Help's search field): manual in each app. Answer to prd.md Q2 below |
 
 ## Open questions
 
@@ -76,4 +76,11 @@ to `ui-redesign-onscreen-check` unless noted.
 
 ### Requirements issues (product-manager)
 
-None yet.
+None open.
+
+- **prd.md Q2, answered (E28): R1 keeps R2 as far as the debug script can
+  tell.** With SwiftUI's help group replaced by nothing, both apps keep the
+  Help menu in the menu bar, and AppKit still has it as `NSApp.helpMenu`,
+  the menu it adds the command search field to. The field itself is drawn
+  only when the menu opens, so seeing it and AC2 are a manual check in each
+  app.
