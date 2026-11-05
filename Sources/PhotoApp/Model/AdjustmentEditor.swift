@@ -107,6 +107,8 @@ final class AdjustmentEditor {
     var showsOriginal = false {
         didSet {
             guard oldValue != showsOriginal, state == .ready else { return }
+            // Show Original ends the sharpening map, by any path: the last asked for wins (design §6).
+            if showsOriginal { endSharpeningMap() }
             if showsOriginal {
                 showsLive = true
                 requestRender(interactive: false)
@@ -365,9 +367,8 @@ final class AdjustmentEditor {
 
     func toggleOriginal() {
         guard state == .ready, cropSession == nil else { return }
+        // While the map is shown, this shows the original (which ends the map).
         if sharpeningMap.isShown {
-            // Show Original while the map is shown ends the map (design §6).
-            endSharpeningMap()
             showsOriginal = true
             return
         }
