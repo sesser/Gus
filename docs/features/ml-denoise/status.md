@@ -6,9 +6,10 @@ rulings 1–11 and the RI-E rulings, 2026-11-05) against
 RI-E2). Branch `feature/ml-denoise-prd`, at `054bf4e` when work started.
 
 **Status: In progress.** Every acceptance criterion is built and tested,
-manual checks aside. One question is open: RI-E6, how the app could learn
-in production that macOS lacks the decoder's model (see Requirements
-issues). Also open: AC13 (owner), the designer review, and the manual
+manual checks aside. The designer review (`review.md`) is done, and its
+fixes F1–F4 are made (F5 and F6 needed none). RI-E6 is ruled: option (c)
+now, with (d), seeing what a decode does on a Mac without the model, as a
+Should before Shipped. Open: AC13 (owner), the (d) check, and the manual
 checks listed under each criterion.
 
 States: Not started · In progress · Done · Blocked (waiting on a question
@@ -20,9 +21,9 @@ below) · Shipped.
   Xcode SDK 27.2): `swift build` clean; `swift test` 517 tests in 94 suites
   passed, 1 known issue (the `withKnownIssue` in "Live render session",
   pre-existing).
-- Latest (after the RI-E rulings): `swift build` clean, no warnings in the
-  sources. `swift test`: 550 tests in 96 suites passed, 1 known issue (the
-  same). Goldens and `EditStackCorpusTests` unchanged.
+- Latest (after the review's fixes): `swift build` clean, no warnings in
+  the sources. `swift test`: 551 tests in 96 suites passed, 1 known issue
+  (the same). Goldens and `EditStackCorpusTests` unchanged.
   `PreviewCacheKey.currentPipelineVersion` is still 6. `UPDATE_GOLDENS` was
   never run.
 - A test file not touched here (`SmartAlbumTests.swift:165`) has an
@@ -130,7 +131,8 @@ below) · Shipped.
 | 5 USER_GUIDE.md, this file | Done | `c8aad44` |
 | 6 AC1 as ruled; AC4's legacy Noise Reduction off case | Done | `c48f877` |
 | 7 Missing model (ruling 9): seam, session memory, download scan, macOS-dependent texts, arrival at a cached fallback | Done | `5b44889`, `cd9c683` |
-| 8 USER_GUIDE.md and this file after the rulings | Done | this commit |
+| 8 USER_GUIDE.md and this file after the rulings | Done | `7084998` |
+| 9 Review fixes F1–F4: guide wording; the Decoder pop-up counts the versions it offers (`RawDefaults.offeredDecoderVersions`, tested) | Done | this commit |
 
 ## Acceptance criteria
 
@@ -290,8 +292,11 @@ RI-E1 to RI-E5 are ruled (prd.md Revisions; owner rulings 9–11) and
 applied. Their original text is kept below for the record. **RI-E6 is
 open.**
 
-- **RI-E6 (open). In production, nothing can tell the app the model is
-  missing.** Ruling 9 asks that a missing model read as "not on this Mac",
+- **RI-E6 (ruled 2026-11-05: option (c) now, (d) as a Should before
+  Shipped).** S8 stays for failed decodes, and the guide no longer claims a
+  missing model is detected (review F1). The seam and the "this Mac" texts
+  stay for when it can be. As raised: **In production, nothing can tell the
+  app the model is missing.** Ruling 9 asks that a missing model read as "not on this Mac",
   "even when the app only learns it from a failed decode". The mapping is
   built and tested through the seam, and the session memory and texts are
   in place. What is missing is a real signal (see the engineer question

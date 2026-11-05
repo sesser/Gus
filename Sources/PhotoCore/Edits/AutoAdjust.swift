@@ -20,6 +20,13 @@ public struct RawDefaults: Sendable, Hashable {
     /// is not available or does not offer the amount).
     public var machineLearningLuminanceNoiseReduction: Double?
 
+    /// The versions the Decoder pop-up offers: the machine learning one only
+    /// where it is available (ml-denoise design §4). The pop-up shows when
+    /// this has more than one.
+    public var offeredDecoderVersions: [String] {
+        decoderVersions.filter { !MachineLearningNoiseReduction.isMachineLearningVersion($0) || machineLearning == .available }
+    }
+
     public init(temperature: Double, tint: Double, decoderVersions: [String], defaultDecoderVersion: String,
                 luminanceNoiseReduction: Double?, colorNoiseReduction: Double?,
                 machineLearning: MachineLearningNoiseReduction.Availability = .notOnThisMac,

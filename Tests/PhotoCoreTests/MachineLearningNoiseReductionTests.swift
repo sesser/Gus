@@ -140,6 +140,17 @@ struct MachineLearningNoiseReductionTests {
         #expect(found.isEmpty, "\(found)")
     }
 
+    @Test("The Decoder pop-up offers the machine learning version only where it is available (review F2)")
+    func offeredDecoderVersions() {
+        var defaults = RawDefaults(temperature: 5000, tint: 0, decoderVersions: ["8.dng", "9.dng"],
+                                   defaultDecoderVersion: "8.dng", luminanceNoiseReduction: 0, colorNoiseReduction: 50,
+                                   machineLearning: .available)
+        #expect(defaults.offeredDecoderVersions == ["8.dng", "9.dng"])
+        defaults.machineLearning = .notOnThisMac
+        // One choice left: the pop-up does not show.
+        #expect(defaults.offeredDecoderVersions == ["8.dng"])
+    }
+
     @Test("Decoder versions: 9 and 9.dng are the machine learning decoder")
     func versions() {
         #expect(ML.isMachineLearningVersion("9.dng") && ML.isMachineLearningVersion("9"))

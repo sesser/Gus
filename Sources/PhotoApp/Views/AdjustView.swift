@@ -201,7 +201,7 @@ private struct DevelopControls: View {
                     }
                 }
             }
-            if let defaults = editor.rawDefaults, defaults.decoderVersions.count > 1 {
+            if let defaults = editor.rawDefaults, defaults.offeredDecoderVersions.count > 1 {
                 LabeledPopUp(title: String(localized: "Decoder")) {
                     decoderPopUp(defaults)
                 }
@@ -214,9 +214,7 @@ private struct DevelopControls: View {
     /// otherwise the decoder that renders. It is listed only where it is available.
     private func decoderPopUp(_ defaults: RawDefaults) -> some View {
         let status = editor.machineLearning
-        let versions = defaults.decoderVersions.filter {
-            !MachineLearningNoiseReduction.isMachineLearningVersion($0) || defaults.machineLearning == .available
-        }
+        let versions = defaults.offeredDecoderVersions
         let learned = MachineLearningNoiseReduction.machineLearningVersion(in: versions)
         let selection = status?.isApplied == true ? learned : nil
         let isEnabled = status?.decoderChoiceIsEnabled ?? true
