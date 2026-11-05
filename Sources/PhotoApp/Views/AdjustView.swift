@@ -85,7 +85,7 @@ struct AdjustView: View {
                         }
                         InspectorSeparator()
                         AdjustSection(.details, editor: editor) {
-                            DetailControls(editor: editor)
+                            DetailControls(model: model)
                         }
                         InspectorSeparator()
                         MasksSection(editor: editor)
@@ -400,7 +400,9 @@ private struct ColorMixerControls: View {
 
 /// Sharpening and noise reduction.
 private struct DetailControls: View {
-    let editor: AdjustmentEditor
+    let model: LibraryModel
+
+    private var editor: AdjustmentEditor { model.editor }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -412,13 +414,29 @@ private struct DetailControls: View {
                              defaultValue: 1, format: .decimal)
                 adjustSlider(editor, String(localized: "Detail"), \.sharpen.detail, range: 0...100, defaultValue: 25,
                              format: .plain)
-                adjustSlider(editor, String(localized: "Masking"), \.sharpen.masking, range: 0...100, format: .plain)
             }
             .showsTurnedOff(.sharpening, editor: editor)
-            Text("Sharpening is easiest to judge at 1:1 (Z), once the change is saved.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            // Masking and the map that shows it (sharpen-mask-preview design §4): the
+            // toggle is never dimmed by the group being off (R10).
+            VStack(alignment: .leading, spacing: 0) {
+                adjustSlider(editor, String(localized: "Masking"), \.sharpen.masking, range: 0...100, format: .plain)
+                    .showsTurnedOff(.sharpening, editor: editor)
+                AppKitButton(title: SharpeningMapText.name, style: .toggle(isOn: editor.showsSharpeningMap),
+                             help: mapHelp, isEnabled: model.canShowSharpeningMap) {
+                    model.toggleSharpeningMap(from: .button)
+                }
+                .disabled(!model.canShowSharpeningMap)
+                .padding(.top, 6)
+                // The legend while the map is on screen, the hint otherwise.
+                Text(editor.shownSharpeningMap.map(SharpeningMapText.legend) ?? SharpeningMapText.hint)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 4)
+            }
+            .background(InspectorRevealAnchor(isRequested: model.revealsMaskingRow) {
+                model.revealsMaskingRow = false
+            })
             GroupLabel(.noiseReduction, editor: editor)
             let defaults = editor.rawDefaults
             VStack(alignment: .leading, spacing: 2) {
@@ -429,6 +447,20 @@ private struct DetailControls: View {
                 }
             }
             .showsTurnedOff(.noiseReduction, editor: editor)
+        }
+    }
+
+    /// The toggle's tooltip, saying why it is dimmed when it is.
+    private var mapHelp: String {
+        if model.isReviewing {
+            String(localized: "Exit Review (F) to show the sharpening map.",
+                   comment: "Tooltip of the dimmed Sharpening Map toggle in review mode")
+        } else if editor.cropSession != nil {
+            String(localized: "Finish cropping to show the sharpening map.",
+                   comment: "Tooltip of the dimmed Sharpening Map toggle during a crop session")
+        } else {
+            String(localized: "Show where Masking lets sharpening through, in place of the photo",
+                   comment: "Tooltip and VoiceOver help of the Sharpening Map toggle")
         }
     }
 

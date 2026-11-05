@@ -24,6 +24,7 @@ import PhotoCore
 ///     adjust mask add linear|radial|brush|luminanceRange|colorRange   (a new mask, selected)
 ///     adjust mask component <shape> add|subtract|intersect           (into the selected mask)
 ///     adjust mask select <index>|none    adjust mask overlay on|off    adjust mask remove
+///     adjust mask enable on|off           (the selected mask's check box)
 ///     adjust mask set <control> <value>  (exposure … sharpen, amount; the selected mask)
 ///     adjust mask brush <x0> <y0> <x1> <y1> …   (one stroke; unit coordinates of the photo on screen)
 ///     adjust mask sample <x> <y>          (adds the color there to the selected color range)
@@ -139,6 +140,9 @@ enum DebugAdjustCommands {
             editor.showsMaskOverlay = rest.first == "on"
         case "remove":
             if let id = editor.selectedMaskID { editor.removeMask(id) }
+        case "enable":
+            // The selected mask's check box.
+            if let id = editor.selectedMaskID { editor.setMaskEnabled(id, rest.first != "off") }
         case "set":
             guard let name = rest.first, let value = numbers.first else { break }
             if name == "amount" {

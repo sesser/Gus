@@ -55,6 +55,12 @@ struct LibraryMenuState: Equatable {
     /// RAW+JPEG Pair ▸: which file the targeted pairs show; nil with no pair.
     var pairDisplay: PairDisplay?
     var showsMaskOverlay: Bool
+    /// Adjust ▸ Show / Hide Sharpening Map: asked for, and can be shown
+    /// (`LibraryModel.canShowSharpeningMap`).
+    var showsSharpeningMap: Bool
+    var canShowSharpeningMap: Bool
+    /// The map on screen says no sharpening is applied (design §7).
+    var sharpeningMapNotApplied: Bool
     /// The loupe shows a video.
     var showsLoupeVideo: Bool
     /// The video loupe's player is playing (View ▸ Play / Pause's title).
@@ -132,6 +138,9 @@ struct LibraryMenuState: Equatable {
         canResetAll = model.mode == .grid ? targetsIncludePhoto
             : canEditLoupePhoto && !isCropping && !model.editor.adjustments.isDefault
         showsMaskOverlay = model.editor.showsMaskOverlay
+        showsSharpeningMap = model.editor.showsSharpeningMap
+        canShowSharpeningMap = model.canShowSharpeningMap
+        sharpeningMapNotApplied = model.editor.shownSharpeningMap?.isNotApplied ?? false
         showsOriginal = model.editor.showsOriginal
         loupeZoom = model.loupeZoom
         showsInspector = model.showsInspector
