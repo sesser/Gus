@@ -454,6 +454,8 @@ struct LibraryCommands: Commands {
                 .disabled(!can())
             Button("Manage Presets…") { model?.showsPresetSheet = true }
                 .disabled(!can())
+            // Preset items, then the look-up table items (design.md N5, D-Q4).
+            Divider()
             Button("Import Look-Up Tables…") { model?.lookTableLibrary.chooseImportFromMenu() }
                 .disabled(!can())
             Button("Browse Look-Up Tables…") { model?.showsLookTableSheet = true }

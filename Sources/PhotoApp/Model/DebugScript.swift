@@ -818,8 +818,10 @@ enum DebugScript {
                 menu.update()
             }
             defer { if let menu { menu.delegate?.menuDidClose?(menu) } }
-            for item in menu?.items ?? [] where !item.isSeparatorItem {
+            let items = menu?.items ?? []
+            for (index, item) in items.enumerated() where !item.isSeparatorItem {
                 let itemPath = path.isEmpty ? item.title : path + "/" + item.title
+                let afterSeparator = index > 0 && items[index - 1].isSeparatorItem
                 if text.isEmpty || item.title.localizedCaseInsensitiveContains(text) {
                     var modifiers = ""
                     let mask = item.keyEquivalentModifierMask
@@ -829,7 +831,8 @@ enum DebugScript {
                     if mask.contains(.command) { modifiers += "cmd+" }
                     let key = item.keyEquivalent.isEmpty ? "" : " key \(modifiers)\(item.keyEquivalent.debugDescription)"
                     print("debug-script: menu \(itemPath)\(key) \(item.isEnabled ? "enabled" : "disabled")"
-                          + (item.state == .on ? " checked" : item.state == .mixed ? " mixed" : ""))
+                          + (item.state == .on ? " checked" : item.state == .mixed ? " mixed" : "")
+                          + (afterSeparator ? " (after a separator)" : ""))
                 }
                 if let submenu = item.submenu { visit(submenu, path: itemPath) }
             }
