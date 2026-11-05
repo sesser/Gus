@@ -76,7 +76,10 @@ R7 (Must): The mask is a view, never data. Showing it, hiding it, or
 changing values while it is shown writes nothing beyond what the value
 change writes today: nothing in the edit stack, no undo step of its own, no
 sidecar change, and no cached preview or grid thumbnail of the mask. While
-it is shown, the histogram stays the photo's.
+it is shown, the histogram stays the photo's. It keeps the last photo
+frame's values, so it can go stale if Exposure, a curve or another slider
+changes while the mask is shown. It updates again when the mask is hidden.
+The owner accepted this (ruling 5).
 
 R8 (Must): The sharpening mask is never combined with the local-mask
 overlay, Show Original or a crop session. At most one of them is on screen,
@@ -188,7 +191,8 @@ AC14 (R13): The existing goldens pass unchanged, and
   Masking, so the view still applies to it, but it does not show where local
   masks are.
 - Changing how sharpening or Masking renders. This includes making the
-  sharpening shown at fit match full size (see Q5).
+  sharpening shown at fit match full size (Q5, roadmap item
+  `sharpen-masking-scale`).
 - Viewport rendering at 1:1. That is roadmap item `viewport-render-1to1`.
 - What local Sharpness renders with while the Sharpening group is off
   (RI-2). Today it uses the default Radius 1, Detail 25 and Masking 0, not
@@ -221,7 +225,7 @@ AC14 (R13): The existing goldens pass unchanged, and
   so at fit Masking cuts out more of the smooth areas than at full size. A
   live-resolution mask would therefore show the sky as held back when a
   full-size export still sharpens its noise. This is the reason for R6. The
-  engineer should confirm.
+  engineer confirmed it (Q5, answered).
 - "As responsive as the photo's own live frames" is the speed target. I have
   not set a number.
 - In the owner's reference behavior the mask is shown only while dragging
@@ -255,6 +259,16 @@ Owner, in chat, 2026-11-05, on the designer's requirements issues:
   than the user's values. Ruling: "Roadmap item to decide". It is out of
   scope here (R13) and tracked as `local-sharpen-group-off`.
 
+Owner, in chat, 2026-11-05, on the engineer's requirements issue and
+finding:
+
+5. Histogram while the mask is shown (R7): "Accept stale histogram". The
+   histogram keeps the last photo frame's values while the mask is shown.
+   It can go stale if other sliders change meanwhile, and it updates when
+   the mask is hidden.
+6. Masking at fit versus full size (Q5): "Add Idea row". It is out of scope
+   here (R13) and tracked as `sharpen-masking-scale`.
+
 ## Open questions
 
 **Q4 (designer):**
@@ -267,11 +281,18 @@ Owner, in chat, 2026-11-05, on the designer's requirements issues:
 - Whether the mask stays on when moving to the next photo in the loupe.
 - The Adjust tab hint.
 
-**Q5 (engineer):**
-- Confirm or refute the scale assumption above, and what R6 costs on a
-  24 MP raw.
-- If fit and full size differ noticeably in where Masking cuts, that is a
-  rendering issue in its own right. Report it so it can get a roadmap item.
+**Q5 (engineer): answered 2026-11-05.** Measured on an M4 Pro debug build
+with a synthetic noisy 6000 × 4000 DNG at Masking 30:
+- **The assumption is confirmed.** On a noisy flat area, about 50% of the
+  sharpening came through at fit (render scale 0.43), against about 93% at
+  full size. The photo's own sharpening at fit holds back noise that a
+  full-size export sharpens.
+- **The cost of R6:**
+  - A refine takes about 0.25 s the first time and about 0.16 s per pause
+    after that.
+  - Holding the input costs pixels × 8 bytes, which is 192 MB at 24 MP.
+- **The fit-versus-full-size difference** is a rendering issue in its own
+  right. The owner made it roadmap Idea `sharpen-masking-scale` (ruling 6).
   It is not fixed here.
 
 ## Revisions
@@ -283,3 +304,8 @@ Owner, in chat, 2026-11-05, on the designer's requirements issues:
   and AC11 now treat local sharpening: "not applied" shows only when nothing
   sharpens. A non-goal now points to the new roadmap item
   `local-sharpen-group-off`.
+- 2026-11-05: The owner ruled on the engineer's requirements issue and
+  finding:
+  - R7 now says the histogram may go stale while the mask is shown.
+  - Q5 is answered with the engineer's measurements.
+  - A non-goal now points to the new roadmap item `sharpen-masking-scale`.

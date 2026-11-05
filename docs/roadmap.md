@@ -17,7 +17,10 @@ scope is below as `Idea` rows citing the RI.
 anything out. The owner answered its four questions the same day, and the
 PRD is approved. The owner also ruled on the designer's RI-1 and RI-2 for it.
 RI-2 became the Idea row local-sharpen-group-off, placed right after it in
-Next.
+Next. After implementation, the owner ruled on the engineer's finding and
+made it the Idea row sharpen-masking-scale. Its status is now In progress:
+status.md shows every build step done, with the designer's review still to
+come.
 
 Where specs live: new features get `docs/features/<slug>/`. The phase plans
 (`docs/PHASE1_PLAN.md` … `PHASE6_PLAN.md`) and `docs/UI_REDESIGN.md` stay
@@ -68,8 +71,9 @@ Order is my proposal, not owner-confirmed.
 
 | Slug | Problem | Status | Why this order | Source |
 |------|---------|--------|----------------|--------|
-| sharpen-mask-preview | Sharpening's Masking changes where sharpening goes, which can't be seen while setting it | Designed | Ahead of edit-history: the owner raised it right after PR #36, its spec is written and edit-history still needs intake. Moderate effort: a live estimate, then a full-resolution mask when input pauses (owner, 2026-11-05). Does not wait for viewport-render-1to1 | Owner 2026-11-05; issue #35, PR #36. [`features/sharpen-mask-preview/`](features/sharpen-mask-preview/) |
+| sharpen-mask-preview | Sharpening's Masking changes where sharpening goes, which can't be seen while setting it | In progress (built; designer review next) | Ahead of edit-history: the owner raised it right after PR #36, its spec is written and edit-history still needs intake. Moderate effort: a live estimate, then a full-resolution mask when input pauses (owner, 2026-11-05). Does not wait for viewport-render-1to1 | Owner 2026-11-05; issue #35, PR #36. [`features/sharpen-mask-preview/`](features/sharpen-mask-preview/) |
 | local-sharpen-group-off | Turning the Sharpening group off makes local Sharpness use the default Radius 1, Detail 25 and Masking 0 instead of the user's values, so it starts sharpening noise (`Adjustments.effective` resets the group) | Idea | Next to sharpen-mask-preview because it concerns the same code and changes saved renders unexpectedly. Owner to decide the intent: should local Sharpness keep the user's Radius, Detail and Masking, or turn off with the group? Any fix is a rendering change that needs a `PreviewCacheKey.currentPipelineVersion` bump and golden updates | Designer RI-2 on sharpen-mask-preview; owner ruling 2026-11-05 ("Roadmap item to decide"). `AdjustmentRenderer.swift:193-194` |
+| sharpen-masking-scale | Masking holds back much more noise at fit than in a full-size export: on a noisy flat area at Masking 30, about 50% of the sharpening at fit (scale 0.43) against about 93% at full size. So the loupe at fit understates the sharpened noise an export gets | Idea | Placed after local-sharpen-group-off: same sharpening code, and both are rendering changes, so one pipeline bump could cover both. Any fix is a rendering change that needs a `PreviewCacheKey.currentPipelineVersion` bump and golden updates. Not urgent, because once input pauses the sharpening map already shows the full-size result | Engineer's finding on sharpen-mask-preview (PRD Q5: M4 Pro debug build, synthetic noisy 6000 × 4000 DNG); owner ruling 2026-11-05 ("Add Idea row") |
 | edit-history | No way to see or jump back to an earlier state of a photo's edits | Idea | Intake before any spec (owner, 2026-11-04). Need: see a photo's edit steps and return to an earlier one. Open for the owner: does history survive relaunch. Placement and keys belong to design, not the PRD: issue #26's ⌘Y redo and left-sidebar placement are proposals, and they conflict with the shipped ⇧⌘Z (the HIG's standard redo) and a sidebar that holds sources (UIR §3). RI-6 | Issue #26; `ui-redesign/design.md` RI-6 |
 | viewport-render-1to1 | At 100% zoom, sliders show a stretched 2560 px frame until the edit is saved | Idea | Named on the phase 6 roadmap; affects every edit at 1:1 | `PHASE6_PLAN.md` "Roadmap" |
 | dehaze-above-white | Dehaze and local tone estimates jump on extended-range (above white) input | Idea | Named on the phase 6 roadmap; a rendering change with a pipeline bump | `PHASE6_PLAN.md` "Roadmap", finding 4 |
