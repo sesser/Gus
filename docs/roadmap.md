@@ -18,9 +18,9 @@ anything out. The owner answered its four questions the same day, and the
 PRD is approved. The owner also ruled on the designer's RI-1 and RI-2 for it.
 RI-2 became the Idea row local-sharpen-group-off, placed right after it in
 Next. After implementation, the owner ruled on the engineer's finding and
-made it the Idea row sharpen-masking-scale. Its status is now In progress:
-status.md shows every build step done, with the designer's review still to
-come.
+made it the Idea row sharpen-masking-scale. It merged in PR #37 the same day
+and moved to Shipped. Its manual checks M1–M9 are still open, by the owner's
+choice ("Shipped, checks pending").
 
 Where specs live: new features get `docs/features/<slug>/`. The phase plans
 (`docs/PHASE1_PLAN.md` … `PHASE6_PLAN.md`) and `docs/UI_REDESIGN.md` stay
@@ -71,7 +71,6 @@ Order is my proposal, not owner-confirmed.
 
 | Slug | Problem | Status | Why this order | Source |
 |------|---------|--------|----------------|--------|
-| sharpen-mask-preview | Sharpening's Masking changes where sharpening goes, which can't be seen while setting it | In progress (built; designer review next) | Ahead of edit-history: the owner raised it right after PR #36, its spec is written and edit-history still needs intake. Moderate effort: a live estimate, then a full-resolution mask when input pauses (owner, 2026-11-05). Does not wait for viewport-render-1to1 | Owner 2026-11-05; issue #35, PR #36. [`features/sharpen-mask-preview/`](features/sharpen-mask-preview/) |
 | local-sharpen-group-off | Turning the Sharpening group off makes local Sharpness use the default Radius 1, Detail 25 and Masking 0 instead of the user's values, so it starts sharpening noise (`Adjustments.effective` resets the group) | Idea | Next to sharpen-mask-preview because it concerns the same code and changes saved renders unexpectedly. Owner to decide the intent: should local Sharpness keep the user's Radius, Detail and Masking, or turn off with the group? Any fix is a rendering change that needs a `PreviewCacheKey.currentPipelineVersion` bump and golden updates | Designer RI-2 on sharpen-mask-preview; owner ruling 2026-11-05 ("Roadmap item to decide"). `AdjustmentRenderer.swift:193-194` |
 | sharpen-masking-scale | Masking holds back much more noise at fit than in a full-size export: on a noisy flat area at Masking 30, about 50% of the sharpening at fit (scale 0.43) against about 93% at full size. So the loupe at fit understates the sharpened noise an export gets | Idea | Placed after local-sharpen-group-off: same sharpening code, and both are rendering changes, so one pipeline bump could cover both. Any fix is a rendering change that needs a `PreviewCacheKey.currentPipelineVersion` bump and golden updates. Not urgent, because once input pauses the sharpening map already shows the full-size result | Engineer's finding on sharpen-mask-preview (PRD Q5: M4 Pro debug build, synthetic noisy 6000 × 4000 DNG); owner ruling 2026-11-05 ("Add Idea row") |
 | edit-history | No way to see or jump back to an earlier state of a photo's edits | Idea | Intake before any spec (owner, 2026-11-04). Need: see a photo's edit steps and return to an earlier one. Open for the owner: does history survive relaunch. Placement and keys belong to design, not the PRD: issue #26's ⌘Y redo and left-sidebar placement are proposals, and they conflict with the shipped ⇧⌘Z (the HIG's standard redo) and a sidebar that holds sources (UIR §3). RI-6 | Issue #26; `ui-redesign/design.md` RI-6 |
@@ -143,6 +142,7 @@ Dates are from git history (first commit of the work) or the phase document.
 | import-keep-picks | 2026-11-02 | Bug, issue #19 (closed); UI_REDESIGN step 10 |
 | ui-redesign | 2026-11-04 | Steps 1–15 incl. review mode; PRs #20, #21. Not everything checked on screen (see ui-redesign-onscreen-check). Reconciled design in [`features/ui-redesign/`](features/ui-redesign/); its follow-up changes are ui-redesign-reconcile (Now) |
 | loupe-film-strip | 2026-11-04 | Issue #25 (closed); merged via PR #27. Spec stayed in `UI_REDESIGN.md` §11 (owner, 2026-11-04). Its on-screen checks are under ui-redesign-onscreen-check. §11's checklist still shows 7 build items open that the code appears to implement; the engineer should tick them |
+| sharpen-mask-preview | 2026-11-05 | Merged via PR #37 (merge commit 64334b7). Shows where Sharpening's Masking lets sharpening through: a live estimate while the value changes, recomputed at full resolution when input pauses. The designer's manual checks M1–M9 have not been done at the app; they stay open by the owner's choice ("Shipped, checks pending", 2026-11-05) and are listed in the feature's review.md and status.md. Follow-ups: local-sharpen-group-off, sharpen-masking-scale (Next). [`features/sharpen-mask-preview/`](features/sharpen-mask-preview/) |
 
 ## Dropped
 
