@@ -99,9 +99,14 @@ struct LibraryToolbar: CustomizableToolbarContent {
     @ToolbarContentBuilder
     private var paletteItems: some CustomizableToolbarContent {
         let state = LibraryMenuState(model)
+        // Crop and Original are modes: toggles, so the bezel shows when they are
+        // on, like the inspector's (design.md I15).
         ToolbarItem(id: "crop", showsByDefault: false) {
-            Button { model.crop() } label: { Label("Crop", systemImage: "crop") }
-                .disabled(state.mode == .grid ? !state.focusedIsPhoto : !state.canEditLoupePhoto)
+            Toggle(isOn: Binding(get: { state.isCropping }, set: { _ in model.crop() })) {
+                Label("Crop", systemImage: "crop")
+            }
+            .toggleStyle(.button)
+            .disabled(state.mode == .grid ? !state.focusedIsPhoto : !state.canEditLoupePhoto)
         }
         ToolbarItem(id: "rotateLeft", showsByDefault: false) {
             Button { model.rotate(clockwise: false) } label: { Label("Rotate Left", systemImage: "rotate.left") }
@@ -112,8 +117,11 @@ struct LibraryToolbar: CustomizableToolbarContent {
                 .disabled(state.mode == .grid ? !state.targetsIncludePhoto : !state.canEditLoupePhoto)
         }
         ToolbarItem(id: "original", showsByDefault: false) {
-            Button { model.editor.toggleOriginal() } label: { Label("Original", systemImage: "square.split.2x1") }
-                .disabled(!state.canEditLoupePhoto || state.isCropping)
+            Toggle(isOn: Binding(get: { state.showsOriginal }, set: { _ in model.editor.toggleOriginal() })) {
+                Label("Original", systemImage: "square.split.2x1")
+            }
+            .toggleStyle(.button)
+            .disabled(!state.canEditLoupePhoto || state.isCropping)
         }
         ToolbarItem(id: "auto", showsByDefault: false) {
             Button { model.autoExposure() } label: { Label("Auto Exposure", systemImage: "wand.and.stars") }

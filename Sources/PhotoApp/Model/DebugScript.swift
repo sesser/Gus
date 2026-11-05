@@ -38,6 +38,7 @@ import PhotoUI
 ///     helpmenu              (the Help menu: whether AppKit treats it as the help menu, and its items)
 ///     playpause             (View ▸ Play / Pause's action on the video loupe)
 ///     deselectall           (Edit ▸ Deselect All's action in the grid)
+///     toolbar [add <text>]  (lists the toolbar's items; add inserts an allowed item whose identifier contains text)
 ///     stop                  (File ▸ Stop's action in the library window: the newest running job)
 ///     windowshot <title text> <file.png>   (snapshots another visible window, e.g. Settings)
 ///     sidebarsection [albums|dates|keywords|projects show|hide]   (prints the hidden sidebar sections)
@@ -459,6 +460,28 @@ enum DebugScript {
             // File ▸ Stop's action in the library window: the newest job.
             if let job = model.newestStoppableJob { model.stop(job) }
             try? await Task.sleep(for: .milliseconds(500))
+        case "toolbar":
+            // `toolbar` lists the items; `toolbar add <text>` inserts the first
+            // allowed item whose identifier contains text (palette items).
+            guard let toolbar = window?.toolbar else { return }
+            if rest.first == "add", let text = rest.dropFirst().first,
+               let allowed = toolbar.delegate?.toolbarAllowedItemIdentifiers?(toolbar),
+               let identifier = allowed.first(where: { $0.rawValue.contains(text) }) {
+                toolbar.insertItem(withItemIdentifier: identifier, at: toolbar.items.count)
+                try? await Task.sleep(for: .milliseconds(300))
+            }
+            print("debug-script: toolbar " + toolbar.items.map(\.itemIdentifier.rawValue).joined(separator: " "))
+            // Buttons inside the palette's items, with their state (a toggle's bezel).
+            for item in toolbar.items {
+                func visit(_ view: NSView) {
+                    if let button = view as? NSButton {
+                        print("debug-script: toolbar item \(item.itemIdentifier.rawValue) button '\(button.title)'"
+                              + " state \(button.state == .on ? "on" : "off") \(button.isEnabled ? "enabled" : "disabled")")
+                    }
+                    view.subviews.forEach(visit)
+                }
+                if let view = item.view { visit(view) }
+            }
         case "deselectall":
             // Edit ▸ Deselect All's action in the library window.
             model.collapseSelection()
