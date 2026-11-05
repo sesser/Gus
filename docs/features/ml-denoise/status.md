@@ -181,7 +181,8 @@ Apple M4 Pro, macOS 27.2 (26B123), SDK 27.2.
   that is an undocumented implementation detail. I could not make the model
   go missing on this Mac (it would mean deleting system assets), so I don't
   know what a decode does without it: fail, fall back silently, or fetch on
-  its own. See RI-E6.
+  its own. See RI-E6 (ruled: keep S8 for now; find out on a Mac without the
+  model before Shipped).
 - **`extendedDynamicRangeAmount` under RAW 9:** honored. With 1.0 the
   synthetic DNG's largest value is 1.25 under both `8.dng` and `9.dng`, so
   highlight recovery and negative exposure keep their headroom. Not
@@ -289,8 +290,8 @@ speech.
 ## Requirements issues (for the product manager)
 
 RI-E1 to RI-E5 are ruled (prd.md Revisions; owner rulings 9–11) and
-applied. Their original text is kept below for the record. **RI-E6 is
-open.**
+applied. Their original text is kept below for the record. RI-E6 is ruled
+too: option (c) now, (d) as a Should before Shipped.
 
 - **RI-E6 (ruled 2026-11-05: option (c) now, (d) as a Should before
   Shipped).** S8 stays for failed decodes, and the guide no longer claims a
