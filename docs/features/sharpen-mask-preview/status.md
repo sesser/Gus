@@ -4,8 +4,13 @@ Owner: swift-macos-engineer. Implements [`prd.md`](prd.md) (Approved,
 2026-11-05) against [`design.md`](design.md) (Designed). Branch
 `feature/sharpen-mask-preview`, cut from `develop` at `c436d49`.
 
+**Status: Shipped.** Merged to `develop` in PR #37 (merge commit `64334b7`)
+on 2026-11-05. The owner accepted shipping with the manual checks below
+still open ("Shipped, checks pending"): the designer's M1–M9 and the
+active-window `menuitems` check.
+
 States: Not started · In progress · Done · Blocked (waiting on a question
-below).
+below) · Shipped.
 
 ## Build and test
 
@@ -123,7 +128,17 @@ person at the bundled app.
 | DR13 | `swift test --filter "LocalizationTests|BrandingTests"`; reading | Pass; old hint removed; guide uses §1's terms |
 | DR14 | Script (`editvalue Masking`, `key escape` ×3) | Pass: value field → loupe, map hidden, then the grid |
 
-## Pending manual checks (designer review M1–M9, `review.md`)
+## Open manual checks (after shipping)
+
+Accepted as open by the owner when the feature shipped (2026-11-05).
+
+- **Active-window `menuitems` (DR1, AC12).** Run `menuitems Sharpening`
+  with the app key (`open -W -n --stdout <log> …`) on an editable loupe
+  photo (enabled; the title flips after `menupress`), during a crop, and
+  for a video, an offline master and an unreadable stack (dimmed). Not
+  confirmed: macOS would not activate the app at those points in two runs.
+
+### Designer review M1–M9 (`review.md`)
 
 | # | Check | Covers | State |
 |---|---|---|---|
