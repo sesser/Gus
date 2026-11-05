@@ -26,6 +26,8 @@ struct LibraryMenuState: Equatable {
     var itemCount: Int
     /// Culling and batch commands have photos to act on.
     var hasTargets: Bool
+    /// Photos selected in the grid (Edit ▸ Deselect All needs two or more).
+    var selectedCount: Int
     var hasFocusedItem: Bool
     /// The focused photo is not a video (Crop from the grid).
     var focusedIsPhoto: Bool
@@ -100,6 +102,7 @@ struct LibraryMenuState: Equatable {
         mode = model.mode
         itemCount = model.itemCount
         hasTargets = !model.actionTargets.isEmpty
+        selectedCount = model.selectedCount
         hasFocusedItem = model.focusedItem != nil
         focusedIsPhoto = model.focusedItem.map { !$0.isVideo } ?? false
         targetsIncludePhoto = model.actionTargets.contains { !model.items[$0].isVideo }

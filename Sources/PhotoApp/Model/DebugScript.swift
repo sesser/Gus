@@ -36,6 +36,7 @@ import PhotoUI
 ///     menupress <title>     (runs the main menu item with that title, if enabled)
 ///     helpmenu              (the Help menu: whether AppKit treats it as the help menu, and its items)
 ///     playpause             (View ▸ Play / Pause's action on the video loupe)
+///     deselectall           (Edit ▸ Deselect All's action in the grid)
 ///     windowshot <title text> <file.png>   (snapshots another visible window, e.g. Settings)
 ///     sidebarsection [albums|dates|keywords|projects show|hide]   (prints the hidden sidebar sections)
 ///     contextmenu cell <n>|loupe|video [controls]|slider <title> [<item>[/<sub>]]   (prints a right-click's menu there,
@@ -452,6 +453,9 @@ enum DebugScript {
             printMenuItems(containing: rest.joined(separator: " "))
         case "helpmenu":
             HelpMenuProbe.print()
+        case "deselectall":
+            // Edit ▸ Deselect All's action in the library window.
+            model.collapseSelection()
         case "playpause":
             // View ▸ Play / Pause's action (a scripted launch may have no key window for the menu).
             model.playback.toggle()
@@ -867,7 +871,8 @@ enum DebugScript {
             // What the menus read, apart from whether the window is key (a
             // scripted launch often is not the active app).
             let state = LibraryMenuState(model)
-            print("debug-script: menustate key \(state.isWindowKey) mode \(state.mode) export \(state.canExport)"
+            print("debug-script: menustate key \(state.isWindowKey) mode \(state.mode) selected \(state.selectedCount)"
+                  + " export \(state.canExport)"
                   + " resetCrop \(state.canResetCrop) addMask \(state.canAddMask) video \(state.showsLoupeVideo)"
                   + " playing \(state.isVideoPlaying) bareKeys \(state.bareKeysActive) editLoupePhoto \(state.canEditLoupePhoto) cropping \(state.isCropping)")
         case "empty":

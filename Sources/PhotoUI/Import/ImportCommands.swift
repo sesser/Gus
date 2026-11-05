@@ -13,11 +13,15 @@ public struct ImportCommands: Commands {
     /// toggles the options while an import window is key: AppKit stops at the
     /// first item with a key equivalent, even a disabled one.
     let includesOptionsItem: Bool
+    /// Off in the library app, whose own Deselect All (⇧⌘A) acts for the
+    /// import window while it is key (design.md P3, I5), for the same reason.
+    let includesSharedItems: Bool
     @FocusedValue(\.importMenu) private var menu
 
-    public init(includesLibraryItems: Bool, includesOptionsItem: Bool = true) {
+    public init(includesLibraryItems: Bool, includesOptionsItem: Bool = true, includesSharedItems: Bool = true) {
         self.includesLibraryItems = includesLibraryItems
         self.includesOptionsItem = includesOptionsItem
+        self.includesSharedItems = includesSharedItems
     }
 
     private var model: CardImportModel? { menu?.model }
@@ -43,9 +47,11 @@ public struct ImportCommands: Commands {
             Divider()
         }
         CommandGroup(after: .pasteboard) {
-            Button("Deselect All") { model?.selectNone() }
-                .keyboardShortcut("a", modifiers: [.command, .shift])
-                .disabled(!can { $0.selectedCount > 0 && !$0.isImporting })
+            if includesSharedItems {
+                Button("Deselect All") { menu?.deselectAll() }
+                    .keyboardShortcut("a", modifiers: [.command, .shift])
+                    .disabled(!(menu?.canDeselectAll ?? false))
+            }
         }
         CommandGroup(after: .sidebar) {
             if includesOptionsItem {
@@ -88,6 +94,14 @@ public struct ImportMenuContext: Equatable {
     @MainActor
     public func toggleOptions() {
         model.showsOptions.toggle()
+    }
+
+    /// Edit ▸ Deselect All (⇧⌘A) for the import window.
+    public var canDeselectAll: Bool { state.selectedCount > 0 && !state.isImporting }
+
+    @MainActor
+    public func deselectAll() {
+        model.selectNone()
     }
 }
 

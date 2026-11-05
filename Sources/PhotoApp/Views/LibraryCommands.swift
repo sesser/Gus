@@ -112,6 +112,17 @@ struct LibraryCommands: Commands {
 
     private var editCommands: some Commands {
         CommandGroup(after: .pasteboard) {
+            // One item for ⇧⌘A (design.md P3, I5): the import window's while it
+            // is key, else the grid's, which keeps only the focused photo.
+            if menu == nil, let importMenu {
+                Button("Deselect All") { importMenu.deselectAll() }
+                    .keyboardShortcut("a", modifiers: [.command, .shift])
+                    .disabled(!importMenu.canDeselectAll)
+            } else {
+                Button("Deselect All") { model?.collapseSelection() }
+                    .keyboardShortcut("a", modifiers: [.command, .shift])
+                    .disabled(!canByKey { $0.mode == .grid && $0.selectedCount > 1 })
+            }
             Divider()
             Menu("Find") {
                 Button("Find…") { model?.beginSearch() }

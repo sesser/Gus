@@ -61,6 +61,7 @@ photos the library does not have yet, and a folder with nothing new makes none.
 | ⌥1–⌥7, ⌥0 | color label red…gray, clear | color label |
 | ⌘= and ⌘− | thumbnail size | zoom in / out |
 | ⌘Return | switch grid / loupe | switch grid / loupe |
+| ⇧⌘A | keep only the focused photo selected | |
 | ⌘K | add keywords | add keywords |
 | ⌘I | import from a card or folder | |
 | ⌘N, ⌥⌘N | new album, new smart album | |

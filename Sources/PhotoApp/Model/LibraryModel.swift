@@ -910,6 +910,19 @@ final class LibraryModel {
         selectionRevision += 1
     }
 
+    /// Photos selected in the grid (observed through the selection's revision).
+    var selectedCount: Int {
+        _ = selectionRevision
+        return selection.count
+    }
+
+    /// Edit ▸ Deselect All: the selection becomes the focused photo alone, so
+    /// commands act on it as after a plain click (design.md I5).
+    func collapseSelection() {
+        guard selection.count > 1, let focusIndex else { return }
+        setFocus(focusIndex)
+    }
+
     /// Moves focus and selection; `extend` grows the selection instead (shift).
     func setFocus(_ index: Int, extend: Bool = false, notify: Bool = true) {
         guard items.indices.contains(index) else { return }
