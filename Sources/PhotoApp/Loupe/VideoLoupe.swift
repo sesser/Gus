@@ -3,8 +3,9 @@ import PhotoCore
 import SwiftUI
 
 /// Plays a video in the loupe. Space plays and pauses; the arrow, culling,
-/// Return and Escape keys work as they do for photos, and a double-click on the
-/// picture goes back to the grid.
+/// Return and Escape keys work as they do for photos, a double-click on the
+/// picture goes back to the grid, and a right-click or Control-click on it
+/// shows the context menu.
 ///
 /// AVKit gives keyboard focus to a view of its own, which would take the arrow
 /// keys for scrubbing, and takes the mouse in views of its own, so those keys
@@ -28,11 +29,19 @@ struct VideoLoupe: NSViewRepresentable {
         let player = AVPlayer(url: url)
         view.player = player
         model.playback.attach(player)
-        context.coordinator.monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .leftMouseDown]) {
-            [weak view, weak model] event in
-            guard let view, let model, let window = view.window, event.window === window else { return event }
+        context.coordinator.monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .leftMouseDown, .rightMouseDown]) {
+            [weak host, weak view, weak model] event in
+            guard let host, let view, let model, let window = view.window, event.window === window else { return event }
+            let isContextClick = event.type == .rightMouseDown
+                || (event.type == .leftMouseDown && event.modifierFlags.contains(.control))
+            if isContextClick {
+                // AVKit's views take the click otherwise; its controls keep theirs.
+                guard let menu = host.menu(for: event) else { return event }
+                NSMenu.popUpContextMenu(menu, with: event, for: host)
+                return nil
+            }
             if event.type == .leftMouseDown {
-                guard Self.isDoubleClickOnPicture(event, in: view) else { return event }
+                guard event.clickCount == 2, Self.isOnPicture(event, in: view) else { return event }
                 model.closeLoupe()
                 return nil
             }
@@ -57,11 +66,12 @@ struct VideoLoupe: NSViewRepresentable {
         host.playerView.player = nil
     }
 
-    /// A double-click on the picture or the margins around it. AVKit's playback
-    /// controls are controls on visual effect views; clicks on them stay theirs.
+    /// A click on the picture or the margins around it (double-clicks and the
+    /// context menu). AVKit's playback controls are controls on visual effect
+    /// views; clicks on them stay theirs.
     @MainActor
-    static func isDoubleClickOnPicture(_ event: NSEvent, in view: AVPlayerView) -> Bool {
-        guard event.clickCount == 2, let superview = view.superview else { return false }
+    static func isOnPicture(_ event: NSEvent, in view: AVPlayerView) -> Bool {
+        guard let superview = view.superview else { return false }
         var hit = view.hitTest(superview.convert(event.locationInWindow, from: nil))
         guard hit != nil else { return false }
         while let current = hit, current !== view {
@@ -141,6 +151,12 @@ final class VideoLoupeHostView: NSView {
     }
 
     private var item: CatalogItem? { model?.focusedItem }
+
+    /// The photo items, Play / Pause and Show Grid, over the picture only.
+    override func menu(for event: NSEvent) -> NSMenu? {
+        guard let model, VideoLoupe.isOnPicture(event, in: playerView) else { return nil }
+        return PhotoContextMenu.videoLoupe(model: model)
+    }
 
     override func isAccessibilityElement() -> Bool { item != nil }
     override func accessibilityRole() -> NSAccessibility.Role? { .group }

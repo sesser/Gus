@@ -38,7 +38,8 @@ import PhotoUI
 ///     playpause             (View ▸ Play / Pause's action on the video loupe)
 ///     windowshot <title text> <file.png>   (snapshots another visible window, e.g. Settings)
 ///     sidebarsection [albums|dates|keywords|projects show|hide]   (prints the hidden sidebar sections)
-///     contextmenu cell <n>|loupe|slider <title> [<item>[/<sub>]]   (prints a right-click's menu there, or runs an item)
+///     contextmenu cell <n>|loupe|video [controls]|slider <title> [<item>[/<sub>]]   (prints a right-click's menu there,
+///                           or runs an item; video controls aims at AVKit's control bar)
 ///     editvalue <title>     (puts the keyboard in the value field of the inspector slider with that title)
 ///     accessibility <role>|any [<n> press|<action name>] | focused   (lists the window's accessibility
 ///                           elements with that role, e.g. AXImage, or runs an action on the nth; see AccessibilityProbe)
@@ -690,6 +691,13 @@ enum DebugScript {
         case "loupe":
             view = descendant(of: LoupeHostView.self, in: root)
             point = view.map { $0.convert(NSPoint(x: $0.bounds.midX, y: $0.bounds.midY), to: nil) } ?? .zero
+        case "video":
+            // The middle of the picture, or `controls`: 30 pt above the bottom, where AVKit's bar is.
+            view = descendant(of: VideoLoupeHostView.self, in: root)
+            let onControls = path.first == "controls"
+            if onControls { path.removeFirst() }
+            point = view.map { $0.convert(NSPoint(x: $0.bounds.midX, y: onControls ? ($0.isFlipped ? $0.bounds.maxY - 30 : 30)
+                                                      : $0.bounds.midY), to: nil) } ?? .zero
         case "slider":
             let title = path.first ?? ""
             path.removeFirst()

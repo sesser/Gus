@@ -45,6 +45,20 @@ enum PhotoContextMenu {
         return menu
     }
 
+    /// For the video in the loupe (design.md N9): the photo items that apply
+    /// to a video (culling, keywords, albums), then Play / Pause and Show Grid.
+    static func videoLoupe(model: LibraryModel) -> NSMenu {
+        let state = LibraryMenuState(model)
+        let menu = NSMenu()
+        addPhotoItems(to: menu, model: model, state: state)
+        if !menu.items.isEmpty { menu.addItem(.separator()) }
+        menu.addItem(ActionMenuItem(state.isVideoPlaying ? String(localized: "Pause") : String(localized: "Play")) {
+            model.playback.toggle()
+        })
+        menu.addItem(ActionMenuItem(String(localized: "Show Grid")) { model.closeLoupe() })
+        return menu
+    }
+
     private static func stepZoom(_ model: LibraryModel, in zoomIn: Bool) {
         NotificationCenter.default.post(name: .loupeShouldStepZoom, object: model,
                                         userInfo: [LoupeZoomStep.zoomInKey: zoomIn])
