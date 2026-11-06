@@ -88,10 +88,15 @@ launch options must always take a value: AppKit treats a stray argument as a
 document and then does not open the main window. A process started from a shell is not the active app, so it has
 no key window: scripted keys go straight to the window, and local event
 monitors (the video loupe's) never see them. To test those, launch with
-`open -W -n --stdout <log> build/*.app --args …`, which activates the app.
-macOS may refuse to activate it while you use another app (`print responder`
-then shows `key nil`); running `open build/<name>.app` again a few seconds in,
-while the script waits, brings it forward. Menu state needs a key window:
+`open -W -n --stdout <log> build/*.app --args --library-root <folder> …`,
+which activates the app. Every launch passes `--library-root`: without it
+the app opens the real library, whatever its bundle identifier (that only
+separates preferences). macOS may refuse to activate it while you use
+another app (`print responder` then shows `key nil`); bring the running
+process forward by its ID (`pgrep -n -x <executable>`, then System Events:
+`set frontmost of (first process whose unix id is <pid>) to true`). Never
+run `open` on the bundle again for this: if the scripted copy has already
+quit, that starts a new one on the real library. Menu state needs a key window:
 `menuitems <text>` prints items as AppKit sees them (after the update an
 opening menu gets), `menupress <title>` runs one. `menukey` turns grouping
 undo by event on while its posted keys are handled.
