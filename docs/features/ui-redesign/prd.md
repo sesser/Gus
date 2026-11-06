@@ -1,6 +1,6 @@
 # UI redesign: requirements addendum
 
-Status: Shipped 2026-11-05, PR #34 (ui-redesign-reconcile, E1–E28, which carries R1 and R2). Checks pending: AC2 and the other manual checks in status.md "Pending manual checks", done under `ui-redesign-onscreen-check`.
+Status: Shipped 2026-11-05, PR #34 (ui-redesign-reconcile, E1–E28, which carries R1 and R2). Checks pending: AC2 and the other person-only checks, P1–P10 in qa.md "For a person" (QA closed the rest of status.md's "Pending manual checks" by script), done under `ui-redesign-onscreen-check`.
 Slug: ui-redesign
 Roadmap: Shipped (the redesign 2026-11-04, PRs #20 and #21; `ui-redesign-reconcile` 2026-11-05, PR #34)
 

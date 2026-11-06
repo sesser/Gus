@@ -1,6 +1,6 @@
 # ML noise reduction for RAW files
 
-Status: Shipped 2026-11-05, PR #39. Checks pending: AC13 (owner), the RI-E6 (d) check (Open questions), the designer's on-screen checks M1–M9 in review.md, and the manual parts of AC6–AC10 in status.md.
+Status: Shipped 2026-11-05, PR #39. Checks pending: P1–P9 in qa.md "For a person" (AC13 is P9; the RI-E6 (d) check is P8, which the owner accepted shipping without, 2026-11-06), done under `ui-redesign-onscreen-check`. Design check M9 failed in QA (qa.md Q1; roadmap `loupe-caption-narrow`).
 Slug: ml-denoise
 Roadmap: Shipped
 
