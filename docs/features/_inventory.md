@@ -207,7 +207,7 @@ Abbreviations: P1–P6 = `docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR
 | Capability | What it does | Source |
 |---|---|---|
 | Render engine | Core Image, extended linear Rec. 2020 working space, Display P3 output; pool of contexts | CL Rendering; PROFILING "Real camera RAW files" |
-| Preview cache | Thumbnail and preview tiers, keyed by content hash, render hash, tier, pipeline version (now 6). Machine learning fallback renders are kept in memory for the session only, never on disk | CL; `Preview/PreviewCacheKey.swift:30`; `ml-denoise/status.md` |
+| Preview cache | Thumbnail and preview tiers, keyed by content hash, render hash, tier, pipeline version (now 7). A rendition is kept only under the hash of the stack it was rendered from (`PreviewService.Failure.staleEditStack`), and the editor shows a new hash only after its write lands. Machine learning fallback renders are kept in memory for the session only, never on disk | CL; `Preview/PreviewCacheKey.swift:30`; `ml-denoise/status.md`; `stale-preview-after-save/status.md` (PR #40) |
 
 ## Quality and tooling
 
