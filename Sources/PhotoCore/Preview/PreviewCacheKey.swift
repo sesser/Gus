@@ -26,8 +26,10 @@ public enum PreviewTier: String, Sendable, Hashable, CaseIterable {
 /// so all renditions of a master sit next to each other, and bumping
 /// `currentPipelineVersion` orphans every old file in one folder that can be deleted.
 public struct PreviewCacheKey: Hashable, Sendable, CustomStringConvertible {
-    /// Bump when rendering changes in a way that should invalidate cached previews.
-    public static let currentPipelineVersion = 6
+    /// Bump when rendering changes in a way that should invalidate cached previews,
+    /// or when cached previews may be wrong (7: previews cached under an edit's
+    /// hash before its catalog write landed, stale-preview-after-save).
+    public static let currentPipelineVersion = 7
 
     public let contentHash: String
     public let editStackHash: String

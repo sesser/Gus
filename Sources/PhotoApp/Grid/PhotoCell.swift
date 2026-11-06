@@ -59,8 +59,9 @@ final class PhotoCell: NSCollectionViewItem {
                 guard let self, self.versionID == versionID, self.editStackHash == editStackHash else { return }
                 self.cellView.setImage(image, animated: true)
             } catch {
+                // Stale: a newer stack is saved, and its hash reconfigures the cell.
                 guard let self, self.versionID == versionID, self.editStackHash == editStackHash,
-                      !(error is CancellationError) else { return }
+                      !(error is CancellationError), error as? PreviewService.Failure != .staleEditStack else { return }
                 self.cellView.showUnavailable()
             }
         }
