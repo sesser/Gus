@@ -144,15 +144,28 @@ again; this is how earlier bumps (3 to 6) behaved, and the cache is
 documented as safe to delete. Rendering does not change: no golden was
 updated, `UPDATE_GOLDENS` was never run, and all goldens pass unchanged.
 
+**Owner confirmation pending** (code review Q1, `code-review.md`). The
+reviewer flagged this cost for the owner. `removeObsoletePipelineVersions`
+deletes the whole `v6` folder at launch. Photos on volumes that are offline
+at the first launch after the update then show the unavailable symbol until
+their volume is reconnected, as after bumps 3 to 6. For a library kept
+mostly on external drives, most of the archive goes blank until its drives
+are reconnected.
+
+Main session ruling (2026-11-06): keep the bump. A wrong entry cannot be
+told apart from a right one. Falling back to `v6` for offline masters would
+keep serving looks that may be wrong, and would keep the old folder
+indefinitely. The owner confirms before merge.
+
 ## Build and test
 
 - Baseline at `334312c`: `swift build` clean. `swift test`: 551 tests in 96
   suites passed, 1 known issue (`LiveSessionTests.swift:258`, "Values above
   white survive the cached stages", pre-existing `withKnownIssue`). One
   pre-existing warning: `SmartAlbumTests.swift:165` (unused result).
-- Latest: `swift build` clean, no new warnings. `swift test`: **554 tests in
-  97 suites passed**, 1 known issue (the same). Large-render and camera-RAW
-  suites skipped as usual (environment variables not set).
+- Latest (after the code review fix C1): see "Code review" below.
+  Large-render and camera-RAW suites skipped as usual (environment
+  variables not set).
 - No linter or formatter is configured in the repository.
 
 ### The regression test
@@ -170,9 +183,17 @@ not saved yet":
 - `hdrRenditionsWaitForTheSavedStack`: the same for `hdrImage` at fit and
   full resolution, on a gain-map JPEG with a -2 EV edit.
 - `catalogWritesDecideWhatRenders`: the app's real sequence on an in-memory
-  catalog with the catalog-backed service: the edit's hash before
-  `setEditStack` is stale; after it, the row's hash renders the edit; after
-  an undo to the identity stack, the identity key renders the original.
+  catalog with the catalog-backed service:
+  - The edit's hash before `setEditStack` is stale; after the write, the
+    row's hash renders the edit.
+  - Then an undo to no edits, with the identity hash shown before its write
+    lands. The loupe tier of the identity hash is not cached yet, so the
+    request has to render, and the catalog still holds the edit. It must
+    throw `staleEditStack` and cache nothing. After the identity write it
+    renders the original.
+  - The step uses the uncached `.preview` tier on purpose: the identity
+    thumbnail is already on disk from the first step and would be served
+    without loading a stack (code review C1).
 
 **Proof it failed before the fix.** The first two tests were run against the
 unfixed `PreviewService` (with `#expect(throws: (any Error).self)`, since the
@@ -184,6 +205,20 @@ key; and after the loader switched to the edit, all five renditions
 (thumbnail, preview, 1:1, HDR fit, HDR full) still had the original's level,
 i.e. the old look was served under the new hash, which is QA's report.
 After the fix all three tests pass.
+
+The reviewer then disabled the guard in `PreviewService.stack(_:versionID:for:)`
+(`… || versionID >= 0`): all three tests failed, 16 issues. The undo step of
+`catalogWritesDecideWhatRenders` failed nothing at the time, because it was
+always a disk hit (C1). After the rewrite I disabled the guard the same way:
+that test failed with 6 issues. Two of them (lines 147, 154) are the edit
+step, as before. Four are the undo step:
+- line 161: no error;
+- line 164: the identity preview key cached;
+- lines 167 and 168: the edited look served under the identity hash after
+  the undo.
+
+The guard was then restored (`git checkout`; byte-identical to the committed
+file).
 
 ### Tests changed
 
@@ -233,7 +268,9 @@ every launch.
   from the catalog without waiting for pending writes. Leaving a photo and
   coming back to it within one write's latency can load the stack from before
   the last commit; a commit made then writes those values back, dropping the
-  earlier edit. Not a cache problem; pre-existing; rare.
+  earlier edit. Not a cache problem; pre-existing; rare. The code review
+  (Q2) calls it real data loss. It goes to the product manager as a roadmap
+  bug.
 - Between a commit and its write landing, a path that hands the loupe back to
   its cached renditions without seeding (ending a hover preview with
   `endPreview`, turning Show Original off) shows the previous hash's preview
@@ -241,6 +278,18 @@ every launch.
   could show the stale-cached rendition instead, permanently.
 - The live-frame seed stores a loupe-sized frame in the preview tier's
   memory slot; quality only, memory only.
+
+## Code review (`code-review.md`, 2026-11-06: approve with nits)
+
+| # | Finding | Response |
+| --- | --- | --- |
+| C1 | The undo step of `catalogWritesDecideWhatRenders` checked nothing (identity thumbnail already on disk) | Fixed. The step now requests the uncached `.preview` tier of the identity hash before the identity write: it expects `staleEditStack` and nothing cached, then the original after the write. Checked against a disabled guard (above). |
+| Q1 | Owner: cost of pipeline version 7 | Recorded under the repair decision. Main session ruling: keep the bump. Owner confirmation pending before merge. |
+| Q2 | Product manager: `follow` edit-drop race | Not in this branch's scope; goes to the product manager as a roadmap bug (Notes). |
+
+After C1: `swift build` clean, no new warnings; `swift test` **554 tests in
+97 suites passed**, 1 known issue (the same pre-existing `LiveSessionTests`
+one).
 
 ## Open questions
 

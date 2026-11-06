@@ -136,8 +136,8 @@ struct StalePreviewTests {
             let unedited = try #require(try await catalog.libraryItems(matching: LibraryFilter()).first)
             #expect(unedited.editStackHash == EditStack.identity.renderHash)
             let previews = PreviewService(cacheDirectory: root.appending(path: "cache"), catalog: catalog)
-            func request(_ hash: String) throws -> PreviewRequest {
-                let key = try #require(PreviewCacheKey(contentHash: unedited.contentHash, editStackHash: hash, tier: .thumbnail))
+            func request(_ hash: String, tier: PreviewTier = .thumbnail) throws -> PreviewRequest {
+                let key = try #require(PreviewCacheKey(contentHash: unedited.contentHash, editStackHash: hash, tier: tier))
                 return PreviewRequest(versionID: unedited.versionID, key: key, sourceURL: source)
             }
             let original = try Self.meanLevel(try await previews.image(for: try request(unedited.editStackHash)))
@@ -150,13 +150,22 @@ struct StalePreviewTests {
             try await catalog.setEditStack(edit, forVersion: unedited.versionID)
             let edited = try #require(try await catalog.libraryItems(matching: LibraryFilter()).first)
             #expect(edited.editStackHash == edit.renderHash)
-            #expect(try Self.meanLevel(try await previews.image(for: try request(edited.editStackHash))) > original + 20)
+            let editedLevel = try Self.meanLevel(try await previews.image(for: try request(edited.editStackHash)))
+            #expect(editedLevel > original + 20)
 
-            // Undo back to no edits: the identity key's rendition is still the original.
+            // Undo back to no edits, with the identity hash known before its write
+            // lands. The loupe tier of the identity hash is not cached yet, so it
+            // has to render: from the edit, which must not be kept under that hash.
+            let undoneRequest = try request(EditStack.identity.renderHash, tier: .preview)
+            #expect(!previews.cache.contains(undoneRequest.key))
+            await #expect(throws: PreviewService.Failure.staleEditStack) {
+                _ = try await previews.image(for: undoneRequest)
+            }
+            #expect(!previews.cache.contains(undoneRequest.key))
             try await catalog.setEditStack(.identity, forVersion: unedited.versionID)
-            previews.clearMemory()
-            let undone = try Self.meanLevel(try await previews.image(for: try request(EditStack.identity.renderHash)))
-            #expect(abs(undone - original) < 1)
+            let undone = try Self.meanLevel(try await previews.image(for: undoneRequest))
+            #expect(abs(undone - original) < 3)
+            #expect(undone < editedLevel - 20)
         }
     }
 }
