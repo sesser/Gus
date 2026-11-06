@@ -119,7 +119,7 @@ public struct PresetFile: Codable, Sendable {
     /// The presets, with table identifiers replaced through `tables`.
     public func adjustmentPresets(tables: [String: String] = [:]) -> [AdjustmentPreset] {
         presets.map { preset in
-            var adjustments = Adjustments(stack: preset.settings)
+            var adjustments = Adjustments(presetStack: preset.settings)
             if let identifier = adjustments.lookTable.identifier, let installed = tables[identifier] {
                 adjustments.lookTable.identifier = installed
             }

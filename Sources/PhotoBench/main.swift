@@ -48,6 +48,10 @@ let usage = """
                  the loupe's size, per-module costs, brush rasterization, memory, and the stack's
                  size and hashing time while a stroke is painted.
 
+      denoise    [--size WxH] [--source FILE] [--runs N]
+                 A raw (default a synthetic 6000x4000 DNG with noise) with machine learning noise
+                 reduction off and on: thumbnail, 2560 px preview and full-resolution export times.
+
       blend-error
                  For each local control: the largest difference between blending the adjusted
                  image by alpha and running the module at alpha times the value (test scenes).
@@ -120,6 +124,7 @@ do {
     case "kernels": report = try await KernelBenchmark.run(arguments)
     case "masks": report = try await MaskBenchmark.run(arguments)
     case "blend-error": report = try await BlendErrorReport.run(arguments)
+    case "denoise": report = try await DenoiseBenchmark.run(arguments)
     default:
         print(usage)
         exit(arguments.command == "help" || arguments.flags.contains("help") ? 0 : 64)

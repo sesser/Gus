@@ -167,15 +167,20 @@ enum LibraryCommands {
         }
         let library = try invocation.environment.openLibrary(arguments)
         let id = Int64(arguments.integer("version") ?? 0)
-        guard let version = try await library.catalog.version(id: id) else {
+        guard let details = try await library.catalog.details(forVersion: id) else {
             throw CommandError(.versionNotFound, "No version \(id)")
         }
-        let before = try version.readableEditStack()
+        let before = try details.version.readableEditStack()
         let after: EditStack
         do throws(AdjustmentEdit.Failure) {
             after = try before.applying(edits)
         } catch {
             throw commandError(error)
+        }
+        // Machine learning noise reduction is never stored on a file that is not RAW (PRD R10).
+        if !SupportedFormats.isRaw(pathExtension: (details.image.fileName as NSString).pathExtension),
+           Adjustments(stack: after).asksForMachineLearning, !Adjustments(stack: before).asksForMachineLearning {
+            throw CommandError(.invalidEdit, "noiseReduction.machineLearning applies to RAW files only")
         }
         let dryRun = arguments.flag("dryRun")
         let changed = after != before
@@ -337,6 +342,13 @@ enum LibraryCommands {
             "skippedVideos": JSONValue(summary.skippedVideos),
             "failures": .array(summary.failures.map { failure in
                 ["fileName": .string(failure.fileName), "reason": .string(String(describing: failure.reason))]
+            }),
+            // The written files whose stacks ask for machine learning noise reduction (PRD R13).
+            "machineLearning": .array(summary.machineLearning.map { result in
+                var object = RenderCommands.machineLearningJSON(result.outcome).objectValue ?? [:]
+                object["fileName"] = .string(result.fileName)
+                object["output"] = .string(result.output.path)
+                return .object(object)
             }),
             "settings": try JSONValue(encoding: settings),
         ]

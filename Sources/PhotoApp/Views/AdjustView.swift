@@ -201,20 +201,34 @@ private struct DevelopControls: View {
                     }
                 }
             }
-            if let defaults = editor.rawDefaults, defaults.decoderVersions.count > 1 {
+            if let defaults = editor.rawDefaults, defaults.offeredDecoderVersions.count > 1 {
                 LabeledPopUp(title: String(localized: "Decoder")) {
-                    AppKitPopUp(items: defaults.decoderVersions.reversed().map { version in
-                        .init(title: version == defaults.defaultDecoderVersion
-                                  ? String(localized: "\(version) (default)", comment: "RAW decoder version") : version,
-                              tag: version)
-                    }, selection: editor.adjustments.decode.decoderVersion ?? defaults.defaultDecoderVersion) { tag in
-                        editor.change(String(localized: "Decoder"), phase: .committed) {
-                            $0.decode.decoderVersion = tag == defaults.defaultDecoderVersion ? nil : tag
-                        }
-                    }
+                    decoderPopUp(defaults)
                 }
             }
         }
+    }
+
+    /// A second view of machine learning noise reduction's one state (ml-denoise
+    /// design §4): the machine learning version is selected while it applies,
+    /// otherwise the decoder that renders. It is listed only where it is available.
+    private func decoderPopUp(_ defaults: RawDefaults) -> some View {
+        let status = editor.machineLearning
+        let versions = defaults.offeredDecoderVersions
+        let learned = MachineLearningNoiseReduction.machineLearningVersion(in: versions)
+        let selection = status?.isApplied == true ? learned : nil
+        let isEnabled = status?.decoderChoiceIsEnabled ?? true
+        return AppKitPopUp(items: versions.reversed().map { version in
+            .init(title: version == defaults.defaultDecoderVersion
+                      ? String(localized: "\(version) (default)", comment: "RAW decoder version")
+                      : version == learned ? MachineLearningText.decoderItem(version) : version,
+                  tag: version)
+        }, selection: selection ?? editor.adjustments.decode.decoderVersion ?? defaults.defaultDecoderVersion,
+           isEnabled: isEnabled, help: isEnabled ? nil : MachineLearningText.decoderDimmedHelp) { tag in
+            editor.chooseDecoder(tag)
+        }
+        // SwiftUI sets a hosted control's enabled state from its environment too.
+        .disabled(!isEnabled)
     }
 
     static func lookTitle(_ look: RawDecode.Look) -> String {
@@ -439,14 +453,49 @@ private struct DetailControls: View {
             })
             GroupLabel(.noiseReduction, editor: editor)
             let defaults = editor.rawDefaults
+            if let status = editor.machineLearning, status.state != .notOffered {
+                machineLearningRow(status)
+            }
             VStack(alignment: .leading, spacing: 2) {
                 noiseSlider(String(localized: "Luminance"), \.noiseReduction.luminance,
-                            defaultValue: editor.isRaw ? defaults?.luminanceNoiseReduction ?? 0 : 0)
+                            defaultValue: editor.luminanceNoiseReductionDefault)
                 if editor.isRaw, let color = defaults?.colorNoiseReduction {
-                    noiseSlider(String(localized: "Color"), \.noiseReduction.color, defaultValue: color)
+                    let colorIsAvailable = editor.machineLearning?.colorIsAvailable ?? true
+                    noiseSlider(String(localized: "Color"), \.noiseReduction.color, defaultValue: color,
+                                isEnabled: colorIsAvailable, help: colorIsAvailable ? nil : MachineLearningText.colorHelp)
                 }
             }
             .showsTurnedOff(.noiseReduction, editor: editor)
+        }
+    }
+
+    /// Use machine learning and its caption (ml-denoise design §3): dimmed
+    /// only where it cannot be turned on; the caption says why, or what it does.
+    private func machineLearningRow(_ status: MachineLearningNoiseReduction.Status) -> some View {
+        let caption = MachineLearningText.caption(status.state)
+        return VStack(alignment: .leading, spacing: 2) {
+            AppKitCheckbox(state: status.asks ? .on : .off, label: MachineLearningText.checkBoxTitle,
+                           help: MachineLearningText.checkBoxHelp(status.state), title: MachineLearningText.checkBoxTitle,
+                           isEnabled: status.checkBoxIsEnabled) {
+                editor.setMachineLearning(!status.asks)
+            }
+            .disabled(!status.checkBoxIsEnabled)
+            .frame(minHeight: SliderRow.height)
+            if let caption {
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    if MachineLearningText.showsTriangle(status.state) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .foregroundStyle(.orange)
+                            .accessibilityHidden(true)
+                    }
+                    Text(caption)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.leading, InspectorMetrics.checkBoxTitleInset)
+                .padding(.bottom, 2)
+            }
         }
     }
 
@@ -466,9 +515,9 @@ private struct DetailControls: View {
 
     /// Noise reduction left at nil follows the decoder's default for the camera.
     private func noiseSlider(_ title: String, _ keyPath: WritableKeyPath<Adjustments, Double?>,
-                             defaultValue: Double) -> AdjustSlider {
+                             defaultValue: Double, isEnabled: Bool = true, help: String? = nil) -> AdjustSlider {
         AdjustSlider(title: title, value: editor.adjustments[keyPath: keyPath] ?? defaultValue, range: 0...100,
-                     defaultValue: defaultValue, format: .plain) { value, phase in
+                     defaultValue: defaultValue, format: .plain, isEnabled: isEnabled, help: help) { value, phase in
             editor.change(title, phase: phase) {
                 $0[keyPath: keyPath] = abs(value - defaultValue) < 0.5 ? nil : value
             }

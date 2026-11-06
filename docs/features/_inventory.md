@@ -17,7 +17,7 @@ Markers:
 - No marker: a document states it and the code was spot-checked, or it was
   not contradicted.
 
-Abbreviations: P1–P6 = `docs/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR =
+Abbreviations: P1–P6 = `docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR =
 `docs/UI_REDESIGN.md`; UG = `docs/USER_GUIDE.md`; CL = `CLAUDE.md`.
 
 ## Catalog and library

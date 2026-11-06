@@ -2,6 +2,7 @@ import CoreGraphics
 import Foundation
 import ImageIO
 import os
+import Synchronization
 
 /// Rendered previews on the local disk, keyed by `PreviewCacheKey`.
 ///
@@ -11,9 +12,14 @@ import os
 public final class PreviewDiskCache: Sendable {
     public let root: URL
     private static let log = Logger(subsystem: AppBranding.bundleIdentifier, category: "preview-cache")
+    /// Renditions kept for this session only (`storeForSession`), oldest first.
+    private let sessionOnly = Mutex<[(key: PreviewCacheKey, data: Data, reason: MachineLearningNoiseReduction.Reason?)]>([])
+    /// Bytes of encoded renditions `sessionOnly` keeps at most.
+    public let sessionOnlyLimit: Int
 
-    public init(root: URL) {
+    public init(root: URL, sessionOnlyLimit: Int = 64 << 20) {
         self.root = root
+        self.sessionOnlyLimit = sessionOnlyLimit
     }
 
     public func url(for key: PreviewCacheKey) -> URL {
@@ -21,7 +27,43 @@ public final class PreviewDiskCache: Sendable {
     }
 
     public func contains(_ key: PreviewCacheKey) -> Bool {
-        FileManager.default.fileExists(atPath: url(for: key).path)
+        sessionData(for: key) != nil || FileManager.default.fileExists(atPath: url(for: key).path)
+    }
+
+    /// Keeps a rendition in memory for this session instead of writing it:
+    /// for a render that the same key may not give next time (a stack asking
+    /// for machine learning noise reduction rendered without it, which a
+    /// macOS update or a newly supported camera changes). The oldest are
+    /// dropped past `sessionOnlyLimit` bytes.
+    /// `reason` is why the rendition lacks machine learning noise
+    /// reduction: the loupe shows that state with it (design §15, DQ-3).
+    public func storeForSession(_ data: Data, for key: PreviewCacheKey,
+                                reason: MachineLearningNoiseReduction.Reason? = nil) {
+        let limit = sessionOnlyLimit
+        sessionOnly.withLock { entries in
+            entries.removeAll { $0.key == key }
+            entries.append((key, data, reason))
+            var total = entries.reduce(0) { $0 + $1.data.count }
+            while total > limit, entries.count > 1 {
+                total -= entries.removeFirst().data.count
+            }
+        }
+    }
+
+    private func sessionData(for key: PreviewCacheKey) -> Data? {
+        sessionOnly.withLock { entries in entries.last { $0.key == key }?.data }
+    }
+
+    /// Drops the session-only rendition for `key` (its stack has since
+    /// rendered with machine learning). Touches no file.
+    public func removeSessionOnly(_ key: PreviewCacheKey) {
+        sessionOnly.withLock { $0.removeAll { $0.key == key } }
+    }
+
+    /// Why the session-only rendition for `key` was rendered without the
+    /// machine learning its stack asks for; nil when there is none.
+    public func sessionOnlyReason(for key: PreviewCacheKey) -> MachineLearningNoiseReduction.Reason? {
+        sessionOnly.withLock { entries in entries.last { $0.key == key }?.reason }
     }
 
     /// Writes atomically, so readers never see a partial file.
@@ -43,7 +85,9 @@ public final class PreviewDiskCache: Sendable {
     public func loadImage(for key: PreviewCacheKey, maxPixelSize: Int? = nil,
                           displayColorSpace: CGColorSpace? = nil) -> CGImage? {
         let options = [kCGImageSourceShouldCache: false] as CFDictionary
-        guard let source = CGImageSourceCreateWithURL(url(for: key) as CFURL, options) else { return nil }
+        let source = sessionData(for: key).flatMap { CGImageSourceCreateWithData($0 as CFData, options) }
+            ?? CGImageSourceCreateWithURL(url(for: key) as CFURL, options)
+        guard let source else { return nil }
         let decoded: CGImage?
         if let maxPixelSize, maxPixelSize < key.tier.longEdge {
             let thumbnailOptions: [CFString: Any] = [
@@ -74,11 +118,13 @@ public final class PreviewDiskCache: Sendable {
     }
 
     public func remove(_ key: PreviewCacheKey) {
+        sessionOnly.withLock { $0.removeAll { $0.key == key } }
         try? FileManager.default.removeItem(at: url(for: key))
     }
 
     /// Deletes every cached rendition.
     public func removeAll() throws {
+        sessionOnly.withLock { $0.removeAll() }
         guard FileManager.default.fileExists(atPath: root.path) else { return }
         for item in try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil) {
             try FileManager.default.removeItem(at: item)

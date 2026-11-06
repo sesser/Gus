@@ -33,6 +33,7 @@ public actor SharpeningMapRefiner {
         var context: RenderContext
         /// The decoded master's size, before turns and crop.
         var maskFrameSize: CGSize
+        var machineLearning: MachineLearningNoiseReduction.Outcome
     }
 
     /// - Parameter colorSpace: The display's color space, so frames need no conversion on screen.
@@ -66,7 +67,7 @@ public actor SharpeningMapRefiner {
             let decoded = try PreviewGenerator.decode(source, longEdge: nil, draft: false, settings: settings)
             let image = renderer.sharpeningInput(adjustments, to: decoded.image, context: decoded.context)
             input = Input(key: key, image: try materialize(image), context: decoded.context,
-                          maskFrameSize: decoded.image.extent.size)
+                          maskFrameSize: decoded.image.extent.size, machineLearning: decoded.machineLearning)
         }
         guard let entering = input else { throw PreviewGenerator.Failure.renderFailed }
         try cancellation?.check()
@@ -80,7 +81,7 @@ public actor SharpeningMapRefiner {
                                        hasOverlay: false, adjustments: adjustments,
                                        maskFrameSize: entering.maskFrameSize, scale: 1,
                                        seconds: Double(elapsed.seconds) + Double(elapsed.attoseconds) / 1e18,
-                                       filledCache: filled)
+                                       filledCache: filled, machineLearning: entering.machineLearning)
     }
 
     /// Frees the full-resolution input (the map was hidden).

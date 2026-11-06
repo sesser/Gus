@@ -73,6 +73,8 @@ struct LoupeCanvas: NSViewRepresentable {
         context.coordinator.showLiveFrame(revision: model.editor.frameRevision, active: model.editor.showsLive)
         context.coordinator.showCrop(model.editor.cropSession, image: model.editor.cropImage)
         context.coordinator.showMasks()
+        // Part of the canvas's VoiceOver value (ml-denoise design §8).
+        _ = model.editor.machineLearningNotApplied
         context.coordinator.updateAccessibility()
     }
 
@@ -600,10 +602,12 @@ final class LoupeController: NSObject {
     var accessibilityItem: CatalogItem? { model.focusedItem }
     private var describedValue: String?
 
-    /// "Picked, 13 of 87"; "Sharpening map, Picked, 13 of 87" while the map is on screen.
+    /// "Picked, 13 of 87"; "Sharpening map, Picked, 13 of 87" while the map is on screen;
+    /// "Picked, Machine learning not applied, 13 of 87" (ml-denoise design §8).
     var accessibilityValue: String? {
         guard let item = accessibilityItem, let index = model.focusIndex else { return nil }
-        let value = PhotoAccessibility.loupeValue(for: item, offline: model.isOffline(item), index: index,
+        let notes = model.editor.machineLearningNotApplied == nil ? [] : [MachineLearningText.canvasValue]
+        let value = PhotoAccessibility.loupeValue(for: item, offline: model.isOffline(item), notes: notes, index: index,
                                                   count: model.items.count)
         guard let map = model.editor.shownSharpeningMap else { return value }
         return SharpeningMapText.canvasValue(map, photoValue: value)
@@ -913,21 +917,23 @@ struct LoupeCaption: View {
             // The map takes Original's place; the two are never on screen together.
             if let map = model.editor.shownSharpeningMap {
                 CaptionBadge(title: SharpeningMapText.badge(map), help: SharpeningMapText.badgeHelp(map))
-                if model.editor.isRefiningSharpeningMap {
-                    let label = String(localized: "Refining the sharpening map",
-                                       comment: "Tooltip and VoiceOver label of the loupe caption's spinner")
-                    ProgressView()
-                        .controlSize(.mini)
-                        .help(label)
-                        .accessibilityLabel(label)
-                }
             } else if model.editor.showsOriginal {
                 CaptionBadge(title: String(localized: "Original"),
                              help: String(localized: "Showing the photo without adjustments. Press \\ to show them again."))
             }
+            // One spinner in one slot; the map's label wins when both wait (ml-denoise design §6).
+            if let label = spinnerLabel {
+                ProgressView()
+                    .controlSize(.mini)
+                    .help(label)
+                    .accessibilityLabel(label)
+            }
             if let headroom = model.loupeHDRHeadroom {
                 CaptionBadge(title: String(localized: "HDR"),
                              help: String(localized: "Highlights up to \(headroom.formatted(.number.precision(.fractionLength(1))))× SDR white are shown with the display's extended range"))
+            }
+            if let reason = model.editor.machineLearningNotApplied {
+                CaptionBadge(title: MachineLearningText.badge, help: MachineLearningText.badgeHelp(reason))
             }
             if model.isOffline(item) {
                 CaptionBadge(title: String(localized: "Offline"),
@@ -939,6 +945,18 @@ struct LoupeCaption: View {
                     .padding(.leading, 2)
             }
         }
+    }
+}
+
+extension LoupeCaption {
+    /// The caption spinner's label: the sharpening map's refinement, or a
+    /// machine learning frame the loupe has waited on for more than 0.5 s.
+    var spinnerLabel: String? {
+        if model.editor.shownSharpeningMap != nil, model.editor.isRefiningSharpeningMap {
+            return String(localized: "Refining the sharpening map",
+                          comment: "Tooltip and VoiceOver label of the loupe caption's spinner")
+        }
+        return model.editor.isAwaitingMachineLearningFrame ? MachineLearningText.spinner : nil
     }
 }
 

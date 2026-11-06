@@ -26,7 +26,13 @@ public struct ExportRenderer: Sendable {
 
     /// The final image, at the origin, in the working space.
     func image(source: URL, stack: EditStack, settings: ExportSettings) throws -> CIImage {
-        let rendered = try generator.image(source: source, stack: stack, longEdge: nil)
+        try rendering(source: source, stack: stack, settings: settings).image
+    }
+
+    /// The final image and what the decoder did with a machine learning request.
+    func rendering(source: URL, stack: EditStack, settings: ExportSettings) throws -> PreviewGenerator.Rendering {
+        let rendering = try generator.rendering(source: source, stack: stack, longEdge: nil)
+        let rendered = rendering.image
         let extent = rendered.extent
         var image = rendered.transformed(by: CGAffineTransform(translationX: -extent.minX, y: -extent.minY))
         let size = ExportSizing.outputSize(for: extent.size, settings: settings)
@@ -40,14 +46,17 @@ public struct ExportRenderer: Sendable {
         if let watermark = settings.activeWatermark {
             image = try watermarked(image, size: size, watermark: watermark)
         }
-        return image.cropped(to: target)
+        return PreviewGenerator.Rendering(image: image.cropped(to: target), machineLearning: rendering.machineLearning)
     }
 
     /// Renders and writes one file to `url`, replacing what is there only when
-    /// `replacing`. The file appears complete or not at all.
+    /// `replacing`. The file appears complete or not at all. Returns what the
+    /// decoder did with a machine learning request.
+    @discardableResult
     public func export(source: URL, stack: EditStack, values: SidecarValues, settings: ExportSettings,
-                       to url: URL, replacing: Bool) throws {
-        let image = try image(source: source, stack: stack, settings: settings)
+                       to url: URL, replacing: Bool) throws -> MachineLearningNoiseReduction.Outcome {
+        let rendering = try rendering(source: source, stack: stack, settings: settings)
+        let image = rendering.image
         guard let cgImage = generator.engine.makeCGImage(image, colorSpace: settings.colorSpace.cgColorSpace,
                                                          bitsPerComponent: settings.bitsPerComponent)
         else { throw Failure.renderFailed }
@@ -55,6 +64,7 @@ public struct ExportRenderer: Sendable {
             .flatMap { CGImageSourceCopyPropertiesAtIndex($0, 0, nil) as? [CFString: Any] } ?? [:]
         let metadata = ExportMetadata.make(source: sourceProperties, values: values, settings: settings)
         try Self.write(cgImage, metadata: metadata, settings: settings, to: url, replacing: replacing)
+        return rendering.machineLearning
     }
 
     // MARK: Steps

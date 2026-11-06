@@ -22,9 +22,15 @@ made it the Idea row sharpen-masking-scale. It merged in PR #37 the same day
 and moved to Shipped. Its manual checks M1–M9 are still open, by the owner's
 choice ("Shipped, checks pending").
 
+2026-11-05: specified ml-denoise (owner accepted every intake default) and
+moved it to the top of Next; added classical-noise-strength. Both come from
+issue #35.
+
 Where specs live: new features get `docs/features/<slug>/`. The phase plans
-(`docs/PHASE1_PLAN.md` … `PHASE6_PLAN.md`) and `docs/UI_REDESIGN.md` stay
-where they are as the historical record (owner, 2026-11-04).
+(`docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`) and `docs/UI_REDESIGN.md`
+stay as the historical record (owner, 2026-11-04). Bare `PHASE<n>_PLAN.md`
+names below refer to `docs/archive/` (the plans moved there; path corrected
+2026-11-05).
 
 ## Vision and principles
 
@@ -71,6 +77,8 @@ Order is my proposal, not owner-confirmed.
 
 | Slug | Problem | Status | Why this order | Source |
 |------|---------|--------|----------------|--------|
+| ml-denoise | Noise reduction is classical only and mild at 100; no on-device ML option for RAW files | In progress | Owner, 2026-11-05: top of Next. Open bug report (#35), and the slice is small: Apple's macOS 27 RAW 9 decoder, no model to ship. [`features/ml-denoise/`](features/ml-denoise/) | Issue #35; CLAUDE.md Not yet; `PHASE3_PLAN.md` out of scope |
+| classical-noise-strength | The classical noise sliders (RAW decoder and Core Image filter) are mild at 100; the non-RAW filter runs after the vignette and ignores preview scale | Idea | Owner, 2026-11-05: split out of ml-denoise. The only noise fix for JPEG/HEIC. Changes existing edits' rendering (pipeline bump, goldens); intake must decide whether existing stacks keep their look | Issue #35; `PHASE6_PLAN.md` finding 6; `ml-denoise/prd.md` Non-goals |
 | local-sharpen-group-off | Turning the Sharpening group off makes local Sharpness use the default Radius 1, Detail 25 and Masking 0 instead of the user's values, so it starts sharpening noise (`Adjustments.effective` resets the group) | Idea | Next to sharpen-mask-preview because it concerns the same code and changes saved renders unexpectedly. Owner to decide the intent: should local Sharpness keep the user's Radius, Detail and Masking, or turn off with the group? Any fix is a rendering change that needs a `PreviewCacheKey.currentPipelineVersion` bump and golden updates | Designer RI-2 on sharpen-mask-preview; owner ruling 2026-11-05 ("Roadmap item to decide"). `AdjustmentRenderer.swift:193-194` |
 | sharpen-masking-scale | Masking holds back much more noise at fit than in a full-size export: on a noisy flat area at Masking 30, about 50% of the sharpening at fit (scale 0.43) against about 93% at full size. So the loupe at fit understates the sharpened noise an export gets | Idea | Placed after local-sharpen-group-off: same sharpening code, and both are rendering changes, so one pipeline bump could cover both. Any fix is a rendering change that needs a `PreviewCacheKey.currentPipelineVersion` bump and golden updates. Not urgent, because once input pauses the sharpening map already shows the full-size result | Engineer's finding on sharpen-mask-preview (PRD Q5: M4 Pro debug build, synthetic noisy 6000 × 4000 DNG); owner ruling 2026-11-05 ("Add Idea row") |
 | edit-history | No way to see or jump back to an earlier state of a photo's edits | Idea | Intake before any spec (owner, 2026-11-04). Need: see a photo's edit steps and return to an earlier one. Open for the owner: does history survive relaunch. Placement and keys belong to design, not the PRD: issue #26's ⌘Y redo and left-sidebar placement are proposals, and they conflict with the shipped ⇧⌘Z (the HIG's standard redo) and a sidebar that holds sources (UIR §3). RI-6 | Issue #26; `ui-redesign/design.md` RI-6 |
@@ -92,7 +100,6 @@ the gap. Ordering below the first row is judgment.
 | healing | No spot removal or healing | Idea | Phase 5's test loop was built with healing and lens corrections in mind | CLAUDE.md Not yet; `PHASE5_PLAN.md` intro; `PHASE6_PLAN.md` out of scope |
 | lens-corrections | No distortion, vignetting or chromatic aberration correction | Idea | Interacts with the decoder's own lens correction on camera-cropped raws | CLAUDE.md Not yet; `PHASE6_PLAN.md` finding 1 |
 | ai-masks | No subject, sky, object or people masks | Idea | | CLAUDE.md Not yet; `PHASE6_PLAN.md` out of scope |
-| ml-denoise | Noise reduction is classical only | Idea | | CLAUDE.md Not yet; `PHASE3_PLAN.md` out of scope |
 | dcp-profiles | Adobe `.dcp` camera profiles not supported | Idea | | CLAUDE.md Not yet; `PHASE3_PLAN.md` out of scope |
 | stacks | No hand-made or burst stacks | Idea | `stack` / `stackMember` tables and `Catalog.createStack` exist, no UI | CLAUDE.md Not yet; `PHASE2_PLAN.md` out of scope |
 | virtual-copies | No second version of a photo with different edits | Idea | `Catalog.duplicateVersion` exists, no UI | Issue #26 ("future feature") |

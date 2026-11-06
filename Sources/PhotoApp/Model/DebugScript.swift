@@ -110,7 +110,7 @@ enum DebugScript {
             // click moves focus, which saves a crop being edited.
             let changing: Set<String> = ["key", "addkeywords", "text", "pairfile", "accept", "album", "smartalbum", "remove",
                                          "adjust", "lut", "pasteadjust", "preset", "menupick", "lutwindow", "metadata",
-                                         "menupress", "contextmenu", "filmstripclick"]
+                                         "menupress", "contextmenu", "filmstripclick", "ml"]
             for command in commands where !command.isEmpty {
                 let words = command.split(separator: " ")
                 // "accessibility <role> <n> <action>" runs an action; listing changes nothing.
@@ -376,6 +376,8 @@ enum DebugScript {
             await DebugMetadataCommands.run(verb, rest, model: model)
         case "adjust":
             await DebugAdjustCommands.run(rest, editor: model.editor)
+        case "ml":
+            await DebugMachineLearningCommands.run(rest, model: model)
         case "export":
             await DebugExportCommands.run(rest, model: model)
         case "lut", "lutimport", "luts", "lutwindow":
@@ -535,6 +537,8 @@ enum DebugScript {
                 model.loupeFitCount = 0
             } else if rest.first == "metadata" {
                 await DebugMetadataCommands.printSummary(model: model)
+            } else if rest.first == "ml" {
+                DebugMachineLearningCommands.printState(model: model, window: window)
             } else {
                 printState(rest.first ?? "", model: model)
             }

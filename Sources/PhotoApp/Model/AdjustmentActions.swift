@@ -1,4 +1,5 @@
 import AppKit
+import Synchronization
 import PhotoCore
 
 extension LibraryModel {
@@ -46,20 +47,36 @@ extension LibraryModel {
     }
 
     /// As above, with each version's id, for changes that differ per photo.
+    ///
+    /// Machine learning noise reduction reaches raw files only (ml-denoise
+    /// R10): a file that is not RAW gets the other values, and an Activity
+    /// row says how many were left without it.
     func changeAdjustments(ofVersions ids: [Int64], actionName: String,
                            _ transform: @escaping @Sendable (Int64, Adjustments) -> Adjustments) {
         guard !ids.isEmpty else { return }
         let change = Pending<(before: [Int64: EditStack], after: [Int64: EditStack])>()
         let skipped = Pending<Int>()
         let catalog = self.catalog
+        let notRaw = Set(ids.filter { item(versionID: $0).map { $0.fileKind != .raw } ?? false })
+        let leftOff = LeftOffCounter()
+        let rawOnly: @Sendable (Int64, Adjustments) -> Adjustments = { id, values in
+            let changed = transform(id, values)
+            guard notRaw.contains(id), changed.asksForMachineLearning else { return changed }
+            leftOff.add(id)
+            return changed.forNonRawFile()
+        }
         persist {
             // Stacks this build cannot read are left as they are (a newer build's edits).
-            let result = try await catalog.changeEditStacks(ofVersions: ids, transform)
+            let result = try await catalog.changeEditStacks(ofVersions: ids, rawOnly)
             change.value = (result.before, result.after)
             skipped.value = result.unreadable.count
         }
         afterPendingWrites { model in
             if let value = change.value { model.showEditStacks(value.after) }
+            let count = leftOff.count
+            if count > 0 {
+                model.report(MachineLearningText.leftOffForNonRaw(count), action: actionName)
+            }
             if let count = skipped.value, count > 0 {
                 model.report(String(localized: "\(count) photos were left unchanged: their edits can't be changed in this version.",
                                     comment: "Activity, after a batch adjustment: stacks this build cannot read"),
@@ -92,4 +109,14 @@ extension LibraryModel {
             editor.catalogChanged(stack, forVersion: id)
         }
     }
+}
+
+/// The files a batch left without machine learning noise reduction, counted
+/// inside the catalog's write (any thread).
+private final class LeftOffCounter: Sendable {
+    private let ids = Mutex<Set<Int64>>([])
+
+    func add(_ id: Int64) { ids.withLock { _ = $0.insert(id) } }
+
+    var count: Int { ids.withLock { $0.count } }
 }

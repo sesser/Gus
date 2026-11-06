@@ -22,7 +22,9 @@ public struct AdjustmentPreset: Hashable, Sendable, Identifiable {
         self.name = name
         self.collection = collection
         self.groups = groups
-        self.adjustments = Adjustments.none.replacing(groups, from: adjustments)
+        // `copying` keeps a legacy machine learning decoder in Profile, so the
+        // preset still turns it on when applied (`replacing`).
+        self.adjustments = Adjustments.none.copying(groups, from: adjustments)
     }
 
     public var includesEveryGroup: Bool { groups == Set(Adjustments.Group.allCases) }
@@ -104,7 +106,7 @@ extension Catalog {
                     return AdjustmentPreset(id: record.id, uuid: record.uuid, name: record.name,
                                             collection: record.collection,
                                             groups: AdjustmentPreset.decodeGroups(record.groups),
-                                            adjustments: Adjustments(stack: stack))
+                                            adjustments: Adjustments(presetStack: stack))
                 }
         }
     }

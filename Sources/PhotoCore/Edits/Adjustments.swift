@@ -42,16 +42,40 @@ public struct Adjustments: Hashable, Sendable {
     public static let none = Adjustments()
 
     public init(stack: EditStack) {
+        self.init(stack: stack, keepsLegacyDecoder: false)
+    }
+
+    /// The values of a preset's stored stack. Unlike a photo's, a preset
+    /// saved before machine learning noise reduction had its own setting
+    /// keeps a machine learning decoder in its Profile group
+    /// (`RawDecode.legacyMachineLearningVersion`), so it still turns it on
+    /// when applied and is saved back as it was (PRD R3).
+    public init(presetStack stack: EditStack) {
+        self.init(stack: stack, keepsLegacyDecoder: true)
+    }
+
+    private init(stack: EditStack, keepsLegacyDecoder: Bool) {
         var seen = Set<EditOperationKind>()
+        var decoderIsEnabled = true
         for operation in stack.operations {
             guard operation.kindVersion == 1, !seen.contains(operation.kind), read(operation) else {
                 preserved.append(operation)
                 continue
             }
             seen.insert(operation.kind)
+            if operation.kind == RawDecode.kind { decoderIsEnabled = operation.isEnabled }
             if !operation.isEnabled, !parameters(of: operation.kind).isEmpty {
                 disabled.insert(operation.kind)
             }
+        }
+        if !keepsLegacyDecoder, decode.legacyMachineLearningVersion != nil {
+            // A stack saved before the setting existed, with the machine
+            // learning decoder chosen in Profile: machine learning on, Profile
+            // at the default (PRD R3). When Profile was turned off the decoder
+            // did not apply, so nothing is turned on.
+            decode.legacyMachineLearningVersion = nil
+            if decoderIsEnabled { noiseReduction.machineLearning = true }
+            if parameters(of: RawDecode.kind).isEmpty { disabled.remove(RawDecode.kind) }
         }
     }
 
@@ -191,7 +215,22 @@ public struct Adjustments: Hashable, Sendable {
 
     /// These adjustments with the modules of `groups` taken from `source`
     /// (values and on/off); everything else, unknown operations included, stays.
+    ///
+    /// A source read from a preset saved before machine learning noise
+    /// reduction had its own setting, whose Profile group chose the machine
+    /// learning decoder, turns it on when Profile is replaced, and changes
+    /// nothing else in Noise Reduction (PRD R3).
     public func replacing(_ groups: Set<Group>, from source: Adjustments) -> Adjustments {
+        var copy = copying(groups, from: source)
+        if copy.decode.legacyMachineLearningVersion != nil {
+            copy.decode.legacyMachineLearningVersion = nil
+            copy.noiseReduction.machineLearning = true
+        }
+        return copy
+    }
+
+    /// As `replacing`, keeping a legacy machine learning decoder as it is (a preset's own values).
+    func copying(_ groups: Set<Group>, from source: Adjustments) -> Adjustments {
         var copy = self
         for kind in groups.flatMap(\.kinds) { copy.copyModule(kind, from: source) }
         return copy
@@ -341,8 +380,17 @@ public struct RawDecode: AdjustmentModule {
     }
 
     public var look = Look.standard
-    /// One of the decoder's `supportedDecoderVersions`, or nil for its default.
+    /// One of the decoder's `supportedDecoderVersions` other than the machine
+    /// learning one, or nil for its default (pinned below the machine
+    /// learning version, `MachineLearningNoiseReduction.pinnedVersion`).
+    /// Used while machine learning noise reduction is off or cannot apply.
     public var decoderVersion: String?
+    /// The machine learning decoder version a preset saved before
+    /// `NoiseReduction.machineLearning` existed chose here; nil otherwise.
+    /// Kept only in presets' values (`Adjustments(presetStack:)`), where it
+    /// is saved back as `decoderVersion`; a photo's values read it as
+    /// machine learning on.
+    public var legacyMachineLearningVersion: String?
 
     public init(look: Look = .standard, decoderVersion: String? = nil) {
         self.look = look
@@ -351,13 +399,18 @@ public struct RawDecode: AdjustmentModule {
 
     init(_ values: ParameterValues) {
         look = values.string("look").flatMap(Look.init(rawValue:)) ?? .standard
-        decoderVersion = values.string("decoderVersion")
+        let version = values.string("decoderVersion")
+        if let version, MachineLearningNoiseReduction.isMachineLearningVersion(version) {
+            legacyMachineLearningVersion = version
+        } else {
+            decoderVersion = version
+        }
     }
 
     public var parameters: [String: EditParameter] {
         var out = ParameterBuilder()
         out.set("look", look.rawValue, default: Look.standard.rawValue)
-        out.set("decoderVersion", decoderVersion)
+        out.set("decoderVersion", legacyMachineLearningVersion ?? decoderVersion)
         return out.values
     }
 }
@@ -906,23 +959,30 @@ public struct NoiseReduction: AdjustmentModule {
     public static let kind: EditOperationKind = "noiseReduction"
 
     public var luminance: Double?
-    /// RAW only.
+    /// RAW only. Not used while machine learning applies (the decoder ignores it).
     public var color: Double?
+    /// RAW only: decode with the RAW decoder's machine learning model
+    /// (`MachineLearningNoiseReduction`), `luminance` being its amount. Off
+    /// unless chosen; kept where it cannot apply.
+    public var machineLearning = false
 
-    public init(luminance: Double? = nil, color: Double? = nil) {
+    public init(luminance: Double? = nil, color: Double? = nil, machineLearning: Bool = false) {
         self.luminance = luminance
         self.color = color
+        self.machineLearning = machineLearning
     }
 
     init(_ values: ParameterValues) {
         luminance = values.optionalNumber("luminance")
         color = values.optionalNumber("color")
+        machineLearning = values.bool("machineLearning", default: false)
     }
 
     public var parameters: [String: EditParameter] {
         var out = ParameterBuilder()
         out.set("luminance", luminance)
         out.set("color", color)
+        out.set("machineLearning", machineLearning, default: false)
         return out.values
     }
 }
@@ -989,6 +1049,11 @@ struct ParameterValues {
         return nil
     }
 
+    func bool(_ key: String, default value: Bool) -> Bool {
+        if case .bool(let stored)? = raw[key] { return stored }
+        return value
+    }
+
     /// A flat `[x0, y0, x1, y1, …]` list.
     func points(_ key: String) -> [CurvePoint]? {
         guard case .list(let list)? = raw[key] else { return nil }
@@ -1021,5 +1086,9 @@ struct ParameterBuilder {
 
     mutating func set(_ key: String, _ value: String?) {
         if let value { values[key] = .string(value) }
+    }
+
+    mutating func set(_ key: String, _ value: Bool, default defaultValue: Bool) {
+        if value != defaultValue { values[key] = .bool(value) }
     }
 }

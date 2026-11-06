@@ -30,13 +30,24 @@ public struct PreviewGenerator: Sendable {
     /// The lazy Core Image graph for `source` rendered with `stack`, no larger than
     /// `longEdge` pixels (nil for full resolution).
     public func image(source: URL, stack: EditStack, longEdge: Int?, draft: Bool = false) throws -> CIImage {
+        try rendering(source: source, stack: stack, longEdge: longEdge, draft: draft).image
+    }
+
+    /// A lazy render and what the decoder did with the stack's machine learning request.
+    public struct Rendering {
+        public var image: CIImage
+        public var machineLearning: MachineLearningNoiseReduction.Outcome
+    }
+
+    /// As `image`, with the machine learning outcome of the decode.
+    public func rendering(source: URL, stack: EditStack, longEdge: Int?, draft: Bool = false) throws -> Rendering {
         let decoded = try Self.decode(source, longEdge: decodeLongEdge(source, stack: stack, longEdge: longEdge),
                                       draft: draft, settings: renderer.decodeSettings(for: stack))
         var image = try renderer.apply(stack, to: decoded.image, context: decoded.context)
         if let longEdge {
             image = image.scaledToFit(longEdge: longEdge)
         }
-        return image
+        return Rendering(image: image, machineLearning: decoded.machineLearning)
     }
 
     /// Encoded rendition for the disk cache.
@@ -47,10 +58,16 @@ public struct PreviewGenerator: Sendable {
 
     /// Several tiers from a single decode at the largest tier's size.
     public func jpegData(source: URL, stack: EditStack, tiers: Set<PreviewTier>) throws -> [PreviewTier: Data] {
-        guard let largest = tiers.max(by: { $0.longEdge < $1.longEdge }) else { return [:] }
-        let base = try image(source: source, stack: stack, longEdge: largest.longEdge,
-                             draft: tiers.allSatisfy(\.allowsDraftDecode))
-        return try encode(base, tiers: tiers)
+        try encodedRendering(source: source, stack: stack, tiers: tiers).data
+    }
+
+    /// As `jpegData`, with the machine learning outcome of the decode.
+    public func encodedRendering(source: URL, stack: EditStack, tiers: Set<PreviewTier>) throws
+        -> (data: [PreviewTier: Data], machineLearning: MachineLearningNoiseReduction.Outcome) {
+        guard let largest = tiers.max(by: { $0.longEdge < $1.longEdge }) else { return ([:], .notRequested) }
+        let base = try rendering(source: source, stack: stack, longEdge: largest.longEdge,
+                                 draft: tiers.allSatisfy(\.allowsDraftDecode))
+        return (try encode(base.image, tiers: tiers), base.machineLearning)
     }
 
     /// Tiers from an already decoded frame (a video's poster frame).
@@ -128,6 +145,7 @@ public struct PreviewGenerator: Sendable {
     public struct Decoded {
         public var image: CIImage
         public var context: RenderContext
+        public var machineLearning: MachineLearningNoiseReduction.Outcome = .notRequested
     }
 
     /// Decodes a master into the working space, oriented, at roughly `longEdge`.
@@ -136,16 +154,40 @@ public struct PreviewGenerator: Sendable {
     /// (and in draft mode) for small targets, and applies the stack's decode
     /// settings. Everything else is decoded by ImageIO, which downsamples during
     /// decode when a size is given.
+    ///
+    /// A machine learning request that cannot apply, or whose decode gives
+    /// no image, decodes with the classical decoder instead and says why in
+    /// `Decoded.machineLearning`.
     static func decode(_ url: URL, longEdge: Int?, draft: Bool, extendedRange: Bool = false,
                        settings: RAWDecodeSettings = .none) throws -> Decoded {
-        let wholeSensor = settings.fullFrame && SupportedFormats.isRaw(pathExtension: url.pathExtension)
-            ? CameraFrame.fullFrameFilter(for: url) : nil
-        if SupportedFormats.isRaw(pathExtension: url.pathExtension),
-           let raw = wholeSensor ?? CIRAWFilter(imageURL: url) {
+        let isRaw = SupportedFormats.isRaw(pathExtension: url.pathExtension)
+        if isRaw, settings.machineLearning {
+            if let decoded = decodeRAW(url, longEdge: longEdge, draft: draft, extendedRange: extendedRange,
+                                       settings: settings) {
+                return decoded
+            }
+            // The machine learning decode gave no image: the classical one instead.
+            var fallback = try decode(url, longEdge: longEdge, draft: draft, extendedRange: extendedRange,
+                                      settings: settings.classical)
+            fallback.machineLearning = .notApplied(.failed)
+            return fallback
+        }
+        if isRaw, let decoded = decodeRAW(url, longEdge: longEdge, draft: draft, extendedRange: extendedRange,
+                                          settings: settings) {
+            return decoded
+        }
+        return try decodeWithImageIO(url, longEdge: longEdge)
+    }
+
+    /// The RAW decoder's image, or nil when it gives none.
+    private static func decodeRAW(_ url: URL, longEdge: Int?, draft: Bool, extendedRange: Bool,
+                                  settings: RAWDecodeSettings) -> Decoded? {
+        let wholeSensor = settings.fullFrame ? CameraFrame.fullFrameFilter(for: url) : nil
+        if let raw = wholeSensor ?? CIRAWFilter(imageURL: url) {
             if extendedRange {
                 raw.extendedDynamicRangeAmount = 1
             }
-            settings.apply(to: raw)
+            let outcome = settings.apply(to: raw, source: url)
             let native = raw.nativeSize
             if let longEdge, native.width > 0, native.height > 0 {
                 let scale = Double(longEdge) / Double(max(native.width, native.height))
@@ -162,10 +204,15 @@ public struct PreviewGenerator: Sendable {
             if let output = raw.outputImage, !output.extent.isEmpty {
                 return Decoded(image: output, context: RenderContext(scale: Self.scale(of: output, native: native),
                                                                      isRaw: true,
-                                                                     cameraFrame: wholeSensor == nil ? nil : CameraFrame.rect(of: url)))
+                                                                     cameraFrame: wholeSensor == nil ? nil : CameraFrame.rect(of: url)),
+                               machineLearning: outcome)
             }
         }
+        return nil
+    }
 
+    /// Everything that is not RAW, and RAW files the RAW decoder gives no image for.
+    private static func decodeWithImageIO(_ url: URL, longEdge: Int?) throws -> Decoded {
         let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
         guard let source = CGImageSourceCreateWithURL(url as CFURL, sourceOptions),
               CGImageSourceGetCount(source) > 0

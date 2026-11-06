@@ -948,6 +948,7 @@ extension Adjustments {
             settings.extendedDynamicRange = 1
         }
         settings.decoderVersion = decode.decoderVersion
+        settings.machineLearning = noiseReduction.machineLearning || decode.legacyMachineLearningVersion != nil
         settings.luminanceNoiseReduction = noiseReduction.luminance.map { Float($0 / 100) }
         settings.colorNoiseReduction = noiseReduction.color.map { Float($0 / 100) }
         return settings
