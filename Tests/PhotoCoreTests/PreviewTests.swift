@@ -83,7 +83,8 @@ struct PreviewPipelineTests {
             #expect(cache.loadImage(for: key, maxPixelSize: 128)?.width == 128)
             #expect(cache.diskUsage() > 0)
 
-            let old = try #require(PreviewCacheKey(contentHash: hashA, editStackHash: hashB, tier: .thumbnail, pipelineVersion: 7))
+            let old = try #require(PreviewCacheKey(contentHash: hashA, editStackHash: hashB, tier: .thumbnail,
+                                                   pipelineVersion: PreviewCacheKey.currentPipelineVersion - 1))
             try cache.store(Data([1, 2, 3]), for: old)
             cache.removeObsoletePipelineVersions()
             #expect(cache.contains(key))
