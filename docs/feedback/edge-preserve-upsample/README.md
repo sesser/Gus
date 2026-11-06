@@ -2,7 +2,7 @@
 
 For Feedback Assistant: Developer Technologies & SDKs ▸ macOS ▸ Core Image.
 Attach `repro.swift`. The project's test that found it is
-`LiveSessionTests.aboveWhite` (finding 6 in `docs/PHASE6_PLAN.md`).
+`LiveSessionTests.aboveWhite` (finding 6 in `docs/archive/PHASE6_PLAN.md`).
 
 ## Title
 

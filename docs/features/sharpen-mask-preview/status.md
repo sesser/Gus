@@ -95,7 +95,8 @@ debug build, timed through reading the pixels back:
 ## Acceptance criteria and design checks
 
 "Script" is a debug-script run on the scratch library; "Manual" still needs a
-person at the bundled app.
+person at the bundled app. These are the results at shipping; checks QA
+closed afterwards are listed under QA below.
 
 | Item | How | Result |
 |---|---|---|
@@ -130,27 +131,71 @@ person at the bundled app.
 
 ## Open manual checks (after shipping)
 
-Accepted as open by the owner when the feature shipped (2026-11-05).
+Accepted as open by the owner when the feature shipped (2026-11-05). QA
+(2026-11-06) closed some of them by script; the States below say which, and
+what is left for a person is [`qa.md`](qa.md) P1–P8.
 
-- **Active-window `menuitems` (DR1, AC12).** Run `menuitems Sharpening`
-  with the app key (`open -W -n --stdout <log> …`) on an editable loupe
-  photo (enabled; the title flips after `menupress`), during a crop, and
-  for a video, an offline master and an unreadable stack (dimmed). Not
-  confirmed: macOS would not activate the app at those points in two runs.
+- **Active-window `menuitems` (DR1, AC12).** Closed by QA (DR1; scripts
+  o1, o2, o3, with `key AppKitWindow` at every point). As raised: run
+  `menuitems Sharpening` with the app key (`open -W -n --stdout <log> …`)
+  on an editable loupe photo (enabled; the title flips after `menupress`),
+  during a crop, and for a video, an offline master and an unreadable stack
+  (dimmed). Not confirmed: macOS would not activate the app at those points
+  in two runs.
 
 ### Designer review M1–M9 (`review.md`)
 
 | # | Check | Covers | State |
 |---|---|---|---|
-| M1 | Keyboard only: show from Help search, step Masking in its value field, Esc twice; with Keyboard Navigation on, Tab from Masking's value field to the toggle, then Space | DR3, AC5 | Pending |
-| M2 | On macOS 26, the toggle's bezel matches the Original toggle's height and style in both layouts (frame measured 20 and 24 pt); if taller, pin it to its intrinsic height | DR2, D-Q2 | Pending |
-| M3 | VoiceOver: the toggle speaks its name and state; the canvas actions offer Show / Hide Sharpening Map; announcements are spoken, with no two overlapping utterances when shown from the menu | DR4, AC5 | Pending |
-| M4 | Real compressed 24 MP raw: no spinner during a drag; after release only if the exact map takes over 0.5 s; the map darkens progressively while dragging and with keyboard steps | DR7, AC4 | Pending |
-| M5 | EDR display, HDR photo: the map's white matches the interface's; the HDR badge is hidden while it is shown | DR11, AC13 | Pending |
-| M6 | Increase Contrast and Reduce Motion: badge and legend legible, no animated transition | DR12 | Pending |
-| M7 | A film strip click ends the map; with a brush mask selected and the map shown, a drag pans and doesn't paint | DR8, AC9 | Pending |
-| M8 | The map shows at fit, 100 % and 400 % | AC6 | Pending (script showed fit and 100 %) |
-| M9 | Real photos with smooth areas at the frame's edge: is the black map edge findable against the surround? If not, a follow-up design change | design §5 | Pending |
+| M1 | Keyboard only: show from Help search, step Masking in its value field, Esc twice; with Keyboard Navigation on, Tab from Masking's value field to the toggle, then Space | DR3, AC5 | Pending (qa.md P1; QA scripted the menu, ↑/↓ and the Esc order) |
+| M2 | On macOS 26, the toggle's bezel matches the Original toggle's height and style in both layouts (frame measured 20 and 24 pt); if taller, pin it to its intrinsic height | DR2, D-Q2 | Pending (qa.md P2) |
+| M3 | VoiceOver: the toggle speaks its name and state; the canvas actions offer Show / Hide Sharpening Map; announcements are spoken, with no two overlapping utterances when shown from the menu | DR4, AC5 | Pending (qa.md P3) |
+| M4 | Real compressed 24 MP raw: no spinner during a drag; after release only if the exact map takes over 0.5 s; the map darkens progressively while dragging and with keyboard steps | DR7, AC4 | Pending (qa.md P4) |
+| M5 | EDR display, HDR photo: the map's white matches the interface's; the HDR badge is hidden while it is shown | DR11, AC13 | Pending (qa.md P5) |
+| M6 | Increase Contrast and Reduce Motion: badge and legend legible, no animated transition | DR12 | Pending (qa.md P6) |
+| M7 | A film strip click ends the map; with a brush mask selected and the map shown, a drag pans and doesn't paint | DR8, AC9 | Closed by QA: the brush drag paints without the map and not with it (o1, key window); a film strip focus change ends the map through `setFocus`, the path a click takes (s8). The physical click is qa.md P1 step 6 |
+| M8 | The map shows at fit, 100 % and 400 % | AC6 | Closed by QA: the map at fit, 100 %, 386 % and 800 %, in the photo's frame (s2, s3) |
+| M9 | Real photos with smooth areas at the frame's edge: is the black map edge findable against the surround? If not, a follow-up design change | design §5 | Pending (qa.md P7) |
+
+## QA (2026-11-06)
+
+[`qa.md`](qa.md), run on `aee03c3` (`develop` with this feature's merge
+`64334b7`, ml-denoise and doc-only changes on top). `swift test`: 551 tests
+in 96 suites passed, 1 known issue (the same pre-existing one). Verdict:
+nothing failed; 11 of 14 acceptance criteria pass, and AC4's drag, AC5's
+speech and AC13 need a person.
+
+**Closed by QA:**
+
+- The active-window `menuitems` check (DR1, AC12): with the window key, the
+  item is enabled on an editable loupe photo and its title flips to Hide
+  Sharpening Map after `menupress`; it is dimmed in the grid, during a crop,
+  in review, and for a video, an offline master and an unreadable stack;
+  it follows Show Mask Overlay in the Adjust menu.
+- AC9's brush drag (manual at shipping): with a brush mask, a drag paints
+  without the map and leaves the stack unchanged with it (o1).
+- Review M7 and M8 (see the table above).
+- The designer review's fixes 1–3 (`review.md` "Fixes for the engineer"):
+  1, the mask overlay frees the full-resolution input (s6:
+  `fullResolution false`); 2, the guide's Esc / toggle / menu wording and
+  the D-Q1 sentence are in place; 3, the menus confirmed with the app
+  active (DR1) and the D-Q1 hover preview rerun (s10: a map of the
+  previewed values at Masking 10, then the applied values at 85).
+
+**Still for a person:** qa.md P1–P8 (keyboard only and the physical film
+strip click, the toggle's look on macOS 26, VoiceOver, a real 24 MP raw, EDR
+with an HDR photo, Increase Contrast and Reduce Motion, the map's edge on
+real photos, and a macOS 15 smoke test).
+
+**Findings, open.** The owner deferred fixes (2026-11-06); none is fixed in
+this change.
+
+| # | Severity | Finding | Next step |
+|---|---|---|---|
+| Q1 | Serious, outside this feature | Saving an edit can cache the previous look under the new edit hash: after `adjust exposure 1.5` the loupe shows the change, but the new-hash thumbnail is byte-identical to the unedited one, and the grid keeps the old look after a relaunch. Intermittent; seen with and without the map. QA's unconfirmed reading: `AdjustmentEditor.apply` publishes the new hash (`setEditStackHash`) before `persist` has written the stack, so a thumbnail generated in between renders the old stack under the new key. The map itself never reached the cache | Tracked by the product manager as roadmap row `stale-preview-after-save`; not part of this feature |
+| Q2 | Low, existing code | ⇧↑ / ⇧↓ in a slider's value field may not step by 10 (design §8): `SliderRow`'s `doCommandBy` handles `moveUp:` / `moveDown:` only, and a text view sends Shift-arrows as `moveUpAndModifySelection:` / `moveDownAndModifySelection:`. A scripted Shift is not a held one | Confirm by hand (qa.md P1 step 3); plain ↑ / ↓ meet R3 and AC5 |
+| Q3 | Low, missing check | Nothing observable shows that the frame on screen after a pause is the refined one (AC7, R6): `print sharpenmap` doesn't say whether the frame came from the live session or the refiner, or its size | Add that to `print sharpenmap` so a script can show the pause → refined frame |
+| Q4 | Low, debug script | `key` always opens an undo group, so a key that changes nothing leaves an empty undo step (same class as ml-denoise QA Q2) | Tooling only |
 
 ## Rulings received (2026-11-05)
 

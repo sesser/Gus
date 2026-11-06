@@ -18,6 +18,10 @@ to `ui-redesign-onscreen-check` unless noted.
 - Latest (with E26, all E changes built): `swift build` clean, no warnings;
   `swift test` 495 tests in 90 suites passed, 1 known issue (the same). No
   golden changed.
+- QA's run (2026-11-06, `aee03c3`: `develop` after the PR #34 merge
+  `1e89a7b`, plus later work): `swift test` 551 tests in 96 suites passed, 1
+  known issue (the same); the reconcile suites alone, 51 tests in 10
+  suites, passed.
 - Debug-script runs since batch 3 use a copy of the bundle with the bundle
   identifier `me.sesser.gus.debugtest`, so they never write the owner's
   `me.sesser.gus` preferences (the earlier batches did; reported to the
@@ -39,7 +43,7 @@ to `ui-redesign-onscreen-check` unless noted.
 | E10 | Medium | Edit ▸ Deselect All ⇧⌘A, shared item (I5) | Done (manual checks pending) | Make Deselect All one item for both windows (E10) | One ⇧⌘A item, as ⌥⌘I: `ImportCommands(includesSharedItems: false)` in the library app, whose item acts for the import window while it is key (`ImportMenuContext.deselectAll`) and else collapses the grid's selection to the focused photo (`LibraryModel.collapseSelection`). Enabled in the grid with 2+ selected while it has the keyboard (so ⇧⌘A typed in a text field never changes the photo selection); dimmed in the loupe. The standalone importer keeps its own item. Debug script on the isolated copy (new `deselectall`; `print menustate` shows `selected`): `selectall` → selected 8; `deselectall` → selection 1, focus kept. Key window (2026-11-05): `menuitems "Deselect All"` enabled with 8 selected, and `menupress Deselect All` → selection 1. Check, reworded at the designer review: "⇧⌘A typed in a text field (search field, keyword entry) leaves the grid's selection unchanged." Inconclusive by script: a posted ⇧⌘A left the selection at 8 in the search field and the keyword entry, but also in the grid, where it should collapse it (posted ⌘Z does reach Edit ▸ Undo; no other item claims ⇧⌘A), so the synthetic shifted key doesn't stand in for a real one. Pending with real keys, with the import window key too. Guide: key table row |
 | E11 | Medium | File ▸ Stop ‹job› ⌘., shared item (I4) | Done (manual checks pending) | Make Stop one ⌘. item that names the newest job (E11) | One ⌘. item: with the import window key, its Stop Import (`ImportMenuContext.stopImport`); else "Stop Export", "Stop Adding Folders" or "Stop Import" for the newest of those jobs (`StoppableJob.newest`, PhotoCore, by the start times the export, folder-add and copy models now record), dimmed when none runs. Tests: suite "File ▸ Stop's job". Debug script on the isolated copy (new `stop`, `export run … nowait`; `print menustate` shows `stop`): idle → none; adding folders → addFolders; an export started after → export, and `stop` ends it ("Export stopped after 134 photos."); export then a folder add → addFolders, `stop` → "Import cancelled.", then export, `stop` → none. D-Q6 ruled: "Stop", dimmed, when nothing runs; in a key window after a debug-script export finished, `menuitems Stop` showed File/Stop ⌘. disabled (2026-11-05). Pending: "Stop Export" during an export in a key window (the test export finished before the check) and "Stop Import" with the Import window key. Guide: key table row |
 | E12 | High | Export enablement: targets include a photo, no export running (I1) | Done (manual checks pending) | Enable Export only for photo targets (E12) | Rule: `ExportTargets.canExport` (PhotoCore), suite "Export enablement" (videos only, mixed, pair, while exporting, stops at the first photo). Debug script launched with `open -W -n`: `focus MVI_00007; menuitems Export` → File/Export… disabled; `contextmenu cell 0` on a video lists no Export…; on a photo and after `selectall` it is enabled / listed. The toolbar item uses the same `LibraryMenuState.canExport`; manual on-screen check that it dims (glass) |
-| E13 | High | Add Folder Without Copying… always enabled, queues (I2) | Done (manual checks pending) | Keep Add Folder Without Copying… enabled during imports (E13) | Menu, toolbar Import ▸ menu and empty-library button lose their "importing" dimming; the panel already enqueues through `importFolders`, the drops' queue. Test: "aFolderChosenWhileOneImportsJoinsTheBatch" (FolderImportQueueTests). Debug script (new `addfolder <path>`, the panel's call) launched with `open -W -n` on a fresh library: two 800-photo folders; `print activity` shows "Add 2 Folders \| Folder 1 of 2 · 448 of 800", then "Folder 2 of 2 · 192 of 800"; `menuitems Add Folder` enabled before, during and after. Toolbar menu and empty-state button: manual. Guide: the queue sentence now covers chosen folders |
+| E13 | High | Add Folder Without Copying… always enabled, queues (I2) | Done (manual checks pending) | Keep Add Folder Without Copying… enabled during imports (E13) | Menu, toolbar Import ▸ menu and empty-library button lose their "importing" dimming; the panel already enqueues through `importFolders`, the drops' queue. Test: "aFolderChosenWhileOneImportsJoinsTheBatch" (FolderImportQueueTests) covers the queue, which already took a second batch before E13; it does not test the enablement change (QA Q1), which no test covers (inline `.disabled(!can())` in PhotoApp). Debug script (new `addfolder <path>`, the panel's call) launched with `open -W -n` on a fresh library: two 800-photo folders; `print activity` shows "Add 2 Folders \| Folder 1 of 2 · 448 of 800", then "Folder 2 of 2 · 192 of 800"; `menuitems Add Folder` enabled before, during and after. Toolbar menu and empty-state button: manual. Guide: the queue sentence now covers chosen folders |
 | E14 | High | Export results in Activity only, no alert (I3, D2) | Done (manual checks pending) | Report export results in Activity only (E14) | Rule: `ExportActivityReport` (PhotoCore), suite "Export results in Activity" (clean, failures listed, 10 listed + rest counted, skips as information). The alert and `ExportModel.Report` are removed. Debug script (new `print messages`) on a scratch project with one original moved away: one warning row "Exported 5 of 6 photos. 1 could not be written." plus the file and reason; no sheet or alert attached once the debug-opened Export sheet is closed. Again with the original back and `export run skip`: information rows "5 photos were skipped because their files already exist." and "Exported 1 photo.". D-Q2 checks (ruled keep as built): one original moved away, the other five already in the folder, both videos selected, `export run skip`: two rows titled “Export to “out””, the information row "5 photos were skipped…" then the warning "1 photo could not be written." with the file; no sheet or alert. A clean export of 8 selected (6 photos, 2 videos): one row, "Exported 6 photos.", none about videos. VoiceOver hears the sentence, not the list (manual). Guide: export paragraph |
 | E15 | Medium | Suggest Keywords shows Info ▸ Keywords (I7) | Done (manual checks pending) | Show the suggestions when Suggest Keywords runs (E15) | The menu item, the context menu item and the toolbar item now call one action, `LibraryModel.suggestKeywordsForTargets`: suggest for the targets, show the inspector, select Info, expand Keywords. Debug script on the isolated copy (new `print inspector`), Keywords collapsed in its domain: from the loupe's Adjust tab, `contextmenu loupe Suggest Keywords` → tab info, Keywords expanded; from the grid with the inspector hidden, `contextmenu cell 2 Suggest Keywords` → inspector shown on Info. Key window (2026-11-05): from the loupe's Adjust tab, `menupress "Suggest Keywords"` → Info tab, Keywords expanded. Manual: the palette item. Guide: the suggested keywords paragraph |
 | E16 | Medium | "Caption" becomes "Description" (I8) | Done (manual checks pending) | Call the caption field Description everywhere (E16); Title the preset editor's first section Metadata (E16) | "Description" in Changed on Disk, the metadata preset editor and the smart album rule field; the Export sheet's note now says "Keywords and descriptions come from the library." The "Caption" key and the old note are removed from the catalog. `LocalizationTests` pass; `grep -i caption` finds no UI string (only code identifiers, `.font(.caption)` and the loupe's caption line). Designer review (I8): the preset editor's "Description" section is now "Metadata" (the existing key, the Info tab's heading), so "Description" appears once there, as a field. Manual: the preset editor shows sections Metadata and Contact, and "Description" once, as a field. Guide (E27's last stale spot): the Export metadata paragraph, plus the smart album rule list and the sidecar list, say "description" |
@@ -128,50 +132,91 @@ items not listed here, and every on-screen look.
 ### Pending manual checks
 
 Everything not yet verified, by change. "Key window" means it needs a
-launch macOS activates; "screen" means a person has to look.
+launch macOS activates; "screen" means a person has to look. QA
+(2026-11-06, [`qa.md`](qa.md)) closed the items marked **Closed by QA**
+by script; what is left for a person is qa.md "For a person" P1–P10, which
+belong to `ui-redesign-onscreen-check`.
 
 - E1: Edit Smart Album… on the empty smart album opens its editor (screen).
+  **Closed by QA** (S23: the click opens the Edit Smart Album sheet for that
+  smart album; snapshot looked at).
 - E2: the three Adjust tab views in the inspector, and no text before the
-  spinner when the loupe opens (screen; glass).
+  spinner when the loupe opens (screen; glass). qa.md P2.
 - E4: `menupress "Import Look-Up Tables…"` runs the open panel; choosing a
   folder shows the Import page; Cancel opens nothing (key window, screen).
+  qa.md P6 (the Import page itself was shown by script, S18).
 - E5: after `menupress "Reset Crop"`, ⌘Z restores the crop (key window).
+  **Closed by QA** (S13, key window: both `undo` and a posted ⌘Z bring the
+  crop back; S12: Reset Crop dimmed uncropped, enabled after a crop).
 - E6: Show Mask Overlay dimmed with no mask selected (key window).
+  **Closed by QA** (S12, key window: dimmed with no mask selected, enabled
+  once one is selected, Hide Mask Overlay after `menupress`).
 - E8: View ▸ Play dimmed on a photo; the title flips to Pause while
   playing; Space plays and pauses in the video loupe through its event
   monitor; Space still opens the loupe from the grid (key window, active
-  app).
+  app). **Closed by QA** for the first three (S12, S14, key window: Play
+  dimmed on a photo; a posted Space through the monitor plays and pauses,
+  and the item reads Pause while playing). Not shown in a key window by QA,
+  and not in its P list: Space still opening the loupe from the grid (the
+  engineer saw it without a key window).
 - E9: right-click and Control-click on the video show the menu; a click on
-  AVKit's visible control bar keeps AVKit's behavior (screen).
+  AVKit's visible control bar keeps AVKit's behavior (screen). qa.md P4.
 - E10: real ⇧⌘A collapses the grid's selection; ⇧⌘A typed in the search
   field and the keyword entry leaves it unchanged; ⇧⌘A with the Import
-  window key deselects its shots (key window, real keys).
+  window key deselects its shots (key window, real keys). qa.md P5 (a
+  posted ⇧⌘A still doesn't stand in for a real one).
 - E11: "Stop Export" during an export and `menupress` stops it; "Stop
-  Import" with the Import window key (key window).
+  Import" with the Import window key (key window). **Closed by QA** for
+  Stop Export (S14, key window: enabled with ⌘. during an export,
+  `menupress` stops it, then dimmed). Stop Import with the Import window
+  key: qa.md P5 step 4.
 - E12: the toolbar's Export dims with only videos selected (screen; glass).
+  qa.md P3 step 1.
 - E13: the toolbar's Import ▸ Add Folder Without Copying… and the empty
-  library's button stay enabled while folders are added (screen).
+  library's button stay enabled while folders are added (screen). qa.md P3
+  step 2.
 - E14: VoiceOver hears the finished sentence, not the file list; the
   Activity popover lays out a multi-line warning (screen, VoiceOver).
-- E15: the toolbar palette's Suggest Keywords (screen; glass).
+  qa.md P8.
+- E15: the toolbar palette's Suggest Keywords (screen; glass). qa.md P3
+  step 3.
 - E16: the preset editor shows sections Metadata and Contact, and
-  "Description" once, as a field (screen).
+  "Description" once, as a field (screen). qa.md P7 step 1.
 - E17: the shared labels in the Info tab, Changed on Disk and the preset
-  editor (screen; glass).
+  editor (screen; glass). qa.md P7 steps 1–3.
 - E18: each preset deletion asks; Cancel keeps the preset; Delete removes it
-  (screen).
+  (screen). qa.md P7 steps 4–5.
 - E19: `menuitems "Reset All Adjustments"` dimmed on an unedited photo in the
-  loupe (key window).
+  loupe (key window). **Closed by QA** (S12, key window).
 - E21: the menu bar's RAW+JPEG Pair checkmarks and mixed state (key window).
+  **Closed by QA** (S14, key window: the shown file checked, both items
+  mixed with both pairs selected).
 - E22: the toolbar's Crop and Original show their on state (screen; glass).
+  qa.md P3 step 4.
 - E23: the Selection pull-down's items dimmed during a copy (screen).
-- E24: the Add Folder panel's button reads Add Folder (screen).
+  qa.md P9 (the model's state was shown by script, S19d).
+- E24: the Add Folder panel's button reads Add Folder (screen). qa.md P6.
 - E28: AC2 in each app (type "Export" / "Rescan" in Help's search field and
   see the File item offered), and no "‹app› Help" item in the importer
-  (screen).
+  (screen). The importer part (AC1) is **closed by QA** by script (S2: the
+  importer's `helpmenu` lists no items, and Help is still in the menu bar
+  and still `NSApp.helpMenu`). AC2 in both apps: qa.md P1.
 - All: the inspector, sidebar and toolbar on screen (glass doesn't
   snapshot), VoiceOver speech, and the macOS 15 path, which belong to
-  `ui-redesign-onscreen-check`.
+  `ui-redesign-onscreen-check`. qa.md P10 repeats the short checks on macOS
+  15 and 26.
+
+### QA findings (2026-11-06)
+
+QA's verdict: passes; nothing in E1–E28 failed. Its three findings are open;
+the owner deferred their fixes (2026-11-06), and none is fixed in this
+change.
+
+| # | Severity | Finding | Next step |
+|---|---|---|---|
+| Q1 | Low, test gap (E13) | `FolderImportQueueTests.aFolderChosenWhileOneImportsJoinsTheBatch` passes without E13: it tests the queue, not the dropped "importing" dimming, which is inline `.disabled(!can())` in PhotoApp with no test. The E13 row above now says so | Move the enablement into a testable rule (as `ExportTargets.canExport` for E12), or name the test for what it covers |
+| Q2 | Low, debug script | The whole `adjust` verb is in `DebugScript`'s `changing` set, so read-only subcommands (`adjust crop show`, also `adjust crop begin`) leave an empty undo step, and a following `undo` reverses that instead of the change. It looks like a Reset Crop bug but isn't (S7, S13) | Open a group only for subcommands that change photos |
+| Q3 | Low, existed before (E14 surfaces it) | An export of a file missing from a connected volume says "the volume “‹name›” is not connected": `ExportJob` maps `!item.isOnline` to `.offline(volumeName:)` for both cases. Since E14 this Activity warning is the only report | Possibly a wording question for product and design first |
 
 ### Found, not fixed (outside these changes)
 

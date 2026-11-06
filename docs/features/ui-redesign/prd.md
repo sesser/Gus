@@ -1,8 +1,8 @@
 # UI redesign: requirements addendum
 
-Status: Approved (product-manager rulings and owner ruling on RI-5, 2026-11-04)
+Status: Shipped 2026-11-05, PR #34 (ui-redesign-reconcile, E1–E28, which carries R1 and R2). Checks pending: AC2 and the other person-only checks, P1–P10 in qa.md "For a person" (QA closed the rest of status.md's "Pending manual checks" by script), done under `ui-redesign-onscreen-check`.
 Slug: ui-redesign
-Roadmap: Shipped; follow-up changes are `ui-redesign-reconcile` (Now, owner 2026-11-04)
+Roadmap: Shipped (the redesign 2026-11-04, PRs #20 and #21; `ui-redesign-reconcile` 2026-11-05, PR #34)
 
 This is not a full PRD. The capability inventory,
 [`../_inventory.md`](../_inventory.md), stands in for the redesign's PRD
@@ -71,9 +71,11 @@ AC2 (R2): Manual, in each app: open Help, type "Export" (library app) or
 
 ## Open questions
 
-- **Q2 (engineer): Does R1 keep R2?** Confirm that removing the default help
-  item leaves the Help menu and its search field. If it doesn't, report it
-  back here rather than keeping the dead item.
+- **Q2 (engineer), answered 2026-11-05 (status.md, E28): Does R1 keep R2?**
+  As far as the debug script can tell, yes: with the help item gone, both
+  apps keep the Help menu, and AppKit still treats it as the help menu that
+  gets the search field. The field is drawn only when the menu opens, so
+  AC2 stays a manual check in each app.
 - **Q3 (designer), resolved 2026-11-04:** Update N13 and the "‹app› Help"
   row in design.md §4 to follow R1 and R2. Done: design.md N13, the §4
   "Help ▸ Search ⌘?" row, and engineer change E28 (verified by AC1 and AC2).
@@ -85,3 +87,7 @@ AC2 (R2): Manual, in each app: open Help, type "Export" (library app) or
   numbers.
 - 2026-11-04: Q3 marked resolved; the designer updated design.md N13 and
   the §4 Help row, and added E28 for AC1 and AC2. Q2 stays open.
+- 2026-11-06: Ship pass. ui-redesign-reconcile merged into `develop` in
+  PR #34 (merge commit 1e89a7b, 2026-11-05) with E1–E28 Done (status.md).
+  AC1 is checked by the debug script; AC2 is manual and pending. Q2 marked
+  answered from status.md. Changed the Status and Roadmap lines.

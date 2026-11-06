@@ -4,7 +4,7 @@ import PhotoFixtures
 import Testing
 @testable import PhotoCore
 
-/// Local adjustments through the whole renderer (docs/PHASE6_PLAN.md, "Verification").
+/// Local adjustments through the whole renderer (docs/archive/PHASE6_PLAN.md, "Verification").
 @Suite("Mask rendering")
 struct MaskRenderingTests {
     static let halfRounding = MaskReferenceTests.halfRounding
@@ -230,7 +230,7 @@ struct MaskRenderingTests {
 /// makes the decoder give the whole sensor and the renderer crop back to the
 /// camera's frame. The file is only read. `CAMERA_RAW_SAMPLE` names it.
 ///
-/// Accepted (docs/PHASE6_PLAN.md, Results, finding 1): the decoder corrects
+/// Accepted (docs/archive/PHASE6_PLAN.md, Results, finding 1): the decoder corrects
 /// lens distortion relative to the frame it decodes, so the whole sensor
 /// cropped to the camera's frame differs from the camera's own frame at every
 /// edge (P1190134, 16:9 of 4:3: PSNR 40.6 dB), as a crop equal to that frame

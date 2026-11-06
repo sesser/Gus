@@ -206,7 +206,7 @@ enum Goldens {
     static var isUpdating: Bool { ProcessInfo.processInfo.environment["UPDATE_GOLDENS"] == "1" }
 
     /// Goldens render through a Metal context with the app's options. Core
-    /// Image has no software renderer on Apple silicon (see docs/PHASE5_PLAN.md),
+    /// Image has no software renderer on Apple silicon (see docs/archive/PHASE5_PLAN.md),
     /// so the tolerances allow for another GPU.
     static let engine = RenderEngine(contextCount: 2, name: "goldens")
 

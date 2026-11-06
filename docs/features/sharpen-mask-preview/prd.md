@@ -1,8 +1,8 @@
 # Sharpening mask preview
 
-Status: Shipped 2026-11-05, PR #37. Manual checks M1–M9 are still open by the owner's choice; see review.md and status.md.
+Status: Shipped 2026-11-05, PR #37. Checks pending, by the owner's choice: P1–P8 in qa.md "For a person" (QA closed M7 and M8), done under `ui-redesign-onscreen-check`.
 Slug: sharpen-mask-preview
-Roadmap: Next
+Roadmap: Shipped
 
 ## Problem
 

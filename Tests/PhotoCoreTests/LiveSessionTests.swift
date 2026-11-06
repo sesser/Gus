@@ -206,7 +206,7 @@ struct LiveSessionTests {
     /// stages may round once more (2⁻¹¹ relative), which the stages after them
     /// enlarge by at most `gain(after:)`. Plus 2⁻²⁴ near zero.
     ///
-    /// Known issue (docs/PHASE6_PLAN.md, finding 4): with masks that use
+    /// Known issue (docs/archive/PHASE6_PLAN.md, finding 4): with masks that use
     /// whole-frame estimates (dehaze, local tone) they do not agree. On
     /// above-white input dehaze's haze estimate moved by up to 0.09, and local
     /// tone's by 0.067, when their input moved by 0.002, so a different split of

@@ -1,6 +1,6 @@
 import Foundation
 
-/// Masks and the local adjustments they carry (docs/PHASE6_PLAN.md).
+/// Masks and the local adjustments they carry (docs/archive/PHASE6_PLAN.md).
 ///
 /// One operation of kind `localAdjustments` holds every mask, in order, as a
 /// list of objects (schema version 2). Shapes are stored in unit coordinates

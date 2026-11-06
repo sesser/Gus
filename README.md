@@ -32,6 +32,8 @@ I built this with Claude. AI did the work, I did the orchestration.
 - Photos on a disconnected drive stay in the library, with their previews,
   until the drive comes back
 - MOV, MP4 and M4V videos, catalogued and played alongside photos
+- A film strip under the photo in the loupe, to see and click through the
+  photos around it
 
 **Import**
 
@@ -47,6 +49,10 @@ I built this with Claude. AI did the work, I did the orchestration.
 - White balance, exposure (with Auto), tone, clarity, vibrance and
   saturation, a tone curve, a color mixer and color grading
 - Sharpening, noise reduction, vignette, grain and look-up tables (`.cube`)
+- A sharpening map that shows where sharpening goes and where Masking holds
+  it back
+- Optional machine learning noise reduction for raw files, run on the Mac
+  (macOS 27 or later, for cameras Apple's raw decoder supports)
 - Masks: linear and radial gradients, a brush, and luminance and color
   ranges, combined by adding, subtracting or intersecting. Each mask
   carries its own exposure, tone, white balance, presence and sharpening.
@@ -74,8 +80,8 @@ app doesn't have open.
 
 ## Not there yet
 
-Healing, lens corrections, DNG export, ML noise reduction and automatic
-(subject/sky) masks, DCP camera profiles, hand-made and burst stacks,
+Healing, lens corrections, DNG export, automatic (subject/sky) masks, DCP
+camera profiles, hand-made and burst stacks,
 hierarchical keywords, importing straight from a camera over USB, a second
 backup destination on import. Metadata is never written into original
 files; it goes to XMP sidecars.
@@ -126,8 +132,12 @@ the only third-party dependency.
 ## Documentation
 
 - [User guide](docs/USER_GUIDE.md)
-- Design notes for each phase of work: [docs](docs)
+- [Roadmap](docs/roadmap.md): what's planned, what shipped and what was dropped
+- [Workflow](docs/WORKFLOW.md): how a feature goes from idea to merge
 - [Profiling](docs/PROFILING.md)
+- Earlier design notes, from before the workflow: one per phase of work in
+  [docs/archive](docs/archive), and the UI redesign in
+  [docs/UI_REDESIGN.md](docs/UI_REDESIGN.md)
 
 ## Repository layout
 

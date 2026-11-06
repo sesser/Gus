@@ -2,7 +2,7 @@ import CoreImage
 import Foundation
 import Metal
 
-/// Spike (docs/PHASE5_PLAN.md, "Custom GPU kernels"): Core Image kernels of
+/// Spike (docs/archive/PHASE5_PLAN.md, "Custom GPU kernels"): Core Image kernels of
 /// our own without a Metal build step. Each is a `CIImageProcessorKernel`
 /// whose Metal compute function is compiled from source at run time
 /// (`MTLDevice.makeLibrary(source:options:)`, part of Metal.framework, so the

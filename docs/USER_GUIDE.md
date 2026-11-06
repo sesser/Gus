@@ -61,6 +61,7 @@ photos the library does not have yet, and a folder with nothing new makes none.
 | ⌥1–⌥7, ⌥0 | color label red…gray, clear | color label |
 | ⌘= and ⌘− | thumbnail size | zoom in / out |
 | ⌘Return | switch grid / loupe | switch grid / loupe |
+| ⌥⌘B | | show / hide the film strip |
 | ⇧⌘A | keep only the focused photo selected | |
 | ⌘. | stop the newest export, folder add or import (**File ▸ Stop Export**, **Stop Adding Folders** or **Stop Import**) | same |
 | ⌘K | add keywords | add keywords |
@@ -74,6 +75,25 @@ sidebar and inspector hidden, full screen, and the toolbar shown only when
 the pointer reaches the top. Culling keys, arrows and Z keep working; ⌥⌘I
 brings the inspector back. F or Esc puts the window back as it was and stays
 in the loupe; Return or Space goes back to the grid.
+
+**Film strip**: the loupe shows the current source's photos, filtered and
+sorted as in the grid, in a row between the photo and the caption line, with
+the photo on screen in the middle and outlined. Each thumbnail shows the
+photo's flag and color label, and a mark for videos and offline photos;
+rejected photos are dimmed. Pointing at one shows its name, rating, flag and
+label. Click a thumbnail to move to that photo, as the arrow keys do; the
+strip centers on whatever photo the loupe moves to. Scrolling the strip
+(trackpad, mouse wheel or scroller) only scrolls it and never changes the
+photo. The **Film Strip** button at the end of the caption line, or **View ▸
+Show Film Strip** / **Hide Film Strip** (⌥⌘B), shows and hides it; it is shown
+at first, and the app remembers your choice. Drag the handle on its top edge
+to make the thumbnails larger or smaller: when you let go it settles on the
+nearest of five sizes, kept across launches and separate from the grid's
+thumbnail size. Double-click the handle to go back to the largest size that
+fits. The strip never takes more than a quarter of the loupe's height, so a
+short window shows smaller thumbnails, which grow back with the window. Review
+hides the strip and its button; leaving review brings them back. The video
+loupe has it too.
 
 Changes are saved to the catalog immediately. In the grid they apply to every
 selected photo. **Photo ▸ Advance After Rating** moves on to the next photo after

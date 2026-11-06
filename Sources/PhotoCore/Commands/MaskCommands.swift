@@ -1,6 +1,6 @@
 import Foundation
 
-/// Masks of a version (docs/PHASE6_PLAN.md, "Scripting"). Every change edits
+/// Masks of a version (docs/archive/PHASE6_PLAN.md, "Scripting"). Every change edits
 /// the stored mask objects and reads them back through the same strict reader
 /// as a stored stack, so a command can never save what the app would refuse;
 /// adding goes no further than `MaskLimits`.

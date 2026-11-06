@@ -4,7 +4,7 @@ import Foundation
 import PhotoCore
 import PhotoFixtures
 
-/// Local adjustments on a 24-megapixel RAW file (docs/PHASE6_PLAN.md,
+/// Local adjustments on a 24-megapixel RAW file (docs/archive/PHASE6_PLAN.md,
 /// "Performance"): live frames at the loupe's size with zero to three masks,
 /// what each mask's modules cost, brush rasterization alone, memory, and the
 /// stack's encoded size and hashing time while a brush stroke is painted.

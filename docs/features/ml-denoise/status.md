@@ -5,15 +5,19 @@ rulings 1–11 and the RI-E rulings, 2026-11-05) against
 [`design.md`](design.md) (Designed; §15 and §16 rule DQ-1 to DQ-3 and
 RI-E2). Branch `feature/ml-denoise-prd`, at `054bf4e` when work started.
 
-**Status: In progress.** Every acceptance criterion is built and tested,
-manual checks aside. The designer review (`review.md`) is done, and its
+**Status: Done.** Every acceptance criterion is built and tested; what
+only a person can check is listed in [`qa.md`](qa.md) "For a person"
+(P1–P9). Merged to `develop` in PR #39 (merge commit `334312c`,
+2026-11-05); the product manager recorded it as "Shipped, checks pending"
+(prd.md, roadmap). The designer review (`review.md`) is done, and its
 fixes F1–F4 are made (F5 and F6 needed none). RI-E6 is ruled: option (c)
 now, with (d), seeing what a decode does on a Mac without the model, as a
-Should before Shipped. Open: AC13 (owner), the (d) check, and the manual
-checks listed under each criterion.
+Should (qa.md P8). QA ran on 2026-11-06 (see QA below): its findings Q1–Q4
+are open, and the owner deferred their fixes.
 
 States: Not started · In progress · Done · Blocked (waiting on a question
-below) · Shipped.
+below) · Deferred. Shipping is recorded by the product manager in prd.md
+and the roadmap, not here.
 
 ## Build and test
 
@@ -26,6 +30,9 @@ below) · Shipped.
   (the same). Goldens and `EditStackCorpusTests` unchanged.
   `PreviewCacheKey.currentPipelineVersion` is still 6. `UPDATE_GOLDENS` was
   never run.
+- QA's run (2026-11-06, `aee03c3`, the merged code plus doc-only
+  changes): `swift test` 551 tests in 96 suites passed, 1 known issue (the
+  same); every test that needs decoder version 9 ran.
 - A test file not touched here (`SmartAlbumTests.swift:165`) has an
   unused-result warning when the test target compiles; it was there before.
 - Debug-script runs use a copy of the bundle with the bundle identifier
@@ -150,15 +157,15 @@ overrides and run on every Mac.
 | AC3 | Tested | "A stack without the setting keeps its parameters, render hash and decode settings"; "The pinned default …" (pure rule); "With the decoder's default at 9.dng, a stack that does not ask for it decodes with the pinned version" (the seam: the filter is set to `9.dng` before the settings apply). All goldens and `EditStackCorpusTests` pass unchanged. |
 | AC4 | Tested | Legacy stacks with `9.dng` and `9` read as on; one with Profile off reads as off; one with Noise Reduction off reads as on inside the off group, renders classically, stays off when saved, and renders with version 9 once the group is turned on (RI-E4); a legacy stack renders as before (pixels equal to a direct `9.dng` decode); Profile's `7.dng` is kept under machine learning and applies again when it is off; Profile-only presets, a paste of Profile and Profile off leave it on; a pre-feature Profile preset turns it on with Luminance and Color unchanged, also after a catalog save and load and a preset file round trip; the Decoder pop-up's choice; `develop` keeps one state. App: `print ml` checked the pop-up and check box agree (see Debug-script checks). |
 | AC5 | Tested + debug script | Color kept across on/off; Color unavailable only while applied (`Status`); asked for and not applied, Color changes the render. Debug script: Color dimmed with its tooltip in S2, enabled in S5, S6, S7 and S8. |
-| AC6 | Tested + manual pending | "The availability rule …" (unit test of the rule); "This Mac: …" (the synthetic DNG is available on macOS 27); "A missing model reads as not on this Mac, before decoding or from a decode, and is remembered" (the seam); "No source file calls the decoder's model downloads". Debug script: a JPEG shows no check box; S3 and S4 dimmed with their captions; `ml override nomodel` and `nomodel-decode` give S3 and S5 with the macOS 27 texts, and the next photo is "not on this Mac" at once; `ml override macos26` gives the older texts. **Manual:** on macOS 15 or 26, any raw shows "not available on this Mac"; a real camera missing from the decoder's list shows "Not available for this camera." |
-| AC7 | Tested + manual pending | Override `notOnThisMac`: render equals the classical render and says why; the stack keeps the setting after a reopen and an Exposure change; `photocli develop` on another parameter, `render` and `export` keep it and report `notOnThisMac`. Debug script: badge and caption in S5. **Manual:** the same on a Mac running macOS 15 or 26. |
+| AC6 | Tested + manual pending (qa.md P6, P7) | "The availability rule …" (unit test of the rule); "This Mac: …" (the synthetic DNG is available on macOS 27); "A missing model reads as not on this Mac, before decoding or from a decode, and is remembered" (the seam); "No source file calls the decoder's model downloads". Debug script: a JPEG shows no check box; S3 and S4 dimmed with their captions; `ml override nomodel` and `nomodel-decode` give S3 and S5 with the macOS 27 texts, and the next photo is "not on this Mac" at once; `ml override macos26` gives the older texts. **Manual:** on macOS 15 or 26, any raw shows "not available on this Mac"; a real camera missing from the decoder's list shows "Not available for this camera." |
+| AC7 | Tested + manual pending (qa.md P6) | Override `notOnThisMac`: render equals the classical render and says why; the stack keeps the setting after a reopen and an Exposure change; `photocli develop` on another parameter, `render` and `export` keep it and report `notOnThisMac`. Debug script: badge and caption in S5. **Manual:** the same on a Mac running macOS 15 or 26. |
 | AC7a | Tested + debug script | Override `failsDecode`: the classical render, the stack unchanged, live frames say `failed`; `photocli render` and `export` JSON give "could not be applied to this photo"; the export's Activity report has the row. Debug script: S8 caption, badge and its tooltip with `ml override fail`; the export row "3 photos were exported without machine learning noise reduction: it could not be applied to these photos." |
-| AC8 | Debug script + **manual pending** | On a 24 MP DNG the spinner was off at 0.3 s and on at 0.8 s, and `key right` moved to the next photo while the frame was rendering. **Manual (owner):** a real 24 MP raw, arrow keys and rating keys during the wait. |
-| AC9 | Tested + debug script | "Turning it on and off gives back the stack's bytes" (content and render hash). Debug script: the undo action is "Turn On Machine Learning". **Manual:** ⌘Z in the active app (scripted launches have no key window, so `menuitems Undo` shows it dimmed). |
-| AC10 | Tested + debug script | Paste and presets reach raws only, Reset All and the Details reset clear it. Debug script: paste over 3 DNGs, a JPEG and 100 HEICs gave the DNGs `machineLearning: true`, left the others without it, and posted "Machine learning noise reduction was left off for 101 photos that aren't raw files." **Manual:** a RAW+JPEG pair shown as its RAW (the scratch library has no pairs); paste on macOS 15 or 26. |
+| AC8 | Debug script + **manual pending** (qa.md P4) | On a 24 MP DNG the spinner was off at 0.3 s and on at 0.8 s, and `key right` moved to the next photo while the frame was rendering. QA repeated it (S-10) and also saw a rating key land during the wait. **Manual (owner):** a real 24 MP raw, arrow keys and rating keys during the wait. |
+| AC9 | Tested + debug script | "Turning it on and off gives back the stack's bytes" (content and render hash). Debug script: the undo action is "Turn On Machine Learning". Manual ⌘Z in the active app: **closed by QA** (S-14): launched active, Edit shows "Undo Turn On Machine Learning ⌘Z" enabled, and a posted ⌘Z returns the stack to identity. |
+| AC10 | Tested + debug script | Paste and presets reach raws only, and the Details reset clears it. Correction (QA Q4): the test named "…Reset All clears it" asserts only the Details reset; Reset All Adjustments was shown by script instead (QA S-8: the stack becomes `{"operations":[]}`). Debug script: paste over 3 DNGs, a JPEG and 100 HEICs gave the DNGs `machineLearning: true`, left the others without it, and posted "Machine learning noise reduction was left off for 101 photos that aren't raw files." Manual RAW+JPEG pair shown as its RAW: **closed by QA** (S-7, review M8): pasted onto the pair shown as its RAW, the RAW gets it; the pair's JPEG shows no check box and its stack is empty. Still manual: paste on macOS 15 or 26 (qa.md P6). |
 | AC11 | Tested | `adjustments` lists `noiseReduction.machineLearning` (boolean, default false); `develop --dry-run` prints a stack with it on; `render` and `export` JSON have `machineLearning` with `requested`, `applied` and, when not applied, `reason` and `message`. `develop` refuses it on a file that is not RAW (`invalidEdit`). |
 | AC12 | Done | `photobench denoise` runs; the six times are below. |
-| AC13 | **Owner** | Open: which cameras and files, and the judgment. |
+| AC13 | **Owner** | Open (qa.md P9): which cameras and files, and the judgment. |
 
 ## Engineer open questions (PRD), measured on this Mac
 
@@ -260,7 +267,7 @@ Run against the scratch library with the bundle copy:
 - **DR9:** the canvas's value reads "Machine learning not applied, 3 of 105"
   in S5 and "3 of 105" otherwise. The check box's own VoiceOver name could
   not be read this way: `accessibility AXCheckBox` finds none of the
-  inspector's check boxes (an existing limit), so it is manual.
+  inspector's check boxes (an existing limit), so it is manual (qa.md P3).
 
 - **After the rulings (design §15, §16):**
   - `ml override nomodel`: S5 caption "Not applied on this Mac. Luminance
@@ -286,6 +293,37 @@ Run against the scratch library with the bundle copy:
 Not checked by script: anything drawn (the inspector is a glass pane that
 `snapshot` leaves blank), Increase Contrast, Reduce Motion, VoiceOver
 speech.
+
+## QA (2026-11-06)
+
+[`qa.md`](qa.md), run on the merged code (`aee03c3`). Verdict: passes, with
+one fix needed (Q1). Every acceptance criterion that can run on macOS 27
+passes by test and by script.
+
+**Manual items QA closed by script:**
+
+- AC9 / review M5's ⌘Z: in an app launched active, Edit ▸ Undo reads "Undo
+  Turn On Machine Learning ⌘Z" and ⌘Z undoes it (S-14).
+- AC10 / review M8, the RAW+JPEG pair: the paste reaches the pair's RAW;
+  the pair's JPEG shows no check box (S-7).
+- Partly: review M3's canvas value ("Machine learning not applied, 6 of 9",
+  S-9) and M4's wait on a synthetic 24 MP DNG (S-10). Their remaining parts
+  are qa.md P3 and P4.
+
+**Still for a person:** qa.md P1–P9: caption alignment (P1), Increase
+Contrast (P2), VoiceOver speech (P3), a real 24 MP raw (P4), Keyboard
+Navigation (P5), macOS 15 or 26 (P6), real cameras (P7), the RI-E6 (d)
+missing-model check (P8) and AC13 (P9).
+
+**Findings, open.** The owner deferred the fixes (2026-11-06); none is
+fixed in this change.
+
+| # | Severity | Finding | Next step |
+|---|---|---|---|
+| Q1 | Medium | Review M9 fails: at narrow window widths the "Machine Learning Not Applied" badge draws over the caption's centered rating and flag (over the fifth star and the pick flag at the 760 pt minimum, touching at 820 pt, clear at 900 pt) | Needs a designer ruling on how the caption gives way before any code change |
+| Q2 | Low, debug script | `ml wait`, `ml ready` and `ml override` each open an undo group (`"ml"` is in `DebugScript`'s `changing` set), leaving an empty, nameless undo step | Only `ml on`, `ml off` and `ml decoder` need a group |
+| Q3 | Low, debug script | `ml override` reloads the editor at once, so it can read the stack from before a save still on the write chain, and a frame in flight from the previous override can set the old reason (`learnUnavailability`). Debug-only | Until fixed, scripts `wait` before an override and run `ml override clear` between two |
+| Q4 | Low, test | The AC10 test "…Reset All clears it" asserts the Details reset only; Reset All passed by script (S-8) | Add a Reset All assertion, or rename the test |
 
 ## Requirements issues (for the product manager)
 

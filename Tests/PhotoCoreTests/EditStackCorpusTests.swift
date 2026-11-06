@@ -3,7 +3,7 @@ import Testing
 @testable import PhotoCore
 
 /// Stacks without masks must keep their exact bytes and render hashes when the
-/// stack format grows (docs/PHASE6_PLAN.md, decision 2). The corpus was
+/// stack format grows (docs/archive/PHASE6_PLAN.md, decision 2). The corpus was
 /// recorded before the format changed, in `Fixtures/edit-stack-corpus.json`,
 /// and is never rewritten: to record it again, delete the file and run with
 /// `RECORD_EDIT_STACK_CORPUS=1`.
