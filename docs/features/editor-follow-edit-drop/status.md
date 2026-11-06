@@ -5,7 +5,7 @@ or `design.md`, owner's ruling): `editor-follow-edit-drop` and
 `reload-items-stale-hash` (`docs/roadmap.md`, Next). Branch
 `bug/editor-follow-edit-drop`, cut from `develop` at `14dc0c1`.
 
-**Status: Done.** Ready for code review.
+**Status: Done.** Code review and QA passed (`code-review.md`, `qa.md`).
 
 States: Not started · In progress · Done · Blocked · Deferred.
 
@@ -41,11 +41,19 @@ only half the cause. Line numbers are those at `14dc0c1`.
   read is in flight*: the read returns the old row, the write lands and
   `showSaved` publishes the new hash, then `apply(items)` puts the old hash
   back. Writes queued before the reload started are not the problem.
-- **Same window, wider than the roadmap row.** Culling (`applyCulling`,
-  `LibraryModel.swift:1084`) changes `items` before it queues its write. A
-  reload whose read was already in flight then put the old rating, flag or
-  label back on screen. The catalog was right; the screen was wrong until
-  the next reload. The same fix covers it (test below).
+- **Same window, wider than the roadmap row, and not display only.**
+  Culling (`applyCulling`, `LibraryModel.swift:1084`) changes `items` before
+  it queues its write. A reload whose read was already in flight then put
+  the old rating, flag or label back on screen. That also reached the
+  catalog. `perform` builds all three values from the row on screen
+  (`CullingValues(item)`, `:1035`), and `applyCulling` saves rating, flag and
+  label together (`setCulling`, `:1105`). So the next culling key after a
+  stale reload saved the stale values of the other two. QA reproduced it on
+  `develop` (`qa.md` Q1, S4): after `U` cleared a reject, the catalog ended
+  with the flag stored as rejected. On the branch every round showed the
+  right values and the catalog ended right. The same fix covers it (test
+  below). (An earlier version of this file said the catalog stayed right;
+  that was wrong, corrected after QA's Q1.)
 
 So the rule has two halves. A read whose result is applied must (1) run only
 after every write queued before it has landed, and (2) be applied only if no
@@ -96,7 +104,8 @@ test fail (below).
 - **Commit during a reload's read (bug 2).** The reload reads again after
   `showSaved`.
 - **Culling during a reload's read.** The reload reads again. The new rows
-  have the new rating, which the screen already shows.
+  have the new rating, which the screen already shows, so the next culling
+  key saves from the right row (on `develop` it saved the stale one; QA Q1).
 - **No self-wait.** Nothing on the chain awaits a read: no `persist` body
   awaits `reloadTask` or `loadTask` (checked with grep).
 - **Retries.** A read retries only when a write was queued during its fetch.
@@ -249,7 +258,20 @@ line each. They are left alone to keep this change to its two bugs.
 
 ## Code review
 
-Not yet reviewed.
+`code-review.md`: ready to merge, no findings.
+
+## QA (`qa.md`, 2026-11-06: passes)
+
+`qa.md` is the record. QA tested the branch at `975cf49` against `develop`
+at `14dc0c1`. On `develop`, all three routes (edit drop, stale hash,
+culling) reproduce with scripts that widen the race. None of them
+reproduces on the branch.
+
+| # | Finding | Response |
+| --- | --- | --- |
+| Q1 | The culling route was not display only on `develop`: the next culling key saved the stale values (flag stored as rejected after `U` cleared it) | Record corrected under Root cause and Cases checked. No code change: the branch already fixes this route. |
+| O1 | Observation. `read` waits for every queued write by design. Behind a batch undo of 29,894 photos, the Adjust tab showed `loading` for about 3 s; `develop` showed ready at once, with the wrong values. A reload waits the same way. Batches of normal size take milliseconds | Expected cost of the rule. The alternative is starting from values that may be overwritten. No change was asked for. QA's P1 (pending the owner, optional) lets the owner judge it with real files. |
+| O2 | Nothing automated fails if `follow` or `reloadItems` stops calling `writes.read` (no PhotoApp test target) | Already tracked under `qa-test-gaps`. QA's scripts S2, S3b, S3c, S4 and S5b reproduce on `develop` and are the regression check for the app side. |
 
 ## Open questions
 
