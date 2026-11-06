@@ -4,7 +4,7 @@ import PhotoFixtures
 
 /// Mask shapes without Core Image, in Double, at pixel centers of a
 /// `width` × `height` frame (row-major, top row first): the formulas of
-/// docs/PHASE6_PLAN.md, "Shapes". smoothstep(e, e, x) is a hard step: 0 below
+/// docs/archive/PHASE6_PLAN.md, "Shapes". smoothstep(e, e, x) is a hard step: 0 below
 /// e, 1 from e up.
 enum MaskReference {
     static func smoothstep(_ e0: Double, _ e1: Double, _ x: Double) -> Double {

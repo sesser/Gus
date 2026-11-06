@@ -20,19 +20,22 @@ Rules that follow from this:
 - Do not use `xcodebuild`, `.xcodeproj`, or `.xcworkspace`, and don't suggest them.
 - SwiftUI `#Preview` needs Xcode, so you cannot rely on previews for verification. Verify with a clean build, tests, and, where the change is visual, a clear description of what the person should look at in the bundled app. You cannot see the UI, so never claim a visual result is correct; say what you built and what to check.
 - Resources load through `Bundle.module` in package code. Check how the bundle script copies resource bundles into the app before assuming a resource will be found at runtime.
-- Do not launch the GUI app unless asked.
+- Do not launch the app interactively unless asked. Scripted checks with `--debug-script` (see `CLAUDE.md`) are fine and expected for UI work; run them against a copy of the bundle with its own bundle identifier and a scratch library from `photobench`, never the owner's library or preferences.
 - Shell commands you run or suggest must work in zsh (the project's convention; keep scripts POSIX sh or zsh compatible). In suggested commands, don't put `#` comment lines inside code blocks meant to be copied.
 - Read `Package.swift` first on any new task: platforms, targets, dependencies, Swift language mode, and test framework (look in `Tests/` to see whether the project uses Swift Testing or XCTest, and follow it).
 
 ## The design handshake
 
-UI decisions are made by the design side, not by you. The design plan is the spec. It normally lives at `docs/UI_REDESIGN.md`; if it isn't there, search `docs/` and the repo root before asking.
+Requirements come from the product side and UI decisions from the design side, not from you. The process is in `docs/WORKFLOW.md`. For a feature the spec is two files in `docs/features/<slug>/`: `prd.md` (requirements and acceptance criteria, owned by product-manager) and `design.md` (owned by apple-ui-designer). `docs/UI_REDESIGN.md` and `docs/archive/PHASE*_PLAN.md` are the historical record of earlier work: read them for context, never as the spec for new work.
 
-1. **Read the spec fully** before writing code, plus any CLAUDE.md or architecture notes in the repo.
+1. **Read the spec fully** before writing code, plus `CLAUDE.md` and any architecture notes in the repo.
 2. **Implement what the spec says**, in the order it specifies. Do not invent layout, navigation, copy, shortcuts, or behavior that the spec does not define.
 3. **When the spec is silent, ambiguous, or conflicts with what the code can reasonably do, stop on that item.** Do not guess. Continue with unblocked work, then return a **Design questions** section at the end of your report. For each question give: what you hit, the options you see, the technical cost of each option, and your recommendation. The main session will take these to the design agent and record the ruling in the spec.
-4. **When a technical constraint makes a spec item costly or infeasible,** say so plainly with the reason and an alternative that preserves the design intent. Don't silently water it down.
-5. You may update only an "Implementation status" section of the spec to tick off completed items. Never edit the design decisions themselves.
+4. **When the requirements are silent, contradictory or wrong**, the same applies: return a **Requirements issues** section for the product manager instead of deciding scope yourself.
+5. **When a technical constraint makes a spec item costly or infeasible,** say so plainly with the reason and an alternative that preserves the design intent. Don't silently water it down.
+6. **You own `docs/features/<slug>/status.md`.** Keep it current: build and test baseline and latest results, each acceptance criterion with its test or manual check, debug-script results, and your open questions. States are Not started, In progress, Done, Blocked, Deferred; Done is your last one (shipping is recorded by the product manager after the merge). If the change alters requirements, build commands or the repository layout, list that under a **README** heading in `status.md` so the product manager can update the README at Ship. Never edit `prd.md`, `design.md` or a reviewer's file.
+7. **You own `docs/USER_GUIDE.md`.** Update it in the same change as the behavior it describes.
+8. **Review findings** come back from code-reviewer (`code-review.md`), qa-tester (`qa.md`) and the designer (`review.md`). Fix them, or answer why not, and record each in `status.md`.
 
 ## Architecture: think before you code
 
@@ -64,8 +67,9 @@ For anything beyond a trivial change, write a short plan first (in your response
    - What changed, by file, in a few lines.
    - Build and test status, stated honestly with the actual results.
    - What to check visually in the bundled app, since you can't see it.
-   - **Design questions** for the design agent, if any.
+   - **Design questions** for the design agent and **Requirements issues** for the product manager, if any.
    - Anything you deliberately did not do, and why.
+   - When `status.md` reaches Done, say so: the next step is review (code-reviewer, qa-tester, designer).
 
 ## Judgment
 

@@ -1,7 +1,7 @@
 # Capability inventory
 
-What the app does today: `develop` as of 2026-11-04, after the film strip
-merged (PR #27). Owned by the product-manager agent; a
+What the app does today: `develop` as of 2026-11-06, after machine learning
+noise reduction merged (PR #39). Owned by the product-manager agent; a
 reference for spotting duplicates and conflicts before a feature is specified.
 It stands in for a `prd.md` for the UI redesign (owner, 2026-11-04);
 `ui-redesign/prd.md` adds only the rulings on design.md's requirements issues.
@@ -9,6 +9,11 @@ It stands in for a `prd.md` for the UI redesign (owner, 2026-11-04);
 Corrected 2026-11-04 after the UI redesign reconciliation: project rename and
 removal (data only), drag and drop, export's reveal in the Finder, the Help
 menu, and the metadata reader's visibility.
+
+Updated 2026-11-06 (Ship pass) for what merged since: the sharpening map
+(PR #37), ui-redesign-reconcile E1–E28 (PR #34) and machine learning noise
+reduction (PR #39). Rows changed from those features' `status.md` and
+`docs/USER_GUIDE.md`; their manual checks are still open (roadmap Shipped).
 
 Markers:
 
@@ -77,7 +82,7 @@ Abbreviations: P1–P6 = `docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR
 | Batch edit commands in the grid | Paste, Apply Preset, Auto Exposure, Reset All, Rotate on the selection as one undo step | UIR decision 5; CL |
 | Undo / redo | ⌘Z / ⇧⌘Z for culling, keywords, albums, pairs, edits, crop, descriptive fields | P2 §3, As built; CL Undo |
 | Review mode (F) | Full-screen loupe, panes hidden, toolbar on hover | UIR §2; `Model/ReviewActions.swift` |
-| Empty states | `ContentUnavailableView` for empty library, no matches, no selection | UIR §9 |
+| Empty states | `ContentUnavailableView` for empty library, no matches, no selection; an empty album, smart album or built-in source shows its own state with its sidebar symbol (smart albums offer Edit Smart Album…) | UIR §9; `ui-redesign/status.md` E1 (`EmptySourceState`) |
 
 ## Loupe
 
@@ -112,6 +117,8 @@ Abbreviations: P1–P6 = `docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR
 | Color Mixer | Hue, saturation, luminance of eight bands | P3 second pass |
 | Color Grading | Shadows, midtones, highlights wheels; balance; blending | P3 |
 | Details | Sharpening (amount, radius, detail, masking); noise reduction | P3 |
+| Sharpening map | Shows in the loupe where Masking lets sharpening through: live while values change, full resolution once input pauses; "Not Applied" when nothing is sharpened. A view only: not saved, no undo, never in previews or exports | `sharpen-mask-preview/`; UG; `Edits/SharpeningMap.swift`. Manual checks M1–M9 open |
+| Machine learning noise reduction | Raw files only, opt-in per photo, in the Noise Reduction group (Luminance is its amount, Color dimmed while it applies). Uses the macOS 27 raw decoder's version 9 (`9.dng` / `9` in the Decoder pop-up); no model shipped or downloaded. Where it can't apply (older macOS, unsupported camera, failed decode) the photo renders classically, keeps the setting, and the caption badge and Activity say why. Carried by paste, presets and batch commands to raws only | `ml-denoise/`; UG; `Edits/MachineLearningNoiseReduction.swift`. A missing model is not detected yet (RI-E6); AC13 and manual checks open |
 | Effects | Look-up table, vignette, grain | P3 |
 | Group on/off | Check box per group keeps edits but disables them | P3 sidebar; UIR §4 |
 | Copy / Paste Adjustments | Paste carries crop, not masks | UG; P6 |
@@ -150,21 +157,21 @@ Abbreviations: P1–P6 = `docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR
 
 | Capability | What it does | Source |
 |---|---|---|
-| Export sheet (⇧⌘E) | Selection or loupe photo to a folder; pair exported once from its RAW; videos skipped | P4; UIR §8 |
+| Export sheet (⇧⌘E) | Selection or loupe photo to a folder; pair exported once from its RAW; videos skipped. Enabled only when the targets include a photo | P4; UIR §8; `ui-redesign/status.md` E12 (`ExportTargets.canExport`) |
 | Formats | JPEG (quality), TIFF 8/16-bit (none, LZW, ZIP); sRGB, Display P3, Adobe RGB, ProPhoto | P4; `Export/ExportSettings.swift` |
 | Sizing and sharpening | Full, box, long/short edge, percentage; never enlarged; PPI; output sharpening for screen/print | P4 |
 | Metadata levels | All, all except location, copyright and contact only, none; ratings/labels never written | P4 |
 | Watermark | One PNG, nine anchors, margin, size, opacity; preview in the sheet | P4; UIR §8 |
 | Naming and conflicts | Original name or template; batch names decided first; keep both / replace / skip asked once | P4 |
 | Export presets | `exportPreset` table | P4 |
-| Background export | Progress and Stop in the toolbar Activity item. Can reveal the written files in the Finder when done; the only Finder reveal in the app | UIR §1, §8; UG; `Model/ExportModel.swift:348` |
+| Background export | Progress and Stop in the toolbar Activity item. Results (written, failed, skipped) are reported in Activity only, never in an alert. Can reveal the written files in the Finder when done; the only Finder reveal in the app | UIR §1, §8; UG; `Model/ExportModel.swift`; `ui-redesign/status.md` E14 (`ExportActivityReport`) |
 
 ## Command line (`photocli`)
 
 | Capability | What it does | Source |
 |---|---|---|
 | Registry and contract | One JSON object out; exit codes 0/1/2; `--library-root` | P5 Command line |
-| Commands | `render`, `adjustments`, `query projects`, `query images`, `develop`, `rate`, `flag`, `label`, `export`, `help` | P5 Commands; `Commands/` |
+| Commands | `render`, `adjustments`, `query projects`, `query images`, `develop`, `rate`, `flag`, `label`, `export`, `help`. `develop` sets `noiseReduction.machineLearning` on raws only; `render` and `export` JSON say whether it applied | P5 Commands; `Commands/`; `ml-denoise/status.md` AC11 |
 | Mask commands | `mask list`, `mask add`, `mask set`, `mask remove` | P6 Results; `Commands/MaskCommands.swift` (not in CL's or UG's command lists) |
 
 ## UI shell
@@ -174,8 +181,8 @@ Abbreviations: P1–P6 = `docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR
 | One library window | `NavigationSplitView` with inspector; dark appearance on the library window only | UIR decisions 8–9, §1 |
 | Customizable toolbar | Import menu, Export, Grid/Loupe, size/zoom, Activity, Filter, Search, inspector; palette items | UIR §5 |
 | Activity item | Progress, Stop, last 20 messages; warnings vs information | UIR §1 |
-| Menu bar | File, Edit, View, Photo, Adjust, Window, Help; bare keys shown, enabled only when grid/loupe has focus. Help has only SwiftUI's default "‹app› Help" item, which says no help is available (both apps); ruled for removal in `ui-redesign/prd.md` R1 | UIR §6; CL Menus; `ui-redesign/design.md` N13, I28 |
-| Context menus | Photos, loupe, sidebar items, inspector headers, slider rows, presets, masks, import cells | UIR §7 |
+| Menu bar | File, Edit, View, Photo, Adjust, Window, Help; bare keys shown, enabled only when grid/loupe has focus. One File ▸ Stop (⌘.) names the newest job; one Edit ▸ Deselect All (⇧⌘A) serves both windows; Adjust has Import Look-Up Tables…, Reset Crop, Show / Hide Mask Overlay; View ▸ Info / Adjust are checked; New Mask and Add to Mask dim at their limits. Help has no items in either app (the dead "‹app› Help" item was removed); the menu stays for Help ▸ Search | UIR §6; CL Menus; `ui-redesign/design.md` §6; `ui-redesign/status.md` E4–E11, E26, E28 |
+| Context menus | Photos, loupe, video loupe (culling, keywords, albums, Play / Pause, Show Grid), sidebar items, inspector headers, slider rows, presets, masks, import cells | UIR §7; `ui-redesign/status.md` E9 |
 | Inspector | Info / Adjust tabs, pinned histogram, Original toggle and ⋯ menu | UIR §4 |
 | Sheets and panels | Export, LUT browser, presets as sheets; panels and alerts window-modal | UIR §8 |
 | Settings | Card auto-open; write XMP sidecars | `Views/SettingsView.swift`; UG |
@@ -192,7 +199,7 @@ Abbreviations: P1–P6 = `docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR
 
 | Capability | What it does | Source |
 |---|---|---|
-| Catalogued and played | MOV, MP4, M4V; poster frames; duration badge; `AVPlayerView` loupe; culling, keywords, albums, sidecars | P2 §8; `Import/FileScanner.swift:9` |
+| Catalogued and played | MOV, MP4, M4V; poster frames; duration badge; `AVPlayerView` loupe; culling, keywords, albums, sidecars; View ▸ Play / Pause (Space) | P2 §8; `Import/FileScanner.swift:9`; `ui-redesign/status.md` E8 |
 | No editing or export | By design so far | P2; UG |
 
 ## Rendering and previews
@@ -200,7 +207,7 @@ Abbreviations: P1–P6 = `docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR
 | Capability | What it does | Source |
 |---|---|---|
 | Render engine | Core Image, extended linear Rec. 2020 working space, Display P3 output; pool of contexts | CL Rendering; PROFILING "Real camera RAW files" |
-| Preview cache | Thumbnail and preview tiers, keyed by content hash, render hash, tier, pipeline version (now 5) | CL; `Preview/PreviewCacheKey.swift:30` |
+| Preview cache | Thumbnail and preview tiers, keyed by content hash, render hash, tier, pipeline version (now 6). Machine learning fallback renders are kept in memory for the session only, never on disk | CL; `Preview/PreviewCacheKey.swift:30`; `ml-denoise/status.md` |
 
 ## Quality and tooling
 
@@ -208,7 +215,7 @@ Abbreviations: P1–P6 = `docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR
 |---|---|---|
 | Goldens and CPU references | 16-bit PNG goldens per module; RAW goldens fingerprinted per macOS build | P5; P6 finding 7; CL Checking image code |
 | CI | Build and test on `macos-26` and `macos-15`; CodeQL; golden failure images uploaded | P5 Notes; P6 question D; `.github/workflows/` |
-| `photobench` | Synthetic libraries; import, preview, query, edits, masks, kernels, blend-error benchmarks | `docs/PROFILING.md`; P6 |
+| `photobench` | Synthetic libraries; import, preview, query, edits, masks, kernels, blend-error benchmarks; `denoise` times machine learning noise reduction | `docs/PROFILING.md`; P6; `ml-denoise/status.md` R14 |
 | Debug script | Drives the app for snapshots and checks | CL Commands; `Model/DebugScript.swift` |
 | Branding isolation | Brand values only in `AppBranding.swift` / `Branding.xcconfig`; enforced by tests | CL Naming rules |
 

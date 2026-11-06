@@ -2,7 +2,7 @@
 
 Status: Shipped 2026-11-05, PR #37. Manual checks M1–M9 are still open by the owner's choice; see review.md and status.md.
 Slug: sharpen-mask-preview
-Roadmap: Next
+Roadmap: Shipped
 
 ## Problem
 

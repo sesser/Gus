@@ -100,8 +100,8 @@ attach`) stands in for a camera card. `docs/PROFILING.md` has the benchmark
 commands.
 
 `photocli` renders, queries and edits a library without the app (every
-command prints one JSON object; see `docs/PHASE5_PLAN.md`, and
-`docs/PHASE6_PLAN.md` for `mask list`, `mask add`, `mask set` and
+command prints one JSON object; see `docs/archive/PHASE5_PLAN.md`, and
+`docs/archive/PHASE6_PLAN.md` for `mask list`, `mask add`, `mask set` and
 `mask remove`). Its write commands refuse while the app has that library
 open (`LibraryLock`), so quit the app (or use another `--library-root`)
 before `develop`, `rate`, `flag`, `label`, `mask add`, `mask set` or
@@ -118,20 +118,23 @@ nothing and needs no lock).
   `UPDATE_GOLDENS=1` always asks first, since it rewrites goldens (see
   Checking image code), and `xcodebuild` is denied. Put personal additions in
   `.claude/settings.local.json`, which is not committed.
-- `.claude/agents/` holds three project subagents. Product decides what to
-  build, design decides how it looks, engineering builds it.
+- `.claude/agents/` holds five project subagents. Product decides what to
+  build, design decides how it looks, engineering builds it, and code review
+  and QA check it before it merges.
 
 | Agent | Use it for | Tools |
 | --- | --- | --- |
-| `product-manager` | Turning an idea into requirements: a PRD with testable acceptance criteria and non-goals in `docs/features/<slug>/prd.md`. Keeps `docs/roadmap.md`. Does not design UI or write code. | Read, Write, Edit, Grep, Glob, WebSearch, WebFetch. Never builds. |
-| `apple-ui-designer` | Designing or reviewing windows, toolbars, sidebars, menus, inspectors and sheets against the HIG; deciding where a command lives (menu bar, toolbar, context menu, shortcut). Writes `docs/features/<slug>/design.md`. | Read, search, web, edit docs. Never builds. |
-| `swift-macos-engineer` | Implementing against the PRD and design, bug fixes, refactors and tests. Keeps `docs/features/<slug>/status.md`. Builds and tests after each step. | Full: read, edit, shell, web. |
+| `product-manager` | Turning an idea into requirements: a PRD with testable acceptance criteria and non-goals in `docs/features/<slug>/prd.md`. Keeps `docs/roadmap.md`. After a merge (Ship mode) marks the feature shipped and updates `README.md` and this file's "Scope so far" and "Not yet". Does not design UI or write code. | Read, Write, Edit, Grep, Glob, WebSearch, WebFetch. Never builds. |
+| `apple-ui-designer` | Designing or reviewing windows, toolbars, sidebars, menus, inspectors and sheets against the HIG; deciding where a command lives (menu bar, toolbar, context menu, shortcut). Writes `docs/features/<slug>/design.md` and, after implementation, `review.md`. | Read, search, web, edit docs. Never builds. |
+| `swift-macos-engineer` | Implementing against the PRD and design, bug fixes, refactors and tests. Keeps `docs/features/<slug>/status.md` and `docs/USER_GUIDE.md`. Builds and tests after each step. | Full: read, edit, shell, web. |
+| `code-reviewer` | Reviewing a branch before merge for correctness, concurrency and this file's rules. Writes `docs/features/<slug>/code-review.md`; says when `/security-review` should also run. Never edits code. | Read, search, shell (git, build, test), edit its own file. |
+| `qa-tester` | Mapping each acceptance criterion to a test or a debug-script check, running them against a copy of the bundle, and listing what only a person can check. Writes `docs/features/<slug>/qa.md`. Never edits code. | Read, search, shell, edit its own file. |
 
 How to work with them, who owns which file, and how questions go back to
 their owner: see `docs/WORKFLOW.md`. Work done before that workflow was
 recorded in `docs/UI_REDESIGN.md` and the phase plans
-(`docs/PHASE1_PLAN.md` … `docs/PHASE6_PLAN.md`); they stay the historical
-record of those decisions.
+(`docs/archive/PHASE1_PLAN.md` … `docs/archive/PHASE6_PLAN.md`); they stay
+the historical record of those decisions.
 
 This file's rules win over anything in an agent's prompt: GRDB is the only
 dependency, goldens are updated only on purpose, brand values stay in
@@ -207,7 +210,11 @@ compatible and never put `#` comment lines inside pasted command snippets.
   macOS icon shape); `build-app.sh` turns it into `AppIcon.icns` with `iconutil`.
 - `Tests/PhotoCoreTests` — Swift Testing suites; `Goldens/` (16-bit PNGs read
   from the source tree) and `Reference/` (CPU implementations).
-- `docs/PHASE1_PLAN.md` … `docs/PHASE6_PLAN.md` — design decisions per phase.
+- `docs/WORKFLOW.md` — the agent workflow and who owns which file;
+  `docs/roadmap.md` — Now, Next, Later, Shipped, Dropped;
+  `docs/features/<slug>/` — each feature's PRD, design, status and reviews.
+- `docs/archive/PHASE1_PLAN.md` … `docs/archive/PHASE6_PLAN.md` — design
+  decisions per phase, before the workflow (historical).
 - `THIRD_PARTY_NOTICES.md` — math ported from other projects, with notices.
 
 ## Naming rules
@@ -259,7 +266,7 @@ compatible and never put `#` comment lines inside pasted command snippets.
   and generated tables. Custom kernels are possible without a Metal build
   step: `RuntimeKernels` (a spike, not used by the renderer) compiles Metal
   source at run time into `CIImageProcessorKernel`s; see
-  `docs/PHASE5_PLAN.md` for its accuracy, speed and the alternatives. Each
+  `docs/archive/PHASE5_PLAN.md` for its accuracy, speed and the alternatives. Each
   module describes its parameters (`AdjustmentParameters.swift`); keep that
   in step when adding one (`AdjustmentParameterTests`). RAW
   decode settings go to `CIRAWFilter` only when set, so an identity stack
@@ -394,7 +401,7 @@ exposure, tone, white balance, presence and sharpening). Masks live in one
 `localAdjustments` operation as objects (`EditParameter.object`, schema 2
 for stacks that hold one), in the mask frame (the oriented decode before
 crop), read strictly and never written over when unreadable. Presets and
-paste leave them out. See `docs/PHASE6_PLAN.md`.
+paste leave them out. See `docs/archive/PHASE6_PLAN.md`.
 
 UI redesign (`docs/UI_REDESIGN.md`, steps 1–15): built with the macOS 26
 SDK, VoiceOver for the grids and loupe, a menu bar on focused values,
@@ -404,8 +411,40 @@ Contrast variants and dark only in the library window, Export, look-up
 tables and presets as sheets, the Import window on a toolbar, an options
 inspector and the shared grid, token template fields, and review mode (F).
 
-Not yet: AI masks, healing, lens corrections, DNG export, ML
-denoising, `.dcp` profiles, general (hand-made or burst) stacks, hierarchical
+Loupe film strip (`docs/UI_REDESIGN.md` §11, issue #25, PR #27): the
+source's photos in a strip between the loupe and its caption, the focused
+photo centered, resized in steps by a drag handle, View ▸ Show / Hide Film
+Strip (⌥⌘B), never shown in review (`Loupe/FilmStrip*.swift`,
+`FilmStripGeometry`).
+
+UI reconciliation (`docs/features/ui-redesign/`, design.md §6 E1–E28, PR
+#34): each source's own empty state, Adjust tab states as content-unavailable
+views, Export enabled only when the targets include a photo, export results
+in Activity only (no alert), one File ▸ Stop (⌘.) naming the newest job, one
+Edit ▸ Deselect All (⇧⌘A) shared with the import window, View ▸ Play / Pause
+and a video loupe context menu, Adjust ▸ Import Look-Up Tables…, Reset Crop
+and Show / Hide Mask Overlay, one set of field labels (`FieldLabel`), delete
+confirmations for presets, and no dead Help item (Help ▸ Search stays).
+
+Sharpening map (`docs/features/sharpen-mask-preview/`, PR #37): the loupe
+shows where Sharpening's Masking lets sharpening through, as a live estimate
+while values change and at full resolution once input pauses
+(`Edits/SharpeningMap.swift`). A view only: never saved, never in previews
+or exports.
+
+Machine learning noise reduction for raws (`docs/features/ml-denoise/`, PR
+#39): `noiseReduction.machineLearning` in the Noise Reduction group decodes
+with the macOS 27 RAW decoder's version 9 (`9.dng` for DNG, `9` for camera
+raws; no model shipped, and the app never starts the model's download). Off
+by default; stacks that don't ask for it decode with the pinned pre-9
+default, so no existing render changed. Where it can't apply (before macOS
+27, camera not supported, decode failed) the photo renders classically,
+keeps the setting and says why (`MachineLearningNoiseReduction`); those
+fallback previews stay in memory only. A missing model can't be told apart
+from a failed decode yet (RI-E6).
+
+Not yet: AI masks, healing, lens corrections, DNG export, `.dcp` profiles,
+general (hand-made or burst) stacks, hierarchical
 keywords, PTP cameras, a second backup destination. Writing metadata into
 originals was dropped (2026-11-04, `docs/roadmap.md`): originals are never
 written.

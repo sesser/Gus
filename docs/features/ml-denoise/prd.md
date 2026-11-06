@@ -1,8 +1,8 @@
 # ML noise reduction for RAW files
 
-Status: Approved (owner accepted every intake default, 2026-11-05)
+Status: Shipped 2026-11-05, PR #39. Checks pending: AC13 (owner), the RI-E6 (d) check (Open questions), the designer's on-screen checks M1–M9 in review.md, and the manual parts of AC6–AC10 in status.md.
 Slug: ml-denoise
-Roadmap: Next (top)
+Roadmap: Shipped
 
 ## Problem
 
@@ -312,9 +312,10 @@ at 1:1. Noise is clearly lower than classical at 100 and there are no new
 artifacts. The cameras used are recorded here.
 
 Since RI-E1, this is the only check that ML beats classical. The owner does
-it later and picks the cameras then (owner ruling 11). Until it passes, the
-roadmap keeps the feature short of Shipped. Merging the branch doesn't wait
-for it, because the feature is off unless chosen. A real raw committed as a
+it later and picks the cameras then (owner ruling 11). Merging the branch
+didn't wait for it, because the feature is off unless chosen. Until it
+passes, the roadmap records the feature as "Shipped, checks pending" (see
+Revisions, 2026-11-06). A real raw committed as a
 test fixture would automate the check, but only with the owner's file and
 consent.
 
@@ -412,7 +413,9 @@ from the table, not a measurement. There is no time ceiling (owner ruling
   breaks owner ruling 3. That would come back as a requirements issue.
   Should be done before the roadmap marks the feature Shipped, if such a
   machine can be had. If none can be had, the owner decides whether to ship
-  without it.
+  without it. The branch merged (PR #39) before this check was done; it is
+  recorded as pending, and the owner is asked to confirm shipping without
+  it (Revisions, 2026-11-06).
 
 Closed: the time ceiling (owner ruling 10: none) and RI-E2 (owner ruling
 9).
@@ -513,3 +516,11 @@ in `status.md`):
     missing.
   - Ruling 9's "never trigger a download" is unaffected.
   - Changed R5, AC6 and Open questions.
+- 2026-11-06: Ship pass. The branch merged into `develop` in PR #39 (merge
+  commit 334312c, 2026-11-05). `docs/WORKFLOW.md` step 6 now says a merge is
+  what ships, and checks still open are recorded as "Shipped, checks
+  pending", never dropped. So AC13 and the RI-E6 (d) check no longer hold
+  the roadmap short of Shipped; they are listed as pending on the Status
+  line and the roadmap. Changed the Status and Roadmap lines, AC13's last
+  paragraph and the RI-E6 (d) open question. The (d) follow-up, if a
+  silent fallback is found, is the roadmap row ml-denoise-missing-model.

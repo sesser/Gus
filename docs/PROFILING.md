@@ -252,7 +252,7 @@ the background jobs: live frames are still 3–5 times faster when nothing runs 
 ## Phase 5: runtime-compiled kernels
 
 `photobench kernels` times the custom-kernel spike (`RuntimeKernels`, see
-`PHASE5_PLAN.md`) against the stock filters it mirrors, on the hazy-landscape
+`docs/archive/PHASE5_PLAN.md`) against the stock filters it mirrors, on the hazy-landscape
 scene uploaded once to the GPU and rendered into a GPU texture. First call,
 then the median of seven; Apple M4 Pro, macOS 27.2, 2026-10-31:
 

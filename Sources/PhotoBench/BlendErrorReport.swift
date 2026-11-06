@@ -4,7 +4,7 @@ import PhotoCore
 import PhotoFixtures
 
 /// How far a local adjustment applied as blend(base, adjusted(p), α) is from
-/// the module run at α · p, per local control (docs/PHASE6_PLAN.md, decision 5).
+/// the module run at α · p, per local control (docs/archive/PHASE6_PLAN.md, decision 5).
 ///
 /// Every test scene, each control at four values across its range, α from 0.1
 /// to 0.9. The blend is computed in the working space (linear Rec. 2020), as

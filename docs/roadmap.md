@@ -26,6 +26,19 @@ choice ("Shipped, checks pending").
 moved it to the top of Next; added classical-noise-strength. Both come from
 issue #35.
 
+2026-11-06: Ship pass (`docs/WORKFLOW.md` step 6) for two merges nobody had
+recorded. ui-redesign-reconcile merged in PR #34 (merge commit 1e89a7b,
+2026-11-05) and ml-denoise in PR #39 (merge commit 334312c, 2026-11-05); both
+commits are on `develop`. Both moved to Shipped as "Shipped, checks pending",
+with links to where the open checks are listed. ml-denoise's PRD had said
+AC13 keeps it short of Shipped; under the workflow as changed, a merge is
+what ships, and AC13 is recorded as a pending check instead (PRD Revisions).
+Added follow-up Idea rows appkitbutton-enablement (from
+`ui-redesign/status.md`) and ml-denoise-missing-model (from
+`ml-denoise/status.md`, RI-E6). Also fixed the in-app-help row's duplicated
+Source cell. Now has two items; I did not move anything in (candidate in my
+report to the owner).
+
 Where specs live: new features get `docs/features/<slug>/`. The phase plans
 (`docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`) and `docs/UI_REDESIGN.md`
 stay as the historical record (owner, 2026-11-04). Bare `PHASE<n>_PLAN.md`
@@ -62,14 +75,14 @@ Idea, Specified (has prd.md), Designed (has design.md), In progress, Shipped, Dr
 
 ## Now (maximum three)
 
-All three items chosen by owner 2026-11-04 (ui-redesign-reconcile filled the
-slot the film strip left). Now is full: anything new moves one out.
+Items chosen by owner 2026-11-04. ui-redesign-reconcile shipped 2026-11-05
+(PR #34) and left Now on 2026-11-06, so one slot is open; the owner decides
+what fills it.
 
 | Slug | Problem | Status | Folder | Source |
 |------|---------|--------|--------|--------|
 | publishing-engine | Getting edited photos into Apple Photos or Immich means exporting to a folder and uploading by hand | Idea | none yet | Issue #28; `PHASE4_PLAN.md` out of scope ("export to services") |
-| ui-redesign-onscreen-check | Parts of the shipped redesign and the film strip were only checked by tests, never seen on screen (glass panes, VoiceOver speech, macOS 15 path, 13" Export sheet; film strip steps, height cap, show/hide, resize drag, crop session, Increase Contrast) | Idea | none yet | `UI_REDESIGN.md` status, "Not yet checked on screen"; §11 "Implementation status", last item |
-| ui-redesign-reconcile | Shipped UI has wrong enablement (Export on videos), a wrong empty state for empty albums, inconsistent field names and missing menu items (design.md §6, E1–E28) | Designed | [`features/ui-redesign/`](features/ui-redesign/) (design.md; prd.md addendum) | `ui-redesign/design.md` §3, §6. Owner chose it for Now 2026-11-04 ("ui-redesign-reconcile"). Run ui-redesign-onscreen-check after it |
+| ui-redesign-onscreen-check | Parts of the shipped redesign, the film strip and the reconcile changes were only checked by tests or script, never seen on screen (glass panes, VoiceOver speech, macOS 15 path, 13" Export sheet; film strip steps, height cap, show/hide, resize drag, crop session, Increase Contrast; ui-redesign-reconcile's manual checks for E1–E28) | Idea | none yet | `UI_REDESIGN.md` status, "Not yet checked on screen"; §11 "Implementation status", last item; [`ui-redesign/status.md`](features/ui-redesign/status.md) "Pending manual checks" |
 
 ## Next
 
@@ -77,7 +90,6 @@ Order is my proposal, not owner-confirmed.
 
 | Slug | Problem | Status | Why this order | Source |
 |------|---------|--------|----------------|--------|
-| ml-denoise | Noise reduction is classical only and mild at 100; no on-device ML option for RAW files | In progress | Owner, 2026-11-05: top of Next. Open bug report (#35), and the slice is small: Apple's macOS 27 RAW 9 decoder, no model to ship. [`features/ml-denoise/`](features/ml-denoise/) | Issue #35; CLAUDE.md Not yet; `PHASE3_PLAN.md` out of scope |
 | classical-noise-strength | The classical noise sliders (RAW decoder and Core Image filter) are mild at 100; the non-RAW filter runs after the vignette and ignores preview scale | Idea | Owner, 2026-11-05: split out of ml-denoise. The only noise fix for JPEG/HEIC. Changes existing edits' rendering (pipeline bump, goldens); intake must decide whether existing stacks keep their look | Issue #35; `PHASE6_PLAN.md` finding 6; `ml-denoise/prd.md` Non-goals |
 | local-sharpen-group-off | Turning the Sharpening group off makes local Sharpness use the default Radius 1, Detail 25 and Masking 0 instead of the user's values, so it starts sharpening noise (`Adjustments.effective` resets the group) | Idea | Next to sharpen-mask-preview because it concerns the same code and changes saved renders unexpectedly. Owner to decide the intent: should local Sharpness keep the user's Radius, Detail and Masking, or turn off with the group? Any fix is a rendering change that needs a `PreviewCacheKey.currentPipelineVersion` bump and golden updates | Designer RI-2 on sharpen-mask-preview; owner ruling 2026-11-05 ("Roadmap item to decide"). `AdjustmentRenderer.swift:193-194` |
 | sharpen-masking-scale | Masking holds back much more noise at fit than in a full-size export: on a noisy flat area at Masking 30, about 50% of the sharpening at fit (scale 0.43) against about 93% at full size. So the loupe at fit understates the sharpened noise an export gets | Idea | Placed after local-sharpen-group-off: same sharpening code, and both are rendering changes, so one pipeline bump could cover both. Any fix is a rendering change that needs a `PreviewCacheKey.currentPipelineVersion` bump and golden updates. Not urgent, because once input pauses the sharpening map already shows the full-size result | Engineer's finding on sharpen-mask-preview (PRD Q5: M4 Pro debug build, synthetic noisy 6000 × 4000 DNG); owner ruling 2026-11-05 ("Add Idea row") |
@@ -87,6 +99,7 @@ Order is my proposal, not owner-confirmed.
 | remove-from-library | A wrong or unwanted import can never be taken out of the library; nothing removes photos or projects from the catalog (files are never touched) | Idea | Placed after the owner's queued items. Every library collects mistakes, and the catalog already has `deleteProject` (cascade, tested), so effort is moderate. Intake: what happens to edits, albums, pairs, sidecar files and undo; whether offline photos can be removed (the "never delete rows because a volume is missing" rule covers automatic removal, not a person's choice) | `ui-redesign/design.md` RI-2 |
 | rename-project | Projects keep the folder or template name they were imported with | Idea | Small: `Catalog.renameProject` exists with no UI. Could ship with remove-from-library | `ui-redesign/design.md` RI-2 |
 | show-in-finder | No way to reveal a photo's original or a project's folder in the Finder | Idea | Small and frequent for people who keep their own folders (the vision). Intake: offline originals, which file of a RAW+JPEG pair, projects with no single folder (`project.sourcePath` is not always set). Export already reveals its own output | `ui-redesign/design.md` RI-3 |
+| appkitbutton-enablement | Some inspector buttons look enabled when they should be dimmed (the mask eye button and other Adjust tab buttons are likely affected): `AppKitButton(isEnabled: false)` doesn't reliably dim | Idea | A defect, small, and against principle 4; it may go as a bug fix without a feature folder (workflow: bug fixes skip steps 1, 2 and 6). Placed last only because a workaround covers the buttons the reconcile changes touched | `ui-redesign/status.md` "Found, not fixed" |
 
 ## Later
 
@@ -119,7 +132,8 @@ the gap. Ordering below the first row is judgment.
 | mcp-server | No MCP access to the command registry | Idea | Registry was designed so one could dispatch it | `PHASE5_PLAN.md` out of scope |
 | people-recognition | No way to find photos of a person | Idea | On-device face detection and recognition (Vision, Core ML); parked by the owner 2026-10-31 | Owner decision 2026-10-31 (not in repo docs) |
 | metadata-reader-status | When ExifTool isn't installed, metadata silently comes from ImageIO, which changes what the Info tab, smart albums and sidecar comparisons see | Idea | Ruling on intent: if built, it is a passive statement of which reader is in use, never an alert (design P4: information that needs no action gets no alert). Whether to also suggest installing ExifTool is an intake question. Later because the effect is invisible to most people | `ui-redesign/design.md` RI-4; README "ExifTool is used… when it's installed" |
-| in-app-help | The app has no help; the dead "‹app› Help" item is removed meanwhile (ui-redesign prd.md R1) | Idea | Intake: form (bundled Help Book, the guide shown in the app, or a web page, whose URL is a brand value), and whether it covers `photocli`. `docs/USER_GUIDE.md` is kept by the engineer, with the designer reviewing its terms (owner ruling, 2026-11-04, RI-5); if help is built from the guide, that stays its owner | `ui-redesign/design.md` RI-1, N13, I28 | `ui-redesign/design.md` RI-1, N13, I28 |
+| in-app-help | The app has no help; the dead "‹app› Help" item was removed (ui-redesign prd.md R1, E28, shipped in PR #34) | Idea | Intake: form (bundled Help Book, the guide shown in the app, or a web page, whose URL is a brand value), and whether it covers `photocli`. `docs/USER_GUIDE.md` is kept by the engineer, with the designer reviewing its terms (owner ruling, 2026-11-04, RI-5); if help is built from the guide, that stays its owner | `ui-redesign/design.md` RI-1, N13, I28 |
+| ml-denoise-missing-model | On a Mac with macOS 27 but without the RAW 9 model, a photo that asks for machine learning noise reduction would say "could not be applied to this photo" (or, if macOS falls back silently, claim it applied) instead of "not available on this Mac" (owner ruling 9). No public API tells whether the model is present | Idea | Depends on the pending RI-E6 (d) check on ml-denoise (what a decode does without the model) or on Apple documenting a presence check. If (d) shows a silent fallback, it breaks owner ruling 3 and moves up | `ml-denoise/status.md` RI-E6; `ml-denoise/prd.md` Open questions |
 
 ## Shipped
 
@@ -147,9 +161,11 @@ Dates are from git history (first commit of the work) or the phase document.
 | photocli | 2026-10-31 | Phase 5: command registry, `photocli`, library lock; mask commands added in phase 6 |
 | local-adjustments-masks | 2026-11-01 | Phase 6 first pass, with stage caching and drafts. `PHASE6_PLAN.md` |
 | import-keep-picks | 2026-11-02 | Bug, issue #19 (closed); UI_REDESIGN step 10 |
-| ui-redesign | 2026-11-04 | Steps 1–15 incl. review mode; PRs #20, #21. Not everything checked on screen (see ui-redesign-onscreen-check). Reconciled design in [`features/ui-redesign/`](features/ui-redesign/); its follow-up changes are ui-redesign-reconcile (Now) |
+| ui-redesign | 2026-11-04 | Steps 1–15 incl. review mode; PRs #20, #21. Not everything checked on screen (see ui-redesign-onscreen-check). Reconciled design in [`features/ui-redesign/`](features/ui-redesign/); its follow-up changes are ui-redesign-reconcile (Shipped 2026-11-05) |
 | loupe-film-strip | 2026-11-04 | Issue #25 (closed); merged via PR #27. Spec stayed in `UI_REDESIGN.md` §11 (owner, 2026-11-04). Its on-screen checks are under ui-redesign-onscreen-check. §11's checklist still shows 7 build items open that the code appears to implement; the engineer should tick them |
 | sharpen-mask-preview | 2026-11-05 | Merged via PR #37 (merge commit 64334b7). Shows where Sharpening's Masking lets sharpening through: a live estimate while the value changes, recomputed at full resolution when input pauses. The designer's manual checks M1–M9 have not been done at the app; they stay open by the owner's choice ("Shipped, checks pending", 2026-11-05) and are listed in the feature's review.md and status.md. Follow-ups: local-sharpen-group-off, sharpen-masking-scale (Next). [`features/sharpen-mask-preview/`](features/sharpen-mask-preview/) |
+| ui-redesign-reconcile | 2026-11-05 | **Shipped, checks pending.** Merged via PR #34 (merge commit 1e89a7b). All 28 changes E1–E28 from `ui-redesign/design.md` §6 are Done: empty states per source, Export enabled only for photos, export results in Activity only, one ⌘. Stop and one ⇧⌘A Deselect All, Play / Pause and a video context menu, new Adjust menu items, one set of field labels, preset delete confirmations, the dead Help item removed. Manual checks for most changes are still open, listed in [`ui-redesign/status.md`](features/ui-redesign/status.md) "Pending manual checks"; they are done under ui-redesign-onscreen-check (Now). No separate review.md. Follow-up: appkitbutton-enablement (Next). [`features/ui-redesign/`](features/ui-redesign/) |
+| ml-denoise | 2026-11-05 | **Shipped, checks pending.** Merged via PR #39 (merge commit 334312c). Opt-in machine learning noise reduction for raw files through the macOS 27 RAW decoder's version 9; off unless chosen, says why when it can't apply. Open: AC13, the owner's check on 2–3 of their own high-ISO raws that it beats classical at 100 (the only check of that claim); the RI-E6 (d) check of a decode on a Mac without the model (prd.md Open questions); the designer's on-screen checks M1–M9 in [`ml-denoise/review.md`](features/ml-denoise/review.md); the manual parts of AC6–AC10 in [`ml-denoise/status.md`](features/ml-denoise/status.md). Follow-ups: classical-noise-strength (Next), ml-denoise-missing-model (Later). [`features/ml-denoise/`](features/ml-denoise/) |
 
 ## Dropped
 

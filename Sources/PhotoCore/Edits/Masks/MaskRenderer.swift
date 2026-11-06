@@ -3,7 +3,7 @@ import CoreImage.CIFilterBuiltins
 import Foundation
 
 /// A mask's alpha as a lazy Core Image graph over the output frame (grey,
-/// 0 … 1), from stock filters and the CPU brush (docs/PHASE6_PLAN.md,
+/// 0 … 1), from stock filters and the CPU brush (docs/archive/PHASE6_PLAN.md,
 /// "Shapes" and "Kernels").
 ///
 /// Gradients and brushes are made in the mask frame (the image before turns,

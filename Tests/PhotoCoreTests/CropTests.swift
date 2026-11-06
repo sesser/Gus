@@ -385,7 +385,7 @@ struct CropTests {
     }
 }
 
-/// The mask frame (docs/PHASE6_PLAN.md, decision 1) mapped through turns,
+/// The mask frame (docs/archive/PHASE6_PLAN.md, decision 1) mapped through turns,
 /// straightening and crop, checked against `Crop.apply` itself.
 @Suite("Mask frame mapping")
 struct MaskFrameMappingTests {
