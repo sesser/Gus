@@ -144,7 +144,7 @@ again; this is how earlier bumps (3 to 6) behaved, and the cache is
 documented as safe to delete. Rendering does not change: no golden was
 updated, `UPDATE_GOLDENS` was never run, and all goldens pass unchanged.
 
-**Owner confirmation pending** (code review Q1, `code-review.md`). The
+**Owner accepted the cost** (2026-11-06; code review Q1, `code-review.md`). The
 reviewer flagged this cost for the owner. `removeObsoletePipelineVersions`
 deletes the whole `v6` folder at launch. Photos on volumes that are offline
 at the first launch after the update then show the unavailable symbol until
@@ -155,7 +155,7 @@ are reconnected.
 Main session ruling (2026-11-06): keep the bump. A wrong entry cannot be
 told apart from a right one. Falling back to `v6` for offline masters would
 keep serving looks that may be wrong, and would keep the old folder
-indefinitely. The owner confirms before merge.
+indefinitely. Owner, 2026-11-06: cost accepted, keep the bump.
 
 ## Build and test
 
@@ -284,7 +284,7 @@ every launch.
 | # | Finding | Response |
 | --- | --- | --- |
 | C1 | The undo step of `catalogWritesDecideWhatRenders` checked nothing (identity thumbnail already on disk) | Fixed. The step now requests the uncached `.preview` tier of the identity hash before the identity write: it expects `staleEditStack` and nothing cached, then the original after the write. Checked against a disabled guard (above). |
-| Q1 | Owner: cost of pipeline version 7 | Recorded under the repair decision. Main session ruling: keep the bump. Owner confirmation pending before merge. |
+| Q1 | Owner: cost of pipeline version 7 | Recorded under the repair decision. Main session ruling: keep the bump. Owner accepted the cost (2026-11-06). |
 | Q2 | Product manager: `follow` edit-drop race | Not in this branch's scope; goes to the product manager as a roadmap bug (Notes). |
 
 After C1: `swift build` clean, no new warnings; `swift test` **554 tests in
