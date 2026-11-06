@@ -50,9 +50,14 @@ jobs:
       - name: Test
         # Every golden's difference goes to the log, and mismatches are kept
         # as expected | actual | 8x difference images for the artifact below.
+        # SWIFT_BACKTRACE: a crash in the test process (signal 11 on develop
+        # since PR #39, never reproduced locally) prints a symbolicated
+        # backtrace of every thread to the log; tests run in parallel, so the
+        # log alone does not say which one crashed.
         env:
           GOLDENS_REPORT: "1"
           GOLDEN_FAILURES_DIR: ${{ runner.temp }}/golden-failures
+          SWIFT_BACKTRACE: enable=yes,interactive=no,threads=all,output-to=stderr
         run: swift test
 
       - name: Upload golden failures
@@ -61,6 +66,25 @@ jobs:
         with:
           name: golden-failures-${{ matrix.os }}
           path: ${{ runner.temp }}/golden-failures
+          if-no-files-found: ignore
+
+      - name: Collect crash reports
+        # The system's crash reports (.ips), for crashes inside Apple's
+        # frameworks that the Swift backtrace can't name. The runner is a
+        # fresh machine, so every report is from this job.
+        if: failure()
+        run: |
+          mkdir -p "$RUNNER_TEMP/crash-reports"
+          find "$HOME/Library/Logs/DiagnosticReports" /Library/Logs/DiagnosticReports \
+            -name '*.ips' -exec cp {} "$RUNNER_TEMP/crash-reports/" \; 2>/dev/null || true
+          ls -l "$RUNNER_TEMP/crash-reports"
+
+      - name: Upload crash reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crash-reports-${{ matrix.os }}
+          path: ${{ runner.temp }}/crash-reports
           if-no-files-found: ignore
 
       - name: Build app bundles
