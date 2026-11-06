@@ -62,6 +62,11 @@ public final class PreviewService: Sendable {
         /// Not cached, and the master's volume is offline.
         case sourceUnavailable
         case decodeFailed
+        /// The version's saved stack is not the one the request's key names:
+        /// its hash was shown before the write that saves it landed, or a
+        /// newer stack has been saved since. Nothing is rendered or cached;
+        /// a request with the saved stack's hash renders it.
+        case staleEditStack
     }
 
     public let cache: PreviewDiskCache
@@ -82,7 +87,10 @@ public final class PreviewService: Sendable {
     private static let log = Logger(subsystem: AppBranding.bundleIdentifier, category: "previews")
 
     /// - Parameters:
-    ///   - editStack: Loads a version's edit stack when a rendition has to be generated.
+    ///   - editStack: Loads a version's saved edit stack when a rendition has to be
+    ///     generated. A rendition is kept only under the key of the stack it was
+    ///     rendered from: when the loaded stack's `renderHash` is not the request
+    ///     key's hash, the request fails with `Failure.staleEditStack`.
     ///   - memoryLimit: Bytes of decoded images kept in memory.
     public init(cache: PreviewDiskCache, generator: PreviewGenerator = PreviewGenerator(),
                 editStack: @escaping @Sendable (Int64) async throws -> EditStack,
@@ -176,7 +184,7 @@ public final class PreviewService: Sendable {
         _ = try await generateLane.run(key: key.relativePath, priority: priority.rawValue,
                                        taskPriority: priority.taskPriority) {
             if cache.contains(key) { return true }
-            let stack = try await loadStack(versionID)
+            let stack = try await Self.stack(loadStack, versionID: versionID, for: key)
             try Task.checkCancellation()
             var keys = [key.tier: key]
             if key.tier == .preview,
@@ -220,7 +228,7 @@ public final class PreviewService: Sendable {
         let colorSpace = display.value
         let decoded = try await fullLane.run(key: memoryKey, priority: Priority.visible.rawValue,
                                              taskPriority: .userInitiated) {
-            let stack = try await loadStack(versionID)
+            let stack = try await Self.stack(loadStack, versionID: versionID, for: request.key)
             try Task.checkCancellation()
             if FileKind(pathExtension: source.pathExtension) == .video {
                 return DecodedImage(cgImage: try await VideoFrames.poster(of: source, longEdge: nil))
@@ -253,7 +261,7 @@ public final class PreviewService: Sendable {
         let longEdge = fullResolution ? nil : request.key.tier.longEdge
         let decoded = try await hdrLane.run(key: memoryKey, priority: priority.rawValue,
                                             taskPriority: priority.taskPriority) {
-            let stack = try await loadStack(versionID)
+            let stack = try await Self.stack(loadStack, versionID: versionID, for: request.key)
             try Task.checkCancellation()
             return try generator.hdrImage(source: source, stack: stack, longEdge: longEdge).map(DecodedImage.init)
         }
@@ -278,6 +286,19 @@ public final class PreviewService: Sendable {
 
     public func clearMemory() {
         memory.removeAll()
+    }
+
+    /// The version's saved stack, if it is the one `key` names. Cached
+    /// renditions are never regenerated, so one rendered from another stack
+    /// would stay wrong under `key` for good.
+    private static func stack(_ load: @Sendable (Int64) async throws -> EditStack, versionID: Int64,
+                              for key: PreviewCacheKey) async throws -> EditStack {
+        let stack = try await load(versionID)
+        guard stack.renderHash == key.editStackHash else {
+            log.notice("Version \(versionID) has another stack than \(key.relativePath, privacy: .public) names; not rendered")
+            throw Failure.staleEditStack
+        }
+        return stack
     }
 
     static func memoryKey(_ key: PreviewCacheKey, bucket: Int) -> String {

@@ -257,7 +257,9 @@ struct PreviewPipelineTests {
             let source = root.appending(path: "a.jpg")
             try writeJPEG(source, width: 400, height: 300)
             let service = PreviewService(cache: PreviewDiskCache(root: root.appending(path: "cache")), editStack: { _ in .identity })
-            let cachedKey = try #require(PreviewCacheKey(contentHash: hashA, editStackHash: hashB, tier: .preview))
+            // The key names the stack the loader returns: a rendition is cached only under its stack's hash.
+            let cachedKey = try #require(PreviewCacheKey(contentHash: hashA, editStackHash: EditStack.identity.renderHash,
+                                                         tier: .preview))
             let missingKey = try #require(PreviewCacheKey(contentHash: hashB, editStackHash: hashB, tier: .preview))
             try await service.prepare(PreviewRequest(versionID: 1, key: cachedKey, sourceURL: source))
 

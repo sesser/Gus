@@ -16,9 +16,10 @@ enum EditPhase {
 ///
 /// Controls change `adjustments`; each change renders a frame through a
 /// `LiveRenderSession`, which the loupe shows instead of its cached preview.
-/// When a gesture ends the stack is saved (one undo step), the item's edit hash
-/// changes, and the last frame becomes the new preview in the memory cache, so
-/// the loupe switches back to its usual renditions without a flash.
+/// When a gesture ends the stack is saved (one undo step); once the write has
+/// landed the item's edit hash changes, and the last frame becomes the new
+/// preview in the memory cache, so the loupe switches back to its usual
+/// renditions without a flash.
 @MainActor
 @Observable
 final class AdjustmentEditor {
@@ -552,10 +553,11 @@ final class AdjustmentEditor {
     func apply(_ stack: EditStack, toVersion versionID: Int64, undoingTo previous: EditStack, actionName: String) {
         guard let library else { return }
         let catalog = library.catalog
-        library.persist {
-            try await catalog.setEditStack(stack, forVersion: versionID)
-        }
         let hash = stack.renderHash
+        library.persist { [weak self] in
+            try await catalog.setEditStack(stack, forVersion: versionID)
+            self?.showSaved(hash, forVersion: versionID)
+        }
         if versionID == item?.versionID {
             let values = Adjustments(stack: stack)
             committed = values
@@ -569,16 +571,25 @@ final class AdjustmentEditor {
                 requestRender(interactive: false)
             }
         }
-        library.setEditStackHash(hash, forVersion: versionID)
-        if versionID == item?.versionID {
-            item?.editStackHash = hash
-            seedPreviewIfRendered()
-        }
 
         library.undoManager.registerUndo(withTarget: self) { editor in
             editor.apply(previous, toVersion: versionID, undoingTo: stack, actionName: actionName)
         }
         library.undoManager.setActionName(actionName)
+    }
+
+    /// Shows a saved stack's hash, once its write has landed: the grid, film
+    /// strip and loupe then ask for renditions of it, which `PreviewService`
+    /// renders from the catalog's stack. Shown earlier, they would ask while
+    /// the catalog still has the previous stack (stale-preview-after-save);
+    /// the live frame stays on screen until then. Runs on the write chain,
+    /// so hashes are shown in the order their writes land.
+    private func showSaved(_ hash: String, forVersion versionID: Int64) {
+        library?.setEditStackHash(hash, forVersion: versionID)
+        if versionID == item?.versionID {
+            item?.editStackHash = hash
+            seedPreviewIfRendered()
+        }
     }
 
     /// A stack saved for a version by something else (paste, a preset, their undo).

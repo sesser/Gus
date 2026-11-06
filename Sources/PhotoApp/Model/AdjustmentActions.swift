@@ -90,12 +90,12 @@ extension LibraryModel {
                                         isUndo: Bool, actionName: String) {
         undoManager.registerUndo(withTarget: self) { model in
             let catalog = model.catalog
-            model.persist {
+            model.persist { [weak model] in
                 guard let value = change.value else { return }
-                try await catalog.setEditStacks(isUndo ? value.before : value.after)
-            }
-            model.afterPendingWrites { model in
-                if let value = change.value { model.showEditStacks(isUndo ? value.before : value.after) }
+                let stacks = isUndo ? value.before : value.after
+                try await catalog.setEditStacks(stacks)
+                // Only once written: previews render the catalog's stacks.
+                model?.showEditStacks(stacks)
             }
             model.registerEditStacksUndo(change, isUndo: !isUndo, actionName: actionName)
         }
