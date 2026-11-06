@@ -150,6 +150,9 @@ final class LibraryModel {
     let sidecars: SidecarSync
     let cardImport: CardImportModel
     let editor = AdjustmentEditor()
+    /// Catalog writes in the order they were made, and the rule for reads
+    /// whose results must agree with them (`persist`, `WriteChain.read`).
+    let writes = WriteChain()
     let lookTableLibrary = LookTableLibraryModel()
     let presetPreviews = PresetPreviewModel()
     let export = ExportModel()
@@ -570,7 +573,6 @@ final class LibraryModel {
     /// Counts folder imports, so late progress reports of an earlier one are dropped.
     @ObservationIgnored private var importGeneration = 0
     @ObservationIgnored private var warmTask: Task<Void, Never>?
-    @ObservationIgnored private var writeChain: Task<Void, Never>?
     /// Undo for changes to photos and keywords. The grid and loupe answer
     /// undo:/redo: with it, so text fields keep their own undo.
     @ObservationIgnored var undoManager = UndoManager()
@@ -693,9 +695,14 @@ final class LibraryModel {
         let focusID = focusVersionID ?? (keepFocus ? focusedItem?.versionID : nil)
         reloadTask = Task {
             do {
-                let items = try await catalog.libraryItems(matching: filter)
-                guard !Task.isCancelled else { return }
-                apply(items, focusVersionID: focusID)
+                // Through the write chain: a row read before a queued write
+                // would otherwise put the old values (an edit's hash, a
+                // rating shown before its write) back on screen.
+                let items = try await writes.read {
+                    try await catalog.libraryItems(matching: filter)
+                } apply: { items in
+                    apply(items, focusVersionID: focusID)
+                }
                 // For "87 of 4,623 · Filtered".
                 if isFiltered {
                     var whole = filter
@@ -1188,9 +1195,7 @@ final class LibraryModel {
     /// Runs catalog work after every earlier write, so changes reach the catalog
     /// in the order they were made (and undo steps after the change they undo).
     func persist(_ work: @escaping @MainActor () async throws -> Void) {
-        let previous = writeChain
-        writeChain = Task {
-            await previous?.value
+        writes.enqueue { [self] in
             do {
                 try await work()
             } catch {
@@ -1204,11 +1209,7 @@ final class LibraryModel {
 
     /// Runs `body` once the writes queued so far have finished.
     func afterPendingWrites(_ body: @escaping @MainActor (LibraryModel) async -> Void) {
-        let previous = writeChain
-        Task {
-            await previous?.value
-            await body(self)
-        }
+        writes.afterPendingWrites { [self] in await body(self) }
     }
 
     // MARK: Import
