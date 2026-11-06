@@ -54,7 +54,7 @@ Agents cannot call each other, so the main session relays.
 - `swift build` and `swift test`.
 - `Scripts/build-app.sh` assembles the `.app` bundle.
 - There is no Xcode project. Do not use `xcodebuild` or SwiftUI previews to verify work.
-- UI checks run the bundle with `--debug-script` (see `CLAUDE.md`), against a copy of the bundle with its own bundle identifier and a scratch library from `photobench`, so they never touch the owner's library or preferences.
+- UI checks run the bundle with `--debug-script` (see `CLAUDE.md`), against a copy of the bundle with its own bundle identifier and a scratch library from `photobench`, so they never touch the owner's library or preferences. Every launch passes `--library-root`: the identifier separates preferences only, and a launch without it (including a bare `open` of the bundle to bring it forward) opens the owner's library.
 
 ### Rules
 
