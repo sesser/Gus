@@ -241,15 +241,8 @@ final class AdjustmentEditor {
         let versionID = newItem.versionID
         let cache = library.previews.cache
         let previewKey = library.previewRequest(for: newItem, tier: .preview)?.key
+        let writes = library.writes
         loadTask = Task {
-            let stack: EditStack
-            do {
-                stack = try await catalog.version(id: versionID)?.decodedEditStack() ?? .identity
-            } catch {
-                guard !Task.isCancelled, item?.versionID == versionID else { return }
-                state = .unreadable(EditStack.ReadFailure(error))
-                return
-            }
             let defaults = SupportedFormats.isRaw(pathExtension: url.pathExtension)
                 ? await Task.detached(priority: .userInitiated) { RawDefaults(source: url) }.value : nil
             let camera = SupportedFormats.isRaw(pathExtension: url.pathExtension)
@@ -257,21 +250,39 @@ final class AdjustmentEditor {
             let cached = await Task.detached(priority: .userInitiated) { previewKey.map(cache.contains) ?? false }.value
             let fallback = previewKey.flatMap(cache.sessionOnlyReason)
             guard !Task.isCancelled, item?.versionID == versionID else { return }
-            let loaded = Adjustments(stack: stack)
-            adjustments = loaded
-            committed = loaded
-            rawDefaults = defaults
-            previewWasCached = cached
-            arrivedWithFailedFallback = fallback == .failed
-            if let fallback { learnUnavailability(fallback) }
-            cameraRect = camera
-            session = LiveRenderSession(source: url, generator: generator, colorSpace: colorSpace)
-            state = .ready
-            refreshMachineLearning()
-            if cropsWhenReady == versionID {
-                cropsWhenReady = nil
-                beginCrop()
+            // Through the write chain: a save of this photo can still be
+            // queued (it was left and opened again before the save landed).
+            // Loaded from before it, the next change would write the older
+            // values back and drop that save (editor-follow-edit-drop).
+            do {
+                try await writes.read {
+                    try await catalog.version(id: versionID)?.decodedEditStack() ?? .identity
+                } apply: { stack in
+                    guard item?.versionID == versionID else { return }
+                    let loaded = Adjustments(stack: stack)
+                    adjustments = loaded
+                    committed = loaded
+                    rawDefaults = defaults
+                    previewWasCached = cached
+                    arrivedWithFailedFallback = fallback == .failed
+                    if let fallback { learnUnavailability(fallback) }
+                    cameraRect = camera
+                    session = LiveRenderSession(source: url, generator: generator, colorSpace: colorSpace)
+                    state = .ready
+                    refreshMachineLearning()
+                    if cropsWhenReady == versionID {
+                        cropsWhenReady = nil
+                        beginCrop()
+                    }
+                }
+            } catch is CancellationError {
+                return
+            } catch {
+                guard !Task.isCancelled, item?.versionID == versionID else { return }
+                state = .unreadable(EditStack.ReadFailure(error))
+                return
             }
+            guard item?.versionID == versionID, state == .ready else { return }
             // A frame for the histogram, once the person settles on this photo.
             try? await Task.sleep(for: .milliseconds(250))
             guard !Task.isCancelled, item?.versionID == versionID else { return }
