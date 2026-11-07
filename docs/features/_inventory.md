@@ -15,6 +15,10 @@ Updated 2026-11-06 (Ship pass) for what merged since: the sharpening map
 reduction (PR #39). Rows changed from those features' `status.md` and
 `docs/USER_GUIDE.md`; their manual checks are still open (roadmap Shipped).
 
+Updated 2026-11-06 (Ship pass) for PR #43 (editor-follow-edit-drop and
+reload-items-stale-hash: Live rendering row) and PR #42 (CI crash capture: CI
+row). `develop` as of 520d479.
+
 Markers:
 
 - **[inferred from code]**: no document states it; the claim rests on code alone.
@@ -122,7 +126,7 @@ Abbreviations: P1–P6 = `docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR
 | Effects | Look-up table, vignette, grain | P3 |
 | Group on/off | Check box per group keeps edits but disables them | P3 sidebar; UIR §4 |
 | Copy / Paste Adjustments | Paste carries crop, not masks | UG; P6 |
-| Live rendering | Decoded master reused per frame; one save and undo step per gesture; stage cache and adaptive drafts | CL Editing; P6 Caching and drafts |
+| Live rendering | Decoded master reused per frame; one save and undo step per gesture; stage cache and adaptive drafts. The loupe loads a photo's edits only after its pending saves land (shows loading meanwhile), and library reloads never put back values older than a change already made | CL Editing; P6 Caching and drafts; `editor-follow-edit-drop/status.md` (PR #43) |
 | Runtime GPU kernels (spike) | Compiled at run time; not used by the renderer | P5; `Edits/Kernels/RuntimeKernels.swift` |
 
 ## Crop
@@ -214,7 +218,7 @@ Abbreviations: P1–P6 = `docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR
 | Capability | What it does | Source |
 |---|---|---|
 | Goldens and CPU references | 16-bit PNG goldens per module; RAW goldens fingerprinted per macOS build | P5; P6 finding 7; CL Checking image code |
-| CI | Build and test on `macos-26` and `macos-15`; CodeQL; golden failure images uploaded | P5 Notes; P6 question D; `.github/workflows/` |
+| CI | Build and test on `macos-26` and `macos-15`; CodeQL; golden failure images uploaded; when the test process crashes, a backtrace of every thread goes to the log and the system crash reports are uploaded | P5 Notes; P6 question D; `.github/workflows/` (crash capture: PR #42) |
 | `photobench` | Synthetic libraries; import, preview, query, edits, masks, kernels, blend-error benchmarks; `denoise` times machine learning noise reduction | `docs/PROFILING.md`; P6; `ml-denoise/status.md` R14 |
 | Debug script | Drives the app for snapshots and checks | CL Commands; `Model/DebugScript.swift` |
 | Branding isolation | Brand values only in `AppBranding.swift` / `Branding.xcconfig`; enforced by tests | CL Naming rules |
