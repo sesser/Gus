@@ -76,4 +76,4 @@ On a second pass, read only the new commits and fill in Follow-up; do not rewrit
 
 ## Report
 
-End with: verdict, the number of findings by severity, whether `/security-review` should run, and any Design questions or Requirements issues for the main session to relay.
+End with: verdict, the number of findings by severity, whether `/security-review` should run, any Design questions or Requirements issues for the main session to relay, and the next step: qa-tester, which runs on every feature and bug fix after code review (for a feature, once the designer's review is done too).

@@ -12,10 +12,12 @@ Features move through the agents in order. Do not skip steps, and do not do one 
    - When the diff adds or changes a parser of outside files, a subprocess, file writing outside the library, or network code, the main session also runs `/security-review` on the branch (code-reviewer says when).
 
    Findings go to the engineer, who fixes them and updates `status.md`. The reviewer that raised a finding confirms the fix in its own file.
-5. **Merge.** The owner merges the pull request into `develop`.
-6. **Ship**, after the merge. The main session runs **product-manager** in Ship mode, giving it the PR number and merge commit (the product manager has no shell). It moves the feature to Shipped on the roadmap, sets the PRD's status, and brings `README.md` and the "Scope so far" and "Not yet" sections of `CLAUDE.md` in line with what shipped. Checks still open in `qa.md` or `review.md` are recorded as "Shipped, checks pending" with a link, never dropped.
+5. **Ship**, the last commit on the feature branch, once the reviews have no open findings, CI is green and the pull request is open (so its number is known). The main session runs **product-manager** in Ship mode, giving it the PR number (the product manager has no shell). It moves the feature to Shipped on the roadmap, sets the PRD's status, and brings `README.md` and the "Scope so far" and "Not yet" sections of `CLAUDE.md` in line with what the branch delivers. Checks still open in `qa.md` or `review.md` are recorded as "Shipped, checks pending" with a link, never dropped. The main session commits these changes to the feature branch and pushes them, so the record reaches `develop` with the merge itself and needs no pull request of its own.
 
-A bug fix without a feature folder skips steps 1, 2 and 6 unless it changes what the README or `CLAUDE.md` says; it still gets code review.
+   The record describes what the feature does, not a commit, and becomes true when the pull request merges; if it is closed unmerged, the record never reaches `develop`. Later commits on the branch, such as a build or CI fix, leave it standing. Run Ship again only when a later commit changes what it wrote: behavior or scope that the README or "Scope so far" describe, or a check opened or closed in `qa.md` or `review.md`.
+6. **Merge.** The owner merges the pull request into `develop`. Nothing runs after the merge.
+
+A bug fix has no PRD or design: it skips steps 1 and 2, and skips step 5 unless it has a roadmap row or changes what the README or `CLAUDE.md` says. It still gets a folder, `docs/features/<slug>/`, for `status.md` and the reviews, and all of step 4 except the design review, which runs only when the fix changes the UI. Its acceptance is the **Bug** section of `status.md` (steps to reproduce, expected and actual behavior, and the test that fails without the fix) and its roadmap row, if any. Code review comes first, then QA; a bug fix is not ready to merge until both have run.
 
 ### Ownership
 
@@ -35,7 +37,7 @@ A bug fix without a feature folder skips steps 1, 2 and 6 unless it changes what
 
 Slugs are kebab-case. A whole-app redesign is a feature: `docs/features/ui-redesign/`.
 
-Statuses: the roadmap uses Idea, Specified, Designed, In progress, Shipped, Dropped. `status.md` uses Not started, In progress, Done, Blocked, Deferred; Shipped is recorded only on the roadmap and in the PRD, because the engineer does not run after a merge.
+Statuses: the roadmap uses Idea, Specified, Designed, In progress, Shipped, Dropped. `status.md` uses Not started, In progress, Done, Blocked, Deferred; Shipped is recorded only on the roadmap and in the PRD, by the product manager at Ship.
 
 The phase plans in `docs/archive/` and `docs/UI_REDESIGN.md` are the historical record of work done before this workflow. Link to them by their real path (`docs/archive/PHASE6_PLAN.md`); do not add to them.
 
@@ -66,4 +68,4 @@ Agents cannot call each other, so the main session relays.
 
 ### Typical session
 
-Start a feature by asking the product-manager agent to take the idea. After the PRD exists, ask apple-ui-designer to design it. When `design.md` is done, ask swift-macos-engineer to implement. When `status.md` says Done, run code-reviewer and the designer review, then qa-tester, and send their findings back to the engineer. After the owner merges, run product-manager in Ship mode.
+Start a feature by asking the product-manager agent to take the idea. After the PRD exists, ask apple-ui-designer to design it. When `design.md` is done, ask swift-macos-engineer to implement. When `status.md` says Done, run code-reviewer and the designer review, then qa-tester, and send their findings back to the engineer. When the reviews are closed and CI is green, run product-manager in Ship mode with the PR number and commit its changes to the branch; then the owner merges.
