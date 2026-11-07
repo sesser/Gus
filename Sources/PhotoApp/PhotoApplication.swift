@@ -3,7 +3,7 @@ import PhotoCore
 import PhotoUI
 import SwiftUI
 
-@main
+/// Started by `AppLauncher` once `LibraryLaunchGuard` allows the launch.
 struct PhotoApplication: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var library = LibraryLoader()
@@ -128,7 +128,12 @@ private struct LibraryErrorView: View {
 
     var body: some View {
         ContentUnavailableView {
-            Label("Can't Open the Library", systemImage: "exclamationmark.triangle")
+            Label {
+                Text("Can't Open the Library",
+                     comment: "Title when the library isn't opened: the catalog failure view, and the alert when a test copy is started without --library-root")
+            } icon: {
+                Image(systemName: "exclamationmark.triangle")
+            }
         } description: {
             Text(message)
                 .textSelection(.enabled)

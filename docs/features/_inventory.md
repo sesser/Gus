@@ -19,6 +19,11 @@ Updated 2026-11-06 (Ship pass) for PR #43 (editor-follow-edit-drop and
 reload-items-stale-hash: Live rendering row) and PR #42 (CI crash capture: CI
 row). `develop` as of 520d479.
 
+Updated 2026-11-07 (Ship pass) for PR #47 (library-launch-guard: Launch
+guard row under Quality and tooling), from its `status.md` and
+`docs/USER_GUIDE.md` "Development options". Its person checks passed the
+same day (qa.md Follow-up).
+
 Markers:
 
 - **[inferred from code]**: no document states it; the claim rests on code alone.
@@ -221,6 +226,7 @@ Abbreviations: P1–P6 = `docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR
 | CI | Build and test on `macos-26` and `macos-15`; CodeQL; golden failure images uploaded; when the test process crashes, a backtrace of every thread goes to the log and the system crash reports are uploaded | P5 Notes; P6 question D; `.github/workflows/` (crash capture: PR #42) |
 | `photobench` | Synthetic libraries; import, preview, query, edits, masks, kernels, blend-error benchmarks; `denoise` times machine learning noise reduction | `docs/PROFILING.md`; P6; `ml-denoise/status.md` R14 |
 | Debug script | Drives the app for snapshots and checks | CL Commands; `Model/DebugScript.swift` |
+| Launch guard | A test launch without `--library-root` is refused before anything in the standard data or cache folders is opened or created: a bundle identifier other than the release one (or none, as with `swift run`), or `--debug-script` / `--benchmark-scroll`. The reason goes to standard error; a launch a person started then shows an alert; either way the app quits with status 64. `photocli`, `photobench` and the standalone importer are not guarded | `library-launch-guard/status.md` (PR #47); UG Development options; `Launch/LibraryLaunchGuard.swift`, `AppLauncher.swift` |
 | Branding isolation | Brand values only in `AppBranding.swift` / `Branding.xcconfig`; enforced by tests | CL Naming rules |
 
 ## Doc-only claims

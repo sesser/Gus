@@ -1961,7 +1961,7 @@
       }
     },
     "Can't Open the Library" : {
-      "comment" : "Catalog failure view title",
+      "comment" : "Title when the library isn't opened: the catalog failure view, and the alert when a test copy is started without --library-root",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7219,6 +7219,17 @@
         }
       }
     },
+    "Quit" : {
+      "comment" : "Button of the alert when a test launch has no --library-root",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quit"
+          }
+        }
+      }
+    },
     "Quit While Exporting?" : {
       "comment" : "Quit alert in the library app",
       "localizations" : {
@@ -9134,6 +9145,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Template"
+          }
+        }
+      }
+    },
+    "Test copies of %@ must be started with --library-root <folder>. Your library wasn't opened." : {
+      "comment" : "Alert when a test copy is started without --library-root; the app quits after it. Keep --library-root <folder> as is: it is a command-line option.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Test copies of %@ must be started with --library-root <folder>. Your library wasn't opened."
           }
         }
       }

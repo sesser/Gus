@@ -23,7 +23,7 @@ let package = Package(
             dependencies: [.product(name: "GRDB", package: "GRDB.swift")]
         ),
         // UI shared by the library app and the standalone importer: the import
-        // window and its model, colors, launch options and the String Catalog.
+        // window and its model, colors and the String Catalog.
         .target(
             name: "PhotoUI",
             dependencies: ["PhotoCore"],

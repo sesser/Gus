@@ -312,6 +312,17 @@ document to open, which keeps the main window from appearing).
 | `--benchmark-scroll <report.json>` | run the grid scroll benchmark, write the report, quit |
 | `--debug-script "<commands>"` | drive the UI and take window snapshots (see `DebugScript.swift`) |
 
+A test launch must name its library with `--library-root`: a copy of the app
+with a bundle identifier other than the release one (such as
+`<release id>.debugtest`), a launch with `--debug-script` or
+`--benchmark-scroll`, and `swift run` (which has no bundle identifier).
+Without it the app writes the reason to standard error and quits with status
+64, before it opens or creates anything in the data locations above. Unless
+the launch has `--debug-script` or `--benchmark-scroll`, it first shows an
+alert that says so; a scripted launch ends at once, without one. The
+bundle identifier only separates preferences, so without this a test copy
+would open your library.
+
 `photobench` generates synthetic libraries and profiles import, preview
 generation, cache reads and catalog queries. See
 [PROFILING.md](PROFILING.md) for results and commands.
