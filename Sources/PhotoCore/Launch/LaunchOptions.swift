@@ -9,6 +9,10 @@ import Foundation
 ///                                      statistics to the file, then quit
 ///     --debug-script "<commands>"      drive the UI for development checks (DebugScript)
 ///
+/// The library app refuses to start without `--library-root` when it is a
+/// test launch: a bundle identifier other than the release one, or
+/// `--debug-script` or `--benchmark-scroll` passed (`LibraryLaunchGuard`).
+///
 /// Every switch takes exactly one value. AppKit reads launch arguments as
 /// "-key value" pairs and treats any leftover argument as a document to open,
 /// which suppresses the main window.
