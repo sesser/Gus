@@ -448,6 +448,17 @@ keeps the setting and says why (`MachineLearningNoiseReduction`); those
 fallback previews stay in memory only. A missing model can't be told apart
 from a failed decode yet (RI-E6).
 
+Library launch guard (`docs/features/library-launch-guard/`, bug fix, PR
+#47): a test launch without `--library-root` is refused before anything in
+the standard data or cache folders is opened or created. A test launch is
+a bundle whose identifier isn't `AppBranding.bundleIdentifier` (no bundle,
+as with `swift run`, included) or one with `--debug-script` or
+`--benchmark-scroll`. Refused: the reason on standard error, an alert
+unless the launch is scripted, then exit 64 (`Launch/LibraryLaunchGuard.swift`
+in PhotoCore, asked first by `AppLauncher`, the app's `@main`;
+`LibraryModel.open` checks again). `photocli`, `photobench` and the
+standalone importer are not guarded.
+
 Not yet: AI masks, healing, lens corrections, DNG export, `.dcp` profiles,
 general (hand-made or burst) stacks, hierarchical
 keywords, PTP cameras, a second backup destination. Writing metadata into

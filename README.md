@@ -78,6 +78,12 @@ adjustments, ratings, flags and labels, and runs exports. Every command
 prints JSON. It can read a library at any time, but only writes to one the
 app doesn't have open.
 
+**Development**
+
+- A test copy of the app (another bundle identifier, `swift run`, or a
+  scripted launch) won't open your library unless it's given
+  `--library-root <folder>`; it says why and quits
+
 ## Not there yet
 
 Healing, lens corrections, DNG export, automatic (subject/sky) masks, DCP
