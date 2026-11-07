@@ -44,17 +44,20 @@ knew what a test launch was.
    `--library-root` is required, then quit, before the catalog, preview
    cache, sidecar sync or anything else under the real library is opened or
    created.
-
-**Engineer's reading of the rule, for review.** A launch with no bundle
-identifier (`swift run PhotoApp`, a bare executable) is refused: rule (a)
-compares the identifier with the release one, and none is not the release
-one. That also matches the rule's intent: only the release bundle opens the
-standard library. If the owner wants `swift run` to keep opening the real
-library, it is one line in `LibraryLaunchGuard.decide` and one test.
+3. **No bundle identifier** (`swift run PhotoApp`, a bare executable): refused
+   without `--library-root`, like any identifier other than the release one
+   ("Yes, refuse it"). This was the engineer's reading of rule (a), which the
+   owner confirmed; no code change came of it.
+4. **No alert in a scripted launch** (DQ1, option (b)): when a refused launch
+   has `--debug-script` or `--benchmark-scroll`, it writes to standard error
+   and exits 64 without the alert, so a script ends on its own. A refused
+   launch without those flags (a test copy started by a person) still shows
+   the alert ("Yes, skip alert").
 
 **Tests that fail without the fix.**
 - `LibraryLaunchGuardTests` (Swift Testing, 10 tests) pins every case of
-  the rule; on `develop` the rule does not exist.
+  the rule, including whether a refusal shows the alert; on `develop` the
+  rule does not exist.
 - End to end, the scripted reproduction below: the `develop` build of a
   `.debugtest` copy, started under a scratch home without `--library-root`,
   creates the standard library there; the branch's build creates nothing.
@@ -63,16 +66,18 @@ library, it is one line in `LibraryLaunchGuard.decide` and one test.
 
 - `Sources/PhotoCore/Launch/LibraryLaunchGuard.swift`: the rule,
   `decide(bundleIdentifier:releaseIdentifier:options:)` →
-  `.allowed` / `.refused(.notReleaseBundle(identifier:) | .scriptedLaunch)`,
-  with the release identifier defaulting to `AppBranding.bundleIdentifier`,
+  `.allowed` / `.refused(.notReleaseBundle(identifier:) | .scriptedLaunch,
+  showsAlert:)`, where `showsAlert` is false when `--debug-script` or
+  `--benchmark-scroll` was passed (ruling 4), with the release identifier
+  defaulting to `AppBranding.bundleIdentifier`,
   and the standard-error text (`diagnostic(for:)`, not localized: it is for
   whoever started the process from a shell).
 - `Sources/PhotoCore/Launch/LaunchOptions.swift`: moved from PhotoUI
   unchanged (commit `740d560`) so the rule and its tests can take parsed
   options; doc comment names the guard.
 - `Sources/PhotoApp/AppLauncher.swift`: now the `@main` type. `main()` asks
-  the rule first. Refused: writes the diagnostic to standard error, shows a
-  standard `NSAlert` (title "Can't Open the Library", reusing the catalog
+  the rule first. Refused: writes the diagnostic to standard error; then, if
+  `showsAlert`, shows a standard `NSAlert` (title "Can't Open the Library", reusing the catalog
   failure view's string; message naming `--library-root`; one button,
   Quit), then `exit(EX_USAGE)` (64). Allowed: `PhotoApplication.main()`.
 - `Sources/PhotoApp/PhotoApplication.swift`: `@main` removed.
@@ -133,18 +138,18 @@ folders.
 |---|---|---|
 | Rule: release id, no flags → allowed | `LibraryLaunchGuardTests.releaseBundleWithoutFlagsOpensTheStandardLibrary` | Pass |
 | Rule: release id + `--library-root` → allowed | `releaseBundleWithLibraryRootIsAllowed` | Pass |
-| Rule: other id, no `--library-root` → refused (with or without a script) | `otherBundleWithoutLibraryRootIsRefused` | Pass |
+| Rule: other id, no `--library-root` → refused; alert only without `--debug-script` / `--benchmark-scroll` | `otherBundleWithoutLibraryRootIsRefused` | Pass |
 | Rule: other id + `--library-root` → allowed | `otherBundleWithLibraryRootIsAllowed` | Pass |
-| Rule: release id + `--debug-script` / `--benchmark-scroll` → refused; with `--library-root` (either order) → allowed | `releaseBundleWithScriptNeedsLibraryRoot` (2 cases) | Pass |
-| Rule: no bundle id → refused; with `--library-root` → allowed | `noBundleIdentifierIsNotTheReleaseIdentifier` | Pass |
+| Rule: release id + `--debug-script` / `--benchmark-scroll` → refused without the alert; with `--library-root` (either order) → allowed | `releaseBundleWithScriptNeedsLibraryRoot` (2 cases) | Pass |
+| Rule: no bundle id → refused (alert only without a script); with `--library-root` → allowed | `noBundleIdentifierIsNotTheReleaseIdentifier` | Pass |
 | Rule: `--library-root` with no value names no library | `libraryRootWithoutAValueDoesNotCount` | Pass |
 | Rule defaults to `AppBranding.bundleIdentifier` | `defaultReleaseIdentifierIsTheBrandedOne` | Pass |
 | Diagnostic names `--library-root` and the identifier | `diagnosticNamesTheMissingOption` | Pass |
 | Options parse the three switches | `optionsParseTheSwitchesTheGuardReads` | Pass |
 | D1. `.debugtest` copy **with** `--library-root` and a script works as before | debug script, below | Pass |
-| D2. `.debugtest` copy, no arguments → refused, nothing created | below | Pass |
-| D3. `.debugtest` copy, `--debug-script` only → refused, nothing created | below | Pass |
-| D4. `.debugtest` copy, `--benchmark-scroll` only → refused, nothing created, no report | below | Pass |
+| D2. `.debugtest` copy, no arguments → refused at the alert, nothing created | below | Pass |
+| D3. `.debugtest` copy, `--debug-script` only → refused, exits 64 at once without the alert, nothing created | below (second run) | Pass |
+| D4. `.debugtest` copy, `--benchmark-scroll` only → as D3, and no report | below (second run) | Pass |
 | D5. Unfixed build (`42a13e0`) reproduces the bug | below | Reproduced |
 | D6. Real library unchanged across all of the above | below | Unchanged |
 | M1. The alert's look and its Quit button | manual, for QA / the owner | Open |
@@ -152,7 +157,10 @@ folders.
 
 ### Debug-script results (2026-11-07)
 
-Setup: `Scripts/build-app.sh` at `b5da746`; a copy with
+First run, before ruling 4 (DQ1), at `b5da746`. Second run, after it, at
+the commit that records this section; same setup with a fresh copy.
+
+Setup: `Scripts/build-app.sh`; a copy with
 `CFBundleIdentifier` `me.sesser.gus.debugtest`, re-signed ad hoc; a scratch
 library from `photobench generate --jpeg 12` (212 files) and
 `photobench import`. Every launch ran the copy's executable directly with
@@ -173,6 +181,14 @@ identifier, so the owner's preferences domain was never involved.
   was written. One of the no-argument runs exited 64 within 12 s: the alert
   had been answered with Quit, most likely by whoever was at the Mac (the
   alert comes to the front); two reruns waited at the alert as expected.
+- **Second run (ruling 4).** `--debug-script "wait 2; quit"` and
+  `--benchmark-scroll <file>` without `--library-root`: the same standard
+  error line, then exit 64 in under a second with no alert; nothing on
+  standard output, no report, scratch homes empty. No arguments: the same
+  line, then waited at the alert until `timeout` (6 s, exit 124); scratch
+  home empty. D1 again: `All Photos | 212 photos`, exit 0, scratch home
+  empty. The real folders' listing was identical before and after, and
+  nothing in them was newer than a fresh marker.
 - **D5.** The `develop` build (`42a13e0`, built in a scratch worktree), as a
   `.debugtest` copy, `--debug-script "wait 3; print title; quit"` without
   `--library-root`: printed `All Photos | 0 photos` and created
@@ -197,11 +213,12 @@ identifier, so the owner's preferences domain was never involved.
   be doubly safe, check `~/Library/Application Support/<app folder>/Library`
   mtimes before and after.
 - **M2.** Optional. The release bundle with `--debug-script "quit"` and no
-  `--library-root` should be refused the same way, with the reason
-  "--debug-script or --benchmark-scroll was passed". Not run here: a
-  release-identifier launch shares the owner's preferences domain, and the
-  owner's copy was running. The unit tests cover this branch of the rule
-  and the launch code path is the same as D2–D4.
+  `--library-root` should print the reason "--debug-script or
+  --benchmark-scroll was passed" on standard error and exit 64 at once,
+  with no alert. Not run here: a release-identifier launch shares the
+  owner's preferences domain, and the owner's copy was running. The unit
+  tests cover this branch of the rule and the launch code path is the same
+  as D3–D4.
 
 ## Design questions
 
@@ -217,13 +234,18 @@ identifier, so the owner's preferences domain was never involved.
   in scripted launches (cost: a timer and a choice of delay; more code for
   little gain). Recommendation: (b), since a scripted launch is read from
   its standard error, and the alert is for launches a person started.
-  Built as ruled, (a), until the designer says otherwise.
+  **Resolved: (b), owner, 2026-11-07** ("Yes, skip alert"); ruling 4 in the
+  Bug section. Built and checked (second run above).
 - **DQ2. Alert copy.** Title "Can't Open the Library" (reuses the catalog
   failure view's string); message "Test copies of %@, and launches with
   --debug-script or --benchmark-scroll, must be started with
   --library-root <folder>. Nothing was opened."; button "Quit". The owner's
   ruling said what it must say, not the words; the designer may want to
   change them. Changing them is a catalog edit plus the two literals.
+  Since ruling 4, scripted launches never see the alert, so its mention of
+  `--debug-script` and `--benchmark-scroll` is still true but reaches no
+  one who used them; the designer may want to drop it. Open, for the
+  designer's review.
 
 ## Requirements issues
 

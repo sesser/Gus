@@ -14,11 +14,16 @@ import Foundation
 ///
 /// A test launch without `--library-root` is refused: the app says so and
 /// quits before anything under the standard library is resolved, opened or
-/// created. Every launch with `--library-root` is allowed.
+/// created. It always says so on standard error; it also shows an alert,
+/// except in a scripted launch (`--debug-script` or `--benchmark-scroll`),
+/// which nobody may be watching and which an alert would keep from ending
+/// (owner's ruling, 2026-11-07). Every launch with `--library-root` is
+/// allowed.
 public enum LibraryLaunchGuard {
     public enum Decision: Equatable, Sendable {
         case allowed
-        case refused(Reason)
+        /// `showsAlert` is false for scripted launches: standard error only.
+        case refused(Reason, showsAlert: Bool)
     }
 
     /// Why a launch counts as a test launch. When both apply, the bundle
@@ -35,11 +40,12 @@ public enum LibraryLaunchGuard {
                               releaseIdentifier: String = AppBranding.bundleIdentifier,
                               options: LaunchOptions) -> Decision {
         guard options.libraryRoot == nil else { return .allowed }
+        let scripted = options.debugScript != nil || options.benchmarkScroll
         if bundleIdentifier != releaseIdentifier {
-            return .refused(.notReleaseBundle(identifier: bundleIdentifier))
+            return .refused(.notReleaseBundle(identifier: bundleIdentifier), showsAlert: !scripted)
         }
-        if options.debugScript != nil || options.benchmarkScroll {
-            return .refused(.scriptedLaunch)
+        if scripted {
+            return .refused(.scriptedLaunch, showsAlert: false)
         }
         return .allowed
     }

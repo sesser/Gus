@@ -24,11 +24,15 @@ struct LibraryLaunchGuardTests {
     }
 
     @Test func otherBundleWithoutLibraryRootIsRefused() {
+        // A person started it: the alert as well as standard error.
         #expect(Self.decide(Self.testCopy, Self.options())
-            == .refused(.notReleaseBundle(identifier: Self.testCopy)))
-        // A script does not change why: the identifier is reported first.
+            == .refused(.notReleaseBundle(identifier: Self.testCopy), showsAlert: true))
+        // A script does not change why (the identifier is reported first),
+        // only that no alert is shown.
         #expect(Self.decide(Self.testCopy, Self.options("--debug-script", "quit"))
-            == .refused(.notReleaseBundle(identifier: Self.testCopy)))
+            == .refused(.notReleaseBundle(identifier: Self.testCopy), showsAlert: false))
+        #expect(Self.decide(Self.testCopy, Self.options("--benchmark-scroll", "/tmp/report.json"))
+            == .refused(.notReleaseBundle(identifier: Self.testCopy), showsAlert: false))
     }
 
     @Test func otherBundleWithLibraryRootIsAllowed() {
@@ -39,13 +43,17 @@ struct LibraryLaunchGuardTests {
 
     @Test func noBundleIdentifierIsNotTheReleaseIdentifier() {
         // `swift run`: a bare executable has no bundle identifier.
-        #expect(Self.decide(nil, Self.options()) == .refused(.notReleaseBundle(identifier: nil)))
+        #expect(Self.decide(nil, Self.options()) == .refused(.notReleaseBundle(identifier: nil), showsAlert: true))
+        #expect(Self.decide(nil, Self.options("--debug-script", "quit"))
+            == .refused(.notReleaseBundle(identifier: nil), showsAlert: false))
         #expect(Self.decide(nil, Self.options("--library-root", "/tmp/lib")) == .allowed)
     }
 
     @Test(arguments: [["--debug-script", "wait 2; quit"], ["--benchmark-scroll", "/tmp/report.json"]])
     func releaseBundleWithScriptNeedsLibraryRoot(_ flag: [String]) {
-        #expect(Self.decide(Self.release, LaunchOptions(arguments: ["exe"] + flag)) == .refused(.scriptedLaunch))
+        // Scripted: standard error only, no alert to keep it from ending.
+        #expect(Self.decide(Self.release, LaunchOptions(arguments: ["exe"] + flag))
+            == .refused(.scriptedLaunch, showsAlert: false))
         #expect(Self.decide(Self.release, LaunchOptions(arguments: ["exe"] + flag + ["--library-root", "/tmp/lib"]))
             == .allowed)
         #expect(Self.decide(Self.release, LaunchOptions(arguments: ["exe", "--library-root", "/tmp/lib"] + flag))
@@ -56,7 +64,7 @@ struct LibraryLaunchGuardTests {
         // The parser reads no folder from a trailing switch, so no library
         // folder was named.
         #expect(Self.decide(Self.testCopy, Self.options("--library-root"))
-            == .refused(.notReleaseBundle(identifier: Self.testCopy)))
+            == .refused(.notReleaseBundle(identifier: Self.testCopy), showsAlert: true))
     }
 
     @Test func defaultReleaseIdentifierIsTheBrandedOne() {

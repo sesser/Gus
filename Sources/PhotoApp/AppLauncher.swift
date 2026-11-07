@@ -8,17 +8,18 @@ import PhotoCore
 @main
 enum AppLauncher {
     @MainActor static func main() {
-        if case .refused(let reason) = LibraryLaunchGuard.current() {
-            refuse(reason)
+        if case .refused(let reason, let showsAlert) = LibraryLaunchGuard.current() {
+            refuse(reason, showsAlert: showsAlert)
         }
         PhotoApplication.main()
     }
 
-    /// Says on standard error and in an alert that `--library-root` is
-    /// required, then quits. Nothing under the standard library has been
-    /// touched at this point.
-    @MainActor private static func refuse(_ reason: LibraryLaunchGuard.Reason) -> Never {
+    /// Says on standard error, and in an alert unless the launch is
+    /// scripted, that `--library-root` is required, then quits. Nothing
+    /// under the standard library has been touched at this point.
+    @MainActor private static func refuse(_ reason: LibraryLaunchGuard.Reason, showsAlert: Bool) -> Never {
         FileHandle.standardError.write(Data((LibraryLaunchGuard.diagnostic(for: reason) + "\n").utf8))
+        guard showsAlert else { exit(EX_USAGE) }
         let application = NSApplication.shared
         application.setActivationPolicy(.regular)
         application.activate()
@@ -27,7 +28,8 @@ enum AppLauncher {
         alert.informativeText = String(
             localized: "Test copies of \(AppBranding.displayName), and launches with --debug-script or --benchmark-scroll, must be started with --library-root <folder>. Nothing was opened.",
             comment: "Alert when a test launch has no --library-root; the app quits after it")
-        alert.addButton(withTitle: String(localized: "Quit", comment: "Button of the alert when a test launch has no --library-root"))
+        alert.addButton(withTitle: String(localized: "Quit",
+                                          comment: "Button of the alert when a test launch has no --library-root"))
         alert.runModal()
         exit(EX_USAGE)
     }

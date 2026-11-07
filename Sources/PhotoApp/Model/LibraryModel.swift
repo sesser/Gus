@@ -637,7 +637,7 @@ final class LibraryModel {
     static func open(options: LaunchOptions = .current) throws -> LibraryModel {
         // AppLauncher quits on a refused launch before the app exists; this
         // only stops a future caller from reaching the standard library.
-        if case .refused(let reason) = LibraryLaunchGuard.current(options: options) {
+        if case .refused(let reason, _) = LibraryLaunchGuard.current(options: options) {
             preconditionFailure(LibraryLaunchGuard.diagnostic(for: reason))
         }
         let locations: LibraryLocations
