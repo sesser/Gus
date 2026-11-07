@@ -3,7 +3,7 @@ import PhotoCore
 import PhotoUI
 import SwiftUI
 
-@main
+/// Started by `AppLauncher` once `LibraryLaunchGuard` allows the launch.
 struct PhotoApplication: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var library = LibraryLoader()
