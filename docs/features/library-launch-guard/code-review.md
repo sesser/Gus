@@ -112,5 +112,39 @@ For the main session to relay: `CLAUDE.md`'s Layout paragraph for
 `Sources/PhotoCore/Launch/` beside `LibraryLaunchGuard`. That paragraph is
 the owner's.
 
-After the engineer's fixes: each finding with Fixed, Not fixed (and why) or
-Withdrawn, and the commit.
+### Second pass, 2026-11-07: dc70f0b..fa7a67a
+
+Reviewed `fa7a67a` only (the other commits in that range are docs).
+`swift build` clean, no warnings; `swift test` 572 tests in 99 suites
+passed, 1 known issue (the same `LiveSessionTests` one); `Localization`,
+`Branding` and `Library launch guard` suites pass.
+
+| # | Result | Commit |
+|---|---|---|
+| C1 | Fixed: the PhotoUI comment in `Package.swift` no longer lists launch options. (`CLAUDE.md` line 195 is still the owner's to change.) | fa7a67a |
+| C2 | Fixed: `LibraryLaunchGuard.swift` ends with a single newline. | fa7a67a |
+
+Also checked in `fa7a67a` (the designer's F1):
+- `LibraryErrorView`: `Label { Text("Can't Open the Library", comment:) }
+  icon: { Image(systemName: "exclamationmark.triangle") }` is what
+  `Label(_:systemImage:)` expands to: the same localized key, looked up
+  in the same table and bundle, and the same symbol. The title and icon
+  render the same; the only change is the comment, which has no effect at
+  run time.
+- The alert's new message key, `Test copies of %@ must be started with
+  --library-root <folder>. Your library wasn't opened.`, matches the
+  catalog byte for byte (straight apostrophe in both). The old key is
+  removed, not left behind. `%@` is still filled from
+  `AppBranding.displayName`. The catalog comments for both keys match the
+  comments in the code.
+- `LocalizationTests` coverage: `Text("Can't Open the Library"` is on a
+  single line, so the test still checks the title key. The alert's
+  `String(` call, with `localized:` on the next line, was already outside
+  what the line scanner reads before this commit (the same pattern appears
+  in `MetadataActions.swift` and `MachineLearningText.swift`). The key is in
+  the catalog anyway. This is a gap in the test that predates the branch,
+  not a finding against it.
+- The standard-error line still ends "Nothing was opened; quitting.". It is
+  not UI, it is true there, and F1 was about the alert only. Fine.
+
+No new findings. Every code-review finding is closed.
