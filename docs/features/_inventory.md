@@ -21,8 +21,8 @@ row). `develop` as of 520d479.
 
 Updated 2026-11-07 (Ship pass) for PR #47 (library-launch-guard: Launch
 guard row under Quality and tooling), from its `status.md` and
-`docs/USER_GUIDE.md` "Development options". Person checks still open
-(roadmap Shipped).
+`docs/USER_GUIDE.md` "Development options". Its person checks passed the
+same day (qa.md Follow-up).
 
 Markers:
 
