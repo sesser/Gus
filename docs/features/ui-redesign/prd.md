@@ -1,6 +1,6 @@
 # UI redesign: requirements addendum
 
-Status: Shipped 2026-11-05, PR #34 (ui-redesign-reconcile, E1–E28, which carries R1 and R2). Checks pending: AC2 and the other person-only checks, P1–P10 in qa.md "For a person" (QA closed the rest of status.md's "Pending manual checks" by script), done under `ui-redesign-onscreen-check`.
+Status: Shipped 2026-11-05, PR #34 (ui-redesign-reconcile, E1–E28, which carries R1 and R2). AC2 and the other person-only checks, P1–P10 in qa.md "For a person", were checked by the owner on 2026-11-06: all passed, no findings.
 Slug: ui-redesign
 Roadmap: Shipped (the redesign 2026-11-04, PRs #20 and #21; `ui-redesign-reconcile` 2026-11-05, PR #34)
 
@@ -91,3 +91,6 @@ AC2 (R2): Manual, in each app: open Help, type "Export" (library app) or
   PR #34 (merge commit 1e89a7b, 2026-11-05) with E1–E28 Done (status.md).
   AC1 is checked by the debug script; AC2 is manual and pending. Q2 marked
   answered from status.md. Changed the Status and Roadmap lines.
+- 2026-11-06: Owner ruling: "I've checked all the P1-P10 of the
+  ui-redesign", all passed, no findings. AC2 is verified; "checks pending"
+  removed from the Status line. qa.md's Follow-up does not record it yet.
