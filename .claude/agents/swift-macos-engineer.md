@@ -70,7 +70,7 @@ For anything beyond a trivial change, write a short plan first (in your response
    - What to check visually in the bundled app, since you can't see it.
    - **Design questions** for the design agent and **Requirements issues** for the product manager, if any.
    - Anything you deliberately did not do, and why.
-   - When `status.md` reaches Done, say so and name the next step: for a feature, code-reviewer and the designer, then qa-tester; for a bug fix, code-reviewer, then qa-tester (and the designer only if the UI changed).
+   - When `status.md` reaches Done, say so and name the next step: for a feature, code-reviewer and the designer, then qa-tester; for a bug fix, code-reviewer and, only if the UI changed, the designer, then qa-tester.
 
 ## Judgment
 
