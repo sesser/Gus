@@ -19,35 +19,38 @@ workflow forbids it, but nothing in the app prevents it").
 every such launch I could script is refused before anything is created.
 Scripted launches exit 64 at once with no alert. The person-started launch
 waits at an alert, and launches with `--library-root` work as before. The
-owner's library was untouched throughout. No findings. Four checks are left
-for a person (P1–P4), all about the alert on screen or the release
-identifier.
+owner's library was untouched throughout. No findings. The four checks for a
+person (P1–P4, about the alert on screen and the release identifier) were
+made by the owner on 2026-11-07 and all passed (Follow-up), so nothing is
+left open.
 
 ## Acceptance criteria
 
 | AC | Criterion | How | Evidence | Result |
 |---|---|---|---|---|
 | B1 | Expected: a test copy never opens the owner's library. Executable started directly, with or without `--debug-script` | Script | D2, D3, D4, E1: refused, scratch home left empty; compare D5 on `develop` | Pass |
-| B1′ | The same for a copy started by `open <copy>` or a double-click (LaunchServices) | Person | P1 | Open |
+| B1′ | The same for a copy started by `open <copy>` or a double-click (LaunchServices) | Person | P1 (owner, 2026-11-07) | Pass |
 | R1a | Ruling 1(a): an identifier other than the release one makes a test launch, refused without `--library-root` | Test, Script | `LibraryLaunchGuardTests.otherBundleWithoutLibraryRootIsRefused`, `otherBundleWithLibraryRootIsAllowed`, `defaultReleaseIdentifierIsTheBrandedOne`, `libraryRootWithoutAValueDoesNotCount`; D2–D4, E1 | Pass |
-| R1b | Ruling 1(b): `--debug-script` or `--benchmark-scroll` makes a test launch even with the release identifier | Test | `LibraryLaunchGuardTests.releaseBundleWithScriptNeedsLibraryRoot` (2 cases), `releaseBundleWithoutFlagsOpensTheStandardLibrary`, `releaseBundleWithLibraryRootIsAllowed`. Not run as a launch: that needs the release identifier (P4, optional) | Pass |
+| R1b | Ruling 1(b): `--debug-script` or `--benchmark-scroll` makes a test launch even with the release identifier | Test | `LibraryLaunchGuardTests.releaseBundleWithScriptNeedsLibraryRoot` (2 cases), `releaseBundleWithoutFlagsOpensTheStandardLibrary`, `releaseBundleWithLibraryRootIsAllowed`. As a launch with the release identifier: P4 (optional; owner, 2026-11-07) | Pass |
 | R2a | Ruling 2: a message on standard error | Script | D2, D3, D4, E1, E2: the line below, nothing on standard output | Pass |
-| R2b | Ruling 2: an alert saying `--library-root` is required | Script, Person | D2: the refused process shows one 410 × 384 window and no other (an alert, no library window), and waits there. The bundle's `en.lproj/Localizable.strings` has the title, message and Quit. How it looks and reads: P1, P2 | Pass (shown, strings), Open (look) |
-| R2c | Ruling 2: then quit | Script, Person | Scripted refusals exit 64 (D3, D4, E1, E2). Exit after answering the alert with Return or a click: P1, P3 | Pass (scripted), Open (after the alert) |
+| R2b | Ruling 2: an alert saying `--library-root` is required | Script, Person | D2: the refused process shows one 410 × 384 window and no other (an alert, no library window), and waits there. The bundle's `en.lproj/Localizable.strings` has the title, message and Quit. How it looks and reads: P1, P2 (owner, 2026-11-07) | Pass |
+| R2c | Ruling 2: then quit | Script, Person | Scripted refusals exit 64 (D3, D4, E1, E2). Exit after answering the alert with Return or a click: P1, P3 (owner, 2026-11-07) | Pass |
 | R2d | Ruling 2: before the catalog, preview cache, sidecar sync or anything under the real library is opened or created | Script | D2, D3, D4, E1, E2: the scratch home (where Foundation resolves Application Support and Caches) stays completely empty, not even `Library/`. D5 on `develop` creates the whole library there | Pass |
-| R3 | Ruling 3: no bundle identifier (`swift run`, a bare executable) is refused without `--library-root` | Test, Script, Person | `LibraryLaunchGuardTests.noBundleIdentifierIsNotTheReleaseIdentifier`; E2: the bare `.build/release/PhotoApp` with a script exits 64 with the "not running from a bundle" reason, home empty. `swift run PhotoApp` with no arguments, alert and exit after Quit: P3 | Pass (test, scripted), Open (alert) |
+| R3 | Ruling 3: no bundle identifier (`swift run`, a bare executable) is refused without `--library-root` | Test, Script, Person | `LibraryLaunchGuardTests.noBundleIdentifierIsNotTheReleaseIdentifier`; E2: the bare `.build/release/PhotoApp` with a script exits 64 with the "not running from a bundle" reason, home empty. `swift run PhotoApp` with no arguments, alert and exit after Quit: P3 (owner, 2026-11-07) | Pass |
 | R4 | Ruling 4: a refused scripted launch writes to standard error and exits 64 with no alert; a refused launch without those flags still shows the alert | Test, Script | Tests as R1a, R1b, R3 (each checks `showsAlert`); D3, D4, E1, E2 exit 64 in 0.03 s; D2 waits at the alert until `timeout` (exit 124) | Pass |
 | B2 | Root cause and reproduction: `develop` opens the standard library for a test copy | Script | D5 (`develop` at `42a13e0`, `.debugtest` copy, scratch home) | Reproduced |
 | B3 | The test fails without the fix | Test | Copied into a scratch clone of `develop`, `LibraryLaunchGuardTests` does not build (`swift test --filter LibraryLaunchGuardTests`: exit 1, 35 errors, `LibraryLaunchGuard` and `LaunchOptions` not in PhotoCore). Five mutants of the rule in a scratch clone of the branch each fail at least one test (Scripts, "Mutants") | Pass |
 | B4 | Launches with `--library-root` work as before | Script | D1: `All Photos \| 212 photos`, snapshot shows the scratch library's grid, exit 0, home empty | Pass |
-| B5 | Roadmap row: the app itself now prevents a test copy from opening the real library | Script | B1, R2d, R4; S1 | Pass (scripted routes); LaunchServices route P1 |
+| B5 | Roadmap row: the app itself now prevents a test copy from opening the real library | Script, Person | B1, R2d, R4; S1; the LaunchServices route P1 (owner, 2026-11-07) | Pass |
 | B6 | New strings localized and unbranded | Test | `LocalizationTests`, `BrandingTests` pass; both new keys are in the catalog and the built bundle (see Observation O1 for what the scanner can't see) | Pass |
 | S1 | The owner's library and caches untouched by this QA run | Script | Before/after listing and marker, below | Pass |
 
-Totals: 16 rows. 3 pass by test only (R1b, B3, B6). 8 pass by script,
-alone or with tests (B1, R1a, R2a, R2d, R4, B2 reproduced, B4, S1). 4 pass
-in their scripted part and leave a part open for a person (R2b, R2c, R3,
-B5). 1 is open for a person only (B1′). None failed.
+Totals: 16 rows, all passed. 3 pass by test only (R1b, B3, B6; R1b's
+optional launch check P4 also passed). 8 pass by script, alone or with
+tests (B1, R1a, R2a, R2d, R4, B2 reproduced, B4, S1). 4 pass by script
+together with a person's check (R2b, R2c, R3, B5). 1 passes by a person's
+check only (B1′). The person's checks P1–P4 were made by the owner on
+2026-11-07 (Follow-up). None failed, none open.
 
 ## Findings
 
@@ -181,6 +184,9 @@ either folder. No scratch copy and no `PhotoApp` was left running; the only
 
 ## For a person
 
+All four passed: the owner made them on 2026-11-07 (Follow-up). The steps
+stay here so they can be rerun.
+
 Each check starts a launch the guard refuses. Before it, in Terminal,
 `touch /tmp/qa-marker`. After it, the following should print nothing:
 `find ~/Library/Application\ Support/Gus ~/Library/Caches/me.sesser.gus -newer /tmp/qa-marker`
@@ -221,4 +227,15 @@ and P2, make a copy first:
 
 ## Follow-up
 
-None yet. Record here each P item when the owner reports it done.
+**2026-11-07, the owner's checks.** The owner made P1–P4 and reported
+"P1-P4 pass visual testing", with no findings.
+
+| Check | Covers | Result |
+|---|---|---|
+| P1. The alert on screen | `review.md` M1; B1′, R2b, R2c, B5 | Pass (owner, 2026-11-07) |
+| P2. VoiceOver | `review.md` M2; R2b | Pass (owner, 2026-11-07) |
+| P3. `swift run` with no arguments | `review.md` M3; R3, R2c | Pass (owner, 2026-11-07) |
+| P4. Optional: the release identifier with a script | status.md M2; R1b | Pass (owner, 2026-11-07) |
+
+Nothing is left open for a person. No findings were raised, so none to mark
+Fixed or Not fixed.
