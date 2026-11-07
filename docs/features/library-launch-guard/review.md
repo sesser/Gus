@@ -25,6 +25,10 @@ the debug-script results recorded in status.md (D2–D4). Items marked
 people. One low fix: the message (DQ2, ruled below). Nothing blocks the
 merge.**
 
+**Update, 2026-11-07: F1 is fixed (`fa7a67a`) and confirmed; see "Fix
+confirmation". No open findings. The manual checks M1–M3 remain for a
+person.**
+
 The alert is a standard `NSAlert`, app-modal, before any window exists. It
 has a title-style fragment as its title, the reason and the remedy in the
 message, and one verb button that says what happens. Scripted launches get
@@ -88,19 +92,20 @@ Why:
 | R3 | The alert appears before any library window or menu bar of the app; nothing of the app shows behind it | Ruling 2 | Pass (code: `PhotoApplication.main()` is never reached); on screen: M1 |
 | R4 | The alert comes to the front when started from Finder or `open` | HIG, Alerts (people must see it); D2 | Pass (code: `.regular` policy and `activate()` before `runModal`); on screen: M1, M3 |
 | R5 | Title: a specific fragment, title-style capitalization, no ending punctuation | HIG, Alerts, Content | Pass |
-| R6 | Message: short, complete sentences, says what to do | HIG, Alerts, Content | **Fail, low: F1** (the scripted-flags clause and "Nothing was opened") |
+| R6 | Message: short, complete sentences, says what to do | HIG, Alerts, Content | Was **Fail, low: F1** (the scripted-flags clause and "Nothing was opened"); **Pass** after `fa7a67a` |
 | R7 | One button, a verb that describes the result, default (Return) | HIG, Alerts, Buttons | Pass |
 | R8 | No caution symbol or critical style | HIG, Alerts, macOS | Pass |
 | R9 | Startup alert is a justified exception | HIG: "Avoid showing an alert when your app starts" | Pass as a conscious tradeoff: no window will ever exist, the app must quit, a Finder launch has no visible standard error, and the alert is actionable. It is the only signal a person who double-clicked the copy would get |
 | R10 | Strings in the catalog; the product name only through `%@` from `AppBranding.displayName` | `CLAUDE.md`, Naming rules | Pass (both new keys present; title key reused) |
-| R11 | Catalog comments give translators the context they need | `CLAUDE.md`, Naming rules | **Fail, low: part of F1** (the reused title's comment names only the catalog failure view; the message comment doesn't say the option name stays as is) |
+| R11 | Catalog comments give translators the context they need | `CLAUDE.md`, Naming rules | Was **Fail, low: part of F1** (the reused title's comment names only the catalog failure view; the message comment doesn't say the option name stays as is); **Pass** after `fa7a67a` |
 | R12 | Terms match `docs/USER_GUIDE.md` "Development options" | WORKFLOW step 4 | Pass: "test copy", "test launch", "alert", status 64 and "before it opens or creates anything" all agree with the alert and the code. The guide needs no change for F1 |
 | R13 | The alert is read correctly by VoiceOver | HIG, Accessibility | Needs manual check: M2 (a standard `NSAlert`, so expected to pass) |
 | R14 | Clean room: no borrowed names, strings or layout | `CLAUDE.md` | Pass |
 
 ## Fixes for the engineer
 
-- **F1 (low). Alert message and catalog comments.**
+- **F1 (low). Alert message and catalog comments.** Fixed in `fa7a67a`;
+  confirmed below.
   1. Replace the message key and value in
      `Sources/PhotoUI/Resources/Localizable.xcstrings` and the literal in
      `AppLauncher.refuse` with:
@@ -118,6 +123,31 @@ Why:
      `LocalizationTests` require one comment per key, the catalog's comment
      is the one that counts.
   4. Update the M1 wording in `status.md` if it quotes the message.
+
+## Fix confirmation (2026-11-07, `fa7a67a`)
+
+Read in the source, the String Catalog and `status.md`; not run (the
+engineer's third run in status.md shows the bundle's `Localizable.strings`
+has the new message and not the old one).
+
+| Fix | Result |
+|---|---|
+| F1.1 Message | **Confirmed.** `AppLauncher.refuse` and the catalog key and value both read `Test copies of %@ must be started with --library-root <folder>. Your library wasn't opened.` (the Swift literal interpolates `AppBranding.displayName`). The old key is gone from the catalog and from `Sources/`. |
+| F1.2 Message comment | **Confirmed.** Catalog and call site carry the comment as written in F1.2. |
+| F1.3 Title comment | **Confirmed.** The catalog, `AppLauncher.refuse` and `LibraryErrorView` all carry the shared comment; key and value unchanged. |
+| F1.4 Status wording | **Confirmed.** status.md's "The fix" and M1 quote the new message, and its DQ2 entry records the ruling. My M1, M2 and M3 are its M1, M3 and M4, worded as here. Its M2 (release identifier with `--debug-script`) is the engineer's own optional check. |
+
+**`LibraryErrorView` change.** To carry the comment, `Label("…",
+systemImage:)` became `Label { Text("…", comment:) } icon: {
+Image(systemName:) }`. The two forms build the same `Label`: the same
+localized title, looked up in the main bundle as before, and the same
+`exclamationmark.triangle` symbol, which `ContentUnavailableView` styles the
+same way. Nothing on screen changes, so this needs **no on-screen check**.
+(The view shows only when the catalog fails to open, which is hard to bring
+about safely, and a check would show nothing a reading doesn't.)
+
+**I1** was not taken, by the owner's main session decision (status.md,
+"Review findings"). That is fine: it was a judgment call, not a finding.
 
 ## Improvements (judgment, not required)
 
