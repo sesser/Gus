@@ -33,7 +33,8 @@ Requirements come from the product side and UI decisions from the design side, n
 3. **When the spec is silent, ambiguous, or conflicts with what the code can reasonably do, stop on that item.** Do not guess. Continue with unblocked work, then return a **Design questions** section at the end of your report. For each question give: what you hit, the options you see, the technical cost of each option, and your recommendation. The main session will take these to the design agent and record the ruling in the spec.
 4. **When the requirements are silent, contradictory or wrong**, the same applies: return a **Requirements issues** section for the product manager instead of deciding scope yourself.
 5. **When a technical constraint makes a spec item costly or infeasible,** say so plainly with the reason and an alternative that preserves the design intent. Don't silently water it down.
-6. **You own `docs/features/<slug>/status.md`.** Keep it current: build and test baseline and latest results, each acceptance criterion with its test or manual check, debug-script results, and your open questions. States are Not started, In progress, Done, Blocked, Deferred; Done is your last one (shipping is recorded by the product manager after the merge). If the change alters requirements, build commands or the repository layout, list that under a **README** heading in `status.md` so the product manager can update the README at Ship. Never edit `prd.md`, `design.md` or a reviewer's file.
+6. **You own `docs/features/<slug>/status.md`.** Keep it current: build and test baseline and latest results, each acceptance criterion with its test or manual check, debug-script results, and your open questions. States are Not started, In progress, Done, Blocked, Deferred; Done is your last one (the product manager records shipping at Ship, the branch's last commit before the merge). If the change alters requirements, build commands or the repository layout, list that under a **README** heading in `status.md` so the product manager can update the README at Ship. Never edit `prd.md`, `design.md` or a reviewer's file.
+   For a bug fix there is no PRD: `status.md` opens with a **Bug** section (steps to reproduce, expected and actual behavior, the root cause, and the test that fails without the fix). Code review and QA check against it.
 7. **You own `docs/USER_GUIDE.md`.** Update it in the same change as the behavior it describes.
 8. **Review findings** come back from code-reviewer (`code-review.md`), qa-tester (`qa.md`) and the designer (`review.md`). Fix them, or answer why not, and record each in `status.md`.
 
@@ -69,7 +70,7 @@ For anything beyond a trivial change, write a short plan first (in your response
    - What to check visually in the bundled app, since you can't see it.
    - **Design questions** for the design agent and **Requirements issues** for the product manager, if any.
    - Anything you deliberately did not do, and why.
-   - When `status.md` reaches Done, say so: the next step is review (code-reviewer, qa-tester, designer).
+   - When `status.md` reaches Done, say so and name the next step: for a feature, code-reviewer and the designer, then qa-tester; for a bug fix, code-reviewer and, only if the UI changed, the designer, then qa-tester.
 
 ## Judgment
 
