@@ -5,8 +5,9 @@ Owner: swift-macos-engineer. Bug fix (no `prd.md` or `design.md`,
 (`docs/roadmap.md`, Now). Branch `bug/library-launch-guard`, cut from
 `develop` at `42a13e0`.
 
-**Status: Done.** Ready for code review, then the designer's review (the
-fix adds an alert), then QA.
+**Status: Done.** Code review (`code-review.md`) and the designer's review
+(`review.md`) are in; their findings are fixed (Review findings, below).
+Next: their confirmation, then QA.
 
 States: Not started · In progress · Done · Blocked · Deferred.
 
@@ -77,10 +78,14 @@ knew what a test launch was.
   options; doc comment names the guard.
 - `Sources/PhotoApp/AppLauncher.swift`: now the `@main` type. `main()` asks
   the rule first. Refused: writes the diagnostic to standard error; then, if
-  `showsAlert`, shows a standard `NSAlert` (title "Can't Open the Library", reusing the catalog
-  failure view's string; message naming `--library-root`; one button,
-  Quit), then `exit(EX_USAGE)` (64). Allowed: `PhotoApplication.main()`.
-- `Sources/PhotoApp/PhotoApplication.swift`: `@main` removed.
+  `showsAlert`, shows a standard `NSAlert` (title "Can't Open the Library",
+  reusing the catalog failure view's string; message "Test copies of %@
+  must be started with --library-root <folder>. Your library wasn't
+  opened."; one button, Quit), then `exit(EX_USAGE)` (64). Allowed:
+  `PhotoApplication.main()`.
+- `Sources/PhotoApp/PhotoApplication.swift`: `@main` removed. The catalog
+  failure view's title now carries the shared comment (F1.3), so its `Label`
+  takes a `Text(_:comment:)`; it looks the same.
 - `Sources/PhotoApp/Model/LibraryModel.swift`: `open` checks the same rule
   and stops with `preconditionFailure` if refused. The launcher makes this
   unreachable; it only keeps a future caller from reaching the standard
@@ -152,8 +157,10 @@ folders.
 | D4. `.debugtest` copy, `--benchmark-scroll` only → as D3, and no report | below (second run) | Pass |
 | D5. Unfixed build (`42a13e0`) reproduces the bug | below | Reproduced |
 | D6. Real library unchanged across all of the above | below | Unchanged |
-| M1. The alert's look and its Quit button | manual, for QA / the owner | Open |
+| M1. The alert's look and its Quit button | manual, for QA / the owner (`review.md` M1) | Open |
 | M2. Release-identifier launch with `--debug-script` and no `--library-root` is refused at run time | manual, optional | Open |
+| M3. VoiceOver reads the alert | manual, for QA / the owner (`review.md` M2) | Open |
+| M4. `swift run PhotoApp` with no arguments is refused | manual, for QA / the owner (`review.md` M3) | Open |
 
 ### Debug-script results (2026-11-07)
 
@@ -189,6 +196,11 @@ identifier, so the owner's preferences domain was never involved.
   home empty. D1 again: `All Photos | 212 photos`, exit 0, scratch home
   empty. The real folders' listing was identical before and after, and
   nothing in them was newer than a fresh marker.
+- **Third run (after the review fixes).** No arguments, the same way: the
+  same standard error line, waited at the alert until `timeout` (6 s, exit
+  124), nothing on standard output, scratch home empty; the real folders
+  unchanged against a fresh marker. The bundle's `Localizable.strings` has
+  the new message and no longer the old one.
 - **D5.** The `develop` build (`42a13e0`, built in a scratch worktree), as a
   `.debugtest` copy, `--debug-script "wait 3; print title; quit"` without
   `--library-root`: printed `All Photos | 0 photos` and created
@@ -204,14 +216,17 @@ identifier, so the owner's preferences domain was never involved.
 
 ### Manual checks (for QA or the owner)
 
-- **M1.** Start a `.debugtest` copy with `open -n <copy>` (no `--args`).
-  Expect an alert, "Can't Open the Library", whose message names
-  `--library-root`, with one button, Quit; Quit (or Return) ends the
-  process. Look at the wording and layout; nothing else of the app (no
-  library window, no menus beyond the app menu) should appear. Safe: the
-  guard is what this checks, and D2 showed it creates nothing even then; to
-  be doubly safe, check `~/Library/Application Support/<app folder>/Library`
-  mtimes before and after.
+Each runs a launch the guard refuses (no `--library-root`). D2 showed such
+a launch creates nothing; to be doubly safe, note the modification times of
+`~/Library/Application Support/<app folder>/Library` before and after.
+
+- **M1.** (`review.md` M1.) Start a `.debugtest` copy with `open -n <copy>`
+  (no `--args`). Expect the alert in front of other windows, with the app's
+  icon, the title "Can't Open the Library", the message "Test copies of
+  <app name> must be started with --library-root <folder>. Your library
+  wasn't opened." on two or three lines without truncation, and one
+  accent-colored Quit button. Return quits; clicking Quit quits. No library
+  window and no app menus appear; the Dock icon goes away after Quit.
 - **M2.** Optional. The release bundle with `--debug-script "quit"` and no
   `--library-root` should print the reason "--debug-script or
   --benchmark-scroll was passed" on standard error and exit 64 at once,
@@ -219,6 +234,14 @@ identifier, so the owner's preferences domain was never involved.
   owner's preferences domain, and the owner's copy was running. The unit
   tests cover this branch of the rule and the launch code path is the same
   as D3–D4.
+- **M3.** (`review.md` M2.) With VoiceOver on (⌘F5), repeat M1. VoiceOver
+  should read the title, then the message, and land on Quit. Turn
+  VoiceOver off after.
+- **M4.** (`review.md` M3.) From Terminal, `swift run PhotoApp` (no bundle
+  identifier) with no arguments. Expect the standard error line in
+  Terminal, the alert visible (in front, or reachable from its Dock icon if
+  macOS declines to activate a process started from a shell), and exit
+  status 64 after Quit (`echo $?`).
 
 ## Design questions
 
@@ -236,16 +259,29 @@ identifier, so the owner's preferences domain was never involved.
   its standard error, and the alert is for launches a person started.
   **Resolved: (b), owner, 2026-11-07** ("Yes, skip alert"); ruling 4 in the
   Bug section. Built and checked (second run above).
-- **DQ2. Alert copy.** Title "Can't Open the Library" (reuses the catalog
-  failure view's string); message "Test copies of %@, and launches with
-  --debug-script or --benchmark-scroll, must be started with
-  --library-root <folder>. Nothing was opened."; button "Quit". The owner's
-  ruling said what it must say, not the words; the designer may want to
-  change them. Changing them is a catalog edit plus the two literals.
-  Since ruling 4, scripted launches never see the alert, so its mention of
-  `--debug-script` and `--benchmark-scroll` is still true but reaches no
-  one who used them; the designer may want to drop it. Open, for the
-  designer's review.
+- **DQ2. Alert copy.** The first message was "Test copies of %@, and
+  launches with --debug-script or --benchmark-scroll, must be started with
+  --library-root <folder>. Nothing was opened." Since ruling 4, scripted
+  launches never see the alert, so the flags clause reached no one who used
+  them. **Resolved by the designer's review** (`review.md` F1): the message
+  is now "Test copies of %@ must be started with --library-root <folder>.
+  Your library wasn't opened."; title and button unchanged.
+
+## Review findings
+
+| Finding | From | What was done |
+|---|---|---|
+| C1. `Package.swift` PhotoUI target comment still listed launch options | `code-review.md`, nit | Fixed: "launch options" removed from the comment |
+| C2. Trailing blank line at the end of `LibraryLaunchGuard.swift` | `code-review.md`, nit | Fixed |
+| F1.1 Alert message | `review.md`, low | Fixed: the new message in the catalog and in `AppLauncher.refuse`; the old key removed |
+| F1.2 Message comment | `review.md`, low | Fixed: says to keep `--library-root <folder>` as is |
+| F1.3 Title comment | `review.md`, low | Fixed: the shared comment in the catalog and at both call sites (`AppLauncher.refuse`, `LibraryErrorView`) |
+| F1.4 Status wording | `review.md`, low | Fixed: The fix and M1 quote the new message; the designer's M1–M3 are this file's M1, M3 and M4. `USER_GUIDE.md` quotes no alert text, so it needs no change (`review.md` R12) |
+| I1. Escape to answer the alert | `review.md`, improvement | Not taken, on the coordinator's instruction: Return and the Quit button answer it, and the alert is for developers only |
+
+After the fixes: `swift build` clean, `swift test` 572 tests in 99 suites
+pass (same 1 known issue; `LocalizationTests` and `BrandingTests` pass),
+`Scripts/build-app.sh` builds, and the third run above.
 
 ## Requirements issues
 

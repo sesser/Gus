@@ -24,10 +24,12 @@ enum AppLauncher {
         application.setActivationPolicy(.regular)
         application.activate()
         let alert = NSAlert()
-        alert.messageText = String(localized: "Can't Open the Library", comment: "Catalog failure view title")
+        alert.messageText = String(
+            localized: "Can't Open the Library",
+            comment: "Title when the library isn't opened: the catalog failure view, and the alert when a test copy is started without --library-root")
         alert.informativeText = String(
-            localized: "Test copies of \(AppBranding.displayName), and launches with --debug-script or --benchmark-scroll, must be started with --library-root <folder>. Nothing was opened.",
-            comment: "Alert when a test launch has no --library-root; the app quits after it")
+            localized: "Test copies of \(AppBranding.displayName) must be started with --library-root <folder>. Your library wasn't opened.",
+            comment: "Alert when a test copy is started without --library-root; the app quits after it. Keep --library-root <folder> as is: it is a command-line option.")
         alert.addButton(withTitle: String(localized: "Quit",
                                           comment: "Button of the alert when a test launch has no --library-root"))
         alert.runModal()

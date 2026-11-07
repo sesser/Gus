@@ -70,4 +70,3 @@ public enum LibraryLaunchGuard {
             + "Test launches must pass --library-root <folder>. Nothing was opened; quitting."
     }
 }
-
