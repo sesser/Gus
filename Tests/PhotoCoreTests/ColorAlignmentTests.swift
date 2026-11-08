@@ -64,8 +64,11 @@ struct ColorAlignmentTests {
         // Red and blue now line up with green: what differs is mostly the
         // interpolation, under half of the misregistration before.
         func misfit(_ image: LinearImage, _ channel: Int) -> Float {
-            (0..<(image.width * image.height)).map { abs(image.pixels[$0 * 4 + channel] - image.pixels[$0 * 4 + 1]) }
-                .reduce(0, +)
+            var sum: Float = 0
+            for pixel in 0..<(image.width * image.height) {
+                sum += abs(image.pixels[pixel * 4 + channel] - image.pixels[pixel * 4 + 1])
+            }
+            return sum
         }
         #expect(misfit(full, 0) < 0.5 * misfit(scene, 0))
         #expect(misfit(full, 2) < 0.5 * misfit(scene, 2))
@@ -151,9 +154,12 @@ struct ColorAlignmentTests {
         // Red moved as the reference moves it; green and blue are untouched.
         let expected = LensReference.align(scene, values.colorAlignment)
         for channel in 0..<3 {
-            let worst = (0..<(scene.width * scene.height)).map {
-                abs(rendered.pixels[$0 * 4 + channel] - (channel == 0 ? expected : scene).pixels[$0 * 4 + channel])
-            }.max() ?? 0
+            let reference = channel == 0 ? expected : scene
+            var worst: Float = 0
+            for pixel in 0..<(scene.width * scene.height) {
+                let offset = pixel * 4 + channel
+                worst = max(worst, abs(rendered.pixels[offset] - reference.pixels[offset]))
+            }
             #expect(worst <= T.halfFloat(1) * 2 + 1e-5, "channel \(channel): \(worst)")
         }
     }
