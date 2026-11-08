@@ -149,6 +149,40 @@ it in [`library-launch-guard/qa.md`](features/library-launch-guard/qa.md)
 Follow-up: 16 of 16 pass, nothing open. "Checks pending" cleared on its
 Shipped row, and ui-redesign-onscreen-check (h) marked done.
 
+2026-11-07: owner's request. Chromatic aberration and fringing
+correction comes out of lens-corrections (Later) as a new row,
+chromatic-aberration. The owner said: "make it the next item". Owner's
+reason: "Most raw files already have geo corrections and vignetting baked
+in but the fringing usually isn't". Now had one free slot, so the row
+goes into Now as the first item, the next one to start, and Now is full
+again. Nothing moved out. lens-corrections stays in Later, now covering
+distortion, lens vignetting and lens profiles only, which are lower
+priority because the raw decoder usually applies them. The new row is an
+Idea and needs intake first: which corrections "and others" covers,
+automatic or manual, which file formats, and presets and paste. The
+questions are with the owner. Feasibility: the stitchable-kernels spike
+(`docs/PROFILING.md` "Stitchable kernels"; branch
+`feature/stitchable-kernels-spike`, not merged) shows that custom
+per-pixel and warp kernels can run without a Metal build step, at the
+cost of a stock filter. Until now, the lack of such kernels was why lens
+corrections were held back.
+
+2026-11-07: specified chromatic-aberration as a Draft
+([`features/chromatic-aberration/prd.md`](features/chromatic-aberration/prd.md)).
+The owner answered two intake questions. For fringe halos: "a color
+picker that will turn the fringe gray. And a slider to widen or narrow
+the color range". For test photos: none on hand, so QA uses synthetic
+scenes, and a real-photo check (M1) waits without blocking. The other
+answers are proposed defaults in the PRD's Assumptions, not confirmed.
+These include whether lateral color-edge correction is still in scope
+(Q1), plus one or more picks, near edges only or everywhere, and an
+amount control (OQ1 to OQ3). The row moves to Specified, with the PRD
+still Draft until the owner confirms. The same day, the owner answered
+"Defaults are good", accepting every proposed default: lateral
+correction in scope, a second pick, near edges only, no amount control,
+and A1 to A7. The PRD is approved, and those answers are recorded as its
+Owner rulings 3–13.
+
 Where specs live: new features get `docs/features/<slug>/`. The phase plans
 (`docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`) and `docs/UI_REDESIGN.md`
 stay as the historical record (owner, 2026-11-04). Bare `PHASE<n>_PLAN.md`
@@ -189,16 +223,27 @@ Set by the owner 2026-11-06: library-launch-guard, viewport-render-1to1 and
 edit-history. This superseded the owner's earlier rule (2026-11-06) that
 the third slot stays empty until the manual checks are done.
 publishing-engine and ui-redesign-onscreen-check moved to Later.
-library-launch-guard shipped 2026-11-07 (PR #47), so one slot is free; the
-owner decides what, if anything, fills it.
+library-launch-guard shipped 2026-11-07 (PR #47), and that freed a slot.
+The owner filled it the same day with chromatic-aberration, which is the
+next item to start ("make it the next item"). Now is full: to start
+anything else, something has to move out.
 
 | Slug | Problem | Status | Folder | Source |
 |------|---------|--------|--------|--------|
+| chromatic-aberration | Colored fringes along high-contrast edges stay in the photo: red/cyan or blue/yellow edges that widen toward the corners, and purple or green halos around bright edges and out-of-focus highlights. Nothing in the app removes them, and the raw decoder usually doesn't either (it usually applies distortion and vignetting already) | Specified (PRD approved 2026-11-07) | [`features/chromatic-aberration/`](features/chromatic-aberration/) | Owner, 2026-11-07: carved out of lens-corrections, "make it the next item". `CameraRawMapping.swift` reports `lensCorrections` (incl. `AutoLateralCA`) and `defringe` as unsupported today. Feasibility: `docs/PROFILING.md` "Stitchable kernels" (spike branch, not merged) |
 | viewport-render-1to1 | At 100% zoom (and other zooms past fit), every slider shows the 2560 px live frame stretched (2.3× for a 6000 px photo) until the change is saved, so fine detail can't be judged while editing | Idea | none yet | `PHASE6_PLAN.md` "The loupe at 100 %" and "Roadmap" |
 | edit-history | No way to see or jump back to an earlier state of a photo's edits | Idea | none yet | Issue #26; `ui-redesign/design.md` RI-6 |
 
 How each starts:
 
+- **chromatic-aberration** has an approved PRD and goes to the designer
+  next. It covers fringe halos (up to two picked colors turned gray near
+  high-contrast edges, each with a range slider) and automatic lateral
+  color-edge correction. It relates to viewport-render-1to1. Fringes are a few
+  pixels wide and are judged at 100%. Today, at 100%, the loupe shows a
+  stretched 2560 px frame while a slider moves, and the true result only
+  once the change is saved. The PRD assumes that is acceptable for this
+  feature (owner ruling 13 in the PRD).
 - **viewport-render-1to1** needs a short PRD, not a bug fix: today's
   behavior is as designed and documented in `PHASE6_PLAN.md`, and the fix
   has product choices (which zooms, what a pan during a drag may show, how
@@ -255,7 +300,7 @@ depends on. Ordering below them is judgment.
 | publishing-plugins | Destinations beyond the built-ins need app changes | Idea | Depends on publishing-engine settling `PublishTarget` | Issue #29 |
 | dng-export | No DNG output | Idea | ImageIO cannot write DNG; needs a writer of our own | CLAUDE.md Not yet; `PHASE4_PLAN.md` Formats; issue #6 (asked, closed without it) |
 | healing | No spot removal or healing | Idea | Phase 5's test loop was built with healing and lens corrections in mind | CLAUDE.md Not yet; `PHASE5_PLAN.md` intro; `PHASE6_PLAN.md` out of scope |
-| lens-corrections | No distortion, vignetting or chromatic aberration correction | Idea | Interacts with the decoder's own lens correction on camera-cropped raws | CLAUDE.md Not yet; `PHASE6_PLAN.md` finding 1 |
+| lens-corrections | No correction of geometric distortion or lens vignetting, and no lens profiles. Chromatic aberration and fringing moved to chromatic-aberration (Now, owner, 2026-11-07) | Idea | Lower priority, owner, 2026-11-07: the raw decoder usually applies distortion and vignetting already. Interacts with the decoder's own lens correction on camera-cropped raws | CLAUDE.md Not yet; `PHASE6_PLAN.md` finding 1 |
 | ai-masks | No subject, sky, object or people masks | Idea | | CLAUDE.md Not yet; `PHASE6_PLAN.md` out of scope |
 | dcp-profiles | Adobe `.dcp` camera profiles not supported | Idea | | CLAUDE.md Not yet; `PHASE3_PLAN.md` out of scope |
 | stacks | No hand-made or burst stacks | Idea | `stack` / `stackMember` tables and `Catalog.createStack` exist, no UI | CLAUDE.md Not yet; `PHASE2_PLAN.md` out of scope |
