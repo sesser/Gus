@@ -1,6 +1,10 @@
 # Chromatic aberration and color fringe removal
 
-Status: Approved (owner, 2026-11-07)
+Status: R1–R18 Approved (owner, 2026-11-07) and built (status.md); PR #48
+open, CI green, reviews not started. R19–R36, the pixel magnifier added by
+the owner: Approved (owner, 2026-11-08), not yet designed or built. Next is
+the designer (OQ12, OQ13), then the engineer (OQ14). The feature as a whole
+is no longer Done, and the reviews run once the magnifier is built.
 Slug: chromatic-aberration
 Roadmap: Now
 
@@ -80,6 +84,26 @@ We will know it worked when:
     the pointer precisely) should get a way to fill a fringe color slot
     from a short list of common fringe colors, in this feature or later.
     Answer: "It should go into this feature now."
+16. **Pixel magnifier (2026-11-08).** After trying the feature on a raw
+    ("it works well"), the owner added: "a small loupe tied to the cursor.
+    Maybe a round circular window that shows pixel level when choosing a
+    color", with "a zoom percentage drop down to control zoom level along
+    with rgb values of the selected pixel. Zoom level should persist between
+    uses and should be reusable for different features." The owner's
+    reference picture shows the function wanted; the app's look is its own
+    (CLAUDE.md, Clean-room constraint).
+17. **Who uses the magnifier now (2026-11-08).** Only the fringe eyedropper,
+    built so other features can use it and proved by a test tool. Pick
+    Colors follows as its own roadmap row. Rulings 17–22 are the proposed
+    defaults, which the owner accepted: "Defaults are fine."
+18. **The 3-point snap goes.** The outlined pixel is the pixel picked: exactly
+    the one under the pointer at the view's 100% and closer; zoomed out
+    further, the most colorful photo pixel under that one screen pixel.
+19. **What the magnifier draws.** The same pre-edit image its values come
+    from, even where edits make it look different from the photo around it.
+20. **Value scale.** Integers from 0 to 255 in Display P3.
+21. **L is shown,** as a fourth value.
+22. **No resize grip.** The magnifier has a fixed, small size.
 
 ## Users and scenarios
 
@@ -106,6 +130,11 @@ We will know it worked when:
 - **Many photos.** After fixing one photo from a shoot, the person pastes
   the correction onto the rest of the shoot. Each photo gets its own
   lateral measurement.
+- **Seeing the pixel.** At fit, a fringe is a line a screen pixel or two
+  wide. The person arms the eyedropper, and a small magnifier travels with
+  the pointer, showing the photo's own pixels. They move until the outline
+  sits on the purple pixels, read its values, and click. They know what
+  they picked before they pick it.
 
 ## Requirements
 
@@ -230,6 +259,108 @@ R18 (Should): Live frames while a control of this feature moves are about
 as fast as frames while the existing color sliders move. The times are
 measured and recorded; there is no fixed target.
 
+### Pixel magnifier (ruling 16)
+
+The owner's "small loupe". The app already calls its one-photo view "the
+loupe" (and "the view" below means that view), so this PRD says **pixel
+magnifier**; the designer chooses the name people see (OQ12). "Picking" means
+any tool in R35 is armed and waiting for a click on the photo.
+
+R19 (Must): While a tool is picking and the pointer is over the photo, a
+small round magnifier moves with the pointer. It appears on its own when
+picking starts and goes when picking ends (a pick, Esc, or anything else
+that ends picking today). The person never has to position it.
+
+R20 (Must): It shows the pixels of the image the tool samples (R25), at
+full resolution, whatever the view's zoom and whichever frame the view is
+showing (a stretched live frame included). Each photo pixel is a hard-edged
+square, with no smoothing between pixels. Until those pixels are available,
+it shows no pixels and no values rather than coarser or stale ones, and a
+click still picks.
+
+R21 (Should): A thin grid separates the pixels at levels where that helps.
+The designer decides where it fades or goes.
+
+R22 (Must): One pixel is outlined, and it is the pixel a click would pick.
+A click never picks any other pixel, and the 3-point snap is gone at every
+zoom (ruling 18). At the view's 100% and closer, the outlined pixel is exactly
+the one under the pointer. Zoomed out further, where one screen pixel covers
+several photo pixels, it is the most colorful of the photo pixels under that
+one screen pixel, so a thin fringe stays reachable at fit and the outline can
+sit a pixel or two off center. A click made before the magnifier's pixels are
+ready (R20) follows the same rule. The outlined pixel is always inside the
+magnifier and inside the photo.
+
+R23 (Must): Beside the outline, the magnifier shows the outlined pixel's
+R, G and B values. They are the same data a click would use, converted for
+reading; a pick stores the full-precision color as it does today. They are
+integers from 0 to 255, as in the owner's reference, in Display P3 (the app's
+output space) with its usual tone curve. Values beyond that range
+read as 0 or 255.
+
+R24 (Should): A fourth value, L, shows the same pixel's
+luminance on the same scale: the brightness R2 keeps (Rec. 2020 luminance).
+
+R25 (Must): The values come from the image the tool samples, so that what
+is read is what is picked. For the fringe tool that is OQ2's image: the
+decoded master, aligned as the photo renders, before any graying and every
+other adjustment. The magnified pixels come from that same image, so a picture and its numbers always agree, even where edits make the
+magnifier look different from the photo around it.
+
+R26 (Must): Before clicking, the person can tell that a click at this spot
+would be refused for having almost no color (design §4). The refusal itself
+doesn't change.
+
+R27 (Must): A percentage list sets the magnifier's level: 100%, 200%, 400%,
+800% and 1600%. A percentage means what it means in the view: at 100%, one
+photo pixel is one screen pixel, so at 800% a photo pixel is 8 screen pixels
+wide on any display, standard or Retina. The level does not depend on the
+view's zoom. The person can change it without ending picking.
+
+R28 (Must): The level persists between uses, across photos, libraries and
+relaunches. It is the person's preference on this Mac, not part of a photo
+or a library, and one level is shared by both fringe slots and by every tool
+that uses the magnifier.
+
+R29 (Must): The outlined pixel and its values stay fully visible at every
+pointer position on the photo, the corners included. Parts of the magnifier
+beyond the photo's edge, or beyond its crop, show no photo pixels: no
+repeated edge pixels and no pixels the crop has removed. A photo turned by
+quarter turns appears the same way up as in the view.
+
+R30 (Must): The magnifier stays true when the pointer doesn't move. If the
+photo under it pans or zooms, or Color Alignment or anything else that
+changes the sampled image changes, it shows the new pixel and values.
+
+R31 (Must): It is a viewing aid only. Showing it or changing its level is
+never in the edit stack or the render hash, is never an undo step, and
+never reaches a preview, an export or `photocli`. R11 holds.
+
+R32 (Must): It changes no other input while picking. A click anywhere on
+the photo picks, drags pan, and scroll, pinch, `Z`, ⌘= / ⌘−, Esc, the
+double-click rule and the context menu do what design §4 says. The level's
+own control is the only exception.
+
+R33 (Must): It takes no keyboard focus. Its level can be changed from the
+keyboard and with VoiceOver, without a pointer. It adds nothing VoiceOver
+stops on and announces nothing as the pointer moves; R1a stays the way to
+fill a slot without pointing. The outline and values stay legible over any
+photo content, white and black pixels included, and with Increase Contrast.
+
+R34 (Must): It is built to serve other features. A tool that uses it
+supplies the image to sample and its own rule for which pixel a click
+picks; the magnifier knows nothing about fringes.
+
+R35 (Must): In this change, only the fringe eyedropper (both
+slots, and Pick from Photo) uses it. The Color Range mask's Pick Colors, the
+only other color picker in the app, is unchanged.
+
+R36 (Should): The magnifier feels attached to the pointer, and arming the
+eyedropper causes no visible hitch, on the same terms as ruling 12: no
+fixed target, times measured and recorded. It doesn't slow R18's live
+frames, and whatever it holds in memory for picking is released when
+picking ends.
+
 ## Acceptance criteria
 
 Synthetic scenes: the engineer adds test scenes to `PhotoFixtures`:
@@ -240,7 +371,9 @@ Synthetic scenes: the engineer adds test scenes to `PhotoFixtures`:
 - (b) the same, plus a large purple patch and a large green patch away
   from any edge, standing in for real purple or green subjects;
 - (c) a scene whose red and blue channels are scaled radially by known
-  amounts about the frame's center.
+  amounts about the frame's center;
+- (d) a scene whose every pixel has a known, distinct color, out to its
+  outermost rows and columns (pixel magnifier).
 
 Each criterion has a CPU reference or a measurement, per CLAUDE.md
 "Checking image code". The engineer sets numeric tolerances from the
@@ -348,6 +481,90 @@ still reports `lensCorrections`.
 AC15 (R18): `photobench` records live frame times with the feature on,
 next to the existing color slider times.
 
+Pixel magnifier. The debug script reports what the magnifier shows (visible,
+level, the outlined pixel's coordinates, its values, the pixels drawn), so
+each of these can be checked without a person.
+
+AC16 (R19): Arming either eyedropper or Pick from Photo shows the magnifier
+over the photo; over the surround it isn't shown. A pick, Esc, moving to
+another photo, starting a crop and entering review each remove it. Filling a
+slot from the list never shows it.
+
+AC17 (R20, R21): On scene (d), at the view's fit and at 100%, and while a
+stretched live frame is on screen, every pixel drawn in the magnifier has the
+exact color of its photo pixel, with no in-between colors, at every level.
+While the pixels aren't ready, none are drawn, no values are reported, and a
+click still stores the same color it would have.
+
+AC18 (R22): On scene (a), at the view's fit, 100% and 800%, across many
+pointer positions on and near the fringes, the outlined pixel is the pixel
+the click then stores (`print fringe`'s last sample point). At
+100% and 800% it is exactly the pixel under the pointer, even when a
+neighbor is more colorful; at fit it is the most colorful photo pixel under
+the pointer's screen pixel.
+
+AC19 (R23, R25): On scene (d) and scene (a), the values shown match a CPU
+reference's conversion of the color the click stores, within 1. Changing
+Exposure, Saturation or a look-up table, or filling the other slot, leaves
+the values at a pixel unchanged. Turning on Color Alignment changes them as
+the sampled image changes. The pixels drawn match the same image. A color
+outside 0–255 reads as 0 or 255.
+
+AC20 (R24): A neutral pixel reads R = G = B = L. On scene (d),
+L matches the reference.
+
+AC21 (R26): On scene (a)'s light ground, the magnifier reports a click there
+would be refused, and the click is then refused as design §4 says. On a
+fringe, it does not.
+
+AC22 (R27): At each of the five levels, a photo pixel is the level ÷ 100
+screen pixels wide (8 at 800%), at backing scale 1 and 2, and at the view's
+fit, 100% and 800%. Changing the level leaves picking armed and the slot's
+state unchanged.
+
+AC23 (R28): With a level other than the default chosen, picking on another
+photo, on the other slot, after a relaunch and with another `--library-root`
+all open at that level. The photo's stack, its render hash and the catalog
+are unchanged by the change of level.
+
+AC24 (R29): With scene (d) filling the view and the pointer on each of its
+four corner pixels, the outlined pixel and its values are entirely inside
+the window. No pixel beyond the photo's edge is drawn. On a cropped photo,
+none beyond the crop is drawn, and the outlined pixel is never beyond it. On
+a photo turned a quarter turn, the outlined pixel at a known position is the
+right one and the picture is the same way up as the view.
+
+AC25 (R30): With the pointer still, panning, zooming the view, changing
+Color Alignment and undoing that change each update the outlined pixel and
+values to what a click would then store.
+
+AC26 (R31): Picking with the magnifier and changing its level adds no undo
+step beyond the pick's one. Every golden, the hash-stability corpus and the
+pipeline version are unchanged (AC8).
+
+AC27 (R32): With the magnifier showing, every row of design §4's "Mouse and
+keys while picking" table still passes as DR3 checks it. A click whose
+pointer is over the magnifier's own drawing picks.
+
+AC28 (R33): The `accessibility` command lists no element for the magnifier.
+The level can be read and changed with the keyboard and through the
+accessibility actions, with no pointer. Keyboard focus is where it was
+before arming.
+
+AC29 (R34): A test uses the magnifier with a tool of its own: a synthetic
+image and a different picking rule. The outlined pixel and values follow
+that tool's image and rule. Code review confirms the magnifier refers to
+no fringe type.
+
+AC30 (R35): Arming the Color Range mask's Pick Colors shows no
+magnifier, and it samples as it does today.
+
+AC31 (R36): `photobench` records, on 6000 × 4000 files next to R18's times:
+time from arming to the first pixels, time for an update as the pointer
+moves, and memory held while picking. R18's live frame times don't get
+worse with the magnifier showing. Memory held for picking is gone after
+picking ends.
+
 M1 (manual, later, not blocking): on real photos with fringing, at 100%,
 the fringes are gone or nearly gone and real purple or green subjects keep
 their color. It waits until someone has suitable files and is recorded as
@@ -365,6 +582,13 @@ scene (a) photo, a person fills both slots from the list, changes each
 range, shows and hides what the feature affects, and clears a slot. Each
 step is announced understandably. QA lists it under "For a person".
 
+M3 (manual, R19, R21, R27, R33, R36): on a real raw, on a Retina display
+and on a standard one if available, and after moving the window between
+them: the magnifier feels attached to the pointer, the level can be changed
+in practice while picking, and the outline and values read clearly over
+bright, dark and busy content, and with Increase Contrast. QA lists it under
+"For a person".
+
 ## Non-goals
 
 - Geometric distortion, lens vignetting and lens profiles. These stay in
@@ -380,6 +604,13 @@ step is announced understandably. QA lists it under "For a person".
 - A default that applies it to every new import. The app has no such
   mechanism.
 - Video.
+- Pixel magnifier: a magnifier outside picking (a general way to inspect
+  pixels); a setting to turn it off; moving the outline pixel by pixel with
+  keys (arrows move between photos); copying its values; sampling anything
+  outside the photo. A White Balance eyedropper: the app has none today (only
+  presets, sliders and Auto), and this change doesn't add one.
+- Resizing the magnifier (ruling 22). The reference's resize grip is left
+  out. Its fixed, small size is the designer's to set.
 
 ## Dependencies and impact
 
@@ -406,6 +637,40 @@ step is announced understandably. QA lists it under "For a person".
   after the change is saved. Accepted for this feature (ruling 13).
 - **Camera-cropped raws** (`docs/archive/PHASE6_PLAN.md` finding 1):
   affects R9.
+- **Pixel magnifier and what is already built.** design.md needs §4 (the
+  snap, what the person sees while picking, the input table), §14 and the
+  checks revised, and a new section for the magnifier. The 3-point snap
+  goes (ruling 18), which changes `FringePicker.snapRadius`, status.md's
+  "R1 snap and refusal" check and its test, design §4 and the user guide's
+  sentence on it. Today a pick decodes the full image once per click
+  (`FringePicker.sample`), so following the pointer needs the sampled pixels
+  ready while picking (R20, R36, OQ14). The level is a preference like the
+  app's other view settings; a debug copy with its own bundle identifier
+  keeps its own, as it should.
+- **Pick Colors, for a later adoption (ruling 17; roadmap
+  `pick-colors-magnifier`).** It samples differently from
+  the fringe tool: the frame on screen, after edits, at that frame's
+  resolution, with no snap, and it stays on for several clicks. It would
+  need its own answers to R22 and R25.
+
+## Assumptions
+
+These are not owner rulings. The owner saw the first three listed as
+assumptions on 2026-11-08 and did not object. The last two were not put to
+the owner as assumptions: the shared level was presented as settled, and
+straightening was not shown. Correct any of these freely.
+
+- **Starting level.** The magnifier starts at 800%, on a list of 100–1600%
+  in doublings (R27; the list itself was not put to the owner). The app's 100% is one photo pixel per screen pixel, so on a Retina display
+  400% draws a photo pixel only 2 points wide. 800% is 4 points, which reads
+  as squares; 1600% is for a 1–3 pixel fringe.
+- **It appears every time** a tool picks, with no off switch.
+- **HDR photos** are drawn in standard range in the magnifier; their values
+  read 255 at the top of that range (R23).
+- **One level for every tool**, not one per tool (R28).
+- **Straightening** can leave the picture a few degrees off the view's,
+  because photo pixels stay square in the magnifier. Quarter turns match
+  (R29).
 
 ## Open questions
 
@@ -440,6 +705,39 @@ step is announced understandably. QA lists it under "For a person".
   question as it was asked: the exact color value of each listed color
   and the range it starts with (R1c), set from the reference against
   scene (a), not by trial.
+
+Pixel magnifier. The owner's six are closed (2026-11-08, "Defaults are
+fine."); the designer's and the engineer's are open.
+
+- **OQ6 (owner): closed.** Ruling 17: the fringe eyedropper only, built
+  reusable and proved by a test tool (R34, R35, AC29, AC30). The question as
+  it was asked: who uses it now?
+- **OQ7 (owner): closed.** Ruling 18: the snap goes (R22, AC18). Rejected:
+  keeping the 3-point snap with the outline hopping to the pixel it will
+  take, and no reach at all when zoomed out. The question as it was asked:
+  what about the 3-point snap?
+- **OQ8 (owner): closed.** Ruling 19: the pre-edit image (R25, AC19).
+  Rejected: drawing the photo as edited with pre-edit values. The question
+  as it was asked: whose pixels does it draw?
+- **OQ9 (owner): closed.** Ruling 20: 0–255 in Display P3 (R23, AC19).
+  Rejected: 0–255 sRGB, and percentages of the working space. The question
+  as it was asked: what scale are the values?
+- **OQ10 (owner): closed.** Ruling 21: yes, as a Should (R24, AC20). The
+  question as it was asked: show L?
+- **OQ11 (owner): closed.** Ruling 22: no grip, a fixed small size. The
+  question as it was asked: resize grip?
+- **OQ12 (designer):** the look and the name people see (not "loupe"):
+  whether it sits on the pointer or beside it, its size ("small"), how the
+  crosshair and the outline relate, where the values go, how it marks a
+  refused spot (R26), and where the grid fades (R21). The reference shows
+  function only.
+- **OQ13 (designer):** how the percentage list is reached. A control riding
+  on a window that follows the pointer can't be reached with that pointer,
+  so the reference's placement doesn't carry over as it stands. It also
+  needs a keyboard and VoiceOver route (R33).
+- **OQ14 (engineer):** how the sampled pixels are held while picking within
+  R20, R30 and R36, and confirming R23's and R24's conversions against a CPU
+  reference.
 
 ## Revisions
 
@@ -544,3 +842,25 @@ step is announced understandably. QA lists it under "For a person".
     saying that a preset with all settings, including one saved before
     Color Fringes and Color Alignment existed, also replaces those two, and
     that Manage Presets can take them out of it. The behavior is built.
+- 2026-11-08: scope added by the owner (ruling 16): a pixel magnifier tied
+  to the pointer while picking a color. Added R19–R36, AC16–AC31, M3, scene
+  (d), non-goals, Assumptions, and OQ6–OQ14. R1–R18 and their criteria are
+  unchanged, except that OQ7's default would narrow the snap design §4
+  specifies (no PRD criterion depends on it). What the existing record
+  settled: the values come from the image the picker samples (OQ2), the app
+  has one other color picker and no White Balance eyedropper, and the level
+  is a preference, never part of a photo. Six questions go to the owner,
+  each with its default written into the requirement it affects. R19–R36 are
+  Draft until the owner answers, then the row goes to the designer. The
+  engineer's Done in status.md covers R1–R18 only.
+- 2026-11-08: the owner accepted all six defaults for the pixel magnifier
+  ("Defaults are fine."). They are now Owner rulings 17–22, OQ6–OQ11 are
+  closed, and R19–R36 move from Draft to Approved. The wording of R22, R23,
+  R24, R25, R35, AC18, AC19, AC20, AC30 and the resize non-goal lost its
+  open markers. What each one requires is unchanged. R22 now says outright
+  that the 3-point snap is gone at every zoom, and that a click before the
+  pixels are ready follows the same rule, and Dependencies says the snap goes
+  rather than "if". The Pick Colors adoption is the Later roadmap row
+  `pick-colors-magnifier`. Assumptions now says which ones the owner saw
+  without objecting; none of them is a ruling. OQ12 and OQ13 (designer) and
+  OQ14 (engineer) stay open. Next: apple-ui-designer.

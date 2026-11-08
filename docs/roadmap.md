@@ -204,6 +204,18 @@ now PRD R1a–R1c. A listed color behaves exactly like a picked one. The
 design needs revising for the list, so the row goes back from Designed
 to Specified until design.md is updated.
 
+2026-11-08: chromatic-aberration was built (R1–R18, PR #48 open, CI green,
+reviews not started). The owner tried it on a raw ("it works well") and added
+a pixel magnifier tied to the pointer while picking a color (PRD ruling 16,
+R19–R36). Six owner questions are open (OQ6–OQ11), each with a default. The
+row is In progress: it stays in Now. Whether Pick Colors adopts the
+magnifier is OQ6; a row for it is added only once that is answered.
+
+2026-11-08: the owner accepted all six defaults ("Defaults are fine."), and
+R19–R36 are Approved (PRD rulings 17–22). The magnifier serves the fringe
+eyedropper only for now, so Pick Colors' adoption is the new Later row
+pick-colors-magnifier. The row stays In progress, next with the designer.
+
 Where specs live: new features get `docs/features/<slug>/`. The phase plans
 (`docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`) and `docs/UI_REDESIGN.md`
 stay as the historical record (owner, 2026-11-04). Bare `PHASE<n>_PLAN.md`
@@ -251,7 +263,7 @@ anything else, something has to move out.
 
 | Slug | Problem | Status | Folder | Source |
 |------|---------|--------|--------|--------|
-| chromatic-aberration | Colored fringes along high-contrast edges stay in the photo: red/cyan or blue/yellow edges that widen toward the corners, and purple or green halos around bright edges and out-of-focus highlights. Nothing in the app removes them, and the raw decoder usually doesn't either (it usually applies distortion and vignetting already) | Designed (design.md 2026-11-07, incl. the list of common fringe colors, R1a, owner ruling 15) | [`features/chromatic-aberration/`](features/chromatic-aberration/) | Owner, 2026-11-07: carved out of lens-corrections, "make it the next item". `CameraRawMapping.swift` reports `lensCorrections` (incl. `AutoLateralCA`) and `defringe` as unsupported today. Feasibility: `docs/PROFILING.md` "Stitchable kernels" (spike branch, not merged) |
+| chromatic-aberration | Colored fringes along high-contrast edges stay in the photo: red/cyan or blue/yellow edges that widen toward the corners, and purple or green halos around bright edges and out-of-focus highlights. Nothing in the app removes them, and the raw decoder usually doesn't either (it usually applies distortion and vignetting already) | In progress (R1–R18 built, PR #48 open, reviews not started; pixel magnifier R19–R36 added and Approved 2026-11-08, design and build to come) | [`features/chromatic-aberration/`](features/chromatic-aberration/) | Owner, 2026-11-07: carved out of lens-corrections, "make it the next item". `CameraRawMapping.swift` reports `lensCorrections` (incl. `AutoLateralCA`) and `defringe` as unsupported today. Feasibility: `docs/PROFILING.md` "Stitchable kernels" (spike branch, not merged) |
 | viewport-render-1to1 | At 100% zoom (and other zooms past fit), every slider shows the 2560 px live frame stretched (2.3× for a 6000 px photo) until the change is saved, so fine detail can't be judged while editing | Idea | none yet | `PHASE6_PLAN.md` "The loupe at 100 %" and "Roadmap" |
 | edit-history | No way to see or jump back to an earlier state of a photo's edits | Idea | none yet | Issue #26; `ui-redesign/design.md` RI-6 |
 
@@ -269,7 +281,10 @@ How each starts:
   pixels wide and are judged at 100%. Today, at 100%, the loupe shows a
   stretched 2560 px frame while a slider moves, and the true result only
   once the change is saved. The PRD assumes that is acceptable for this
-  feature (owner ruling 13 in the PRD).
+  feature (owner ruling 13 in the PRD). Update 2026-11-08: design and
+  build of R1–R18 are done (PR #48 open). The owner added a pixel magnifier
+  for picking colors (R19–R36, Approved). It goes to the designer, then
+  the engineer, and the reviews run after that.
 - **viewport-render-1to1** needs a short PRD, not a bug fix: today's
   behavior is as designed and documented in `PHASE6_PLAN.md`, and the fix
   has product choices (which zooms, what a pan during a drag may show, how
@@ -324,6 +339,7 @@ depends on. Ordering below them is judgment.
 | ui-redesign-onscreen-check | Shipped work that only a person can check. (a) The older redesign: glass panes, VoiceOver speech, macOS 15 path, 13" Export sheet. (b) The film strip: steps, height cap, show/hide, resize drag, crop session, Increase Contrast. (c) ui-redesign-reconcile: **done** (owner, 2026-11-06: "I've checked all the P1-P10 of the ui-redesign"; all passed, no findings): P1–P10 in [`ui-redesign/qa.md`](features/ui-redesign/qa.md) "For a person", incl. AC2. (d) sharpen-mask-preview: P1–P8 in [`sharpen-mask-preview/qa.md`](features/sharpen-mask-preview/qa.md) "For a person", incl. the ⇧↑ check for its Q2. (e) ml-denoise: P1–P9 in [`ml-denoise/qa.md`](features/ml-denoise/qa.md) "For a person", incl. AC13 (P9, your raws: ML vs classical at 100). (f) stale-preview-after-save, optional: P2 in [`stale-preview-after-save/qa.md`](features/stale-preview-after-save/qa.md) "For a person" (drag Exposure three times on a real raw, back to the grid, relaunch; the thumbnail shows the last value and never goes blank). (g) editor-follow-edit-drop, optional: P1 in [`editor-follow-edit-drop/qa.md`](features/editor-follow-edit-drop/qa.md) "For a person" (a scratch library with a few real raws and a few thousand photos: drag Exposure, → then ← at once, drag Contrast, three times; paste onto a few thousand photos and open one at once; relaunch. Every drag survives, the Adjust tab shows the pasted values once it stops loading, and how long it shows loading is acceptable to you, qa.md O1). (h) library-launch-guard: **done** (owner, 2026-11-07: "P1-P4 pass visual testing"; no findings; recorded in qa.md's Follow-up): P1–P3 and the optional P4 in [`library-launch-guard/qa.md`](features/library-launch-guard/qa.md) "For a person" (a `.debugtest` copy opened from the Finder or `open` shows the alert in front and quits on Return or a click; VoiceOver reads it; `swift run PhotoApp` shows it and exits 64; optionally, the release bundle with `--debug-script` and no `--library-root` exits 64 with no alert). Items that need another Mac (macOS 15, which the owner doesn't have: (a)'s macOS 15 path; macOS 15 or 26: ml P6, sharpen P8; a Mac without the RAW 9 model: ml P8, the RI-E6 (d) check) stay open here until one is available | Idea | Owner, 2026-11-06: moved from Now to Later, holding (a), (b), (d), (e), (f) and (g); nothing dropped. (h) added at library-launch-guard's Ship, 2026-11-07, and done the same day. The checks stay pending on each feature's Shipped row until done. Every person-only check is gathered here (owner, 2026-11-06, earlier ruling 3) | `UI_REDESIGN.md` status, "Not yet checked on screen"; §11 "Implementation status", last item; the five qa.md files above (2026-11-06) |
 | publishing-engine | Getting edited photos into Apple Photos or Immich means exporting to a folder and uploading by hand | Idea | Owner, 2026-11-06: moved from Now to Later | Issue #28; `PHASE4_PLAN.md` out of scope ("export to services") |
 | publishing-plugins | Destinations beyond the built-ins need app changes | Idea | Depends on publishing-engine settling `PublishTarget` | Issue #29 |
+| pick-colors-magnifier | The Color Range mask's Pick Colors has no pixel magnifier, so the person can't see which pixel a click takes or read its values | Idea | Depends on chromatic-aberration's reusable magnifier (R34). Needs its own answers to R22 and R25: Pick Colors samples the on-screen frame, after edits, at that frame's resolution, has no snap and stays on for several clicks | `chromatic-aberration/prd.md` OQ6, owner, 2026-11-08 |
 | dng-export | No DNG output | Idea | ImageIO cannot write DNG; needs a writer of our own | CLAUDE.md Not yet; `PHASE4_PLAN.md` Formats; issue #6 (asked, closed without it) |
 | healing | No spot removal or healing | Idea | Phase 5's test loop was built with healing and lens corrections in mind | CLAUDE.md Not yet; `PHASE5_PLAN.md` intro; `PHASE6_PLAN.md` out of scope |
 | lens-corrections | No correction of geometric distortion or lens vignetting, and no lens profiles. Chromatic aberration and fringing moved to chromatic-aberration (Now, owner, 2026-11-07) | Idea | Lower priority, owner, 2026-11-07: the raw decoder usually applies distortion and vignetting already. Interacts with the decoder's own lens correction on camera-cropped raws | CLAUDE.md Not yet; `PHASE6_PLAN.md` finding 1 |
