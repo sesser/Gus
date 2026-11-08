@@ -284,6 +284,14 @@ public struct ColorAlignment: AdjustmentModule {
     /// Nothing moves.
     public var isIdentity: Bool { red == 0 && blue == 0 }
 
+    /// A slider moved: the values become hand-set, starting from the
+    /// measured ones (R10, the RI-2 ruling: no longer automatic).
+    public mutating func setByHand(red: Double? = nil, blue: Double? = nil) {
+        automatic = false
+        if let red { self.red = Self.clamped(red) }
+        if let blue { self.blue = Self.clamped(blue) }
+    }
+
     /// The red and blue magnifications as fractions (`red × unit`).
     public var redScale: Double { red * Self.unit }
     public var blueScale: Double { blue * Self.unit }
@@ -322,5 +330,20 @@ extension ParameterValues {
         }
         guard numbers.count == 3 else { return nil }
         return SIMD3(numbers[0], numbers[1], numbers[2])
+    }
+}
+
+extension Adjustments {
+    /// These values ask for color alignment measured on the photo they are
+    /// given to: paste, a preset or a batch measures each receiving photo
+    /// (R16) rather than copying the values measured on another.
+    public var needsAlignmentMeasurement: Bool { colorAlignment.automatic }
+
+    /// These values with `measured` as their automatic alignment (its on/off
+    /// state kept).
+    public func measuringAlignment(_ measured: ColorAlignment) -> Adjustments {
+        var copy = self
+        copy.colorAlignment = ColorAlignment(automatic: true, red: measured.red, blue: measured.blue)
+        return copy
     }
 }
