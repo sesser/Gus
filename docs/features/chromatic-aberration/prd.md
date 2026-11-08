@@ -75,6 +75,11 @@ We will know it worked when:
     item.
 14. **Test photos.** The owner has none on hand. QA uses synthetic scenes,
     and the real-photo check (M1) waits without blocking.
+15. **Filling a slot without pointing.** The owner was asked whether people
+    who can't point at the photo (VoiceOver users, anyone who can't place
+    the pointer precisely) should get a way to fill a fringe color slot
+    from a short list of common fringe colors, in this feature or later.
+    Answer: "It should go into this feature now."
 
 ## Users and scenarios
 
@@ -91,6 +96,10 @@ We will know it worked when:
   front of the focus plane and green ones behind it. The person picks the
   purple, then picks the green as a second color, and sets each range on
   its own.
+- **Without pointing.** A VoiceOver user, or someone who can't place the
+  pointer on a 2-pixel fringe, fills Color 1 with purple from a short list
+  of common fringe colors. The purple fringes turn gray, and they adjust
+  the range from the keyboard, exactly as after a pick.
 - **Lateral color edges.** A wide-angle shot has red/cyan outlines on
   buildings near the corners. One control removes them. Cropping
   afterwards doesn't bring them back or change the correction.
@@ -105,6 +114,24 @@ We will know it worked when:
 R1 (Must): The person can choose a fringe color by picking it from the
 photo in the loupe. They can pick a second color too, each with its own
 range. Each pick can be cleared or replaced on its own.
+
+R1a (Must): Without pointing at the photo, the person can fill either slot
+from a short list of common fringe colors. The list holds at least purple
+and green, the two fringe colors the Problem names. Filling a slot this
+way, setting its Tolerance, clearing it, and showing what the feature
+affects (R6) can all be done from the keyboard alone and with VoiceOver.
+The list is in addition to picking from the photo and replaces none of it
+(ruling 2).
+
+R1b (Must): A slot filled from the list behaves exactly like a slot filled
+by picking. It holds a color the same way, follows the same rules (R2–R5:
+near edges only, its own range, soft falloff), is stored and carried by
+paste and presets the same way, and can be replaced by a pick or another
+listed color, or cleared. Filling it is one undo step. Two slots holding
+the same color render the same, whatever filled them.
+
+R1c (Should): A listed color, at the range it starts with, grays a typical
+fringe of its kind without the person needing to adjust the range first.
 
 R2 (Must): Near high-contrast edges, fringes whose color falls in a
 pick's range lose their color: they become neutral gray. Their brightness
@@ -157,7 +184,7 @@ for existing photos.
 
 R12 (Must): It is non-destructive like every other adjustment. It is
 stored in the photo's edit stack and is part of the render hash. One
-gesture or pick is one undo step. Before/after shows the photo without it,
+gesture, pick or choice from the list is one undo step. Before/after shows the photo without it,
 and a reset gives back the identity render. Fringe removal and lateral
 correction may each be their own group, each with the group on/off
 control the Adjust tab already has and its own entry in a preset's group
@@ -220,6 +247,22 @@ neutral within the tolerance (chroma near zero), and their brightness
 stays within the tolerance of before. The purple rim of the defocused
 disc is grayed too. Adding the green fringe as a second pick grays the
 green fringe too. Clearing either pick restores only that fringe.
+
+AC1a (R1a, R1c): On scene (a), with no click on the photo, filling Color 1
+with purple and Color 2 with green from the list grays the purple fringe,
+the defocused disc's purple rim and the green fringe, at the ranges the
+listed colors start with, within AC1's tolerances. This is checked
+through the debug script, and through the accessibility actions and
+values the `accessibility` command lists: the list can be reached and
+used, and each slot then reports its color. Not one step of it needs a
+pointer.
+
+AC1b (R1b): A slot filled with the listed purple stores its color the same
+way as a picked one. When a pick stores the same color value, the two
+renders are identical. Its range widens and narrows as in AC2. Replacing
+it with a pick, replacing a pick with a listed color, and clearing it each
+work and are one undo step. A preset and a paste carry a listed color, and
+it arrives indistinguishable from a picked one.
 
 AC2 (R1, R3): On scene (a), a fringe pixel whose hue is a known distance
 from the picked one is unchanged at the narrowest range and gray at a
@@ -297,7 +340,13 @@ next to the existing color slider times.
 M1 (manual, later, not blocking): on real photos with fringing, at 100%,
 the fringes are gone or nearly gone and real purple or green subjects keep
 their color. It waits until someone has suitable files and is recorded as
-a pending check at Ship.
+a pending check at Ship. When M1 runs, it also notes whether the listed
+colors match the fringes found, which is input for any change to the list.
+
+M2 (manual, R1a): with VoiceOver on and no pointer use, on a synthetic
+scene (a) photo, a person fills both slots from the list, changes each
+range, shows and hides what the feature affects, and clears a slot. Each
+step is announced understandably. QA lists it under "For a person".
 
 ## Non-goals
 
@@ -307,6 +356,9 @@ a pending check at Ship.
 - A switch for the raw decoder's own lens correction.
 - Fringe removal inside masks.
 - More than two picked colors.
+- A general color chooser for the slots, any color from a color picker
+  or the screen. The list holds common fringe colors only, and a pick
+  comes from the photo's data.
 - A separate amount control for the fringe graying.
 - A default that applies it to every new import. The app has no such
   mechanism.
@@ -348,6 +400,14 @@ a pending check at Ship.
   later. If the chosen image can't hold that, it goes back to the designer
   as a Design question.
 - **OQ3 (designer): closed.** Answered in design.md §2–§6 and §10.
+- **OQ4 (designer).** The list of common fringe colors (R1a): where it
+  lives, how it is presented and reached (pointer, keyboard, VoiceOver),
+  how a slot shows a listed color, and how it fits with the eyedropper,
+  the slot's context menu and the debug-script hooks. design.md §3, §4,
+  §11, §12, §15, §16 and §18 Q1 are affected.
+- **OQ5 (engineer).** The exact color value of each listed color and the
+  range it starts with (R1c), set from the reference against scene (a),
+  not by trial.
 
 ## Revisions
 
@@ -396,3 +456,28 @@ a pending check at Ship.
     holds only the engineer's definition of the edge rule; the person's
     side (fixed, no control) is settled by design.md §14. OQ3 is closed
     by design.md.
+- 2026-11-07: owner ruling 15. The designer asked (design.md §18 Q1)
+  whether to offer a way to fill a fringe slot from a short list of
+  common fringe colors, without pointing at the photo. The owner
+  answered: "It should go into this feature now." Added: R1a (Must: the
+  list, plus doing the whole fringe task by keyboard and VoiceOver), R1b
+  (Must: a listed color behaves exactly like a picked one), R1c (Should:
+  works at its starting range), AC1a, AC1b, M2, a non-goal (no general
+  color chooser), and OQ4 (designer) and OQ5 (engineer). R12 counts a
+  choice from the list as one undo step. What I decided from the
+  existing rulings, without going back to the owner:
+  - **The list holds at least purple and green.** These are the two
+    fringe colors the Problem names, and the two the designer's proposal
+    named, which the owner accepted. Red/cyan and blue/yellow edges
+    belong to lateral correction (R7). Any further colors wait for M1's
+    evidence.
+  - **Listed and picked colors are the same thing once in a slot.** This
+    follows R2–R5, which apply to "a pick's range" whatever filled it, and
+    design.md §10 ("Whatever their source, picks look and behave the
+    same").
+  - **The list adds to picking and replaces none of it.** Ruling 2's
+    color picker stays the main way.
+
+  The PRD stays Approved. The design needs revising for R1a (OQ4), so the
+  roadmap row goes back from Designed to Specified until design.md is
+  updated. The Later row `fringe-color-presets` is not added.

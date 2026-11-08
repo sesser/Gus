@@ -196,6 +196,14 @@ fringe slot without pointing at the photo. Proposed: not in this feature,
 and a Later Idea row `fringe-color-presets`, not added until the owner
 answers.
 
+2026-11-07: the owner answered that question: "It should go into this
+feature now." Filling a fringe slot from a short list of common fringe
+colors (at least purple and green), usable by keyboard and VoiceOver, is
+now PRD R1a–R1c. A listed color behaves exactly like a picked one. The
+`fringe-color-presets` row is not added. The PRD stays approved. The
+design needs revising for the list, so the row goes back from Designed
+to Specified until design.md is updated.
+
 Where specs live: new features get `docs/features/<slug>/`. The phase plans
 (`docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`) and `docs/UI_REDESIGN.md`
 stay as the historical record (owner, 2026-11-04). Bare `PHASE<n>_PLAN.md`
@@ -243,19 +251,20 @@ anything else, something has to move out.
 
 | Slug | Problem | Status | Folder | Source |
 |------|---------|--------|--------|--------|
-| chromatic-aberration | Colored fringes along high-contrast edges stay in the photo: red/cyan or blue/yellow edges that widen toward the corners, and purple or green halos around bright edges and out-of-focus highlights. Nothing in the app removes them, and the raw decoder usually doesn't either (it usually applies distortion and vignetting already) | Designed (PRD approved, design.md written 2026-11-07; RI-1 and RI-2 ruled as the design applied them. The owner question on picking without a pointer is pending, and its proposed default doesn't change the design) | [`features/chromatic-aberration/`](features/chromatic-aberration/) | Owner, 2026-11-07: carved out of lens-corrections, "make it the next item". `CameraRawMapping.swift` reports `lensCorrections` (incl. `AutoLateralCA`) and `defringe` as unsupported today. Feasibility: `docs/PROFILING.md` "Stitchable kernels" (spike branch, not merged) |
+| chromatic-aberration | Colored fringes along high-contrast edges stay in the photo: red/cyan or blue/yellow edges that widen toward the corners, and purple or green halos around bright edges and out-of-focus highlights. Nothing in the app removes them, and the raw decoder usually doesn't either (it usually applies distortion and vignetting already) | Designed (design.md 2026-11-07, incl. the list of common fringe colors, R1a, owner ruling 15) | [`features/chromatic-aberration/`](features/chromatic-aberration/) | Owner, 2026-11-07: carved out of lens-corrections, "make it the next item". `CameraRawMapping.swift` reports `lensCorrections` (incl. `AutoLateralCA`) and `defringe` as unsupported today. Feasibility: `docs/PROFILING.md` "Stitchable kernels" (spike branch, not merged) |
 | viewport-render-1to1 | At 100% zoom (and other zooms past fit), every slider shows the 2560 px live frame stretched (2.3× for a 6000 px photo) until the change is saved, so fine detail can't be judged while editing | Idea | none yet | `PHASE6_PLAN.md` "The loupe at 100 %" and "Roadmap" |
 | edit-history | No way to see or jump back to an earlier state of a photo's edits | Idea | none yet | Issue #26; `ui-redesign/design.md` RI-6 |
 
 How each starts:
 
 - **chromatic-aberration** has an approved PRD and a design
-  (`design.md`), and goes to the engineer next. It covers fringe halos
-  (up to two picked colors turned gray near high-contrast edges, each with
-  a range slider) and automatic lateral color-edge correction. The
-  designer still has to record the RI-1 and RI-2 rulings in design.md §17.
-  One owner question is open (filling a fringe slot without pointing at
-  the photo; proposed: not in this feature). It relates to
+  (`design.md`) that goes back to the designer first. It covers fringe
+  halos (up to two colors, picked from the photo or chosen from a short
+  list of common fringe colors, turned gray near high-contrast edges, each
+  with a range slider) and automatic lateral color-edge correction. The
+  owner put the list in this feature (ruling 15, 2026-11-07), so the
+  designer revises design.md for it (PRD OQ4) and records the RI-1 and
+  RI-2 rulings in §17. Then it goes to the engineer. It relates to
   viewport-render-1to1. Fringes are a few
   pixels wide and are judged at 100%. Today, at 100%, the loupe shows a
   stretched 2560 px frame while a slider moves, and the true result only

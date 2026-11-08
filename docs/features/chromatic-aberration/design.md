@@ -2,8 +2,10 @@
 
 Owner: apple-ui-designer. Date: 2026-11-07. Status: Designed. The product
 manager ruled both requirements issues on 2026-11-07 (§17), each as the
-option this design applied. One owner question (§18) is open and changes
-nothing here unless the owner widens the scope.
+option this design applied. The owner answered §18 Q1 ("It should go into
+this feature now"; prd ruling 15, R1a–R1c), and this revision designs the
+list of common fringe colors (prd OQ4) in §3, §4, §8, §11, §12, §15 and §16.
+Nothing is open.
 
 **Inputs.**
 
@@ -51,6 +53,8 @@ Sharpening Map patterns.
 | **Color Fringes** (group) | Fringe halos (PRD): picked colors turned gray near high-contrast edges (R1–R6) | What the person sees and calls them |
 | **Color Alignment** (group) | Lateral color edges (PRD): the red and blue parts of the image lined up with the green (R7–R10) | Says what the correction does. "Lateral chromatic aberration" is jargon; "color edges" would sit too close to "Color Fringes" |
 | **Color 1**, **Color 2** | The two pick slots (R1, ruling 3) | Neutral, stable slot names; a slot is not "the purple one", since either can hold any color |
+| **Common Fringe Colors** (menu section) | The short list a slot can be filled from without pointing at the photo: Purple and Green (R1a) | Says what the list is and why those colors; not "presets", which already means saved adjustments here |
+| **Pick from Photo** (menu item) | The eyedropper's action, as a menu item | Names where the color comes from, beside the listed colors |
 | **Tolerance** | How far from the picked color the graying reaches (R3) | The app already uses Tolerance for exactly this in a color range mask (P5: one term per thing). "Range" would collide with the Color Range mask shape, where a range is the set of colors and Tolerance is its width |
 | **Fringe Map** / fringe map | The view of where fringe color is removed (R6) | Parallels Sharpening Map, a view the person already knows. Not "mask" (SMP §1: "mask" means a local adjustment here) |
 | **Align automatically** (check box) | R7's one control | A check box, because it is a persistent setting that paste and presets carry and re-measure, not a one-shot command like Light's Auto (§7) |
@@ -99,9 +103,9 @@ Turn Off / On, Reset, Collapse All, Expand All, as every heading.
 ```
 Lens                                               [✓] ⟲
 Color Fringes                                      [✓]
-Color 1     ● Purple                         [⌖] [⊗]      ← slot row
+Color 1     ● Purple                         [⌖] [⋯]      ← slot row
 Tolerance   ──────●──────────────────    [  40 ]           ← only when Color 1 is set
-Color 2       None                           [⌖]          ← slot row, empty
+Color 2       None                           [⌖] [⋯]      ← slot row, empty
 [ Fringe Map ]                                             ← toggle, 6 pt above
 Raise Tolerance to include colors further from the picked  ← caption, 4 pt above
 one. Colors away from high-contrast edges keep theirs.
@@ -113,7 +117,8 @@ Red/cyan    ─────●────────────────�
 Blue/yellow ─────●─────────────────      [  −4 ]
 ```
 
-`⌖` is the eyedropper toggle, `⊗` the clear button, `●` the swatch.
+`⌖` is the eyedropper toggle, `⋯` the slot's menu (common fringe colors,
+Pick from Photo, Clear), `●` the swatch.
 
 ### Slot rows (Color 1, Color 2)
 
@@ -127,24 +132,82 @@ is made or cleared.
 | Swatch | SF Symbol `circle.fill`, tinted with the picked color as it looks in the photo now (§14, OQ2), the size of the Color Mixer's band swatches. Not drawn when the slot is empty | Same pattern as the Color Mixer swatches (`ColorMixerControls`); no custom view |
 | Name | The picked color's hue name, 13 pt label color: Red, Orange, Yellow, Green, Aqua, Blue, Purple or Magenta (the Color Mixer's eight bands, singular). Empty slot: "None", secondary | Color is never the only signal (HIG Accessibility). The swatch alone can't be told apart by everyone, and VoiceOver needs a word |
 | Eyedropper | `AppKitButton(symbol: "eyedropper", style: .toggle(isOn:))`: the accessory-bar push-on/push-off bezel shows when this slot is picking, as Original and Sharpening Map do. Trailing, before the clear slot | I15 (toggles share one look); the bezel, not a tint, shows the state, so it isn't color alone |
-| Clear | `AppKitButton(symbol: "xmark.circle", style: .borderless, tint: .secondaryLabelColor)`, trailing. Shown only when the slot holds a pick; its 20 pt slot stays when empty so the eyedropper never moves | The clear symbol people know from search fields. Mask rows use `minus.circle` for "remove a part", which is a different act |
+| Slot menu | `AppKitMenuButton(symbol: "ellipsis.circle")`, trailing after the eyedropper, the same ⋯ pull-down the mask rows and the Adjust header use. Always shown and enabled, empty slot included. Its items are below | The app's existing pattern for a row's commands; a pull-down, because its items are actions (HIG: pop-up buttons are for choosing among mutually exclusive options, pull-downs for commands) |
 | Row height | `SliderRow.height` (22 pt); buttons at least 20 pt (UIR §10) | |
 
-No click target on the swatch or name: picking is the eyedropper's job
-(one way to do one thing). The row's context menu offers **Pick Again**
-(arms the eyedropper) and **Clear** when the slot holds a pick, as a second
-path (P2).
+No click target on the swatch or name. The slot's color comes from the
+eyedropper or the slot menu.
+
+### The slot menu (R1a, prd OQ4)
+
+```
+Pick from Photo
+─────────────────────
+COMMON FRINGE COLORS          ← section header
+● Purple
+● Green
+─────────────────────
+Clear                         ← dimmed when the slot is empty
+```
+
+| Item | Does | Undo step |
+|---|---|---|
+| **Pick from Photo** | Arms that slot's eyedropper, exactly as the button does (§4). A second path for keyboard and VoiceOver users who reach the menu first (P2) | None (arming) |
+| **Purple**, **Green** under the section header **Common Fringe Colors** | Fills the slot with that color at once and sets its Tolerance to that color's starting value (R1c; values are prd OQ5, the engineer's). Cancels any picking in progress. Each item carries the same `circle.fill` swatch as the row | One: "Choose Fringe Color" (R1b, R12) |
+| **Clear** | Empties the slot (§4). Dimmed when it is already empty, so the menu never changes shape | One: "Clear Fringe Color" |
+
+The section header is `NSMenuItem.sectionHeader(title:)` (macOS 14 and
+later, inside the app's macOS 15 minimum; the engineer confirms). It tells
+people what the two colors are without a sentence in the inspector. The
+color items are commands, so they carry no check mark, even when the slot
+holds that color's exact value.
+
+The **row's context menu** has the same items in the same order (P2):
+right-click or Control-click anywhere on the slot row.
+
+**Why a ⋯ menu per slot, not elsewhere.**
+
+- *Per slot,* because R1a fills "either slot". A single list somewhere
+  else would need a second choice of which slot to fill.
+- *Not a pop-up showing the slot's value.* A picked color is any color, so
+  a pop-up's selected item would have to be invented for it, and Pick from
+  Photo and Clear are commands, which don't belong in a pop-up (HIG).
+- *Not a split button on the eyedropper* (`NSComboButton`). It has no
+  push-on/push-off state, so it couldn't show that picking is on the way
+  the inspector's other toggles do (I15). The debug script also drives
+  `AppKitButton` and `AppKitMenuButton` already.
+- *Not swatch buttons on the row.* Two always-visible color buttons per
+  slot would double the row's controls for a secondary path, and would
+  look like the Color Mixer's band selector, which means something else.
+- *The visible clear button goes.* An eyedropper, a clear button and a ⋯
+  menu would make three trailing controls on a 276 pt row. Clear is less
+  frequent than filling, it is in both menus, and replacing a color
+  doesn't need it.
+
+**How a slot shows a listed color: exactly like a picked one.** The swatch
+and the hue name ("Purple") are all the row shows, whatever filled it.
+There is no "listed" or "picked" marker. Once in a slot, the two are the
+same value with the same behavior (R1b), so a marker would describe
+history, not anything the person can act on. It would also go stale the
+moment a preset or paste carries the color to another photo (R1b: "arrives
+indistinguishable").
 
 ### Tolerance rows
 
 A standard `AdjustSlider` under each slot that holds a pick, labeled
 "Tolerance", 0–100, `.plain` format. Double-click and the row's context
-menu reset it, as every slider. Its default (also the value a new pick
-starts with) is the engineer's to set from the reference so that a typical
-pick on scene (a) grays the fringe completely on the first click. A value
-that needs the person to reach for the slider before anything happens
-would make the first pick look broken. Hidden for an empty slot: a
-tolerance without a color means nothing.
+menu reset it, as every slider. **Every fill sets the starting value**:
+a pick sets the pick's starting Tolerance, and a listed color sets its own
+(prd OQ5), whether the slot was empty or is being replaced. A new color
+generally needs a different width, and undo gives back the old one. Both
+starting values are the engineer's to set from the reference, so that a
+typical pick or listed color on scene (a) grays the fringe completely with
+no slider move (R1c). A value that needs the person to reach for the
+slider before anything happens would make the first fill look broken.
+Double-click reset follows the stored color alone, never how it got there
+(R1b): if the slot holds exactly a listed color's value, it resets to that
+color's starting value, otherwise to the pick's. Hidden for an empty
+slot: a tolerance without a color means nothing.
 
 ### Fringe Map toggle and caption
 
@@ -155,11 +218,11 @@ priority:
 
 | State | Caption |
 |---|---|
-| A slot is picking, and that slot was empty | "Click a colored fringe in the photo to pick Color 1. Press Esc to cancel." |
+| A slot is picking, and that slot was empty | "Click a colored fringe in the photo to pick Color 1. Thin fringes are easiest at 100% (Z). Press Esc to cancel." |
 | A slot is picking, and that slot holds a pick (replacing) | "Color 1's effect is hidden while you pick. Click a colored fringe, or press Esc to cancel." |
 | The last click landed on a spot with almost no color (§4) | "That spot has almost no color. Click a colored fringe, or press Esc to cancel." |
 | Fringe map shown | The legend (§6) |
-| No pick | "Pick a fringe's color in the photo to turn it gray where it lines a high-contrast edge. Thin fringes are easiest to pick at 100% (Z)." |
+| No pick | "Pick a fringe's color in the photo with the eyedropper, or choose Purple or Green from the menu beside it. The color turns gray where it lines a high-contrast edge." |
 | At least one pick | "Raise Tolerance to include colors further from the picked one. Colors away from high-contrast edges keep theirs." |
 
 The last line answers the first worry people have with a color tool
@@ -178,18 +241,31 @@ The last line answers the first worry people have with a color tool
 
 ### The gesture
 
-1. The person clicks a slot's **eyedropper**. It turns on (bezel), and
-   any other picking or painting tool turns off: the other slot's
-   eyedropper, a color range mask's Pick Colors, and Paint.
+1. The person clicks a slot's **eyedropper** (or chooses **Pick from
+   Photo** in its menu). It turns on (bezel), and any other picking or
+   painting tool turns off: the other slot's eyedropper, a color range
+   mask's Pick Colors, and Paint.
 2. Over the photo the pointer becomes the system **crosshair**
    (`NSCursor.crosshair`). Over the surround it stays the arrow.
 3. **One click on the photo picks.** The color is stored in that slot as
    one undo step ("Pick Fringe Color"), the eyedropper turns off, and the
    pointer goes back to the arrow. The loupe then shows the result.
-4. Picking again for the same slot (eyedropper or Pick Again) **replaces**
-   it, as one undo step. **Clear** empties the slot as one undo step
-   ("Clear Fringe Color"); its Tolerance row goes away and the fringe it
-   grayed comes back. The other slot is never touched (R1, AC1).
+4. Picking again for the same slot (eyedropper or Pick from Photo)
+   **replaces** it, as one undo step. Choosing a common fringe color from
+   the slot menu replaces it too (§3), and so does picking over a listed
+   color (R1b). **Clear** in the slot menu or the row's context menu
+   empties the slot as one undo step ("Clear Fringe Color"); its Tolerance
+   row goes away and the fringe it grayed comes back. The other slot is
+   never touched (R1, AC1).
+
+**Filling from the list never needs the photo**, so it needs none of what
+follows: no crosshair, no preview without the slot's effect, and the
+fringe map stays on screen and follows. It works wherever the slot menu is
+enabled (§4 "Where picking is unavailable" doesn't apply to it, except
+that the whole Adjust tab is replaced for videos, offline and unreadable
+photos). During a crop session the list stays enabled, as sliders do: it
+is a parameter, and the image under the crop frame updates as it does for
+any committed change.
 
 **Why one click and done (not a mode that stays on).** A slot holds one
 color, so a second click could only replace the first, and in the loupe a
@@ -279,7 +355,7 @@ It would let what is grayed differ from what was clicked, which OQ2 forbids.
 
 | Situation | Eyedroppers | Tooltip when dimmed |
 |---|---|---|
-| Crop session | Dimmed; a crop session also cancels picking | "Finish cropping to pick a fringe color." |
+| Crop session | Dimmed, and Pick from Photo is dimmed in the slot menu; a crop session also cancels picking. The common fringe colors and Clear stay enabled | "Finish cropping to pick a fringe color." |
 | Fringe map shown | Enabled. Clicking one suspends the fringe map and brings it back after the pick or Esc (§6) | — |
 | Sharpening map shown | Enabled. Clicking one ends the sharpening map, as Paint and Pick Colors do (SMP §6): it serves another task | — |
 | Show Original on | Enabled. Clicking one turns Show Original off: the pick is made on the photo being edited | — |
@@ -288,6 +364,9 @@ It would let what is grayed differ from what was clicked, which OQ2 forbids.
 
 ## 5. Tolerance (R3, R4, R5)
 
+- From here on, "a pick" means a filled slot, whether the eyedropper or
+  the list filled it: R2–R5 apply the same way (R1b), and so does
+  everything below and in §6–§10.
 - One slider per pick. Changing one never changes the other pick's effect
   (AC2).
 - Moving right widens the range: never fewer pixels affected (R3). At 0,
@@ -332,7 +411,7 @@ Everything follows SMP §3, with these items:
 | Surface | What | Enabled when |
 |---|---|---|
 | **Menu bar** | **Adjust ▸ Show Fringe Map / Hide Fringe Map**, directly after Show / Hide Sharpening Map; the title follows the state | The loupe shows an editable photo (`canEditLoupePhoto`) with **at least one pick**, no crop session, not reviewing. Dimmed otherwise, including in the grid |
-| **Inspector** | The **Fringe Map** toggle (§3) | Same. Dimmed tooltips: "Pick a fringe color to show the fringe map.", "Finish cropping to show the fringe map.", "Exit Review (F) to show the fringe map." Enabled tooltip: "Show where fringe color is removed, in place of the photo" |
+| **Inspector** | The **Fringe Map** toggle (§3) | Same. Dimmed tooltips: "Pick or choose a fringe color to show the fringe map.", "Finish cropping to show the fringe map.", "Exit Review (F) to show the fringe map." Enabled tooltip: "Show where fringe color is removed, in place of the photo" |
 | **Context menu (loupe)** | **Show / Hide Fringe Map**, after Show / Hide Sharpening Map | Listed only when it can act |
 | **VoiceOver (loupe canvas)** | Custom action **Show / Hide Fringe Map**, after the sharpening map's | Same as the context menu |
 | **Esc in the loupe** | Hides the map | The loupe has the keyboard and the map is shown |
@@ -450,23 +529,24 @@ touch Color Alignment.
 
 | State | Lens heading | Color Fringes | Color Alignment | Loupe |
 |---|---|---|---|---|
-| **Off** (new photo, nothing set) | Expanded, no check box (nothing modified), reset dimmed | Two empty slots, no Tolerance rows, Fringe Map dimmed, "No pick" caption | Unchecked, sliders 0, "Off" caption | Unchanged. Renders exactly as before (R11) |
+| **Off** (new photo, nothing set) | Expanded, no check box (nothing modified), reset dimmed | Two empty slots (each with its eyedropper and slot menu, Clear dimmed), no Tolerance rows, Fringe Map dimmed, "No pick" caption | Unchecked, sliders 0, "Off" caption | Unchanged. Renders exactly as before (R11) |
 | **No pick yet, picking** | — | Eyedropper on, picking caption | — | Crosshair over the photo |
-| **One pick** | Check box on, reset enabled | Slot row with swatch, name and clear; its Tolerance row; Fringe Map enabled; "At least one pick" caption | — | Fringes of that color grayed near edges |
+| **One pick** | Check box on, reset enabled | Slot row with swatch and name, Clear enabled in its slot menu; its Tolerance row; Fringe Map enabled; "At least one pick" caption | — | Fringes of that color grayed near edges |
 | **Two picks** | — | Both rows filled, two Tolerance rows | — | Both grayed |
+| **Slot filled from the list** | — | Same as one pick: swatch, "Purple" or "Green", Tolerance at that color's starting value. Nothing marks it as listed (§3) | — | Fringes of that color grayed near edges |
 | **Replacing a pick** | — | That slot's eyedropper on, "replacing" caption | — | Photo without that slot's effect, crosshair |
 | **Neutral click** | — | Eyedropper still on, "almost no color" caption | — | Unchanged |
 | **Fringe map shown** | — | Toggle on, legend | — | Map, "Fringe Map" badge |
-| **Color Fringes turned off** | Check box mixed if Color Alignment is on | Values kept, labels secondary (`showsTurnedOff`); eyedroppers and Fringe Map stay enabled (as Sharpening Map, SMP §4) | — | Without graying; map shows "Not Applied" |
-| **Changing a value with a group off** | — | Picking, clearing or a Tolerance change turns the group back on, as any control does (`enableModules`) | Same | — |
+| **Color Fringes turned off** | Check box mixed if Color Alignment is on | Values kept, labels secondary (`showsTurnedOff`); eyedroppers, slot menus and Fringe Map stay enabled (as Sharpening Map, SMP §4) | — | Without graying; map shows "Not Applied" |
+| **Changing a value with a group off** | — | Picking, choosing from the list, clearing or a Tolerance change turns the group back on, as any control does (`enableModules`) | Same | — |
 | **Measuring** | — | — | Checked, spinner, "Measuring…" | Unchanged until the measurement is saved |
 | **Automatic, corrected / nothing found / failed** | — | — | §7 captions | Corrected / unchanged / unchanged |
 | **Hand-set** | — | — | Unchecked, sliders set, "Set by hand" caption | Corrected |
 | **Show Original (`\`)** | — | — | — | Without the feature (and without everything else), Original badge (R12) |
-| **Crop session** | — | Eyedroppers and Fringe Map dimmed with tooltips | Usable (a parameter, like other sliders during crop) | Crop frame |
+| **Crop session** | — | Eyedroppers, Pick from Photo and Fringe Map dimmed with tooltips; the common fringe colors, Clear and Tolerance usable | Usable (a parameter, like other sliders during crop) | Crop frame |
 | **Review mode** | Inspector hidden; with ⌥⌘I, usable | Fringe Map dimmed (as Sharpening Map in review); picking works | Usable | — |
 | **Grid** | Not shown (the Adjust tab shows "Open a Photo to Adjust It") | — | — | — |
-| **Monochrome or grayscale photo** | Shown (R15: every photo format is offered it) | Every click gives "almost no color" | Measures nothing: "No color edges were found…" | Unchanged |
+| **Monochrome or grayscale photo** | Shown (R15: every photo format is offered it) | Every click gives "almost no color". A listed color can still fill a slot; it grays nothing, because nothing in the photo has that color | Measures nothing: "No color edges were found…" | Unchanged |
 | **HDR photo on an EDR display** | — | Picking works on what is shown (§14) | — | Map in SDR, HDR badge hidden while it shows |
 | **Video** | — | — | — | Adjust tab: "No Adjustments for Videos" (N1); not offered (R15) |
 | **Offline, unreadable stack, loading** | — | — | — | Existing Adjust tab states (N1) |
@@ -478,7 +558,7 @@ touch Color Alignment.
   this feature, as R12 asks. To compare only this feature, people use the
   group check boxes (Color Fringes, Color Alignment) or the Lens heading's
   check box, as for any group.
-- **One undo step** per pick, clear, Tolerance gesture, check box change
+- **One undo step** per pick, choice from the list, clear, Tolerance gesture, check box change
   (saved when measured) or slider gesture (R12, AC9). Arming or cancelling
   an eyedropper and showing or hiding the map are never undo steps.
 - **Undo while a slot is picking** keeps it picking; the loupe shows the
@@ -524,8 +604,9 @@ touch Color Alignment.
 - **Lightroom preset import** (R17) needs no new UI. Mapped fringe settings
   arrive as picks and show in the slots like any pick, with a swatch and a
   hue name. Automatic correction arrives as "Align automatically" on. The
-  import report stops listing what was mapped. Whatever their source, picks
-  look and behave the same.
+  import report stops listing what was mapped. Whatever their source
+  (eyedropper, the list, a preset, a paste or an import), picks look and
+  behave the same (R1b).
 
 ## 11. Accessibility
 
@@ -533,23 +614,41 @@ touch Color Alignment.
 
 | Who | How |
 |---|---|
-| Default settings (Tab reaches text fields only) | Tolerance and Red/cyan / Blue/yellow through their value fields: ↑ / ↓ steps, Return or Esc hands the keyboard back (`SliderRow`). Adjust ▸ Show Fringe Map from Control-F2 or Help ▸ Search; Esc in the loupe hides it |
-| Keyboard Navigation or Full Keyboard Access | Tab reaches, in order: Color 1's eyedropper and clear, Color 1's Tolerance field, Color 2's eyedropper and clear, Color 2's Tolerance field, Fringe Map, Align automatically, Red/cyan field, Blue/yellow field. Space arms an eyedropper, clears, toggles the map or the check box. Esc cancels picking |
-| Picking itself | Needs a pointer, because it chooses a pixel. Full Keyboard Access users can move the pointer with the system's pointer-control keys. See §18 Q1 |
+| Default settings (Tab reaches text fields only) | Tolerance and Red/cyan / Blue/yellow through their value fields: ↑ / ↓ steps, Return or Esc hands the keyboard back (`SliderRow`). Adjust ▸ Show Fringe Map from Control-F2 or Help ▸ Search; Esc in the loupe hides it. Buttons and menus in the inspector are out of Tab's reach with these settings, in this app as in every Mac app |
+| Keyboard Navigation (System Settings ▸ Keyboard) or Full Keyboard Access | Tab reaches, in order: Color 1's eyedropper, Color 1's slot menu, Color 1's Tolerance field, Color 2's eyedropper, Color 2's slot menu, Color 2's Tolerance field, Fringe Map, Align automatically, Red/cyan field, Blue/yellow field. Space arms an eyedropper, opens a slot menu, toggles the map or the check box. In an open slot menu, ↑ / ↓ move, Return chooses, Esc closes. Esc also cancels picking |
+| The whole fringe task without a pointer (R1a, AC1a) | With Keyboard Navigation on: Tab to Color 1's slot menu, Space, ↓ to Purple, Return. The fringe grays and the Tolerance field appears next in the Tab order; step it with ↑ / ↓. Tab on to Color 2's slot menu for Green. Fringe Map with Space on its button (or Adjust ▸ Show Fringe Map); Esc in the loupe, Space on the button again, or the menu item hides it. Clear from the slot menu. Nothing in this sequence needs the photo or a pointer |
+| Picking from the photo | Needs a pointer, because it chooses a pixel. Full Keyboard Access users can move the pointer with the system's pointer-control keys. The list is the way to fill a slot without one (R1a) |
+
+**"From the keyboard alone" (R1a) is read as "with the system's Keyboard
+Navigation or Full Keyboard Access on".** That is how a Mac keyboard user
+reaches buttons and pull-downs in every app; with default settings Tab
+stops only at text fields, everywhere. The alternative, an Adjust menu
+item per slot and per color, would put parameter values in the menu bar,
+against N10, for people who already have the system setting. This is
+judgment; if QA's M2 or the owner finds it falls short, menu bar items are
+an addition, not a redesign.
 
 ### VoiceOver
 
 - **Slot row:** a group named "Color 1" whose value is the hue name or
   "None" ("Color 1, Purple"). Eyedropper: label "Pick Color 1", help "Click
   a fringe in the photo to pick its color", spoken as a toggle with its
-  state. Clear: label "Clear Color 1".
+  state. Slot menu: label "Color 1 commands", help "Choose a common fringe
+  color for Color 1, pick one from the photo, or clear it", spoken as a menu
+  button. VoiceOver's press opens it (`MenuPopUpButton` already answers
+  `accessibilityPerformPress`). The menu reads "Pick from Photo", the
+  header "Common Fringe Colors", "Purple", "Green", "Clear" (dimmed when
+  empty). The swatch images on the items are decorative, so they carry no
+  description.
+- **Row context menu:** the same items, reached with VO-Shift-M on the row.
 - **Tolerance slider:** label "Color 1 tolerance" (the visible label is
   "Tolerance"; two sliders with the same name would be ambiguous in the
   rotor). Its field: "Color 1 tolerance value".
 - **Check box:** "Align automatically", with the caption as its help. The
   spinner's label: "Measuring color alignment".
 - **Announcements** (posted when not caused by the control that would speak
-  for itself): after a pick, "Color 1 set to purple."; after a clear,
+  for itself): after a pick or a choice from the list, "Color 1 set to
+  purple." (one sentence for both, R1b); after a clear,
   "Color 1 cleared."; on a neutral click, "That spot has almost no color.";
   when measuring ends, the caption's sentence ("Measured on this photo…" or
   "No color edges were found…"). For the map: "Showing the fringe map.",
@@ -590,23 +689,26 @@ new use, as `ui-redesign/design.md` §7 does.
 | Color Alignment | Adjust tab group; preset group list | Lines up red and blue with green toward the corners |
 | Color %lld | Slot row label; VoiceOver group name | %lld is 1 or 2 |
 | None | Empty slot's value | Reuse if present |
-| Red, Orange, Yellow, Green, Aqua, Blue, Purple, Magenta | Slot value: the pick's hue name | Reuse existing keys; add "fringe color name" to their comments |
+| Red, Orange, Yellow, Green, Aqua, Blue, Purple, Magenta | Slot value: the pick's hue name. Purple and Green are also the slot menu's listed colors | Reuse existing keys; add "fringe color name" (and, for Purple and Green, "common fringe color in the slot menu") to their comments |
 | Tolerance | Slider under each pick | Existing key (color range mask); add the new use |
 | Color %lld tolerance | VoiceOver label of that slider | |
 | Color %lld tolerance value | VoiceOver label of its field | |
 | Pick Color %lld | Eyedropper VoiceOver label | |
 | Click a fringe in the photo to pick its color | Eyedropper tooltip and VoiceOver help | |
 | Finish cropping to pick a fringe color. | Eyedropper tooltip, dimmed in a crop session | |
-| Clear Color %lld | Clear button tooltip and VoiceOver label | |
-| Pick Again | Slot row context menu | |
-| Clear | Slot row context menu | Reuse if present |
-| Click a colored fringe in the photo to pick Color %lld. Press Esc to cancel. | Inspector caption, picking an empty slot | |
+| Color %lld commands | Slot menu's VoiceOver label | |
+| Choose a common fringe color for Color %lld, pick one from the photo, or clear it | Slot menu's tooltip and VoiceOver help | |
+| Pick from Photo | Slot menu and row context menu | Arms the slot's eyedropper |
+| Common Fringe Colors | Section header in the slot menu and row context menu | Purple and Green follow it |
+| Clear | Slot menu and row context menu | Reuse if present; empties the slot |
+| Choose Fringe Color | Undo action name, a color from the list | |
+| Click a colored fringe in the photo to pick Color %lld. Thin fringes are easiest at 100% (Z). Press Esc to cancel. | Inspector caption, picking an empty slot | |
 | Color %lld's effect is hidden while you pick. Click a colored fringe, or press Esc to cancel. | Inspector caption, replacing | |
 | That spot has almost no color. Click a colored fringe, or press Esc to cancel. | Inspector caption after a neutral click | |
 | That spot has almost no color. | VoiceOver announcement | |
-| Pick a fringe's color in the photo to turn it gray where it lines a high-contrast edge. Thin fringes are easiest to pick at 100% (Z). | Inspector caption, no pick | |
+| Pick a fringe's color in the photo with the eyedropper, or choose Purple or Green from the menu beside it. The color turns gray where it lines a high-contrast edge. | Inspector caption, no pick | |
 | Raise Tolerance to include colors further from the picked one. Colors away from high-contrast edges keep theirs. | Inspector caption, at least one pick | |
-| Color %lld set to %@. | VoiceOver announcement after a pick | %lld slot, %@ hue name |
+| Color %lld set to %@. | VoiceOver announcement after a pick or a choice from the list | %lld slot, %@ hue name |
 | Color %lld cleared. | VoiceOver announcement after a clear | |
 | Pick Fringe Color | Undo action name | |
 | Clear Fringe Color | Undo action name | |
@@ -615,7 +717,7 @@ new use, as `ui-redesign/design.md` §7 does.
 | Show Fringe Map | Adjust menu; loupe context menu; VoiceOver action | |
 | Hide Fringe Map | Same | |
 | Show where fringe color is removed, in place of the photo | Toggle tooltip and help, enabled | |
-| Pick a fringe color to show the fringe map. | Toggle tooltip, dimmed with no pick | |
+| Pick or choose a fringe color to show the fringe map. | Toggle tooltip, dimmed with no pick | |
 | Finish cropping to show the fringe map. | Toggle tooltip, crop session | |
 | Exit Review (F) to show the fringe map. | Toggle tooltip, review mode | |
 | White areas lose their color, gray areas in part, and black areas keep it. | Legend, applied | |
@@ -649,8 +751,10 @@ Reused with no new text: "Showing the photo.", "Reset “%@”", "Turn On %@",
 ## 13. Custom chrome
 
 None. Every element is an existing component or pattern: `AppKitButton`
-`.toggle` with a symbol (as Original's bezel), `AppKitButton` borderless
-(the mask row buttons), a tinted SF Symbol swatch (the Color Mixer's),
+`.toggle` with a symbol (as Original's bezel), `AppKitMenuButton` with
+`ellipsis.circle` (the mask rows' ⋯ menu), a system menu section header
+(`NSMenuItem.sectionHeader`, which `AppKitMenuButton.Entry` gains along
+with an item image), a tinted SF Symbol swatch (the Color Mixer's),
 `AppKitCheckbox` with a caption (machine learning's row), `AdjustSlider`,
 inspector caption `Text`, `CaptionBadge`, a mini `ProgressView`, menu items,
 `NSAccessibilityCustomAction`, and the system crosshair pointer. The map is
@@ -733,7 +837,21 @@ The technical definition is the engineer's.
   against scene (a) at fit and at 100% scales.
 - **Hue name:** one function from a picked color to the eight Color Mixer
   band names (singular), shared by the row, VoiceOver and the debug script.
-  Unit-test each band's center.
+  Unit-test each band's center, and that the listed Purple and Green values
+  name themselves "Purple" and "Green" (the slot must not read "Magenta"
+  after the person chose Purple).
+- **Common fringe colors** (R1a–R1c): one table in PhotoCore of the listed
+  colors, each a stored color value of exactly the kind a pick stores, plus
+  its starting Tolerance (values: prd OQ5, yours). Filling a slot from it
+  writes the same fields a pick writes, nothing else: no "source" flag
+  (R1b, AC1b). The slot menu, the row's context menu, the debug script and
+  `photocli` (if it offers the names) read the same table. Choosing one is
+  one `change(…, phase: .committed)` named "Choose Fringe Color", and it
+  cancels any picking in progress.
+- **Slot menu:** `AppKitMenuButton` gains a section-header entry and an
+  optional image per item (the swatch). Pick from Photo is dimmed under the
+  same condition as the eyedropper; Clear is dimmed for an empty slot. The
+  row's context menu is built from the same entries.
 - **Fringe map state:** extend the sharpening map's state to one map slot
   with a kind (sharpening, fringe) so that SMP §6's suspend and restore
   logic serves both, and add the eyedropper's suspend (§6). The "can
@@ -759,6 +877,7 @@ must not (roadmap debug-script-undo-groups). Proposed:
 | Command | What it does | Undo group |
 |---|---|---|
 | `adjust fringe pick 1\|2 <x> <y>` | Picks for that slot at unit coordinates of the photo on screen, through the same sampling path a click takes (snap, neutral refusal). Waits for the save | Yes (under `adjust`) |
+| `adjust fringe fill 1\|2 purple\|green` | Fills that slot from the list, through the same action as the slot menu's item | Yes |
 | `adjust fringe clear 1\|2` | Clears that slot | Yes |
 | `adjust fringe tolerance 1\|2 <value>` | Sets that slot's Tolerance | Yes |
 | `adjust align auto on\|off` | The check box; waits for the measurement | Yes |
@@ -766,11 +885,17 @@ must not (roadmap debug-script-undo-groups). Proposed:
 | `adjust off\|on colorFringes\|colorAlignment`, `adjust reset lens` | Existing verbs, with the new group and section names | Yes |
 | `fringearm 1\|2\|off` | Arms or disarms an eyedropper, as its button does (shows the replacing preview) | No |
 | `fringemap on\|off\|toggle` | Adjust ▸ Show / Hide Fringe Map's action (reveals Color Fringes, announces), as `sharpenmap` | No |
-| `print fringe` | Each slot: stored color, hue name, Tolerance, swatch color; which slot is picking; the last sample's image point and whether it was refused; the cursor the canvas sets at the photo's center; the inspector caption text; the map: asked for, on screen, badge, legend, refining, can show, what it suspended; Color Alignment: automatic, measuring, stored values, caption text | No |
+| `contextmenu fringe 1\|2 [<item>]` | Prints the slot row's context menu (items, header, enabled state), or runs an item, as the existing `contextmenu` targets do | Yes when it runs a fill or Clear; no when it lists or runs Pick from Photo |
+| `print fringe` | Each slot: stored color, hue name, Tolerance, swatch color; the slot menu's items with their enabled state; which slot is picking; the last sample's image point and whether it was refused; the cursor the canvas sets at the photo's center; the inspector caption text; the map: asked for, on screen, badge, legend, refining, can show, what it suspended; Color Alignment: automatic, measuring, stored values, caption text | No |
 
 Existing commands cover the rest: `menuitems "Fringe Map"` and `menupress`
-(menu title, enablement), `contextmenu loupe` (the item), `accessibility
-AXImage` (canvas value and actions), `buttons` and `hit` (the inspector's
+(menu title, enablement), `contextmenu loupe` (the item), `menupick <x>
+<y> Purple` on a slot menu's button found with `buttons` (the real
+pull-down path), `accessibility <role> <n> press` on the slot menu (the
+role AppKit reports for a pull-down `NSPopUpButton`, `AXMenuButton` or
+`AXPopUpButton`; `accessibility any` shows which) and `accessibility
+AXImage` (the slot menu reached and used with no pointer, AC1a; canvas value
+and actions), `buttons` and `hit` (the inspector's
 glass pane doesn't snapshot), `snapshot` (the map and the grayed fringes in
 the content area), `key escape` (Esc order), `click` / `doubleclick` /
 `drag` on the photo with an `open` launch (the real click path while
@@ -784,8 +909,10 @@ offline warning).
 | # | Check | How |
 |---|---|---|
 | DR1 | The Lens heading sits after Details with Color Fringes, then Color Alignment. The heading's check box goes mixed with one group off, and its reset reads "Reset Lens" | `buttons`, `print`; manual (glass pane) |
-| DR2 | Slot rows: both always shown; swatch, hue name, eyedropper toggle bezel, clear only when set (its slot kept); Tolerance row only under a set slot; context menu Pick Again / Clear | `buttons`, `print fringe`; manual |
-| DR3 | Picking: one click picks and disarms; crosshair over the photo only; drag pans while armed; a double-click picks once and stays in the loupe; a click on the surround does nothing; Esc cancels; one undo step per pick and clear, none for arming | `fringearm`, `click`/`drag`/`doubleclick` with an `open` launch, `print fringe`, `print undo` |
+| DR2 | Slot rows: both always shown; swatch, hue name, eyedropper toggle bezel, ⋯ slot menu; Tolerance row only under a set slot; the slot menu and the row's context menu hold Pick from Photo, the "Common Fringe Colors" header, Purple, Green and Clear (dimmed when empty), with no check marks | `buttons`, `contextmenu fringe`, `print fringe`; manual |
+| DR2a | The list (R1a–R1c): Purple fills a slot in one undo step with no crosshair and no photo click, grays scene (a)'s purple fringe and the disc's rim at its starting Tolerance, and the row then looks exactly as after a pick (swatch, "Purple", Tolerance row, no marker). Green fills the other slot. Choosing a listed color replaces a pick and a pick replaces a listed color; choosing while an eyedropper is armed disarms it; the map stays on and follows; the list stays enabled during a crop session while Pick from Photo dims | `adjust fringe fill`, `menupick` on the slot menu, `contextmenu fringe`, `snapshot`, `print fringe`, `print undo` |
+| DR2b | The whole fringe task with no pointer (AC1a, M2): with Keyboard Navigation on, Tab order of §11 reaches each slot menu; Space opens it, Return chooses; Tolerance steps in its field; Fringe Map toggles with Space; Clear from the slot menu. VoiceOver names the slot menu "Color 1 commands", reads the header and items, and announces "Color 1 set to purple." | `accessibility <role> <n> press`, `accessibility any`; manual with VoiceOver (M2) |
+| DR3 | Picking: the eyedropper and Pick from Photo both arm it; one click picks and disarms; crosshair over the photo only; drag pans while armed; a double-click picks once and stays in the loupe; a click on the surround does nothing; Esc cancels; one undo step per pick and clear, none for arming | `fringearm`, `click`/`drag`/`doubleclick` with an `open` launch, `print fringe`, `print undo` |
 | DR4 | Snap at fit: a click within 2 pt of scene (a)'s purple fringe picks the fringe color, not a mix; a click on a neutral area is refused with the caption and no undo step | `adjust fringe pick`, `print fringe` |
 | DR5 | Replacing: arming a set slot shows the photo without that slot's graying (snapshot of the content area) and the other slot's still applied; Esc restores; zoomed in, the refined frame arrives and the spinner shows only after 0.5 s | `fringearm`, `snapshot`, `print fringe`; manual at 100% on a 24 MP photo |
 | DR6 | Fringe Map: menu item after Sharpening Map, dimmed with no pick, in the grid, during crop, in review, for video, offline and unreadable stacks; title flips; context menu and canvas action listed only when it can act; reveal from a hidden inspector on Info | `menuitems`, `menupress`, `contextmenu loupe`, `accessibility AXImage`, `print fringe` |
@@ -854,7 +981,16 @@ The issues as raised:
 
 ## 18. Questions for the owner
 
-1. **Q1. Should there be a way to remove fringes without pointing at the
+None open.
+
+1. **Q1 (answered 2026-11-07).** The owner: "It should go into this
+   feature now." The product manager recorded it as prd ruling 15 (R1a,
+   R1b, R1c, AC1a, AC1b, M2, a non-goal against a general color chooser,
+   and OQ4 for me). The list holds Purple and Green. It is designed in §3
+   ("The slot menu"), §4, §8, §11, §12, §15 and §16 (DR2a, DR2b). The
+   question as asked:
+
+   **Should there be a way to remove fringes without pointing at the
    photo?** Picking needs a pointer, so a VoiceOver user, or someone who
    can't place the pointer precisely, can't use Color Fringes, though
    Color Alignment works for everyone. A small menu of common fringe colors
@@ -873,3 +1009,16 @@ The issues as raised:
   OQ3 closed. §10 now says "can't be measured (offline or unreadable)" and
   covers the loupe case, as RI-1's ruling words it. Status set to Designed.
   §18 Q1 is still with the owner.
+- 2026-11-07: Designed the list of common fringe colors (prd ruling 15,
+  R1a–R1c, OQ4) after the owner answered §18 Q1 ("It should go into this
+  feature now"). Each slot row gets a ⋯ slot menu (Pick from Photo; the
+  section "Common Fringe Colors" with Purple and Green; Clear), and the
+  row's context menu holds the same items. The visible clear button is
+  removed, and "Pick Again" is renamed Pick from Photo. A listed color shows
+  and behaves exactly like a picked one, with no marker. Every fill sets its
+  own starting Tolerance. The list works during a crop session and leaves
+  the fringe map on. The no-pointer keyboard and VoiceOver path is in §11,
+  with "keyboard alone" read as Keyboard Navigation or Full Keyboard Access
+  on. New strings, engineer notes and debug hooks (`adjust fringe fill`,
+  `contextmenu fringe`), and DR2a and DR2b. §1, §5, §6 (the dimmed tooltip),
+  §9, §10 and §13 were touched to match. §18 Q1 is marked answered.
