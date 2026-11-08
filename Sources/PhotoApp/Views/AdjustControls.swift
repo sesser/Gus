@@ -93,6 +93,10 @@ struct AdjustSlider: NSViewRepresentable {
     var isEnabled = true
     /// The row's tooltip and VoiceOver help (the label, slider and field); nil for none.
     var help: String?
+    /// VoiceOver's names for the slider and its field when the visible
+    /// label is ambiguous (two "Tolerance" rows); nil uses the label.
+    var accessibilityLabel: String?
+    var fieldAccessibilityLabel: String?
     let onChange: (Double, EditPhase) -> Void
     /// False while the slider's group is turned off (`showsTurnedOff`).
     @Environment(\.adjustGroupIsOn) private var groupIsOn
@@ -103,7 +107,9 @@ struct AdjustSlider: NSViewRepresentable {
 
     func updateNSView(_ row: SliderRow, context: Context) {
         row.configure(title: title, value: value, range: range, defaultValue: defaultValue, format: format,
-                      scale: scale, isEnabled: isEnabled, groupIsOn: groupIsOn, help: help, onChange: onChange)
+                      scale: scale, isEnabled: isEnabled, groupIsOn: groupIsOn, help: help,
+                      accessibilityLabel: accessibilityLabel, fieldAccessibilityLabel: fieldAccessibilityLabel,
+                      onChange: onChange)
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: SliderRow, context: Context) -> CGSize? {
@@ -225,7 +231,8 @@ final class SliderRow: NSView, NSTextFieldDelegate {
 
     func configure(title: String, value: Double, range: ClosedRange<Double>, defaultValue: Double,
                    format: SliderFormat, scale: SliderScale, isEnabled: Bool, groupIsOn: Bool = true,
-                   help: String? = nil, onChange: @escaping (Double, EditPhase) -> Void) {
+                   help: String? = nil, accessibilityLabel: String? = nil, fieldAccessibilityLabel: String? = nil,
+                   onChange: @escaping (Double, EditPhase) -> Void) {
         label.stringValue = title
         let ends = [scale.position(range.lowerBound), scale.position(range.upperBound)]
         slider.minValue = ends.min() ?? 0
@@ -254,9 +261,11 @@ final class SliderRow: NSView, NSTextFieldDelegate {
             field.stringValue = format.text(value)
         }
         updateStyle(value: value)
-        setAccessibilityLabel(title)
-        slider.setAccessibilityLabel(title)
-        field.setAccessibilityLabel(String(localized: "\(title) value", comment: "VoiceOver: an adjustment slider's number field"))
+        let name = accessibilityLabel ?? title
+        setAccessibilityLabel(name)
+        slider.setAccessibilityLabel(name)
+        field.setAccessibilityLabel(fieldAccessibilityLabel
+            ?? String(localized: "\(title) value", comment: "VoiceOver: an adjustment slider's number field"))
     }
 
     /// The fill starts at the default, so an untouched slider shows none;
@@ -970,6 +979,10 @@ struct AppKitMenuButton: NSViewRepresentable {
         case check(String, isOn: Bool, preview: (() -> Void)? = nil, () -> Void)
         case submenu(String, [Entry])
         case separator
+        /// A section header (`NSMenuItem.sectionHeader`): names the items after it.
+        case header(String)
+        /// An item with an image before its title (a fringe color's swatch).
+        case imageItem(String, image: NSImage?, isEnabled: Bool = true, () -> Void)
     }
 
     var title: String
@@ -977,6 +990,8 @@ struct AppKitMenuButton: NSViewRepresentable {
     var symbol: String?
     var entries: [Entry]
     var help: String?
+    /// VoiceOver's name when it differs from `help` (a slot menu: "Color 1 commands").
+    var accessibilityLabel: String?
     /// Ends the items' previews: with false when the highlight moves to an item
     /// without one, with true when the menu closes.
     var endPreview: ((_ menuClosed: Bool) -> Void)?
@@ -1007,7 +1022,8 @@ struct AppKitMenuButton: NSViewRepresentable {
             }
             button.menu = titleMenu
         }
-        if let help { button.setAccessibilityLabel(help) }
+        if let label = accessibilityLabel ?? help { button.setAccessibilityLabel(label) }
+        if accessibilityLabel != nil { button.setAccessibilityHelp(help) }
         let entries = entries
         let coordinator = context.coordinator
         coordinator.endPreview = endPreview
@@ -1063,6 +1079,16 @@ struct AppKitMenuButton: NSViewRepresentable {
                 menu.addItem(item)
             case .separator:
                 menu.addItem(.separator())
+            case .header(let title):
+                menu.addItem(.sectionHeader(title: title))
+            case .imageItem(let title, let image, let isEnabled, let action):
+                let item = NSMenuItem(title: title, action: #selector(Coordinator.pick(_:)), keyEquivalent: "")
+                item.target = coordinator
+                item.tag = coordinator.actions.count
+                item.isEnabled = isEnabled
+                item.image = image
+                coordinator.actions.append(action)
+                menu.addItem(item)
             }
         }
     }

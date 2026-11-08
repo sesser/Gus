@@ -347,3 +347,28 @@ extension Adjustments {
         return copy
     }
 }
+
+/// What the fringe map says beside the picture (design §6 "Caption badge and
+/// legend"): whether the graying it maps is applied. One rule for the badge,
+/// the legend, the loupe's VoiceOver value and the announcement.
+public struct FringeMapStatus: Equatable, Sendable {
+    /// Color Fringes is turned off: the map shows what would be removed.
+    public var isNotApplied: Bool
+
+    public init(isNotApplied: Bool) {
+        self.isNotApplied = isNotApplied
+    }
+
+    public init(_ values: Adjustments) {
+        isNotApplied = !values.isEnabled(.colorFringes)
+    }
+}
+
+extension AdjustmentRenderer {
+    /// Compiles the Lens kernels now (about 2 s on the first launch after a
+    /// build, a few milliseconds after that), so a photo's first frame with
+    /// fringes or alignment does not wait for it. Call off the main thread.
+    public static func prepareLensKernels() {
+        _ = try? LensKernels.compile()
+    }
+}

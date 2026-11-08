@@ -453,6 +453,10 @@ struct LibraryCommands: Commands {
                 model?.toggleSharpeningMap(from: .menu)
             }
             .disabled(!can { $0.canShowSharpeningMap })
+            Button(menu?.state.showsFringeMap == true ? LensText.menuTitle.hide : LensText.menuTitle.show) {
+                model?.toggleFringeMap(from: .menu)
+            }
+            .disabled(!can { $0.canShowFringeMap })
             Divider()
             Button("Save Adjustments as Preset…") { model?.promptForAdjustmentPreset() }
                 .disabled(!can { $0.canSaveAsPreset })

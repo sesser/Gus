@@ -48,6 +48,11 @@ enum EditBenchmark {
             var firstFrame: [Double] = []
             var nextFrames: [Double] = []
             var decodeChanges: [Double] = []
+            // The Lens heading's controls next to a color slider (chromatic-aberration R18, AC15).
+            var saturation: [Double] = []
+            var fringeTolerance: [Double] = []
+            var fringeMap: [Double] = []
+            var alignment: [Double] = []
             for url in urls where load == nil {
                 identity.append(try await measure { _ = try generator.jpegData(source: url, stack: .identity, tier: .preview) }.1.milliseconds)
                 edited.append(try await measure { _ = try generator.jpegData(source: url, stack: stack, tier: .preview) }.1.milliseconds)
@@ -60,6 +65,26 @@ enum EditBenchmark {
                     values.exposure.ev = 0.4 + Double(frame) * 0.02
                     nextFrames.append(try await measure { _ = try await session.render(values, interactive: true) }.1.milliseconds)
                 }
+                for frame in 0..<frames {
+                    values.presence.saturation = 5 + Double(frame)
+                    saturation.append(try await measure { _ = try await session.render(values, interactive: true) }.1.milliseconds)
+                }
+                values.colorFringes = ColorFringes(slot1: CommonFringeColor.purple.slot, slot2: CommonFringeColor.green.slot)
+                for frame in 0..<frames {
+                    values.colorFringes.slot1?.tolerance = 25 + Double(frame)
+                    fringeTolerance.append(try await measure { _ = try await session.render(values, interactive: true) }.1.milliseconds)
+                }
+                for frame in 0..<frames {
+                    values.colorFringes.slot1?.tolerance = 25 + Double(frame)
+                    fringeMap.append(try await measure {
+                        _ = try await session.render(values, interactive: true, content: .fringeMap)
+                    }.1.milliseconds)
+                }
+                for frame in 0..<frames {
+                    values.colorAlignment = ColorAlignment(red: 5 + Double(frame), blue: -5)
+                    alignment.append(try await measure { _ = try await session.render(values, interactive: true) }.1.milliseconds)
+                }
+                values = typical
                 if SupportedFormats.isRaw(pathExtension: url.pathExtension) {
                     for frame in 0..<4 {
                         values.whiteBalance = WhiteBalance(preset: .custom, temperature: 4000 + Double(frame) * 500, tint: 0)
@@ -70,9 +95,11 @@ enum EditBenchmark {
             var entry: [String: any Sendable] = [:]
             for (name, values) in [("preview identity", identity), ("preview edited", edited),
                                    ("live first frame", firstFrame), ("live next frame", nextFrames),
-                                   ("live white balance", decodeChanges)] where !values.isEmpty {
+                                   ("live white balance", decodeChanges), ("live saturation", saturation),
+                                   ("live fringe tolerance", fringeTolerance), ("live fringe map", fringeMap),
+                                   ("live color alignment", alignment)] where !values.isEmpty {
                 let stats = Stats(values)
-                print("  \(name.padding(toLength: 19, withPad: " ", startingAt: 0)) \(stats.line)")
+                print("  \(name.padding(toLength: 22, withPad: " ", startingAt: 0)) \(stats.line)")
                 entry[name] = stats.dictionary
             }
             results[format] = entry

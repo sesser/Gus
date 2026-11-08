@@ -9,9 +9,10 @@ extension AdjustmentRenderer {
     /// The edge rule's window (OQ1), in full-resolution pixels: a pixel is near
     /// a high-contrast edge when the luminance within this many pixels of it
     /// spans enough of the range. Wide enough to reach across the soft rim of
-    /// an out-of-focus highlight; scaled with the render (`edgeRadius`), so
-    /// every size counts the same pixels (R13).
-    public static let fringeEdgeWindow = 12.0
+    /// an out-of-focus highlight whose brightness falls over up to about 60
+    /// pixels (scene (a) drawn six times larger: 12 was not); scaled with the
+    /// render (`edgeRadius`), so every size counts the same pixels (R13).
+    public static let fringeEdgeWindow = 24.0
     /// The perceptual luminance range (0 … 1) at which the edge rule starts,
     /// and where it is full: a high-contrast edge spans 0.4 of the range (a
     /// dark branch, 0.25, against a bright sky, 0.85, spans 0.6).

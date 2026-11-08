@@ -111,6 +111,8 @@ final class LoupeController: NSObject {
     let hostView = LoupeHostView()
     private let scrollView = LoupeScrollView()
     private let imageView = LoupeImageView()
+    /// The picking slot the cursor rects were last made for.
+    private var pickingSlotShown: Int?
     private let cropView = CropOverlayView()
     private let maskView = MaskOverlayView()
     /// The version and edit shown; a new edit hash loads new renditions.
@@ -189,6 +191,14 @@ final class LoupeController: NSObject {
         hostView.controller = self
         scrollView.onClick = { [weak self] point in self?.toggleZoom(at: point) }
         scrollView.onDoubleClick = { [weak self] in self?.model.closeLoupe() }
+        // While a fringe slot picks, a click picks at once instead of zooming
+        // (chromatic-aberration design §4); drags still pan.
+        scrollView.isPicking = { [weak self] in self?.model.editor.pickingFringeSlot != nil }
+        scrollView.onPick = { [weak self] point in self?.pickFringe(at: point) }
+        scrollView.photoRect = { [weak self] in
+            guard let self, self.model.editor.pickingFringeSlot != nil else { return nil }
+            return self.imageView.frame
+        }
         scrollView.onZoomScroll = { [weak self] factor, point in self?.zoom(by: factor, at: point) }
 
         scrollView.postsFrameChangedNotifications = true
@@ -388,9 +398,14 @@ final class LoupeController: NSObject {
         let editor = model.editor
         _ = (editor.adjustments.local, editor.selectedMaskID, editor.isBrushing, editor.isSamplingColor,
              editor.maskFrameSize, editor.brushTemplate)
+        // The crosshair over the photo while a fringe slot picks.
+        if editor.pickingFringeSlot != pickingSlotShown {
+            pickingSlotShown = editor.pickingFringeSlot
+            scrollView.window?.invalidateCursorRects(for: scrollView)
+        }
         // Hidden under the sharpening map too: clicks then reach the canvas (zoom, pan), never a mask (R8).
         maskView.isHidden = editor.state != .ready || editor.cropSession != nil || editor.selectedMaskID == nil
-            || editor.showsSharpeningMap
+            || editor.sharpeningMap.isShown || editor.pickingFringeSlot != nil
         maskView.refresh()
     }
 
@@ -486,6 +501,24 @@ final class LoupeController: NSObject {
     }
 
     // MARK: Zoom
+
+    /// The snap radius (3 pt) in output units at the loupe's zoom, for the debug script.
+    var fringeSnap: CGSize {
+        let size = imageView.bounds.size
+        let points = FringePicker.snapRadius / max(scrollView.magnification, 0.001)
+        return CGSize(width: points / max(size.width, 1), height: points / max(size.height, 1))
+    }
+
+    /// A click while a fringe slot picks, at `point` in the photo's view; a
+    /// click on the surround does nothing (chromatic-aberration design §4).
+    private func pickFringe(at point: NSPoint) {
+        let size = imageView.bounds.size
+        guard size.width > 0, size.height > 0, imageView.bounds.contains(point) else { return }
+        let unit = CGPoint(x: point.x / size.width, y: 1 - point.y / size.height)
+        // The snap radius, in screen points, as output units at this zoom.
+        let points = FringePicker.snapRadius / max(scrollView.magnification, 0.001)
+        model.editor.pickFringe(at: unit, snap: CGSize(width: points / size.width, height: points / size.height))
+    }
 
     func toggleZoom(at point: NSPoint? = nil) {
         zoom = zoom == .fit ? .actualSize : .fit
@@ -609,6 +642,8 @@ final class LoupeController: NSObject {
         let notes = model.editor.machineLearningNotApplied == nil ? [] : [MachineLearningText.canvasValue]
         let value = PhotoAccessibility.loupeValue(for: item, offline: model.isOffline(item), notes: notes, index: index,
                                                   count: model.items.count)
+        if model.editor.pickingFringeSlot != nil { return LensText.pickingCanvasValue(value) }
+        if let fringeMap = model.editor.shownFringeMap { return LensText.canvasValue(fringeMap, photoValue: value) }
         guard let map = model.editor.shownSharpeningMap else { return value }
         return SharpeningMapText.canvasValue(map, photoValue: value)
     }
@@ -641,6 +676,12 @@ final class LoupeController: NSObject {
             let titles = SharpeningMapText.menuTitle
             actions.append(PhotoAccessibility.action(model.editor.showsSharpeningMap ? titles.hide : titles.show) {
                 [weak self] in self?.model.toggleSharpeningMap(from: .menu)
+            })
+        }
+        if model.canShowFringeMap {
+            let titles = LensText.menuTitle
+            actions.append(PhotoAccessibility.action(model.editor.showsFringeMap ? titles.hide : titles.show) {
+                [weak self] in self?.model.toggleFringeMap(from: .menu)
             })
         }
         return actions
@@ -680,8 +721,14 @@ final class LoupeController: NSObject {
         case .right, .down: model.moveFocus(by: 1)
         case .home: model.setFocus(0)
         case .end: model.setFocus(model.items.count - 1)
+        case .exitLoupe where model.editor.pickingFringeSlot != nil:
+            // Esc backs out one level: the crop session (above), picking, the map, review, then the loupe.
+            model.editor.armFringePicker(nil)
+            return true
+        case .exitLoupe where model.editor.showsFringeMap:
+            model.setFringeMap(false, from: .key)
+            return true
         case .exitLoupe where model.editor.showsSharpeningMap:
-            // Esc backs out one level: the crop session (above), the map, review, then the loupe.
             model.setSharpeningMap(false, from: .key)
             return true
         case .exitLoupe where model.isReviewing:
@@ -799,6 +846,13 @@ final class LoupeScrollView: NSScrollView {
     /// Called with the clicked point in the document view.
     var onClick: ((NSPoint) -> Void)?
     var onDoubleClick: (() -> Void)?
+    /// A fringe slot is picking: a click picks at once (`onPick`).
+    var isPicking: (() -> Bool)?
+    var onPick: ((NSPoint) -> Void)?
+    /// The photo's rect in the document view while the crosshair shows over it.
+    var photoRect: (() -> NSRect?)?
+    /// When the last pick landed: the second click of a double-click is ignored.
+    private var lastPick: TimeInterval?
     /// Called with the zoom factor of an Option-scroll and the pointer in window coordinates.
     var onZoomScroll: ((CGFloat, NSPoint) -> Void)?
     /// How far the mouse moves before a click becomes a drag, in points.
@@ -827,9 +881,18 @@ final class LoupeScrollView: NSScrollView {
         downLocation = nil
         switch event.clickCount {
         case 1: downLocation = event.locationInWindow
-        case 2: onDoubleClick?()
+        case 2:
+            // A habitual double-click right after a pick stays in the loupe.
+            if let lastPick, event.timestamp - lastPick < NSEvent.doubleClickInterval { return }
+            onDoubleClick?()
         default: break
         }
+    }
+
+    override func resetCursorRects() {
+        super.resetCursorRects()
+        guard let rect = photoRect?(), let documentView else { return }
+        addCursorRect(convert(documentView.convert(rect, to: self), to: self).intersection(bounds), cursor: .crosshair)
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -859,6 +922,11 @@ final class LoupeScrollView: NSScrollView {
             return
         }
         guard let down = downLocation, let point = documentView?.convert(down, from: nil) else { return }
+        if isPicking?() == true {
+            lastPick = event.timestamp
+            onPick?(point)
+            return
+        }
         pendingClick = Task { [weak self] in
             try? await Task.sleep(for: .seconds(NSEvent.doubleClickInterval))
             guard !Task.isCancelled, let self else { return }
@@ -917,6 +985,8 @@ struct LoupeCaption: View {
             // The map takes Original's place; the two are never on screen together.
             if let map = model.editor.shownSharpeningMap {
                 CaptionBadge(title: SharpeningMapText.badge(map), help: SharpeningMapText.badgeHelp(map))
+            } else if let map = model.editor.shownFringeMap {
+                CaptionBadge(title: LensText.badge(map), help: LensText.badgeHelp(map))
             } else if model.editor.showsOriginal {
                 CaptionBadge(title: String(localized: "Original"),
                              help: String(localized: "Showing the photo without adjustments. Press \\ to show them again."))
@@ -956,6 +1026,8 @@ extension LoupeCaption {
             return String(localized: "Refining the sharpening map",
                           comment: "Tooltip and VoiceOver label of the loupe caption's spinner")
         }
+        if model.editor.shownFringeMap != nil, model.editor.isRefiningSharpeningMap { return LensText.refiningMap }
+        if model.editor.isRefiningPickPreview { return LensText.refiningPhoto }
         return model.editor.isAwaitingMachineLearningFrame ? MachineLearningText.spinner : nil
     }
 }

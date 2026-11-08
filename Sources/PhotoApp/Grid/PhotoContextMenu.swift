@@ -43,6 +43,12 @@ enum PhotoContextMenu {
                 model.toggleSharpeningMap(from: .menu)
             })
         }
+        if state.canShowFringeMap {
+            let titles = LensText.menuTitle
+            menu.addItem(ActionMenuItem(state.showsFringeMap ? titles.hide : titles.show) {
+                model.toggleFringeMap(from: .menu)
+            })
+        }
         if state.canEditLoupePhoto {
             menu.addItem(ActionMenuItem(state.isCropping ? String(localized: "Finish Cropping") : String(localized: "Crop")) {
                 model.crop()

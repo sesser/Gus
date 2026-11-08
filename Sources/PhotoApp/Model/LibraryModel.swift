@@ -400,6 +400,9 @@ final class LibraryModel {
     /// Masking's row should scroll into view once the inspector shows it
     /// (showing the sharpening map from a menu; design §3).
     var revealsMaskingRow = false
+    /// The Lens heading's Color Fringes group should scroll into view
+    /// (Show Fringe Map from the menu, chromatic-aberration design §6).
+    var revealsFringeRow = false
     var showsInspector: Bool {
         // Review hides it for a while; the person's choice is what's kept.
         didSet { if !review.isReviewing { UserDefaults.standard.set(showsInspector, forKey: Self.showsInspectorKey) } }
@@ -539,6 +542,9 @@ final class LibraryModel {
     private(set) var activityTick = 0
     /// Batch Auto Exposure measuring the grid's selection.
     private(set) var batchAutoProgress: (done: Int, total: Int)?
+    /// The command a batch measurement runs for (Paste Adjustments, Apply
+    /// Preset …, measuring color alignment); nil for Auto Exposure.
+    private(set) var batchAutoTitle: String?
     @ObservationIgnored var batchAutoTask: Task<Void, Never>?
 
     private func scheduleActivityTick() {
@@ -553,8 +559,9 @@ final class LibraryModel {
         activity.markSeen()
     }
 
-    func setBatchAutoProgress(_ progress: (done: Int, total: Int)?) {
+    func setBatchAutoProgress(_ progress: (done: Int, total: Int)?, title: String? = nil) {
         batchAutoProgress = progress
+        batchAutoTitle = progress == nil ? nil : title
     }
     private(set) var onlineVolumeIDs: Set<Int64> = []
 

@@ -17,8 +17,9 @@ extension LibraryModel {
         let current = ReviewLayout(showsSidebar: showsSidebar, showsInspector: showsInspector,
                                    isFullScreen: window?.styleMask.contains(.fullScreen) == true)
         guard let layout = review.enter(from: current) else { return }
-        // Review shows photos only (prd.md R9).
+        // Review shows photos only (prd.md R9); picking a fringe color is cancelled.
         editor.endSharpeningMap()
+        editor.armFringePicker(nil)
         if mode != .loupe { openLoupe() }
         apply(layout, in: window)
     }

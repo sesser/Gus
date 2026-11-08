@@ -29,7 +29,71 @@ extension LibraryModel {
     func pasteAdjustments() {
         guard let copiedAdjustments else { return }
         let actionName = String(localized: "Paste Adjustments", comment: "Undo action name")
+        if copiedAdjustments.needsAlignmentMeasurement {
+            changeAdjustmentsMeasuringAlignment(actionName: actionName) { copiedAdjustments.pasted(onto: $0) }
+            return
+        }
         applyAdjustments(copiedAdjustments, toVersions: batchSelection(action: actionName).versionIDs, actionName: actionName)
+    }
+
+    /// A paste or preset that carries automatic color alignment: each photo
+    /// it reaches is measured for itself (chromatic-aberration R16), one at a
+    /// time with progress in Activity under the command's title, Stop
+    /// writing nothing; then everything is saved as one undo step. A photo
+    /// that can't be measured is left completely unchanged (R16a): offline
+    /// ones with the existing warning, unreadable ones with the export's
+    /// "the original could not be read". In the loupe, the inspector shows
+    /// the measuring and, when it fails, "This photo could not be measured."
+    func changeAdjustmentsMeasuringAlignment(actionName: String,
+                                             _ transform: @escaping @Sendable (Adjustments) -> Adjustments) {
+        let selection = batchSelection(action: actionName, needsMaster: { _ in true })
+        let sources = selection.versionIDs.compactMap { id -> (Int64, URL, String)? in
+            guard let item = item(versionID: id), let url = sourceURL(for: item) else { return nil }
+            return (id, url, item.fileName)
+        }
+        guard !sources.isEmpty else { return }
+        let catalog = self.catalog
+        let generator = previews.interactiveGenerator
+        let inLoupe = mode == .loupe
+        batchAutoTask?.cancel()
+        setBatchAutoProgress((0, sources.count), title: actionName)
+        if inLoupe { editor.setMeasuringAlignment(true) }
+        batchAutoTask = Task {
+            defer {
+                setBatchAutoProgress(nil)
+                batchAutoTask = nil
+                if inLoupe { editor.setMeasuringAlignment(false) }
+            }
+            guard let stored = try? await catalog.editStacks(forVersions: sources.map(\.0)) else { return }
+            var measured: [Int64: ColorAlignment] = [:]
+            var unreadable: [String] = []
+            for (index, (id, url, name)) in sources.enumerated() {
+                guard !Task.isCancelled else { return }
+                // Stacks this build can't read are left to the catalog, which says so.
+                guard let stack = stored.stacks[id] else { continue }
+                let values = transform(Adjustments(stack: stack))
+                if values.needsAlignmentMeasurement {
+                    let alignment = await Task.detached(priority: .userInitiated) {
+                        try? ColorAlignmentMeasurement.measure(source: url, adjustments: values, generator: generator)
+                    }.value
+                    if let alignment { measured[id] = alignment } else { unreadable.append(name) }
+                } else {
+                    measured[id] = values.colorAlignment
+                }
+                setBatchAutoProgress((index + 1, sources.count), title: actionName)
+            }
+            guard !Task.isCancelled else { return }
+            for name in unreadable {
+                report(String(localized: "\(name): the original could not be read."), action: actionName, warning: true)
+            }
+            if inLoupe, !unreadable.isEmpty { editor.noteAlignmentMeasureFailed() }
+            let alignments = measured
+            changeAdjustments(ofVersions: sources.map(\.0).filter { alignments[$0] != nil }, actionName: actionName) { id, values in
+                let changed = transform(values)
+                guard changed.needsAlignmentMeasurement, let alignment = alignments[id] else { return changed }
+                return changed.measuringAlignment(alignment)
+            }
+        }
     }
 
     // MARK: Applying to many photos

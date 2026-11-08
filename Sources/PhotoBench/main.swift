@@ -56,6 +56,10 @@ let usage = """
                  For each local control: the largest difference between blending the adjusted
                  image by alpha and running the module at alpha times the value (test scenes).
 
+      scenes     --output DIR [--size WxH]
+                 Writes the chromatic aberration test scenes (fringes, fringe subjects, lateral color
+                 at two amounts) as TIFFs, and the fringes as a DNG (default 1536x1152).
+
       synthesize --library-root ROOT --count N
                  Grows the catalog to N versions by cloning existing rows with new content
                  hashes and hard-linking their cached thumbnails (grid-scale testing).
@@ -125,6 +129,7 @@ do {
     case "masks": report = try await MaskBenchmark.run(arguments)
     case "blend-error": report = try await BlendErrorReport.run(arguments)
     case "denoise": report = try await DenoiseBenchmark.run(arguments)
+    case "scenes": report = try await SceneFiles.run(arguments)
     default:
         print(usage)
         exit(arguments.command == "help" || arguments.flags.contains("help") ? 0 : 64)

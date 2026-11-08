@@ -43,18 +43,22 @@ public enum FringePicker {
         return best.map { ($0.color, $0.x, $0.y) }
     }
 
-    /// Picks around `point` (unit coordinates of the mask frame, y down)
-    /// within `radius` full-resolution pixels, from `values`' fringe input.
-    public static func sample(source: URL, values: Adjustments, at point: CGPoint, radius: Double,
+    /// Picks around `point` (unit coordinates of the mask frame, y down:
+    /// a raw's whole sensor) within `radiusInWidths` of the frame's width
+    /// (at least one pixel), from `values`' fringe input at full resolution.
+    public static func sample(source: URL, values: Adjustments, at point: CGPoint, radiusInWidths: Double,
                               generator: PreviewGenerator) throws -> Result {
         guard let renderer = generator.renderer as? AdjustmentRenderer else { throw PreviewGenerator.Failure.renderFailed }
         let isRaw = SupportedFormats.isRaw(pathExtension: source.pathExtension)
-        let settings = isRaw ? renderer.decodeSettings(for: values.editStack) : .none
+        var settings = isRaw ? renderer.decodeSettings(for: values.editStack) : .none
+        // Mask-frame points are on the whole sensor, whatever the camera cropped.
+        settings.fullFrame = isRaw
         let decoded = try PreviewGenerator.decode(source, longEdge: nil, draft: false, settings: settings)
         let image = renderer.fringeInput(values, to: decoded.image)
         let extent = image.extent
         guard !extent.isInfinite, !extent.isEmpty else { throw PreviewGenerator.Failure.renderFailed }
         let width = Int(extent.width), height = Int(extent.height)
+        let radius = max(1, radiusInWidths * extent.width)
         let center = CGPoint(x: point.x * extent.width, y: point.y * extent.height)
         let reach = Int(radius.rounded(.up)) + 1
         // Pixel rows from the top; Core Image's from the bottom.

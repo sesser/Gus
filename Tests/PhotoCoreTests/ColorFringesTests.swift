@@ -39,8 +39,8 @@ struct ColorFringesTests {
     static let greens: [FringeScene.Fringe] = [.green1, .green2]
 
     /// Fully grayed: weight ≥ 0.9986 for these pixels (each lies within three
-    /// pixels of a high-contrast edge, inside the edge rule's window of 12,
-    /// where its Gaussian of σ 3 leaves Φ(3) of the plateau), so at most
+    /// pixels of a high-contrast edge, inside the edge rule's window of 24,
+    /// where its Gaussian of σ 6 leaves Φ(3.5) of the plateau), so at most
     /// 0.0014 of the pixel's chroma stays, plus a half-float gray's 0.002
     /// (`LensRenderingTests.grayChroma`); luminance is kept to two roundings.
     static func expectGrayed(_ after: LinearImage, _ before: LinearImage, _ where: [(x: Int, y: Int)],
@@ -212,12 +212,16 @@ struct ColorFringesTests {
         let values = T.listed()
         let plain = T.render(Adjustments(), scene)
         let rendered = T.render(values, scene)
+        // Away from edges: where no high-contrast edge is within the rule's reach.
+        let edges = LensReference.edgeWeight(scene, scale: 1)
         for (purple, slot) in [(true, CommonFringeColor.purple.slot), (false, CommonFringeColor.green.slot)] {
             let patch = FringeScene.patch(purple: purple)
             let lab = T.okLab(T.rgb(scene, patch[0].x, patch[0].y))
             // Inside the range: the hue alone would gray it fully.
             #expect(ColorFringes.colorWeight(a: lab.y, b: lab.z, slot: slot) == 1)
-            Self.expectUnchanged(rendered, plain, patch)
+            let away = patch.filter { edges[$0.y * scene.width + $0.x] == 0 }
+            #expect(away.count > patch.count / 3, "\(away.count) of \(patch.count) patch pixels away from edges")
+            Self.expectUnchanged(rendered, plain, away)
         }
         // The sky beside the ridge's high-contrast edge stays blue.
         Self.expectUnchanged(rendered, plain, FringeScene.skyByRidge())
@@ -246,8 +250,8 @@ struct ColorFringesTests {
     // MARK: AC10
 
     /// The loupe's fit render of a 1024 × 768 master is 256 × 192 at scale
-    /// ¼: the edge rule's window becomes 3 pixels for 12, its blur σ ¾ for
-    /// 3. One fit pixel covers 4 × 4 master pixels, so where the map falls
+    /// ¼: the edge rule's window becomes 6 pixels for 24, its blur σ 1.5 for
+    /// 6. One fit pixel covers 4 × 4 master pixels, so where the map falls
     /// from gray to black the two can disagree within a fit pixel either
     /// side of the boundary: 8 master pixels, plus the window's rounding.
     @Test("AC10: the fit render scaled to full size and a full-size render agree on what is grayed")

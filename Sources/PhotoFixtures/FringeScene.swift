@@ -16,7 +16,7 @@ import PhotoCore
 /// - Top right: a dark ground (0.12) with a defocused bright disc (center
 ///   192, 60, radius 30, an edge ten pixels soft) whose rim is purple.
 /// - Bottom (y ≥ 120): a blue sky, as bright as the light ground, meeting a
-///   dark ridge (0.20) at y 150 right of x 144, with no fringe: sky beside a
+///   dark ridge (0.20) at y 150 right of x 176, with no fringe: sky beside a
 ///   high-contrast edge.
 /// - Scene (b) adds a purple patch (x 12 … 60) and a green patch (x 68 … 116),
 ///   y 132 … 184, on the sky and as bright as it, so no high-contrast edge is near.
@@ -57,7 +57,7 @@ public enum FringeScene {
     static let barWidth = 16.0, barTop = 16.0, barBottom = 104.0, fringeWidth = 3.0
     static let discCenter = (x: 192.0, y: 60.0), discRadius = 30.0
     /// Where the ridge starts: farther from the patches than the edge rule reaches.
-    static let ridgeLeft = 144.0
+    static let ridgeLeft = 176.0
 
     static func image(_ width: Int, _ height: Int, subjects: Bool) -> LinearImage {
         let scale = Double(width) / Double(TestScene.defaultWidth)
@@ -139,7 +139,7 @@ public enum FringeScene {
         let scale = Double(width) / Double(TestScene.defaultWidth)
         var out: [(x: Int, y: Int)] = []
         for y in Int((150 - reach) * scale)..<Int(150 * scale) {
-            for x in Int(156 * scale)..<Int(244 * scale) { out.append((x, y)) }
+            for x in Int(188 * scale)..<Int(244 * scale) { out.append((x, y)) }
         }
         return out
     }

@@ -47,8 +47,11 @@ public actor SharpeningMapRefiner {
     /// (the loupe's frame size at fit), or whole when `longEdge` is nil
     /// (zoomed in). Cancellable before and after the expensive stage; an
     /// input rendered before a cancellation is kept for the next request.
-    public func render(_ adjustments: Adjustments, longEdge: Int?,
+    public func render(_ adjustments: Adjustments, longEdge: Int?, content: LiveRenderSession.Content = .sharpeningMap,
                        cancellation: RenderCancellation? = nil) throws -> LiveRenderSession.Frame {
+        if content != .sharpeningMap {
+            return try renderWhole(adjustments, longEdge: longEdge, content: content, cancellation: cancellation)
+        }
         let clock = ContinuousClock()
         let started = clock.now
         guard let renderer = generator.renderer as? AdjustmentRenderer else { throw PreviewGenerator.Failure.renderFailed }
@@ -82,6 +85,34 @@ public actor SharpeningMapRefiner {
                                        maskFrameSize: entering.maskFrameSize, scale: 1,
                                        seconds: Double(elapsed.seconds) + Double(elapsed.attoseconds) / 1e18,
                                        filledCache: filled, machineLearning: entering.machineLearning)
+    }
+
+    /// The fringe map, or the photo itself (a replaced slot's preview while
+    /// picking, chromatic-aberration design §4), from the full-resolution
+    /// master: rendered whole each time, nothing kept.
+    private func renderWhole(_ adjustments: Adjustments, longEdge: Int?, content: LiveRenderSession.Content,
+                             cancellation: RenderCancellation?) throws -> LiveRenderSession.Frame {
+        let clock = ContinuousClock()
+        let started = clock.now
+        guard let renderer = generator.renderer as? AdjustmentRenderer else { throw PreviewGenerator.Failure.renderFailed }
+        try cancellation?.check()
+        let isRaw = SupportedFormats.isRaw(pathExtension: source.pathExtension)
+        let settings = isRaw ? renderer.decodeSettings(for: adjustments.editStack) : .none
+        let decoded = try PreviewGenerator.decode(source, longEdge: nil, draft: false, settings: settings)
+        var image = content == .fringeMap
+            ? AdjustmentRenderer.sharpeningMapDisplay(renderer.fringeMap(adjustments, to: decoded.image, context: decoded.context))
+            : renderer.render(adjustments, to: decoded.image, context: decoded.context)
+        if let longEdge { image = image.scaledToFit(longEdge: longEdge) }
+        try cancellation?.check()
+        guard let rendered = generator.engine.makeCGImage(image, colorSpace: colorSpace) else {
+            throw PreviewGenerator.Failure.renderFailed
+        }
+        let elapsed = (clock.now - started).components
+        return LiveRenderSession.Frame(image: DecodedImage(cgImage: rendered), histogram: nil, content: content,
+                                       hasOverlay: false, adjustments: adjustments,
+                                       maskFrameSize: decoded.image.extent.size, scale: 1,
+                                       seconds: Double(elapsed.seconds) + Double(elapsed.attoseconds) / 1e18,
+                                       filledCache: true, machineLearning: decoded.machineLearning)
     }
 
     /// Frees the full-resolution input (the map was hidden).

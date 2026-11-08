@@ -49,6 +49,11 @@ import PhotoUI
 ///                           elements with that role, e.g. AXImage, or runs an action on the nth; see AccessibilityProbe)
 ///     scroll <y>|bottom     (scrolls the inspector's Adjust tab to a point from its top)
 ///     sharpenmap on|off|toggle   (Adjust ▸ Show / Hide Sharpening Map's action: reveals Masking, announces)
+///     fringemap on|off|toggle    (Adjust ▸ Show / Hide Fringe Map's action: reveals Color Fringes, announces)
+///     fringearm 1|2|off     (arms or disarms a fringe slot's eyedropper, as its button does)
+///     contextmenu fringe 1|2 [<item>]   (lists a fringe slot's context menu, or runs the item so titled)
+///     print fringe          (slots, their menu, picking, the last sample, the cursor, captions, the fringe
+///                           map, color alignment)
 ///     print sharpenmap      (asked for, on screen with its badge and legend, refining, can show, the
 ///                           overlay and Show Original, the inspector, the scroll position of the Adjust tab)
 ///     hdr on|off            (the View menu's Show HDR; snapshots show HDR clipped at white)
@@ -114,7 +119,9 @@ enum DebugScript {
             for command in commands where !command.isEmpty {
                 let words = command.split(separator: " ")
                 // "accessibility <role> <n> <action>" runs an action; listing changes nothing.
-                let grouped = changing.contains(String(words.first ?? ""))
+                // "contextmenu fringe <n>" lists, and its Pick from Photo only arms.
+                let grouped = (changing.contains(String(words.first ?? ""))
+                    && !DebugLensCommands.contextMenuChangesNothing(words.map(String.init)))
                     || (words.first == "accessibility" && words.count >= 4)
                 if grouped { undoManager.beginUndoGrouping() }
                 await run(command, model: model)
@@ -199,6 +206,9 @@ enum DebugScript {
             perform(Selector((verb + ":")), verb)
         case "inspector":
             model.showsInspector = rest.first != "off"
+        case "fringemap", "fringearm":
+            DebugLensCommands.run(verb, rest, model: model)
+            try? await Task.sleep(for: .milliseconds(300))
         case "sharpenmap":
             // The menu's path; it changes no photo, so it gets no undo group.
             switch rest.first {
@@ -514,6 +524,9 @@ enum DebugScript {
             } else {
                 print("debug-script: no window for windowshot \(rest.joined(separator: " "))")
             }
+        case "contextmenu" where rest.first == "fringe":
+            DebugLensCommands.contextMenu(Array(rest.dropFirst()), model: model)
+            try? await Task.sleep(for: .milliseconds(300))
         case "contextmenu":
             runContextMenu(rest)
             try? await Task.sleep(for: .milliseconds(300))
@@ -949,6 +962,8 @@ enum DebugScript {
         case "inspector":
             print("debug-script: inspector shown \(model.showsInspector) tab \(model.inspectorTab) keywords expanded "
                   + "\(InspectorExpansion.shared.isExpanded(InspectorView.keywordsKey, family: .info, default: true))")
+        case "fringe":
+            DebugLensCommands.printState(model: model)
         case "sharpenmap":
             let editor = model.editor
             let shown = editor.shownSharpeningMap
