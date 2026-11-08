@@ -206,6 +206,10 @@ R16 (Must): Presets, copy/paste and the grid's batch commands carry it
 like any other group. A photo that receives automatic lateral correction
 is measured for itself and never gets the source photo's measured values.
 A hand-set or fine-tuned correction (R10) is copied as it is.
+A preset that includes every group ("All settings") replaces Color
+Fringes and Color Alignment too, including a preset saved with every
+group before this feature existed: applying it clears the photo's fringe
+slots and alignment (RI-E2 ruling, 2026-11-08).
 
 R16a (Must): A paste, preset or grid batch that carries automatic lateral
 correction leaves unchanged any target photo it can't measure, because
@@ -329,6 +333,13 @@ reports it with the existing "left unchanged: originals offline" warning,
 and the online photos are pasted and measured. A paste without automatic
 lateral correction treats offline photos as it does today.
 
+AC13b (R16): A preset stored with every group and no group list, as
+presets saved before this feature are, applied to a photo of scene (a)
+with both fringe slots filled and automatic alignment on, leaves both
+slots empty and alignment off, in one undo step. A preset file with no
+group list reads the same way. A preset whose group list leaves out the
+two Lens groups keeps the photo's slots and alignment.
+
 AC14 (R17): Importing a Lightroom preset that sets purple and green fringe
 removal, or automatic chromatic aberration removal, maps them, and the
 report no longer lists them. A preset with a lens profile or distortion
@@ -342,6 +353,12 @@ the fringes are gone or nearly gone and real purple or green subjects keep
 their color. It waits until someone has suitable files and is recorded as
 a pending check at Ship. When M1 runs, it also notes whether the listed
 colors match the fringes found, which is input for any change to the list.
+M1 includes at least one photo with strongly out-of-focus bright
+highlights (bokeh) that have colored rims, since the fixed edge rule only
+fully reaches rims softened over up to about 60 full-size pixels (status.md
+OQ1). For those rims it records whether they are grayed; where they are
+not, whether the Fringe Map shows them outside the edge rule and whether
+widening Tolerance fixes them (RI-E1 ruling, 2026-11-08).
 
 M2 (manual, R1a): with VoiceOver on and no pointer use, on a synthetic
 scene (a) photo, a person fills both slots from the list, changes each
@@ -378,7 +395,12 @@ step is announced understandably. QA lists it under "For a person".
   at a stock filter's cost. The engineer confirms the approach. The spike
   has to merge, or be redone, as part of this work.
 - **Presets, paste, batch, Lightroom import:** `Adjustments.Group`,
-  `PresetFile`, `BatchEdit`, `CameraRawMapping` (R16, R17).
+  `PresetFile`, `BatchEdit`, `CameraRawMapping` (R16, R17). Color Fringes
+  and Color Alignment are the first adjustment groups added since presets
+  shipped. A preset saved with every group stores no group list and means
+  every group, now including these two (`AdjustmentPresets.encodeGroups`,
+  `docs/archive/PHASE3_PLAN.md` "Partial presets"); no stored preset or preset file is
+  migrated (R16, AC13b).
 - **viewport-render-1to1 (Now).** At 100%, the loupe shows the 2560 px
   live frame stretched while a control moves, and the true result only
   after the change is saved. Accepted for this feature (ruling 13).
@@ -387,27 +409,37 @@ step is announced understandably. QA lists it under "For a person".
 
 ## Open questions
 
-- **OQ1 (engineer).** How exactly "near a high-contrast edge" is defined
+- **OQ1 (engineer): closed.** Answered in status.md ("Decisions on the
+  engineer's open questions"): luminance span over a 24 full-resolution
+  pixel window, scaled with the render, smoothstep 0.2–0.4. Its limit on
+  very soft rims is RI-E1 below. The question as it was asked: how
+  exactly "near a high-contrast edge" is defined
   (R2, R5). The person's side is settled: it is a fixed rule with no
   control (design.md §14). The rule must catch the soft edges of
   out-of-focus highlights as well as sharp ones (scene (a)'s defocused
   disc, AC1), and must count the same pixels at every size (R13, AC10).
   If M1 later shows misses that Tolerance can't fix, an adjustable rule
   is a follow-up, not part of this feature.
-- **OQ2 (engineer).** Which image does the picker sample? What the person
+- **OQ2 (engineer): closed.** Answered in status.md: the decoded master,
+  aligned, before any graying, at full resolution; a raw's own white
+  balance coming first is the designer's DQ-1. The question as it was
+  asked: which image does the picker sample? What the person
   must see is set in design.md §14: the clicked color is the one grayed,
   and a pick keeps finding the same fringe when other adjustments change
   later. If the chosen image can't hold that, it goes back to the designer
   as a Design question.
 - **OQ3 (designer): closed.** Answered in design.md §2–§6 and §10.
-- **OQ4 (designer).** The list of common fringe colors (R1a): where it
+- **OQ4 (designer): closed.** Answered in design.md. The question as it
+  was asked: the list of common fringe colors (R1a): where it
   lives, how it is presented and reached (pointer, keyboard, VoiceOver),
   how a slot shows a listed color, and how it fits with the eyedropper,
   the slot's context menu and the debug-script hooks. design.md §3, §4,
   §11, §12, §15, §16 and §18 Q1 are affected.
-- **OQ5 (engineer).** The exact color value of each listed color and the
-  range it starts with (R1c), set from the reference against scene (a),
-  not by trial.
+- **OQ5 (engineer): closed.** Answered in status.md (Purple at Tolerance
+  25, Green at 20, derived in `FringeToleranceDerivationTests`). The
+  question as it was asked: the exact color value of each listed color
+  and the range it starts with (R1c), set from the reference against
+  scene (a), not by trial.
 
 ## Revisions
 
@@ -481,3 +513,34 @@ step is announced understandably. QA lists it under "For a person".
   The PRD stays Approved. The design needs revising for R1a (OQ4), so the
   roadmap row goes back from Designed to Specified until design.md is
   updated. The Later row `fringe-color-presets` is not added.
+- 2026-11-08: rulings on the engineer's requirements issues (status.md
+  "Requirements issues"). The requirements stay Approved; neither widens
+  the owner's scope.
+  - **RI-E1, soft rims beyond the fixed edge rule: accepted as built.**
+    The 24-pixel rule meets OQ1 and AC1 (scene (a)'s defocused disc) and
+    counts the same pixels at every size, which is all the PRD asked of a
+    fixed rule. Very defocused highlights softer than about 60 full-size
+    pixels may keep some color. That is a known limit, not a defect. M1 now
+    checks soft bokeh rims explicitly and records what it finds. An
+    adjustable edge rule stays a follow-up that is added to the roadmap only
+    if M1 shows misses that Tolerance can't fix (OQ1). No engineer change.
+    No roadmap row now.
+  - **RI-E2, presets saved with every group: option A** (engineer's
+    recommendation). "All settings" means every group, the new Lens groups
+    included, so applying such a preset, old or new, clears a photo's fringe
+    slots and alignment. Reasons: it is the rule the app already chose when
+    presets shipped (no group list means every group, so older presets
+    "keep replacing everything"); the preset list already labels these
+    presets "All settings", so they do what they say; new presets check
+    only the groups the photo changes, and Lightroom imports carry only the
+    groups they set, so only presets someone saved with every group checked
+    are affected; Manage Presets already lets the person take groups out of
+    a preset; and the change is one undo step. B was rejected: it would
+    need a migration of the `groups` column and of preset files, would make
+    old "All settings" presets silently stop being all settings, and would
+    have to be repeated for every group added later. Added: a sentence in
+    R16, AC13b, and a note under Dependencies and impact. The engineer adds
+    a test for AC13b, and a sentence in the user guide's Presets paragraph
+    saying that a preset with all settings, including one saved before
+    Color Fringes and Color Alignment existed, also replaces those two, and
+    that Manage Presets can take them out of it. The behavior is built.

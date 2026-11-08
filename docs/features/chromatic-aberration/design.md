@@ -5,7 +5,8 @@ manager ruled both requirements issues on 2026-11-07 (§17), each as the
 option this design applied. The owner answered §18 Q1 ("It should go into
 this feature now"; prd ruling 15, R1a–R1c), and this revision designs the
 list of common fringe colors (prd OQ4) in §3, §4, §8, §11, §12, §15 and §16.
-Nothing is open.
+The engineer's design questions from implementation (DQ-1 to DQ-3) are
+ruled in §19 (2026-11-08). Nothing is open.
 
 **Inputs.**
 
@@ -590,7 +591,8 @@ touch Color Alignment.
     are left entirely unchanged by that command: none of its groups apply
     to them, and Activity shows the existing "left unchanged" warning
     ("‹N› photos were left unchanged: their originals are offline." for
-    offline originals). The other photos change as usual. This is the
+    offline originals, and its sibling for unreadable ones, §19 DQ-2). The
+    other photos change as usual. This is the
     batch Auto Exposure rule (§17 RI-1, ruled; prd R16a, AC13a). In the
     loupe, a paste or preset whose measurement fails leaves the open photo
     unchanged too, and the caption says "This photo could not be
@@ -744,9 +746,13 @@ new use, as `ui-redesign/design.md` §7 does.
 | Set by hand. Paste and presets copy these values. | Caption, hand-set | |
 | Turn On Automatic Alignment | Undo action name | |
 | Turn Off Automatic Alignment | Undo action name | |
+| %lld photos were left unchanged: their originals could not be read. (one: "%lld photo was left unchanged: its original could not be read.") | Activity warning after a measuring paste or preset (§19 DQ-2) | Plural. First line of the row and what VoiceOver hears; one line per file and "And %lld more." follow |
 
 Reused with no new text: "Showing the photo.", "Reset “%@”", "Turn On %@",
-"Turn Off %@", "Reset %@", the offline Activity warning.
+"Turn Off %@", "Reset %@", the offline Activity warning, and (§19 DQ-2)
+"%@: the original could not be read." and "And %lld more." (extend their
+comments to name the measuring paste or preset), "Paste Adjustments",
+"Apply Preset %@" and "%lld of %lld" (§19 DQ-3).
 
 ## 13. Custom chrome
 
@@ -800,7 +806,10 @@ The technical definition is the engineer's.
    a new color start graying. People pick once and keep editing. A pick
    that silently stops working after an unrelated slider moves would be a
    bug they can't diagnose. If the engineer's choice can't hold this, it
-   is a Design question back to me, not a quiet trade-off.
+   is a Design question back to me, not a quiet trade-off. (Raised as DQ-1
+   and ruled in §19: a raw's own White Balance and Profile come before the
+   fringe step and are the accepted exception; every later adjustment is
+   held.)
 3. **The swatch looks like the fringe on screen** (the picked color shown
    through the current adjustments, as a pixel of that color would look in
    the photo now), so the person can match swatch to fringe by eye.
@@ -1000,6 +1009,131 @@ None open.
    feature. A roadmap Idea row (`fringe-color-presets`) for the product
    manager, considered after M1 shows which colors real fringes have.
 
+## 19. Design questions from implementation (ruled 2026-11-08)
+
+The engineer returned three (status.md "Design questions"). None widens
+scope or touches a requirement, so none goes to the product manager or the
+owner.
+
+| DQ | Ruling | Engineer's change | Where applied |
+|---|---|---|---|
+| DQ-1 | **Option A**, as built: a raw's own White Balance and Profile are the accepted exception to §14 point 2; the user guide tells the person what to do. Revisit after M1 | One sentence of `USER_GUIDE.md` (below) | §14 point 2 |
+| DQ-2 | **One summary row per command**, like the offline warning, that also lists the files, as Export's row does | The Activity report for unreadable originals (below) | §10, §12 |
+| DQ-3 | **Confirmed as built**: the command's own title, "‹n› of ‹m›" as the detail, Stop | Fit a long preset name in the toolbar title (below) | §10, §12 |
+
+### DQ-1: a raw's white balance comes before the fringe step
+
+**Ruling: A.** For raws, White Balance and Profile are decode settings: the
+decoder applies them, and the fringe step can only follow. After picking,
+a large change to either can move a fringe's hue out of its slot's range,
+and the fringe partly comes back. Every later adjustment (Saturation,
+relative white balance on other formats, tone, the mixer, grading, look-up
+tables, masks) is held, as §14 point 2 asks.
+
+Why A and not the others:
+
+- **B (von Kries compensation) fails silently**, which is the one outcome
+  §14 point 2 exists to prevent. When the estimate is off, the range moves
+  to colors the person never picked, and nothing on screen says the stored
+  color was moved. Today's failure is visible and fixable: the fringe shows
+  again, the Fringe Map shows it black where it was white, and one pick or
+  a wider Tolerance fixes it. A visible, explained limit beats an invisible,
+  approximate fix (HIG: people stay in control and understand why).
+- **C** doubles the decode cost of every render with fringes, against R18.
+- **It rarely bites in practice.** White Balance and Profile sit at the top
+  of the Adjust tab (Light) and Lens comes after Details, so the usual order
+  is to set them first and pick fringes later. A pick's starting Tolerance
+  (55) and the soft falloff absorb small changes. The case is a large change
+  after picking.
+
+**The user guide sentence.** The engineer replaces the guide's parenthetical
+("A raw file's white balance comes from the decoder, before that point:
+after a large change to it, pick the fringe again.") with:
+
+> (For a raw file, White Balance and Profile are applied as the file is
+> decoded, before that point. After a large White Balance change or a
+> different Profile, show the Fringe Map: if the fringe no longer shows
+> white, pick or choose its color again.)
+
+It names both decode settings, covers listed colors as well as picks (R1b),
+and points to the tool that answers "is it still working?" (R6).
+
+**Revisit after M1.** When M1 runs on real raws, it should also change White
+Balance substantially after picking and note whether the fringe returns. If
+ordinary edits lose picks, compensation is a follow-up with its own design,
+not a change to this one.
+
+### DQ-2: unreadable originals in a measuring paste or preset
+
+**Ruling: one Activity warning row per command, with a summary first line
+and the files listed under it.** This is the export's row (`ExportModel.detail`)
+applied here, with the offline warning's sentence shape.
+
+The row, titled with the command's undo name (as every report from it), a
+warning (the person can fix the file and try again):
+
+```
+‹N› photos were left unchanged: their originals could not be read.
+‹name›: the original could not be read.
+‹name›: the original could not be read.
+…
+And ‹N› more.
+```
+
+- **First line (new key, plural):** one: "%lld photo was left unchanged: its
+  original could not be read."; other: "%lld photos were left unchanged:
+  their originals could not be read." VoiceOver hears this line only
+  (`report(_:action:warning:announcing:)`).
+- **One line per file**, the existing "%@: the original could not be read.",
+  up to `ExportActivityReport.failureListLimit` (10), in the order measured;
+  past that, the existing "And %lld more.".
+- Posted once, when measuring ends. Stop writes nothing and posts nothing
+  about unreadable files (as built). Offline photos keep their own row,
+  posted first (as built). In the loupe the same row is posted, and the
+  caption says "This photo could not be measured." (§7, as built).
+
+Why not one row per photo (built): Activity keeps the 20 newest messages,
+so a shoot with many unreadable files would push out everything else,
+including the offline row from the same command, and VoiceOver would speak
+each row. R16a asks to say how many and why; a count in one sentence says
+it, and matches the offline row the person may see right beside it. Why not
+the summary alone (engineer's recommendation): an offline photo shows its
+badge in the grid, but an unreadable one shows nothing, so without the names
+the person can't find which files to fix. The export already solved the same
+problem with this exact layout and these strings (P5: one way to say one
+thing).
+
+"could not be read", not "can't be read": the sentence reports an attempt
+that failed, as the export's per-file line and the loupe's "could not be
+measured" do. The offline sentence says "are offline" because that is a
+state the grid shows.
+
+### DQ-3: the Activity title while measuring
+
+**Ruling: confirmed as built.** The job's title is the command's own undo
+name ("Paste Adjustments", "Apply Preset ‹name›"), its detail is "‹n› of
+‹m›", and the popover has Stop.
+
+- It is what §10 specified, and it follows Export's job (title names the
+  command, the count is the detail), the pattern for a command the person
+  started. Auto Exposure's "Measuring exposure ‹n› of ‹m›" names the work
+  because measuring is the whole command; here the person asked for a paste,
+  and measuring is how it happens (the loupe's caption says so there).
+- The job and every row it posts afterwards (offline, unreadable,
+  stacks this build can't change) share one title, so the popover reads as
+  one command and its results.
+- File ▸ Stop (⌘.) doesn't name it, as for batch Auto Exposure: per
+  ui-redesign I4, jobs other than export, folder adds and imports keep their
+  Stop in the Activity popover. No change.
+
+**One change.** The toolbar shows a job's title on one line, never cut
+(`toolbarStatusText`), so "Apply Preset ‹a long preset name›" would widen the
+toolbar item. Give the measuring job a `toolbarTitle` fitted by
+`ToolbarMetrics.statusLine(name: preset.name) { String(localized: "Apply Preset \($0)") }`
+(the same "Apply Preset %@" key), shortening the preset's name in the middle as
+Export does with its folder. The popover keeps the full title. "Paste
+Adjustments" needs no fitting.
+
 ## Revisions
 
 - 2026-11-07: First version, against prd.md as approved 2026-11-07.
@@ -1022,3 +1156,9 @@ None open.
   on. New strings, engineer notes and debug hooks (`adjust fringe fill`,
   `contextmenu fringe`), and DR2a and DR2b. §1, §5, §6 (the dimmed tooltip),
   §9, §10 and §13 were touched to match. §18 Q1 is marked answered.
+- 2026-11-08: Ruled the engineer's design questions in §19. DQ-1: option
+  A (a raw's White Balance and Profile are the accepted exception to §14
+  point 2), with the user guide's sentence given. DQ-2: one Activity row per
+  command, a new plural summary line followed by the export's per-file lines
+  and "And N more.". DQ-3: the command's own title confirmed, with a fitted
+  toolbar title for Apply Preset. §10, §12 and §14 point 2 updated to match.
