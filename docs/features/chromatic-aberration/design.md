@@ -6,7 +6,9 @@ option this design applied. The owner answered §18 Q1 ("It should go into
 this feature now"; prd ruling 15, R1a–R1c), and this revision designs the
 list of common fringe colors (prd OQ4) in §3, §4, §8, §11, §12, §15 and §16.
 The engineer's design questions from implementation (DQ-1 to DQ-3) are
-ruled in §19 (2026-11-08). Nothing is open.
+ruled in §19 (2026-11-08). The pixel magnifier (prd rulings 16–22, R19–R36,
+OQ12, OQ13) is designed in §20, with §1, §3, §4, §8, §11–§16 revised for it
+(2026-11-08). Nothing is open.
 
 **Inputs.**
 
@@ -60,6 +62,7 @@ Sharpening Map patterns.
 | **Fringe Map** / fringe map | The view of where fringe color is removed (R6) | Parallels Sharpening Map, a view the person already knows. Not "mask" (SMP §1: "mask" means a local adjustment here) |
 | **Align automatically** (check box) | R7's one control | A check box, because it is a persistent setting that paste and presets carry and re-measure, not a one-shot command like Light's Auto (§7) |
 | **Red/cyan**, **Blue/yellow** (row labels) | R10's hand settings | The colors of the outlines the person sees. Row labels are sentence-style (P5) |
+| **Pixel Magnifier** (menu), **Pixel magnifier** (row label) | The small round view of the photo's own pixels beside the pointer while picking (R19–R36; §20) | Says what it shows. "Loupe" is the one-photo view here, and a reuse by another tool mustn't read as fringe-specific |
 
 In sentences, VoiceOver and the user guide: "color fringes", "color
 alignment", "fringe map", "tolerance" in lowercase as common nouns (P5).
@@ -108,6 +111,7 @@ Color 1     ● Purple                         [⌖] [⋯]      ← slot row
 Tolerance   ──────●──────────────────    [  40 ]           ← only when Color 1 is set
 Color 2       None                           [⌖] [⋯]      ← slot row, empty
 [ Fringe Map ]                                             ← toggle, 6 pt above
+Pixel magnifier  [ 800% ⌄ ]                                ← only while a slot is picking (§20)
 Raise Tolerance to include colors further from the picked  ← caption, 4 pt above
 one. Colors away from high-contrast edges keep theirs.
 Color Alignment                                    [✓]
@@ -219,7 +223,7 @@ priority:
 
 | State | Caption |
 |---|---|
-| A slot is picking, and that slot was empty | "Click a colored fringe in the photo to pick Color 1. Thin fringes are easiest at 100% (Z). Press Esc to cancel." |
+| A slot is picking, and that slot was empty | "Click a colored fringe in the photo to pick Color 1. The magnifier outlines the pixel a click takes. Press Esc to cancel." |
 | A slot is picking, and that slot holds a pick (replacing) | "Color 1's effect is hidden while you pick. Click a colored fringe, or press Esc to cancel." |
 | The last click landed on a spot with almost no color (§4) | "That spot has almost no color. Click a colored fringe, or press Esc to cancel." |
 | Fringe map shown | The legend (§6) |
@@ -228,6 +232,9 @@ priority:
 
 The last line answers the first worry people have with a color tool
 ("will it gray my purple flower?") in the place they look.
+
+While a slot is picking, the **Pixel magnifier** row (a pop-up of the level,
+§20) sits between the toggle and the caption, so only the caption moves.
 
 ### Color Alignment rows
 
@@ -247,7 +254,8 @@ The last line answers the first worry people have with a color tool
    painting tool turns off: the other slot's eyedropper, a color range
    mask's Pick Colors, and Paint.
 2. Over the photo the pointer becomes the system **crosshair**
-   (`NSCursor.crosshair`). Over the surround it stays the arrow.
+   (`NSCursor.crosshair`) and the **pixel magnifier** appears beside it
+   (§20). Over the surround it stays the arrow, with no magnifier.
 3. **One click on the photo picks.** The color is stored in that slot as
    one undo step ("Pick Fringe Color"), the eyedropper turns off, and the
    pointer goes back to the arrow. The loupe then shows the result.
@@ -278,30 +286,35 @@ an undo step.
 
 ### What a click samples (the user's side; OQ2 is the engineer's)
 
-- **The pixel under the crosshair's center, at any zoom, is what gets
-  grayed** (prd OQ2: "What the person sees and what gets grayed must
-  match"). The sample comes from the photo's data, never from screen
-  pixels, so it does not matter whether the loupe shows a stretched live
-  frame or the full-resolution render at that moment.
-- **Thin fringes snap.** A fringe is often 1–3 pixels wide, and at fit one
-  screen point covers several of them, so a click rarely lands exactly on
-  one. The pick takes the most colorful pixel within a small radius of
-  the click, measured in screen points (the engineer sets it, about 3 pt).
-  So at fit it searches a wider area of the photo, and at 100% only a few
-  pixels. Averaging the area instead would mix the fringe with the sky
-  and the branch and give a duller, wrong color. This is design intent.
-  The engineer owns the exact rule and checks it against scene (a): a
-  click within 2 pt of the purple fringe at fit picks the fringe color.
+- **The outlined pixel is what gets picked** (R22). It is the pixel the
+  magnifier outlines, and a click never takes any other. The sample comes
+  from the photo's data, never from screen pixels, so it does not matter
+  whether the loupe shows a stretched live frame or the full-resolution
+  render at that moment.
+- **Which pixel that is (ruling 18; the 3-point snap is gone).** At the
+  view's 100% and closer, exactly the one under the crosshair's center,
+  even when a neighbor is more colorful. Zoomed out further, where one
+  screen pixel covers several photo pixels, the most colorful of the photo
+  pixels under that screen pixel: a thin fringe stays reachable at fit, and
+  averaging them would mix the fringe with the sky and give a duller, wrong
+  color. The magnifier re-centers on that pixel, so the outline stays in
+  its middle (§20). A click made before the magnifier's pixels are ready
+  follows the same rule.
 - **A spot with almost no color** (gray, white, black, or a monochrome
   photo): nothing is stored, no undo step is made, the eyedropper stays on,
   and the caption and VoiceOver say "That spot has almost no color" (§3).
   Graying a gray color would do nothing, and a silent no-op pick would
-  leave the person wondering why the fringe stayed.
+  leave the person wondering why the fringe stayed. The test is on the
+  outlined pixel alone, and the magnifier says "Almost no color" before
+  the click (R26, §20).
 - **A click on the surround** (outside the photo) does nothing. The
   eyedropper stays on.
 
 ### What the loupe shows while picking
 
+- **Always:** the pixel magnifier beside the pointer, over the photo (§20).
+  It draws the image a click samples, before edits, so its pixels can differ
+  from the photo around it, and it isn't affected by anything below.
 - **Empty slot:** the photo as it is, with every current adjustment,
   including the other slot's graying (after picking purple, the green
   fringe is still there to pick).
@@ -328,13 +341,14 @@ an undo step.
 
 | Input | While a slot is picking |
 |---|---|
-| Click on the photo | Picks (above), instead of zooming |
+| Click on the photo | Picks (above), instead of zooming. A click whose pointer is over the magnifier's drawing also picks (AC27) |
 | Drag | Still pans. A press that moves past the loupe's 3 pt drag threshold is a pan, not a pick, so people can move to the next fringe at 100% without leaving the tool |
 | Double-click | Picks once and doesn't leave the loupe. The second click of a double-click within the double-click interval after a pick is ignored. A habitual double-click mustn't throw the person back to the grid mid-task |
 | Scroll, pinch, ⌥-scroll, `Z`, ⌘= / ⌘−, toolbar Fit \| 100% | Work as always; the eyedropper stays on |
 | Esc | Cancels picking: the eyedropper turns off, a replaced slot's effect comes back, nothing is saved. Works while the loupe or an inspector button has the keyboard; in a text field, Esc keeps its meaning (hands the keyboard back first) |
 | Culling keys | Work as always. Moving to another photo (arrows, film strip, auto-advance) cancels picking |
-| Right-click / Control-click | The loupe's context menu, as always; picking stays on |
+| Right-click / Control-click | The loupe's context menu, as always, with a **Pixel Magnifier** submenu added (§20); picking stays on |
+| `-` and `=` | Pixel magnifier level down and up (§20), with the loupe holding the keyboard. New, and only while picking. ⌘- and ⌘= keep their meaning |
 
 **Why the crosshair.** The HIG lists the crosshair for "precise
 rectangular selection". Picking one pixel is not a rectangle, but it is
@@ -531,12 +545,12 @@ touch Color Alignment.
 | State | Lens heading | Color Fringes | Color Alignment | Loupe |
 |---|---|---|---|---|
 | **Off** (new photo, nothing set) | Expanded, no check box (nothing modified), reset dimmed | Two empty slots (each with its eyedropper and slot menu, Clear dimmed), no Tolerance rows, Fringe Map dimmed, "No pick" caption | Unchecked, sliders 0, "Off" caption | Unchanged. Renders exactly as before (R11) |
-| **No pick yet, picking** | — | Eyedropper on, picking caption | — | Crosshair over the photo |
+| **No pick yet, picking** | — | Eyedropper on, picking caption, Pixel magnifier row | — | Crosshair and pixel magnifier over the photo (§20) |
 | **One pick** | Check box on, reset enabled | Slot row with swatch and name, Clear enabled in its slot menu; its Tolerance row; Fringe Map enabled; "At least one pick" caption | — | Fringes of that color grayed near edges |
 | **Two picks** | — | Both rows filled, two Tolerance rows | — | Both grayed |
 | **Slot filled from the list** | — | Same as one pick: swatch, "Purple" or "Green", Tolerance at that color's starting value. Nothing marks it as listed (§3) | — | Fringes of that color grayed near edges |
-| **Replacing a pick** | — | That slot's eyedropper on, "replacing" caption | — | Photo without that slot's effect, crosshair |
-| **Neutral click** | — | Eyedropper still on, "almost no color" caption | — | Unchanged |
+| **Replacing a pick** | — | That slot's eyedropper on, "replacing" caption, Pixel magnifier row | — | Photo without that slot's effect, crosshair and pixel magnifier |
+| **Neutral click** | — | Eyedropper still on, "almost no color" caption | — | Unchanged. The magnifier already read "Almost no color" (§20) |
 | **Fringe map shown** | — | Toggle on, legend | — | Map, "Fringe Map" badge |
 | **Color Fringes turned off** | Check box mixed if Color Alignment is on | Values kept, labels secondary (`showsTurnedOff`); eyedroppers, slot menus and Fringe Map stay enabled (as Sharpening Map, SMP §4) | — | Without graying; map shows "Not Applied" |
 | **Changing a value with a group off** | — | Picking, choosing from the list, clearing or a Tolerance change turns the group back on, as any control does (`enableModules`) | Same | — |
@@ -548,7 +562,7 @@ touch Color Alignment.
 | **Review mode** | Inspector hidden; with ⌥⌘I, usable | Fringe Map dimmed (as Sharpening Map in review); picking works | Usable | — |
 | **Grid** | Not shown (the Adjust tab shows "Open a Photo to Adjust It") | — | — | — |
 | **Monochrome or grayscale photo** | Shown (R15: every photo format is offered it) | Every click gives "almost no color". A listed color can still fill a slot; it grays nothing, because nothing in the photo has that color | Measures nothing: "No color edges were found…" | Unchanged |
-| **HDR photo on an EDR display** | — | Picking works on what is shown (§14) | — | Map in SDR, HDR badge hidden while it shows |
+| **HDR photo on an EDR display** | — | Picking works on what is shown (§14) | — | Map in SDR, HDR badge hidden while it shows. Pixel magnifier in standard range (§20) |
 | **Video** | — | — | — | Adjust tab: "No Adjustments for Videos" (N1); not offered (R15) |
 | **Offline, unreadable stack, loading** | — | — | — | Existing Adjust tab states (N1) |
 | **Stack from a newer build, or damaged** | — | — | — | "Can't Edit This Photo" (N1), unchanged |
@@ -620,6 +634,7 @@ touch Color Alignment.
 | Keyboard Navigation (System Settings ▸ Keyboard) or Full Keyboard Access | Tab reaches, in order: Color 1's eyedropper, Color 1's slot menu, Color 1's Tolerance field, Color 2's eyedropper, Color 2's slot menu, Color 2's Tolerance field, Fringe Map, Align automatically, Red/cyan field, Blue/yellow field. Space arms an eyedropper, opens a slot menu, toggles the map or the check box. In an open slot menu, ↑ / ↓ move, Return chooses, Esc closes. Esc also cancels picking |
 | The whole fringe task without a pointer (R1a, AC1a) | With Keyboard Navigation on: Tab to Color 1's slot menu, Space, ↓ to Purple, Return. The fringe grays and the Tolerance field appears next in the Tab order; step it with ↑ / ↓. Tab on to Color 2's slot menu for Green. Fringe Map with Space on its button (or Adjust ▸ Show Fringe Map); Esc in the loupe, Space on the button again, or the menu item hides it. Clear from the slot menu. Nothing in this sequence needs the photo or a pointer |
 | Picking from the photo | Needs a pointer, because it chooses a pixel. Full Keyboard Access users can move the pointer with the system's pointer-control keys. The list is the way to fill a slot without one (R1a) |
+| Pixel magnifier level (R33) | At default settings: `-` and `=` while the loupe has the keyboard, or View ▸ Pixel Magnifier from Control-F2 or Help ▸ Search. With Keyboard Navigation on, its inspector pop-up is in the Tab order after Fringe Map while a slot is picking. The magnifier takes no focus: the keyboard stays where it was before arming |
 
 **"From the keyboard alone" (R1a) is read as "with the system's Keyboard
 Navigation or Full Keyboard Access on".** That is how a Mac keyboard user
@@ -660,21 +675,30 @@ an addition, not a redesign.
   applied, ‹photo value›" while the map is shown (as SMP §8). While a slot
   is picking: "Picking a fringe color, ‹photo value›". This is what
   `accessibility image` prints.
-- **Canvas actions:** Show / Hide Fringe Map, listed when it can act.
+- **Canvas actions:** Show / Hide Fringe Map, listed when it can act. While
+  picking, **Pixel Magnifier Zoom In** and **Zoom Out**, each listed when it
+  can act.
+- **Pixel magnifier (R33):** no accessibility element, nothing VoiceOver stops
+  on, and nothing announced as the pointer moves. The level's pop-up: label
+  "Pixel magnifier zoom", value the percentage. After a change by key, menu or
+  canvas action: "Pixel magnifier at 800%."
 
 ### Increase Contrast, Reduce Motion, color, touch
 
 - **Increase Contrast:** no new colors. The swatch is the photo's color and
   can be dark on the dark inspector, so the hue name next to it carries
   the meaning. Buttons, badge and spinner are system or `Palette`
-  elements. The map runs black to white already.
+  elements. The map runs black to white already. The pixel magnifier's outline
+  doubles in weight, its grid strengthens, and its plate drops the secondary
+  style (§20).
 - **Reduce Motion:** no transitions anywhere. The reveal scroll jumps
   (SMP §8).
 - **Color is never the only signal:** slots have names, eyedropper state
   is a bezel, map state is text (HIG Accessibility).
 - **Touch-display Macs:** a tap on the photo picks, as a click does. Nothing
-  depends on hover (the crosshair is feedback, not information), and every
-  button keeps the 20 pt minimum.
+  depends on hover (the crosshair is feedback, not information; the pixel
+  magnifier needs a pointer and isn't shown for touch alone), and every button
+  keeps the 20 pt minimum.
 
 ## 12. Strings
 
@@ -704,7 +728,7 @@ new use, as `ui-redesign/design.md` §7 does.
 | Common Fringe Colors | Section header in the slot menu and row context menu | Purple and Green follow it |
 | Clear | Slot menu and row context menu | Reuse if present; empties the slot |
 | Choose Fringe Color | Undo action name, a color from the list | |
-| Click a colored fringe in the photo to pick Color %lld. Thin fringes are easiest at 100% (Z). Press Esc to cancel. | Inspector caption, picking an empty slot | |
+| Click a colored fringe in the photo to pick Color %lld. The magnifier outlines the pixel a click takes. Press Esc to cancel. | Inspector caption, picking an empty slot | Replaces the sentence about 100% (Z) |
 | Color %lld's effect is hidden while you pick. Click a colored fringe, or press Esc to cancel. | Inspector caption, replacing | |
 | That spot has almost no color. Click a colored fringe, or press Esc to cancel. | Inspector caption after a neutral click | |
 | That spot has almost no color. | VoiceOver announcement | |
@@ -746,9 +770,19 @@ new use, as `ui-redesign/design.md` §7 does.
 | Set by hand. Paste and presets copy these values. | Caption, hand-set | |
 | Turn On Automatic Alignment | Undo action name | |
 | Turn Off Automatic Alignment | Undo action name | |
+| Pixel Magnifier | View menu and loupe context submenu title | Shared by every tool that uses it |
+| Pixel magnifier | Inspector row label | Sentence-style (P5) |
+| Pixel magnifier zoom | The pop-up's VoiceOver label | |
+| Zoom of the pixel magnifier. Press - or = while picking to change it. | The pop-up's tooltip and VoiceOver help | |
+| 200%, 400%, 800%, 1600% | The levels (100% is an existing key) | No thousands separator |
+| Pixel Magnifier Zoom In, Pixel Magnifier Zoom Out | Canvas VoiceOver actions | |
+| Pixel magnifier at %@. | VoiceOver announcement after a level change by key, menu or action | %@ is the percentage |
+| R, G, B, L | The plate's four letters | Color channels and luminance; not translated without checking |
+| Almost no color | The plate, line 2, at a spot a click would refuse | Short state, not a sentence |
+| Before edits | The plate, line 2 | The fringe tool's note: what the magnifier draws |
 | %lld photos were left unchanged: their originals could not be read. (one: "%lld photo was left unchanged: its original could not be read.") | Activity warning after a measuring paste or preset (§19 DQ-2) | Plural. First line of the row and what VoiceOver hears; one line per file and "And %lld more." follow |
 
-Reused with no new text: "Showing the photo.", "Reset “%@”", "Turn On %@",
+Reused with no new text: "Zoom In", "Zoom Out", "100%", "Showing the photo.", "Reset “%@”", "Turn On %@",
 "Turn Off %@", "Reset %@", the offline Activity warning, and (§19 DQ-2)
 "%@: the original could not be read." and "And %lld more." (extend their
 comments to name the measuring paste or preset), "Paste Adjustments",
@@ -756,7 +790,7 @@ comments to name the measuring paste or preset), "Paste Adjustments",
 
 ## 13. Custom chrome
 
-None. Every element is an existing component or pattern: `AppKitButton`
+One: the pixel magnifier (§20). Every other element is an existing component or pattern: `AppKitButton`
 `.toggle` with a symbol (as Original's bezel), `AppKitMenuButton` with
 `ellipsis.circle` (the mask rows' ⋯ menu), a system menu section header
 (`NSMenuItem.sectionHeader`, which `AppKitMenuButton.Entry` gains along
@@ -766,6 +800,14 @@ inspector caption `Text`, `CaptionBadge`, a mini `ProgressView`, menu items,
 `NSAccessibilityCustomAction`, and the system crosshair pointer. The map is
 content (a rendered frame in the loupe's image layer). Nothing goes on the
 glass layer.
+
+**Justification for the pixel magnifier (WORKFLOW Rules).** No system component
+shows a photo's own data at a chosen pixel scale beside the pointer. The
+system's color sampler reads display pixels after color management, which R25
+forbids for the reason §4 rejects the color well. It is built as plain drawing
+in the content layer with no interaction of its own, so it forfeits no
+accessibility or control behavior: every control for it is a system pop-up,
+menu or key.
 
 ## 14. The designer's side of OQ1 and OQ2
 
@@ -797,9 +839,11 @@ The technical definition is the engineer's.
 
 ### OQ2: what the person must see (the choice of image is the engineer's)
 
-1. **The color under the crosshair's center when clicked is the color that
-   gets grayed**, at any zoom, whether the loupe shows a live frame, the
-   cached preview, the full-resolution render or an HDR rendition (§4).
+1. **The pixel the magnifier outlines is the pixel a click picks, and its
+   color is the color that gets grayed** (R22, §20), at any zoom, whether the
+   loupe shows a live frame, the cached preview, the full-resolution render or
+   an HDR rendition (§4). At the view's 100% and closer that is the pixel under
+   the crosshair's center.
 2. **A pick keeps finding the same fringe when other adjustments change
    later.** Raising Saturation, changing White Balance or applying a
    look-up table after picking must not make a picked fringe come back or
@@ -840,10 +884,15 @@ The technical definition is the engineer's.
   Zoomed in, it refines at full resolution, as `scheduleMapRefinement`
   does for the map (the refiner already renders an alternate value set at
   full size).
-- **Sampling** (§4, §14): from the photo's data, with the snap radius in
-  screen points converted at the current magnification. A neutrality
-  threshold decides the "almost no color" refusal. One function, tested
-  against scene (a) at fit and at 100% scales.
+- **Sampling** (§4, §14, §20): from the photo's data, by the rule in §4's
+  "Which pixel that is", shared by the click and the magnifier's outline. A
+  neutrality threshold decides the "almost no color" refusal, for the
+  magnifier's reading and the click alike. Tested against scene (a) at fit,
+  100% and 800%. What has to change in the built snap is listed at the end
+  of §20.
+- **Pixel magnifier:** §20. It holds what picking needs within R20, R30 and
+  R36 (prd OQ14 is yours), and takes its image, rule, verdict and note from the
+  tool (R34).
 - **Hue name:** one function from a picked color to the eight Color Mixer
   band names (singular), shared by the row, VoiceOver and the debug script.
   Unit-test each band's center, and that the listed Purple and Green values
@@ -885,7 +934,7 @@ must not (roadmap debug-script-undo-groups). Proposed:
 
 | Command | What it does | Undo group |
 |---|---|---|
-| `adjust fringe pick 1\|2 <x> <y>` | Picks for that slot at unit coordinates of the photo on screen, through the same sampling path a click takes (snap, neutral refusal). Waits for the save | Yes (under `adjust`) |
+| `adjust fringe pick 1\|2 <x> <y>` | Picks for that slot at unit coordinates of the photo on screen, through the same sampling path a click takes (§4's pixel rule, neutral refusal). Waits for the save | Yes (under `adjust`) |
 | `adjust fringe fill 1\|2 purple\|green` | Fills that slot from the list, through the same action as the slot menu's item | Yes |
 | `adjust fringe clear 1\|2` | Clears that slot | Yes |
 | `adjust fringe tolerance 1\|2 <value>` | Sets that slot's Tolerance | Yes |
@@ -895,6 +944,9 @@ must not (roadmap debug-script-undo-groups). Proposed:
 | `fringearm 1\|2\|off` | Arms or disarms an eyedropper, as its button does (shows the replacing preview) | No |
 | `fringemap on\|off\|toggle` | Adjust ▸ Show / Hide Fringe Map's action (reveals Color Fringes, announces), as `sharpenmap` | No |
 | `contextmenu fringe 1\|2 [<item>]` | Prints the slot row's context menu (items, header, enabled state), or runs an item, as the existing `contextmenu` targets do | Yes when it runs a fill or Clear; no when it lists or runs Pick from Photo |
+| `magnifier level <percent>\|up\|down` | Changes the level by the same action as the pop-up (and, for up and down, the keys) | No |
+| `magnifier move <x> <y>` | Puts the pointer's position at unit coordinates of the photo on screen, as a real move would, so a script can read what it would pick | No |
+| `print magnifier` | Visible; level; placement (below or above, right or left) and frame in the window; the outlined pixel's coordinates; R, G, B and L; verdict and line 2's text; ready or not; the photo pixels drawn (coordinates and colors, for AC17 and AC24); device pixels per photo pixel; grid shown; memory held | No |
 | `print fringe` | Each slot: stored color, hue name, Tolerance, swatch color; the slot menu's items with their enabled state; which slot is picking; the last sample's image point and whether it was refused; the cursor the canvas sets at the photo's center; the inspector caption text; the map: asked for, on screen, badge, legend, refining, can show, what it suspended; Color Alignment: automatic, measuring, stored values, caption text | No |
 
 Existing commands cover the rest: `menuitems "Fringe Map"` and `menupress`
@@ -922,7 +974,7 @@ offline warning).
 | DR2a | The list (R1a–R1c): Purple fills a slot in one undo step with no crosshair and no photo click, grays scene (a)'s purple fringe and the disc's rim at its starting Tolerance, and the row then looks exactly as after a pick (swatch, "Purple", Tolerance row, no marker). Green fills the other slot. Choosing a listed color replaces a pick and a pick replaces a listed color; choosing while an eyedropper is armed disarms it; the map stays on and follows; the list stays enabled during a crop session while Pick from Photo dims | `adjust fringe fill`, `menupick` on the slot menu, `contextmenu fringe`, `snapshot`, `print fringe`, `print undo` |
 | DR2b | The whole fringe task with no pointer (AC1a, M2): with Keyboard Navigation on, Tab order of §11 reaches each slot menu; Space opens it, Return chooses; Tolerance steps in its field; Fringe Map toggles with Space; Clear from the slot menu. VoiceOver names the slot menu "Color 1 commands", reads the header and items, and announces "Color 1 set to purple." | `accessibility <role> <n> press`, `accessibility any`; manual with VoiceOver (M2) |
 | DR3 | Picking: the eyedropper and Pick from Photo both arm it; one click picks and disarms; crosshair over the photo only; drag pans while armed; a double-click picks once and stays in the loupe; a click on the surround does nothing; Esc cancels; one undo step per pick and clear, none for arming | `fringearm`, `click`/`drag`/`doubleclick` with an `open` launch, `print fringe`, `print undo` |
-| DR4 | Snap at fit: a click within 2 pt of scene (a)'s purple fringe picks the fringe color, not a mix; a click on a neutral area is refused with the caption and no undo step | `adjust fringe pick`, `print fringe` |
+| DR4 | The pixel rule (replaces the snap check): at 100% and 800%, a click on a pixel beside a stronger fringe pixel takes that pixel, and a click one pixel off a fringe on the light ground is refused with the caption and no undo step; at fit, the most colorful photo pixel under the pointer's screen pixel is taken; the outlined pixel equals the stored sample each time | `magnifier move`, `print magnifier`, `adjust fringe pick`, `print fringe` |
 | DR5 | Replacing: arming a set slot shows the photo without that slot's graying (snapshot of the content area) and the other slot's still applied; Esc restores; zoomed in, the refined frame arrives and the spinner shows only after 0.5 s | `fringearm`, `snapshot`, `print fringe`; manual at 100% on a 24 MP photo |
 | DR6 | Fringe Map: menu item after Sharpening Map, dimmed with no pick, in the grid, during crop, in review, for video, offline and unreadable stacks; title flips; context menu and canvas action listed only when it can act; reveal from a hidden inspector on Info | `menuitems`, `menupress`, `contextmenu loupe`, `accessibility AXImage`, `print fringe` |
 | DR7 | The map is neutral gray in the photo's frame at fit and 100%; badge and legend match the state, "Not Applied" with the group off | `fringemap on`, `snapshot`, `print fringe` |
@@ -933,6 +985,13 @@ offline warning).
 | DR12 | Increase Contrast and Reduce Motion: no new colors, names legible next to dark swatches, no transitions, the reveal jumps | Manual |
 | DR13 | Strings: every §12 key present with its comment; `LocalizationTests` pass; `USER_GUIDE.md` uses §1's terms | `swift test --filter LocalizationTests`; reading |
 | DR14 | Esc order in the loupe: crop session, picking, map, review, loupe | `key escape` per state |
+| DR15 | Magnifier shown beside the crosshair while picking, none over the surround, none for a fill from the list; gone on pick, Esc, another photo, crop, review (AC16); no fade | `fringearm`, `magnifier move`, `print magnifier`, `snapshot` |
+| DR16 | Placement: 136 pt ring and plate below right, flipped at the right and bottom edges with no flicker at the threshold; never clipped at all four corners of a photo filling the canvas (AC24); no pixels beyond the photo or crop, hairline shown | `magnifier move`, `print magnifier`, `snapshot` |
+| DR17 | Picture: outlined pixel at the exact center at every view zoom and level, zoomed out included; hard squares, level ÷ 100 device pixels (AC22); grid at 800% and 1600% only; outline never covers its pixel, reads over white and black (AC17) | `magnifier level`, `print magnifier`, `snapshot`; manual (M3) |
+| DR18 | Plate: four values, level, "Before edits"; on scene (a)'s light ground "Almost no color" with the symbol and dimmed values, before any click (AC21); dashes and a late spinner until ready; nothing changes size | `print magnifier`, `snapshot` |
+| DR19 | Level: inspector pop-up only while picking, between Fringe Map and the caption; `-` and `=` step without wrapping; View ▸ Pixel Magnifier and its checked item; context submenu only while picking; picking stays armed through every path; persisted across photos, slots, relaunch (AC22, AC23) | `magnifier level`, `menuitems "Pixel Magnifier"`, `menupress`, `contextmenu loupe`, `key` |
+| DR20 | No keyboard focus taken, no accessibility element for the magnifier, no announcement on movement; pop-up label and value; canvas actions; announcement on a level change (AC28) | `accessibility`, `print responder`; manual (M3) |
+| DR21 | Increase Contrast: outline, grid and plate as §20 specify. The caption, user guide and strings use §1's and §12's terms | Manual (M3); reading |
 
 ## 17. Requirements issues (ruled)
 
@@ -1134,6 +1193,256 @@ toolbar item. Give the measuring job a `toolbarTitle` fitted by
 Export does with its folder. The popover keeps the full title. "Paste
 Adjustments" needs no fitting.
 
+## 20. Pixel magnifier (R19–R36; OQ12, OQ13)
+
+Designed 2026-11-08 against prd.md rulings 16–22. This section is the
+magnifier's whole design; §1, §3, §4, §8, §11–§16 point here.
+
+**HIG read on 2026-11-08:** Pointing devices ("Consider enhancing the pointer
+experience by displaying custom annotations that provide useful information";
+"Avoid displaying instructional text with a pointer"), Pop-up buttons ("a flat
+list of mutually exclusive options"), Materials ("Don't use Liquid Glass in the
+content layer"), The menu bar. The HIG has no page on a pointer-following
+magnifier. Everything below that isn't quoted is judgment.
+
+### Decisions
+
+**OQ12, the name: Pixel Magnifier** (§1). "Loupe" is the one-photo view, and
+"zoom" alone is the view's. It says what the thing shows, and names no fringe,
+so it fits other tools (R34).
+
+**OQ12, the look: a round picture beside the pointer, not on it,** with a small
+plate of values fixed under the picture and no controls on it. The system
+crosshair stays as the pointer (§4).
+
+**OQ13, the level: no control on the magnifier.** The percentage pop-up the
+owner asked for sits in the inspector, and three second paths lead to the same
+level: keys `-` and `=` while picking, the photo's context menu, and View ▸
+Pixel Magnifier (P2).
+
+### Anatomy
+
+```
+       + ← the system crosshair, on the photo
+          ╭──────────╮
+        ╭─┘          └─╮
+        │              │     picture, 128 pt across, in a 136 pt ring
+        │     [▪]      │     [▪] the outlined pixel, always the center
+        │              │
+        ╰─┐          ┌─╯
+          ╰──────────╯
+       ┌────────────────┐    plate, 136 pt wide, 4 pt under the ring
+       │R182 G 96 B231 L128│  line 1: the values
+       │800%   Before edits│  line 2: the level, and the note or the refusal
+       └────────────────┘
+```
+
+Fixed size in points on every display, no grip (ruling 22). At the starting
+800% on a Retina display the picture is 32 photo pixels across; at 1600%, 16.
+
+### Where it sits (R19, R29)
+
+**Beside the pointer.** The composite (ring and plate, 136 × 176 pt) goes below
+and to the right of the pointer, its nearest corner 20 pt from the hot spot on
+each axis.
+
+Why not centered on the pointer, as a system color sampler is: a ring covers
+about 136 pt of photo and shows far less of it. At fit on a 24 MP photo on a
+Retina display, 800% shows about 3 pt of the view to each side of the pointer,
+so between 3 and 68 pt from it the person can see neither the photo nor the
+magnified pixels. They would steer blind
+toward a line that is a screen pixel wide. Centering would also put the
+crosshair's arms on the outlined pixel, or force hiding the pointer, which
+changes §4 for nothing. Beside it, the person aims on the real photo with the
+precise pointer and reads the truth next to it.
+
+- **At an edge it flips,** as a whole and at once: to the left past the right
+  edge of the loupe's canvas, above the pointer past the bottom edge (8 pt inset).
+  It returns only when the preferred side fits with 24 pt to spare, so it can't
+  flicker at the threshold. The plate stays under the ring in every placement.
+- **Every corner works (R29, AC24).** The composite is never clipped, because
+  it is placed to fit the canvas. If the canvas is too small to fit it on any
+  side, it is clamped inside the canvas, and may then lie under the pointer.
+- It never crosses the inspector, film strip, caption or toolbar.
+- It takes no clicks. A click whose pointer is over its drawing goes to the
+  photo and picks (AC27).
+
+### Picture, grid, outline (R20–R22, R29)
+
+- **The outlined pixel is always the picture's exact center.** Zoomed out,
+  where the pixel a click takes can differ from the middle of the screen pixel
+  (§4), the picture re-centers on the pixel taken. The rule stays one sentence,
+  "the middle square is what you get", the outline can't near the rim at any
+  level (R22), and the picture is moving several photo pixels per pointer step
+  there anyway.
+- **Pixels are hard squares,** nearest-neighbor, their edges on device pixels,
+  level ÷ 100 device pixels wide (R27, AC22).
+- **Grid (R21): at 800% and 1600% only.** One device pixel, mid-gray at 30%
+  opacity, 45% with Increase Contrast. A level is device pixels per photo pixel
+  on any display, so the rule needs no backing-scale case. At 400% a one-pixel
+  line would cover a quarter of each photo pixel. It goes rather than fades,
+  since the five levels are discrete. The grid is drawn over the picture and
+  isn't part of the "pixels drawn" that AC17 compares.
+- **Outline: a two-tone square just outside the pixel.** A 1 pt white line
+  around the pixel's exact edge, then a 1 pt black line around that, in points
+  at every level (2 pt each with Increase Contrast). One tone always shows, over
+  white, black or anything between (R33). It never covers the pixel itself, even
+  at 100% where the pixel is one device pixel.
+- **Beyond the photo or its crop (R29):** the app's surround color
+  (`Palette.loupeBackground`), no pixels, and a one-device-pixel 50% gray
+  hairline along the last drawn pixels, so a dark photo's edge can be seen. With
+  straightening, a pixel is drawn only if its center is inside the crop; the
+  edge is stepped. Quarter turns match the view.
+- **Ring:** a 2 pt light line inside a 1 pt dark line, and a soft shadow. Both
+  tones again, so it separates from any photo. Not glass: this sits in the
+  content layer, and a material would tint what surrounds the pixels being
+  judged.
+
+### The plate (R23, R24, R26, R33)
+
+An opaque dark plate, 8 pt corners, 36 pt tall. Opaque, because small numbers
+have to read over any photo. Colors are fixed, not dynamic: the library window
+is dark in every appearance.
+
+| Line | Content | Type |
+|---|---|---|
+| 1 | Four columns, R, G, B, L: each a 10 pt letter (secondary) and a right-aligned 3-digit value | 11 pt monospaced digits, so nothing shifts as values change |
+| 2 | Left: the level ("800%"). Right: the tool's note ("Before edits") or the refusal | 10 pt |
+
+Both lines are always there, so the plate never changes size under a moving
+eye. Line 2 carries data, never instructions (HIG Pointing devices).
+
+| State | Picture | Line 1 | Line 2, right | Other |
+|---|---|---|---|---|
+| **Normal** | The pixels | Values, primary | "Before edits", secondary | |
+| **Would be refused (R26)** | The pixels | Values, dimmed to secondary (primary with Increase Contrast) | `nosign` symbol and "Almost no color", primary | The outline is unchanged: it still marks the pixel tested |
+| **Pixels not ready (R20)** | Surround color, mini spinner after 0.5 s (SMP §5) | "–" for each value | Nothing | A click still picks, by the same rule |
+
+**Refusal (the product manager's flag).** With the snap gone, a click one pixel
+beside a fringe at 100% is now on gray, and is refused. That is correct, and the
+magnifier makes it knowable first: the word, the symbol and the dimmed numbers
+change on the pixel that would be refused. There is no delay or smoothing, since
+AC21 needs it true of that pixel, and the fixed layout means only text changes.
+The click's own refusal (§4: caption, VoiceOver, eyedropper stays on) is
+unchanged. The symbol and word carry it, so color is never the signal.
+
+### Why it can differ from the photo (R25, ruling 19)
+
+The picture and values are the pre-edit image; the photo around them and the
+slot's swatch (§14 point 3) are as edited. After a strong grade, a fringe can be
+pink in the photo, purple in the magnifier, and pink again as a swatch. That is
+true and useful, but looks like a bug if unexplained, so the note **"Before
+edits"** is always on the plate, for the tool's whole session: no condition to
+compute, no flicker, and it sits where the puzzle arises. A raw's White Balance
+and Profile are in that image (§19 DQ-1), so the phrase is slightly generous for
+them. That is harmless: the case it explains is a difference, and those two
+don't cause one.
+
+### The level (R27, R28; OQ13)
+
+Five levels: 100%, 200%, 400%, 800%, 1600%, written without a thousands
+separator. One preference on this Mac (`pixelMagnifier.level`, `UserDefaults`,
+as the app's other view settings), starting at 800%, any unknown stored value
+read as 800%. Never in a stack, a library or an undo step (R31).
+
+| Surface | What | When | Why it's there |
+|---|---|---|---|
+| **Inspector** | "Pixel magnifier" row with an `AppKitPopUp` of the five levels (§3), in `LabeledPopUp`'s layout | Only while a slot is picking | The owner's drop-down, showing the level. Keyboard Navigation and VoiceOver reach it. It's a pop-up because the levels are mutually exclusive (HIG) |
+| **Keys** | `=` steps up, `-` steps down, no wrap. `+` counts as `=` on layouts that need Shift. Text fields keep the keys | Picking, loupe has the keyboard | Changes the level with the pointer still on the fringe, and the result visible. The same keys as the view's zoom, without ⌘. ⌘= / ⌘− are untouched (R32). `[` `]` are the rating |
+| **Context menu (loupe)** | **Pixel Magnifier** ▸ the five levels, the current one checked, after Show / Hide Fringe Map | Listed only while picking | Pointer-only people, at the point of use. Picking stays on (§4). The magnifier stays where it was while the menu is open and updates when a level is chosen |
+| **Menu bar** | **View ▸ Pixel Magnifier** ▸ Zoom In (`=`), Zoom Out (`-`), a separator, the five levels with the current one checked. After Zoom Out | Dimmed unless picking. Zoom In dims at 1600%, Zoom Out at 100%. The two key items also need the loupe to have the keyboard | P1, Help ▸ Search, Control-F2 at default settings. It's in View because it changes how something is viewed, unlike the fringe map's Adjust step. N10 doesn't apply: that is a mask's parameter, and this is an app-wide view setting |
+| **VoiceOver (loupe canvas)** | Custom actions **Pixel Magnifier Zoom In / Out** | Listed when they can act, while picking | R33, AC28 |
+
+Why there's no control on the magnifier: anything riding on it runs from the
+pointer, and a magnifier held still to reach one would break R19.
+
+The inspector row appears between the Fringe Map toggle and the caption, so
+only the caption moves when it does. A person moving to it leaves the photo, so
+the magnifier hides until they return; the row and the plate both show the level.
+
+### When it shows
+
+Shows when a tool is picking, the window is key, and the pointer is over the
+photo: the same rect as the crosshair. No fade, in or out: it should feel
+attached (R36), and Reduce Motion needs no special case.
+
+| Situation | Behavior |
+|---|---|
+| Pointer over the surround, inspector, film strip, or leaves the window; window not key | Hidden; picking stays on (AC16) |
+| Pick, Esc, moving to another photo, a crop session, entering review | Picking ends, so it goes (R19) |
+| Pointer still; the photo pans, zooms, or the sampled image changes (Color Alignment, undo) | Updates to what a click would now take (R30) |
+| Drag to pan | Stays and follows |
+| Replacing a filled slot, Fringe Map suspended, a live frame on screen | No difference: it draws the sampled image, which never contains the slot's graying (§14 point 4) |
+| Filling from the list | Never shown (AC16) |
+| HDR photo | Standard range; values read 255 at the top (R23; prd Assumptions) |
+| Window moves to a display of another scale | Same level, same point size, redrawn for that display (AC22, M3) |
+| Touch alone on a touch-display Mac | No hover, so none shown; a tap picks by §4's rule |
+
+### Built to be reused (R34)
+
+The magnifier knows nothing about fringes. A tool gives it:
+
+1. the **image to sample** (pixels, in the orientation the view shows);
+2. its **pick rule**: from the pointer's position and the view's scale, which
+   pixel a click takes;
+3. a **verdict** for that pixel: fine, or refused with a short state string;
+4. an optional **note** for line 2 ("Before edits"), or none.
+
+The level preference, the keys, the menu items, the context submenu and the
+inspector row are the magnifier's own, and a tool only says it is picking. The
+row is one shared view that a tool places in its own inspector section. For the
+fringe tool, 2 and 3 are `FringePicker`'s rule and `ColorFringes.neutralChroma`.
+
+### What was left out, and the reference
+
+- **No fade, resize, off switch, value copying or arrow-key nudging** (non-goals).
+- **Clean room.** The reference shows function only. Unlike it: no thick dark
+  ring (a thin two-tone edge), values on a plate outside the picture so they
+  hide no pixels, a two-tone outline rather than a white square, no control on
+  the object, and no resize grip. The words are this app's own.
+
+### What has to change in what's built (engineer)
+
+The picking path changes as ruling 18 says. **R1's snap and its test are
+replaced, not kept beside this.**
+
+- `FringePicker`: remove `snapRadius` and the search by radius. New rule (§4):
+  at the view's 100% or closer, the pixel under the pointer, even if a neighbor
+  is more colorful; zoomed out further, the most colorful photo pixel under the
+  pointer's device pixel, ties going to the one nearest its middle.
+  `sample(…radiusInWidths:…)` follows. The click and the outline call one
+  function, so they can't disagree (AC18).
+- `ColorFringesTests`: `pick(_:_:in:radius:)`'s default `radius: 3`, and the test
+  "A click within 2 pixels of a thin fringe picks the fringe, a neutral spot is
+  refused", go. In its place: at 100%, a click one pixel beside the fringe on the
+  light ground is refused and a click on a fringe pixel beside a stronger one
+  takes that pixel; at fit, the most colorful pixel under the device pixel; the
+  neutral refusals stay. Anything else that clicks near a fringe through that
+  helper now aims at a fringe pixel.
+- `status.md`: the "R1 snap and refusal" row and the "Picking" line of "How it is
+  built".
+- `USER_GUIDE.md`, line 250. Replace "the pointer is a crosshair over the photo,
+  the click takes the most colorful pixel within a few points of it (thin fringes
+  are easiest at 100%, Z), and the slot then shows a swatch and the color's name."
+  with:
+
+  > the pointer is a crosshair over the photo, and the **pixel magnifier** beside
+  > it shows the photo's own pixels, with an outline around the one a click takes
+  > and that pixel's R, G, B and L values (0–255, Display P3). At 100% and closer
+  > that is the pixel under the pointer; zoomed out further, the most colorful
+  > pixel under it. The slot then shows a swatch and the color's name.
+
+  After "the eyedropper stays on.", add:
+
+  > When the magnifier reads **Almost no color**, a click there won't be taken.
+  > It shows the photo before your edits, so its colors can differ from the photo
+  > around it and from the slot's swatch. Change its zoom with the **Pixel
+  > magnifier** pop-up under the slots, **View ▸ Pixel Magnifier**, the photo's
+  > context menu, or `-` and `=` while picking; the app remembers it.
+
+  The key table gets a row: `- and =` | (grid: empty) | "while picking a color,
+  pixel magnifier zoom out / in".
+
 ## Revisions
 
 - 2026-11-07: First version, against prd.md as approved 2026-11-07.
@@ -1162,3 +1471,11 @@ Adjustments" needs no fitting.
   command, a new plural summary line followed by the export's per-file lines
   and "And N more.". DQ-3: the command's own title confirmed, with a fitted
   toolbar title for Apply Preset. §10, §12 and §14 point 2 updated to match.
+- 2026-11-08: Designed the pixel magnifier (prd rulings 16–22, R19–R36, OQ12,
+  OQ13) in the new §20: named Pixel Magnifier; a round picture beside the
+  pointer with a values plate under it and no controls on it; the level in a
+  pop-up in the inspector while picking, with `-` / `=`, the context menu and
+  View ▸ Pixel Magnifier as second paths. The 3-point snap is removed from §4
+  (ruling 18), and §15, DR4 and the picking caption follow. §1, §3, §4, §8, §11,
+  §12, §13 (the first custom chrome here, justified), §14 point 1, §15 and §16
+  (DR15–DR21) are revised.
