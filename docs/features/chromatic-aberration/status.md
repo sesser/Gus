@@ -7,9 +7,9 @@ stitchable-kernels spike (`1b537e0`).
 
 **Status: Done.** Every requirement and acceptance criterion is built and
 has a test or a debug-script check below; M1 and M2 are the manual checks
-the PRD names. Design questions DQ-1 to DQ-3 and requirements issue RI-E1
-are open for their owners; none blocks a criterion (each describes what is
-built meanwhile). Next: code-reviewer and the designer review, then qa-tester.
+the PRD names. The design questions and requirements issues are ruled
+(design.md §19, prd.md revisions of 2026-11-08) and their changes are built.
+Next: code-reviewer and the designer review, then qa-tester.
 
 States: Not started · In progress · Done · Blocked · Deferred.
 
@@ -125,6 +125,8 @@ scene's sky.
 | R15, AC12 | `ColorFringesTests` "AC12" (DNG, JPEG, HEIC, TIFF of scene (a): under 20% of the fringes' chroma stays); videos: the Adjust tab shows "No Adjustments for Videos", unchanged | Done |
 | R16, AC13 | `ColorAlignmentTests` "AC13" (two scalings measured to their own values; hand-set values copied); debug script: a grid paste measured each online photo (fringes.dng, fringes.tif, fringe-subjects.tif got their own values) | Done |
 | R16a, AC13a | Debug script: grid paste of automatic alignment onto a selection with an offline original: its render hash stayed `6c76a50e…` (identity), Activity "1 photo was left unchanged: its original is offline.", one undo step "Paste Adjustments" | Done |
+| R16a, unreadable originals (design §19 DQ-2) | Debug script: the same paste with two originals overwritten by junk: after the offline row, one warning row "Paste Adjustments": "2 photos were left unchanged: their originals could not be read." then one line per file; one undo step | Done |
+| R16, AC13b (RI-E2) | `LensPresetTests` ×3: a stored preset with no group list, and a preset file with no `groups` key, clear the slots and alignment; a group list without the Lens groups keeps them. Debug script: an imported pre-feature file ("All settings") applied to a scene (a) photo with both slots and automatic alignment cleared them as one undo step, "Apply Preset Older", and one undo restored them | Done |
 | R17, AC14 | `LensCommandTests` "AC14" | Done |
 | R18, AC15 | `photobench edits`, below | Done |
 | M1 | Real photos: for a person, later (not blocking) | Pending (owner) |
@@ -182,49 +184,35 @@ background when the first photo opens.
    (−4.47): its demosaic offsets channels, which the scene files show but
    real raw decoders do not.
 
-## Design questions
+## Design questions (ruled, design.md §19, 2026-11-08)
 
-**DQ-1 (§14 OQ2 point 2): a raw's own white balance comes before the fringe
-step.** For raws the decoder applies white balance (and Profile's look);
-the fringe step can only follow it. A large white balance change shifts a
-fringe's hue, and a pick can then stop matching. Every later adjustment is
-held as §14 asks.
-- A: accept; the user guide says to pick again after a large change to a
-  raw's white balance. **Built.** No cost.
-- B: compensate: estimate the decoder's per-channel change between the
-  white balance at pick time and now (von Kries) and move the stored color
-  with it. Store the pick's white balance with the slot. Approximate; a few
-  days with tests; a mismatch there would silently move the range.
-- C: sample and gray on a second decode at as-shot white balance. Doubles
-  the decode cost of every render with fringes; ruled out by R18.
-Recommendation: A, revisited after M1.
+- **DQ-1, a raw's White Balance and Profile come before the fringe step:**
+  option A, as built. The user guide's sentence is now the one §19 gives.
+- **DQ-2, unreadable originals in a measuring paste or preset:** one warning
+  row per command, titled with its undo name: the new plural line ("%lld
+  photo(s) was/were left unchanged: its/their original(s) could not be
+  read.", what VoiceOver hears), then the export's per-file line up to
+  `ExportActivityReport.failureListLimit` and "And %lld more.". Posted once
+  when measuring ends, nothing on Stop, after the offline row
+  (`changeAdjustmentsMeasuringAlignment`, `unreadableDetail`). Built and
+  checked (table above).
+- **DQ-3, the Activity title while measuring:** confirmed as built. Apply
+  Preset's job now has a toolbar title fitted with
+  `ToolbarMetrics.statusLine` (the preset's name shortened in the middle);
+  the popover keeps the full title. Not checked by the debug script: the
+  script's `preset apply` waits for the measuring to end inside its undo
+  group, so the job is never on screen when it prints. A person can see it
+  by applying a preset with a long name and Align automatically to several
+  photos.
 
-**DQ-2 (§10): unreadable originals in a measuring paste or preset.** R16a
-leaves them unchanged and says so; §10 gives the offline string only. Built:
-one Activity warning per photo with the export's existing "‹name›: the
-original could not be read.", and in the loupe "This photo could not be
-measured." Options: keep it, or a summary string like the offline one
-("‹N› photos were left unchanged: their originals can't be read.", new).
-Recommendation: the summary string, for parity with offline.
+## Requirements issues (ruled, prd.md revisions of 2026-11-08)
 
-**DQ-3 (§10): Activity's title while a paste or preset measures.** Built:
-the command's own title ("Paste Adjustments", "Apply Preset ‹name›") with the
-existing "‹n› of ‹m›" detail, and Stop. Confirm, or name a title.
-
-## Requirements issues
-
-**RI-E1: soft rims beyond the fixed rule.** The fixed edge rule (OQ1)
-catches rims whose brightness falls over up to about 60 full-size pixels.
-Very defocused highlights can be softer. PRD OQ1 already makes an adjustable
-rule a follow-up after M1; noting it so M1 checks soft bokeh specifically.
-
-**RI-E2: presets saved with every group now include the Lens groups.** A
-preset that stored "every group" (no group list) reads as all groups, which
-now includes Color Fringes and Color Alignment at their defaults, so applying
-an older such preset clears a photo's fringe slots and alignment. Options: A
-accept (every group means every group; built); B record the groups a preset
-had when saved before this feature (a migration of the `groups` column).
-Recommendation: A.
+- **RI-E1, soft rims beyond the fixed edge rule:** accepted as built; M1 now
+  checks soft bokeh rims. No change.
+- **RI-E2, presets saved with every group:** option A, as built; new AC13b
+  (tested above), and the user guide's Presets paragraph says that a preset
+  with all settings, older ones included, replaces Color Fringes and Color
+  Alignment, and that Manage Presets… can take them out.
 
 ## README
 
@@ -252,8 +240,9 @@ Recommendation: A.
 
 ## Latest run
 
-2026-11-08, at `5df43cc`: `swift build` clean, no warnings; `swift test`
-**606 tests in 105 suites passed, 1 known issue** (the pre-existing one in
-"Live render session"). Goldens unchanged, no pipeline version bump,
-`UPDATE_GOLDENS` never run. `Scripts/build-app.sh` built the bundle; the
-debug-script checks above ran on a copy of it.
+2026-11-08, after the rulings (at the commit that records this): `swift
+build` clean, no warnings; `swift test` **609 tests in 106 suites passed, 1
+known issue** (the pre-existing one in "Live render session"). Goldens
+unchanged, no pipeline version bump, `UPDATE_GOLDENS` never run. The bundle
+from `Scripts/build-app.sh` ran the debug-script checks for DQ-2 and AC13b
+on a copy with its own identifier and a scratch library (`--library-root`).
