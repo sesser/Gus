@@ -2,9 +2,9 @@
 
 Status: R1–R18 Approved (owner, 2026-11-07) and built (status.md); PR #48
 open, CI green, reviews not started. R19–R36, the pixel magnifier added by
-the owner: Approved (owner, 2026-11-08), not yet designed or built. Next is
-the designer (OQ12, OQ13), then the engineer (OQ14). The feature as a whole
-is no longer Done, and the reviews run once the magnifier is built.
+the owner: Approved (owner, 2026-11-08), designed (design.md §20) and built
+(status.md), with one test still owed for AC19 (Revisions, 2026-11-08). The
+reviews run once that test is in.
 Slug: chromatic-aberration
 Roadmap: Now
 
@@ -286,13 +286,14 @@ A click never picks any other pixel, and the 3-point snap is gone at every
 zoom (ruling 18). At the view's 100% and closer, the outlined pixel is exactly
 the one under the pointer. Zoomed out further, where one screen pixel covers
 several photo pixels, it is the most colorful of the photo pixels under that
-one screen pixel, so a thin fringe stays reachable at fit and the outline can
-sit a pixel or two off center. A click made before the magnifier's pixels are
+one screen pixel, so a thin fringe stays reachable at fit. Where the outline
+sits in the picture is the designer's (design.md §20 keeps it centered). A
+click made before the magnifier's pixels are
 ready (R20) follows the same rule. The outlined pixel is always inside the
 magnifier and inside the photo.
 
-R23 (Must): Beside the outline, the magnifier shows the outlined pixel's
-R, G and B values. They are the same data a click would use, converted for
+R23 (Must): With its picture, the magnifier shows the outlined pixel's
+R, G and B values, where they hide none of the picture's pixels. They are the same data a click would use, converted for
 reading; a pick stores the full-precision color as it does today. They are
 integers from 0 to 255, as in the owner's reference, in Display P3 (the app's
 output space) with its usual tone curve. Values beyond that range
@@ -543,8 +544,12 @@ step beyond the pick's one. Every golden, the hash-stability corpus and the
 pipeline version are unchanged (AC8).
 
 AC27 (R32): With the magnifier showing, every row of design §4's "Mouse and
-keys while picking" table still passes as DR3 checks it. A click whose
-pointer is over the magnifier's own drawing picks.
+keys while picking" table still passes as DR3 checks it. The magnifier takes
+no clicks: with it showing, the debug script's `hit` over its drawing reaches
+the photo. It sits beside the pointer, so a click can land on its drawing
+only when the canvas is too small to fit it on any side and it is clamped
+under the pointer (design.md §20). That real click, which picks, is part of
+M3.
 
 AC28 (R33): The `accessibility` command lists no element for the magnifier.
 The level can be read and changed with the keyboard and through the
@@ -582,12 +587,13 @@ scene (a) photo, a person fills both slots from the list, changes each
 range, shows and hides what the feature affects, and clears a slot. Each
 step is announced understandably. QA lists it under "For a person".
 
-M3 (manual, R19, R21, R27, R33, R36): on a real raw, on a Retina display
+M3 (manual, R19, R21, R27, R32, R33, R36): on a real raw, on a Retina display
 and on a standard one if available, and after moving the window between
 them: the magnifier feels attached to the pointer, the level can be changed
 in practice while picking, and the outline and values read clearly over
-bright, dark and busy content, and with Increase Contrast. QA lists it under
-"For a person".
+bright, dark and busy content, and with Increase Contrast. With the window
+small enough that the magnifier lies under the pointer, a click there picks.
+QA lists it under "For a person".
 
 ## Non-goals
 
@@ -706,8 +712,8 @@ straightening was not shown. Correct any of these freely.
   and the range it starts with (R1c), set from the reference against
   scene (a), not by trial.
 
-Pixel magnifier. The owner's six are closed (2026-11-08, "Defaults are
-fine."); the designer's and the engineer's are open.
+Pixel magnifier. All closed. The owner's six closed on 2026-11-08 ("Defaults
+are fine.").
 
 - **OQ6 (owner): closed.** Ruling 17: the fringe eyedropper only, built
   reusable and proved by a test tool (R34, R35, AC29, AC30). The question as
@@ -726,18 +732,22 @@ fine."); the designer's and the engineer's are open.
   question as it was asked: show L?
 - **OQ11 (owner): closed.** Ruling 22: no grip, a fixed small size. The
   question as it was asked: resize grip?
-- **OQ12 (designer):** the look and the name people see (not "loupe"):
-  whether it sits on the pointer or beside it, its size ("small"), how the
-  crosshair and the outline relate, where the values go, how it marks a
-  refused spot (R26), and where the grid fades (R21). The reference shows
-  function only.
-- **OQ13 (designer):** how the percentage list is reached. A control riding
-  on a window that follows the pointer can't be reached with that pointer,
-  so the reference's placement doesn't carry over as it stands. It also
-  needs a keyboard and VoiceOver route (R33).
-- **OQ14 (engineer):** how the sampled pixels are held while picking within
-  R20, R30 and R36, and confirming R23's and R24's conversions against a CPU
-  reference.
+- **OQ12 (designer): closed.** Answered in design.md §20: named Pixel
+  Magnifier, a round picture beside the pointer with a plate of values
+  under it. The question as it was asked: the look and the name people see
+  (not "loupe"): whether it sits on the pointer or beside it, its size, how
+  the crosshair and the outline relate, where the values go, how it marks
+  a refused spot (R26), and where the grid fades (R21).
+- **OQ13 (designer): closed.** Answered in design.md §20: no control on the
+  magnifier; the percentage pop-up is in the inspector, with keys `-` and
+  `=` while picking, the photo's context menu and the View menu as other
+  paths. The question as it was asked: how the percentage list is reached,
+  since a control on a window that follows the pointer can't be reached with
+  that pointer, and its keyboard and VoiceOver route (R33).
+- **OQ14 (engineer): closed.** Answered in status.md ("OQ14, holding the
+  pixels while picking"). The question as it was asked: how the sampled
+  pixels are held while picking within R20, R30 and R36, and confirming
+  R23's and R24's conversions against a CPU reference.
 
 ## Revisions
 
@@ -864,3 +874,29 @@ fine."); the designer's and the engineer's are open.
   `pick-colors-magnifier`. Assumptions now says which ones the owner saw
   without objecting; none of them is a ruling. OQ12 and OQ13 (designer) and
   OQ14 (engineer) stay open. Next: apple-ui-designer.
+- 2026-11-08: rulings on the designer's three wording issues, and on one
+  check the engineer reported, after the magnifier was built. The
+  requirements stay Approved; none of these widens the owner's scope.
+  - **R23, "beside the outline": reworded to match design.md §20.** OQ12
+    left placement to the designer, and the owner asked for values with the
+    picture, not for a position. A plate under the picture hides no pixels,
+    which is now what R23 asks.
+  - **R22, "a pixel or two off center": removed.** It described a consequence
+    I expected, not a requirement. The design and the build re-center the
+    picture on the pixel taken, so the outline stays centered. The rule for
+    which pixel is taken doesn't change.
+  - **AC27, a click over the magnifier's drawing: split.** The debug
+    script's `hit` confirms the magnifier takes no clicks. A real click can
+    land on it only when the magnifier is clamped under the pointer, so that
+    click moves to M3 as a person's check. R32 is unchanged.
+  - **AC19's look-up table case: not satisfied as written; a test is
+    needed.** AC19 names Exposure, Saturation, a look-up table and filling
+    the other slot. The tests run only the first two. The code supports the
+    engineer's argument (`fringeInput` depends only on Color Alignment), but
+    the criterion exists to check that claim, so it can't be met by the claim.
+    The engineer adds a look-up table and a filled other slot to the existing
+    AC19 test ("Color Alignment changes the sampled image"). AC19's text is
+    unchanged. The other slot matters most: it is the "before any graying"
+    half of R25.
+  - **OQ12, OQ13 and OQ14 are closed,** answered by design.md §20 and
+    status.md. The Status line now says the magnifier is designed and built.
