@@ -77,6 +77,9 @@ enum RenderCommands {
                     object["type"] = "points"
                 case .boolean:
                     object["type"] = "boolean"
+                case .okLabColor:
+                    object["type"] = "color"
+                    object["names"] = .array(CommonFringeColor.allCases.map { .string($0.rawValue) })
                 }
                 return .object(object)
             }),

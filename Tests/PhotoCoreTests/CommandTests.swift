@@ -303,6 +303,8 @@ struct AdjustmentParameterTests {
             return .list([0, 0.1, 1, 0.9].map(EditParameter.number))
         case .boolean:
             return .bool(parameter.defaultValue != .bool(true))
+        case .okLabColor:
+            return .list([0.6, 0.1, -0.15].map(EditParameter.number))
         }
     }
 

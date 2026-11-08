@@ -65,6 +65,8 @@ struct AdjustmentsModelTests {
         var adjustments = full()
         // Not in `full()`, whose render hash is a golden value.
         adjustments.colorMixer[.blue] = .init(hue: 10)
+        adjustments.colorFringes.slot1 = CommonFringeColor.purple.slot
+        adjustments.colorAlignment = ColorAlignment(red: 5)
         for section in Adjustments.Section.allCases {
             #expect(adjustments.isModified(section))
             adjustments = adjustments.resetting(section)

@@ -3,7 +3,8 @@ import CoreImage.CIFilterBuiltins
 
 /// Renders `Adjustments` with built-in Core Image filters.
 ///
-/// The order is fixed, whatever the order of operations in the stack: the
+/// The order is fixed, whatever the order of operations in the stack: color
+/// alignment and fringe removal (on the decoded image, `LensRenderer.swift`), the
 /// turns, straightening and crop, white
 /// balance (non-RAW; RAW files get it from the decoder), exposure, highlights and
 /// shadows, dehaze, clarity, the tone table (contrast, whites, blacks, curves),
@@ -69,11 +70,12 @@ public struct AdjustmentRenderer: EditStackRenderer {
         return adjustments.crop
     }
 
-    /// Turns, straightening, crop and every global module before the masks
-    /// (through color grading): the image the mask step starts from and its
-    /// ranges select on. `adjustments` are the effective ones.
+    /// The Lens heading's steps (before the crop, `lens`), turns,
+    /// straightening, crop and every global module before the masks (through
+    /// color grading): the image the mask step starts from and its ranges
+    /// select on. `adjustments` are the effective ones.
     public func upstream(_ adjustments: Adjustments, to input: CIImage, crop: Crop, context: RenderContext) -> CIImage {
-        let image = crop.apply(to: input)
+        let image = crop.apply(to: Self.lens(adjustments, input, context: context))
         return globalSteps(adjustments, image, extent: image.extent, context: context, estimates: nil)
     }
 
@@ -938,6 +940,9 @@ extension Adjustments {
         var settings = RAWDecodeSettings()
         // The crop's rectangle and the masks are in the frame of the whole sensor.
         settings.fullFrame = !crop.isIdentity || !local.renderedMasks.isEmpty
+            // Color alignment is centered on the lens's axis, the middle of the
+            // whole sensor, whatever the camera cropped (R9).
+            || !colorAlignment.isIdentity
         if whiteBalance.preset != .asShot {
             settings.temperature = whiteBalance.temperature.map(Float.init)
             settings.tint = whiteBalance.tint.map(Float.init)

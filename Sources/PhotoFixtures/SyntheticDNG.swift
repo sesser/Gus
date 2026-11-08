@@ -47,9 +47,13 @@ public enum SyntheticDNG {
         /// Vertical stripes `period` pixels wide, alternating between two greys
         /// (sRGB 0.25 and 0.75): flat areas and sharp edges, every row alike.
         case stripes(period: Int)
+        /// A synthetic `TestScene` at the mosaic's size, as sRGB.
+        case testScene(TestScene)
 
         func image(width: Int, height: Int, seed: UInt64) -> CGImage? {
             switch self {
+            case .testScene(let scene):
+                return scene.image(width: width, height: height).cgImage(colorSpace: CGColorSpace(name: CGColorSpace.sRGB)!)
             case .pattern:
                 return SyntheticImages.makeImage(width: width, height: height, seed: seed)
             case .stripes(let period):

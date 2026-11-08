@@ -830,6 +830,8 @@ enum AdjustText {
         case .lookTable: String(localized: "Look-Up Table")
         case .vignette: String(localized: "Vignette", comment: "Adjust tab group")
         case .grain: String(localized: "Grain", comment: "Adjust tab group")
+        case .colorFringes: String(localized: "Color Fringes", comment: "Adjust tab group under Lens: picked fringe colors turned gray near high-contrast edges")
+        case .colorAlignment: String(localized: "Color Alignment", comment: "Adjust tab group under Lens: lines up red and blue with green toward the corners")
         }
     }
 
@@ -839,6 +841,7 @@ enum AdjustText {
         case .develop: String(localized: "Light", comment: "Adjust tab heading: profile, white balance, tone, presence")
         case .tone: String(localized: "Tone Curve", comment: "Adjust tab heading")
         case .details: String(localized: "Details", comment: "Adjust tab heading")
+        case .lens: String(localized: "Lens", comment: "Adjust tab heading for lens corrections: color fringes, color alignment")
         case .colorMixer: String(localized: "Color Mixer", comment: "Adjust tab heading")
         case .colorGrading: String(localized: "Color Grading", comment: "Adjust tab heading")
         case .effects: String(localized: "Effects", comment: "Adjust tab heading")

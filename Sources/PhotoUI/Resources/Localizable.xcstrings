@@ -2420,6 +2420,28 @@
         }
       }
     },
+    "Color Alignment" : {
+      "comment" : "Adjust tab group under Lens and preset group: lines up red and blue with green toward the corners",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color Alignment"
+          }
+        }
+      }
+    },
+    "Color Fringes" : {
+      "comment" : "Adjust tab group under Lens and preset group: picked fringe colors turned gray near high-contrast edges",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color Fringes"
+          }
+        }
+      }
+    },
     "Color Grading" : {
       "comment" : "Adjust tab heading",
       "localizations" : {
@@ -5336,7 +5358,7 @@
       }
     },
     "Lens" : {
-      "comment" : "Inspector info row and template token",
+      "comment" : "Inspector info row and template token; Adjust tab heading for lens corrections: color fringes, color alignment",
       "localizations" : {
         "en" : {
           "stringUnit" : {
