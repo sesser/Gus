@@ -252,4 +252,8 @@ Recommendation: A.
 
 ## Latest run
 
-Filled at the end of the work.
+2026-11-08, at `5df43cc`: `swift build` clean, no warnings; `swift test`
+**606 tests in 105 suites passed, 1 known issue** (the pre-existing one in
+"Live render session"). Goldens unchanged, no pipeline version bump,
+`UPDATE_GOLDENS` never run. `Scripts/build-app.sh` built the bundle; the
+debug-script checks above ran on a copy of it.
