@@ -22,6 +22,7 @@ enum SceneFiles {
             ("fringe-subjects", TestScene.fringeSubjects.image(width: width, height: height)),
             ("lateral-color", TestScene.lateralColor(width: width, height: height)),
             ("lateral-color-2", TestScene.lateralColor(width: width, height: height, red: -0.002, blue: 0.0025)),
+            ("pixel-grid", TestScene.pixelGrid.image(width: width, height: height)),
         ]
         for (name, image) in scenes {
             guard let cgImage = image.cgImage(colorSpace: space) else { continue }

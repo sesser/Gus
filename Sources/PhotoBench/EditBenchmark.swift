@@ -53,6 +53,11 @@ enum EditBenchmark {
             var fringeTolerance: [Double] = []
             var fringeMap: [Double] = []
             var alignment: [Double] = []
+            // The pixel magnifier (chromatic-aberration R36, AC31).
+            var magnifierFirstPixels: [Double] = []
+            var magnifierUpdate: [Double] = []
+            var magnifierHeldMB: [Double] = []
+            var saturationWithMagnifier: [Double] = []
             for url in urls where load == nil {
                 identity.append(try await measure { _ = try generator.jpegData(source: url, stack: .identity, tier: .preview) }.1.milliseconds)
                 edited.append(try await measure { _ = try generator.jpegData(source: url, stack: stack, tier: .preview) }.1.milliseconds)
@@ -85,6 +90,35 @@ enum EditBenchmark {
                     alignment.append(try await measure { _ = try await session.render(values, interactive: true) }.1.milliseconds)
                 }
                 values = typical
+                // Arming: the held pixels, on a context of their own as in the app.
+                let magnifierGenerator = generator.withEngine(RenderEngine(contextCount: 1, name: "pixel-magnifier"))
+                var held: FringeSamplePixels?
+                magnifierFirstPixels.append(try await measure {
+                    held = try FringePicker.samplePixels(source: url, values: values, generator: magnifierGenerator)
+                }.1.milliseconds)
+                if let pixels = held {
+                    magnifierHeldMB.append(Double(pixels.byteCount) / 1_048_576)
+                    let tool = FringeMagnifierTool(pixels: pixels, crop: Crop())
+                    for frame in 0..<frames {
+                        let unit = CGPoint(x: 0.3 + Double(frame) * 0.01, y: 0.4)
+                        magnifierUpdate.append(try await measure {
+                            let scale = tool.outputPixelWidth / 2560
+                            if let reading = PixelMagnifier.reading(tool: tool, at: tool.position(forOutput: unit),
+                                                                    photoPixelsPerDevicePixel: scale) {
+                                let picture = PixelMagnifier.picture(image: tool.image, center: reading.pixel,
+                                                                     level: .standard, deviceSize: 256)
+                                _ = picture.bitmap(surround: (24, 24, 24))
+                            }
+                        }.1.milliseconds)
+                    }
+                    for frame in 0..<frames {
+                        values.presence.saturation = 25 + Double(frame)
+                        saturationWithMagnifier.append(try await measure {
+                            _ = try await session.render(values, interactive: true)
+                        }.1.milliseconds)
+                    }
+                    values = typical
+                }
                 if SupportedFormats.isRaw(pathExtension: url.pathExtension) {
                     for frame in 0..<4 {
                         values.whiteBalance = WhiteBalance(preset: .custom, temperature: 4000 + Double(frame) * 500, tint: 0)
@@ -97,9 +131,12 @@ enum EditBenchmark {
                                    ("live first frame", firstFrame), ("live next frame", nextFrames),
                                    ("live white balance", decodeChanges), ("live saturation", saturation),
                                    ("live fringe tolerance", fringeTolerance), ("live fringe map", fringeMap),
-                                   ("live color alignment", alignment)] where !values.isEmpty {
+                                   ("live color alignment", alignment),
+                                   ("magnifier first pixels", magnifierFirstPixels), ("magnifier update", magnifierUpdate),
+                                   ("magnifier held MB", magnifierHeldMB),
+                                   ("saturation, magnifier held", saturationWithMagnifier)] where !values.isEmpty {
                 let stats = Stats(values)
-                print("  \(name.padding(toLength: 22, withPad: " ", startingAt: 0)) \(stats.line)")
+                print("  \(name.padding(toLength: 27, withPad: " ", startingAt: 0)) \(stats.line)")
                 entry[name] = stats.dictionary
             }
             results[format] = entry

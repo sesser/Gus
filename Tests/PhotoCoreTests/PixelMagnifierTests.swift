@@ -151,7 +151,8 @@ struct PixelMagnifierTests {
                     for y in y0..<(y0 + picture.cellSize) {
                         for x in x0..<(x0 + picture.cellSize) {
                             let i = (y * deviceSize + x) * 4
-                            #expect(Int(bitmap[i]) == expected.r && Int(bitmap[i + 1]) == expected.g && Int(bitmap[i + 2]) == expected.b)
+                            let drawn = Values(r: Int(bitmap[i]), g: Int(bitmap[i + 1]), b: Int(bitmap[i + 2]), l: expected.l)
+                            #expect(drawn == expected)
                         }
                     }
                 }
@@ -288,13 +289,19 @@ struct PixelMagnifierTests {
         let canvas = CGSize(width: 1000, height: 700)
         let size = PixelMagnifierLayout.compositeSize
         let free = PixelMagnifierPlacement.place(pointer: CGPoint(x: 100, y: 100), canvas: canvas, previous: nil)
-        #expect(free.origin == CGPoint(x: 120, y: 120) && !free.isLeftOfPointer && !free.isAbovePointer)
+        #expect(free.origin == CGPoint(x: 120, y: 120))
+        #expect(!free.isLeftOfPointer)
+        #expect(!free.isAbovePointer)
         let corner = PixelMagnifierPlacement.place(pointer: CGPoint(x: 990, y: 690), canvas: canvas, previous: nil)
         #expect(corner.isLeftOfPointer && corner.isAbovePointer)
         for pointer in [CGPoint(x: 0, y: 0), CGPoint(x: 1000, y: 0), CGPoint(x: 0, y: 700), CGPoint(x: 1000, y: 700)] {
             let placed = PixelMagnifierPlacement.place(pointer: pointer, canvas: canvas, previous: nil)
-            #expect(placed.origin.x >= 8 && placed.origin.y >= 8)
-            #expect(placed.origin.x + size.width <= 992 && placed.origin.y + size.height <= 692)
+            let right: CGFloat = placed.origin.x + size.width
+            let bottom: CGFloat = placed.origin.y + size.height
+            #expect(placed.origin.x >= 8)
+            #expect(placed.origin.y >= 8)
+            #expect(right <= 992)
+            #expect(bottom <= 692)
         }
         // The right edge's threshold: the flip holds until 24 pt to spare.
         let threshold = 1000.0 - 8 - size.width - 20
@@ -371,8 +378,9 @@ struct PixelMagnifierTests {
             for (x, y) in [(0, 0), (255, 0), (0, 191), (100, 77)] {
                 let color = held.color(x: x, y: y)
                 let expected = decoded[x, y]
-                #expect(abs(color.x - Double(expected.x)) <= 2e-3 && abs(color.y - Double(expected.y)) <= 2e-3
-                    && abs(color.z - Double(expected.z)) <= 2e-3, "\(x),\(y)")
+                let differences: [Double] = [abs(color.x - Double(expected.x)), abs(color.y - Double(expected.y)),
+                                             abs(color.z - Double(expected.z))]
+                #expect((differences.max() ?? 1) <= 2e-3, "\(x),\(y)")
             }
         }
     }

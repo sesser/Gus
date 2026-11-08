@@ -54,6 +54,7 @@ photos the library does not have yet, and a folder with nothing new makes none.
 | Return, Space, double-click | open the loupe | back to the grid |
 | Esc | | cancels picking a fringe color, else hides the fringe or sharpening map, else leaves review, else back to the grid |
 | F | review the focused photo | enter or leave review |
+| - and = | | while picking a color, pixel magnifier zoom out / in |
 | Z, click | | toggle fit / 100 % at the clicked point (⌥-scroll and pinch zoom too; drag pans) |
 | 0–5 | set rating | set rating |
 | [ and ] | lower / raise rating | lower / raise rating |
@@ -247,11 +248,18 @@ edge: purple or green halos along branches against the sky, window frames,
 backlit hair, and the soft rims of out-of-focus highlights. It has two slots,
 **Color 1** and **Color 2**, because purple and green fringes often appear
 together. To fill a slot, click its eyedropper and click a colored fringe in
-the photo: the pointer is a crosshair over the photo, the click takes the most
-colorful pixel within a few points of it (thin fringes are easiest at 100%, Z),
-and the slot then shows a swatch and the color's name. A drag still pans while
+the photo: the pointer is a crosshair over the photo, and the **pixel magnifier**
+beside it shows the photo's own pixels, with an outline around the one a click
+takes and that pixel's R, G, B and L values (0–255, Display P3). At 100% and
+closer that is the pixel under the pointer; zoomed out further, the most colorful
+pixel under it. The slot then shows a swatch and the color's name. A drag still pans while
 the eyedropper is on, and Esc cancels. A spot with almost no color is not taken;
-the text under the slots says so and the eyedropper stays on. Or, without
+the text under the slots says so and the eyedropper stays on. When the magnifier
+reads **Almost no color**, a click there won't be taken. It shows the photo before
+your edits, so its colors can differ from the photo around it and from the slot's
+swatch. Change its zoom with the **Pixel magnifier** pop-up under the slots,
+**View ▸ Pixel Magnifier**, the photo's context menu, or `-` and `=` while picking;
+the app remembers it. Or, without
 pointing at the photo, choose **Purple** or **Green** under **Common Fringe
 Colors** in the slot's ⋯ menu (or the row's context menu); a slot filled this
 way behaves exactly like one filled by picking. **Pick from Photo** in the same

@@ -57,7 +57,7 @@ let usage = """
                  image by alpha and running the module at alpha times the value (test scenes).
 
       scenes     --output DIR [--size WxH]
-                 Writes the chromatic aberration test scenes (fringes, fringe subjects, lateral color
+                 Writes the chromatic aberration test scenes (fringes, fringe subjects, pixel grid, lateral color
                  at two amounts) as TIFFs, and the fringes as a DNG (default 1536x1152).
 
       synthesize --library-root ROOT --count N

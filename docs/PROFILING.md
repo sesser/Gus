@@ -314,6 +314,17 @@ files; Apple M4 Pro, macOS 27.2, 2026-11-08:
 | fringe map | 17.2 | 10.1 | 10.5 |
 | color alignment | 13.9 | 30.5 | 33.2 |
 
+The pixel magnifier (arming to first pixels, update per pointer move, memory
+held, and Saturation's live frames with it held), median over the same files:
+
+| | DNG | HEIC | JPEG |
+|---|---|---|---|
+| arming to first pixels (ms) | 142 | 33 | 48 |
+| update per pointer move (ms) | 0.18 | 0.16 | 0.15 |
+| memory held while picking (MB) | 183 | 183 | 183 |
+| live saturation, magnifier held (ms) | 66.2 | 25.8 | 26.0 |
+| live saturation (ms) | 66.3 | 25.3 | 25.6 |
+
 The Lens kernels are seven Metal libraries (one kernel each); compiling them
 took 2.2 s on the first launch after a build, so the editor compiles them in
 the background when the first photo opens. `photobench scenes --output DIR`

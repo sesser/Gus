@@ -570,6 +570,13 @@ final class LoupeController: NSObject {
         updateMagnifier()
     }
 
+    /// A click's geometry at output unit coordinates: the script's clicks take a real click's path.
+    func clickGeometry(atUnit unit: CGPoint) -> (unit: CGPoint, devicePixelsAcross: Double) {
+        let size = imageView.bounds.size
+        return magnifierGeometry(atHostPoint: imageView.convert(NSPoint(x: unit.x * size.width, y: (1 - unit.y) * size.height),
+                                                                to: hostView))
+    }
+
     /// The debug script's `magnifier move`.
     func moveMagnifierPointer(toUnit unit: CGPoint) {
         magnifierDebugUnit = unit

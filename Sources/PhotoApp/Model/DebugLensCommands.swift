@@ -29,8 +29,9 @@ enum DebugLensCommands {
             guard numbers.count == 2 else { break }
             if editor.pickingFringeSlot != slot { editor.armFringePicker(slot) }
             let before = editor.adjustments
-            editor.pickFringe(at: CGPoint(x: numbers[0], y: numbers[1]),
-                              devicePixelsAcross: loupe()?.devicePixelsAcross ?? 2560)
+            let requested = CGPoint(x: numbers[0], y: numbers[1])
+            let geometry = loupe()?.clickGeometry(atUnit: requested) ?? (unit: requested, devicePixelsAcross: 2560)
+            editor.pickFringe(at: geometry.unit, devicePixelsAcross: geometry.devicePixelsAcross)
             for _ in 0..<400 where editor.adjustments == before && !editor.fringePickRefused {
                 try? await Task.sleep(for: .milliseconds(50))
             }

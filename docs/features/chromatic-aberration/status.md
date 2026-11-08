@@ -50,13 +50,22 @@ States: Not started · In progress · Done · Blocked · Deferred.
   whole at up to 2048 px; per channel, a coarse search in half-pixel corner
   steps then Gauss–Newton on the magnification that lines the channel up with
   the green over edge pixels, the green fitted per tile (gain and offset).
-- **Picking** (`Edits/FringePicker.swift`): from the full-resolution decode
-  (whole sensor for raws) aligned as the photo renders, before any graying;
-  the most colorful pixel within 3 screen points (converted at the loupe's
-  zoom); refused below OkLab chroma 0.025.
+- **Picking** (`Edits/FringePicker.swift`): the pixel a click takes is the
+  pixel the magnifier outlines, by one function for both
+  (`FringePicker.pickedPixel`, ruling 18; the snap is gone): at the view's
+  100% and closer the pixel under the pointer, zoomed out further the most
+  colorful photo pixel under the pointer's device pixel. It samples the full-
+  resolution decode (whole sensor for raws) aligned as the photo renders, before
+  any graying, held while picking (OQ14, below); refused below OkLab chroma 0.025.
+- **Pixel magnifier** (`Edits/PixelMagnifier.swift`,
+  `Loupe/PixelMagnifierView.swift`, `Model/PixelMagnifierActions.swift`): the
+  generic core knows nothing of fringes. A tool (`PixelMagnifierTool`) gives
+  the image, the pick rule, a verdict and a note; `FringeMagnifierTool` is the
+  fringe tool, and a test uses one of its own (AC29). The level is the
+  `pixelMagnifier.level` preference on `LibraryModel`.
 - **App**: `LensControls` (inspector), `LensText` (every string),
-  `AdjustmentEditor` (picking state, the shared map slot with `mapKind`,
-  measuring), `FringeMapActions` in `SharpeningMapActions.swift`, the loupe's
+  `AdjustmentEditor` (picking state, the held pixels, the shared map slot
+  with `mapKind`, measuring), `FringeMapActions` in `SharpeningMapActions.swift`, the loupe's
   pick path (`LoupeScrollView.onPick`, crosshair cursor rects, the ignored
   double-click), `changeAdjustmentsMeasuringAlignment` (paste and presets),
   `DebugLensCommands`.
@@ -104,8 +113,8 @@ scene's sky.
 
 | Item | Check | State |
 |---|---|---|
-| R1, AC1 | `ColorFringesTests` "AC1": picks (through `FringePicker`'s snap) of scene (a)'s purple gray both bars' purples and the disc's rim, a second pick grays the greens, clearing either restores only it; debug script: `adjust fringe pick 1 0.1185 0.3` on the scene file picks, one undo step "Pick Fringe Color" | Done |
-| R1 snap and refusal (design §4) | `ColorFringesTests` "A click within 2 pixels…"; debug script: a click on the light ground is refused ("That spot has almost no color…" caption, eyedropper stays on, no undo step) | Done |
+| R1, AC1 | `ColorFringesTests` "AC1": picks (through `FringePicker`'s rule) of scene (a)'s purple gray both bars' purples and the disc's rim, a second pick grays the greens, clearing either restores only it; debug script: `adjust fringe pick 1 0.1185 0.3` on the scene file picks, one undo step "Pick Fringe Color" | Done |
+| R1 pixel rule and refusal (design §4, §20; ruling 18) | `ColorFringesTests` "The pixel rule": at 100% a click on a fringe pixel beside a stronger one takes that pixel, one pixel beside the fringe on the light ground is refused, at fit the most colorful under the device pixel; neutral refusals stay; debug script: a click on the light ground is refused ("That spot has almost no color…" caption, eyedropper stays on, no undo step) | Done |
 | R1a, AC1a | `ColorFringesTests` "AC1a" (listed colors at their starting Tolerances gray every fringe); debug script: `menupick` on Color 1's and Color 2's ⋯ buttons fills them (the real pull-down path); `contextmenu fringe 1` lists Pick from Photo, the Common Fringe Colors header, Purple, Green, Clear (dimmed when empty); `buttons` names them "Pick Color 1", "Color 1 commands" with the design's help | Done (keyboard and VoiceOver by a person: M2) |
 | R1b, AC1b | `ColorFringesTests` "AC1b": same stored parameters, render hash and pixels as a pick of the same value; Tolerance widens and narrows; `LensCommandTests`, `AdjustmentsTests` (presets and paste copy the group as any other); debug script: Clear and its undo, a pick replacing a listed color | Done |
 | R1c | Derivation above; AC1a | Done |
@@ -129,6 +138,20 @@ scene's sky.
 | R16, AC13b (RI-E2) | `LensPresetTests` ×3: a stored preset with no group list, and a preset file with no `groups` key, clear the slots and alignment; a group list without the Lens groups keeps them. Debug script: an imported pre-feature file ("All settings") applied to a scene (a) photo with both slots and automatic alignment cleared them as one undo step, "Apply Preset Older", and one undo restored them | Done |
 | R17, AC14 | `LensCommandTests` "AC14" | Done |
 | R18, AC15 | `photobench edits`, below | Done |
+| R19, AC16 | Debug script: arming shows it over the photo (`print magnifier`), none over the surround (`magnifier move 1.05 0.5`), filling from the list leaves it off, Esc, another photo, a crop session and review remove it | Done |
+| R20, R21, AC17 | `PixelMagnifierTests` "AC17, AC22" (hard squares, each cell exactly its photo pixel, at every level and backing 1 and 2; `bitmap`); grid at 800% and 1600% only (`showsGrid`, `print magnifier`). The not-ready state (dashes, no pixels, a click waits and stores the same color) follows one path; at these sizes the pixels arrive before a script can read it, so it is listed for a person on a large raw | Done |
+| R22, AC18 | `PixelMagnifierTests` "AC18" ×2 (outline = pick at 100%, 800% and fit); debug script: `magnifier move` then `adjust fringe pick` at the same point: outlined maskPoint 0.118381,0.300203 and `print fringe`'s last sample 0.1184,0.3002 | Done |
+| R23–R25, AC19, AC20 | `PixelMagnifierTests` "AC19" (values against a CPU reference, CoreGraphics' Rec. 2020 to Display P3, within 1, on scenes (d) and (a)), "AC20" ×2, "Color Alignment changes the sampled image" (Exposure and Saturation leave it unchanged); debug script: Exposure leaves the values unchanged; a neutral reads R = G = B = L | Done |
+| R26, AC21 | `PixelMagnifierTests` "AC21"; debug script: the light ground reads "Almost no color" and the click is refused | Done |
+| R27, R28, AC22, AC23 | `PixelMagnifierTests` (cell size level ÷ 100 at backing 1 and 2, levels, no wrap); debug script: `magnifier level`, keys `=` and `-` (no wrap), inspector pop-up (`buttons`), `menuitems Pixel`, the checked context submenu; level 400 persisted across relaunch and another `--library-root` | Done |
+| R29, AC24 | `PixelMagnifierTests` corners, crop and quarter turn; placement test (flips, no flicker, never clipped at all four corners); debug script: corner pixels stay in the window, drawn cells beyond the photo are none | Done |
+| R30, AC25 | Editor reloads the held pixels when alignment or a decode setting changes, and the magnifier re-reads on every pan and zoom (`print magnifier` follows); `PixelMagnifierTests` "Color Alignment changes the sampled image" | Done |
+| R31, AC26 | Not in the stack: no new parameter; goldens and corpus unchanged (full `swift test`); debug script: arming and level changes add no undo step (`print undo` names only the pick) | Done |
+| R32, AC27 | The view's `hitTest` returns nil (`hit` over it reaches the photo), clicks, drags and the keys of design §4 unchanged; the DR3 checks by a person need an `open` launch | Done (M3) |
+| R33, AC28 | No accessibility element (`accessibility any` lists none), level from `-`/`=`, menu, pop-up and canvas actions; the first responder stayed `LoupeHostView` before and after arming (`print responder`); legibility by a person (M3) | Done (M3) |
+| R34, AC29 | `PixelMagnifierTests` "AC29": a test tool's own image and rule | Done |
+| R35, AC30 | Only the fringe slots arm it; `adjust mask add colorRange` leaves it off | Done |
+| R36, AC31 | `photobench edits`, below; memory held is released when picking ends (`print magnifier` heldBytes 0) | Done |
 | M1 | Real photos: for a person, later (not blocking) | Pending (owner) |
 | M2 | VoiceOver with no pointer: for a person (QA lists it) | Pending (person) |
 
@@ -154,6 +177,19 @@ once (its first frame, 89 ms at p95) and then drafts. Recorded in
 The first frame that needs the Lens kernels waited 2.2 s for them to compile
 once after a build (seven libraries); the editor now compiles them in the
 background when the first photo opens.
+
+The pixel magnifier, `photobench edits` on the same files (AC31), median ms:
+
+| | DNG | HEIC | JPEG |
+|---|---|---|---|
+| arming to first pixels | 142 | 33 | 48 |
+| update per pointer move | 0.18 | 0.16 | 0.15 |
+| memory held while picking | 183 MB | 183 MB | 183 MB |
+| live saturation, magnifier held | 66.2 | 25.8 | 26.0 |
+| live saturation (for comparison) | 66.3 | 25.3 | 25.6 |
+
+Live frames don't get worse with the magnifier showing. The held pixels are
+released when picking ends. Recorded in `docs/PROFILING.md` ("Lens heading").
 
 ## Findings
 
@@ -183,6 +219,19 @@ background when the first photo opens.
 6. The synthetic DNG of scene (a) measures a small blue magnification
    (−4.47): its demosaic offsets channels, which the scene files show but
    real raw decoders do not.
+
+**OQ14, holding the pixels while picking.** When a slot starts picking, the
+editor renders the sampled image once, at full resolution, into memory as half
+float (the working format): 183 MB for a 24 MP photo, on a Core Image context
+of its own so it neither queues behind previews nor slows a live frame. Every
+later read is a memory read, so the magnifier follows the pointer in about 0.2 ms.
+It renders again only when something changes that image (R30: Color Alignment
+or a decode setting, by the key `(source, decode settings, alignment)`). It
+is released as soon as picking ends (R36). A click before it is ready
+waits for it and applies the same rule, so the click and the outline can never
+differ (R20, R22). Tiles or a lazy render per move would cost a raw decode per
+new region. The conversions for R23 and R24 are checked against a CPU reference
+(`PixelMagnifierTests`, CoreGraphics' conversion; L on the same curve).
 
 ## Design questions (ruled, design.md §19, 2026-11-08)
 
@@ -240,9 +289,7 @@ background when the first photo opens.
 
 ## Latest run
 
-2026-11-08, after the rulings (at the commit that records this): `swift
-build` clean, no warnings; `swift test` **609 tests in 106 suites passed, 1
-known issue** (the pre-existing one in "Live render session"). Goldens
-unchanged, no pipeline version bump, `UPDATE_GOLDENS` never run. The bundle
-from `Scripts/build-app.sh` ran the debug-script checks for DQ-2 and AC13b
-on a copy with its own identifier and a scratch library (`--library-root`).
+2026-11-08, after the pixel magnifier: `swift build` clean, no warnings;
+`swift test` **626 tests in 107 suites passed, 1 known issue** (the pre-existing
+one in "Live render session"). No golden changed, no pipeline version bump,
+`UPDATE_GOLDENS` never run. No new `Gus-*.ips` crash report from these runs.
