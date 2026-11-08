@@ -130,6 +130,14 @@ enum DebugScript {
         }
     }
 
+    /// Waits while a paste or a preset measures color alignment, so its save
+    /// lands in the command's undo group.
+    private static func waitForBatchMeasuring(_ model: LibraryModel) async {
+        try? await Task.sleep(for: .milliseconds(100))
+        while model.batchAutoTask != nil { try? await Task.sleep(for: .milliseconds(100)) }
+        try? await Task.sleep(for: .milliseconds(200))
+    }
+
     private static var window: NSWindow? {
         // The library window, not the import or look-up table window.
         NSApp.windows.first { $0.isVisible && $0.contentView != nil && $0.className.contains("Window")
@@ -397,6 +405,9 @@ enum DebugScript {
             try? await Task.sleep(for: .milliseconds(200))
         case "pasteadjust":
             model.pasteAdjustments()
+            // A paste that measures color alignment saves when the measuring is
+            // done: inside this command's undo group (`changing`).
+            await waitForBatchMeasuring(model)
         case "preset":
             let name = rest.dropFirst().joined(separator: " ")
             switch rest.first {
@@ -445,6 +456,7 @@ enum DebugScript {
                 try? await Task.sleep(for: .milliseconds(500))
             case "apply":
                 if let preset = model.adjustmentPresets.first(where: { $0.name == name }) { model.applyAdjustmentPreset(preset) }
+                await waitForBatchMeasuring(model)
             case "delete":
                 if let preset = model.adjustmentPresets.first(where: { $0.name == name }) {
                     model.deleteAdjustmentPreset(preset)

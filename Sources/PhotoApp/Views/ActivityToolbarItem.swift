@@ -105,19 +105,15 @@ struct ActivityToolbarItem: View {
                                     stop: { model.export.cancel() }))
         }
         if let progress = model.batchAutoProgress {
-            if let title = model.batchAutoTitle {
-                // Paste or a preset measuring color alignment: under the command's own title.
-                jobs.append(ActivityJob(id: "auto", title: title,
-                                        detail: String(localized: "\(progress.done) of \(progress.total)"),
-                                        progress: Double(progress.done) / Double(max(progress.total, 1)),
-                                        stop: { model.batchAutoTask?.cancel() }))
-            } else {
-                jobs.append(ActivityJob(id: "auto",
-                                        title: String(localized: "Measuring exposure \(progress.done) of \(progress.total)",
-                                                      comment: "Activity: batch Auto Exposure"),
-                                        progress: Double(progress.done) / Double(max(progress.total, 1)),
-                                        stop: { model.batchAutoTask?.cancel() }))
-            }
+            // Paste or a preset measuring color alignment shows under the command's own title.
+            let title = model.batchAutoTitle
+                ?? String(localized: "Measuring exposure \(progress.done) of \(progress.total)",
+                          comment: "Activity: batch Auto Exposure")
+            let detail: String? = model.batchAutoTitle == nil ? nil
+                : String(localized: "\(progress.done) of \(progress.total)")
+            jobs.append(ActivityJob(id: "auto", title: title, detail: detail,
+                                    progress: Double(progress.done) / Double(max(progress.total, 1)),
+                                    stop: { model.batchAutoTask?.cancel() }))
         }
         let now = Date()
         if let progress = model.warming, let start = model.warmingStarted,
