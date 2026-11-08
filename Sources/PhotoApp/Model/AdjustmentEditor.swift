@@ -161,6 +161,7 @@ final class AdjustmentEditor {
         didSet {
             guard oldValue != pickingFringeSlot else { return }
             fringePickRefused = false
+            syncSamplePixels()
             if pickingFringeSlot != nil {
                 // One picking or painting tool at a time; the photo being edited.
                 isBrushing = false
@@ -174,6 +175,18 @@ final class AdjustmentEditor {
                 requestRender(interactive: false)
             }
         }
+    }
+    /// The pixels picks sample, held while a slot is picking (status.md OQ14);
+    /// nil until the first render is done, or after a change that alters them.
+    private(set) var fringeSamplePixels: FringeSamplePixels?
+    @ObservationIgnored private var samplePixelsTask: Task<FringeSamplePixels?, Never>?
+    @ObservationIgnored private var samplePixelsKey: SamplePixelsKey?
+    /// A context of its own, so holding the pixels never queues behind a preview or slows a live frame.
+    @ObservationIgnored private lazy var samplePixelsEngine = RenderEngine(contextCount: 1, name: "pixel-magnifier")
+    private struct SamplePixelsKey: Equatable {
+        var source: URL
+        var settings: RAWDecodeSettings
+        var alignment: ColorAlignment
     }
     /// The last click while picking found almost no color (design §4).
     private(set) var fringePickRefused = false
@@ -470,6 +483,7 @@ final class AdjustmentEditor {
             showsLive = true
             refreshMachineLearning()
             refreshFringeSwatches()
+            syncSamplePixels()
             requestRender(interactive: phase == .changing)
             if cropSession != nil, phase == .committed { renderCropImage() }
         } else if phase == .committed, lastFrameWasInteractive || renderingInteractive
@@ -696,6 +710,7 @@ final class AdjustmentEditor {
                 showsLive = true
                 refreshMachineLearning()
                 refreshFringeSwatches()
+                syncSamplePixels()
                 endFringeMapWithoutPicks()
                 requestRender(interactive: false)
             }
@@ -732,6 +747,7 @@ final class AdjustmentEditor {
         sharpeningMap.valuesChanged()
         refreshMachineLearning()
         refreshFringeSwatches()
+        syncSamplePixels()
         endFringeMapWithoutPicks()
         // The map stays on screen until its next frame; the photo's renditions follow otherwise.
         if !sharpeningMap.isShown { showsLive = false }
@@ -1236,27 +1252,75 @@ final class AdjustmentEditor {
         pickingFringeSlot = pickingFringeSlot == slot ? nil : slot
     }
 
-    /// A click while a slot is picking, at `point` (output unit coordinates,
-    /// y down); `snap` is the snap radius in output units (3 pt across and
-    /// down at the loupe's zoom). Picks the most colorful pixel within it
-    /// from the photo's full-resolution data, or refuses a spot with almost
-    /// no color (design §4).
-    func pickFringe(at point: CGPoint, snap: CGSize) {
-        guard let slot = pickingFringeSlot, state == .ready, let library, let url = sourceURL,
-              let center = maskPoint(fromOutput: point), let size = maskSourceSize, size.width > 0,
-              let across = maskPoint(fromOutput: CGPoint(x: point.x + snap.width, y: point.y)),
-              let versionID = item?.versionID else { return }
-        // The radius as a fraction of the mask frame's width.
-        let radius = hypot(across.x - center.x, (across.y - center.y) * Double(size.height / size.width))
+    /// A tool is picking with the pixel magnifier.
+    var pixelMagnifierIsPicking: Bool { pickingFringeSlot != nil }
+
+    /// The fringe tool for the pixel magnifier and the click, once its pixels are held.
+    var pixelMagnifierTool: FringeMagnifierTool? {
+        fringeSamplePixels.map {
+            FringeMagnifierTool(pixels: $0, crop: maskCrop, note: LensText.magnifierNote, refusal: LensText.almostNoColorState)
+        }
+    }
+
+    /// Bytes the magnifier holds now (the debug script, photobench's record).
+    var samplePixelsByteCount: Int { fringeSamplePixels?.byteCount ?? 0 }
+
+    /// Holds the sampled image while a slot is picking (status.md OQ14): one
+    /// render off the main thread when picking starts, and again only when
+    /// something that changes that image changes (R30). Released as soon as
+    /// picking ends (R36).
+    private func syncSamplePixels() {
+        guard pickingFringeSlot != nil, state == .ready, let library, let url = sourceURL else {
+            samplePixelsTask?.cancel()
+            samplePixelsTask = nil
+            samplePixelsKey = nil
+            if fringeSamplePixels != nil { fringeSamplePixels = nil }
+            return
+        }
+        var settings = isRaw ? adjustments.decodeSettings : .none
+        settings.fullFrame = isRaw
+        let key = SamplePixelsKey(source: url, settings: settings, alignment: adjustments.effective.colorAlignment)
+        guard key != samplePixelsKey else { return }
+        samplePixelsKey = key
+        if fringeSamplePixels != nil { fringeSamplePixels = nil }
+        samplePixelsTask?.cancel()
         let values = adjustments
-        let generator = library.previews.interactiveGenerator
+        let generator = library.previews.generator.withEngine(samplePixelsEngine)
+        samplePixelsTask = Task {
+            let result = await Task.detached(priority: .userInitiated) {
+                Result { try FringePicker.samplePixels(source: url, values: values, generator: generator) }
+            }.value
+            guard !Task.isCancelled, samplePixelsKey == key else { return nil }
+            switch result {
+            case .success(let pixels):
+                fringeSamplePixels = pixels
+                return pixels
+            case .failure(let error):
+                Self.log.error("Reading the photo for picking failed: \(error.localizedDescription, privacy: .public)")
+                return nil
+            }
+        }
+    }
+
+    /// A click while a slot is picking, at `point` (output unit coordinates,
+    /// y down: the middle of the pointer's device pixel), with the output
+    /// `devicePixelsAcross` wide on screen. Takes the pixel the magnifier
+    /// outlines there, the same rule (R22), or refuses a spot with almost
+    /// no color (design §4). A click before the pixels are held waits for
+    /// them and follows the same rule.
+    func pickFringe(at point: CGPoint, devicePixelsAcross: Double) {
+        guard let slot = pickingFringeSlot, state == .ready, samplePixelsTask != nil,
+              let versionID = item?.versionID else { return }
+        let crop = maskCrop
         fringePickTask?.cancel()
         fringePickTask = Task {
-            let result = await Task.detached(priority: .userInitiated) {
-                try? FringePicker.sample(source: url, values: values, at: CGPoint(x: center.x, y: center.y),
-                                         radiusInWidths: radius, generator: generator)
-            }.value
-            guard !Task.isCancelled, item?.versionID == versionID, pickingFringeSlot == slot, let result else { return }
+            var pixels = fringeSamplePixels
+            if pixels == nil { pixels = await samplePixelsTask?.value }
+            // A change of the sampled image can have started another render.
+            if pixels == nil { pixels = await samplePixelsTask?.value }
+            guard !Task.isCancelled, item?.versionID == versionID, pickingFringeSlot == slot, let pixels else { return }
+            let tool = FringeMagnifierTool(pixels: pixels, crop: crop)
+            guard let result = FringePicker.pick(tool: tool, atOutput: point, devicePixelsAcross: devicePixelsAcross) else { return }
             switch result {
             case .color(let color, let at):
                 lastFringeSample = (at, false)

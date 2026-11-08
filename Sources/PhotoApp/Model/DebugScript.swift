@@ -52,6 +52,10 @@ import PhotoUI
 ///     fringemap on|off|toggle    (Adjust ▸ Show / Hide Fringe Map's action: reveals Color Fringes, announces)
 ///     fringearm 1|2|off     (arms or disarms a fringe slot's eyedropper, as its button does)
 ///     contextmenu fringe 1|2 [<item>]   (lists a fringe slot's context menu, or runs the item so titled)
+///     magnifier level <percent>|up|down   magnifier move <x> <y>   (the pixel magnifier: the level, and
+///                           the pointer at unit coordinates of the photo on screen, as a real move would)
+///     print magnifier [pixels]   (visible, level, placement, outlined pixel, values, verdict, cells;
+///                           `pixels` also lists every cell drawn)
 ///     print fringe          (slots, their menu, picking, the last sample, the cursor, captions, the fringe
 ///                           map, color alignment)
 ///     print sharpenmap      (asked for, on screen with its badge and legend, refining, can show, the
@@ -214,6 +218,9 @@ enum DebugScript {
             perform(Selector((verb + ":")), verb)
         case "inspector":
             model.showsInspector = rest.first != "off"
+        case "magnifier":
+            DebugLensCommands.magnifier(rest, model: model)
+            try? await Task.sleep(for: .milliseconds(200))
         case "fringemap", "fringearm":
             DebugLensCommands.run(verb, rest, model: model)
             try? await Task.sleep(for: .milliseconds(300))
@@ -565,7 +572,11 @@ enum DebugScript {
             } else if rest.first == "ml" {
                 DebugMachineLearningCommands.printState(model: model, window: window)
             } else {
-                printState(rest.first ?? "", model: model)
+                if rest.first == "magnifier", rest.dropFirst().first == "pixels" {
+                    DebugLensCommands.printMagnifier(all: true, model: model)
+                } else {
+                    printState(rest.first ?? "", model: model)
+                }
             }
         case "quit":
             // An open sheet would keep the app from quitting; SwiftUI's close
@@ -976,6 +987,8 @@ enum DebugScript {
                   + "\(InspectorExpansion.shared.isExpanded(InspectorView.keywordsKey, family: .info, default: true))")
         case "fringe":
             DebugLensCommands.printState(model: model)
+        case "magnifier":
+            DebugLensCommands.printMagnifier(all: false, model: model)
         case "sharpenmap":
             let editor = model.editor
             let shown = editor.shownSharpeningMap

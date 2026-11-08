@@ -400,6 +400,11 @@ final class LibraryModel {
     /// Masking's row should scroll into view once the inspector shows it
     /// (showing the sharpening map from a menu; design §3).
     var revealsMaskingRow = false
+    /// The pixel magnifier's zoom: this Mac's preference, for every tool and
+    /// every library (design §20), never part of a photo.
+    var pixelMagnifierLevel = PixelMagnifierLevel(stored: UserDefaults.standard.integer(forKey: PixelMagnifierLevel.defaultsKey)) {
+        didSet { UserDefaults.standard.set(pixelMagnifierLevel.rawValue, forKey: PixelMagnifierLevel.defaultsKey) }
+    }
     /// The Lens heading's Color Fringes group should scroll into view
     /// (Show Fringe Map from the menu, chromatic-aberration design §6).
     var revealsFringeRow = false

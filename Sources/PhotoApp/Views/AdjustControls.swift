@@ -423,6 +423,8 @@ struct AppKitPopUp: NSViewRepresentable {
     var isEnabled = true
     /// The tooltip and VoiceOver help; nil for none.
     var help: String?
+    /// VoiceOver's name, for a pop-up with no label of its own beside it.
+    var accessibilityLabel: String?
     let onSelect: (String) -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -453,6 +455,7 @@ struct AppKitPopUp: NSViewRepresentable {
         button.isEnabled = isEnabled
         button.toolTip = help
         button.setAccessibilityHelp(help)
+        if let accessibilityLabel { button.setAccessibilityLabel(accessibilityLabel) }
     }
 
     @MainActor

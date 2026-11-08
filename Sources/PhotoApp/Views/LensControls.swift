@@ -33,6 +33,10 @@ struct LensControls: View {
                 }
                 .disabled(!model.canShowFringeMap)
                 .padding(.top, 6)
+                if editor.pixelMagnifierIsPicking {
+                    PixelMagnifierRow(model: model)
+                        .padding(.top, 4)
+                }
                 Text(LensText.fringeCaption(editor))
                     .font(.caption)
                     .foregroundStyle(.secondary)

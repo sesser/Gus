@@ -30,8 +30,8 @@ enum DebugLensCommands {
             if editor.pickingFringeSlot != slot { editor.armFringePicker(slot) }
             let before = editor.adjustments
             editor.pickFringe(at: CGPoint(x: numbers[0], y: numbers[1]),
-                              snap: loupe()?.fringeSnap ?? CGSize(width: 0.004, height: 0.004))
-            for _ in 0..<200 where editor.adjustments == before && !editor.fringePickRefused {
+                              devicePixelsAcross: loupe()?.devicePixelsAcross ?? 2560)
+            for _ in 0..<400 where editor.adjustments == before && !editor.fringePickRefused {
                 try? await Task.sleep(for: .milliseconds(50))
             }
             try? await Task.sleep(for: .milliseconds(200))
@@ -56,6 +56,61 @@ enum DebugLensCommands {
             }
         default:
             print("debug-script: unknown adjust \(name) \(verb)")
+        }
+    }
+
+    /// `magnifier level <percent>|up|down`, `magnifier move <x> <y>`: neither changes a photo.
+    static func magnifier(_ words: [String], model: LibraryModel) {
+        switch words.first {
+        case "level":
+            switch words.dropFirst().first {
+            case "up": model.stepPixelMagnifierLevel(up: true)
+            case "down": model.stepPixelMagnifierLevel(up: false)
+            default: model.setPixelMagnifierLevel(PixelMagnifierLevel(stored: Int(words.dropFirst().first ?? "") ?? 0))
+            }
+        case "move":
+            let numbers = words.dropFirst().compactMap(Double.init)
+            guard numbers.count == 2 else { break }
+            loupe()?.moveMagnifierPointer(toUnit: CGPoint(x: numbers[0], y: numbers[1]))
+        default:
+            print("debug-script: unknown magnifier command")
+        }
+    }
+
+    /// `print magnifier [pixels]`: what the magnifier shows.
+    static func printMagnifier(all: Bool, model: LibraryModel) {
+        guard let state = loupe()?.magnifierState else {
+            print("debug-script: magnifier no loupe")
+            return
+        }
+        let level = model.pixelMagnifierLevel
+        let held = model.editor.samplePixelsByteCount
+        print("debug-script: magnifier visible \(state.isVisible) level \(level.rawValue) active \(model.isPixelMagnifierActive)"
+              + " ready \(state.isReady) heldBytes \(held) backing \(state.backing)")
+        guard state.isVisible else { return }
+        let side = (state.placement.isLeftOfPointer ? "left" : "right") + " " + (state.placement.isAbovePointer ? "above" : "below")
+        print("debug-script: magnifier placement \(side) frame \(state.frame)")
+        guard let reading = state.reading, let picture = state.picture else {
+            print("debug-script: magnifier values - - - -")
+            return
+        }
+        let point = state.outlinedMaskPoint.map { String(format: "%.6f,%.6f", $0.x, $0.y) } ?? "-"
+        print("debug-script: magnifier outlined \(reading.pixel.x),\(reading.pixel.y) maskPoint \(point)"
+              + " R \(reading.values.r) G \(reading.values.g) B \(reading.values.b) L \(reading.values.l)")
+        var line2 = reading.note ?? ""
+        if case .refused(let text) = reading.verdict { line2 = text }
+        let drawn = picture.cells.compactMap(\.self).count
+        print("debug-script: magnifier line2 '\(PixelMagnifierText.title(level)) | \(line2)' verdict \(reading.verdict)"
+              + " devicePerPhoto \(picture.cellSize) grid \(level.showsGrid) cells \(picture.cellsAcross) drawn \(drawn)")
+        guard all else { return }
+        for row in 0..<picture.cellsAcross {
+            let middle = picture.cellsAcross / 2
+            let line: [String] = (0..<picture.cellsAcross).map { column in
+                let x = picture.center.x + column - middle, y = picture.center.y + row - middle
+                guard let value = picture.cells[row * picture.cellsAcross + column] else { return "\(x),\(y):-" }
+                return "\(x),\(y):\(value.r)/\(value.g)/\(value.b)"
+            }
+            print("debug-script: magnifier pixels " + line.joined(separator: " "))
         }
     }
 

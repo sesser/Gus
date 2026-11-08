@@ -13,16 +13,15 @@ struct ColorFringesTests {
 
     static let sceneA = TestScene.fringes.image()
 
-    /// What a click on (x, y) of scene (a) picks: `FringePicker`'s snap and refusal.
-    static func pick(_ x: Int, _ y: Int, in image: LinearImage = sceneA, radius: Double = 3) -> ColorFringes.Slot? {
-        let picked = FringePicker.pick(center: CGPoint(x: Double(x) + 0.5, y: Double(y) + 0.5), radius: radius) { px, py in
-            guard px >= 0, py >= 0, px < image.width, py < image.height else { return nil }
-            let p = image[px, py]
-            return SIMD3(Double(p.x), Double(p.y), Double(p.z))
-        }
-        guard let picked else { return nil }
-        let chroma = (picked.color.y * picked.color.y + picked.color.z * picked.color.z).squareRoot()
-        return chroma < ColorFringes.neutralChroma ? nil : ColorFringes.Slot(color: picked.color)
+    /// What a click on pixel (x, y) of scene (a) takes (`FringePicker`'s rule
+    /// and refusal); `scale` is photo pixels per device pixel, 1 at the view's 100%.
+    static func pick(_ x: Int, _ y: Int, in image: LinearImage = sceneA, scale: Double = 1) -> ColorFringes.Slot? {
+        let position = SIMD2(Double(x) + 0.5, Double(y) + 0.5)
+        let source = LinearMagnifierImage(image: image)
+        guard let pixel = FringePicker.pickedPixel(at: position, photoPixelsPerDevicePixel: scale, image: source),
+              let color = source.color(x: pixel.x, y: pixel.y) else { return nil }
+        let lab = ColorRange.okLab(linearRec2020: color)
+        return FringePicker.chroma(of: lab) < ColorFringes.neutralChroma ? nil : ColorFringes.Slot(color: lab)
     }
 
     static func values(_ slot1: ColorFringes.Slot?, _ slot2: ColorFringes.Slot? = nil) -> Adjustments {
@@ -88,18 +87,22 @@ struct ColorFringesTests {
         Self.expectGrayed(greenOnly, Self.plain, Self.pixels(Self.greens))
     }
 
-    @Test("A click within 2 pixels of a thin fringe picks the fringe, a neutral spot is refused")
-    func pickSnapsAndRefuses() throws {
-        // Bar 1's purple fringe is x 29 … 31, strongest at 31. A click on the
-        // light ground one pixel from it reaches the strongest pixel; two
-        // pixels from it, a paler pixel of the same fringe (the same hue).
-        let on = try #require(Self.pick(31, 60, radius: 0.5))
-        #expect(try #require(Self.pick(28, 60)).color == on.color)
-        let near = try #require(Self.pick(27, 60))
-        #expect(FringeToleranceDerivationTests.hueDistance(near.hue * 180 / .pi, on.hue * 180 / .pi) < 1)
-        // The middle of the light ground and of a dark bar: no color.
+    @Test("The pixel rule: at 100% the pixel under the pointer, even beside a stronger one; at fit the most colorful under it")
+    func pixelRule() throws {
+        // Bar 1's purple fringe is columns 29 … 31, strongest at 31, on a light ground.
+        let strongest = try #require(Self.pick(31, 60))
+        let paler = try #require(Self.pick(30, 60))
+        #expect(paler.chroma < strongest.chroma)
+        #expect(paler.color == ColorRange.okLab(linearRec2020: SIMD3<Double>(T.rgb(Self.sceneA, 30, 60))))
+        // One pixel beside the fringe, on the light ground: refused at 100%.
+        #expect(Self.pick(28, 60) == nil)
+        // Zoomed out, one device pixel covers columns 27 … 30 here: its most colorful is 30.
+        let atFit = try #require(Self.pick(28, 60, scale: 5))
+        #expect(atFit.color == paler.color)
+        // The middle of the light ground and of a dark bar: no color, at any scale.
         #expect(Self.pick(10, 60) == nil)
         #expect(Self.pick(40, 60) == nil)
+        #expect(Self.pick(10, 60, scale: 5) == nil)
     }
 
     // MARK: AC1a, AC1b

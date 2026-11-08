@@ -82,11 +82,9 @@ enum LensText {
     // MARK: Captions
 
     static func pickingCaption(slot: Int) -> String {
-        // Two keys: a literal percent sign can't share a key with an argument.
-        String(localized: "Click a colored fringe in the photo to pick Color \(slot).",
-               comment: "Inspector caption, picking an empty slot; the next sentence follows")
-            + " " + String(localized: "Thin fringes are easiest at 100% (Z). Press Esc to cancel.",
-                           comment: "Inspector caption, picking an empty slot, after the first sentence")
+        String(localized: "Click a colored fringe in the photo to pick Color \(slot). The magnifier outlines the pixel a click takes. Press Esc to cancel.",
+               comment: "Inspector caption, picking an empty slot"
+)
     }
 
     static func replacingCaption(slot: Int) -> String {
@@ -97,6 +95,16 @@ enum LensText {
     static var almostNoColorCaption: String {
         String(localized: "That spot has almost no color. Click a colored fringe, or press Esc to cancel.",
                comment: "Inspector caption after a neutral click")
+    }
+
+    /// The pixel magnifier's short state for a spot a click would refuse.
+    static var almostNoColorState: String {
+        String(localized: "Almost no color", comment: "The pixel magnifier's plate, at a spot a click would refuse; short state, not a sentence")
+    }
+
+    /// The fringe tool's note on the pixel magnifier's plate: what it draws.
+    static var magnifierNote: String {
+        String(localized: "Before edits", comment: "The pixel magnifier's plate: it shows the photo before the adjustments")
     }
 
     static var almostNoColorAnnouncement: String {

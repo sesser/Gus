@@ -80,6 +80,9 @@ public enum TestScene: String, CaseIterable, Sendable {
     /// and the blue 0.3 % smaller than the green, about the frame's center
     /// (`lateralColor(width:height:red:blue:)` for other amounts).
     case lateralColor
+    /// Scene (d): every pixel has a known, distinct color out to the outermost
+    /// rows and columns (`pixelGridColor`), for the pixel magnifier.
+    case pixelGrid
 
     public static let defaultWidth = 256
     public static let defaultHeight = 192
@@ -94,6 +97,7 @@ public enum TestScene: String, CaseIterable, Sendable {
         case .fringes: FringeScene.image(width, height, subjects: false)
         case .fringeSubjects: FringeScene.image(width, height, subjects: true)
         case .lateralColor: Self.lateralColor(width: width, height: height)
+        case .pixelGrid: Self.pixelGrid(width, height)
         }
     }
 
@@ -212,6 +216,21 @@ public enum TestScene: String, CaseIterable, Sendable {
             guard dx * dx + dy * dy < 44 * 44 else { return light }
             let angle = atan2(dy, dx) + Double.pi
             return Int(angle / (2 * Double.pi) * 24) % 2 == 0 ? dark : light
+        }
+    }
+
+    /// Scene (d)'s color at pixel (x, y), perceptual: red and green count the
+    /// column and row, and blue jumps between neighbors, so no two neighbors match.
+    public static func pixelGridColor(x: Int, y: Int, width: Int, height: Int) -> SIMD3<Double> {
+        let red = Double(x) / Double(max(width - 1, 1))
+        let green = Double(y) / Double(max(height - 1, 1))
+        let blue = Double((x * 37 + y * 101) % 256) / 255
+        return SIMD3(red, green, blue)
+    }
+
+    private static func pixelGrid(_ width: Int, _ height: Int) -> LinearImage {
+        fill(width, height) { x, y in
+            decode(pixelGridColor(x: x, y: y, width: width, height: height))
         }
     }
 

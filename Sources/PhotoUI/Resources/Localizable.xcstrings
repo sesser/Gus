@@ -782,7 +782,7 @@
       }
     },
     "100%" : {
-      "comment" : "Toolbar, loupe: show the photo at actual size",
+      "comment" : "Toolbar, loupe: show the photo at actual size; also a zoom level of the pixel magnifier",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -799,6 +799,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "16 Bits per Channel"
+          }
+        }
+      }
+    },
+    "1600%" : {
+      "comment" : "A zoom level of the pixel magnifier; no thousands separator",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1600%"
           }
         }
       }
@@ -825,6 +836,17 @@
         }
       }
     },
+    "200%" : {
+      "comment" : "A zoom level of the pixel magnifier; no thousands separator",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "200%"
+          }
+        }
+      }
+    },
     "35 mm Eq." : {
       "comment" : "Info tab: 35 mm equivalent focal length tile",
       "localizations" : {
@@ -847,6 +869,17 @@
         }
       }
     },
+    "400%" : {
+      "comment" : "A zoom level of the pixel magnifier; no thousands separator",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "400%"
+          }
+        }
+      }
+    },
     "4:3" : {
       "comment" : "Crop aspect ratio",
       "localizations" : {
@@ -865,6 +898,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "8 Bits per Channel"
+          }
+        }
+      }
+    },
+    "800%" : {
+      "comment" : "A zoom level of the pixel magnifier; no thousands separator",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "800%"
           }
         }
       }
@@ -1411,6 +1455,17 @@
         }
       }
     },
+    "Almost no color" : {
+      "comment" : "The pixel magnifier's plate, at a spot a click would refuse; short state, not a sentence",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Almost no color"
+          }
+        }
+      }
+    },
     "Already in the library" : {
       "comment" : "Import window tile help",
       "localizations" : {
@@ -1742,6 +1797,17 @@
         }
       }
     },
+    "B" : {
+      "comment" : "The pixel magnifier's plate: blue. A color channel; not translated without checking",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "B"
+          }
+        }
+      }
+    },
     "Back" : {
       "comment" : "Look-up table sheet: back to the tables from a page",
       "localizations" : {
@@ -1760,6 +1826,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Balance"
+          }
+        }
+      }
+    },
+    "Before edits" : {
+      "comment" : "The pixel magnifier's plate: the fringe tool's note; what the magnifier draws",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Before edits"
           }
         }
       }
@@ -2411,13 +2488,13 @@
         }
       }
     },
-    "Click a colored fringe in the photo to pick Color %lld." : {
-      "comment" : "Inspector caption, picking an empty slot; the next sentence follows",
+    "Click a colored fringe in the photo to pick Color %lld. The magnifier outlines the pixel a click takes. Press Esc to cancel." : {
+      "comment" : "Inspector caption, picking an empty slot",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Click a colored fringe in the photo to pick Color %lld."
+            "value" : "Click a colored fringe in the photo to pick Color %lld. The magnifier outlines the pixel a click takes. Press Esc to cancel."
           }
         }
       }
@@ -4524,6 +4601,17 @@
         }
       }
     },
+    "G" : {
+      "comment" : "The pixel magnifier's plate: green. A color channel; not translated without checking",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "G"
+          }
+        }
+      }
+    },
     "Global color grading" : {
       "comment" : "Imported preset setting with no equivalent",
       "localizations" : {
@@ -5599,6 +5687,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Keywords, separated by commas"
+          }
+        }
+      }
+    },
+    "L" : {
+      "comment" : "The pixel magnifier's plate: luminance; not translated without checking",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L"
           }
         }
       }
@@ -7433,6 +7532,72 @@
         }
       }
     },
+    "Pixel Magnifier" : {
+      "comment" : "View menu and loupe context submenu title: the small view of the photo's own pixels beside the pointer while picking; shared by every tool that uses it",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pixel Magnifier"
+          }
+        }
+      }
+    },
+    "Pixel Magnifier Zoom In" : {
+      "comment" : "Canvas VoiceOver action",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pixel Magnifier Zoom In"
+          }
+        }
+      }
+    },
+    "Pixel Magnifier Zoom Out" : {
+      "comment" : "Canvas VoiceOver action",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pixel Magnifier Zoom Out"
+          }
+        }
+      }
+    },
+    "Pixel magnifier" : {
+      "comment" : "Inspector row label; sentence-style",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pixel magnifier"
+          }
+        }
+      }
+    },
+    "Pixel magnifier at %@." : {
+      "comment" : "VoiceOver announcement after a level change by key, menu or action; %@ is the percentage",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pixel magnifier at %@."
+          }
+        }
+      }
+    },
+    "Pixel magnifier zoom" : {
+      "comment" : "The pop-up's VoiceOver label",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pixel magnifier zoom"
+          }
+        }
+      }
+    },
     "Play" : {
       "comment" : "View menu (Space) and the video loupe's context menu while a video is paused; VoiceOver action on a video",
       "localizations" : {
@@ -7704,6 +7869,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Quit While Importing?"
+          }
+        }
+      }
+    },
+    "R" : {
+      "comment" : "The pixel magnifier's plate: red. A color channel; not translated without checking",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "R"
           }
         }
       }
@@ -9935,17 +10111,6 @@
         }
       }
     },
-    "Thin fringes are easiest at 100% (Z). Press Esc to cancel." : {
-      "comment" : "Inspector caption, picking an empty slot, after the first sentence",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Thin fringes are easiest at 100% (Z). Press Esc to cancel."
-          }
-        }
-      }
-    },
     "This collection is empty." : {
       "comment" : "Look-up table window",
       "localizations" : {
@@ -10734,7 +10899,7 @@
       }
     },
     "Zoom In" : {
-      "comment" : "View menu in the loupe (⌘=): the next zoom step",
+      "comment" : "View menu in the loupe (⌘=): the next zoom step; also the pixel magnifier's zoom in View ▸ Pixel Magnifier",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -10745,12 +10910,23 @@
       }
     },
     "Zoom Out" : {
-      "comment" : "View menu in the loupe (⌘−): the previous zoom step, or Fit",
+      "comment" : "View menu in the loupe (⌘−): the previous zoom step, or Fit; also the pixel magnifier's zoom in View ▸ Pixel Magnifier",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Zoom Out"
+          }
+        }
+      }
+    },
+    "Zoom of the pixel magnifier. Press - or = while picking to change it." : {
+      "comment" : "The pop-up's tooltip and VoiceOver help",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zoom of the pixel magnifier. Press - or = while picking to change it."
           }
         }
       }
