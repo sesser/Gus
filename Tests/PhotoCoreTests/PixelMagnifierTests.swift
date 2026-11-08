@@ -385,6 +385,51 @@ struct PixelMagnifierTests {
         }
     }
 
+    /// Pixels at which two held images differ.
+    static func differingPixels(_ a: FringeSamplePixels, _ b: FringeSamplePixels) -> Int {
+        var count = 0
+        for y in 0..<a.height {
+            for x in 0..<a.width where a.color(x: x, y: y) != b.color(x: x, y: y) {
+                count += 1
+            }
+        }
+        return count
+    }
+
+    /// The edits a pick must not see (R25: before any graying and every other
+    /// adjustment). Each is shown to change the photo at the purple fringe, so
+    /// its leaving the sampled pixels alone says something.
+    static var editsThatMustNotReachTheSample: [(name: String, edit: @Sendable (inout Adjustments) -> Void)] {
+        [("Exposure", { $0.exposure.ev = 1 }),
+         ("Saturation", { $0.presence.saturation = 40 }),
+         ("a look-up table", { $0.lookTable = LookTable(identifier: GoldenCase.builtInTable("tealOrange"), name: "Teal") }),
+         ("the other slot filled", { $0.colorFringes.slot1 = CommonFringeColor.purple.slot })]
+    }
+
+    @Test("AC19: Exposure, Saturation, a look-up table and the other slot leave the sampled pixels unchanged")
+    func editsLeaveTheSampleUnchanged() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { folder in
+            let url = folder.appending(path: "a.tif")
+            let cgImage = try #require(TestScene.fringes.image().cgImage(colorSpace: CGColorSpace(name: CGColorSpace.itur_2020)!))
+            try SyntheticImages.write(cgImage, to: url, type: .tiff)
+            let renderer = AdjustmentRenderer(lookTables: GoldenCase.lookTables)
+            let generator = PreviewGenerator(engine: ReferenceTests.engine, renderer: renderer)
+            let plain = try FringePicker.samplePixels(source: url, values: Adjustments(), generator: generator)
+            let fringe = try #require(FringeScene.pixels(of: .purple1).first)
+            let plainRender = ReferenceTests.renderLinear(try generator.image(source: url, stack: .identity, longEdge: nil))
+            for (name, edit) in Self.editsThatMustNotReachTheSample {
+                var values = Adjustments()
+                edit(&values)
+                let sampled = try FringePicker.samplePixels(source: url, values: values, generator: generator)
+                #expect(Self.differingPixels(plain, sampled) == 0, "\(name) reached the sampled pixels")
+                let rendered = ReferenceTests.renderLinear(try generator.image(source: url, stack: values.editStack, longEdge: nil))
+                let before = plainRender[fringe.x, fringe.y]
+                let after = rendered[fringe.x, fringe.y]
+                #expect(before != after, "\(name) did not change the photo at the fringe")
+            }
+        }
+    }
+
     @Test("AC19: Color Alignment changes the sampled image; the magnifier is not in the stack")
     func samplingFollowsAlignmentOnly() async throws {
         try await RepositoryFiles.withTemporaryDirectory { folder in
@@ -392,14 +437,7 @@ struct PixelMagnifierTests {
             let image = TestScene.lateralColor(width: 512, height: 384)
             try SyntheticImages.write(try #require(image.cgImage(colorSpace: CGColorSpace(name: CGColorSpace.itur_2020)!)), to: url, type: .tiff)
             let generator = PreviewGenerator(engine: ReferenceTests.engine)
-            var edited = Adjustments()
-            edited.exposure.ev = 1
-            edited.presence.saturation = 40
             let plain = try FringePicker.samplePixels(source: url, values: Adjustments(), generator: generator)
-            let afterEdits = try FringePicker.samplePixels(source: url, values: edited, generator: generator)
-            for (x, y) in [(40, 40), (300, 200), (10, 300)] {
-                #expect(plain.color(x: x, y: y) == afterEdits.color(x: x, y: y))
-            }
             var aligned = Adjustments()
             aligned.colorAlignment = ColorAlignment(red: 40, blue: -30)
             let afterAlignment = try FringePicker.samplePixels(source: url, values: aligned, generator: generator)

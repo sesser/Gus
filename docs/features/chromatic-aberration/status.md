@@ -141,13 +141,13 @@ scene's sky.
 | R19, AC16 | Debug script: arming shows it over the photo (`print magnifier`), none over the surround (`magnifier move 1.05 0.5`), filling from the list leaves it off, Esc, another photo, a crop session and review remove it | Done |
 | R20, R21, AC17 | `PixelMagnifierTests` "AC17, AC22" (hard squares, each cell exactly its photo pixel, at every level and backing 1 and 2; `bitmap`); grid at 800% and 1600% only (`showsGrid`, `print magnifier`). The not-ready state (dashes, no pixels, a click waits and stores the same color) follows one path; at these sizes the pixels arrive before a script can read it, so it is listed for a person on a large raw | Done |
 | R22, AC18 | `PixelMagnifierTests` "AC18" ×2 (outline = pick at 100%, 800% and fit); debug script: `magnifier move` then `adjust fringe pick` at the same point: outlined maskPoint 0.118381,0.300203 and `print fringe`'s last sample 0.1184,0.3002 | Done |
-| R23–R25, AC19, AC20 | `PixelMagnifierTests` "AC19" (values against a CPU reference, CoreGraphics' Rec. 2020 to Display P3, within 1, on scenes (d) and (a)), "AC20" ×2, "Color Alignment changes the sampled image" (Exposure and Saturation leave it unchanged); debug script: Exposure leaves the values unchanged; a neutral reads R = G = B = L | Done |
+| R23–R25, AC19, AC20 | `PixelMagnifierTests` "AC19" (values against a CPU reference, CoreGraphics' Rec. 2020 to Display P3, within 1, on scenes (d) and (a)), "AC20" ×2, "AC19: Exposure, Saturation, a look-up table and the other slot leave the sampled pixels unchanged" (every pixel of scene (a) compared, each edit shown to change the render at the purple fringe; the filled other slot is R25's "before any graying"), "Color Alignment changes the sampled image"; debug script: Exposure leaves the values unchanged; a neutral reads R = G = B = L | Done |
 | R26, AC21 | `PixelMagnifierTests` "AC21"; debug script: the light ground reads "Almost no color" and the click is refused | Done |
 | R27, R28, AC22, AC23 | `PixelMagnifierTests` (cell size level ÷ 100 at backing 1 and 2, levels, no wrap); debug script: `magnifier level`, keys `=` and `-` (no wrap), inspector pop-up (`buttons`), `menuitems Pixel`, the checked context submenu; level 400 persisted across relaunch and another `--library-root` | Done |
 | R29, AC24 | `PixelMagnifierTests` corners, crop and quarter turn; placement test (flips, no flicker, never clipped at all four corners); debug script: corner pixels stay in the window, drawn cells beyond the photo are none | Done |
 | R30, AC25 | Editor reloads the held pixels when alignment or a decode setting changes, and the magnifier re-reads on every pan and zoom (`print magnifier` follows); `PixelMagnifierTests` "Color Alignment changes the sampled image" | Done |
 | R31, AC26 | Not in the stack: no new parameter; goldens and corpus unchanged (full `swift test`); debug script: arming and level changes add no undo step (`print undo` names only the pick) | Done |
-| R32, AC27 | The view's `hitTest` returns nil (`hit` over it reaches the photo), clicks, drags and the keys of design §4 unchanged; the DR3 checks by a person need an `open` launch | Done (M3) |
+| R32, AC27 | Scriptable: the view's `hitTest` returns nil, and the debug script's `hit` over its drawing reaches the photo (`LoupeImageView`); design §4's input rows stay DR3's checks (an `open` launch for the real click, drag and double-click paths, which QA runs). The real click while the magnifier is clamped under the pointer is part of M3 (prd.md AC27) | Done |
 | R33, AC28 | No accessibility element (`accessibility any` lists none), level from `-`/`=`, menu, pop-up and canvas actions; the first responder stayed `LoupeHostView` before and after arming (`print responder`); legibility by a person (M3) | Done (M3) |
 | R34, AC29 | `PixelMagnifierTests` "AC29": a test tool's own image and rule | Done |
 | R35, AC30 | Only the fringe slots arm it; `adjust mask add colorRange` leaves it off | Done |
@@ -289,7 +289,8 @@ new region. The conversions for R23 and R24 are checked against a CPU reference
 
 ## Latest run
 
-2026-11-08, after the pixel magnifier: `swift build` clean, no warnings;
-`swift test` **626 tests in 107 suites passed, 1 known issue** (the pre-existing
-one in "Live render session"). No golden changed, no pipeline version bump,
-`UPDATE_GOLDENS` never run. No new `Gus-*.ips` crash report from these runs.
+2026-11-08, after AC19's look-up table and filled-slot cases and the AC27 row:
+`swift build` clean, no warnings; `swift test` **627 tests in 107 suites
+passed, 1 known issue** (the pre-existing one in "Live render session"). No
+golden changed, no pipeline version bump, `UPDATE_GOLDENS` never run. No new
+`Gus-*.ips` crash report from these runs.
