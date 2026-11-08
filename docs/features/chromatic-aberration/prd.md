@@ -143,7 +143,10 @@ given scene point is corrected. This includes raws decoded as the whole
 sensor because of a crop or mask (`docs/archive/PHASE6_PLAN.md` finding 1).
 
 R10 (Should): The person can fine-tune or set the correction by hand,
-separately for the red/cyan and blue/yellow edges.
+separately for the red/cyan and blue/yellow edges. Fine-tuning an
+automatic correction starts from the measured values and makes them
+hand-set: the correction is no longer automatic, and from then on it
+behaves like any hand-set correction (R16) (RI-2 ruling, 2026-11-07).
 
 ### Both
 
@@ -155,8 +158,10 @@ for existing photos.
 R12 (Must): It is non-destructive like every other adjustment. It is
 stored in the photo's edit stack and is part of the render hash. One
 gesture or pick is one undo step. Before/after shows the photo without it,
-and a reset gives back the identity render. It belongs to a group with the
-group on/off control the Adjust tab already has.
+and a reset gives back the identity render. Fringe removal and lateral
+correction may each be their own group, each with the group on/off
+control the Adjust tab already has and its own entry in a preset's group
+list. One group for both would also satisfy this requirement.
 
 R13 (Must): The loupe at fit, the cached previews and a full-size export
 agree. A fringe removed in the loupe is removed in the export, and the
@@ -173,6 +178,16 @@ it.
 R16 (Must): Presets, copy/paste and the grid's batch commands carry it
 like any other group. A photo that receives automatic lateral correction
 is measured for itself and never gets the source photo's measured values.
+A hand-set or fine-tuned correction (R10) is copied as it is.
+
+R16a (Must): A paste, preset or grid batch that carries automatic lateral
+correction leaves unchanged any target photo it can't measure, because
+the original is offline or can't be read. None of the command's groups
+are applied to that photo, so it is never half-pasted. The person is
+told how many photos were left unchanged and why, using the existing
+Activity warning that batch automatic exposure gives. The other targets
+are changed as usual. This is the same rule batch automatic exposure
+follows today (RI-1 ruling, 2026-11-07).
 
 R17 (Should): When a Lightroom preset turns on its automatic chromatic
 aberration removal or sets purple or green fringe removal, the import
@@ -189,7 +204,8 @@ measured and recorded; there is no fixed target.
 Synthetic scenes: the engineer adds test scenes to `PhotoFixtures`:
 
 - (a) high-contrast edges with a purple fringe on one side and a green
-  fringe on the other;
+  fringe on the other, plus a defocused bright disc with a soft purple
+  rim (the out-of-focus highlight case the Problem names);
 - (b) the same, plus a large purple patch and a large green patch away
   from any edge, standing in for real purple or green subjects;
 - (c) a scene whose red and blue channels are scaled radially by known
@@ -201,9 +217,9 @@ reference and the formats, not by trial.
 
 AC1 (R1, R2): On scene (a), picking the purple fringe makes those pixels
 neutral within the tolerance (chroma near zero), and their brightness
-stays within the tolerance of before. Adding the green fringe as a second
-pick grays the green fringe too. Clearing either pick restores only that
-fringe.
+stays within the tolerance of before. The purple rim of the defocused
+disc is grayed too. Adding the green fringe as a second pick grays the
+green fringe too. Clearing either pick restores only that fringe.
 
 AC2 (R1, R3): On scene (a), a fringe pixel whose hue is a known distance
 from the picked one is unchanged at the narrowest range and gray at a
@@ -233,6 +249,8 @@ measured values.
 
 AC7 (R10): Setting the red/cyan and blue/yellow corrections by hand on
 scene (c) moves each channel as set, checked against the reference.
+Changing either one after an automatic measurement starts from the
+measured values and leaves the correction no longer automatic.
 
 AC8 (R11): Every existing golden passes unchanged, the hash-stability
 corpus is unchanged, and no pipeline bump is made for stacks without the
@@ -240,8 +258,8 @@ feature.
 
 AC9 (R12): With the feature on: one gesture or pick adds one undo step;
 undo restores the previous render; before/after shows the photo without
-it; the group check box turns it off without losing values; reset gives
-the identity hash.
+it; each group's check box turns its part off without losing values;
+reset gives the identity hash.
 
 AC10 (R13): On scene (a), the loupe's fit render scaled to full size and a
 full-size export agree on which pixels are grayed, within a tolerance
@@ -258,7 +276,15 @@ AC13 (R16): A preset saved from a photo with the feature, paste, and a grid
 batch carry it to other photos. A pasted automatic lateral correction is
 measured on each receiving photo: two photos of scene (c) with different
 known scalings end up with different stored values, each matching its own
-scaling.
+scaling. A fine-tuned (hand-set) correction pasted onto those photos
+arrives with the source's values unchanged.
+
+AC13a (R16a): A grid paste that carries automatic lateral correction,
+onto a selection that includes a photo whose original is offline, leaves
+that photo's stack and render hash byte for byte unchanged. Activity
+reports it with the existing "left unchanged: originals offline" warning,
+and the online photos are pasted and measured. A paste without automatic
+lateral correction treats offline photos as it does today.
 
 AC14 (R17): Importing a Lightroom preset that sets purple and green fringe
 removal, or automatic chromatic aberration removal, maps them, and the
@@ -309,17 +335,19 @@ a pending check at Ship.
 
 ## Open questions
 
-- **OQ1 (designer, engineer).** What counts as "near a high-contrast edge"
-  (R2, R5): a fixed rule, or one the person can adjust? If adjustable, it is
-  a control besides the range, and the designer decides whether it earns
-  its place. Ruling 5 excludes only an amount control.
-- **OQ2 (engineer).** Which image does the picker sample: the photo as
-  shown, after the other adjustments, or the image entering this step? What
-  the person sees and what gets grayed must match.
-- **OQ3 (designer).** How picking works in the loupe, including at 100%;
-  where the controls live; how the two picks are shown, cleared and
-  replaced; and what form R6 takes, for example an overlay of the affected
-  area.
+- **OQ1 (engineer).** How exactly "near a high-contrast edge" is defined
+  (R2, R5). The person's side is settled: it is a fixed rule with no
+  control (design.md §14). The rule must catch the soft edges of
+  out-of-focus highlights as well as sharp ones (scene (a)'s defocused
+  disc, AC1), and must count the same pixels at every size (R13, AC10).
+  If M1 later shows misses that Tolerance can't fix, an adjustable rule
+  is a follow-up, not part of this feature.
+- **OQ2 (engineer).** Which image does the picker sample? What the person
+  must see is set in design.md §14: the clicked color is the one grayed,
+  and a pick keeps finding the same fringe when other adjustments change
+  later. If the chosen image can't hold that, it goes back to the designer
+  as a Design question.
+- **OQ3 (designer): closed.** Answered in design.md §2–§6 and §10.
 
 ## Revisions
 
@@ -334,3 +362,37 @@ a pending check at Ship.
   Assumptions were removed, since all were confirmed. The old owner
   questions Q1 and OQ1–OQ3 are closed. The open questions now hold only the
   designer and engineer questions, renumbered OQ1–OQ3.
+- 2026-11-07: rulings on the designer's requirements issues
+  (design.md §17). The requirements stay Approved; none of these widens
+  the owner's scope.
+  - **RI-1, offline originals receiving automatic lateral correction:
+    option A** (designer's recommendation). A paste, preset or grid batch
+    that carries automatic lateral correction leaves any photo it can't
+    measure (offline or unreadable) completely unchanged, and Activity
+    reports it with the existing warning. This is the rule batch
+    automatic exposure already follows, so no photo is half-pasted, and R8
+    (measured values always stored) holds. B was rejected: it would apply a
+    different look from the one pasted, with nothing to show why. C was
+    rejected: it would need a new unmeasured state and break R8. New: R16a
+    and AC13a.
+  - **RI-2, fine-tuning an automatic correction: option A** (designer's
+    recommendation). Moving either lateral slider after an automatic
+    measurement starts from the measured values and makes them hand-set,
+    and paste and presets copy hand-set values as they are. This follows
+    the White Balance pattern the app already has (automatic, then a
+    slider move makes it custom), and each slider keeps one meaning (0 is
+    no shift). B was rejected: offsets tuned on one photo's measurement
+    may be wrong for another's, and the sliders would no longer show the
+    correction. It is consistent with ruling 10: only an automatic
+    correction is measured again. R10, R16, AC7 and AC13 were updated.
+  - **R12, one group or two:** the designer's two groups (fringe removal
+    and lateral correction, each with its own on/off and its own preset
+    group entry) satisfy R12, which I meant as "has group on/off like
+    every module", not "exactly one group". R12 and AC9 were reworded. No
+    change to design.md.
+  - **Clarification, not new scope:** the Problem names halos around
+    out-of-focus highlights, so scene (a) gains a defocused disc with a
+    soft purple rim, and AC1 checks it (raised in design.md §14). OQ1 now
+    holds only the engineer's definition of the edge rule; the person's
+    side (fixed, no control) is settled by design.md §14. OQ3 is closed
+    by design.md.
