@@ -298,6 +298,27 @@ size. Compiling the stitchable source took about 300 ms on the first launch
 after a build and about 1 ms afterwards. These kernels run in the working
 format (`RGBAh`), so their accuracy is half float's (`StitchableKernelTests`).
 
+### Lens heading
+
+`photobench edits` also times the chromatic aberration controls next to a
+color slider (docs/features/chromatic-aberration, R18): live frames at 2560 px
+while Saturation, a fringe slot's Tolerance (Purple and Green filled), the
+fringe map and Red/cyan move. Median of 60 frames over three 6000 × 4000
+files; Apple M4 Pro, macOS 27.2, 2026-11-08:
+
+| ms (p50) | DNG | HEIC | JPEG |
+|---|---|---|---|
+| exposure | 64.9 | 24.5 | 23.8 |
+| saturation | 64.7 | 26.2 | 26.1 |
+| fringe tolerance | 78.0 | 27.1 | 27.2 |
+| fringe map | 17.2 | 10.1 | 10.5 |
+| color alignment | 13.9 | 30.5 | 33.2 |
+
+The Lens kernels are seven Metal libraries (one kernel each); compiling them
+took 2.2 s on the first launch after a build, so the editor compiles them in
+the background when the first photo opens. `photobench scenes --output DIR`
+writes the test scenes as files for checks in the app.
+
 ## Reproducing
 
 Build the tools:
