@@ -545,6 +545,8 @@ final class LibraryModel {
     /// The command a batch measurement runs for (Paste Adjustments, Apply
     /// Preset …, measuring color alignment); nil for Auto Exposure.
     private(set) var batchAutoTitle: String?
+    /// `batchAutoTitle` fitted to the toolbar (a long preset name shortened in the middle).
+    private(set) var batchAutoToolbarTitle: String?
     @ObservationIgnored var batchAutoTask: Task<Void, Never>?
 
     private func scheduleActivityTick() {
@@ -559,9 +561,10 @@ final class LibraryModel {
         activity.markSeen()
     }
 
-    func setBatchAutoProgress(_ progress: (done: Int, total: Int)?, title: String? = nil) {
+    func setBatchAutoProgress(_ progress: (done: Int, total: Int)?, title: String? = nil, toolbarTitle: String? = nil) {
         batchAutoProgress = progress
         batchAutoTitle = progress == nil ? nil : title
+        batchAutoToolbarTitle = progress == nil ? nil : toolbarTitle
     }
     private(set) var onlineVolumeIDs: Set<Int64> = []
 

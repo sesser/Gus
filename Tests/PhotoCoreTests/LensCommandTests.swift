@@ -94,3 +94,67 @@ struct LensCommandTests {
         #expect(distortion.unsupported == [.lensCorrections])
     }
 }
+
+/// AC13b (RI-E2 ruling): presets with every group replace the Lens groups too.
+@Suite("Lens groups in presets")
+struct LensPresetTests {
+    /// A scene (a) photo's values with both slots filled and automatic alignment on.
+    static var photo: Adjustments {
+        var values = Adjustments()
+        values.colorFringes = ColorFringes(slot1: CommonFringeColor.purple.slot, slot2: CommonFringeColor.green.slot)
+        values.colorAlignment = ColorAlignment(automatic: true, red: 12, blue: -8)
+        return values
+    }
+
+    /// What a preset saved before the Lens groups existed holds: other values only.
+    static var older: Adjustments {
+        var values = Adjustments()
+        values.tone.contrast = 20
+        return values
+    }
+
+    static func expectLensCleared(_ values: Adjustments, sourceLocation: SourceLocation = #_sourceLocation) {
+        #expect(values.colorFringes.isIdentity, sourceLocation: sourceLocation)
+        #expect(values.colorAlignment == ColorAlignment(), sourceLocation: sourceLocation)
+        #expect(values.tone.contrast == 20, sourceLocation: sourceLocation)
+    }
+
+    @Test("AC13b: a stored preset with no group list clears the slots and alignment")
+    func storedPresetWithEveryGroup() async throws {
+        let fixture = try await CatalogFixture.make()
+        // Every group: stored with no group list, as presets saved before this feature are.
+        let saved = AdjustmentPreset(name: "Older", adjustments: Self.older)
+        #expect(AdjustmentPreset.encodeGroups(saved.groups) == nil)
+        _ = try await fixture.catalog.saveAdjustmentPreset(saved)
+        let read = try #require(try await fixture.catalog.adjustmentPresets().first)
+        #expect(read.includesEveryGroup)
+        #expect(read.groups.isSuperset(of: [.colorFringes, .colorAlignment]))
+        let applied = read.applied(onto: Self.photo)
+        Self.expectLensCleared(applied)
+        // No automatic alignment to measure: the app applies it as one change (one undo step).
+        #expect(!applied.needsAlignmentMeasurement)
+    }
+
+    @Test("AC13b: a preset file with no group list reads as every group")
+    func presetFileWithEveryGroup() throws {
+        let stack = String(decoding: try Self.older.editStack.jsonData(), as: UTF8.self)
+        // A file written before this feature: no "groups" key.
+        let json = #"{"format":"adjustmentPresets","formatVersion":1,"lookTables":[],"presets":[{"name":"Older","settings":"#
+            + stack + "}]}"
+        let presets = try PresetFile(data: Data(json.utf8)).adjustmentPresets()
+        let preset = try #require(presets.first)
+        #expect(preset.includesEveryGroup)
+        Self.expectLensCleared(preset.applied(onto: Self.photo))
+    }
+
+    @Test("AC13b: a preset whose group list leaves out the Lens groups keeps the photo's")
+    func presetWithoutTheLensGroups() {
+        let groups = Set(Adjustments.Group.allCases).subtracting([.colorFringes, .colorAlignment])
+        let preset = AdjustmentPreset(name: "Older", groups: groups, adjustments: Self.older)
+        #expect(AdjustmentPreset.encodeGroups(preset.groups) != nil)
+        let applied = preset.applied(onto: Self.photo)
+        #expect(applied.colorFringes == Self.photo.colorFringes)
+        #expect(applied.colorAlignment == Self.photo.colorAlignment)
+        #expect(applied.tone.contrast == 20)
+    }
+}

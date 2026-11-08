@@ -211,7 +211,7 @@
       }
     },
     "%@: the original could not be read." : {
-      "comment" : "Export report: file name",
+      "comment" : "Export report: file name; also a file line under the left-unchanged row of a paste or preset that measures color alignment",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -590,6 +590,29 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "%lld photos were left unchanged: their originals are offline."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld photos were left unchanged: their originals could not be read." : {
+      "comment" : "Activity, after a paste or preset that measures color alignment: originals that could not be read; one line per file follows",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photo was left unchanged: its original could not be read."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photos were left unchanged: their originals could not be read."
                 }
               }
             }
@@ -1444,7 +1467,7 @@
       }
     },
     "And %lld more." : {
-      "comment" : "Activity: failures past the listed ones",
+      "comment" : "Activity: failures past the listed ones (export; a paste or preset that measures color alignment)",
       "localizations" : {
         "en" : {
           "stringUnit" : {

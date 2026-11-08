@@ -44,7 +44,8 @@ extension LibraryModel {
     /// ones with the existing warning, unreadable ones with the export's
     /// "the original could not be read". In the loupe, the inspector shows
     /// the measuring and, when it fails, "This photo could not be measured."
-    func changeAdjustmentsMeasuringAlignment(actionName: String,
+    /// `toolbarTitle` is `actionName` fitted to the toolbar, when it can be long.
+    func changeAdjustmentsMeasuringAlignment(actionName: String, toolbarTitle: String? = nil,
                                              _ transform: @escaping @Sendable (Adjustments) -> Adjustments) {
         let selection = batchSelection(action: actionName, needsMaster: { _ in true })
         let sources = selection.versionIDs.compactMap { id -> (Int64, URL, String)? in
@@ -56,7 +57,7 @@ extension LibraryModel {
         let generator = previews.interactiveGenerator
         let inLoupe = mode == .loupe
         batchAutoTask?.cancel()
-        setBatchAutoProgress((0, sources.count), title: actionName)
+        setBatchAutoProgress((0, sources.count), title: actionName, toolbarTitle: toolbarTitle)
         if inLoupe { editor.setMeasuringAlignment(true) }
         batchAutoTask = Task {
             defer {
@@ -80,11 +81,14 @@ extension LibraryModel {
                 } else {
                     measured[id] = values.colorAlignment
                 }
-                setBatchAutoProgress((index + 1, sources.count), title: actionName)
+                setBatchAutoProgress((index + 1, sources.count), title: actionName, toolbarTitle: toolbarTitle)
             }
             guard !Task.isCancelled else { return }
-            for name in unreadable {
-                report(String(localized: "\(name): the original could not be read."), action: actionName, warning: true)
+            if !unreadable.isEmpty {
+                // One row for the command (design §19 DQ-2): the count, then the files.
+                let summary = Self.unreadableSummary(unreadable.count)
+                report(Self.unreadableDetail(summary, names: unreadable), action: actionName, warning: true,
+                       announcing: summary)
             }
             if inLoupe, !unreadable.isEmpty { editor.noteAlignmentMeasureFailed() }
             let alignments = measured
@@ -94,6 +98,23 @@ extension LibraryModel {
                 return changed.measuringAlignment(alignment)
             }
         }
+    }
+
+    /// The first line of the row for originals a measuring paste or preset
+    /// could not read.
+    static func unreadableSummary(_ count: Int) -> String {
+        String(localized: "\(count) photos were left unchanged: their originals could not be read.",
+               comment: "Activity, after a paste or preset that measures color alignment: originals that could not be read; the files follow")
+    }
+
+    /// The summary, one line per file up to the export's limit, then "And N more.".
+    static func unreadableDetail(_ summary: String, names: [String]) -> String {
+        let limit = ExportActivityReport.failureListLimit
+        var lines = [summary] + names.prefix(limit).map { String(localized: "\($0): the original could not be read.") }
+        if names.count > limit {
+            lines.append(String(localized: "And \(names.count - limit) more.", comment: "Activity: failures past the listed ones"))
+        }
+        return lines.joined(separator: "\n")
     }
 
     // MARK: Applying to many photos

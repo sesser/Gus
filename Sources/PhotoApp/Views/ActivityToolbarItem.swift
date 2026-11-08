@@ -111,7 +111,7 @@ struct ActivityToolbarItem: View {
                           comment: "Activity: batch Auto Exposure")
             let detail: String? = model.batchAutoTitle == nil ? nil
                 : String(localized: "\(progress.done) of \(progress.total)")
-            jobs.append(ActivityJob(id: "auto", title: title, detail: detail,
+            jobs.append(ActivityJob(id: "auto", title: title, toolbarTitle: model.batchAutoToolbarTitle, detail: detail,
                                     progress: Double(progress.done) / Double(max(progress.total, 1)),
                                     stop: { model.batchAutoTask?.cancel() }))
         }

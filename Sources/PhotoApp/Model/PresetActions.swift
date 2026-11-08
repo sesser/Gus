@@ -33,8 +33,12 @@ extension LibraryModel {
     func applyAdjustmentPreset(_ preset: AdjustmentPreset) {
         if preset.groups.contains(.colorAlignment), preset.adjustments.needsAlignmentMeasurement {
             // Measured on each photo it reaches (chromatic-aberration R16).
+            let toolbarTitle = ToolbarMetrics.statusLine(name: preset.name) {
+                String(localized: "Apply Preset \($0)", comment: "Undo action name")
+            }
             changeAdjustmentsMeasuringAlignment(actionName: String(localized: "Apply Preset \(preset.name)",
-                                                                   comment: "Undo action name")) {
+                                                                   comment: "Undo action name"),
+                                                toolbarTitle: toolbarTitle) {
                 preset.applied(onto: $0)
             }
             return

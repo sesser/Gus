@@ -268,9 +268,10 @@ high-contrast edges keep theirs, so a purple flower or a green leaf stays as it
 is even when its color is in a range; only its outline can be grayed if it is a
 high-contrast edge. The colors are matched on the photo as it comes from the
 file, before the other adjustments, so changing Saturation, a look-up table or
-any later adjustment does not change what is grayed. (A raw file's white
-balance comes from the decoder, before that point: after a large change to it,
-pick the fringe again.)
+any later adjustment does not change what is grayed. (For a raw file, White
+Balance and Profile are applied as the file is decoded, before that point.
+After a large White Balance change or a different Profile, show the Fringe Map:
+if the fringe no longer shows white, pick or choose its color again.)
 
 **Fringe Map** (the toggle under the slots, **Adjust ▸ Show Fringe Map**, or the
 loupe's context menu) shows where fringe color is removed, in place of the
@@ -306,7 +307,10 @@ the menu commands below. **Copy Adjustments**, **Paste Adjustments** and
 to **Original** (`\`). **Save Adjustments as
 Preset…** asks for a name, a collection and the groups of controls to include
 (those the photo changes are checked): applying the preset replaces only those
-and leaves the photo's other settings alone. **Import Presets…** reads this
+and leaves the photo's other settings alone. A preset with all settings,
+including one saved before Color Fringes and Color Alignment existed, also
+replaces those two (clearing a photo's fringe colors and alignment); **Manage
+Presets…** can take them out of it. **Import Presets…** reads this
 app's preset files and Lightroom presets (`.lrtemplate`, `.xmp`, and
 `.dng` mobile presets), or folders of them. A folder becomes a collection unless
 its presets name their own, and a pack that holds a preset in several formats
