@@ -268,6 +268,36 @@ Compiling the Metal source and both pipelines took 134 ms the first time and
 1.2 ms afterwards (Metal's shader cache). The kernels read and write 32-bit
 float; with half float the full-size gain took 12.7 ms and the blur 24.4 ms.
 
+### Stitchable kernels
+
+The same command also times `StitchableKernels`: the same gain and blur as
+Core Image kernels compiled from Metal source with
+`CIKernel.kernels(withMetalString:)`, which Core Image can fuse with its own
+filters, and a chain of three gains around a stock `CIColorMatrix`. Passes
+are Core Image's (`CIRenderInfo.passCount`). First call, then the median of
+seven; Apple M4 Pro, macOS 27.2, 2026-11-07:
+
+| | preview 2560 × 1707 | passes | full 6000 × 4000 | passes |
+|---|---|---|---|---|
+| source only | 6.3 / 2.2 ms | 1 | 10.7 / 7.2 ms | 1 |
+| gain, runtime kernel | 8.1 / 4.1 ms | 3 | 27.9 / 22.7 ms | 12 |
+| gain, stitchable | 18.9 / 1.2 ms | 1 | 7.6 / 7.7 ms | 1 |
+| gain, `CIExposureAdjust` | 1.3 / 1.2 ms | 1 | 7.4 / 7.6 ms | 1 |
+| blur σ 4, runtime kernel | 10.8 / 7.2 ms | 4 | 46.8 / 41.9 ms | 16 |
+| blur σ 4, stitchable | 11.2 / 2.7 ms | 3 | 18.7 / 20.0 ms | 6 |
+| blur σ 4, `CIGaussianBlur` | 9.5 / 2.6 ms | 3 | 33.2 / 15.8 ms | 6 |
+| chain, runtime kernels | 11.3 / 8.6 ms | 6 | 53.7 / 50.3 ms | 24 |
+| chain, stitchable | 10.3 / 1.2 ms | 1 | 7.8 / 7.4 ms | 1 |
+| chain, stock filters | 1.3 / 1.2 ms | 1 | 6.8 / 7.2 ms | 1 |
+
+A stitchable gain, or a chain of them with a stock filter between, costs
+what the stock filter costs: Core Image folds it into the pass that reads
+the source. The naive stitchable blur (every tap read, weights computed per
+tap) takes as many passes as `CIGaussianBlur` and about 25% longer at full
+size. Compiling the stitchable source took about 300 ms on the first launch
+after a build and about 1 ms afterwards. These kernels run in the working
+format (`RGBAh`), so their accuracy is half float's (`StitchableKernelTests`).
+
 ## Reproducing
 
 Build the tools:
