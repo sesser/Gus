@@ -18,7 +18,8 @@ had whole wrong cells, at Fit and at 100%, on first refinements and after
 Masking moves) and is gone on the branch (0 of 123 snapshots; within each script,
 every Masking value gave one identical map across all launches). Both regression checks fail on
 `develop` and pass on the branch, `swift test` is green, CI is green on the head
-commit, and no golden or pipeline version moved. One person's check (P1) is open.
+commit, and no golden or pipeline version moved. The one person's check (P1) passed
+(the owner's report, 2026-11-09; see Follow-up), so nothing is left open for a person.
 
 ## Acceptance criteria
 
@@ -35,10 +36,10 @@ commit, and no golden or pipeline version moved. One person's check (P1) is open
 | B9. No golden changed; `currentPipelineVersion` did not move | Test, Read | `git diff dfa0d5c a452c86` touches no file under `Tests/PhotoCoreTests/Goldens` or `.../Reference`; `currentPipelineVersion` is 7 at both commits; `GoldenTests` pass in the full run | Pass |
 | B10. `swift test` on the branch | Test | a452c86 in the checkout: 637 tests in 109 suites, passed, 1 known issue (`LiveSessionTests`, "Values above white survive the cached stages", the existing `withKnownIssue`) | Pass |
 | B11. CI on the pull request head | Test | Run 42683751502 on a452c86: `Build and test (macos-15)` success, `Build and test (macos-26)` success | Pass |
-| B12. On a real display, the owner's stack (status.md, For QA) | Person | P1 | Open |
+| B12. On a real display, the owner's stack (status.md, For QA) | Person | P1, passed by the owner's report, 2026-11-09 (Follow-up) | Pass |
 
 Result is Pass, Fail, Open or Waived. Counts: 6 passed by test (B6–B11), 5 by script
-(B1–B5), 1 open for a person, 0 failed.
+(B1–B5), 1 by a person (B12), 0 open, 0 failed.
 
 How snapshots were judged: each script's frames were compared cell by cell (4 ×
 2) with a reference frame from the branch's first run of the same script. A cell
@@ -177,7 +178,7 @@ opened or looked at.
 ## For a person
 
 **P1. No wrong cells in the Sharpening Map on your real display, with your stack (covers B12).**
-No design review, so no M-number. Nobody has looked at the fix on a real display.
+Passed, 2026-11-09 (see Follow-up). No design review, so no M-number. Nobody had looked at the fix on a real display before this check.
 Takes a few minutes.
 
 Do it in `~/Desktop/gus-playground`, where you saw the fault. Opening that
@@ -282,3 +283,29 @@ re-read the existing snapshot files.
   (`SharpeningMapRefiner.swift:62-66`), a change to any of them schedules a
   refinement (`AdjustmentEditor.change`, `requestRender`), and the mask reads only
   Radius and Masking (`AdjustmentRenderer.sharpeningMask`).
+
+**2026-11-09, P1 Passed.** The owner reports P1 passed, on a build of the fix branch,
+relayed by the main session; the report does not say which of P1's passes were run.
+B12 is Pass and nothing is left open for a person. The verdict is still Passes.
+
+The owner's first look at `P1040050.RW2` showed the fault, but that app was built
+from the main checkout on `feature/viewport-render-1to1`, which doesn't contain the
+fix. That isn't a failure of P1. It is why the run below was made.
+
+**Main session's run, not QA's: a second file.** Recorded as the main session
+reported it; QA did not rerun it or re-derive its counts.
+
+- `P1040050.RW2` (a scratch copy) with the owner's stack (Amount 103, Radius 1.7,
+  Detail 90, Masking 21), using QA's two bundles and two scratch libraries. 5
+  launches per build (3 cold, 2 warm), 8 snapshots each, at Fit, moving Masking,
+  Amount, Detail and Radius. Script:
+  `/private/tmp/claude-501/-Users-randy-Projects-Gus--claude-worktrees-amazing-gates-111e8a/51047999-3a0d-49b2-bbb3-3b9d1e37c5d8/scratchpad/p50_app_check.zsh`,
+  outputs in `/private/tmp/claude-501/-Users-randy-Projects-Gus--claude-worktrees-amazing-gates-111e8a/51047999-3a0d-49b2-bbb3-3b9d1e37c5d8/scratchpad/p50`.
+- Snapshots with a wrong map: `develop` 14 of 40, branch 0 of 40. Each was compared
+  with the branch's first cold launch at the same step, counting pixels that differ
+  by more than 8 of 255, in the map region only (y 100–1440 of 2640 × 1720), because
+  the film strip's thumbnails differ between launches. Every branch snapshot had 0
+  differing pixels.
+- Limits: Fit only; sliders set by script, not dragged.
+- `CAMERA_RAW_SAMPLE=<P1040050 copy> swift test --filter SharpeningMapRawFileTests`
+  passed 3 of 3 on the branch, at a commit with the same code as a452c86.
