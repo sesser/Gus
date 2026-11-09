@@ -347,6 +347,8 @@ final class LoupeController: NSObject {
         }
         if !sameVersion {
             scrollView.cancelPendingClick()
+            imageView.setTile(nil, unit: .zero)
+            model.editor.loupeAwaitsFullRendition = false
             applyZoom(animated: false)
         }
 
@@ -391,28 +393,70 @@ final class LoupeController: NSObject {
         return nil
     }
 
-    /// Shows the editor's newest frame while an edit is live, and goes back to
-    /// the cached renditions when it is not.
+    /// Shows the editor's newest frames while an edit is live, and goes back to
+    /// the cached renditions when it is not: a whole frame (from the live
+    /// session) goes on the base, a region frame goes on the tile over it. A
+    /// whole frame of other values takes the tile down, so soft frames of a
+    /// raw decode follow the hand (design §3: sharp to soft when R4 input
+    /// resumes).
     func showLiveFrame(revision: Int, active: Bool) {
         let editor = model.editor
-        guard active, let frame = editor.frame, editor.item?.versionID == shownKey?.versionID else {
+        guard active, editor.item?.versionID == shownKey?.versionID, editor.frame != nil || editor.regionFrame != nil else {
             shownFrameRevision = nil
+            // A sharp frame of the saved values stays until the full
+            // rendition takes over (design §3).
+            if let regionFrame = editor.regionFrame, regionFrame.adjustments == editor.savedAdjustments,
+               !editor.showsOriginal, editor.item?.versionID == shownKey?.versionID, editor.loupeViewport != nil {
+                showTile(regionFrame)
+            } else if imageView.hasTile {
+                imageView.setTile(nil, unit: .zero)
+            }
             if rendition == .live {
                 rendition = .placeholder
                 reloadsSameKey = true
+                if editor.loupeViewport != nil {
+                    // The tile covers the swap; the wait for the full rendition counts (design §2.1).
+                    editor.loupeAwaitsFullRendition = true
+                }
                 show(index: shownIndex)
             }
             return
         }
         guard revision != shownFrameRevision else { return }
         shownFrameRevision = revision
-        loadTask?.cancel()
-        hdrTask?.cancel()
-        fullTask?.cancel()
-        rendition = .live
-        matchFrame(to: frame.image.cgImage, exact: false)
-        imageView.setImage(frame.image.cgImage, extendedRange: false)
-        if model.loupeHDRHeadroom != nil { model.loupeHDRHeadroom = nil }
+        if let regionFrame = editor.regionFrame, editor.loupeViewport != nil {
+            showTile(regionFrame)
+        } else if imageView.hasTile {
+            imageView.setTile(nil, unit: .zero)
+        }
+        if let frame = editor.frame {
+            if let tile = editor.regionFrame, tile.adjustments != frame.adjustments, frame.adjustments != editor.valuesOnScreen,
+               editor.loupeViewport != nil {
+                // An older whole frame must not replace a current tile: keep it.
+                return
+            }
+            if let tile = editor.regionFrame, tile.adjustments != frame.adjustments, editor.loupeViewport != nil {
+                // A whole frame of other values: the tile is out of date (R4 soft frames).
+                imageView.setTile(nil, unit: .zero)
+            }
+            loadTask?.cancel()
+            hdrTask?.cancel()
+            fullTask?.cancel()
+            rendition = .live
+            matchFrame(to: frame.image.cgImage, exact: false)
+            imageView.setImage(frame.image.cgImage, extendedRange: false)
+            updateFiltering()
+            if model.loupeHDRHeadroom != nil { model.loupeHDRHeadroom = nil }
+        }
+    }
+
+    /// The sharp frame over the photo. Sized to one output pixel per view
+    /// pixel at 100% (the size the full rendition gives the view).
+    private func showTile(_ frame: LiveRegionRenderer.Frame) {
+        matchFrame(toOutput: frame.outputSize)
+        let size = frame.outputSize
+        imageView.setTile(frame.image.cgImage, unit: CGRect(x: frame.region.minX / size.width, y: frame.region.minY / size.height,
+                                                            width: frame.region.width / size.width, height: frame.region.height / size.height))
     }
 
     /// The selected mask's handles over the photo; reading the editor here
@@ -473,6 +517,24 @@ final class LoupeController: NSObject {
         applyZoom(animated: false)
     }
 
+    /// Keeps the view at one output pixel per view pixel at 100% (a region
+    /// frame's output size; `matchFrame(to:exact:)` for a full rendition).
+    private func matchFrame(toOutput size: CGSize) {
+        guard size.width > 0, size.height > 0 else { return }
+        let backing = hostView.window?.backingScaleFactor ?? 2
+        let target = NSSize(width: size.width / backing, height: size.height / backing)
+        let current = imageView.frame.size
+        guard abs(target.width - current.width) > 0.5 || abs(target.height - current.height) > 0.5 else { return }
+        // The same place stays in the middle of the view: the swap changes
+        // detail, never position (design §3).
+        let visible = scrollView.documentVisibleRect
+        let center = current.width > 0 && current.height > 0
+            ? NSPoint(x: visible.midX / current.width, y: visible.midY / current.height) : NSPoint(x: 0.5, y: 0.5)
+        imageView.setFrameSize(target)
+        scrollView.setMagnification(scrollView.magnification, centeredAt: NSPoint(x: center.x * target.width, y: center.y * target.height))
+        updateLoupeViewport()
+    }
+
     /// Shows `image` unless something more detailed is already showing.
     private func display(_ image: CGImage?, as kind: Rendition) {
         guard kind >= rendition else { return }
@@ -481,6 +543,19 @@ final class LoupeController: NSObject {
         imageView.setImage(image, extendedRange: kind.isHDR)
         let headroom = kind.isHDR ? image?.contentHeadroom : nil
         if model.loupeHDRHeadroom != headroom { model.loupeHDRHeadroom = headroom }
+        updateFiltering()
+        if kind == .full || kind == .hdrFull {
+            // Real pixels of the saved values now under the tile: it has served.
+            imageView.setTile(nil, unit: .zero)
+            model.editor.loupeAwaitsFullRendition = false
+        }
+    }
+
+    /// Nearest-neighbor only for real pixels above 100% (design §2.2): a
+    /// frame that isn't the photo's own pixels enlarges smoothly, at every zoom.
+    private func updateFiltering(magnification known: CGFloat? = nil) {
+        let magnification = known ?? scrollView.magnification
+        imageView.usesNearestFiltering = magnification >= 1 && (rendition == .full || rendition == .hdrFull)
     }
 
     /// HDR is shown when the setting is on and the window's display has extended
@@ -599,10 +674,36 @@ final class LoupeController: NSObject {
     }
 
     @objc private func visibleRectChanged(_ notification: Notification) {
+        updateLoupeViewport()
         guard model.editor.pixelMagnifierIsPicking else { return }
         // The crosshair's area follows the photo on screen (design §4 step 2).
         scrollView.window?.invalidateCursorRects(for: scrollView)
         updateMagnifier()
+    }
+
+    /// Tells the editor the part of the photo on screen while at 100% or
+    /// more, nil below: "covered" follows the toolbar's 100% within a
+    /// percent, and a photo small enough that Fit is 100% counts too.
+    private func updateLoupeViewport(magnification known: CGFloat? = nil) {
+        let bounds = imageView.bounds
+        guard bounds.width > 0, bounds.height > 0, model.mode == .loupe else {
+            model.editor.setLoupeViewport(nil)
+            return
+        }
+        let magnification = known ?? scrollView.magnification
+        // Rounding in the scroll view: within a percent of 100% is 100% (design §4).
+        guard magnification >= 0.99 else {
+            model.editor.setLoupeViewport(nil)
+            return
+        }
+        let visible = scrollView.documentVisibleRect.intersection(bounds)
+        guard !visible.isEmpty else {
+            model.editor.setLoupeViewport(nil)
+            return
+        }
+        // The view is not flipped: unit coordinates count from the top.
+        model.editor.setLoupeViewport(CGRect(x: visible.minX / bounds.width, y: 1 - visible.maxY / bounds.height,
+                                             width: visible.width / bounds.width, height: visible.height / bounds.height))
     }
 
     /// While a tool is picking, Esc cancels it from wherever the keyboard is
@@ -733,11 +834,13 @@ final class LoupeController: NSObject {
         guard let target = zoomIn ? LoupeZoomSteps.zoomIn(from: current, fit: fit)
                                   : LoupeZoomSteps.zoomOut(from: current, fit: fit) else { return }
         let visible = scrollView.documentVisibleRect
-        imageView.usesNearestFiltering = target >= 1
-        NSAnimationContext.runAnimationGroup { context in
+        updateFiltering(magnification: target)
+        NSAnimationContext.runAnimationGroup({ context in
             context.duration = 0.15
             scrollView.animator().setMagnification(target, centeredAt: NSPoint(x: visible.midX, y: visible.midY))
-        }
+        }, completionHandler: { [weak self] in
+            MainActor.assumeIsolated { self?.updateLoupeViewport() }
+        })
         zoom = target > fit * 1.001 ? .actualSize : .fit
         if zoom == .actualSize { loadFullResolution() }
         publishZoom(magnification: target)
@@ -752,18 +855,22 @@ final class LoupeController: NSObject {
                                    canZoomOut: zoom != .fit && LoupeZoomSteps.zoomOut(from: current, fit: fit) != nil,
                                    isActualSize: zoom != .fit && abs(current - 1) < 0.01)
         if model.loupeZoom != state { model.loupeZoom = state }
+        updateLoupeViewport(magnification: current)
     }
 
     private func applyZoom(animated: Bool, centeredAt point: NSPoint? = nil) {
         let target: CGFloat = zoom == .fit ? fitMagnification : 1
         defer { publishZoom(magnification: target) }
         let center = point ?? NSPoint(x: imageView.bounds.midX, y: imageView.bounds.midY)
-        imageView.usesNearestFiltering = target >= 1
+        updateFiltering(magnification: target)
         if animated {
-            NSAnimationContext.runAnimationGroup { context in
+            NSAnimationContext.runAnimationGroup({ context in
                 context.duration = 0.15
                 scrollView.animator().setMagnification(target, centeredAt: center)
-            }
+            }, completionHandler: { [weak self] in
+                // The animation's own bounds changes can end short of the target.
+                MainActor.assumeIsolated { self?.updateLoupeViewport() }
+            })
         } else {
             scrollView.setMagnification(target, centeredAt: center)
         }
@@ -806,7 +913,7 @@ final class LoupeController: NSObject {
     /// Takes the zoom from a magnification a pinch or Option-scroll left:
     /// zooming past the preview's resolution switches to the full render.
     private func adoptMagnification() {
-        imageView.usesNearestFiltering = scrollView.magnification >= 1
+        updateFiltering()
         if scrollView.magnification > fitMagnification * 1.05 {
             if zoom != .actualSize {
                 zoom = .actualSize
@@ -1032,6 +1139,11 @@ final class LoupeImageView: NSView {
         didSet { layer?.magnificationFilter = usesNearestFiltering ? .nearest : .linear }
     }
 
+    /// Real pixels, over the base image: the sharp frame of the part on
+    /// screen. Nearest-neighbor enlarges it above 100% (design §2.2); it
+    /// swaps in place, with no animation (design §3).
+    private let tileLayer = CALayer()
+
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
@@ -1039,7 +1151,35 @@ final class LoupeImageView: NSView {
         layer?.contentsGravity = .resize
         layer?.minificationFilter = .trilinear
         layer?.actions = ["contents": NSNull(), "bounds": NSNull(), "position": NSNull()]
+        tileLayer.contentsGravity = .resize
+        tileLayer.magnificationFilter = .nearest
+        tileLayer.minificationFilter = .trilinear
+        tileLayer.actions = ["contents": NSNull(), "bounds": NSNull(), "position": NSNull(), "frame": NSNull(), "hidden": NSNull()]
+        tileLayer.isHidden = true
+        layer?.addSublayer(tileLayer)
     }
+
+    /// Shows `image` over the part of the photo at `unit` (unit coordinates,
+    /// origin at the top left); nil hides it. Below every other subview, so
+    /// the mask handles stay on top.
+    func setTile(_ image: CGImage?, unit: CGRect) {
+        guard let image else {
+            tileLayer.contents = nil
+            tileLayer.isHidden = true
+            return
+        }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        let size = bounds.size
+        // A view's layer has its origin at the bottom left unless the view is flipped.
+        let y = (layer?.isGeometryFlipped ?? false) ? unit.minY * size.height : (1 - unit.maxY) * size.height
+        tileLayer.frame = CGRect(x: unit.minX * size.width, y: y, width: unit.width * size.width, height: unit.height * size.height)
+        tileLayer.contents = image
+        tileLayer.isHidden = false
+        CATransaction.commit()
+    }
+
+    var hasTile: Bool { !tileLayer.isHidden }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("not used") }
@@ -1260,7 +1400,9 @@ extension LoupeCaption {
         }
         if model.editor.shownFringeMap != nil, model.editor.isRefiningSharpeningMap { return LensText.refiningMap }
         if model.editor.isRefiningPickPreview { return LensText.refiningPhoto }
-        return model.editor.isAwaitingMachineLearningFrame ? MachineLearningText.spinner : nil
+        if model.editor.isAwaitingMachineLearningFrame { return MachineLearningText.spinner }
+        // Last, so the maps and machine learning keep their labels (design §2.1).
+        return model.editor.isAwaitingSharpFrame ? LensText.refiningPhoto : nil
     }
 }
 

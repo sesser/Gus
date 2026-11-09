@@ -33,6 +33,8 @@ import PhotoCore
 ///                               click's path: the pixel rule, refusal; waits for the save)
 ///     adjust fringe fill 1|2 purple|green    adjust fringe clear 1|2    adjust fringe tolerance 1|2 <value>
 ///     adjust align auto on|off  (waits for the measurement)   adjust align redcyan|blueyellow <value>
+///     adjust scrub <name> <from> <to> <steps> [ms-per-step] [hold]   (a drag: value-changing steps, then a commit,
+///                                unless hold; name as above or temperature, luminance-nr)
 ///     original on|off           tab info|adjust          print adjustments
 @MainActor
 enum DebugAdjustCommands {
@@ -57,6 +59,8 @@ enum DebugAdjustCommands {
         let value = Double(arguments.first ?? "")
         let actionName = "Debug \(name)"
         switch name {
+        case "scrub":
+            await scrub(arguments, editor: editor)
         case "auto":
             if arguments.first == "wb" { editor.autoWhiteBalance() } else { editor.autoExposure() }
             try? await Task.sleep(for: .milliseconds(50))
@@ -127,6 +131,44 @@ enum DebugAdjustCommands {
             }
             editor.change(actionName, phase: .committed) { $0[keyPath: keyPath] = value }
         }
+    }
+
+    /// A scripted drag: value-changing steps that wait for frames as a real
+    /// drag does, then one commit (unless `hold`).
+    private static func scrub(_ arguments: [String], editor: AdjustmentEditor) async {
+        let numbers = arguments.dropFirst().compactMap(Double.init)
+        guard let name = arguments.first, numbers.count >= 3 else {
+            print("debug-script: adjust scrub expects <name> <from> <to> <steps> [ms] [hold]")
+            return
+        }
+        let from = numbers[0], to = numbers[1]
+        let steps = max(Int(numbers[2]), 1)
+        let delay = numbers.count > 3 ? numbers[3] : 16
+        let hold = arguments.contains("hold")
+        let apply: (Double, EditPhase) -> Void = { value, phase in
+            switch name {
+            case "temperature":
+                editor.change("Debug temperature", phase: phase) {
+                    $0.whiteBalance.preset = .custom
+                    $0.whiteBalance.temperature = value
+                    $0.whiteBalance.tint = $0.whiteBalance.tint ?? editor.rawDefaults?.tint
+                }
+            case "luminance-nr":
+                editor.change("Debug luminance", phase: phase) { $0.noiseReduction.luminance = value }
+            default:
+                guard let keyPath = keyPath(named: name) else { return }
+                editor.change("Debug \(name)", phase: phase) { $0[keyPath: keyPath] = value }
+            }
+        }
+        for step in 0...steps {
+            apply(from + (to - from) * Double(step) / Double(steps), .changing)
+            try? await Task.sleep(for: .milliseconds(delay))
+        }
+        if !hold { apply(to, .committed) }
+    }
+
+    private static func keyPath(named name: String) -> WritableKeyPath<Adjustments, Double>? {
+        numbers[name]
     }
 
     private static func runMask(_ arguments: [String], editor: AdjustmentEditor) {

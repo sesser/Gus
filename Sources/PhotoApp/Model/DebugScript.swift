@@ -178,6 +178,10 @@ enum DebugScript {
             }
         case "zoom":
             send("z")
+        case "zoomstep":
+            // ⌘= / ⌘−: the next zoom step (`LoupeZoomSteps`).
+            NotificationCenter.default.post(name: .loupeShouldStepZoom, object: model,
+                                            userInfo: [LoupeZoomStep.zoomInKey: rest.first != "out"])
         case "project":
             if let index = Int(rest.first ?? ""), model.projects.indices.contains(index) {
                 model.sidebarSelection = .project(model.projects[index].id)
@@ -772,6 +776,29 @@ enum DebugScript {
         print(line)
     }
 
+    /// `print viewport`: the loupe's zoom and what is on screen, for the
+    /// region and sharpness checks (viewport-render-1to1, design §5).
+    private static func printViewport(model: LibraryModel) {
+        let editor = model.editor
+        guard let window, let scroll = descendant(of: LoupeScrollView.self, in: window.contentView) else {
+            print("debug-script: viewport no canvas")
+            return
+        }
+        let frame = editor.regionFrame.map { region in
+            let size = region.outputSize
+            return "\(Int(region.region.width))x\(Int(region.region.height)) at \(Int(region.region.minX)),\(Int(region.region.minY))"
+                + " of \(Int(size.width))x\(Int(size.height))"
+                + (region.adjustments == editor.adjustments ? " applied" : " other values")
+                + (region.hasOverlay ? " overlay" : "")
+        } ?? "none"
+        let tile = descendant(of: LoupeImageView.self, in: window.contentView)?.hasTile == true
+        let image = descendant(of: LoupeImageView.self, in: window.contentView)
+        print(String(format: "debug-script: viewport covered %@ magnification %.3f bounds %.0fx%.0f live %@ tile %@ region frame %@ spinner %@ hist %@ visible %@",
+                     editor.loupeViewport == nil ? "no" : "yes", scroll.magnification, image?.bounds.width ?? 0, image?.bounds.height ?? 0, editor.showsLive ? "yes" : "no", tile ? "shown" : "none", frame,
+                     editor.isAwaitingSharpFrame ? "yes" : "no", editor.histogram.map { String(format: "%x", abs($0.hashValue) % 0xffffff) } ?? "none",
+                     editor.loupeViewport.map { String(format: "%.4f,%.4f %.4fx%.4f", $0.minX, $0.minY, $0.width, $0.height) } ?? "-"))
+    }
+
     private static func descendant<V: NSView>(of type: V.Type, in view: NSView?) -> V? {
         guard let view else { return nil }
         if let match = view as? V { return match }
@@ -987,6 +1014,17 @@ enum DebugScript {
             }
         case "announcement":
             print("debug-script: announcement \(AccessibilityText.lastAnnouncement ?? "-")")
+        case "viewport":
+            printViewport(model: model)
+        case "frames":
+            let editor = model.editor
+            for (index, entry) in editor.frameTrace.enumerated() {
+                print(String(format: "debug-script: frame %d %@ %@ %@ %.1f ms%@", index, entry.sharp ? "sharp" : "soft",
+                             entry.valuesAreCurrent ? "current" : "behind", entry.interactive ? "interactive" : "still",
+                             entry.seconds * 1000, entry.region.map { " region \(Int($0.width))x\(Int($0.height))" } ?? ""))
+            }
+            print("debug-script: frames \(editor.frameTrace.count) sharp \(editor.frameTrace.filter(\.sharp).count)")
+            editor.resetFrameTrace()
         case "hdr":
             let potential = window?.screen?.maximumPotentialExtendedDynamicRangeColorComponentValue ?? 1
             let headroom = model.loupeHDRHeadroom.map { String(format: "%.2f", $0) } ?? "none"
