@@ -57,33 +57,37 @@ extension LibraryModel {
         let generator = previews.interactiveGenerator
         let inLoupe = mode == .loupe
         batchAutoTask?.cancel()
+        let run = batchAutoRun.begin()
         setBatchAutoProgress((0, sources.count), title: actionName, toolbarTitle: toolbarTitle)
         if inLoupe { editor.setMeasuringAlignment(true) }
         batchAutoTask = Task {
             defer {
-                setBatchAutoProgress(nil)
-                batchAutoTask = nil
-                if inLoupe { editor.setMeasuringAlignment(false) }
+                if batchAutoRun.owns(run) {
+                    setBatchAutoProgress(nil)
+                    batchAutoTask = nil
+                    if inLoupe { editor.setMeasuringAlignment(false) }
+                }
             }
             guard let stored = try? await catalog.editStacks(forVersions: sources.map(\.0)) else { return }
-            var measured: [Int64: ColorAlignment] = [:]
-            var unreadable: [String] = []
+            var measured = BatchEdit.AlignmentMeasurements()
             for (index, (id, url, name)) in sources.enumerated() {
                 guard !Task.isCancelled else { return }
-                // Stacks this build can't read are left to the catalog, which says so.
+                // Stacks this build can't read stay in the list below: the catalog skips and reports them.
                 guard let stack = stored.stacks[id] else { continue }
                 let values = transform(Adjustments(stack: stack))
                 if values.needsAlignmentMeasurement {
                     let alignment = await Task.detached(priority: .userInitiated) {
                         try? ColorAlignmentMeasurement.measure(source: url, adjustments: values, generator: generator)
                     }.value
-                    if let alignment { measured[id] = alignment } else { unreadable.append(name) }
+                    measured.record(alignment, id: id, name: name)
                 } else {
-                    measured[id] = values.colorAlignment
+                    measured.record(values.colorAlignment, id: id, name: name)
                 }
+                guard batchAutoRun.owns(run) else { return }
                 setBatchAutoProgress((index + 1, sources.count), title: actionName, toolbarTitle: toolbarTitle)
             }
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, batchAutoRun.owns(run) else { return }
+            let unreadable = measured.unreadableOriginals
             if !unreadable.isEmpty {
                 // One row for the command (design §19 DQ-2): the count, then the files.
                 let summary = Self.unreadableSummary(unreadable.count)
@@ -91,8 +95,8 @@ extension LibraryModel {
                        announcing: summary)
             }
             if inLoupe, !unreadable.isEmpty { editor.noteAlignmentMeasureFailed() }
-            let alignments = measured
-            changeAdjustments(ofVersions: sources.map(\.0).filter { alignments[$0] != nil }, actionName: actionName) { id, values in
+            let alignments = measured.alignments
+            changeAdjustments(ofVersions: measured.versionsToChange(from: sources.map(\.0)), actionName: actionName) { id, values in
                 let changed = transform(values)
                 guard changed.needsAlignmentMeasurement, let alignment = alignments[id] else { return changed }
                 return changed.measuringAlignment(alignment)

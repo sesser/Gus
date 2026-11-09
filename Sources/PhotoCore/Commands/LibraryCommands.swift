@@ -202,7 +202,8 @@ enum LibraryCommands {
 
     /// Color alignment as the app sets it: `colorAlignment.automatic=true`
     /// measures the master and stores what it measured (R8); setting `red` or
-    /// `blue` makes the values hand-set (R10).
+    /// `blue` makes the values hand-set (R10); `colorAlignment.automatic=false`
+    /// alone removes the correction.
     static func alignColors(_ stack: EditStack, edits: [AdjustmentEdit], source: URL,
                             lookTables: LookTableStore?) throws -> EditStack {
         func sets(_ name: String, to value: String? = nil) -> Bool {
@@ -225,6 +226,9 @@ enum LibraryCommands {
             }
         } else if sets("red") || sets("blue") {
             values.colorAlignment.automatic = false
+        } else if sets("automatic", to: "false") {
+            // Unchecking removes the correction, as the check box does.
+            values.colorAlignment = ColorAlignment()
         } else {
             return stack
         }

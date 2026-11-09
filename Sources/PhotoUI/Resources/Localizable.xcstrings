@@ -10002,6 +10002,17 @@
         }
       }
     },
+    "The original could not be read. Make sure it's available, then pick again." : {
+      "comment" : "Inspector caption and VoiceOver announcement when picking ends because the photo's pixels could not be read",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The original could not be read. Make sure it's available, then pick again."
+          }
+        }
+      }
+    },
     "The photos stay in the library." : {
       "comment" : "Delete album confirmation",
       "localizations" : {

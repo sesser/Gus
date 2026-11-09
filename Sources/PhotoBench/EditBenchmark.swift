@@ -19,6 +19,13 @@ enum EditBenchmark {
         return adjustments
     }
 
+    /// One pointer move of the pixel magnifier.
+    private static func magnifierUpdate(_ tool: FringeMagnifierTool, at unit: CGPoint, level: PixelMagnifierLevel) {
+        guard let reading = PixelMagnifier.reading(tool: tool, atOutput: unit, devicePixelsAcross: 2560) else { return }
+        let picture = PixelMagnifier.picture(image: tool.image, center: reading.pixel, level: level, deviceSize: 256)
+        _ = picture.bitmap(surround: (24, 24, 24))
+    }
+
     static func run(_ arguments: Arguments) async throws -> [String: any Sendable] {
         let library = try BenchLibrary(arguments)
         let limit = arguments.int("limit", default: 12)
@@ -56,6 +63,8 @@ enum EditBenchmark {
             // The pixel magnifier (chromatic-aberration R36, AC31).
             var magnifierFirstPixels: [Double] = []
             var magnifierUpdate: [Double] = []
+            var magnifierUpdate100: [Double] = []
+            var magnifierUpdateCropped: [Double] = []
             var magnifierHeldMB: [Double] = []
             var saturationWithMagnifier: [Double] = []
             for url in urls where load == nil {
@@ -99,16 +108,18 @@ enum EditBenchmark {
                 if let pixels = held {
                     magnifierHeldMB.append(Double(pixels.byteCount) / 1_048_576)
                     let tool = FringeMagnifierTool(pixels: pixels, crop: Crop())
+                    let croppedTool = FringeMagnifierTool(pixels: pixels, crop: Crop(rect: CropRect(x: 0.1, y: 0.1, width: 0.8, height: 0.8), angle: 3))
                     for frame in 0..<frames {
                         let unit = CGPoint(x: 0.3 + Double(frame) * 0.01, y: 0.4)
-                        magnifierUpdate.append(try await measure {
-                            let scale = tool.outputPixelWidth / 2560
-                            if let reading = PixelMagnifier.reading(tool: tool, at: tool.position(forOutput: unit),
-                                                                    photoPixelsPerDevicePixel: scale) {
-                                let picture = PixelMagnifier.picture(image: tool.image, center: reading.pixel,
-                                                                     level: .standard, deviceSize: 256)
-                                _ = picture.bitmap(surround: (24, 24, 24))
-                            }
+                        magnifierUpdate.append(await measure {
+                            Self.magnifierUpdate(tool, at: unit, level: .standard)
+                        }.1.milliseconds)
+                        // The largest picture the magnifier draws, and the costliest cells (a straightened crop).
+                        magnifierUpdate100.append(await measure {
+                            Self.magnifierUpdate(tool, at: unit, level: .percent100)
+                        }.1.milliseconds)
+                        magnifierUpdateCropped.append(await measure {
+                            Self.magnifierUpdate(croppedTool, at: unit, level: .percent100)
                         }.1.milliseconds)
                     }
                     for frame in 0..<frames {
@@ -133,6 +144,7 @@ enum EditBenchmark {
                                    ("live fringe tolerance", fringeTolerance), ("live fringe map", fringeMap),
                                    ("live color alignment", alignment),
                                    ("magnifier first pixels", magnifierFirstPixels), ("magnifier update", magnifierUpdate),
+                                   ("magnifier update 100%", magnifierUpdate100), ("magnifier 100%, cropped", magnifierUpdateCropped),
                                    ("magnifier held MB", magnifierHeldMB),
                                    ("saturation, magnifier held", saturationWithMagnifier)] where !values.isEmpty {
                 let stats = Stats(values)

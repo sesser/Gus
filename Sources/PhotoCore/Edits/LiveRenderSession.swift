@@ -440,6 +440,18 @@ public actor LiveRenderSession {
     }
 }
 
+/// What the full-resolution refinement after a pause (or a zoom) renders:
+/// the map on screen, or the photo without the slot being picked again
+/// (chromatic-aberration design §4, zoomed in only). Nil for neither.
+public enum LoupeRefinement: Equatable, Sendable {
+    case map, photoWithoutSlot
+
+    public static func wanted(content: LiveRenderSession.Content, replacesSlot: Bool, isZoomed: Bool) -> LoupeRefinement? {
+        if content.isMap { return .map }
+        return replacesSlot && isZoomed ? .photoWithoutSlot : nil
+    }
+}
+
 /// Lets a caller abandon a render between its stages (work already sent to
 /// the GPU finishes, but nothing more starts and no frame is made).
 public final class RenderCancellation: Sendable {

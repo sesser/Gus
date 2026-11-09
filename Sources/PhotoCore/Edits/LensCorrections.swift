@@ -201,11 +201,11 @@ public enum FringeHueName {
 public enum FringeColorMath {
     /// Linear Rec. 2020 (unclamped) of an OkLab color.
     public static func linearRec2020(okLab: SIMD3<Double>) -> SIMD3<Double> {
-        let labToLMS = inverse(MaskRenderer.lmsToLab)
-        let lmsToRGB = inverse(MaskRenderer.rec2020ToLMS)
-        let root = multiply(labToLMS, okLab)
+        let labToLMS = Matrix3.inverse(MaskRenderer.lmsToLab)
+        let lmsToRGB = Matrix3.inverse(MaskRenderer.rec2020ToLMS)
+        let root = Matrix3.multiply(labToLMS, okLab)
         let lms = SIMD3(root.x * root.x * root.x, root.y * root.y * root.y, root.z * root.z * root.z)
-        return multiply(lmsToRGB, lms)
+        return Matrix3.multiply(lmsToRGB, lms)
     }
 
     /// The color in the perceptual encoding (Rec. 2020 primaries, sRGB curve), clamped 0 … 1.
@@ -220,24 +220,8 @@ public enum FringeColorMath {
 
     /// OkLab of a linear Rec. 2020 color, unclamped (cube roots keep their sign).
     public static func okLab(linearRec2020 rgb: SIMD3<Double>) -> SIMD3<Double> {
-        let lms = multiply(MaskRenderer.rec2020ToLMS, rgb)
-        return multiply(MaskRenderer.lmsToLab, SIMD3(cbrt(lms.x), cbrt(lms.y), cbrt(lms.z)))
-    }
-
-    static func multiply(_ m: [[Double]], _ v: SIMD3<Double>) -> SIMD3<Double> {
-        SIMD3(m[0][0] * v.x + m[0][1] * v.y + m[0][2] * v.z,
-              m[1][0] * v.x + m[1][1] * v.y + m[1][2] * v.z,
-              m[2][0] * v.x + m[2][1] * v.y + m[2][2] * v.z)
-    }
-
-    static func inverse(_ m: [[Double]]) -> [[Double]] {
-        let a = m[0][0], b = m[0][1], c = m[0][2]
-        let d = m[1][0], e = m[1][1], f = m[1][2]
-        let g = m[2][0], h = m[2][1], i = m[2][2]
-        let det = a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g)
-        return [[(e * i - f * h) / det, (c * h - b * i) / det, (b * f - c * e) / det],
-                [(f * g - d * i) / det, (a * i - c * g) / det, (c * d - a * f) / det],
-                [(d * h - e * g) / det, (b * g - a * h) / det, (a * e - b * d) / det]]
+        let lms = Matrix3.multiply(MaskRenderer.rec2020ToLMS, rgb)
+        return Matrix3.multiply(MaskRenderer.lmsToLab, SIMD3(cbrt(lms.x), cbrt(lms.y), cbrt(lms.z)))
     }
 }
 

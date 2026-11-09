@@ -161,6 +161,7 @@ final class AdjustmentEditor {
         didSet {
             guard oldValue != pickingFringeSlot else { return }
             fringePickRefused = false
+            if pickingFringeSlot != nil { fringePixelsUnreadable = false }
             syncSamplePixels()
             if pickingFringeSlot != nil {
                 // One picking or painting tool at a time; the photo being edited.
@@ -190,6 +191,8 @@ final class AdjustmentEditor {
     }
     /// The last click while picking found almost no color (design §4).
     private(set) var fringePickRefused = false
+    /// Picking ended because the pixels couldn't be read (design §19 DQ-4).
+    private(set) var fringePixelsUnreadable = false
     /// The last sample: where it was taken (mask frame, unit) and whether it was refused.
     @ObservationIgnored private(set) var lastFringeSample: (point: CGPoint, refused: Bool)?
     @ObservationIgnored private var fringePickTask: Task<Void, Never>?
@@ -215,7 +218,7 @@ final class AdjustmentEditor {
     private(set) var isRefiningSharpeningMap = false
     /// The loupe is zoomed in: the refined map renders at full size, not the fit size.
     @ObservationIgnored var loupeIsZoomed = false {
-        didSet { if loupeIsZoomed != oldValue, sharpeningMap.isShown { scheduleMapRefinement() } }
+        didSet { if loupeIsZoomed != oldValue, refinementWanted != nil { scheduleMapRefinement() } }
     }
     @ObservationIgnored private var mapRefiner: SharpeningMapRefiner?
     /// The full-resolution map's input is held (for the debug script).
@@ -420,6 +423,7 @@ final class AdjustmentEditor {
         fringePickTask = nil
         lastFringeSample = nil
         lastFringePick = nil
+        fringePixelsUnreadable = false
         shownFringeMap = nil
         mapKind = .sharpeningMap
         swatchTask?.cancel()
@@ -478,6 +482,7 @@ final class AdjustmentEditor {
         isChanging = phase == .changing
         if next != adjustments {
             if next.colorAlignment != adjustments.colorAlignment { alignmentMeasureFailed = false }
+            fringePixelsUnreadable = false
             adjustments = next
             sharpeningMap.valuesChanged()
             showsLive = true
@@ -558,6 +563,7 @@ final class AdjustmentEditor {
         if sharpeningMap.isShown {
             guard mapKind != kind else { return }
             stopMapRefinement()
+            if kind == .sharpeningMap { pickingFringeSlot = nil }
             mapKind = kind
             requestRender(interactive: false)
             return
@@ -615,11 +621,16 @@ final class AdjustmentEditor {
     /// full-resolution master at the loupe's zoom (prd.md R6); the estimate
     /// stays on screen until it is ready. A spinner shows if it is still
     /// running about 0.5 s after the last input.
+    /// What a refinement would render now (design §4, §6).
+    private var refinementWanted: LoupeRefinement? {
+        LoupeRefinement.wanted(content: currentContent, replacesSlot: fringeSlotIsReplaced(pickingFringeSlot), isZoomed: loupeIsZoomed)
+    }
+
     private func scheduleMapRefinement() {
         stopMapRefinement()
         let content = currentContent
-        let refinesPhoto = content == .photo && fringeSlotIsReplaced(pickingFringeSlot) && loupeIsZoomed
-        guard sharpeningMap.isShown || refinesPhoto, let session, let url = sourceURL, let library else { return }
+        guard let wanted = refinementWanted, let session, let url = sourceURL, let library else { return }
+        let refinesPhoto = wanted == .photoWithoutSlot
         let refiner = mapRefiner ?? SharpeningMapRefiner(source: url, generator: library.previews.interactiveGenerator,
                                                          colorSpace: library.previews.displayColorSpace)
         mapRefiner = refiner
@@ -709,6 +720,7 @@ final class AdjustmentEditor {
                 sharpeningMap.valuesChanged()
                 showsLive = true
                 refreshMachineLearning()
+                fringePixelsUnreadable = false
                 refreshFringeSwatches()
                 syncSamplePixels()
                 endFringeMapWithoutPicks()
@@ -746,6 +758,7 @@ final class AdjustmentEditor {
         showsOriginal = false
         sharpeningMap.valuesChanged()
         refreshMachineLearning()
+        fringePixelsUnreadable = false
         refreshFringeSwatches()
         syncSamplePixels()
         endFringeMapWithoutPicks()
@@ -1256,7 +1269,10 @@ final class AdjustmentEditor {
     var pixelMagnifierIsPicking: Bool { pickingFringeSlot != nil }
 
     /// The fringe tool for the pixel magnifier and the click, once its pixels are held.
-    var pixelMagnifierTool: FringeMagnifierTool? {
+    var pixelMagnifierTool: (any PixelMagnifierTool)? { fringeMagnifierTool }
+
+    /// The fringe tool itself (the click, and the debug script's mask points).
+    var fringeMagnifierTool: FringeMagnifierTool? {
         fringeSamplePixels.map {
             FringeMagnifierTool(pixels: $0, crop: maskCrop, note: LensText.magnifierNote, refusal: LensText.almostNoColorState)
         }
@@ -1297,6 +1313,10 @@ final class AdjustmentEditor {
                 return pixels
             case .failure(let error):
                 Self.log.error("Reading the photo for picking failed: \(error.localizedDescription, privacy: .public)")
+                // Picking ends and the caption says why (design §19 DQ-4); a waiting click is dropped.
+                pickingFringeSlot = nil
+                fringePixelsUnreadable = true
+                AccessibilityText.announce(LensText.originalUnreadable)
                 return nil
             }
         }
@@ -1410,8 +1430,10 @@ final class AdjustmentEditor {
         guard state == .ready else { return }
         if !isOn {
             if isMeasuringAlignment {
+                // Measured here, or by a paste or preset on this photo: either stops and saves nothing.
                 alignmentTask?.cancel()
                 alignmentTask = nil
+                library?.batchAutoTask?.cancel()
                 isMeasuringAlignment = false
                 return
             }

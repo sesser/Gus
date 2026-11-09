@@ -183,7 +183,9 @@ The pixel magnifier, `photobench edits` on the same files (AC31), median ms:
 | | DNG | HEIC | JPEG |
 |---|---|---|---|
 | arming to first pixels | 142 | 33 | 48 |
-| update per pointer move | 0.18 | 0.16 | 0.15 |
+| update per pointer move, 400% | 0.15 | 0.14 | 0.15 |
+| update per pointer move, 100% (largest picture) | 3.6 | 3.5 | 3.6 |
+| same, straightened crop (costliest cells) | 3.9 | 3.9 | 4.0 |
 | memory held while picking | 183 MB | 183 MB | 183 MB |
 | live saturation, magnifier held | 66.2 | 25.8 | 26.0 |
 | live saturation (for comparison) | 66.3 | 25.3 | 25.6 |
@@ -287,10 +289,39 @@ new region. The conversions for R23 and R24 are checked against a CPU reference
   (a measuring paste) must wait inside its undo group (`waitForBatchMeasuring`)."
 - Commands: add `swift run -c release photobench scenes --output DIR`.
 
+## Review round (PR #48)
+
+Outcome of each finding in code-review.md and review.md, on the commit below.
+"Unit" is a test that fails without the fix; "script" is a debug-script run on
+a bundle copy against a scratch library.
+
+| Finding | Outcome | How it was checked |
+|---|---|---|
+| C1 | A measuring paste or preset leaves out only versions whose originals failed. A stack this build can't read stays in the list, and the catalog skips and reports it (`BatchEdit.AlignmentMeasurements`). | Unit `LensReviewFixesTests`; script: paste over 8 photos with one stack at schema 99: 7 changed, that one untouched, Activity "1 photo was left unchanged" |
+| C2 | A cancelled batch no longer clears the state of the run that replaced it (`BatchEdit.LatestRun`, in paste, presets and Auto). | Unit for the rule; the replacement race is app-only, by reading |
+| C3 | The outline holds still inside the drag threshold and shows the press point, so it is the pixel a click takes. | App-only (`LoupeScrollView` has no test target); person check M3 |
+| C4 | Refinement follows what is on screen, not the suspended map (`LoupeRefinement.wanted`). | Unit table |
+| C5 | `PixelMagnifierTool` now carries the output mapping, the loupe uses only the protocol, and the matrix inverse moved to `Matrix3`. | Unit: AC29's tool through `reading(tool:atOutput:devicePixelsAcross:)`; `Matrix3` round trip |
+| C6 | `colorAlignment.automatic=false` alone removes the correction. | Unit in `LensCommandTests` |
+| C7 | Unchecking Align Automatically during a paste or preset measurement cancels that batch too. | App-only, by reading |
+| C8 | **Stands.** The picture is 256 × 256 and the conversion happens on the main thread at commit either way; drawing into the window's color space would only move it, and would add a window dependency to the bitmap. Worst update measured is 4 ms. | Benchmark below |
+| C9, F1 | The crosshair area follows zoom and scroll; `photoRect` is in the scroll view's document coordinates. | App-only; person check M3 |
+| C10 | `photobench edits` now also times 100% and a straightened crop. | Speed table above |
+| C11 | Help text corrected. | n/a |
+| F2 | Esc cancels picking from anywhere in the window except a text field, by a key monitor that exists only while picking. | Script: first responder off the loupe, Esc posted through the app, picking ended |
+| F3 | The grid covers only cells that hold a photo pixel (`Picture.gridLines`). | Unit at corners at 800% and 1600%; script snapshot at the top left corner at 1600%: no lines over the empty area, right way up |
+| F4 | Switching to the Sharpening Map while the fringe map is suspended cancels picking. | Script: `fringemap on; fringearm 1; sharpenmap on`: picking none |
+| F5 | The context menu has a real section header, and Purple and Green keep their swatches. | Script: `contextmenu at`: `[section]` header, `[image]` on both, single separators |
+| DQ-4, DR22 | If the held pixels can't be made while picking waits for them, picking ends and the caption says why, once. | Script: file removed before arming: picking none, caption shown, magnifier gone, held 0 bytes, no undo step; restored and armed again: retried and ready; file removed after ready: magnifier keeps working |
+
+RI-CR1 (Lens kernels fail to compile) is a known limitation per the ruling; the
+`try?` paths in `LensRenderer.swift` are unchanged. The designer's optional
+"keep the grid out of the outlined pixel" was not taken (not required).
+
 ## Latest run
 
-2026-11-08, after AC19's look-up table and filled-slot cases and the AC27 row:
-`swift build` clean, no warnings; `swift test` **627 tests in 107 suites
-passed, 1 known issue** (the pre-existing one in "Live render session"). No
-golden changed, no pipeline version bump, `UPDATE_GOLDENS` never run. No new
-`Gus-*.ips` crash report from these runs.
+2026-11-08, after the review round above: `swift build` clean, no warnings;
+`swift test` **633 tests in 108 suites passed, 1 known issue** (the
+pre-existing one in "Live render session"). No golden changed, no pipeline
+version bump, `UPDATE_GOLDENS` never run. No new `Gus-*.ips` crash report from
+these runs.

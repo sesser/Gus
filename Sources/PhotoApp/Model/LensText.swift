@@ -107,6 +107,12 @@ enum LensText {
         String(localized: "Before edits", comment: "The pixel magnifier's plate: it shows the photo before the adjustments")
     }
 
+    /// Picking ended because the sampled pixels couldn't be made (design §19 DQ-4).
+    static var originalUnreadable: String {
+        String(localized: "The original could not be read. Make sure it's available, then pick again.",
+               comment: "Inspector caption and VoiceOver announcement when picking ends because the photo's pixels could not be read")
+    }
+
     static var almostNoColorAnnouncement: String {
         String(localized: "That spot has almost no color.", comment: "VoiceOver announcement")
     }
@@ -138,6 +144,7 @@ enum LensText {
             if editor.fringePickRefused { return almostNoColorCaption }
             return editor.fringeSlotIsReplaced(slot) ? replacingCaption(slot: slot) : pickingCaption(slot: slot)
         }
+        if editor.fringePixelsUnreadable { return originalUnreadable }
         if let map = editor.shownFringeMap { return legend(map) }
         return editor.adjustments.colorFringes.isIdentity ? noPickCaption : pickCaption
     }

@@ -84,11 +84,14 @@ extension LibraryModel {
         // Measured one photo at a time with progress in the Activity item;
         // Stop there writes nothing.
         batchAutoTask?.cancel()
+        let run = batchAutoRun.begin()
         setBatchAutoProgress((0, sources.count))
         batchAutoTask = Task {
             defer {
-                setBatchAutoProgress(nil)
-                batchAutoTask = nil
+                if batchAutoRun.owns(run) {
+                    setBatchAutoProgress(nil)
+                    batchAutoTask = nil
+                }
             }
             guard let stored = try? await catalog.editStacks(forVersions: sources.map(\.0)) else { return }
             var measured: [Int64: Double] = [:]
@@ -100,6 +103,7 @@ extension LibraryModel {
                    }).value {
                     measured[id] = ev
                 }
+                guard batchAutoRun.owns(run) else { return }
                 setBatchAutoProgress((index + 1, sources.count))
             }
             guard !Task.isCancelled else { return }

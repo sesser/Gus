@@ -43,6 +43,10 @@ struct LensCommandTests {
             let hand = await library.run("develop", "--version", id, "--set", "colorAlignment.red=12")
             let handSet = try Self.adjustments(hand.json)
             #expect(handSet.colorAlignment.red == 12 && !handSet.colorAlignment.automatic)
+            // Turning automatic off alone removes the correction, as the check box does.
+            let off = await library.run("develop", "--version", id, "--set", "colorAlignment.automatic=false")
+            #expect(off.output.exitCode == 0, "\(off.output.standardError)")
+            #expect(try Self.adjustments(off.json).colorAlignment == ColorAlignment())
 
             let invalid = await library.run("develop", "--version", id, "--set", "colorFringes.color1=teal")
             #expect(invalid.output.exitCode != 0 && invalid.json["code"] == "invalidEdit")

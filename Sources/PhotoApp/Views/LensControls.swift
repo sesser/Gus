@@ -141,9 +141,7 @@ struct FringeSlotRow: View {
         .accessibilityLabel(LensText.slotTitle(slot))
         .accessibilityValue(fill.map { LensText.hueName($0.color) } ?? LensText.none)
         .contextMenu {
-            ForEach(Self.entries(model: model, slot: slot).indices, id: \.self) { index in
-                Self.entries(model: model, slot: slot)[index].contextItem
-            }
+            FringeSlotContextMenu(entries: Self.entries(model: model, slot: slot))
         }
     }
 
@@ -170,16 +168,6 @@ struct FringeSlotRow: View {
             case .separator: .separator
             case .item: swatch == nil ? .item(title, isEnabled: isEnabled, action)
                 : .imageItem(title, image: Self.image(swatch), isEnabled: isEnabled, action)
-            }
-        }
-
-        @MainActor @ViewBuilder var contextItem: some View {
-            switch kind {
-            case .header: Text(title)
-            case .separator: Divider()
-            case .item:
-                Button(title, action: action)
-                    .disabled(!isEnabled)
             }
         }
 
@@ -211,5 +199,50 @@ struct FringeSlotRow: View {
             editor.clearFringe(slot)
         })
         return entries
+    }
+}
+
+/// The slot row's context menu: the same entries as its ⋯ menu, the common
+/// colors under a real section header (design §3).
+private struct FringeSlotContextMenu: View {
+    let entries: [FringeSlotRow.Entry]
+
+    /// The entries between separators, each with the header that starts it.
+    private var sections: [(header: String?, items: [FringeSlotRow.Entry])] {
+        var sections: [(header: String?, items: [FringeSlotRow.Entry])] = [(nil, [])]
+        for entry in entries {
+            switch entry.kind {
+            case .separator: sections.append((nil, []))
+            case .header: sections[sections.count - 1].header = entry.title
+            case .item: sections[sections.count - 1].items.append(entry)
+            }
+        }
+        return sections
+    }
+
+    var body: some View {
+        let groups = sections
+        ForEach(groups.indices, id: \.self) { index in
+            // A section draws its own separators.
+            if let header = groups[index].header {
+                Section(header) { items(groups[index].items) }
+            } else {
+                items(groups[index].items)
+            }
+        }
+    }
+
+    private func items(_ entries: [FringeSlotRow.Entry]) -> some View {
+        ForEach(entries.indices, id: \.self) { index in
+            let entry = entries[index]
+            Button(action: entry.action) {
+                if let image = FringeSlotRow.Entry.image(entry.swatch), entry.swatch != nil {
+                    Label { Text(entry.title) } icon: { Image(nsImage: image) }
+                } else {
+                    Text(entry.title)
+                }
+            }
+            .disabled(!entry.isEnabled)
+        }
     }
 }

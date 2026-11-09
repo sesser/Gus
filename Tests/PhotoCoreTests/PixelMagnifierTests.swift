@@ -324,6 +324,11 @@ struct PixelMagnifierTests {
         let source: LinearMagnifierImage
         var image: any PixelMagnifierImage { source }
         var note: String? { nil }
+        var outputPixelWidth: Double { Double(source.image.width) }
+
+        func position(forOutput output: CGPoint) -> SIMD2<Double> {
+            SIMD2(Double(output.x) * Double(source.image.width), Double(output.y) * Double(source.image.height))
+        }
 
         func pickedPixel(at position: SIMD2<Double>, photoPixelsPerDevicePixel: Double) -> PixelPosition? {
             let cx = Int(position.x), cy = Int(position.y)
@@ -359,6 +364,60 @@ struct PixelMagnifierTests {
         #expect(bright.verdict == .refused("Too bright"))
         let picture = PixelMagnifier.picture(image: tool.image, center: reading.pixel, level: .percent1600, deviceSize: 128)
         #expect(picture.cells[(picture.cellsAcross / 2) * picture.cellsAcross + picture.cellsAcross / 2] == reading.values)
+    }
+
+    @Test("AC29: a pointer in the view's output reaches any tool through the protocol alone")
+    func readingFromOutputThroughTheProtocol() throws {
+        let width = 40, height = 40
+        var pixels = [Float](repeating: 0.8, count: width * height * 4)
+        for i in stride(from: 3, to: pixels.count, by: 4) { pixels[i] = 1 }
+        pixels[(19 * width + 21) * 4 + 1] = 0.01
+        let source = LinearMagnifierImage(image: LinearImage(width: width, height: height, pixels: pixels))
+        let tool: any PixelMagnifierTool = DarkestPixelTool(source: source)
+        let reading = try #require(PixelMagnifier.reading(tool: tool, atOutput: CGPoint(x: 20.5 / 40, y: 20.5 / 40),
+                                                          devicePixelsAcross: 40))
+        #expect(reading.pixel == PixelPosition(x: 21, y: 19))
+    }
+
+    // MARK: The grid (R29)
+
+    /// The device rows and columns a grid line covers, as "x,y" of each pixel.
+    private func covered(by lines: [PixelMagnifier.GridLine]) -> Set<String> {
+        var pixels = Set<String>()
+        for line in lines {
+            if line.y0 == line.y1 {
+                for x in line.x0..<line.x1 { pixels.insert("\(x),\(line.y0)") }
+            } else {
+                for y in line.y0..<line.y1 { pixels.insert("\(line.x0),\(y)") }
+            }
+        }
+        return pixels
+    }
+
+    @Test("R29: the grid covers every drawn cell's top and left edge and nothing beyond the photo",
+          arguments: [PixelMagnifierLevel.percent800, .percent1600])
+    func gridStopsAtThePhoto(level: PixelMagnifierLevel) {
+        let image = TestScene.pixelGrid.image()
+        let tool = Self.tool(image)
+        let corners: [(Int, Int)] = [(0, 0), (image.width - 1, image.height - 1), (image.width / 2, image.height / 2)]
+        for (x, y) in corners {
+            let picture = PixelMagnifier.picture(image: tool.image, center: PixelPosition(x: x, y: y), level: level, deviceSize: 256)
+            let drawn = covered(by: picture.gridLines())
+            let cell = picture.cellSize
+            let offset = (picture.deviceSize - cell) / 2 - (picture.cellsAcross / 2) * cell
+            var expected = Set<String>()
+            for row in 0..<picture.cellsAcross {
+                for column in 0..<picture.cellsAcross where picture.cells[row * picture.cellsAcross + column] != nil {
+                    let x0 = offset + column * cell, y0 = offset + row * cell
+                    for step in 0..<cell {
+                        let topX = x0 + step, leftY = y0 + step
+                        if y0 >= 0, y0 < 256, topX >= 0, topX < 256 { expected.insert("\(topX),\(y0)") }
+                        if x0 >= 0, x0 < 256, leftY >= 0, leftY < 256 { expected.insert("\(x0),\(leftY)") }
+                    }
+                }
+            }
+            #expect(drawn == expected)
+        }
     }
 
     // MARK: Holding the pixels (OQ14)

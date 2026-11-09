@@ -42,7 +42,7 @@ import PhotoUI
 ///     stop                  (File ▸ Stop's action in the library window: the newest running job)
 ///     windowshot <title text> <file.png>   (snapshots another visible window, e.g. Settings)
 ///     sidebarsection [albums|dates|keywords|projects show|hide]   (prints the hidden sidebar sections)
-///     contextmenu cell <n>|loupe|video [controls]|slider <title> [<item>[/<sub>]]   (prints a right-click's menu there,
+///     contextmenu cell <n>|loupe|at <x> <y>|video [controls]|slider <title> [<item>[/<sub>]]   (prints a right-click's menu there,
 ///                           or runs an item; video controls aims at AVKit's control bar)
 ///     editvalue <title>     (puts the keyboard in the value field of the inspector slider with that title)
 ///     accessibility <role>|any [<n> press|<action name>] | focused   (lists the window's accessibility
@@ -52,6 +52,8 @@ import PhotoUI
 ///     fringemap on|off|toggle    (Adjust ▸ Show / Hide Fringe Map's action: reveals Color Fringes, announces)
 ///     fringearm 1|2|off     (arms or disarms a fringe slot's eyedropper, as its button does)
 ///     contextmenu fringe 1|2 [<item>]   (lists a fringe slot's context menu, or runs the item so titled)
+///     magnifier hideoriginal|restoreoriginal   (moves the focused photo's file away and back; scratch libraries only)
+///     magnifier resignkeyboard   (takes the keyboard off the loupe)
 ///     magnifier level <percent>|up|down   magnifier move <x> <y>   (the pixel magnifier: the level, and
 ///                           the pointer at unit coordinates of the photo on screen, as a real move would)
 ///     print magnifier [pixels]   (visible, level, placement, outlined pixel, values, verdict, cells;
@@ -803,6 +805,18 @@ enum DebugScript {
             path.removeFirst()
             view = grid
             point = grid.convert(NSPoint(x: frame.midX, y: frame.midY), to: nil)
+        case "at":
+            // At a point as `buttons` prints it (y from the top of the window).
+            guard path.count >= 2, let x = Double(path[0]), let y = Double(path[1]) else { break }
+            path.removeFirst(2)
+            point = NSPoint(x: x, y: window.frame.height - y)
+            var hit = window.contentView?.superview?.hitTest(point) ?? root.hitTest(point)
+            var probe = NSEvent.mouseEvent(with: .rightMouseDown, location: point, modifierFlags: [],
+                                           timestamp: ProcessInfo.processInfo.systemUptime,
+                                           windowNumber: window.windowNumber, context: nil, eventNumber: 0,
+                                           clickCount: 1, pressure: 1)
+            while let candidate = hit, let event = probe, candidate.menu(for: event) == nil { hit = candidate.superview; probe = event }
+            view = hit
         case "loupe":
             view = descendant(of: LoupeHostView.self, in: root)
             point = view.map { $0.convert(NSPoint(x: $0.bounds.midX, y: $0.bounds.midY), to: nil) } ?? .zero
@@ -834,7 +848,9 @@ enum DebugScript {
             func show(_ menu: NSMenu, _ prefix: String) {
                 for item in menu.items {
                     let mark = item.state == .on ? " checked" : item.state == .mixed ? " mixed" : ""
-                    print("debug-script: context \(item.isSeparatorItem ? "—" : prefix + item.title)\(mark)")
+                    let kind = item.isSectionHeader ? " [section]" : ""
+                    let image = item.image == nil ? "" : " [image]"
+                    print("debug-script: context \(item.isSeparatorItem ? "—" : prefix + item.title)\(mark)\(kind)\(image)")
                     if let sub = item.submenu { show(sub, prefix + item.title + "/") }
                 }
             }

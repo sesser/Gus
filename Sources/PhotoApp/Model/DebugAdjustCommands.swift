@@ -30,7 +30,7 @@ import PhotoCore
 ///     adjust mask sample <x> <y>          (adds the color there to the selected color range)
 ///     adjust mask brushsize <percent of the long edge>   adjust mask erase on|off
 ///     adjust fringe pick 1|2 <x> <y>   (picks at unit coordinates of the photo on screen through a
-///                               click's path: snap, refusal; waits for the save)
+///                               click's path: the pixel rule, refusal; waits for the save)
 ///     adjust fringe fill 1|2 purple|green    adjust fringe clear 1|2    adjust fringe tolerance 1|2 <value>
 ///     adjust align auto on|off  (waits for the measurement)   adjust align redcyan|blueyellow <value>
 ///     original on|off           tab info|adjust          print adjustments

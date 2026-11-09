@@ -65,6 +65,11 @@ public protocol PixelMagnifierTool: Sendable {
     var image: any PixelMagnifierImage { get }
     /// The note under the values ("Before edits"), or none.
     var note: String? { get }
+    /// Photo pixels across the view's output.
+    var outputPixelWidth: Double { get }
+    /// `output` (the view's output in unit coordinates, y down) as a position
+    /// in the image: photo pixels, continuous.
+    func position(forOutput output: CGPoint) -> SIMD2<Double>
     /// The pixel a click at `position` (photo pixels, continuous, in the
     /// image's orientation) would pick; `photoPixelsPerDevicePixel` is the
     /// view's scale. Nil if none.
@@ -101,7 +106,7 @@ public struct PixelMagnifierValues: Equatable, Sendable {
             [0.228_974_564_069_749, 0.691_738_521_836_506, 0.079_286_914_093_745],
             [0.000_000_000_000_000, 0.045_113_381_858_903, 1.043_944_368_900_976],
         ]
-        let xyzToP3 = FringeColorMath.inverse(p3ToXYZ)
+        let xyzToP3 = Matrix3.inverse(p3ToXYZ)
         var rows: [SIMD2<Double>] = []
         for row in 0..<3 {
             var cells = [0.0, 0.0, 0.0]
@@ -213,6 +218,23 @@ public enum PixelMagnifier {
                        verdict: tool.verdict(at: pixel), note: tool.note)
     }
 
+    /// The reading for a pointer at `output` (output unit coordinates, the
+    /// middle of its device pixel), the output being `devicePixelsAcross` wide on screen.
+    public static func reading(tool: any PixelMagnifierTool, atOutput output: CGPoint,
+                               devicePixelsAcross: Double) -> Reading? {
+        let scale = tool.outputPixelWidth / max(devicePixelsAcross, 1)
+        return reading(tool: tool, at: tool.position(forOutput: output), photoPixelsPerDevicePixel: scale)
+    }
+
+    /// One line of the grid over the picture, in device pixels: from the top
+    /// left of the first cell's edge, a device pixel wide.
+    public struct GridLine: Equatable, Sendable {
+        public var x0: Int
+        public var y0: Int
+        public var x1: Int
+        public var y1: Int
+    }
+
     /// The square of pixels the picture shows, centered on one pixel: hard
     /// cells `cellSize` device pixels wide. Cells beyond the photo or its
     /// crop are nil.
@@ -254,6 +276,40 @@ public enum PixelMagnifier {
                 }
             }
             return rgba
+        }
+
+        /// The grid between cells that hold a photo pixel, none over the
+        /// empty area beyond the photo or crop: along each drawn cell's top
+        /// and left edge, joined into runs and clipped to the picture.
+        public func gridLines() -> [GridLine] {
+            var lines: [GridLine] = []
+            for row in 0..<cellsAcross {
+                let y = deviceOrigin(ofCell: row)
+                guard y >= 0, y < deviceSize else { continue }
+                appendRuns(to: &lines) { cell in isDrawn(column: cell, row: row) } line: { first, end in
+                    GridLine(x0: max(first, 0), y0: y, x1: min(end, deviceSize), y1: y)
+                }
+            }
+            for column in 0..<cellsAcross {
+                let x = deviceOrigin(ofCell: column)
+                guard x >= 0, x < deviceSize else { continue }
+                appendRuns(to: &lines) { cell in isDrawn(column: column, row: cell) } line: { first, end in
+                    GridLine(x0: x, y0: max(first, 0), x1: x, y1: min(end, deviceSize))
+                }
+            }
+            return lines
+        }
+
+        private func appendRuns(to lines: inout [GridLine], isDrawn: (Int) -> Bool, line: (Int, Int) -> GridLine) {
+            var start: Int?
+            for cell in 0...cellsAcross {
+                if cell < cellsAcross, isDrawn(cell) {
+                    if start == nil { start = cell }
+                } else if let first = start {
+                    lines.append(line(deviceOrigin(ofCell: first), deviceOrigin(ofCell: cell - 1) + cellSize))
+                    start = nil
+                }
+            }
         }
 
         private static func halfGray(_ value: UInt8) -> UInt8 {

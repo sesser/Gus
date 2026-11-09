@@ -254,7 +254,9 @@ takes and that pixel's R, G, B and L values (0–255, Display P3). At 100% and
 closer that is the pixel under the pointer; zoomed out further, the most colorful
 pixel under it. The slot then shows a swatch and the color's name. A drag still pans while
 the eyedropper is on, and Esc cancels. A spot with almost no color is not taken;
-the text under the slots says so and the eyedropper stays on. When the magnifier
+the text under the slots says so and the eyedropper stays on. If the original
+can't be read when you click the eyedropper, picking ends and the text under the
+slots says so; make it available and click the eyedropper again. When the magnifier
 reads **Almost no color**, a click there won't be taken. It shows the photo before
 your edits, so its colors can differ from the photo around it and from the slot's
 swatch. Change its zoom with the **Pixel magnifier** pop-up under the slots,
@@ -411,7 +413,8 @@ reduction; `render` and `export` report in their JSON whether it was applied,
 and why not. `colorFringes.color1=purple` (or `green`, or OkLab `L,a,b`) fills a
 fringe slot, `colorFringes.tolerance1=40` sets its Tolerance, and
 `colorAlignment.automatic=true` measures the original and stores the
-correction (`colorAlignment.red` and `blue` set it by hand). `photocli adjustments` lists every adjustment and its range;
+correction (`colorAlignment.red` and `blue` set it by hand), and
+`colorAlignment.automatic=false` alone removes it, as unchecking does. `photocli adjustments` lists every adjustment and its range;
 `photocli help` lists the commands. Each prints one JSON object. Pass
 `--library-root` as for the app; without it the standard library is used.
 

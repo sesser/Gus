@@ -553,6 +553,8 @@ final class LibraryModel {
     /// `batchAutoTitle` fitted to the toolbar (a long preset name shortened in the middle).
     private(set) var batchAutoToolbarTitle: String?
     @ObservationIgnored var batchAutoTask: Task<Void, Never>?
+    /// Which batch measurement is current: a cancelled one clears only its own state.
+    @ObservationIgnored var batchAutoRun = BatchEdit.LatestRun()
 
     private func scheduleActivityTick() {
         Task {

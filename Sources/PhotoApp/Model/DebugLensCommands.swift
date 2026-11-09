@@ -69,6 +69,20 @@ enum DebugLensCommands {
             case "down": model.stepPixelMagnifierLevel(up: false)
             default: model.setPixelMagnifierLevel(PixelMagnifierLevel(stored: Int(words.dropFirst().first ?? "") ?? 0))
             }
+        case "resignkeyboard":
+            // Takes the keyboard away from the loupe, as tabbing to an inspector control does.
+            NSApp.mainWindow?.makeFirstResponder(nil)
+            print("debug-script: first responder \(String(describing: NSApp.mainWindow?.firstResponder))")
+        case "hideoriginal", "restoreoriginal":
+            // DR22: takes the focused photo's file away, or puts it back (scratch libraries only).
+            guard let item = model.focusedItem, let url = model.sourceURL(for: item) else { break }
+            let hidden = url.appendingPathExtension("hidden")
+            let (from, to) = words.first == "hideoriginal" ? (url, hidden) : (hidden, url)
+            do {
+                try FileManager.default.moveItem(at: from, to: to)
+            } catch {
+                print("debug-script: \(error)")
+            }
         case "move":
             let numbers = words.dropFirst().compactMap(Double.init)
             guard numbers.count == 2 else { break }
@@ -95,7 +109,8 @@ enum DebugLensCommands {
             print("debug-script: magnifier values - - - -")
             return
         }
-        let point = state.outlinedMaskPoint.map { String(format: "%.6f,%.6f", $0.x, $0.y) } ?? "-"
+        let maskPoint = model.editor.fringeMagnifierTool?.maskPoint(of: reading.pixel)
+        let point = maskPoint.map { String(format: "%.6f,%.6f", $0.x, $0.y) } ?? "-"
         print("debug-script: magnifier outlined \(reading.pixel.x),\(reading.pixel.y) maskPoint \(point)"
               + " R \(reading.values.r) G \(reading.values.g) B \(reading.values.b) L \(reading.values.l)")
         var line2 = reading.note ?? ""
@@ -190,7 +205,7 @@ enum DebugLensCommands {
         let cursor = editor.pickingFringeSlot != nil ? "crosshair" : "arrow"
         print("debug-script: fringe picking \(editor.pickingFringeSlot.map(String.init) ?? "none") lastSample \(sample)"
               + " cursor \(cursor) canPick \(editor.canPickFringe) refiningPhoto \(editor.isRefiningPickPreview)")
-        print("debug-script: fringe caption '\(LensText.fringeCaption(editor))'")
+        print("debug-script: fringe caption '\(LensText.fringeCaption(editor))' unreadable \(editor.fringePixelsUnreadable)")
         let shown = editor.shownFringeMap
         print("debug-script: fringe map asked \(editor.showsFringeMap) onScreen \(shown != nil)"
               + " badge '\(shown.map(LensText.badge) ?? "-")' legend '\(shown.map(LensText.legend) ?? "-")'"

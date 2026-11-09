@@ -97,6 +97,7 @@ final class PixelMagnifierView: NSView {
         updateGeometry()
         pictureLayer.contents = content.picture.flatMap(Self.image) ?? Self.surroundImage(size: Int(PixelMagnifierLayout.pictureDiameter) * content.backing)
         gridLayer.isHidden = !content.level.showsGrid || content.picture == nil
+        if content.level.showsGrid, let picture = content.picture { gridLayer.path = gridPath(picture) }
         outlineLayers.forEach { $0.isHidden = content.picture == nil }
         CATransaction.commit()
         plate.show(content)
@@ -113,22 +114,10 @@ final class PixelMagnifierView: NSView {
         let device = Int(PixelMagnifierLayout.pictureDiameter) * content.backing
         let cell = content.level.cellSize
         pictureLayer.contentsScale = scale
-        // Cell edges, in points, relative to the middle cell's top left corner.
+        // The middle cell's top left corner, in points.
         let middle = CGFloat((device - cell) / 2) / scale
         let step = CGFloat(cell) / scale
-        let path = CGMutablePath()
-        let length = CGFloat(device) / scale
-        var offset = middle.truncatingRemainder(dividingBy: step)
-        while offset < length {
-            let line = offset + 0.5 / scale
-            path.move(to: CGPoint(x: line, y: 0))
-            path.addLine(to: CGPoint(x: line, y: length))
-            path.move(to: CGPoint(x: 0, y: line))
-            path.addLine(to: CGPoint(x: length, y: line))
-            offset += step
-        }
         gridLayer.frame = pictureLayer.bounds
-        gridLayer.path = path
         gridLayer.lineWidth = 1 / scale
         gridLayer.strokeColor = NSColor(white: 0.5, alpha: contrast ? 0.45 : 0.3).cgColor
         let weight: CGFloat = contrast ? 2 : 1
@@ -139,6 +128,25 @@ final class PixelMagnifierView: NSView {
             layer.lineWidth = weight
             layer.strokeColor = index == 0 ? NSColor.white.cgColor : NSColor.black.cgColor
         }
+    }
+
+    /// Grid lines only around the cells that hold a photo pixel (F3, R29). A
+    /// line sits on the first device row or column of its cells.
+    private func gridPath(_ picture: PixelMagnifier.Picture) -> CGPath {
+        let scale = CGFloat(picture.deviceSize) / PixelMagnifierLayout.pictureDiameter
+        let path = CGMutablePath()
+        let flipped = pictureLayer.contentsAreFlipped()
+        let size = CGFloat(picture.deviceSize)
+        for line in picture.gridLines() {
+            let isHorizontal = line.y0 == line.y1
+            let x0 = CGFloat(line.x0) + (isHorizontal ? 0 : 0.5)
+            let x1 = CGFloat(line.x1) + (isHorizontal ? 0 : 0.5)
+            let y0 = CGFloat(line.y0) + (isHorizontal ? 0.5 : 0)
+            let y1 = CGFloat(line.y1) + (isHorizontal ? 0.5 : 0)
+            path.move(to: CGPoint(x: x0 / scale, y: (flipped ? y0 : size - y0) / scale))
+            path.addLine(to: CGPoint(x: x1 / scale, y: (flipped ? y1 : size - y1) / scale))
+        }
+        return path
     }
 
     private static let displayP3 = CGColorSpace(name: CGColorSpace.displayP3)!
