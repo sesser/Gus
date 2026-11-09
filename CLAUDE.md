@@ -40,6 +40,10 @@ swift run -c release photobench help
 ```
 
 ```bash
+swift run -c release photobench scenes --output DIR
+```
+
+```bash
 swift run photocli help
 ```
 
@@ -83,7 +87,9 @@ assistive app, so SwiftUI elements (the import tiles) are not found this way.
 The script turns off `groupsByEvent` and opens an undo group only around
 commands that change photos (`changing` in `DebugScript`): a new command that
 changes photos without one makes `registerUndo` raise an Objective-C
-exception, which unwinds through Swift and crashes later. App
+exception, which unwinds through Swift and crashes later. A command whose
+change is saved after an await (a measuring paste) must wait inside its undo
+group (`waitForBatchMeasuring`). App
 launch options must always take a value: AppKit treats a stray argument as a
 document and then does not open the main window. A process started from a shell is not the active app, so it has
 no key window: scripted keys go straight to the window, and local event
@@ -267,11 +273,14 @@ compatible and never put `#` comment lines inside pasted command snippets.
   reset gives back the identity hash), unknown operations kept. A group of
   controls turned off keeps its operations with `isEnabled` false;
   `Adjustments.effective` is what renders.
-  `AdjustmentRenderer` renders in a fixed order with built-in Core Image filters
-  and generated tables. Custom kernels are possible without a Metal build
-  step: `RuntimeKernels` (a spike, not used by the renderer) compiles Metal
-  source at run time into `CIImageProcessorKernel`s; see
-  `docs/archive/PHASE5_PLAN.md` for its accuracy, speed and the alternatives. Each
+  `AdjustmentRenderer` renders in a fixed order, the Lens heading's alignment
+  and fringe removal first, on the decoded image before the crop, with built-in
+  Core Image filters and generated tables. Custom kernels are stitchable Core
+  Image kernels compiled from Metal source at run time
+  (`Kernels/LensKernels.swift`; `StitchableKernels` is the spike), each in a
+  Metal library of its own: Core Image ran one kernel of a library for another.
+  `RuntimeKernels` stays a spike; see `docs/archive/PHASE5_PLAN.md` for its
+  accuracy, speed and the alternatives. Each
   module describes its parameters (`AdjustmentParameters.swift`); keep that
   in step when adding one (`AdjustmentParameterTests`). RAW
   decode settings go to `CIRAWFilter` only when set, so an identity stack
