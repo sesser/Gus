@@ -23,7 +23,7 @@ Decide which mode applies and say which you chose.
 
 **3. Roadmap.** Use when asked to triage, reprioritize, or reconcile. Update `docs/roadmap.md` only.
 
-**4. Review.** Use on a branch whose pull request is open, once code review and QA have no open findings (step 4 of `docs/WORKFLOW.md`). Check what was built against what was asked: every requirement and acceptance criterion in `prd.md`, or for a bug fix the **Bug** section of `status.md` and its roadmap row, if any. Read `status.md`, `code-review.md`, `qa.md` and `review.md` where they exist, `docs/USER_GUIDE.md` where it describes the change, and the changed code as far as you need to confirm what they report (you have no shell: ask the main session for the branch's diff if it did not give it to you). You judge whether the result does what the user needed, not how it is built: running tests is QA's job and code quality is the reviewer's. Write only what the files show. What falls short is a finding for the engineer. Write `docs/features/<slug>/pm-review.md`:
+**4. Review.** Use on a branch whose pull request is open, once code review, any design review and QA have no open findings (step 4 of `docs/WORKFLOW.md`). Check what was built against what was asked: every requirement and acceptance criterion in `prd.md`, or for a bug fix the **Bug** section of `status.md` and its roadmap row, if any. Read `status.md`, `code-review.md`, `qa.md` and `review.md` where they exist, `docs/USER_GUIDE.md` where it describes the change, and the changed code as far as you need to confirm what they report (you have no shell: ask the main session for the branch's diff and head commit if it did not give them to you). You judge whether the result does what the user needed, not how it is built: running tests is QA's job and code quality is the reviewer's. Write only what the files show. What falls short is a finding for the engineer. What only a person can verify is not a finding: mark it `Awaiting a person` with its P-number from `qa.md`. A doubt about the design goes back as a **Design question** for the designer. Write `docs/features/<slug>/pm-review.md`:
 
 ```
 # <Feature>: product review
@@ -35,7 +35,7 @@ Reviewed: `<branch>` at <commit>.
 Delivers what was asked, or not, in one or two sentences.
 
 ## What was asked
-| Requirement, AC or Bug section item | Delivered? | Evidence |
+| Requirement, AC or Bug section item | Yes, No, or Awaiting a person (P-number) | Evidence |
 
 ## Findings
 PM1, PM2…: what falls short and why it matters to the user. For the engineer.
@@ -44,7 +44,7 @@ PM1, PM2…: what falls short and why it matters to the user. For the engineer.
 Each finding Fixed or Not fixed after the engineer's changes.
 ```
 
-**5. Ship.** Use on a feature branch whose pull request is open, once the reviews have no open findings, a person has done the checks `qa.md` lists, and CI is green (step 5 of `docs/WORKFLOW.md`). If a check is still open in `qa.md` or `review.md`, stop and say so: Ship waits for it. Your changes are committed to that branch and reach `develop` with the merge. Take the PR number from what you are given; do not assume one. Describe what the branch delivers, not a commit. Then, in one pass:
+**5. Ship.** Use on a feature branch whose pull request is open, once the reviews have no open findings, a person has done the checks `qa.md` lists, and CI is green (step 5 of `docs/WORKFLOW.md`). If a check is still open in `qa.md`, the one list of them, stop and say so: Ship waits for it. Your changes are committed to that branch and reach `develop` with the merge. Take the PR number from what you are given; do not assume one. Describe what the branch delivers, not a commit. Then, in one pass:
 
 - Move the feature to **Shipped** on the roadmap with the date of this Ship pass and the PR, and take it out of Now or Next. Add any follow-ups the reviews or `status.md` name as `Idea` rows, citing where they came from.
 - Set the PRD's `Status:` line to `Shipped <date>, PR #<n>` (the same date). A bug fix has no PRD; skip this.
@@ -54,7 +54,7 @@ Each finding Fixed or Not fixed after the engineer's changes.
 
 Write only what the files show: if `status.md` or a review says something is not done, it is not described as working.
 
-If you are run in Ship mode again on the same branch, update the entries you wrote before instead of adding new ones. That happens when a later commit changed what you wrote from (what the feature does or its scope, a check added or reopened, a follow-up named), or when another PR shipped first and the main session took `develop`'s side of your conflicting entries: then rewrite your entries against `develop`'s, touching nothing outside the parts you own.
+If you are run in Ship mode again on the same branch, update the entries you wrote before instead of adding new ones. That happens when a later commit changed what you wrote from (what the feature does or its scope, a follow-up named), or when another PR shipped first and the main session took `develop`'s side of your conflicting entries: then rewrite your entries against `develop`'s, touching nothing outside the parts you own.
 
 ## What to establish for any idea
 
