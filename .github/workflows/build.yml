@@ -27,38 +27,74 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      - name: Detect code changes
+        id: changes
+        # Both jobs are required checks, so they must report even when only
+        # documentation changed: the job runs and every build step is skipped.
+        # paths-ignore would leave the checks waiting forever. HEAD^1 is the
+        # base on a pull request's merge commit and the previous tip on a push.
+        # --no-renames lists both ends of a move, so moving a file out of the
+        # code counts as code. If the comparison fails, everything runs.
+        run: |
+          code=true
+          if [ "$GITHUB_EVENT_NAME" != workflow_dispatch ] \
+            && files=$(git diff --no-renames --name-only HEAD^1 HEAD) && [ -n "$files" ] \
+            && ! printf '%s\n' "$files" | grep -qvE '^(docs/|\.claude/)|\.md$'; then
+            code=false
+          fi
+          echo "code=$code" | tee -a "$GITHUB_OUTPUT"
 
       - name: Select Xcode ${{ matrix.xcode }}
-        if: matrix.xcode
+        if: matrix.xcode && steps.changes.outputs.code == 'true'
         run: sudo xcode-select -s "/Applications/Xcode_${{ matrix.xcode }}.app"
 
       - name: Toolchain
+        if: steps.changes.outputs.code == 'true'
         run: |
           sw_vers
           xcodebuild -version
           swift --version
 
       - uses: actions/cache@v5
+        if: steps.changes.outputs.code == 'true'
         with:
           path: .build
           key: spm-${{ matrix.os }}-xcode${{ matrix.xcode }}-${{ hashFiles('Package.resolved') }}
           restore-keys: spm-${{ matrix.os }}-xcode${{ matrix.xcode }}-
 
       - name: Build
+        if: steps.changes.outputs.code == 'true'
         run: swift build
 
       - name: Test
+        if: steps.changes.outputs.code == 'true'
         # Every golden's difference goes to the log, and mismatches are kept
         # as expected | actual | 8x difference images for the artifact below.
         # SWIFT_BACKTRACE: a crash in the test process (signal 11 on develop
         # since PR #39, never reproduced locally) prints a symbolicated
         # backtrace of every thread to the log; tests run in parallel, so the
         # log alone does not say which one crashed.
+        # A crash with signal 11 (Apple's virtual GPU driver on these runners,
+        # roadmap ci-test-crash) is retried once in this step. Any other
+        # failure fails at once.
         env:
           GOLDENS_REPORT: "1"
           GOLDEN_FAILURES_DIR: ${{ runner.temp }}/golden-failures
           SWIFT_BACKTRACE: enable=yes,interactive=no,threads=all,output-to=stderr
-        run: swift test
+        shell: bash
+        run: |
+          log="$RUNNER_TEMP/swift-test.log"
+          status=0
+          swift test 2>&1 | tee "$log" || status=$?
+          if [ "$status" -ne 0 ] && grep -qE 'Signal 11: Backtracing|unexpected signal code 11' "$log"; then
+            echo "::warning::swift test crashed with signal 11; retrying once"
+            swift test
+          else
+            exit "$status"
+          fi
 
       - name: Upload golden failures
         if: failure()
@@ -88,4 +124,5 @@ jobs:
           if-no-files-found: ignore
 
       - name: Build app bundles
+        if: steps.changes.outputs.code == 'true'
         run: Scripts/build-app.sh all

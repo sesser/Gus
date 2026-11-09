@@ -62,9 +62,9 @@ Each debug script you ran, verbatim, with what it showed.
 P1, P2…: steps, what to look for, and the M-number it covers.
 
 ## Follow-up
-Reruns after fixes: each finding Fixed or Not fixed, and each P item when the owner reports it done.
+Reruns after fixes: each finding Fixed or Not fixed, and each P item when the owner reports it done. The owner's sign-off, the commit signed off, its date and any checks left open, when the main session relays it.
 ```
 
 ## Report
 
-End with: verdict, counts (ACs passed by test, by script, open for a person, failed), the findings for the engineer, any Design questions or Requirements issues, the P list, and the next step: the findings back to the engineer or, when there are none, Ship (step 5 of `docs/WORKFLOW.md`) if it applies, then the owner merges.
+End with: verdict, counts (ACs passed by test, by script, open for a person, failed), the findings for the engineer, any Design questions or Requirements issues, the P list, and the next step: the findings back to the engineer or, when there are none, the owner's sign-off (step 5 of `docs/WORKFLOW.md`); once you have recorded the sign-off, Ship (step 6).
