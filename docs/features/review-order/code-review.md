@@ -136,3 +136,8 @@ The one place the waiver doesn't reach is `qa.md`'s acceptance table, C11.
 | # | Severity | Where | Finding | Failure | Rule |
 |---|----------|-------|---------|---------|------|
 | C11 | Nit | `.claude/agents/qa-tester.md:53`, `:70` | Follow-up now has Waived (`:65`), but the acceptance table's values are still "Result is Pass, Fail or Open." and the report's counts are still "passed by test, by script, open for a person, failed". Add a waived value to both. | An AC that depends on a waived P item, such as ml-denoise AC6 and AC7 with P6 (`ml-denoise/qa.md:465`, a Mac on macOS 15 or 26). When the owner reports, QA moves the row (`chromatic-aberration/qa.md:463`, "moved to passed by the owner's check"), but a waived row has no value to move to and stays Open. The Ship gate then finds Follow-up saying Waived and the table saying Open under "still open in `qa.md`", and the product manager has to guess which wins. | `WORKFLOW.md:13` |
+
+**C11: Fixed (8e6f5ca).** `qa-tester.md:53` now reads "Result is Pass, Fail, Open
+or Waived." and the counts at `:70` include "waived". A row that depends on a
+waived check now has a value to move to, so it no longer stays Open. Those two
+lines are the commit's only change outside this file.
