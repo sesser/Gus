@@ -802,7 +802,9 @@ enum DebugScript {
         } ?? "none"
         let tile = descendant(of: LoupeImageView.self, in: window.contentView)?.hasTile == true
         let image = descendant(of: LoupeImageView.self, in: window.contentView)
-        print("debug-script: viewport layers \(image?.debugLayerOrder ?? "-") nearest \(image?.usesNearestFiltering == true)")
+        print("debug-script: viewport layers \(image?.debugLayerOrder ?? "-") nearest \(image?.usesNearestFiltering == true)"
+              + " awaitsFull \(editor.loupeAwaitsFullRendition) renders \(editor.debugRenderRequests) refinements \(editor.debugRefinementStarts)"
+              + " fullWaits \(editor.debugFullRenditionWaits)")
         print(String(format: "debug-script: viewport covered %@ magnification %.3f bounds %.0fx%.0f live %@ tile %@ region frame %@ spinner %@ hist %@ visible %@",
                      editor.loupeViewport == nil ? "no" : "yes", scroll.magnification, image?.bounds.width ?? 0, image?.bounds.height ?? 0, editor.showsLive ? "yes" : "no", tile ? "shown" : "none", frame,
                      editor.isAwaitingSharpFrame ? "yes" : "no", editor.histogram.map { String(format: "%x", abs($0.hashValue) % 0xffffff) } ?? "none",
@@ -1042,7 +1044,8 @@ enum DebugScript {
             for (index, entry) in editor.frameTrace.enumerated() {
                 print(String(format: "debug-script: frame %d %@ %@ %@ %.1f ms%@", index, entry.sharp ? "sharp" : "soft",
                              entry.valuesAreCurrent ? "current" : "behind", entry.interactive ? "interactive" : "still",
-                             entry.seconds * 1000, entry.region.map { " region \(Int($0.width))x\(Int($0.height))" } ?? ""))
+                             entry.seconds * 1000, (entry.region.map { " region \(Int($0.width))x\(Int($0.height))" } ?? "")
+                                 + (entry.decode.map { " decode \($0)" } ?? "")))
             }
             print("debug-script: frames \(editor.frameTrace.count) sharp \(editor.frameTrace.filter(\.sharp).count)")
             editor.resetFrameTrace()

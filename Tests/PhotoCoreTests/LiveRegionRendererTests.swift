@@ -327,6 +327,7 @@ struct LiveRegionRendererTests {
         var values = Adjustments()
         // Highlights below 0 changes the settings once: extended range.
         values.tone.highlights = -5
+        #expect(await !renderer.isDecodingOrHolding(values))
         #expect(await !renderer.shouldDecode(whileMoving: values))
         values.tone.highlights = -10
         #expect(await renderer.shouldDecode(whileMoving: values))

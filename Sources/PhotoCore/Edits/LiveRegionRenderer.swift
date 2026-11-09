@@ -84,6 +84,13 @@ public actor LiveRegionRenderer {
         base?.settings == settings(for: values)
     }
 
+    /// Whether a decode for `values`' settings is under way, or has just
+    /// landed (the frame that asks may have started before it did).
+    public func isDecodingOrHolding(_ values: Adjustments) -> Bool {
+        let wanted = settings(for: values)
+        return decoding?.settings == wanted || base?.settings == wanted
+    }
+
     /// The decode settings of the last moving frame `shouldDecode` was asked about.
     private var lastMovingSettings: RAWDecodeSettings?
 

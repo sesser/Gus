@@ -68,7 +68,11 @@ final class AdjustmentEditor {
     /// The loupe is loading the full rendition that replaces a sharp frame
     /// after a change was saved (a kind of wait §2.1 names).
     @ObservationIgnored var loupeAwaitsFullRendition = false {
-        didSet { if loupeAwaitsFullRendition != oldValue { refreshSharpFrameWait() } }
+        didSet {
+            guard loupeAwaitsFullRendition != oldValue else { return }
+            if loupeAwaitsFullRendition { debugFullRenditionWaits += 1 }
+            refreshSharpFrameWait()
+        }
     }
     @ObservationIgnored private var sharpWaitTask: Task<Void, Never>?
     /// When the person last changed a value or moved the photo.
@@ -686,6 +690,7 @@ final class AdjustmentEditor {
             guard !Task.isCancelled, content == currentContent, pendingRender == nil else { return }
             let token = RenderCancellation()
             mapRefinement = token
+            debugRefinementStarts += 1
             let spinner = Task {
                 try? await Task.sleep(for: .milliseconds(350))
                 if !Task.isCancelled, generation == mapRefineGeneration {
@@ -985,7 +990,8 @@ final class AdjustmentEditor {
         }
         noteInput()
         if !wasCovered { scheduleRegionPrepare() }
-        guard state == .ready, showsLive, !regionFrameMatches(viewport) else {
+        // A map or the replaced fringe slot's preview renders nothing on a pan, as shipped (A4).
+        guard state == .ready, showsLive, canRenderRegion(content: currentContent), !regionFrameMatches(viewport) else {
             refreshSharpFrameWait()
             return
         }
@@ -1117,6 +1123,11 @@ final class AdjustmentEditor {
     /// The caption spinner's delay after the last input (the map's, SMP §5).
     private static let sharpWaitDelay = 0.5
 
+    /// Frames requested and map refinements started, for the debug script.
+    @ObservationIgnored private(set) var debugRenderRequests = 0
+    @ObservationIgnored private(set) var debugRefinementStarts = 0
+    /// Times the loupe began waiting for a full rendition after a change, for the debug script.
+    @ObservationIgnored private(set) var debugFullRenditionWaits = 0
     /// What each frame shown was, for the debug script (AC2–AC4).
     @ObservationIgnored private(set) var frameTrace: [FrameTraceEntry] = []
     struct FrameTraceEntry {
@@ -1125,14 +1136,18 @@ final class AdjustmentEditor {
         var interactive: Bool
         var seconds: Double
         var region: CGRect?
+        /// For a soft frame at 100% and above: "running" while a decode for its
+        /// settings is under way or starts with it, "settling" for the first
+        /// frame of new settings (the decode starts with the next frame if they hold).
+        var decode: String?
     }
 
     func resetFrameTrace() { frameTrace.removeAll(keepingCapacity: true) }
 
-    private func trace(sharp: Bool, interactive: Bool, seconds: Double, region: CGRect?, values: Adjustments) {
+    private func trace(sharp: Bool, interactive: Bool, seconds: Double, region: CGRect?, values: Adjustments, decode: String? = nil) {
         guard frameTrace.count < 2000 else { return }
         frameTrace.append(FrameTraceEntry(sharp: sharp, valuesAreCurrent: values == valuesOnScreen, interactive: interactive,
-                                          seconds: seconds, region: region))
+                                          seconds: seconds, region: region, decode: decode))
     }
 
     // MARK: Previewing
@@ -1211,6 +1226,7 @@ final class AdjustmentEditor {
     /// Renders the latest values; requests made while a frame renders collapse
     /// into one.
     private func requestRender(interactive: Bool) {
+        debugRenderRequests += 1
         var cancellation: RenderCancellation?
         if !interactive {
             cancellation = RenderCancellation()
@@ -1232,6 +1248,7 @@ final class AdjustmentEditor {
                     let overlay = currentOverlay
                     let content = currentContent
                     var regionShown = false
+                    var decodeNote: String?
                     if let viewport = loupeViewport, canRenderRegion(content: content), let regions = regionRenderer {
                         if await regions.isReady(for: next.values) {
                             // A frame already shows these values and this overlay over this region.
@@ -1253,6 +1270,8 @@ final class AdjustmentEditor {
                             // have stopped changing (R1, R2).
                             let decodeNow = next.interactive ? await regions.shouldDecode(whileMoving: next.values) : true
                             if decodeNow { startRegionDecode(next.values) }
+                            let decoding = decodeNow ? true : await regions.isDecodingOrHolding(next.values)
+                            decodeNote = decoding ? "running" : "settling"
                         }
                     }
                     if regionShown, next.interactive {
@@ -1287,7 +1306,7 @@ final class AdjustmentEditor {
                     show(rendered)
                     if rendered.content == .photo {
                         trace(sharp: false, interactive: next.interactive, seconds: rendered.seconds, region: nil,
-                              values: rendered.adjustments)
+                              values: rendered.adjustments, decode: decodeNote)
                     }
                     seedPreviewIfRendered()
                     if rendered.content.isMap {

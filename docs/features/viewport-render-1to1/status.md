@@ -50,7 +50,9 @@ States: Not started · In progress · Done · Blocked · Deferred.
 - After the review: `LiveFrameRules` (`LiveRegionRenderer.swift`) holds the decisions the editor
   and loupe share; `Frame.overlayMask` says which mask a frame's overlay is; `shouldDecode(whileMoving:)`
   starts one decode when a moving frame's settings settle. Debug script: `adjust scrub mask:<control>`,
-  `pan <dx> <dy>`, `print previews`; `print viewport` also prints the sublayer order and the base's filter.
+  `pan <dx> <dy>`, `print previews`; `print viewport` also prints the sublayer order, the base's filter, the wait
+  for a full rendition and counts of renders, refinements and full-rendition waits; `print frames` labels a soft
+  frame's decode.
 
 No golden moved, no pipeline version bump, no change to `CLAUDE.md` rules, no new
 dependency, no bundle script change.
@@ -60,13 +62,15 @@ dependency, no bundle script change.
 - Baseline at `ca3f67d`: `swift build` clean. `swift test` was not run before the
   first edit; the first full run (with the region renderer and 1 of its tests)
   was 635 tests, 1 known issue (the existing `LiveSessionTests` one).
-- Latest (after the review fixes): `swift build` clean. `swift test`: **646 tests in 109 suites
-  passed, 1 known issue (the existing one)**. Before that, on the first `swift test` after the
-  fixes, two tests failed, once each: `SharpeningMapTests` "The map's input is the image the
-  sharpening step sees" and `EffectsTests` `grainAddsTextureAroundTheSameLevel` (exact equality of
-  two renders). Both passed on three reruns of those suites and on the rerun of the full suite;
-  they exercise `AdjustmentRenderer` directly, which this diff doesn't change, and they passed on a
-  build of the code before these fixes, so whether the failure predates this is not shown.
+- Latest (after the second-pass fixes): `swift build` clean. `swift test`: **646 tests in 109 suites
+  passed, 1 known issue (the existing one)**.
+- Intermittent failures seen during the first-pass fixes, as they happened: the first full `swift
+  test` failed two tests, `SharpeningMapTests` "The map's input is the image the sharpening step
+  sees" and `EffectsTests` `grainAddsTextureAroundTheSameLevel` (exact equality of two renders). Of
+  three filtered reruns of those suites, the first failed both again and the next two passed. Every
+  full run since has passed. They call `AdjustmentRenderer` directly, which this diff doesn't change;
+  one run of those suites on the code before the fixes passed, which doesn't show whether the failure
+  predates this work. See the follow-up under "Open questions and notes".
 - `LARGE_RENDER_TESTS=1 swift test --filter LiveRegionRendererTests`: 12 of 12 passed. The AC1 scene
   is now `pixelGrid` (real one-pixel detail, code review C10).
 - No `UPDATE_GOLDENS` was run. AC9 was not re-measured: the fixes change which frame reaches the
@@ -113,6 +117,14 @@ Measured (6000 × 4000 `pixelGrid` scene, where every pixel differs from its nei
 7 and 2 cropped and straightened, across 24.5 million channel values; Show Original worst 1;
 a synthetic raw worst 4, in values at black level. No value exceeded the tolerance. The
 worst differences are in the darkest one-pixel detail, where the bound is loosest.
+
+**The tolerance widened in `3900e45`, the same commit as code fixes (code review C16).** The gain went
+from 3.79 to 10.02 (near white still 2 steps, at black from 8 to 18), because the derivation now counts
+Exposure's 2^ev and the local tone and Dehaze tables, as code review C13 asked. Each term is a real gain of a
+stage after the texture; it leaves out vibrance, saturation and color grading, so it is not a strict upper
+bound, and it was not tuned to the measurement. It is still a widening: with the old gain and the new
+`pixelGrid` scene, the default size passes and `LARGE_RENDER_TESTS=1` fails on 2 of 11.5 million channel values,
+in the center, uncropped case (2 of 11,520,000, differences of 5 and 8 steps).
 
 ## Speed and memory (E1, E3, E4; AC9)
 
@@ -202,8 +214,19 @@ sizes (about 6 to 7 a second).
 | AC14 (R13) | Debug script: scrub then `zoom` (fit) at once, `print previews`: `previews hash` equals the saved hash, `memory preview true`, `disk preview true`, `disk thumbnail true`, in the loupe and in the grid after it (stale-preview rule unchanged) | Done |
 | M1 (R1, R4, goal) | Owner, on a real 24 MP raw | Manual (`qa.md`) |
 
-**Frame-by-frame (AC2/AC3).** Timeout for a sharp frame: none needed (R6 is a
-moment, A8); recorded below. All with `print frames`, one block per scripted drag:
+**How the frame-by-frame check tells a decode is under way (ruling 9).** `print frames` ends a soft
+frame's line at 100% and above with `decode running` (a decode for that frame's settings is under way, starts
+with it, or landed just after it asked) or `decode settling` (the first frame of new settings: the decode starts
+with the next frame if they hold). A soft frame after the first sharp one is allowed only as part of a run of at
+most one `decode settling` frame followed by `decode running` frames. Any other soft frame fails: no label, or more
+than one `decode settling`. Measured for Exposure crossing 0 on a 24 MP DNG: two runs, 5 and 6 soft frames
+(`settling`, then `running`), sharp again with no further input.
+
+**Frame-by-frame (AC2/AC3).** Timeout: **2.5 s** for a sharp frame, from the start of the change and from
+the first soft frame of an allowed run. Derived from the slowest step of each kind measured: a soft frame before the
+decode starts, 232 ms (a raw decode-setting frame, on the RW2); a new decode and texture on the 24 MP DNG, 204 ms;
+the first sharp frame on the Dell's largest canvas, 729 ms (three masks, the heaviest case): 1.17 s together, doubled
+for a loaded machine and rounded up. It applies to the 24 MP DNG on the reference Mac; R6 sets no target (A8). Times recorded below. All with `print frames`, one block per scripted drag:
 at 100%: the first drag's sharp frames from the first frame on (after the first
 render 58 ms mean on a 2200 × 1289 window, p95 106 ms cold first frame), at 200%
 and 800% every frame sharp from the first; no soft interactive frame after the first
@@ -335,7 +358,7 @@ each was run on the code before and after the fixes, with the before result note
 | C1 | Photo's tile covers the maps | The editor drops `regionFrame` when a whole frame stands in for a region (a map, the replaced slot); the loupe has one tile rule | Script: map on at 100%: `tile shown` → `tile none` |
 | C2/F1 | Raw WB, Profile, NR freeze on a stale tile | Same drop, when a moving frame can't be a region frame; the whole-frame guard no longer returns early (`wholeFrameGoesOnBase`) | Script: WB drag at the end of the drag: `tile shown` → `tile none`, sharp after the hold; unit test |
 | C3 | Overlay doesn't follow the selected mask | `Frame.overlayMask` (the id), compared by `LiveFrameRules.isCurrent` in both checks | Script: select the other mask: `frames 0` → a new sharp frame; unit test (a mask's id on the frame, two masks differ) |
-| C4 | Highlights < 0, Exposure crossing 0, first mask, drags after Show Original stay soft | `shouldDecode(whileMoving:)`: a moving frame starts one decode once its settings have stopped changing; R4's controls change every frame so still wait for the pause. Show Original off prepares the saved settings. R4 is not widened | Script: Highlights from 0: 1 sharp of 34 → 22 of 29, none soft after the first sharp; Exposure crossing 0: 20 soft after the first sharp → 6 (the crossing's decode, R6); drag after Show Original: 1 of 10 sharp → 19 of 20 from the first frame; first mask: unchanged (already sharp here). Unit test |
+| C4 | Highlights < 0, Exposure crossing 0, first mask, drags after Show Original stay soft | `shouldDecode(whileMoving:)`: a moving frame starts one decode once its settings have stopped changing; R4's controls change every frame so still wait for the pause. Show Original off prepares the saved settings. R4 is not widened | Script: Highlights from 0: 1 sharp of 34 → 22 of 29, none soft after the first sharp; Exposure crossing 0: 20 soft after the first sharp → 6 (allowed: owner's ruling 9, "Allow it", a raw decode setting changing mid-drag); drag after Show Original: 1 of 10 sharp → 19 of 20 from the first frame; first mask: unchanged (already sharp here). Unit test |
 | F2/C7 | Spinner when nothing changed | `sharpFrameWaitApplies` needs a change under way (`showsLive` or the wait for a full rendition); `noteInput` in `catalogChanged`; refresh when the wait turns on | Script: arriving at a photo at 100%: `spinner yes` on the unfixed bundle → none; `Z` from fit showed none on both in this run |
 | C5/F3 | Maps lost nearest-neighbor | Nearest-neighbor at 1 and above for maps and the replaced slot's preview (`usesNearestFiltering`) | Script: map at 400%: `nearest true`; unit test |
 | C6 | Tile returns over the HDR rendition | The tile stays only while a full rendition is awaited | Script: after the full rendition, a rating key: `tile shown` → `tile none` (an SDR photo; an HDR photo was not run) |
@@ -344,6 +367,8 @@ each was run on the code before and after the fixes, with the before result note
 | C10 | AC1 scene had no one-pixel detail | `pixelGrid` scene | Test results above |
 | C11 | AC6, AC8, AC14 not checked | Now run and verified (rows above) | Rows above |
 | C12/F4 | HDR badge during a tile-only drag | Cleared on any live revision | M10 (HDR, a person) |
+| C14 (design N1) | No spinner for the wait after letting go when no sharp frame of the saved values exists | The wait no longer needs a tile of the saved values; a live revision that cancels the load clears it. The tile's own check is unchanged, so C6 holds (re-run: `tile none` twice) | Script: White Balance released at once: full-rendition waits stay 1 → go 1 to 2. No spinner appears on this file either way: the full render returns at once (`createCGImage` deferred, in `RenderEngine`) and its cost lands at first draw, so the wait ends well under the 0.5 s. The designer's spinner case can't be seen until that changes |
+| C15 | A pan with a map on re-renders and restarts the refinement | `setLoupeViewport` also needs `canRenderRegion` (a map or replaced slot's preview renders nothing on a pan, as shipped) | Script, map on at 100%, two pans: renders 2→3→4 and refinements 1→2→3 → unchanged at 2 and 1 |
 | C13 | Comments and docs | `prepare`'s doc; `notReady` re-requests the frame; PROFILING's table; `typicalGain` now derived fully | Reading |
 | F5 | (a) spinner after a too-large photo, (b) overlay ignored, (c) wait never cleared | (a) needs `regionRenderer`, (b) `isCurrent`, (c) cleared where no load starts or it fails | By construction |
 
@@ -381,7 +406,11 @@ The design question (mask handles over the tile): settled from layer order, `pri
   100 ms even in the smaller windows, and the texture is 432 MB. R7's reference is
   24 MP; the owner may want a ruling on larger files.
 
-**Follow-up for Ship.** If 100% feels slow on the Dell, faster region frames (A + C), which needs a ruling on A1/R12 for mid-drag frames.
+**Follow-ups for Ship.**
+- If 100% feels slow on the Dell, faster region frames (A + C), which needs a ruling on A1/R12 for mid-drag frames.
+- Intermittent `SharpeningMapTests` failures under GPU load (1 in 12 full runs in code review, not reproduced on
+  `dfa0d5c`). The likeliest cause is its float context shared across parallel tests; `.serialized` is a cheap first
+  step. The grain test (`EffectsTests`) failing alongside it isn't explained by that.
 
 **Design questions.** None.
 

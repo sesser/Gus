@@ -409,7 +409,6 @@ final class LoupeController: NSObject {
                 // The tile covers the swap until the full rendition is there;
                 // no full load starts at fit (design §2.1, §3).
                 editor.loupeAwaitsFullRendition = editor.loupeViewport != nil && zoom == .actualSize
-                    && editor.regionFrame?.adjustments == editor.savedAdjustments
                 show(index: shownIndex)
             }
             // The sharp frame of the saved values stays until the full rendition lands.
@@ -427,6 +426,8 @@ final class LoupeController: NSObject {
         loadTask?.cancel()
         hdrTask?.cancel()
         fullTask?.cancel()
+        // A new change: the full rendition just cancelled isn't coming.
+        editor.loupeAwaitsFullRendition = false
         rendition = .live
         if model.loupeHDRHeadroom != nil { model.loupeHDRHeadroom = nil }
         if let regionFrame = editor.regionFrame, editor.loupeViewport != nil {
