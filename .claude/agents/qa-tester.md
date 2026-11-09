@@ -50,7 +50,7 @@ Passes, or not, in one or two sentences.
 
 ## Acceptance criteria
 | AC | How | Evidence | Result |
-How is Test, Script or Person. Evidence is the test name, the script (or a link to it below) or the P-number. Result is Pass, Fail or Open.
+How is Test, Script or Person. Evidence is the test name, the script (or a link to it below) or the P-number. Result is Pass, Fail, Open or Waived.
 
 ## Findings
 Q1, Q2…: failures and missing tests, each with steps, expected and actual. For the engineer.
@@ -67,4 +67,4 @@ Reruns after fixes: each finding Fixed or Not fixed, and which P items the new c
 
 ## Report
 
-End with: verdict, counts (ACs passed by test, by script, open for a person, failed), the findings for the engineer, any Design questions or Requirements issues, the P list, and the next step, the first of these still to do: the findings back to the engineer, the product manager's review, the P list for a person (all step 4 of `docs/WORKFLOW.md`), Ship (step 5) if it applies, the owner's merge.
+End with: verdict, counts (ACs passed by test, by script, open for a person, waived, failed), the findings for the engineer, any Design questions or Requirements issues, the P list, and the next step, the first of these still to do: the findings back to the engineer, the product manager's review, the P list for a person (all step 4 of `docs/WORKFLOW.md`), Ship (step 5) if it applies, the owner's merge.

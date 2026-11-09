@@ -93,4 +93,46 @@ Five Should fix, five Nits.
 
 ## Follow-up
 
-(After the engineer's fixes.)
+Second pass, 2026-11-09: `f51400c..503e57c` (one commit), this file excluded.
+Build and tests: not run, as instructed. The diff is documentation and agent
+prompts only.
+
+All ten findings are fixed, and the owner's ruling on C2 is consistent
+everywhere it has to be. One new Nit, C11, is the only thing still open.
+
+| # | State | Commit | What I confirmed |
+|---|---|---|---|
+| C1 | Fixed | 503e57c | `product-manager.md:47` now reads "If a check is still open in `qa.md`, the one list of them, stop". No gate in `WORKFLOW.md` or the agent files names `review.md` any more (grep). |
+| C2 | Fixed, by the owner's ruling | 503e57c | `WORKFLOW.md:13` and `qa-tester.md:65` carry it; see the waiver check below. Question 1 is closed. |
+| C3 | Fixed | 503e57c | "once code review, any design review and QA have no open findings" in both `WORKFLOW.md:12` and `product-manager.md:26`. `/security-review` runs "before QA" (`WORKFLOW.md:14`). |
+| C4 | Fixed | 503e57c | `qa-tester.md:65` says which P items new commits affect and gives Passed, Failed or Waived. `:70` is now "the first of these still to do". Trace (a): an affected P item is named and done again. Trace (b): with the owner's results all in, the first still to do is Ship or the merge. An empty P list falls through the same way. |
+| C5 | Fixed | 503e57c | `product-manager.md:26`: "What only a person can verify is not a finding: mark it `Awaiting a person` with its P-number". `:38` has the column value. Such a row no longer holds up `WORKFLOW.md:13`, so the cycle is gone. |
+| C6 | Fixed | 503e57c | The clause is gone from `WORKFLOW.md:20` and `product-manager.md:57`; no "reopened" remains in either (grep). |
+| C7 | Fixed | 503e57c | `product-manager.md:26`: "A doubt about the design goes back as a **Design question** for the designer." The report's **Questions** line (`:137`) carries it to the main session. |
+| C8 | Fixed | 503e57c | `WORKFLOW.md:12`: "the main session gives it the branch's diff and head commit". `product-manager.md:26` asks for both if they are missing. |
+| C9 | Fixed | 503e57c | `swift-macos-engineer.md:37` matches `WORKFLOW.md:25`. |
+| C10 | Fixed | 503e57c | `WORKFLOW.md:25`: "QA follows code review and any design review". |
+
+**The waiver.** Consistent in all four places, with no contradiction:
+
+- Step 4 (`WORKFLOW.md:13`) states it: only the owner waives, qa-tester records
+  the waiver and the owner's reason in Follow-up, and "a waived check counts as
+  done".
+- Step 5 (`WORKFLOW.md:17`) and the first sentence of the Ship gate
+  (`product-manager.md:47`) require that "a person has done the checks `qa.md`
+  lists". That holds through "counts as done".
+- The Ship gate's stop ("If a check is still open in `qa.md`") and step 6
+  (`WORKFLOW.md:23`, "with no check left open") do not apply to a waived check,
+  which is not open.
+- A later commit that affects a waived check: `WORKFLOW.md:16` and
+  `qa-tester.md:65` say affected items are done again, and only the owner
+  waives, so qa-tester can't carry the waiver over. The owner does the check or
+  waives it again, which is the right result.
+
+The one place the waiver doesn't reach is `qa.md`'s acceptance table, C11.
+
+**New finding.**
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|----------|-------|---------|---------|------|
+| C11 | Nit | `.claude/agents/qa-tester.md:53`, `:70` | Follow-up now has Waived (`:65`), but the acceptance table's values are still "Result is Pass, Fail or Open." and the report's counts are still "passed by test, by script, open for a person, failed". Add a waived value to both. | An AC that depends on a waived P item, such as ml-denoise AC6 and AC7 with P6 (`ml-denoise/qa.md:465`, a Mac on macOS 15 or 26). When the owner reports, QA moves the row (`chromatic-aberration/qa.md:463`, "moved to passed by the owner's check"), but a waived row has no value to move to and stays Open. The Ship gate then finds Follow-up saying Waived and the table saying Open under "still open in `qa.md`", and the product manager has to guess which wins. | `WORKFLOW.md:13` |
