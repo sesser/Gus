@@ -280,7 +280,7 @@ next item to start ("make it the next item"). It shipped 2026-11-08 (PR
 
 | Slug | Problem | Status | Folder | Source |
 |------|---------|--------|--------|--------|
-| viewport-render-1to1 | At 100% zoom (and other zooms past fit), a control that is moving shows a stretched live frame until the change is saved, so fine detail can't be judged while editing: the 2560 px frame for most controls (2.3× for a 6000 px photo), and a 1280 px decode (4.7×) while RAW white balance, profile or noise reduction move | Specified | [`features/viewport-render-1to1/`](features/viewport-render-1to1/) | `PHASE6_PLAN.md` "The loupe at 100 %" and "Roadmap" |
+| viewport-render-1to1 | At 100% zoom (and other zooms past fit), a control that is moving shows a stretched live frame until the change is saved, so fine detail can't be judged while editing: the 2560 px frame for most controls (2.3× for a 6000 px photo), and a 1280 px decode (4.7×) while RAW white balance, profile or noise reduction move | Designed | [`features/viewport-render-1to1/`](features/viewport-render-1to1/) | `PHASE6_PLAN.md` "The loupe at 100 %" and "Roadmap" |
 | edit-history | No way to see or jump back to an earlier state of a photo's edits | Idea | none yet | Issue #26; `ui-redesign/design.md` RI-6 |
 
 How each starts:
