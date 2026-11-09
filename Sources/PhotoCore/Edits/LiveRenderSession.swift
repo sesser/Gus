@@ -30,6 +30,8 @@ public actor LiveRenderSession {
         public let content: Content
         /// The mask overlay is drawn over the photo.
         public let hasOverlay: Bool
+        /// The mask whose overlay is drawn, nil without one.
+        public var overlayMask: UUID? = nil
         public let adjustments: Adjustments
         /// The mask frame's size in pixels (the decoded image before turns,
         /// straightening and crop): its proportions place masks on screen.
@@ -275,13 +277,7 @@ public actor LiveRenderSession {
         var overlaid = false
         if content == .photo, let overlayMask, let adjusting = renderer as? AdjustmentRenderer,
            let alpha = adjusting.maskAlpha(adjustments, id: overlayMask, to: source, context: context) {
-            // Red at half the mask's alpha over the photo.
-            let red = CIImage(color: CIColor(red: 1, green: 0.1, blue: 0.1)).cropped(to: image.extent)
-            let blend = CIFilter(name: "CIBlendWithMask", parameters: [
-                kCIInputImageKey: red, kCIInputBackgroundImageKey: image,
-                kCIInputMaskImageKey: MaskRenderer.scaled(alpha, by: 0.5),
-            ])
-            image = blend?.outputImage?.cropped(to: image.extent) ?? image
+            image = Self.withOverlay(image, alpha: alpha)
             overlaid = true
         }
         image = image.scaledToFit(longEdge: Int((Double(longEdge) * factor).rounded()))
@@ -294,9 +290,19 @@ public actor LiveRenderSession {
         // A frame that filled the stage cache is slow once; it says nothing about the next.
         if drafting, !filledCache { adapt(level: level, seconds: seconds) }
         return Frame(image: DecodedImage(cgImage: rendered), histogram: histogram, content: content,
-                     hasOverlay: overlaid, adjustments: adjustments,
+                     hasOverlay: overlaid, overlayMask: overlaid ? overlayMask : nil, adjustments: adjustments,
                      maskFrameSize: CGSize(width: base.image.width, height: base.image.height),
                      scale: factor, seconds: seconds, filledCache: filledCache, machineLearning: base.machineLearning)
+    }
+
+    /// Red at half the mask's alpha over the photo.
+    static func withOverlay(_ image: CIImage, alpha: CIImage) -> CIImage {
+        let red = CIImage(color: CIColor(red: 1, green: 0.1, blue: 0.1)).cropped(to: image.extent)
+        let blend = CIFilter(name: "CIBlendWithMask", parameters: [
+            kCIInputImageKey: red, kCIInputBackgroundImageKey: image,
+            kCIInputMaskImageKey: MaskRenderer.scaled(alpha, by: 0.5),
+        ])
+        return blend?.outputImage?.cropped(to: image.extent) ?? image
     }
 
     /// The render in the working space before output (cached stages or whole).

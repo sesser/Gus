@@ -178,6 +178,19 @@ enum DebugScript {
             }
         case "zoom":
             send("z")
+        case "pan":
+            // pan <dx> <dy>: moves the loupe's view by document points, as a drag does.
+            if let window, let scroll = descendant(of: LoupeScrollView.self, in: window.contentView), rest.count == 2,
+               let dx = Double(rest[0]), let dy = Double(rest[1]) {
+                let clip = scroll.contentView
+                let origin = NSPoint(x: clip.bounds.origin.x + dx, y: clip.bounds.origin.y + dy)
+                clip.scroll(to: clip.constrainBoundsRect(NSRect(origin: origin, size: clip.bounds.size)).origin)
+                scroll.reflectScrolledClipView(clip)
+            }
+        case "zoomstep":
+            // ⌘= / ⌘−: the next zoom step (`LoupeZoomSteps`).
+            NotificationCenter.default.post(name: .loupeShouldStepZoom, object: model,
+                                            userInfo: [LoupeZoomStep.zoomInKey: rest.first != "out"])
         case "project":
             if let index = Int(rest.first ?? ""), model.projects.indices.contains(index) {
                 model.sidebarSelection = .project(model.projects[index].id)
@@ -772,6 +785,32 @@ enum DebugScript {
         print(line)
     }
 
+    /// `print viewport`: the loupe's zoom and what is on screen, for the
+    /// region and sharpness checks (viewport-render-1to1, design §5).
+    private static func printViewport(model: LibraryModel) {
+        let editor = model.editor
+        guard let window, let scroll = descendant(of: LoupeScrollView.self, in: window.contentView) else {
+            print("debug-script: viewport no canvas")
+            return
+        }
+        let frame = editor.regionFrame.map { region in
+            let size = region.outputSize
+            return "\(Int(region.region.width))x\(Int(region.region.height)) at \(Int(region.region.minX)),\(Int(region.region.minY))"
+                + " of \(Int(size.width))x\(Int(size.height))"
+                + (region.adjustments == editor.adjustments ? " applied" : " other values")
+                + (region.overlayMask.map { id in " overlay \(editor.adjustments.local.masks.firstIndex { $0.id == id } ?? -1)" } ?? "")
+        } ?? "none"
+        let tile = descendant(of: LoupeImageView.self, in: window.contentView)?.hasTile == true
+        let image = descendant(of: LoupeImageView.self, in: window.contentView)
+        print("debug-script: viewport layers \(image?.debugLayerOrder ?? "-") nearest \(image?.usesNearestFiltering == true)"
+              + " awaitsFull \(editor.loupeAwaitsFullRendition) renders \(editor.debugRenderRequests) refinements \(editor.debugRefinementStarts)"
+              + " fullWaits \(editor.debugFullRenditionWaits)")
+        print(String(format: "debug-script: viewport covered %@ magnification %.3f bounds %.0fx%.0f live %@ tile %@ region frame %@ spinner %@ hist %@ visible %@",
+                     editor.loupeViewport == nil ? "no" : "yes", scroll.magnification, image?.bounds.width ?? 0, image?.bounds.height ?? 0, editor.showsLive ? "yes" : "no", tile ? "shown" : "none", frame,
+                     editor.isAwaitingSharpFrame ? "yes" : "no", editor.histogram.map { String(format: "%x", abs($0.hashValue) % 0xffffff) } ?? "none",
+                     editor.loupeViewport.map { String(format: "%.4f,%.4f %.4fx%.4f", $0.minX, $0.minY, $0.width, $0.height) } ?? "-"))
+    }
+
     private static func descendant<V: NSView>(of type: V.Type, in view: NSView?) -> V? {
         guard let view else { return nil }
         if let match = view as? V { return match }
@@ -987,6 +1026,29 @@ enum DebugScript {
             }
         case "announcement":
             print("debug-script: announcement \(AccessibilityText.lastAnnouncement ?? "-")")
+        case "viewport":
+            printViewport(model: model)
+        case "previews":
+            // The renditions of the focused photo's saved edit: AC14's cached preview and thumbnail.
+            guard let item = model.focusedItem, let request = model.previewRequest(for: item, tier: .preview) else {
+                print("debug-script: previews none")
+                return
+            }
+            let key = request.key
+            let thumbnail = PreviewCacheKey(contentHash: key.contentHash, editStackHash: key.editStackHash, tier: .thumbnail)
+            print("debug-script: previews hash \(key.editStackHash.prefix(12)) saved \(model.editor.savedAdjustments.editStack.renderHash.prefix(12))"
+                  + " memory preview \(model.previews.memoryCachedImage(for: request) != nil) disk preview \(model.previews.cache.contains(key))"
+                  + " disk thumbnail \(thumbnail.map(model.previews.cache.contains) ?? false)")
+        case "frames":
+            let editor = model.editor
+            for (index, entry) in editor.frameTrace.enumerated() {
+                print(String(format: "debug-script: frame %d %@ %@ %@ %.1f ms%@", index, entry.sharp ? "sharp" : "soft",
+                             entry.valuesAreCurrent ? "current" : "behind", entry.interactive ? "interactive" : "still",
+                             entry.seconds * 1000, (entry.region.map { " region \(Int($0.width))x\(Int($0.height))" } ?? "")
+                                 + (entry.decode.map { " decode \($0)" } ?? "")))
+            }
+            print("debug-script: frames \(editor.frameTrace.count) sharp \(editor.frameTrace.filter(\.sharp).count)")
+            editor.resetFrameTrace()
         case "hdr":
             let potential = window?.screen?.maximumPotentialExtendedDynamicRangeColorComponentValue ?? 1
             let headroom = model.loupeHDRHeadroom.map { String(format: "%.2f", $0) } ?? "none"

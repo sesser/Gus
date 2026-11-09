@@ -55,7 +55,7 @@ photos the library does not have yet, and a folder with nothing new makes none.
 | Esc | | cancels picking a fringe color, else hides the fringe or sharpening map, else leaves review, else back to the grid |
 | F | review the focused photo | enter or leave review |
 | - and = | | while picking a color, pixel magnifier zoom out / in |
-| Z, click | | toggle fit / 100 % at the clicked point (⌥-scroll and pinch zoom too; drag pans) |
+| Z, click | | toggle fit / 100% at the clicked point (⌥-scroll and pinch zoom too; drag pans) |
 | 0–5 | set rating | set rating |
 | [ and ] | lower / raise rating | lower / raise rating |
 | P, X, U | pick, reject, clear flag | pick, reject, clear flag |
@@ -192,6 +192,16 @@ carry the crop; presets never do. Photos shot at 1:1, 3:2 or 16:9 on a camera
 with a 4:3 sensor show the camera's crop; on Olympus, OM System and Panasonic
 raw files, cropping starts from that frame over the whole sensor, so it can be
 widened. Other raw formats are cropped within the frame their decoder gives.
+
+**Editing at 100%**: at 100% and closer (`Z`, or **View ▸ Zoom to 100%**),
+the loupe shows the photo's own pixels while you change a value, so you can
+judge fine detail without letting go. A heavy edit updates less often but keeps
+its detail. When you start a change, pan or zoom, part of the photo can look
+soft for a moment. On raw files, White Balance, Profile and Noise Reduction
+stay soft while the value moves, and the detail arrives once you hold still,
+even with the control still held. If that takes more than half a second, a
+small spinner shows in the caption. The histogram always describes the whole
+photo, and at these zooms it can lag until you pause.
 
 **Sharpening Map**: Masking (Details ▸ Sharpening) holds sharpening back where
 the photo is smooth, such as skies and skin, and keeps it on edges. To see where

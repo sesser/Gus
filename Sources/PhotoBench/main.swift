@@ -48,6 +48,12 @@ let usage = """
                  the loupe's size, per-module costs, brush rasterization, memory, and the stack's
                  size and hashing time while a stroke is painted.
 
+      viewport   [--size WxH] [--frames N] [--windows WxH[,WxH...]]
+                 Live frames at 100%: regions of a full-resolution render of a synthetic DNG (default
+                 6000x4000) for loupe canvases of those sizes in pixels, capped by the photo (default
+                 3024x1800 and 3872x2592): typical stack and three masks, first frame, footprint and raw
+                 decode cost.
+
       denoise    [--size WxH] [--source FILE] [--runs N]
                  A raw (default a synthetic 6000x4000 DNG with noise) with machine learning noise
                  reduction off and on: thumbnail, 2560 px preview and full-resolution export times.
@@ -128,6 +134,7 @@ do {
     case "kernels": report = try await KernelBenchmark.run(arguments)
     case "masks": report = try await MaskBenchmark.run(arguments)
     case "blend-error": report = try await BlendErrorReport.run(arguments)
+    case "viewport": report = try await ViewportBenchmark.run(arguments)
     case "denoise": report = try await DenoiseBenchmark.run(arguments)
     case "scenes": report = try await SceneFiles.run(arguments)
     default:

@@ -133,7 +133,7 @@ private struct GrainControls: View {
             adjustSlider(editor, String(localized: "Size", comment: "Vignette or grain size"), \.grain.size,
                          range: Grain.sizeRange, defaultValue: 1, format: .decimal)
             if editor.adjustments.grain.strength == 0 {
-                Text("Raise Strength to add grain. Grain is easiest to judge at 1:1 (Z).")
+                Text("Raise Strength to add grain. Grain is easiest to judge at 100% (Z).")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

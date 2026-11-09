@@ -200,7 +200,7 @@ enum LensText {
     }
 
     static var refiningPhoto: String {
-        String(localized: "Refining the photo", comment: "Caption spinner while replacing a pick zoomed in")
+        String(localized: "Refining the photo", comment: "Caption spinner while the loupe waits for the photo's full detail: replacing a pick zoomed in, or after a change, pan or zoom at 100% and above.")
     }
 
     static func canvasValue(_ status: FringeMapStatus, photoValue: String) -> String {
