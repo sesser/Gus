@@ -1,10 +1,9 @@
 # Chromatic aberration and color fringe removal
 
-Status: R1–R18 Approved (owner, 2026-11-07) and built (status.md); PR #48
-open, CI green, reviews not started. R19–R36, the pixel magnifier added by
-the owner: Approved (owner, 2026-11-08), designed (design.md §20) and built
-(status.md), with one test still owed for AC19 (Revisions, 2026-11-08). The
-reviews run once that test is in.
+Status: Approved: R1–R18 (owner, 2026-11-07) and R19–R36, the pixel magnifier
+(owner, 2026-11-08). All built (status.md), and PR #48 is open. Code review
+and design review have run at 7bbdfe5 (code-review.md, review.md), and both
+have findings open. QA has not run.
 Slug: chromatic-aberration
 Roadmap: Now
 
@@ -653,6 +652,12 @@ QA lists it under "For a person".
   ready while picking (R20, R36, OQ14). The level is a preference like the
   app's other view settings; a debug copy with its own bundle identifier
   keeps its own, as it should.
+- **If the Lens kernels can't compile (known limitation, RI-CR1).** The
+  corrections are then skipped with no message for the rest of that launch,
+  in the loupe, previews and exports alike. The picks and values stay stored.
+  Previews made during that launch keep the uncorrected look until the edit
+  changes or the cache is deleted. No criterion covers this. R2, R7, R8 and
+  R13 assume the kernels compile.
 - **Pick Colors, for a later adoption (ruling 17; roadmap
   `pick-colors-magnifier`).** It samples differently from
   the fringe tool: the frame on screen, after edits, at that frame's
@@ -900,3 +905,22 @@ are fine.").
     half of R25.
   - **OQ12, OQ13 and OQ14 are closed,** answered by design.md §20 and
     status.md. The Status line now says the magnifier is designed and built.
+- 2026-11-08: ruling on the code reviewer's question (code-review.md, "For
+  the product manager"; RI-CR1 here). The requirements stay Approved; this
+  doesn't widen the owner's scope.
+  - **RI-CR1, Lens kernels that fail to compile: accepted as a known
+    limitation.** No message, no acceptance criterion, no engineer change,
+    and no roadmap row now. They compiled on macOS 15, 26 and 27, every major
+    version the app supports, from source that never changes, so a failure
+    needs a fault in the operating system. No one has seen one. Machine
+    learning noise reduction says when it isn't applied because that is an
+    expected state on ordinary Macs (an older macOS, an unsupported camera).
+    This is a fault, and reporting it would need a new state through the
+    renderer, previews, exports and `photocli`, plus design work, for a case
+    QA could reach only by faking the failure. The cost if it does happen
+    is contained: nothing stored is lost, the next launch compiles again,
+    and the cache can be deleted. If it is ever seen on a real Mac, a
+    message and keeping those previews out of the cache become a roadmap
+    row.
+  - **Status line corrected.** AC19's test landed in 7bbdfe5, and the line
+    now gives the state of the reviews.

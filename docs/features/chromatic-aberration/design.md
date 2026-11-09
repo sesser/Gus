@@ -5,7 +5,7 @@ manager ruled both requirements issues on 2026-11-07 (§17), each as the
 option this design applied. The owner answered §18 Q1 ("It should go into
 this feature now"; prd ruling 15, R1a–R1c), and this revision designs the
 list of common fringe colors (prd OQ4) in §3, §4, §8, §11, §12, §15 and §16.
-The engineer's design questions from implementation (DQ-1 to DQ-3) are
+The design questions from implementation (DQ-1 to DQ-4) are
 ruled in §19 (2026-11-08). The pixel magnifier (prd rulings 16–22, R19–R36,
 OQ12, OQ13) is designed in §20, with §1, §3, §4, §8, §11–§16 revised for it
 (2026-11-08). Nothing is open.
@@ -226,6 +226,7 @@ priority:
 | A slot is picking, and that slot was empty | "Click a colored fringe in the photo to pick Color 1. The magnifier outlines the pixel a click takes. Press Esc to cancel." |
 | A slot is picking, and that slot holds a pick (replacing) | "Color 1's effect is hidden while you pick. Click a colored fringe, or press Esc to cancel." |
 | The last click landed on a spot with almost no color (§4) | "That spot has almost no color. Click a colored fringe, or press Esc to cancel." |
+| Picking ended because the pixels couldn't be read (§19 DQ-4) | "The original could not be read. Make sure it's available, then pick again." |
 | Fringe map shown | The legend (§6) |
 | No pick | "Pick a fringe's color in the photo with the eyedropper, or choose Purple or Green from the menu beside it. The color turns gray where it lines a high-contrast edge." |
 | At least one pick | "Raise Tolerance to include colors further from the picked one. Colors away from high-contrast edges keep theirs." |
@@ -345,7 +346,7 @@ an undo step.
 | Drag | Still pans. A press that moves past the loupe's 3 pt drag threshold is a pan, not a pick, so people can move to the next fringe at 100% without leaving the tool |
 | Double-click | Picks once and doesn't leave the loupe. The second click of a double-click within the double-click interval after a pick is ignored. A habitual double-click mustn't throw the person back to the grid mid-task |
 | Scroll, pinch, ⌥-scroll, `Z`, ⌘= / ⌘−, toolbar Fit \| 100% | Work as always; the eyedropper stays on |
-| Esc | Cancels picking: the eyedropper turns off, a replaced slot's effect comes back, nothing is saved. Works while the loupe or an inspector button has the keyboard; in a text field, Esc keeps its meaning (hands the keyboard back first) |
+| Esc | Cancels picking: the eyedropper turns off, a replaced slot's effect comes back, nothing is saved. Works wherever the keyboard is in the library window. In a text field, Esc keeps its meaning (hands the keyboard back first). An open menu or pop-up, a sheet and a popover keep their own Esc, and picking stays on |
 | Culling keys | Work as always. Moving to another photo (arrows, film strip, auto-advance) cancels picking |
 | Right-click / Control-click | The loupe's context menu, as always, with a **Pixel Magnifier** submenu added (§20); picking stays on |
 | `-` and `=` | Pixel magnifier level down and up (§20), with the loupe holding the keyboard. New, and only while picking. ⌘- and ⌘= keep their meaning |
@@ -551,6 +552,7 @@ touch Color Alignment.
 | **Slot filled from the list** | — | Same as one pick: swatch, "Purple" or "Green", Tolerance at that color's starting value. Nothing marks it as listed (§3) | — | Fringes of that color grayed near edges |
 | **Replacing a pick** | — | That slot's eyedropper on, "replacing" caption, Pixel magnifier row | — | Photo without that slot's effect, crosshair and pixel magnifier |
 | **Neutral click** | — | Eyedropper still on, "almost no color" caption | — | Unchanged. The magnifier already read "Almost no color" (§20) |
+| **Pixels couldn't be read (§19 DQ-4)** | — | Eyedropper off, "could not be read" caption | — | Pointer back to the arrow, no magnifier, a replaced slot's effect back |
 | **Fringe map shown** | — | Toggle on, legend | — | Map, "Fringe Map" badge |
 | **Color Fringes turned off** | Check box mixed if Color Alignment is on | Values kept, labels secondary (`showsTurnedOff`); eyedroppers, slot menus and Fringe Map stay enabled (as Sharpening Map, SMP §4) | — | Without graying; map shows "Not Applied" |
 | **Changing a value with a group off** | — | Picking, choosing from the list, clearing or a Tolerance change turns the group back on, as any control does (`enableModules`) | Same | — |
@@ -666,7 +668,8 @@ an addition, not a redesign.
 - **Announcements** (posted when not caused by the control that would speak
   for itself): after a pick or a choice from the list, "Color 1 set to
   purple." (one sentence for both, R1b); after a clear,
-  "Color 1 cleared."; on a neutral click, "That spot has almost no color.";
+  "Color 1 cleared."; on a neutral click, "That spot has almost no color."; when picking ends
+  because the pixels couldn't be read, the caption's sentence (§19 DQ-4);
   when measuring ends, the caption's sentence ("Measured on this photo…" or
   "No color edges were found…"). For the map: "Showing the fringe map.",
   "Showing the fringe map. Color Fringes is turned off.", and "Showing the
@@ -731,6 +734,7 @@ new use, as `ui-redesign/design.md` §7 does.
 | Click a colored fringe in the photo to pick Color %lld. The magnifier outlines the pixel a click takes. Press Esc to cancel. | Inspector caption, picking an empty slot | Replaces the sentence about 100% (Z) |
 | Color %lld's effect is hidden while you pick. Click a colored fringe, or press Esc to cancel. | Inspector caption, replacing | |
 | That spot has almost no color. Click a colored fringe, or press Esc to cancel. | Inspector caption after a neutral click | |
+| The original could not be read. Make sure it's available, then pick again. | Inspector caption and VoiceOver announcement when picking ends because the pixels couldn't be read (§19 DQ-4) | |
 | That spot has almost no color. | VoiceOver announcement | |
 | Pick a fringe's color in the photo with the eyedropper, or choose Purple or Green from the menu beside it. The color turns gray where it lines a high-contrast edge. | Inspector caption, no pick | |
 | Raise Tolerance to include colors further from the picked one. Colors away from high-contrast edges keep theirs. | Inspector caption, at least one pick | |
@@ -992,6 +996,7 @@ offline warning).
 | DR19 | Level: inspector pop-up only while picking, between Fringe Map and the caption; `-` and `=` step without wrapping; View ▸ Pixel Magnifier and its checked item; context submenu only while picking; picking stays armed through every path; persisted across photos, slots, relaunch (AC22, AC23) | `magnifier level`, `menuitems "Pixel Magnifier"`, `menupress`, `contextmenu loupe`, `key` |
 | DR20 | No keyboard focus taken, no accessibility element for the magnifier, no announcement on movement; pop-up label and value; canvas actions; announcement on a level change (AC28) | `accessibility`, `print responder`; manual (M3) |
 | DR21 | Increase Contrast: outline, grid and plate as §20 specify. The caption, user guide and strings use §1's and §12's terms | Manual (M3); reading |
+| DR22 | The pixels can't be made (§19 DQ-4): picking ends with no undo step, the caption says why and the announcement is posted once; a waiting click is dropped; arming again retries; pixels already held keep working after an eject | Debug script with an original removed before arming, `print fringe`, `print magnifier`, `print undo`; code review |
 
 ## 17. Requirements issues (ruled)
 
@@ -1070,7 +1075,8 @@ None open.
 
 ## 19. Design questions from implementation (ruled 2026-11-08)
 
-The engineer returned three (status.md "Design questions"). None widens
+The engineer returned three (status.md "Design questions"), and code review
+raised a fourth (DQ-4, code-review.md). None widens
 scope or touches a requirement, so none goes to the product manager or the
 owner.
 
@@ -1079,6 +1085,7 @@ owner.
 | DQ-1 | **Option A**, as built: a raw's own White Balance and Profile are the accepted exception to §14 point 2; the user guide tells the person what to do. Revisit after M1 | One sentence of `USER_GUIDE.md` (below) | §14 point 2 |
 | DQ-2 | **One summary row per command**, like the offline warning, that also lists the files, as Export's row does | The Activity report for unreadable originals (below) | §10, §12 |
 | DQ-3 | **Confirmed as built**: the command's own title, "‹n› of ‹m›" as the detail, Stop | Fit a long preset name in the toolbar title (below) | §10, §12 |
+| DQ-4 | **Picking ends and the caption says why**, when the pixels a tool samples can't be made | End picking, one caption, one announcement (below) | §3, §8, §11, §12, §20, DR22 |
 
 ### DQ-1: a raw's white balance comes before the fringe step
 
@@ -1192,6 +1199,44 @@ toolbar item. Give the measuring job a `toolbarTitle` fitted by
 (the same "Apply Preset %@" key), shortening the preset's name in the middle as
 Export does with its folder. The popover keeps the full title. "Paste
 Adjustments" needs no fitting.
+
+### DQ-4: the held pixels can't be made
+
+Raised by code review, 2026-11-08. The render of the sampled image can fail: the
+original was ejected or became unreadable after the photo opened. It only logged,
+so the magnifier kept its dashes and spinner forever and a click did nothing, with
+no word of why.
+
+**Ruling: picking ends, as if Esc had been pressed, and the caption says why.**
+
+- **When:** the render for the held pixels fails, and it is still the render
+  picking is waiting for. That covers arming, and a later re-render while picking
+  (Color Alignment or a decode setting changed, R30).
+- **What ends:** the eyedropper turns off, the pointer goes back to the arrow, the
+  magnifier and its inspector row go, and a replaced slot's effect comes back.
+  Nothing is saved and there is no undo step. A suspended fringe map returns.
+- **A click waiting for those pixels** is dropped, and the failure is reported once.
+- **The caption** (§3), below the picking captions and above the fringe map legend:
+
+  > The original could not be read. Make sure it's available, then pick again.
+
+- **It stays until** the next arming, any change to the adjustments, or another
+  photo. VoiceOver hears the same sentence once (§11). No Activity row: the person
+  is at this control, and it is one photo (P4; §7's "This photo could not be
+  measured." is the precedent).
+
+Why end picking rather than stay armed: an armed tool promises that a click will
+work (the crosshair, the magnifier, the caption's "Click a colored fringe"), and
+here no click can. That differs from "almost no color", which stays armed because
+the next spot may be fine. Trying again is one click on the eyedropper, which starts
+a new render, so a disk that has come back just works.
+
+**Not a failure:** pixels already held. They are in memory, so a volume ejected
+after they are ready doesn't affect picking, and picks go on working from them.
+
+This is not a requirements change. R20's "a click still picks" covers pixels that
+are on their way; once picking has ended no click is waiting (R19). The photo's own
+offline state in the Adjust tab (N1) is unchanged.
 
 ## 20. Pixel magnifier (R19–R36; OQ12, OQ13)
 
@@ -1374,6 +1419,7 @@ attached (R36), and Reduce Motion needs no special case.
 | Drag to pan | Stays and follows |
 | Replacing a filled slot, Fringe Map suspended, a live frame on screen | No difference: it draws the sampled image, which never contains the slot's graying (§14 point 4) |
 | Filling from the list | Never shown (AC16) |
+| The pixels can't be made | Picking ends, so it goes; the caption says why (§19 DQ-4) |
 | HDR photo | Standard range; values read 255 at the top (R23; prd Assumptions) |
 | Window moves to a display of another scale | Same level, same point size, redrawn for that display (AC22, M3) |
 | Touch alone on a touch-display Mac | No hover, so none shown; a tap picks by §4's rule |
@@ -1479,3 +1525,9 @@ replaced, not kept beside this.**
   (ruling 18), and §15, DR4 and the picking caption follow. §1, §3, §4, §8, §11,
   §12, §13 (the first custom chrome here, justified), §14 point 1, §15 and §16
   (DR15–DR21) are revised.
+- 2026-11-08: Ruled DQ-4 (§19, from code review): when the held pixels can't be
+  made, picking ends and the caption says why. §3, §8, §11, §12, §20 and DR22
+  follow.
+- 2026-11-08: §4's Esc row now says what was built and confirmed for review
+  finding F2: Esc cancels picking from anywhere in the library window, and text
+  fields, open menus, sheets and popovers keep their own Esc.
