@@ -20,17 +20,17 @@ wait, inputs, `catalogChanged`), `PhotoCore/Edits/LiveRegionRenderer.swift`,
 The rectangle in the Sharpening Map at Fit reproduces on `develop` and is out
 of scope here.
 
-## Verdict
+## Verdict (second pass, 2026-11-09)
 
-**Not ready to merge. F1 and F2 must be fixed first.**
+**F1 to F5 are fixed in the code. One new Low finding is open (N1), a one-clause
+fix. The design review passes once N1 is fixed or the owner accepts it; the
+manual checks below remain.** Nothing has been seen on screen. See "Second pass".
 
-- **F1:** raw White Balance, Profile and Noise Reduction stop following the hand
-  once a sharp frame exists.
-- **F2:** the spinner appears in the two cases §2.1 excludes.
-
-The rest matches the design: both hints, the guide paragraph, the tile layer's
-filters and animation, pixel alignment, the histogram, and "covered" agreeing
-with the toolbar. F3 to F5 are small and belong in the same pass.
+The first pass found the build not ready to merge, because of F1 (raw White
+Balance, Profile and Noise Reduction stopped following the hand) and F2 (the
+spinner appeared in the two cases §2.1 excludes). Everything else matched the
+design: both hints, the guide paragraph, the tile layer's filters and animation,
+pixel alignment, the histogram, and "covered" agreeing with the toolbar.
 
 ## Owner ruling 8 and the design
 
@@ -55,8 +55,8 @@ with the toolbar. F3 to F5 are small and belong in the same pass.
 | DR | Result | Notes |
 |---|---|---|
 | DR1 | **Pass** | Both hints are exact in Swift and the catalog, the old keys are gone, and "Refining the photo" has the wider comment. `LocalizationTests` passed (`status.md`) |
-| DR2 | **Pass by code for the photo; fails A4 for maps (F3); look on screen** | The base uses nearest-neighbor only for `.full` and `.hdrFull` at 1 and above (`LoupeView.swift:556–559`); `.live`, previews and placeholders are smooth. `updateFiltering` follows every rendition change. The tile is always real pixels (`LiveRegionRenderer.region` is whole output pixels), so its nearest filter is right |
-| DR3 | **Fail (F1, F2)** | Correct by code: the 0.5 s from the last input, one spinner, last in `spinnerLabel`, off when input resumes, off for maps and crop. Wrong: the R4 row (F1) and the §2.1 exclusions (F2) |
+| DR2 | **Pass by code (second pass); look on screen** | The base uses nearest-neighbor at 1 and above only for `.full`, `.hdrFull`, and the maps and replaced fringe slot that A4 keeps (`LiveFrameRules.usesNearestFiltering`); photo live frames, previews and placeholders are smooth. `updateFiltering` follows every rendition change. The tile is always real pixels (`LiveRegionRenderer.region` is whole output pixels), so its nearest filter is right |
+| DR3 | **Pass by code (second pass), with N1; look on screen** | Correct by code: the 0.5 s from the last input, one spinner, last in `spinnerLabel`, off when input resumes, off for maps and crop, the R4 row (F1 fixed) and the §2.1 exclusions (F2 fixed). N1 is a missed spinner after letting go |
 | DR4 | **Pass by code; macOS 27 on screen** | The machine learning flag comes before the new one in `spinnerLabel`, and its wait is unchanged. F1 also applies to a Luminance drag with machine learning on |
 | DR5 | **Pass by code; look on screen** | `tileLayer.actions` turns off `contents`, `bounds`, `position` and `hidden`, and `setTile` disables actions. The tile sits on whole output pixels in a view sized to the output (`matchFrame(toOutput:)`), so it lines up by construction. Only a person can confirm the soft base lines up with it |
 | DR6 | **Pass by code; look on screen** | Covered is `magnification >= 0.99` and the toolbar is within 1% of 100%. A photo whose Fit is already 100% is covered |
@@ -66,8 +66,8 @@ with the toolbar. F3 to F5 are small and belong in the same pass.
 
 **PRD criteria that touch the UI.**
 
-- R4 while moving: fails by F1. No criterion catches it, because AC6 checks only
-  the pause. M1 and the script note under F1 cover it.
+- R4 while moving: failed on the first pass (F1), fixed by code on the second. No
+  criterion catches it, because AC6 checks only the pause, so M1 covers it.
 - AC7 (R5), AC8 (never blank: the tile is always over a base, and `setTile(nil)`
   never clears the base) and AC11: pass by code.
 - AC1–AC3, AC5, AC9, AC10 and AC12–AC14: the evidence is in `status.md`, and
@@ -76,7 +76,7 @@ with the toolbar. F3 to F5 are small and belong in the same pass.
 **HIG.** Progress indicators, Motion and Writing are honored as `design.md`
 applied them. Nothing is on the glass layer, and there is no custom chrome.
 
-## Findings for the engineer
+## Findings for the engineer (first pass)
 
 | # | Severity | Finding | Fix |
 |---|---|---|---|
@@ -86,6 +86,49 @@ applied them. Nothing is on the glass layer, and there is no custom chrome.
 | F4 | Low | **The HDR badge stays during a drag.** `showTile` doesn't clear `loupeHDRHeadroom`, and interactive region frames return before line 449 does. On an EDR display the tile is standard range while the caption still says HDR until the pause. A4 says standard range during a live change, and today the badge goes with the first live frame. The caption must not claim what isn't on screen (SMP §5) | Clear the headroom when a tile of a change under way goes on screen |
 | F5 | Low | **Three small gaps in "what was asked for" and "on its way".** (a) After `regionRenderer` is cleared (a photo over 16384 px, a failed decode), a whole-frame render still counts as on its way, so the spinner promises detail that isn't coming. (b) `sharpFrameIsOnScreen` ignores the overlay, unlike the render loop's `hasOverlay` test. (c) `loupeAwaitsFullRendition` clears only when `.full` lands, so a failed load, or a small photo at Fit (`zoom == .fit` starts no load), leaves it set | (a) Require `regionRenderer != nil` for the frame cases. (b) Compare `hasOverlay`. (c) Clear it where the load fails or isn't started |
 
+## Second pass: the fixes in `3900e45`
+
+I read the files on the branch at `e6dd936`, which is `3900e45` plus one commit
+titled "Note that covered zooms have no memory cap for now". I have no shell, so
+I did not use `git show`, and I still have not built or run anything. These
+results come from the code; the script results in `status.md` are the engineer's.
+
+| Finding | Status | What the code does |
+|---|---|---|
+| F1 | **Fixed by code; M1 on screen** | A whole frame standing in for the region sets `regionFrame = nil` just before `show(rendered)` (`AdjustmentEditor.swift:1282`), and `showLiveFrame` no longer returns early. White Balance, Profile and Noise Reduction change their decode settings on every frame, so `shouldDecode(whileMoving:)` stays false and they wait for the pause. **§3:** `setTile(nil)` and `setImage` run in one pass of `updateNSView`, so they reach the screen together, with no empty or stale moment between them. The layer's actions stay off. The whole frame fills the view and resizes it only on an aspect change over 1%, so nothing moves. Whether soft and sharp frames line up at a fine edge is M5 |
+| F2 | **Fixed by code, one gap (N1); M3 on screen** | `sharpFrameWaitApplies` (`AdjustmentEditor.swift:1083–1086`) needs `showsLive \|\| loupeAwaitsFullRendition`, and the timer tests it again when it fires. Arriving at a photo and `Z` from Fit with nothing changing set neither, so the prepare and the histogram frame no longer start it. It still applies when an R4 control is held still, after a heavy edit's last value, on a pan during a change, on a hover, on Show Original turned on, and on a pan while a sharp frame of the saved values waits for the full rendition. `noteInput` is in `catalogChanged`, and the flag re-evaluates when it turns on. Undo at 100% loads as today unless a live frame was on screen; R6 doesn't name it, so I accept that |
+| F3 | **Fixed by code; M11 on screen** | `LiveFrameRules.usesNearestFiltering` keeps nearest at 1 and above for `.live` frames that are maps or the replaced slot's preview, and linear below 1, as on `develop`. Photo live frames stay smooth and `.full` and `.hdrFull` stay nearest, so §2.2 holds for the photo and A4 for the rest |
+| F4 | **Fixed by code; not seen (M10)** | `showLiveFrame` clears `loupeHDRHeadroom` on every live revision (`LoupeView.swift:431`), and `display` of an HDR rendition sets it again (`:537`). The tile no longer returns over the HDR rendition (`:416`, code review C6) |
+| F5 | **Fixed by code** | (a) `sharpFrameIsOnItsWay` needs `regionRenderer` for the frame cases. (b) `sharpFrameIsOnScreen` uses `LiveFrameRules.isCurrent`, with the overlay's mask. (c) The flag is cleared where no load starts or it fails (`:579`, `:584`, `:598`) and isn't set at Fit |
+
+DR1 and DR9 still pass. §3's tile layer and §4 are unchanged.
+
+**New.**
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| N1 | Low, open | **No spinner for the wait after letting go when no sharp frame of the saved values exists.** `LoupeView.swift:411–412` now sets `loupeAwaitsFullRendition` only when `regionFrame` holds the saved values. Let go of White Balance, Profile or Luminance without a pause, and if the whole frame and the save land before the region decode, `regionFrame` is nil, `showsLive` goes false and the flag stays false. The soft frame then stays until the full rendition lands (656–867 ms, E4) with no spinner. The same happens when Show Original is turned off and the full rendition isn't cached. §2's table lists "just after letting go". The clause isn't needed for C6, because line 416 tests the tile's values itself | Remove `&& editor.regionFrame?.adjustments == editor.savedAdjustments` from line 412 and keep the `zoom == .actualSize` test |
+| N2 | Info, no fix asked | **The first drag on a photo can blink soft.** When no sharp frame exists yet (usual after arriving at 100% or `Z`), the first live update puts the older whole frame on the base, over the full rendition, before the first sharp frame lands (about 150 ms on the Dell). R6 allows a soft first frame and `develop` did the same, so it isn't a violation. M5 judges it. If it reads as a blink, the fix is to keep the full rendition until a new frame exists | None for now |
+
+Also for the record: on a raw, Exposure crossing 0 can go soft for a few frames
+mid-drag while its one decode runs (`status.md`, C4). R6 allows it and §2's no-mark
+rule applies. The guide's "can look soft for a moment" is still true.
+
+**The mask handles (code review's design question).** Layer order is settled, and
+one look remains. The tile joins the image view's layer in `init`, before
+`imageView.addSubview(maskView)` (`LoupeView.swift:202`). `MaskOverlayView` has its
+own layer, and nothing in the app sets `zPosition`, re-adds that view or uses
+`canDrawSubviewsIntoLayer`. `layers tile,view` confirms both halves: the mask view
+has a separate layer, and the tile is under it. It can't show the composited
+picture, or the order after a later pass by AppKit, which as far as I know makes
+no promise about a sublayer added by hand to a layer-backed view (my judgment).
+So it stays a manual check, M12, at low risk.
+
+**HDR.** F4 is confirmed from the code only, because no HDR photo was run. All of
+M10 stays manual, on a display with extended dynamic range. Accepted: a pan during
+a tile-only drag can show the HDR base beside the standard-range tile for a moment,
+until the pause's frame replaces it. It is rare and brief, and R6 allows it.
+
 ## Requirements issues
 
 None. Ruling 8 needs no design change, and RI2 (photos above 24 MP) has no UI
@@ -93,26 +136,29 @@ consequence.
 
 ## Manual checks
 
-These need the bundled app, active, on a real 24 MP raw on the owner's Mac unless
-noted. M1 to M3 assume F1 and F2 are fixed. The PRD's M1 is separate and stays
-with the owner.
+Current after the second pass. These need the bundled app, active, on a real
+24 MP raw on the owner's Mac unless noted. The PRD's M1 is separate and stays with
+the owner.
 
 | # | Check | DR |
 |---|---|---|
-| M1 | **R4 while moving.** At 100%: drag White Balance, hold until the detail arrives, drag again. The picture follows the hand softly throughout, and never freezes or pops back to older values. Same for Profile and Luminance | DR3 |
+| M1 | **R4 while moving.** At 100%: drag White Balance, hold until the detail arrives, drag again. The picture follows the hand softly throughout, and never freezes or pops back to older values. Same for Profile and Luminance. Exposure crossing 0 may go soft for a few frames, then stays sharp | DR3 |
 | M2 | **Soft looks soft.** At 100% and 400%, a White Balance drag and the moment after a pan are smooth with no blocks. At 400% a settled photo shows real pixels as blocks | DR2 |
-| M3 | **Spinner.** None during any drag. With White Balance held still, it shows only if the detail takes more than 0.5 s, and goes when the detail lands or movement resumes. Tooltip "Refining the photo". None when arrowing through raws at 100%, and none on `Z` from Fit, including a photo with machine learning on and a masked photo | DR3 |
+| M3 | **Spinner.** None during any drag. With White Balance held still, it shows only if the detail takes more than 0.5 s, and goes when the detail lands or movement resumes. Tooltip "Refining the photo". None when arrowing through raws at 100%, and none on `Z` from Fit, including a photo with machine learning on and a masked photo. After N1: letting go of White Balance with no pause shows it if the soft frame lasts past 0.5 s | DR3 |
 | M4 | **Machine learning** (macOS 27). One spinner with its own label, the last frame stays, the window responds | DR4 |
-| M5 | **The swap.** No fade and no shift, soft to sharp and back, with Reduce Motion on and off. The soft frame lines up with the sharp one at a fine edge, near the center and near a corner | DR5 |
+| M5 | **The swap.** No fade and no shift, soft to sharp and back, with Reduce Motion on and off. The soft frame lines up with the sharp one at a fine edge, near the center and near a corner. Also N2: does the start of the first drag on a photo read as a blink? | DR5 |
 | M6 | **The 100% boundary.** Real pixels at 100% by `Z`, the toolbar, ⌘=, and a pinch that selects the 100% segment. Soft just below. Say whether landing just below by pinch is a trap | DR6 |
 | M7 | **Histogram and curve.** During a drag at 100% both hold, never blank or dim, and catch up on a pause. A pan leaves them alone. At Fit they stay live | DR7 |
 | M8 | **VoiceOver.** Nothing is announced at the swap, the slider speaks its value, the spinner reads its label, the canvas value is unchanged | DR8 |
 | M9 | **Ruling 8 on the Dell** (maximized, sidebar and inspector showing, typical stack). An Amount drag reads as continuous at 6 to 7 frames a second. No spinner at the end of the drag. A brush stroke at 100% still feels attached to the pointer. If it doesn't, that is the follow-up already in `status.md`, not a redesign | — |
-| M10 | **HDR** (EDR display, after F4). During a drag at 100% the caption has no HDR badge. It returns when the HDR rendition lands | — |
-| M11 | **Maps** (after F3). At 400% a refined sharpening map and fringe map show blocks, as on `develop` | — |
+| M10 | **HDR** (display with extended dynamic range; an HDR photo has not been run). During a drag at 100% the caption has no HDR badge. It returns when the HDR rendition lands. After that, a rating key doesn't bring the standard-range tile back over the HDR image | — |
+| M11 | **Maps and the replaced fringe slot.** At 400% a refined sharpening map, a fringe map and the preview while replacing a pick show blocks, as on `develop` | — |
+| M12 | **Mask handles over the tile.** At 100% with a linear or radial mask selected, the handles stay visible over the sharp frame during and after a drag, after resizing the window, and after entering and leaving review. The brush cursor too | — |
 
-qa-tester can script part of M1 and M3 with `print viewport` (`tile`, `spinner`).
-The rest needs a person.
+qa-tester can script parts of these with `print viewport` (`tile`, `spinner`,
+`layers`, `nearest`) for M1, M3, M11 and M12, and `snapshot` of the content area for
+M12. The rest needs a person.
 
-**Next step.** The engineer fixes F1 to F5 and updates `status.md`. I then
-confirm the fixes in this file.
+**Next step.** The engineer removes the clause in N1, or the owner accepts it, and
+any code change goes back to code-reviewer. I then confirm N1 in this file. qa-tester
+runs last and carries these checks into `qa.md`.

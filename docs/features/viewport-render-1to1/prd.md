@@ -85,6 +85,15 @@ confirmed the Assumptions below separately, the same day.
    R12 for mid-drag frames) or accepting today's speed with the target
    restated to what was measured, the owner answered: "Accept as measured".
    Ruling 4 stays above for the record. R7 carries the restated target.
+9. **A decode change mid-drag (RI-1 in `code-review.md`, 2026-11-09).** When
+   Exposure crosses 0 during a drag, a raw decode setting changes, so the photo
+   needs a new full-resolution decode partway through, and frames are soft
+   until it lands (6 frames in the engineer's run). Avoiding that would need a
+   second 192 MB texture or frames from the wrong decode. The owner was told
+   this, and that it is the same brief softness as the start of a drag, and was
+   asked "May a drag go soft for a moment when Exposure crosses 0?". The answer:
+   "Allow it". Asked next whether Highlights crossing 0, which triggers the
+   same decode, is fine under the same allowance, the owner answered: "Yes".
 
 ## Users and scenarios
 
@@ -144,10 +153,13 @@ reduction, smooth dragging is not required. Any wait shows progress as it does
 today and never blocks the window. The result is a sharp frame once it is
 ready.
 
-R6 (Must, ruling 5): The loupe is never blank. When a sharp frame or part of
-one isn't ready (a pan, a zoom, the first frame of a drag, just after letting
-go), the part not ready may be soft and a value or two behind for a moment. A
-sharp frame with the current values then replaces it with no further input.
+R6 (Must, rulings 5 and 9): The loupe is never blank. When a sharp frame or
+part of one isn't ready (a pan, a zoom, the first frame of a drag, just after
+letting go, or a raw decode setting changing mid-drag on a control outside R4
+and R5), the part not ready may be soft and a value or two behind for a moment.
+A sharp frame with the current values then replaces it with no further input.
+The known mid-drag cases are Exposure and Highlights crossing 0, both confirmed
+by the owner (ruling 9).
 
 R7 (Must, rulings 4 and 8): For a typical stack at 100% on the reference
 display, on both of its canvases, 95% of frames take under about 160 ms, with
@@ -198,12 +210,18 @@ outside R4 and R5, with no pan or zoom, and keeps going until a sharp frame has
 landed and at least ten more frames have followed.
 
 - Allowed: the first frame may be soft or sharp, and so may any frame before
-  the first sharp one.
-- Pass: every frame from the first sharp one to the end is sharp.
-- Fail: a soft frame after the first sharp one, or no sharp frame within a
-  timeout stated in `status.md`.
-- The time from the start of the change to the first sharp frame is recorded
-  in `status.md`, with no target (A8).
+  the first sharp one. Later, a run of soft frames is allowed only while a new
+  decode that the change caused is under way (R6, ruling 9). Once it lands,
+  frames are sharp again with no further input. `status.md` says how the script
+  tells that a decode is under way.
+- Pass: every frame from the first sharp one to the end is sharp, apart from
+  such a run.
+- Fail: a soft frame after the first sharp one with no such decode under way,
+  or no sharp frame within a timeout stated in `status.md`, at the start or
+  after such a run.
+- The time from the start of the change to the first sharp frame, and the
+  number of soft frames in each such run, are recorded in `status.md`, with no
+  target (A8).
 
 Pans, zooms and letting go are checked by AC8, not here.
 
@@ -416,3 +434,10 @@ included.
 - 2026-11-09: Dependencies now note that covered zooms have no memory cap for
   now (code review's question). The owner was told this default and did not
   ask for a cap. No requirement changed. Status stays Approved.
+- 2026-11-09: Owner ruling 9 on code review's RI-1 ("Allow it"). R6 and the
+  frame-by-frame check now allow a run of soft frames while a raw decode setting
+  changed mid-drag is decoding. Otherwise R1 and R2 are as strict as before.
+  Status stays Approved.
+- 2026-11-09: The owner confirmed Highlights crossing 0 falls under ruling 9
+  ("Yes"). Ruling 9 and R6 now name Exposure and Highlights. Status stays
+  Approved.
