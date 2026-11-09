@@ -4,7 +4,9 @@ Owner: swift-macos-engineer. Bug fix for what `docs/features/viewport-render-1to
 merged. Branch `bug/viewport-render-qa-findings`, from `develop` at `915d39a`. The baseline for the stall
 measurements is `013c0e8`, the first parent of the #49 merge.
 
-**Status: Done.** Q1 is fixed and Q2 did not reproduce. The stall this feature added after letting go of White Balance is gone. Next step: code-reviewer, then qa-tester, then the owner's sign-off.
+**Status: Done for the fixes; Q2 is open, pending QA's measurement.** Q1 is fixed, and the decode this feature
+started during a White Balance commit's first draw no longer runs there. On Q2 only part of QA's report was tested: see
+below. Next step: qa-tester, then the owner's sign-off. Code review (`code-review.md`) asked for no code change.
 
 States: Not started · In progress · Done · Blocked · Deferred.
 
@@ -36,7 +38,8 @@ the wait. At Fit a whole frame always lands, so it can't happen there.
 **Fix.** `AdjustmentEditor`'s render loop ends the wait when the region frame on screen is already of the awaited
 values.
 
-**Check that fails without the fix.** `q1` on bundle copies, `print ml` 5 s and 11 s after the hold and after the
+**Check that fails without the fix.** The `q1` script, an explicit check run on bundle copies (`PhotoCoreTests`
+doesn't link PhotoApp, so `swift test` can't reach it): `print ml` 5 s and 11 s after the hold and after the
 commit: `spinner true` three times before, `spinner false` three times after.
 
 ### Q2 and the longer stall after letting go at 100%
@@ -51,8 +54,11 @@ against 360–385 ms; White Balance 622–634 against 400–407 ms; Amount with 
 
 **What several runs per build showed.** See the table under Measurements.
 
-- **Arrival:** not reproduced. Across 6 runs per build the longest gap is the same on both, and a `sample` of the main
-  thread gives the same time in the rendition's first draw on both (1535 samples for 4 arrivals on each).
+- **Arrival: the longest gap on an arrival that draws a full render matched on all builds** (367–397 on the baseline, 372–393
+  before the fixes, 379–394 after; 6 runs and 24 windows on the baseline, 3 runs and 12 windows on each of the others), and `sample`
+  gives the same first-draw time on the baseline and before the fixes (1535 samples for 4 arrivals on each). That is all that was
+  shown. Not shown: QA's arrivals had two gaps (239 + 374 and 230 + 377 ms), which a longest-gap column can't see, and `sample`'s
+  first-draw total doesn't count other main-thread time. **Q2 stays open for QA.**
 - **Amount, and Amount with machine learning on:** not slower than the baseline in any run.
 - **White Balance:** slower on a direct commit, by 60–90 ms a commit in the `sample` totals. This is the feature's added time.
 
@@ -69,10 +75,19 @@ drag right then, competing for the GPU with that first draw.
 - `scheduleRegionPrepare` doesn't start while a full rendition is loading, and runs when it lands. The arrival and `Z`
   paths go through this too, so the culling path can't compete either.
 
-A drag that starts before the full rendition has landed is soft until its decode lands, which R6 and ruling 9 allow.
+A drag that starts before the full rendition has landed is soft until its decode lands, which R6 ("the first frame of a
+drag") and the frame-by-frame check's Allowed line allow. `decode settling` in `print frames` now also appears on a commit's
+`still` frame, when the decode is waiting for the full rendition; the check's rule reads `interactive` lines only, so it
+doesn't change that rule.
 
-**Test or check that fails without the fix.** `LiveRegionRendererTests` "Only a settled frame of the saved values
-leaves the decode for later" pins the rule. The stall itself is measured below, not asserted in `swift test`.
+**Known gap (code review C4, not changed here).** When Fit is already 100% (a raw small enough), no full load starts, so nothing
+restarts the decode after a commit until the next drag's second frame. R6 allows that soft start.
+
+**Check that fails without the fix.** After a direct White Balance commit at 100%, `print frames` ends the commit's `still`
+frame with `decode settling` with the fix and `decode running` without it, and without it a sharp frame follows straight away
+(run on bundle copies from before and after: two commits each, same result). `LiveRegionRendererTests` "Only a settled frame
+of the saved values leaves the decode for later" is only a truth table of the predicate: `PhotoCoreTests` doesn't link PhotoApp,
+so it can't see whether the editor uses it. The stall itself is measured below, not asserted in `swift test`.
 
 **Not fixed here (the owner's call).** The existing part of the stall, the full rendition's first draw on the main
 thread (`createCGImage` deferred in `RenderEngine`), is its own bug. It is listed in the follow-ups of
@@ -94,20 +109,20 @@ window, 24 MP synthetic DNG, typical stack, 100%, nothing else running. Alternat
 | Amount with machine learning on, direct commit (6, 3, 3) | 1823–1861 | 1800–1822 | 1817–1859 |
 | Amount with machine learning on, after a drag (6, 3, 3) | 1064–1096 | 1074–1095 | 1088–1096 |
 
-Arrival windows where the full rendition was already in memory (22–29 ms) are left out of the arrival row (5 windows on the
-baseline, 1 before, 1 after). Main-thread samples in `CA::Transaction::commit` for four White Balance commits: baseline
+The arrival row leaves out windows of 22–29 ms: 5 on the baseline and 1 on each of the others. Those are the other half of QA's
+comparison, and why they are short isn't known: I called them "already in memory", but the cache keeps one full rendition and each
+arrival here dwells over 4 s, so going back to a photo should miss it. Main-thread samples in `CA::Transaction::commit` for four White Balance commits: baseline
 1581 and 1675, before 1928, after 1624.
 
 Reading the table:
 
-- No "after" range goes above the top of the baseline's. Nothing this feature added remains in the stall.
-- White Balance's direct commit was the one case the feature made slower, and it is fixed.
-- Amount's stall is shorter than the baseline's, and was before these fixes too.
-- QA's 590–613 ms on arrival and the 1.15 s with machine learning on are not this feature: arrival didn't reproduce on any
-  build, and the baseline stalls just as long with machine learning on (1064–1096 ms after a drag, 1823–1861 on a commit).
-  What remains is the existing deferred full render, its own bug.
-- These gaps are higher than QA's for the same builds (the baseline's Amount 447–554 here, 360–385 in `qa.md`), so read
-  only the comparison within this table.
+- No "after" range goes above the top of the baseline's. That is a limited claim: see the last point.
+- White Balance's direct commit was the one case that was slower before the fixes. It came back within the baseline's range, and
+  its first-draw samples match (1624 after, 1581 and 1675 on the baseline, 1928 before).
+- Machine learning on: all builds are the same, so the 1.15 s QA saw is on the baseline too.
+- **How far this resolves.** The baseline's Amount rows sit 60–130 ms above both feature builds, on a code path the feature doesn't
+  change, and they run 90–170 ms above QA's figures for the same commit. That is about the size of the effects being compared, so
+  a difference of that size between builds in this table isn't established either way.
 
 AC9 was not re-measured: `LiveRegionRenderer.render` and how a region frame renders are unchanged; only when a decode starts
 changed. No golden moved and no pipeline bump.
