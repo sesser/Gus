@@ -91,3 +91,28 @@ What I checked and ran:
 So both failures I saw came under load, in tests that run on this branch's unchanged code; 1-in-13 on the branch, 1-in-7 on the scratch copy of it and 0-in-7 on `dfa0d5c` are too few to say the branch's extra GPU work raises the odds. The mechanism is not shown, and for the map test the likeliest is a pattern already known here: `SharpeningMapTests` shares one float context across tests that run in parallel, the same pattern as `chromatic-aberration/status.md` finding 2 ("Concurrent renders through one float context gave zeros"), which is why `LensRenderingTests` is `.serialized`. The grain test uses a per-test engine, so that does not explain it.
 
 Not a finding against this feature, since nothing in the diff feeds those renders. It should have its own row (the roadmap's existing `ci-test-crash` is the nearest) with the failing values captured, and `.serialized` on `SharpeningMapTests` is a cheap first step. Separately, `status.md` says the two tests "passed on three reruns of those suites"; the coordinator's account has one filtered rerun failing them again, so `status.md` should be corrected to match.
+
+**Third pass, 2026-11-09, on `8b27864`.** Only what changed since the second pass, confirmed from the code; the app was not launched. `swift build` clean; `swift test` 646 tests in 109 suites passed, 1 known issue.
+
+| Item | Status | What the code or record does now |
+|---|---|---|
+| C14 | Fixed, 8b27864 | The `regionFrame` term is gone from the assignment (`LoupeView.swift:411`), so the wait is set after any live change at 100%. C6 still holds: the tile's own condition (`:415-417`) still needs the wait and a frame of the saved values, and `display(.full/.hdrFull)` clears the wait and the tile. |
+| F5 caveat | Closed, 8b27864 | The engineer's addition (`LoupeView.swift:430`) clears the wait right after `fullTask?.cancel()`, in the path that also sets `.live`, so the inactive branch decides it afresh when the change ends. No full rendition can land in between, so clearing it is correct. |
+| C15 | Fixed, 8b27864 | The guard in `setLoupeViewport` now needs `canRenderRegion` (`AdjustmentEditor.swift:994`). A pan with a map or the replaced slot's preview only refreshes the spinner: no render, no refinement restart. |
+| C16 | Fixed, 8b27864 | `status.md` states the widening, the two gains, and the 2 of 11,520,000 values (differences of 5 and 8 steps). These match my run. |
+| Rerun count | Fixed, 8b27864, with C17's wording | `status.md` now says the first of three filtered reruns failed both tests again. |
+| RI-1, C4 | Closed; C4 fixed | Ruling 9 in `prd.md` ("Allow it", and "Yes" for Highlights). R6 now names a raw decode setting changing mid-drag on a control outside R4 and R5, and the check's Allowed, Pass and Fail lines match. |
+| Decode labels | Sound | `running` covers a decode that starts with the frame, is under way, or landed after the frame asked; `settling` is the one frame before `shouldDecode` can say yes. An interactive whole frame at covered zooms always carries one of the two unless the renderer has failed, which correctly fails. R4 controls label `settling` every frame, but the check excludes them. |
+| Timeout, 2.5 s | Reasoned | 232 + 204 + 729 ms from measured worst steps is 1.17 s; doubled and rounded up. The sum can run one soft frame short (the first sharp frame waits for the whole frame in flight, about 1.4 s), and the factor of 2 still covers that. It is stated with its scope, and PRD A8 sets no target. |
+
+**New**
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C17 | Nit | `status.md:220`, its Build and test section, and `:411` | Wording only. (a) The rule says any soft frame without a label fails, but the pause's and the commit's whole frames are traced as `soft … still` with no label (`AdjustmentEditor.swift:1308`, `regionShown` true). They sit under a current tile. (b) "Every full run since has passed" is true of the engineer's runs, not mine. (c) "1 in 12" should be 1 in 13: my last run finished after my report went out. | Every non-`hold` scrub ends in an unlabeled `soft … still` line, so a literal reading fails a passing block. The rule should apply to `interactive` lines, as the earlier "no soft interactive frame" did. **qa-tester should read it that way.** | PRD frame-by-frame check ("letting go … not here") |
+
+**The spinner after letting go: acceptable as recorded, not a finding against this branch.** The engineer's explanation is right by the code: `fullResolutionImage` returns as soon as `RenderEngine.makeCGImage` (`RenderEngine.swift:103`, `createCGImage` with no `deferred: false`) does, so the wait ends before the render happens. `Sources/PhotoCore/Preview` has no diff against `dfa0d5c`, so this is the behavior on `develop`. C14's logic is correct and takes effect wherever the wait is real; on HDR renditions it is, because `makeHDRCGImage` reads the pixels. QA should not expect that spinner on an SDR photo.
+
+It should be tracked, though, not left under "Noted, not fixed". The same deferral means the render's cost (656 ms mean, E4) is paid at first read, which `status.md` sampled inside the layer commit for the refined map (about 0.5 s). By the code the photo's full rendition takes that path too, so each save at 100% very likely stalls the main thread for about that long, which is what `CLAUDE.md`'s rule on decoding before layers and R8 are meant to prevent. Recommended: add it to `status.md`'s "Follow-ups for Ship" as its own bug.
+
+**Verdict after the third pass: ready for QA.** No Blocker or Should fix is open. C17 is wording, and its reading is recorded above. `/security-review` is still not needed.
