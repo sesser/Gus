@@ -320,7 +320,7 @@ held, and Saturation's live frames with it held), median over the same files:
 | | DNG | HEIC | JPEG |
 |---|---|---|---|
 | arming to first pixels (ms) | 142 | 33 | 48 |
-| update per pointer move, 400% (ms) | 0.15 | 0.14 | 0.15 |
+| update per pointer move, 800% (ms) | 0.15 | 0.14 | 0.15 |
 | update per pointer move, 100% (ms) | 3.6 | 3.5 | 3.6 |
 | update per pointer move, 100%, straightened crop (ms) | 3.9 | 3.9 | 4.0 |
 | memory held while picking (MB) | 183 | 183 | 183 |

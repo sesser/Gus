@@ -183,7 +183,7 @@ The pixel magnifier, `photobench edits` on the same files (AC31), median ms:
 | | DNG | HEIC | JPEG |
 |---|---|---|---|
 | arming to first pixels | 142 | 33 | 48 |
-| update per pointer move, 400% | 0.15 | 0.14 | 0.15 |
+| update per pointer move, 800% | 0.15 | 0.14 | 0.15 |
 | update per pointer move, 100% (largest picture) | 3.6 | 3.5 | 3.6 |
 | same, straightened crop (costliest cells) | 3.9 | 3.9 | 4.0 |
 | memory held while picking | 183 MB | 183 MB | 183 MB |
@@ -312,7 +312,11 @@ a bundle copy against a scratch library.
 | F3 | The grid covers only cells that hold a photo pixel (`Picture.gridLines`). | Unit at corners at 800% and 1600%; script snapshot at the top left corner at 1600%: no lines over the empty area, right way up |
 | F4 | Switching to the Sharpening Map while the fringe map is suspended cancels picking. | Script: `fringemap on; fringearm 1; sharpenmap on`: picking none |
 | F5 | The context menu has a real section header, and Purple and Green keep their swatches. | Script: `contextmenu at`: `[section]` header, `[image]` on both, single separators |
-| DQ-4, DR22 | If the held pixels can't be made while picking waits for them, picking ends and the caption says why, once. | Script: file removed before arming: picking none, caption shown, magnifier gone, held 0 bytes, no undo step; restored and armed again: retried and ready; file removed after ready: magnifier keeps working |
+| DQ-4, DR22 | If the held pixels can't be made while picking waits for them, picking ends and the caption says why, once. | Script, with `magnifier failsample on\|off` (no file touched, see C12): failing before arming: picking none, caption shown, magnifier gone, held 0 bytes, no undo step; switch off and armed again: retried and ready; failing once pixels are held: magnifier reads and a click picks as usual |
+| C12 | `magnifier hideoriginal` and `restoreoriginal` removed: they renamed an original, which `CLAUDE.md` forbids. DR22 now fails the sampled render in memory (`debugFailsSamplePixels`, `magnifier failsample`). | Unit: no debug-script source calls a file-moving API; DR22 rerun, status of `mg2` unchanged. The removed command ran once, on the generated scratch scene `mg2/big-fringes.dng`, which is back at its path with its catalog hash; no `.hidden` file remains |
+| C13 | Unchecking Align automatically cancels a batch only when the batch is what is measuring (no task of the editor's own). | Script `pasteadjust loupeuncheck`, reproduced first: without the fix the 8-photo paste stopped and wrote nothing, with it all 8 were written |
+| C7, again | Unchecking during a paste measuring the open photo still stops it. | Script `pasteadjust uncheck`: batch ended, the photo unchanged |
+| C14 | The speed row is 800% (`level: .standard`), not 400%. | Labels corrected here and in PROFILING.md |
 
 RI-CR1 (Lens kernels fail to compile) is a known limitation per the ruling; the
 `try?` paths in `LensRenderer.swift` are unchanged. The designer's optional
@@ -320,8 +324,8 @@ RI-CR1 (Lens kernels fail to compile) is a known limitation per the ruling; the
 
 ## Latest run
 
-2026-11-08, after the review round above: `swift build` clean, no warnings;
-`swift test` **633 tests in 108 suites passed, 1 known issue** (the
+2026-11-08, after the review round above and the second pass (C12–C14): `swift build` clean, no warnings;
+`swift test` **634 tests in 108 suites passed, 1 known issue** (the
 pre-existing one in "Live render session"). No golden changed, no pipeline
 version bump, `UPDATE_GOLDENS` never run. No new `Gus-*.ips` crash report from
 these runs.

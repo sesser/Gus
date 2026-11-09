@@ -36,6 +36,22 @@ struct LensReviewFixesTests {
         #expect(LoupeRefinement.wanted(content: .sharpeningMap, replacesSlot: false, isZoomed: false) == .map)
     }
 
+    @Test("The debug script moves and deletes no file: originals are never moved")
+    func debugScriptLeavesFilesAlone() throws {
+        let verbs = ["moveItem(", "removeItem(", "trashItem(", "replaceItem(", "copyItem("]
+        var paths: [String] = []
+        for path in RepositoryFiles.files(under: "Sources/PhotoApp/Model") where path.contains("/Debug") {
+            paths.append(path)
+        }
+        #expect(paths.count >= 3, "expected to find the debug script's files")
+        for path in paths {
+            let text = try String(contentsOf: RepositoryFiles.url(path), encoding: .utf8)
+            for verb in verbs {
+                #expect(!text.contains(verb), "\(path) calls \(verb)")
+            }
+        }
+    }
+
     @Test("Matrix inverse round-trips")
     func matrixInverse() {
         let m: [[Double]] = [[2, 0, 1], [0, 3, 0], [1, 0, 2]]

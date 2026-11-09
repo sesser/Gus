@@ -193,6 +193,8 @@ final class AdjustmentEditor {
     private(set) var fringePickRefused = false
     /// Picking ended because the pixels couldn't be read (design §19 DQ-4).
     private(set) var fringePixelsUnreadable = false
+    /// The debug script's way to make the sampled render fail (DR22) without touching a file.
+    @ObservationIgnored var debugFailsSamplePixels = false
     /// The last sample: where it was taken (mask frame, unit) and whether it was refused.
     @ObservationIgnored private(set) var lastFringeSample: (point: CGPoint, refused: Bool)?
     @ObservationIgnored private var fringePickTask: Task<Void, Never>?
@@ -1302,9 +1304,11 @@ final class AdjustmentEditor {
         samplePixelsTask?.cancel()
         let values = adjustments
         let generator = library.previews.generator.withEngine(samplePixelsEngine)
+        let fails = debugFailsSamplePixels
         samplePixelsTask = Task {
-            let result = await Task.detached(priority: .userInitiated) {
-                Result { try FringePicker.samplePixels(source: url, values: values, generator: generator) }
+            let result = await Task.detached(priority: .userInitiated) { () -> Result<FringeSamplePixels, any Error> in
+                if fails { return .failure(CocoaError(.fileReadUnknown)) }
+                return Result { try FringePicker.samplePixels(source: url, values: values, generator: generator) }
             }.value
             guard !Task.isCancelled, samplePixelsKey == key else { return nil }
             switch result {
@@ -1430,10 +1434,12 @@ final class AdjustmentEditor {
         guard state == .ready else { return }
         if !isOn {
             if isMeasuringAlignment {
-                // Measured here, or by a paste or preset on this photo: either stops and saves nothing.
+                // Stops what is measuring this photo and saves nothing: the editor's own
+                // task, or with none, the paste or preset measuring it. A batch running
+                // for other photos goes on.
+                if alignmentTask == nil { library?.batchAutoTask?.cancel() }
                 alignmentTask?.cancel()
                 alignmentTask = nil
-                library?.batchAutoTask?.cancel()
                 isMeasuringAlignment = false
                 return
             }

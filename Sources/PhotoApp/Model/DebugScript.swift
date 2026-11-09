@@ -52,7 +52,7 @@ import PhotoUI
 ///     fringemap on|off|toggle    (Adjust ▸ Show / Hide Fringe Map's action: reveals Color Fringes, announces)
 ///     fringearm 1|2|off     (arms or disarms a fringe slot's eyedropper, as its button does)
 ///     contextmenu fringe 1|2 [<item>]   (lists a fringe slot's context menu, or runs the item so titled)
-///     magnifier hideoriginal|restoreoriginal   (moves the focused photo's file away and back; scratch libraries only)
+///     magnifier failsample on|off   (sampled renders for picking fail as an unreadable original would; touches no file)
 ///     magnifier resignkeyboard   (takes the keyboard off the loupe)
 ///     magnifier level <percent>|up|down   magnifier move <x> <y>   (the pixel magnifier: the level, and
 ///                           the pointer at unit coordinates of the photo on screen, as a real move would)
@@ -89,7 +89,7 @@ import PhotoUI
 ///     lutwindow open|close|all|collection <name>|expand <name>|select <name>|apply|manage|back|snapshot <file> (the sheet)
 ///            | importmenu <folder> (Adjust ▸ Import Look-Up Tables… once its panel returns the folder) | importrun
 ///            (the import page's Import) | page (prints it)
-///     copyadjust            pasteadjust            preset save|apply|delete|preview <name> | preset (prints them)
+///     copyadjust            pasteadjust [uncheck|loupeuncheck]            preset save|apply|delete|preview <name> | preset (prints them)
 ///     preset import <path>…  (prints the summary)   preset summary <path>… (imports, shows the alert)
 ///     preset export <file> [<name>]                 preset window | windowshot <png> (the sheet)
 ///     preset previewend     (ends a preset preview, as the pointer leaving it does)
@@ -414,6 +414,7 @@ enum DebugScript {
             try? await Task.sleep(for: .milliseconds(200))
         case "pasteadjust":
             model.pasteAdjustments()
+            if let mode = rest.first { await DebugLensCommands.uncheckDuringPaste(mode, model: model) }
             // A paste that measures color alignment saves when the measuring is
             // done: inside this command's undo group (`changing`).
             await waitForBatchMeasuring(model)

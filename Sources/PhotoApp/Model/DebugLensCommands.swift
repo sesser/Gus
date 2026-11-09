@@ -73,16 +73,9 @@ enum DebugLensCommands {
             // Takes the keyboard away from the loupe, as tabbing to an inspector control does.
             NSApp.mainWindow?.makeFirstResponder(nil)
             print("debug-script: first responder \(String(describing: NSApp.mainWindow?.firstResponder))")
-        case "hideoriginal", "restoreoriginal":
-            // DR22: takes the focused photo's file away, or puts it back (scratch libraries only).
-            guard let item = model.focusedItem, let url = model.sourceURL(for: item) else { break }
-            let hidden = url.appendingPathExtension("hidden")
-            let (from, to) = words.first == "hideoriginal" ? (url, hidden) : (hidden, url)
-            do {
-                try FileManager.default.moveItem(at: from, to: to)
-            } catch {
-                print("debug-script: \(error)")
-            }
+        case "failsample":
+            // DR22: the next sampled renders fail as an unreadable original would; no file is touched.
+            model.editor.debugFailsSamplePixels = words.dropFirst().first == "on"
         case "move":
             let numbers = words.dropFirst().compactMap(Double.init)
             guard numbers.count == 2 else { break }
@@ -90,6 +83,30 @@ enum DebugLensCommands {
         default:
             print("debug-script: unknown magnifier command")
         }
+    }
+
+    /// `pasteadjust uncheck`: with the loupe open, unchecks Align automatically
+    /// while the paste measures (C7). `pasteadjust loupeuncheck`: pasted from
+    /// the grid, opens the loupe and checks and unchecks it there, so the
+    /// measuring stopped is the editor's own (C13). Prints whether the paste runs on.
+    static func uncheckDuringPaste(_ mode: String, model: LibraryModel) async {
+        let editor = model.editor
+        if mode == "loupeuncheck" {
+            model.openLoupe()
+            var waited = 0
+            while editor.state != .ready, waited < 200 {
+                try? await Task.sleep(for: .milliseconds(100))
+                waited += 1
+            }
+            editor.setAutomaticAlignment(true)
+        }
+        try? await Task.sleep(for: .milliseconds(50))
+        print("debug-script: during paste batch \(model.batchAutoTask != nil) measuring \(editor.isMeasuringAlignment)")
+        editor.setAutomaticAlignment(false)
+        try? await Task.sleep(for: .milliseconds(50))
+        let cancelled = model.batchAutoTask?.isCancelled ?? false
+        print("debug-script: after uncheck batch \(model.batchAutoTask != nil) cancelled \(cancelled)"
+              + " measuring \(editor.isMeasuringAlignment)")
     }
 
     /// `print magnifier [pixels]`: what the magnifier shows.
