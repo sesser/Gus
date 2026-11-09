@@ -34,7 +34,8 @@ import PhotoCore
 ///     adjust fringe fill 1|2 purple|green    adjust fringe clear 1|2    adjust fringe tolerance 1|2 <value>
 ///     adjust align auto on|off  (waits for the measurement)   adjust align redcyan|blueyellow <value>
 ///     adjust scrub <name> <from> <to> <steps> [ms-per-step] [hold]   (a drag: value-changing steps, then a commit,
-///                                unless hold; name as above or temperature, luminance-nr)
+///                                unless hold; name as above, temperature, luminance-nr, or mask:<control> for the
+///                                selected mask's local control)
 ///     original on|off           tab info|adjust          print adjustments
 @MainActor
 enum DebugAdjustCommands {
@@ -155,6 +156,9 @@ enum DebugAdjustCommands {
                 }
             case "luminance-nr":
                 editor.change("Debug luminance", phase: phase) { $0.noiseReduction.luminance = value }
+            case let local where local.hasPrefix("mask:"):
+                guard let control = LocalValues.controls.first(where: { $0.name == local.dropFirst(5) }) else { return }
+                editor.setLocal(control.keyPath, value, phase: phase)
             default:
                 guard let keyPath = keyPath(named: name) else { return }
                 editor.change("Debug \(name)", phase: phase) { $0[keyPath: keyPath] = value }

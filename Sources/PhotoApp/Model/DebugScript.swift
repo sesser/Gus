@@ -178,6 +178,15 @@ enum DebugScript {
             }
         case "zoom":
             send("z")
+        case "pan":
+            // pan <dx> <dy>: moves the loupe's view by document points, as a drag does.
+            if let window, let scroll = descendant(of: LoupeScrollView.self, in: window.contentView), rest.count == 2,
+               let dx = Double(rest[0]), let dy = Double(rest[1]) {
+                let clip = scroll.contentView
+                let origin = NSPoint(x: clip.bounds.origin.x + dx, y: clip.bounds.origin.y + dy)
+                clip.scroll(to: clip.constrainBoundsRect(NSRect(origin: origin, size: clip.bounds.size)).origin)
+                scroll.reflectScrolledClipView(clip)
+            }
         case "zoomstep":
             // ⌘= / ⌘−: the next zoom step (`LoupeZoomSteps`).
             NotificationCenter.default.post(name: .loupeShouldStepZoom, object: model,
@@ -789,10 +798,11 @@ enum DebugScript {
             return "\(Int(region.region.width))x\(Int(region.region.height)) at \(Int(region.region.minX)),\(Int(region.region.minY))"
                 + " of \(Int(size.width))x\(Int(size.height))"
                 + (region.adjustments == editor.adjustments ? " applied" : " other values")
-                + (region.hasOverlay ? " overlay" : "")
+                + (region.overlayMask.map { id in " overlay \(editor.adjustments.local.masks.firstIndex { $0.id == id } ?? -1)" } ?? "")
         } ?? "none"
         let tile = descendant(of: LoupeImageView.self, in: window.contentView)?.hasTile == true
         let image = descendant(of: LoupeImageView.self, in: window.contentView)
+        print("debug-script: viewport layers \(image?.debugLayerOrder ?? "-") nearest \(image?.usesNearestFiltering == true)")
         print(String(format: "debug-script: viewport covered %@ magnification %.3f bounds %.0fx%.0f live %@ tile %@ region frame %@ spinner %@ hist %@ visible %@",
                      editor.loupeViewport == nil ? "no" : "yes", scroll.magnification, image?.bounds.width ?? 0, image?.bounds.height ?? 0, editor.showsLive ? "yes" : "no", tile ? "shown" : "none", frame,
                      editor.isAwaitingSharpFrame ? "yes" : "no", editor.histogram.map { String(format: "%x", abs($0.hashValue) % 0xffffff) } ?? "none",
@@ -1016,6 +1026,17 @@ enum DebugScript {
             print("debug-script: announcement \(AccessibilityText.lastAnnouncement ?? "-")")
         case "viewport":
             printViewport(model: model)
+        case "previews":
+            // The renditions of the focused photo's saved edit: AC14's cached preview and thumbnail.
+            guard let item = model.focusedItem, let request = model.previewRequest(for: item, tier: .preview) else {
+                print("debug-script: previews none")
+                return
+            }
+            let key = request.key
+            let thumbnail = PreviewCacheKey(contentHash: key.contentHash, editStackHash: key.editStackHash, tier: .thumbnail)
+            print("debug-script: previews hash \(key.editStackHash.prefix(12)) saved \(model.editor.savedAdjustments.editStack.renderHash.prefix(12))"
+                  + " memory preview \(model.previews.memoryCachedImage(for: request) != nil) disk preview \(model.previews.cache.contains(key))"
+                  + " disk thumbnail \(thumbnail.map(model.previews.cache.contains) ?? false)")
         case "frames":
             let editor = model.editor
             for (index, entry) in editor.frameTrace.enumerated() {

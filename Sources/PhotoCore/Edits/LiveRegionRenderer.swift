@@ -30,8 +30,9 @@ public actor LiveRegionRenderer {
         public let region: CGRect
         /// The output frame's size in pixels (after turns, straightening and crop).
         public let outputSize: CGSize
-        /// The mask overlay is drawn over the photo.
-        public let hasOverlay: Bool
+        /// The mask whose overlay is drawn over the photo, nil without one.
+        public let overlayMask: UUID?
+        public var hasOverlay: Bool { overlayMask != nil }
         public let seconds: Double
         public let machineLearning: MachineLearningNoiseReduction.Outcome
     }
@@ -83,12 +84,30 @@ public actor LiveRegionRenderer {
         base?.settings == settings(for: values)
     }
 
+    /// The decode settings of the last moving frame `shouldDecode` was asked about.
+    private var lastMovingSettings: RAWDecodeSettings?
+
+    /// Whether a frame of a change under way, for settings the texture doesn't
+    /// hold, should start a decode now: when its settings are the same as the
+    /// previous moving frame's. Controls that change the decode with every
+    /// frame (White Balance, Profile, Noise Reduction: R4) never settle while
+    /// they move, so they wait for the pause. Everything else (Highlights
+    /// below 0, Exposure crossing 0, the first mask) changes the settings once,
+    /// so one decode lands and the rest of the drag is sharp (R1, R2).
+    public func shouldDecode(whileMoving values: Adjustments) -> Bool {
+        let wanted = settings(for: values)
+        defer { lastMovingSettings = wanted }
+        guard base?.settings != wanted, decoding?.settings != wanted else { return false }
+        return lastMovingSettings == wanted
+    }
+
     /// Decodes the master at full resolution for `values`' RAW settings and
     /// renders it to a texture: the slow step, a raw decode with new settings
     /// or a machine learning one. Runs off the actor, so `isReady` and
-    /// `render` of the base already held keep answering meanwhile (the actor
-    /// is free while this waits). A new set of settings replaces the decode
-    /// under way, whose result is then dropped.
+    /// `render` keep answering meanwhile (not ready, for any other settings:
+    /// the texture held for the previous ones is released first, so only one
+    /// is ever held). A new set of settings replaces the decode under way,
+    /// whose result is then dropped.
     public func prepare(_ values: Adjustments, cancellation: RenderCancellation? = nil) async throws {
         let wanted = settings(for: values)
         if base?.settings == wanted { return }
@@ -188,11 +207,11 @@ public actor LiveRegionRenderer {
         var image = try generator.renderer.apply(values.editStack, to: base.image, context: base.context)
         let extent = image.extent.integral
         guard !extent.isInfinite, extent.width >= 1, extent.height >= 1 else { throw Failure.renderFailed }
-        var overlaid = false
+        var overlaid: UUID?
         if let overlayMask, let adjusting = generator.renderer as? AdjustmentRenderer,
            let alpha = adjusting.maskAlpha(values, id: overlayMask, to: base.image, context: base.context) {
             image = LiveRenderSession.withOverlay(image, alpha: alpha)
-            overlaid = true
+            overlaid = overlayMask
         }
         let region = Self.region(of: unit, in: extent.size)
         // Core Image's y axis points up.
@@ -205,7 +224,7 @@ public actor LiveRegionRenderer {
         }) else { throw Failure.renderFailed }
         let elapsed = (clock.now - started).components
         return Frame(image: DecodedImage(cgImage: rendered), adjustments: values, region: region, outputSize: extent.size,
-                     hasOverlay: overlaid, seconds: Double(elapsed.seconds) + Double(elapsed.attoseconds) / 1e18,
+                     overlayMask: overlaid, seconds: Double(elapsed.seconds) + Double(elapsed.attoseconds) / 1e18,
                      machineLearning: base.machineLearning)
     }
 
@@ -217,5 +236,32 @@ public actor LiveRegionRenderer {
         let right = min(size.width, ceil(unit.maxX * size.width))
         let bottom = min(size.height, ceil(unit.maxY * size.height))
         return CGRect(x: left, y: top, width: max(0, right - left), height: max(0, bottom - top))
+    }
+}
+
+/// What the editor and the loupe decide about live frames at 100% and above,
+/// kept apart so tests can reach it.
+public enum LiveFrameRules {
+    /// A frame on screen already shows `values` with `overlay`: comparing
+    /// which mask's overlay, not only whether there is one.
+    public static func isCurrent(frameValues: Adjustments?, frameOverlay: UUID?, wanted values: Adjustments,
+                                 overlay: UUID?) -> Bool {
+        frameValues == values && frameOverlay == overlay
+    }
+
+    /// A whole frame goes on the base under a tile only when it shows the
+    /// tile's values (a pause's or a save's frame). An older whole frame must
+    /// not stand in for the tile, and a tile that can't be current any more is
+    /// taken down by the editor, not here.
+    public static func wholeFrameGoesOnBase(wholeValues: Adjustments, tileValues: Adjustments?) -> Bool {
+        tileValues == nil || tileValues == wholeValues
+    }
+
+    /// Nearest-neighbor enlargement is for the photo's real pixels above
+    /// 100% (design §2.2), and for what keeps its shipped filtering: the maps
+    /// and the replaced fringe slot's preview (A4).
+    public static func usesNearestFiltering(magnification: Double, showsRealPixels: Bool,
+                                            keepsShippedFiltering: Bool) -> Bool {
+        magnification >= 1 && (showsRealPixels || keepsShippedFiltering)
     }
 }

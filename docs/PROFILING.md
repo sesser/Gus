@@ -223,11 +223,13 @@ masking: nearly the whole graph.
 100%, on a synthetic DNG, typical stack and three masks (release build, M4 Pro,
 24 MP, Exposure moves; docs/features/viewport-render-1to1/status.md has the record):
 
-| window | mean | p95 |
-|---|---|---|
-| Largest window on this Mac, 3024 × 1800 (5.4 MP), typical stack | 60.6 ms | 64.1 ms |
-| About 10 MP (3872 × 2592), typical stack | 95.3 ms | 110.2 ms |
-| About 10 MP, three masks, first mask's Exposure | 185 ms | 210 ms |
+| canvas | case | mean | p95 |
+|---|---|---|---|
+| 4976 × 2892 (14.4 MP), Dell, sidebar and inspector showing | typical stack, Exposure moves | 135.8 ms | 139.5 ms |
+| 6000 × 2892 (17.4 MP), Dell, both hidden | typical stack, Exposure moves | 154.6 ms | 157.4 ms |
+| 6000 × 2892 (17.4 MP) | three masks, first mask's Exposure moves | 395 ms | 416 ms |
+| 3024 × 1800 (5.4 MP), built-in display, for comparison | typical stack, Exposure moves | 61.1 ms | 62.4 ms |
+| 3872 × 2592 (10 MP), for comparison | typical stack, Exposure moves | 91.9 ms | 93.5 ms |
 
 The speed comes from the master held in a GPU-private half-float texture: every
 frame reads it directly, while a half-float `CGImage` from `createCGImage`
@@ -235,7 +237,7 @@ frame reads it directly, while a half-float `CGImage` from `createCGImage`
 these sizes in the first measurements).
 
 ```bash
-.build/out/Products/Release/photobench viewport --frames 60
+.build/out/Products/Release/photobench viewport --frames 60 --windows 4976x2892,6000x2892
 ```
 
 ## Real camera RAW files and render contexts

@@ -58,8 +58,9 @@ final class AdjustmentEditor {
     /// and above (viewport-render-1to1); nil when none applies.
     @ObservationIgnored private(set) var regionFrame: LiveRegionRenderer.Frame?
     /// The part of the photo on screen at 100% and above, in unit coordinates
-    /// of the photo as shown, origin at the top left; nil below 100%, or
-    /// when another view (a map, a crop) replaces the photo.
+    /// of the photo as shown, origin at the top left; nil below 100%. A map or
+    /// crop session over the photo doesn't change it: `canRenderRegion` says
+    /// when a frame can use it.
     @ObservationIgnored private(set) var loupeViewport: CGRect?
     /// The caption's spinner while the loupe waits for a sharp frame of what
     /// was asked for (design §2.1).
@@ -67,7 +68,7 @@ final class AdjustmentEditor {
     /// The loupe is loading the full rendition that replaces a sharp frame
     /// after a change was saved (a kind of wait §2.1 names).
     @ObservationIgnored var loupeAwaitsFullRendition = false {
-        didSet { if !loupeAwaitsFullRendition { refreshSharpFrameWait() } }
+        didSet { if loupeAwaitsFullRendition != oldValue { refreshSharpFrameWait() } }
     }
     @ObservationIgnored private var sharpWaitTask: Task<Void, Never>?
     /// When the person last changed a value or moved the photo.
@@ -147,6 +148,9 @@ final class AdjustmentEditor {
             } else if adjustments == committed {
                 // The cached preview already shows the saved adjustments.
                 showsLive = false
+                // Show Original left the texture at no adjustments' settings:
+                // the next drag starts from the saved ones (R1, code review C4).
+                scheduleRegionPrepare()
             } else {
                 requestRender(interactive: false)
             }
@@ -299,6 +303,8 @@ final class AdjustmentEditor {
     @ObservationIgnored private var prefill: RenderCancellation?
     @ObservationIgnored private var prefillTask: Task<Void, Never>?
     @ObservationIgnored private var lastFrameWasInteractive = false
+    /// `frame` (the whole-photo one) is a draft of a change under way.
+    @ObservationIgnored private var wholeFrameIsInteractive = false
     /// The frame being rendered is a draft.
     @ObservationIgnored private var renderingInteractive = false
     @ObservationIgnored private var isChanging = false
@@ -793,6 +799,7 @@ final class AdjustmentEditor {
         committed = values
         adjustments = values
         item?.editStackHash = stack.renderHash
+        noteInput()
         showsOriginal = false
         sharpeningMap.valuesChanged()
         refreshMachineLearning()
@@ -809,7 +816,7 @@ final class AdjustmentEditor {
     /// Once the frame on screen shows the saved values, it becomes the cached
     /// preview of the new edit hash and the loupe goes back to its renditions.
     private func seedPreviewIfRendered() {
-        guard let library, let item, let frame, !isChanging, !showsOriginal, !lastFrameWasInteractive, frame.showsPhoto,
+        guard let library, let item, let frame, !isChanging, !showsOriginal, !wholeFrameIsInteractive, frame.showsPhoto,
               frame.adjustments == committed, adjustments == committed,
               item.editStackHash == committed.editStack.renderHash,
               let request = library.previewRequest(for: item, tier: .preview)
@@ -1060,21 +1067,38 @@ final class AdjustmentEditor {
 
     /// What the caption's spinner waits for: a sharp frame of `valuesOnScreen`.
     private var sharpFrameIsOnScreen: Bool {
-        guard let viewport = loupeViewport, let regionFrame else { return false }
-        return regionFrame.adjustments == valuesOnScreen && regionFrameMatches(viewport)
+        guard let viewport = loupeViewport else { return false }
+        return regionFrameMatches(viewport)
+            && LiveFrameRules.isCurrent(frameValues: regionFrame?.adjustments, frameOverlay: regionFrame?.overlayMask,
+                                        wanted: valuesOnScreen, overlay: currentOverlay)
     }
 
     /// Something that will end in a sharp frame is running.
     private var sharpFrameIsOnItsWay: Bool {
-        renderTask != nil || pendingRender != nil || regionPrepareTask != nil || loupeAwaitsFullRendition
+        loupeAwaitsFullRendition || (regionRenderer != nil && (renderTask != nil || pendingRender != nil || regionPrepareTask != nil))
+    }
+
+    /// A change is under way (design §2.1: arriving at a photo at 100%, or
+    /// `Z` from fit with nothing changing, loads as today with no spinner).
+    private var sharpFrameWaitApplies: Bool {
+        state == .ready && loupeViewport != nil && canRenderRegion(content: currentContent)
+            && (showsLive || loupeAwaitsFullRendition) && !sharpFrameIsOnScreen && sharpFrameIsOnItsWay
+    }
+
+    /// The mask the next frame draws in red, if any.
+    private var currentOverlay: UUID? { showsMaskOverlay && !showsOriginal ? selectedMaskID : nil }
+
+    /// A map or the replaced fringe slot's preview is the live frame: they keep
+    /// their shipped filtering (A4).
+    var liveFrameKeepsShippedFiltering: Bool {
+        frame?.content.isMap == true || fringeSlotIsReplaced(pickingFringeSlot)
     }
 
     /// Re-evaluates the spinner: on once input has been still for 0.5 s,
     /// the picture is not yet a sharp frame of what was asked for, and one
     /// is on its way (design §2.1).
     private func refreshSharpFrameWait() {
-        guard state == .ready, loupeViewport != nil, canRenderRegion(content: currentContent), !sharpFrameIsOnScreen,
-              sharpFrameIsOnItsWay else {
+        guard sharpFrameWaitApplies else {
             sharpWaitTask?.cancel()
             sharpWaitTask = nil
             if isAwaitingSharpFrame { isAwaitingSharpFrame = false }
@@ -1086,9 +1110,7 @@ final class AdjustmentEditor {
             try? await Task.sleep(for: .seconds(delay))
             guard !Task.isCancelled, let self else { return }
             self.sharpWaitTask = nil
-            if self.state == .ready, !self.sharpFrameIsOnScreen, self.sharpFrameIsOnItsWay {
-                self.isAwaitingSharpFrame = true
-            }
+            if self.sharpFrameWaitApplies { self.isAwaitingSharpFrame = true }
         }
     }
 
@@ -1207,14 +1229,15 @@ final class AdjustmentEditor {
                 renderingInteractive = next.interactive
                 defer { renderingInteractive = false }
                 do {
-                    let overlay = showsMaskOverlay && !showsOriginal ? selectedMaskID : nil
+                    let overlay = currentOverlay
                     let content = currentContent
                     var regionShown = false
                     if let viewport = loupeViewport, canRenderRegion(content: content), let regions = regionRenderer {
                         if await regions.isReady(for: next.values) {
-                            // A frame already shows these values over this region.
-                            let current = regionFrame?.adjustments == next.values && regionFrameMatches(viewport)
-                                && regionFrame?.hasOverlay == (overlay != nil)
+                            // A frame already shows these values and this overlay over this region.
+                            let current = regionFrameMatches(viewport)
+                                && LiveFrameRules.isCurrent(frameValues: regionFrame?.adjustments, frameOverlay: regionFrame?.overlayMask,
+                                                            wanted: next.values, overlay: overlay)
                             if !current {
                                 let rendered = try await regions.render(next.values, unit: viewport, overlayMask: overlay,
                                                                         cancellation: next.cancellation)
@@ -1223,10 +1246,13 @@ final class AdjustmentEditor {
                             }
                             regionShown = true
                             lastFrameWasInteractive = next.interactive
-                        } else if !next.interactive {
-                            // The master at full resolution for these settings (R4, R5):
-                            // off this loop, so soft frames keep following the hand.
-                            startRegionDecode(next.values)
+                        } else {
+                            // The master at full resolution for these settings, off this
+                            // loop, so soft frames keep following the hand: after a
+                            // pause (R4, R5), or as soon as a moving frame's settings
+                            // have stopped changing (R1, R2).
+                            let decodeNow = next.interactive ? await regions.shouldDecode(whileMoving: next.values) : true
+                            if decodeNow { startRegionDecode(next.values) }
                         }
                     }
                     if regionShown, next.interactive {
@@ -1235,8 +1261,9 @@ final class AdjustmentEditor {
                         continue
                     }
                     // A whole frame already on screen for these values (a pan with nothing changing).
-                    if regionShown, frame?.adjustments == next.values, frame?.content == content,
-                       frame?.hasOverlay == (overlay != nil) {
+                    if regionShown, !wholeFrameIsInteractive, frame?.content == content,
+                       LiveFrameRules.isCurrent(frameValues: frame?.adjustments, frameOverlay: frame?.overlayMask,
+                                                wanted: next.values, overlay: overlay) {
                         lastFrameWasInteractive = false
                         seedPreviewIfRendered()
                         continue
@@ -1249,6 +1276,10 @@ final class AdjustmentEditor {
                     if rendered.content != currentContent { continue }
                     maskFrameSize = rendered.maskFrameSize
                     lastFrameWasInteractive = next.interactive
+                    wholeFrameIsInteractive = next.interactive
+                    // A whole frame that stands in for the region (a map, a raw decode still
+                    // on its way) is the newest picture: the tile must not cover it.
+                    if !regionShown { regionFrame = nil }
                     // Only frames showing the photo give the histogram (R7).
                     if (!showsOriginal || next.values == .none), rendered.showsPhoto, let histogram = rendered.histogram {
                         self.histogram = histogram
@@ -1273,7 +1304,8 @@ final class AdjustmentEditor {
                 } catch is CancellationError {
                     // Superseded by newer input; the draft stays on screen.
                 } catch LiveRegionRenderer.Failure.notReady {
-                    // The settings changed between the question and the frame: the whole frame follows.
+                    // The settings changed between the question and the frame: ask again, for a whole frame.
+                    if pendingRender == nil { pendingRender = next }
                 } catch {
                     Self.log.error("Live render failed: \(error.localizedDescription, privacy: .public)")
                     // No frame will come for these values.

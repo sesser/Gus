@@ -106,10 +106,29 @@ struct LiveRegionRendererTests {
              crop: Crop(rect: CropRect(x: 0.1, y: 0.1, width: 0.7, height: 0.75), angle: 2)),
     ]
 
-    /// The gain after the texture for the typical stack: sharpening
-    /// 1 + 2 × 0.4, clarity 1 + 2 × 0.6 × 0.2, and local tone and the curve's
-    /// relative slope at most 1.7 (read from their tables, as `LiveSessionTests.gain`).
-    static let typicalGain = (1 + 2 * 0.4) * (1 + 2 * 0.6 * 0.2) * 1.7
+    /// The gain after the texture for the typical stack, in the order the
+    /// renderer applies it: the most Exposure (2^ev), local tone and Dehaze
+    /// multiply a difference (their tables' largest gains), Clarity and
+    /// Sharpening enlarge it 1 + 2 × strength each, and the tone table by its
+    /// largest relative slope x·y′/y (as `LiveSessionTests.gain`).
+    static let typicalGain: Double = {
+        let values = typical
+        let tone = values.tone
+        let local = LocalToneCurve(shadows: tone.shadows / 100, recovery: max(-tone.highlights, 0) / 100)
+        let localTone = Double(local.gainTable().max() ?? 1)
+        let dehaze = Double(DehazeTables(amount: values.presence.dehaze / 100).gain.max() ?? 1)
+        let table = ToneTable(contrast: tone.contrast / 100, highlights: max(tone.highlights, 0) / 100, whites: tone.whites / 100,
+                              blacks: tone.blacks / 100, curve: values.toneCurve).rgbTable()
+        let step = ToneTable.domainMaximum / Double(table.count / 3 - 1)
+        var slope = 1.0
+        for i in 1..<(table.count / 3 - 1) {
+            let x = Double(i) * step, y = Double(table[i * 3])
+            let rise = Double(table[(i + 1) * 3] - table[(i - 1) * 3]) / (2 * step)
+            if y > 0.01 { slope = max(slope, x * rise / y) }
+        }
+        return pow(2, values.exposure.ev) * localTone * dehaze * (1 + 2 * 0.6 * values.presence.clarity / 100)
+            * slope * (1 + 2 * values.sharpen.amount / 100)
+    }()
 
     /// AC1's scene with one-pixel detail, a PNG so the generator decodes it
     /// without loss, written once per run. AC1's 6000 × 4000 with
@@ -120,7 +139,9 @@ struct LiveRegionRendererTests {
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let url = folder.appending(path: "scene.png")
         let large = ProcessInfo.processInfo.environment["LARGE_RENDER_TESTS"] != nil
-        try? writePNG(.edgeTarget, width: large ? 6000 : 3000, height: large ? 4000 : 2000, to: url)
+        // `pixelGrid`: every pixel differs from its neighbors at any size, unlike
+        // `edgeTarget`, whose finest lines scale with the image (code review C10).
+        try? writePNG(.pixelGrid, width: large ? 6000 : 3000, height: large ? 4000 : 2000, to: url)
         return url
     }()
 
@@ -146,6 +167,8 @@ struct LiveRegionRendererTests {
         let result = Self.compare(frame: frame.image.cgImage, whole: Self.bytes(whole), wholeWidth: whole.width,
                                   region: expectedRegion) { Self.allowedSteps(gain: Self.typicalGain, encoded: $0) }
         Self.report(test.name, result, pixels: frame.image.cgImage.width * frame.image.cgImage.height)
+        print("[gain] \(String(format: "%.2f", Self.typicalGain)), near white \(Self.allowedSteps(gain: Self.typicalGain, encoded: 255)) steps, "
+              + "at black \(Self.allowedSteps(gain: Self.typicalGain, encoded: 1))")
         #expect(result.over == 0, "\(test.name): \(result.overValues)")
     }
 
@@ -265,6 +288,77 @@ struct LiveRegionRendererTests {
             #expect(!plain.hasOverlay && overlaid.hasOverlay)
             #expect(Self.bytes(plain.image.cgImage) != Self.bytes(overlaid.image.cgImage))
         }
+    }
+
+    /// C3: the overlay on a frame is which mask's, not only whether there is one.
+    @Test("An overlay frame says whose mask it draws (code review C3)")
+    func overlayFollowsTheMask() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { folder in
+            let url = folder.appending(path: "photo.jpg")
+            try SyntheticImages.writeJPEG(to: url, width: 800, height: 600, seed: 9)
+            var values = Adjustments()
+            values.local.masks = [
+                GoldenCase.mask([.radial(RadialGradient(center: MaskPoint(x: 0.3, y: 0.3), radiusX: 0.2, radiusY: 0.2))]) { $0.exposure = 1 },
+                GoldenCase.mask([.radial(RadialGradient(center: MaskPoint(x: 0.7, y: 0.7), radiusX: 0.2, radiusY: 0.2))]) { $0.exposure = 1 },
+            ]
+            // `GoldenCase.mask` gives every mask the same id.
+            for index in values.local.masks.indices { values.local.masks[index].id = UUID() }
+            let generator = PreviewGenerator(engine: RenderEngine(contextCount: 1, name: "region-test"))
+            let renderer = LiveRegionRenderer(source: url, generator: generator, colorSpace: nil)
+            try await renderer.prepare(values)
+            let unit = CGRect(x: 0, y: 0, width: 1, height: 1)
+            let first = try await renderer.render(values, unit: unit, overlayMask: values.local.masks[0].id)
+            let second = try await renderer.render(values, unit: unit, overlayMask: values.local.masks[1].id)
+            #expect(first.overlayMask == values.local.masks[0].id && second.overlayMask == values.local.masks[1].id)
+            #expect(!LiveFrameRules.isCurrent(frameValues: first.adjustments, frameOverlay: first.overlayMask,
+                                              wanted: values, overlay: values.local.masks[1].id))
+            #expect(LiveFrameRules.isCurrent(frameValues: second.adjustments, frameOverlay: second.overlayMask,
+                                             wanted: values, overlay: values.local.masks[1].id))
+            #expect(Self.bytes(first.image.cgImage) != Self.bytes(second.image.cgImage))
+        }
+    }
+
+    /// C4: a moving frame starts a decode once its settings have stopped
+    /// changing, so one decode lands and the rest of the drag is sharp;
+    /// a control that changes the decode every frame waits for the pause (R4).
+    @Test("A moving frame decodes only once its settings stop changing (code review C4)")
+    func decodeWhileMoving() async throws {
+        let renderer = LiveRegionRenderer(source: URL(fileURLWithPath: "/nonexistent/photo.dng"), generator: PreviewGenerator(), colorSpace: nil)
+        var values = Adjustments()
+        // Highlights below 0 changes the settings once: extended range.
+        values.tone.highlights = -5
+        #expect(await !renderer.shouldDecode(whileMoving: values))
+        values.tone.highlights = -10
+        #expect(await renderer.shouldDecode(whileMoving: values))
+        // White balance changes them on every frame: never settled while it moves.
+        var moving = Adjustments()
+        for temperature in stride(from: 4000.0, through: 4080, by: 20) {
+            moving.whiteBalance = WhiteBalance(preset: .custom, temperature: temperature, tint: 0)
+            #expect(await !renderer.shouldDecode(whileMoving: moving))
+        }
+    }
+
+    /// C2: a whole frame of other values never replaces a tile that is still
+    /// the picture, and the editor takes the tile down itself when it can't be.
+    @Test("A whole frame goes on the base under a tile only with the same values (code review C2)")
+    func wholeFramesUnderATile() {
+        var tile = Adjustments()
+        tile.sharpen.amount = 40
+        var whole = tile
+        whole.sharpen.amount = 42
+        #expect(LiveFrameRules.wholeFrameGoesOnBase(wholeValues: whole, tileValues: nil))
+        #expect(!LiveFrameRules.wholeFrameGoesOnBase(wholeValues: whole, tileValues: tile))
+        #expect(LiveFrameRules.wholeFrameGoesOnBase(wholeValues: tile, tileValues: tile))
+    }
+
+    /// C5/F3: real pixels and what keeps its shipped filtering enlarge with
+    /// nearest-neighbor at 100% and above; anything soft enlarges smoothly.
+    @Test("Nearest-neighbor only for real pixels and the shipped maps (code review C5)")
+    func nearestFiltering() {
+        #expect(LiveFrameRules.usesNearestFiltering(magnification: 2, showsRealPixels: true, keepsShippedFiltering: false))
+        #expect(LiveFrameRules.usesNearestFiltering(magnification: 4, showsRealPixels: false, keepsShippedFiltering: true))
+        #expect(!LiveFrameRules.usesNearestFiltering(magnification: 2, showsRealPixels: false, keepsShippedFiltering: false))
+        #expect(!LiveFrameRules.usesNearestFiltering(magnification: 0.8, showsRealPixels: true, keepsShippedFiltering: true))
     }
 
     @Test("A cancelled render makes no frame")

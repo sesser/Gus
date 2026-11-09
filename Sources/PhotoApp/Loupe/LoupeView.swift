@@ -395,59 +395,51 @@ final class LoupeController: NSObject {
 
     /// Shows the editor's newest frames while an edit is live, and goes back to
     /// the cached renditions when it is not: a whole frame (from the live
-    /// session) goes on the base, a region frame goes on the tile over it. A
-    /// whole frame of other values takes the tile down, so soft frames of a
-    /// raw decode follow the hand (design §3: sharp to soft when R4 input
-    /// resumes).
+    /// session) goes on the base, a region frame goes on the tile over it. The
+    /// editor drops the tile when a whole frame stands in for it (a map, a raw
+    /// decode on its way); a whole frame of other values never replaces a
+    /// tile that is still showing the change (`LiveFrameRules`).
     func showLiveFrame(revision: Int, active: Bool) {
         let editor = model.editor
         guard active, editor.item?.versionID == shownKey?.versionID, editor.frame != nil || editor.regionFrame != nil else {
             shownFrameRevision = nil
-            // A sharp frame of the saved values stays until the full
-            // rendition takes over (design §3).
-            if let regionFrame = editor.regionFrame, regionFrame.adjustments == editor.savedAdjustments,
-               !editor.showsOriginal, editor.item?.versionID == shownKey?.versionID, editor.loupeViewport != nil {
-                showTile(regionFrame)
-            } else if imageView.hasTile {
-                imageView.setTile(nil, unit: .zero)
-            }
             if rendition == .live {
                 rendition = .placeholder
                 reloadsSameKey = true
-                if editor.loupeViewport != nil {
-                    // The tile covers the swap; the wait for the full rendition counts (design §2.1).
-                    editor.loupeAwaitsFullRendition = true
-                }
+                // The tile covers the swap until the full rendition is there;
+                // no full load starts at fit (design §2.1, §3).
+                editor.loupeAwaitsFullRendition = editor.loupeViewport != nil && zoom == .actualSize
+                    && editor.regionFrame?.adjustments == editor.savedAdjustments
                 show(index: shownIndex)
+            }
+            // The sharp frame of the saved values stays until the full rendition lands.
+            if editor.loupeAwaitsFullRendition, editor.loupeViewport != nil, let regionFrame = editor.regionFrame,
+               regionFrame.adjustments == editor.savedAdjustments, !editor.showsOriginal,
+               editor.item?.versionID == shownKey?.versionID {
+                showTile(regionFrame)
+            } else if imageView.hasTile {
+                imageView.setTile(nil, unit: .zero)
             }
             return
         }
         guard revision != shownFrameRevision else { return }
         shownFrameRevision = revision
+        loadTask?.cancel()
+        hdrTask?.cancel()
+        fullTask?.cancel()
+        rendition = .live
+        if model.loupeHDRHeadroom != nil { model.loupeHDRHeadroom = nil }
         if let regionFrame = editor.regionFrame, editor.loupeViewport != nil {
             showTile(regionFrame)
         } else if imageView.hasTile {
             imageView.setTile(nil, unit: .zero)
         }
-        if let frame = editor.frame {
-            if let tile = editor.regionFrame, tile.adjustments != frame.adjustments, frame.adjustments != editor.valuesOnScreen,
-               editor.loupeViewport != nil {
-                // An older whole frame must not replace a current tile: keep it.
-                return
-            }
-            if let tile = editor.regionFrame, tile.adjustments != frame.adjustments, editor.loupeViewport != nil {
-                // A whole frame of other values: the tile is out of date (R4 soft frames).
-                imageView.setTile(nil, unit: .zero)
-            }
-            loadTask?.cancel()
-            hdrTask?.cancel()
-            fullTask?.cancel()
-            rendition = .live
+        if let frame = editor.frame,
+           LiveFrameRules.wholeFrameGoesOnBase(wholeValues: frame.adjustments, tileValues: editor.regionFrame?.adjustments) {
             matchFrame(to: frame.image.cgImage, exact: false)
             imageView.setImage(frame.image.cgImage, extendedRange: false)
-            updateFiltering()
-            if model.loupeHDRHeadroom != nil { model.loupeHDRHeadroom = nil }
         }
+        updateFiltering()
     }
 
     /// The sharp frame over the photo. Sized to one output pixel per view
@@ -555,7 +547,9 @@ final class LoupeController: NSObject {
     /// frame that isn't the photo's own pixels enlarges smoothly, at every zoom.
     private func updateFiltering(magnification known: CGFloat? = nil) {
         let magnification = known ?? scrollView.magnification
-        imageView.usesNearestFiltering = magnification >= 1 && (rendition == .full || rendition == .hdrFull)
+        imageView.usesNearestFiltering = LiveFrameRules.usesNearestFiltering(
+            magnification: Double(magnification), showsRealPixels: rendition == .full || rendition == .hdrFull,
+            keepsShippedFiltering: rendition == .live && model.editor.liveFrameKeepsShippedFiltering)
     }
 
     /// HDR is shown when the setting is on and the window's display has extended
@@ -581,9 +575,15 @@ final class LoupeController: NSObject {
     }
 
     private func loadFullResolution() {
-        guard let index = shownIndex, model.items.indices.contains(index), rendition < .full else { return }
+        guard let index = shownIndex, model.items.indices.contains(index), rendition < .full else {
+            model.editor.loupeAwaitsFullRendition = false
+            return
+        }
         let item = model.items[index]
-        guard let request = model.previewRequest(for: item, tier: .preview), request.sourceURL != nil else { return }
+        guard let request = model.previewRequest(for: item, tier: .preview), request.sourceURL != nil else {
+            model.editor.loupeAwaitsFullRendition = false
+            return
+        }
         let previews = model.previews
         let hdr = hdrAllowed
         let key = shownKey
@@ -594,8 +594,11 @@ final class LoupeController: NSObject {
                 self.display(image, as: .hdrFull)
                 return
             }
-            guard let image = try? await previews.fullResolutionImage(for: request),
-                  let self, self.shownKey == key else { return }
+            guard let image = try? await previews.fullResolutionImage(for: request) else {
+                if !Task.isCancelled { self?.model.editor.loupeAwaitsFullRendition = false }
+                return
+            }
+            guard let self, self.shownKey == key else { return }
             self.display(image, as: .full)
         }
     }
@@ -1180,6 +1183,12 @@ final class LoupeImageView: NSView {
     }
 
     var hasTile: Bool { !tileLayer.isHidden }
+
+    /// The image layer's sublayers, back to front, for the debug script:
+    /// the tile has to stay under the mask overlay's view.
+    var debugLayerOrder: String {
+        (layer?.sublayers ?? []).map { $0 === tileLayer ? "tile" : "view" }.joined(separator: ",")
+    }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("not used") }

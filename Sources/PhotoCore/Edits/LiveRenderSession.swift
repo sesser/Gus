@@ -30,6 +30,8 @@ public actor LiveRenderSession {
         public let content: Content
         /// The mask overlay is drawn over the photo.
         public let hasOverlay: Bool
+        /// The mask whose overlay is drawn, nil without one.
+        public var overlayMask: UUID? = nil
         public let adjustments: Adjustments
         /// The mask frame's size in pixels (the decoded image before turns,
         /// straightening and crop): its proportions place masks on screen.
@@ -288,7 +290,7 @@ public actor LiveRenderSession {
         // A frame that filled the stage cache is slow once; it says nothing about the next.
         if drafting, !filledCache { adapt(level: level, seconds: seconds) }
         return Frame(image: DecodedImage(cgImage: rendered), histogram: histogram, content: content,
-                     hasOverlay: overlaid, adjustments: adjustments,
+                     hasOverlay: overlaid, overlayMask: overlaid ? overlayMask : nil, adjustments: adjustments,
                      maskFrameSize: CGSize(width: base.image.width, height: base.image.height),
                      scale: factor, seconds: seconds, filledCache: filledCache, machineLearning: base.machineLearning)
     }
