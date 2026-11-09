@@ -327,7 +327,12 @@ looks the same as the last sharp frame.
   about 192 MB at 24 MP (`sharpen-mask-preview/prd.md` Q5), plus whatever
   caching adds. Above 24 MP there is no ruling (RI2 in `status.md`): at 54 MP
   the decoded photo takes 432 MB and frames are slower. R7's reference stays
-  24 MP. This is a note, not a requirement.
+  24 MP. This is a note, not a requirement. Covered zooms have no memory cap
+  for now: the texture limit is by dimension only, so a 16384 × 12288 photo
+  holds about 1.6 GB. The texture is held only at 100% and above, and an
+  allocation failure falls back to soft frames. The owner was told this
+  default on 2026-11-09 and did not ask for a cap; it is not an explicit
+  ruling.
 - **Limits on R12's tolerance.** Two crops of the same photo differ by up to
   2.9 × 10⁻³ at patch edges (`PHASE6_PLAN.md` finding 2), and one filter gives
   region-dependent edge pixels on macOS 26 (finding 6).
@@ -408,3 +413,6 @@ included.
   Ruling 4 stays as the record. A1 and R12 are unchanged. E1 is answered, and
   Dependencies now use the measured figures. RI2 (photos above 24 MP) got no
   ruling and is noted there. Status stays Approved.
+- 2026-11-09: Dependencies now note that covered zooms have no memory cap for
+  now (code review's question). The owner was told this default and did not
+  ask for a cap. No requirement changed. Status stays Approved.
