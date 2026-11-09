@@ -124,11 +124,18 @@ public actor SharpeningMapRefiner {
     var holdsInput: Bool { input != nil }
 
     /// Renders `image` once to a half-float image in the working space.
-    private func materialize(_ image: CIImage) throws -> CIImage {
+    ///
+    /// `deferred: false`, so what is kept is pixels. Core Image's default
+    /// keeps a large image lazy (measured: a side over 4096 pixels), to be
+    /// pulled in tiles when something reads it; when the mask graph read such
+    /// an input of a real camera raw, cells of the map came back flipped or
+    /// misplaced (docs/features/sharpening-map-tiles/status.md).
+    func materialize(_ image: CIImage) throws -> CIImage {
         let extent = image.extent.integral
         guard !extent.isInfinite, !extent.isEmpty,
               let rendered = generator.engine.withContext({
-                  $0.createCGImage(image, from: extent, format: .RGBAh, colorSpace: RenderEngine.workingColorSpace)
+                  $0.createCGImage(image, from: extent, format: .RGBAh, colorSpace: RenderEngine.workingColorSpace,
+                                   deferred: false)
               })
         else { throw PreviewGenerator.Failure.renderFailed }
         return CIImage(cgImage: rendered).transformed(by: CGAffineTransform(translationX: extent.minX, y: extent.minY))
