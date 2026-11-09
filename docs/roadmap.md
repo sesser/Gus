@@ -230,8 +230,13 @@ intake defaults ("Defaults are fine"); the rulings are in
 The owner then confirmed its assumptions A1–A9 the same day ("Yes, as
 written"), so the PRD is approved. The row moved from Idea to Specified, and its
 problem text now also names the 1280 px decode (4.7×) used while RAW white
-balance, profile or noise reduction move. Design is next. Now has two items;
-I did not move anything in.
+balance, profile or noise reduction move. It has since been designed and
+built, so the row is In progress. On the owner's reference display (a DELL
+U2723QE) R7's 95% of frames under 100 ms was not met, and the owner ruled
+"Accept as measured" (RI1, PRD ruling 8): R7 is restated to 95% of frames
+under about 160 ms there, with frames sharp. Photos above 24 MP (RI2) got no
+ruling. Code review, design review and QA are next. Now has two items; I did
+not move anything in.
 
 Where specs live: new features get `docs/features/<slug>/`. The phase plans
 (`docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`) and `docs/UI_REDESIGN.md`
@@ -280,7 +285,7 @@ next item to start ("make it the next item"). It shipped 2026-11-08 (PR
 
 | Slug | Problem | Status | Folder | Source |
 |------|---------|--------|--------|--------|
-| viewport-render-1to1 | At 100% zoom (and other zooms past fit), a control that is moving shows a stretched live frame until the change is saved, so fine detail can't be judged while editing: the 2560 px frame for most controls (2.3× for a 6000 px photo), and a 1280 px decode (4.7×) while RAW white balance, profile or noise reduction move | Designed | [`features/viewport-render-1to1/`](features/viewport-render-1to1/) | `PHASE6_PLAN.md` "The loupe at 100 %" and "Roadmap" |
+| viewport-render-1to1 | At 100% zoom (and other zooms past fit), a control that is moving shows a stretched live frame until the change is saved, so fine detail can't be judged while editing: the 2560 px frame for most controls (2.3× for a 6000 px photo), and a 1280 px decode (4.7×) while RAW white balance, profile or noise reduction move | In progress | [`features/viewport-render-1to1/`](features/viewport-render-1to1/) | `PHASE6_PLAN.md` "The loupe at 100 %" and "Roadmap" |
 | edit-history | No way to see or jump back to an earlier state of a photo's edits | Idea | none yet | Issue #26; `ui-redesign/design.md` RI-6 |
 
 How each starts:
@@ -290,8 +295,8 @@ How each starts:
   2026-11-09 ("Defaults are fine"), which settled which zooms, what a pan
   during a drag may show and how fast is fast enough. The owner also
   confirmed its assumptions A1–A9 ("Yes, as written"), so the PRD is
-  approved. Design is next; no new UI is expected, so that step should be
-  brief.
+  approved. It is designed and built, and the owner accepted its speed as
+  measured (PRD ruling 8). Code review, design review and QA are next.
 - **edit-history** needs intake, then a PRD and design. Placement and keys
   stay out of the PRD (issue #26's ⌘Y redo and left-sidebar placement are
   proposals that conflict with the shipped ⇧⌘Z, the HIG's standard redo,

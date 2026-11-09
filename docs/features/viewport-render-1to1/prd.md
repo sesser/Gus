@@ -75,6 +75,16 @@ confirmed the Assumptions below separately, the same day.
 7. **Issue #35** stays separate and this feature changes no slider's
    strength. After it ships the owner re-judges at 100%, and #35 is closed or
    gets its own row. `classical-noise-strength` stays as it is.
+8. **Speed, as measured (RI1 in `status.md`, 2026-11-09).** The owner named the
+   reference display, a DELL U2723QE ("Yes, the Dell"). On it, ruling 4's
+   100 ms is not met for a typical stack: p95 139.5–147.4 ms at 14.4 MP and
+   152.9–159.2 ms at 17.4 MP on the synthetic DNG (`status.md`, "Speed and
+   memory"). On the owner's 20 MP RW2 with their own edits at 14.4 MP it is
+   p95 103.2 ms for Amount and Exposure. Given the choice of building the
+   speed work (options A + C in `status.md`, which would have loosened A1 and
+   R12 for mid-drag frames) or accepting today's speed with the target
+   restated to what was measured, the owner answered: "Accept as measured".
+   Ruling 4 stays above for the record. R7 carries the restated target.
 
 ## Users and scenarios
 
@@ -139,12 +149,22 @@ one isn't ready (a pan, a zoom, the first frame of a drag, just after letting
 go), the part not ready may be soft and a value or two behind for a moment. A
 sharp frame with the current values then replaces it with no further input.
 
-R7 (Must, ruling 4): For a typical stack at 100% in the reference window, 95%
-of frames take under 100 ms. The reference is an M4 Pro, a 24 MP raw and the
-largest window on the owner's usual display. The same measurement with three
-masks is recorded, with no target. If the target can't be met, the engineer
-returns it to the owner as a requirements issue. Sharp-on-pause is not a
-fallback unless the owner chooses it (ruling 1).
+R7 (Must, rulings 4 and 8): For a typical stack at 100% on the reference
+display, on both of its canvases, 95% of frames take under about 160 ms, with
+frames sharp (R2) and the window never blocking (R8). That is about 6 to 7
+frames a second at the larger canvas.
+
+The reference is an M4 Pro, a 24 MP raw and a DELL U2723QE (framebuffer
+6016 × 3384). Its two canvases, the part of the photo the loupe covers at 100%
+with the window maximized, are 4976 × 2892 (14.4 MP) with the sidebar and
+inspector showing, and 6000 × 2892 (17.4 MP) with both hidden.
+
+Three masks are measured and recorded with no target. As measured, p95 is
+279.2–288.6 ms at 14.4 MP and 415.6–436.1 ms at 17.4 MP (`status.md`).
+
+Sharp-on-pause and the region-only option were not chosen, and A1 and R12
+stand as confirmed (ruling 8). If the restated target can't be met, the
+engineer returns it to the owner as a requirements issue.
 
 R8 (Must, ruling 4): The window never blocks. During a slow frame, panning,
 zooming, menus, keys and other controls keep responding.
@@ -231,10 +251,13 @@ a value change, during a pan, during a zoom, and in a pan right after a commit.
 None has an empty area. After waiting with no input, the content area matches
 R12.
 
-AC9 (R7): `photobench`, release build, M4 Pro, 24 MP raw, typical stack (as in
-`docs/PROFILING.md` Phase 3), at 100% in the reference window: 95% of frames
-under 100 ms. `status.md` records the Mac, the window's size in pixels, the
-figures, and the same run with three masks (as in `photobench masks`).
+AC9 (R7): `photobench viewport`, release build, M4 Pro, 24 MP raw, typical
+stack (as in `docs/PROFILING.md` Phase 3), at 100%, nothing else running, at
+both canvases in R7, with Exposure, Amount, Saturation and Shadows moving: each
+case's p95 is at or under 160 ms. "About" in R7 covers run-to-run noise, so a
+case over 160 ms gets one re-run, and a second result over 160 ms fails.
+`status.md` records the Mac, the canvases, the figures, and the same run with
+three masks (as in `photobench masks`), which has no target.
 
 AC10 (R8): With a stack whose frames take over 100 ms at 100%, during scripted
 value changes, a key (next photo, a rating) is handled while a frame renders,
@@ -291,16 +314,20 @@ looks the same as the last sharp frame.
 
   With machine learning on, a 24 MP decode takes about 1.4 s
   (`ml-denoise/status.md`). The app already treats a live frame over 100 ms as
-  too slow (`draftDropThreshold`), which is where R7's number comes from. The
-  repo has no measurement of how long today's sharp render takes after letting
-  go.
-- **Window size warning.** The phase 6 note assumed a 1500 × 1000 view, about
-  1.5 MP. A full-window loupe on a 5K display is roughly 10 MP against today's
-  4.4 MP frame (my arithmetic, not a measurement), and radii render at full
-  size. So R7 can't be assumed easy.
-- **Memory.** Holding a full-resolution decoded photo costs about 192 MB at
-  24 MP (`sharpen-mask-preview/prd.md` Q5), plus whatever caching adds. Larger
-  photos need checking.
+  too slow (`draftDropThreshold`), which is where ruling 4's 100 ms came from.
+  Today's sharp render after letting go takes 656 ms mean, 867 ms p95
+  (`status.md`, E4).
+- **Window size.** The phase 6 note assumed a 1500 × 1000 view, about 1.5 MP.
+  On the reference display the loupe at 100% covers 14.4 MP, or 17.4 MP with
+  the panes hidden, against today's 4.4 MP frame, and radii render at full
+  size. That is why ruling 4's 100 ms isn't met there (ruling 8). Smaller
+  canvases are faster: for Exposure, p95 is 62.4 ms at 5.4 MP and 93.5 ms at
+  10 MP (`status.md`).
+- **Memory and larger photos.** Holding a full-resolution decoded photo costs
+  about 192 MB at 24 MP (`sharpen-mask-preview/prd.md` Q5), plus whatever
+  caching adds. Above 24 MP there is no ruling (RI2 in `status.md`): at 54 MP
+  the decoded photo takes 432 MB and frames are slower. R7's reference stays
+  24 MP. This is a note, not a requirement.
 - **Limits on R12's tolerance.** Two crops of the same photo differ by up to
   2.9 × 10⁻³ at patch edges (`PHASE6_PLAN.md` finding 2), and one filter gives
   region-dependent edge pixels on macOS 26 (finding 6).
@@ -359,9 +386,9 @@ included.
 
 **Engineer:**
 
-- E1. Which display is the reference. The owner gave none, so record the window
-  size used. Also record a roughly 10 MP case, so the result doesn't depend on
-  the test Mac's display.
+- E1. Answered 2026-11-09. The reference is the owner's DELL U2723QE, with the
+  two canvases in R7. `status.md` "Speed and memory" has the figures, with
+  5.4 MP and 10 MP rows for comparison.
 - E2. The tolerance for R12, AC5 and AC11.
 - E3. Whether R4 and R5 can reach a sharp frame at acceptable cost, and the
   memory cost above 24 MP. A problem with either comes back as a requirements
@@ -376,3 +403,8 @@ included.
   check, which says how the first frame is treated. No requirement changed.
 - 2026-11-09: The owner confirmed A1–A9 ("Yes, as written"). Status is
   Approved. No requirement changed.
+- 2026-11-09: Owner ruling 8 on RI1 ("Accept as measured"). R7 and AC9 are
+  restated to the DELL U2723QE as measured: 95% of frames under about 160 ms.
+  Ruling 4 stays as the record. A1 and R12 are unchanged. E1 is answered, and
+  Dependencies now use the measured figures. RI2 (photos above 24 MP) got no
+  ruling and is noted there. Status stays Approved.
