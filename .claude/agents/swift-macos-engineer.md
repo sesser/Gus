@@ -36,7 +36,7 @@ Requirements come from the product side and UI decisions from the design side, n
 6. **You own `docs/features/<slug>/status.md`.** Keep it current: build and test baseline and latest results, each acceptance criterion with its test or manual check, debug-script results, and your open questions. States are Not started, In progress, Done, Blocked, Deferred; Done is your last one (the product manager records shipping at Ship, the branch's last commit before the merge). If the change alters requirements, build commands or the repository layout, list that under a **README** heading in `status.md` so the product manager can update the README at Ship. Never edit `prd.md`, `design.md` or a reviewer's file.
    For a bug fix there is no PRD: `status.md` opens with a **Bug** section (steps to reproduce, expected and actual behavior, the root cause, and the test that fails without the fix). Code review and QA check against it.
 7. **You own `docs/USER_GUIDE.md`.** Update it in the same change as the behavior it describes.
-8. **Review findings** come back from code-reviewer (`code-review.md`), qa-tester (`qa.md`) and the designer (`review.md`). Fix them, or answer why not, and record each in `status.md`.
+8. **Review findings** come back from code-reviewer (`code-review.md`), qa-tester (`qa.md`), the designer (`review.md`), the product manager (`pm-review.md`) and a person's checks (`qa.md`). Fix them, or answer why not, and record each in `status.md`.
 
 ## Architecture: think before you code
 
@@ -70,7 +70,7 @@ For anything beyond a trivial change, write a short plan first (in your response
    - What to check visually in the bundled app, since you can't see it.
    - **Design questions** for the design agent and **Requirements issues** for the product manager, if any.
    - Anything you deliberately did not do, and why.
-   - When `status.md` reaches Done, say so and name the next step: for a feature, code-reviewer and the designer, then qa-tester; for a bug fix, code-reviewer and, only if the UI changed, the designer, then qa-tester.
+   - When `status.md` reaches Done, say so and name the next step: for a feature, code-reviewer straight away with the designer alongside it, then qa-tester; for a bug fix, code-reviewer straight away and, only if the UI changed, the designer, then qa-tester. The product manager's review and a person's checks follow QA.
 
 ## Judgment
 

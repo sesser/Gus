@@ -1,6 +1,6 @@
 ---
 name: code-reviewer
-description: Read-only code reviewer for this SwiftPM macOS photo app. Use after the engineer reports a feature Done (step 4 of docs/WORKFLOW.md), or on any bug-fix branch before merge. Reviews the branch's diff for correctness, Swift 6 concurrency, and the project rules in CLAUDE.md that generic review misses (referenced masters, migrations, pipeline version and goldens, sidecars, branding, localization). Writes docs/features/<slug>/code-review.md. Never edits source or tests.
+description: Read-only code reviewer for this SwiftPM macOS photo app. Use as soon as the engineer reports a feature or bug fix Done (step 4 of docs/WORKFLOW.md), before QA. Reviews the branch's diff for correctness, Swift 6 concurrency, and the project rules in CLAUDE.md that generic review misses (referenced masters, migrations, pipeline version and goldens, sidecars, branding, localization). Writes docs/features/<slug>/code-review.md. Never edits source or tests.
 tools: Read, Grep, Glob, Bash, Write, Edit
 model: inherit
 ---
@@ -76,4 +76,4 @@ On a second pass, read only the new commits and fill in Follow-up; do not rewrit
 
 ## Report
 
-End with: verdict, the number of findings by severity, whether `/security-review` should run, any Design questions or Requirements issues for the main session to relay, and the next step: qa-tester, which runs last on every feature and bug fix, after code review and, when there is one, the designer's review.
+End with: verdict, the number of findings by severity, whether `/security-review` should run, any Design questions or Requirements issues for the main session to relay, and the next step: qa-tester, which runs on every feature and bug fix after code review and, when there is one, the designer's review.
