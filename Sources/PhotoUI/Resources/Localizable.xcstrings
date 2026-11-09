@@ -5537,13 +5537,13 @@
         }
       }
     },
-    "Judge Amount, Radius and Detail at 100% (Z) once the change is saved. Sharpening Map shows Masking's effect at any zoom." : {
+    "Judge Amount, Radius and Detail at 100% (Z). Sharpening Map shows Masking's effect at any zoom." : {
       "comment" : "Inspector caption under the Sharpening Map toggle while the map is hidden",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Judge Amount, Radius and Detail at 100% (Z) once the change is saved. Sharpening Map shows Masking's effect at any zoom."
+            "value" : "Judge Amount, Radius and Detail at 100% (Z). Sharpening Map shows Masking's effect at any zoom."
           }
         }
       }
@@ -7949,13 +7949,13 @@
         }
       }
     },
-    "Raise Strength to add grain. Grain is easiest to judge at 1:1 (Z)." : {
+    "Raise Strength to add grain. Grain is easiest to judge at 100% (Z)." : {
       "comment" : "Adjust tab, grain",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Raise Strength to add grain. Grain is easiest to judge at 1:1 (Z)."
+            "value" : "Raise Strength to add grain. Grain is easiest to judge at 100% (Z)."
           }
         }
       }
@@ -8116,7 +8116,7 @@
       }
     },
     "Refining the photo" : {
-      "comment" : "Caption spinner while replacing a pick zoomed in",
+      "comment" : "Caption spinner while the loupe waits for the photo's full detail: replacing a pick zoomed in, or after a change, pan or zoom at 100% and above.",
       "localizations" : {
         "en" : {
           "stringUnit" : {

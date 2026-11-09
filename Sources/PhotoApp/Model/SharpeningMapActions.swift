@@ -102,7 +102,7 @@ enum SharpeningMapText {
 
     /// The inspector caption while the map is hidden: the Sharpening hint.
     static var hint: String {
-        String(localized: "Judge Amount, Radius and Detail at 100% (Z) once the change is saved. Sharpening Map shows Masking's effect at any zoom.",
+        String(localized: "Judge Amount, Radius and Detail at 100% (Z). Sharpening Map shows Masking's effect at any zoom.",
                comment: "Inspector caption under the Sharpening Map toggle while the map is hidden")
     }
 

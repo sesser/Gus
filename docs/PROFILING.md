@@ -217,6 +217,27 @@ masking: nearly the whole graph.
 - First frames include the decode of the base; the editor starts one 250 ms
   after a photo is shown, so it is usually ready before the first drag.
 
+## Sharp live frames at 100% (viewport-render-1to1)
+
+`photobench viewport`: the region of a full-resolution render the loupe shows at
+100%, on a synthetic DNG, typical stack and three masks (release build, M4 Pro,
+24 MP, Exposure moves; docs/features/viewport-render-1to1/status.md has the record):
+
+| window | mean | p95 |
+|---|---|---|
+| Largest window on this Mac, 3024 × 1800 (5.4 MP), typical stack | 60.6 ms | 64.1 ms |
+| About 10 MP (3872 × 2592), typical stack | 95.3 ms | 110.2 ms |
+| About 10 MP, three masks, first mask's Exposure | 185 ms | 210 ms |
+
+The speed comes from the master held in a GPU-private half-float texture: every
+frame reads it directly, while a half-float `CGImage` from `createCGImage`
+(deferred by default) costs a re-decode and upload on each frame (430–850 ms at
+these sizes in the first measurements).
+
+```bash
+.build/out/Products/Release/photobench viewport --frames 60
+```
+
 ## Real camera RAW files and render contexts
 
 Measured on 2026-10-28, same machine, release builds, on 200 files hard-linked
