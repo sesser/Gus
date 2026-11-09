@@ -131,14 +131,14 @@ nothing and needs no lock).
   `.claude/settings.local.json`, which is not committed.
 - `.claude/agents/` holds five project subagents. Product decides what to
   build, design decides how it looks, engineering builds it, and code review
-  and QA check it before it merges.
+  and QA check it before the pull request.
 
 | Agent | Use it for | Tools |
 | --- | --- | --- |
-| `product-manager` | Turning an idea into requirements: a PRD with testable acceptance criteria and non-goals in `docs/features/<slug>/prd.md`. Keeps `docs/roadmap.md`. As the last commit on the feature branch before merge (Ship mode) marks the feature shipped and updates `README.md` and this file's "Scope so far" and "Not yet". Does not design UI or write code. | Read, Write, Edit, Grep, Glob, WebSearch, WebFetch. Never builds. |
+| `product-manager` | Turning an idea into requirements: a PRD with testable acceptance criteria and non-goals in `docs/features/<slug>/prd.md`. Keeps `docs/roadmap.md`. As the last commit on the feature branch, after the owner's sign-off and before the pull request (Ship mode), marks the feature shipped and updates `README.md` and this file's "Scope so far" and "Not yet". Does not design UI or write code. | Read, Write, Edit, Grep, Glob, WebSearch, WebFetch. Never builds. |
 | `apple-ui-designer` | Designing or reviewing windows, toolbars, sidebars, menus, inspectors and sheets against the HIG; deciding where a command lives (menu bar, toolbar, context menu, shortcut). Writes `docs/features/<slug>/design.md` and, after implementation, `review.md`. | Read, search, web, edit docs. Never builds. |
 | `swift-macos-engineer` | Implementing against the PRD and design, bug fixes, refactors and tests. Keeps `docs/features/<slug>/status.md` and `docs/USER_GUIDE.md`. Builds and tests after each step. | Full: read, edit, shell, web. |
-| `code-reviewer` | Reviewing a branch before merge for correctness, concurrency and this file's rules. Writes `docs/features/<slug>/code-review.md`; says when `/security-review` should also run. Never edits code. | Read, search, shell (git, build, test), edit its own file. |
+| `code-reviewer` | Reviewing a branch before its pull request for correctness, concurrency and this file's rules. Writes `docs/features/<slug>/code-review.md`; says when `/security-review` should also run. Never edits code. | Read, search, shell (git, build, test), edit its own file. |
 | `qa-tester` | Mapping each acceptance criterion to a test or a debug-script check, running them against a copy of the bundle, and listing what only a person can check. Writes `docs/features/<slug>/qa.md`. Never edits code. | Read, search, shell, edit its own file. |
 
 How to work with them, who owns which file, and how questions go back to
