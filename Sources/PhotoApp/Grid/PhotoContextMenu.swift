@@ -43,6 +43,19 @@ enum PhotoContextMenu {
                 model.toggleSharpeningMap(from: .menu)
             })
         }
+        if state.canShowFringeMap {
+            let titles = LensText.menuTitle
+            menu.addItem(ActionMenuItem(state.showsFringeMap ? titles.hide : titles.show) {
+                model.toggleFringeMap(from: .menu)
+            })
+        }
+        if state.isPixelMagnifierActive {
+            menu.addItem(submenu(PixelMagnifierText.menuTitle, PixelMagnifierLevel.allCases.map { level in
+                let item = ActionMenuItem(PixelMagnifierText.title(level)) { model.setPixelMagnifierLevel(level) }
+                item.state = level == state.pixelMagnifierLevel ? .on : .off
+                return item
+            }))
+        }
         if state.canEditLoupePhoto {
             menu.addItem(ActionMenuItem(state.isCropping ? String(localized: "Finish Cropping") : String(localized: "Crop")) {
                 model.crop()

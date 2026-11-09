@@ -75,6 +75,8 @@ struct LoupeCanvas: NSViewRepresentable {
         context.coordinator.showMasks()
         // Part of the canvas's VoiceOver value (ml-denoise design §8).
         _ = model.editor.machineLearningNotApplied
+        // The pixel magnifier follows these, as well as the pointer (design §20).
+        _ = (model.editor.fringeSamplePixels?.byteCount, model.pixelMagnifierLevel, model.isWindowKey)
         context.coordinator.updateAccessibility()
     }
 
@@ -111,6 +113,20 @@ final class LoupeController: NSObject {
     let hostView = LoupeHostView()
     private let scrollView = LoupeScrollView()
     private let imageView = LoupeImageView()
+    /// The picking slot the cursor rects were last made for.
+    private var pickingSlotShown: Int?
+    private var escapeMonitor: Any?
+    private let magnifierView = PixelMagnifierView()
+    /// Where the pointer is over the canvas, from mouse events; a level
+    /// chosen in a menu keeps the magnifier where it was (design §20).
+    private var magnifierPointer: NSPoint?
+    /// The debug script's pointer: output unit coordinates, until a real move.
+    private var magnifierDebugUnit: CGPoint?
+    private var magnifierPlacement: PixelMagnifierPlacement?
+    /// When the magnifier began waiting for pixels (its spinner after 0.5 s).
+    private var magnifierSpinnerTask: Task<Void, Never>?
+    /// What the magnifier shows, for the debug script.
+    private(set) var magnifierState = MagnifierState()
     private let cropView = CropOverlayView()
     private let maskView = MaskOverlayView()
     /// The version and edit shown; a new edit hash loads new renditions.
@@ -189,6 +205,17 @@ final class LoupeController: NSObject {
         hostView.controller = self
         scrollView.onClick = { [weak self] point in self?.toggleZoom(at: point) }
         scrollView.onDoubleClick = { [weak self] in self?.model.closeLoupe() }
+        // While a fringe slot picks, a click picks at once instead of zooming
+        // (chromatic-aberration design §4); drags still pan.
+        scrollView.isPicking = { [weak self] in self?.model.editor.pixelMagnifierIsPicking == true }
+        scrollView.onPick = { [weak self] point in self?.pickFringe(at: point) }
+        scrollView.onPointerMoved = { [weak self] location in self?.movePointer(toWindowPoint: location) }
+        magnifierView.isHidden = true
+        hostView.addSubview(magnifierView)
+        scrollView.photoRect = { [weak self] in
+            guard let self, self.model.editor.pickingFringeSlot != nil else { return nil }
+            return self.imageView.bounds
+        }
         scrollView.onZoomScroll = { [weak self] factor, point in self?.zoom(by: factor, at: point) }
 
         scrollView.postsFrameChangedNotifications = true
@@ -197,6 +224,10 @@ final class LoupeController: NSObject {
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.fitIfNeeded() }
         }
+        // Pans and zooms under a still pointer update the magnifier (R30).
+        scrollView.contentView.postsBoundsChangedNotifications = true
+        NotificationCenter.default.addObserver(self, selector: #selector(visibleRectChanged(_:)),
+                                               name: NSView.boundsDidChangeNotification, object: scrollView.contentView)
         NotificationCenter.default.addObserver(self, selector: #selector(didEndMagnify(_:)),
                                                name: NSScrollView.didEndLiveMagnifyNotification, object: scrollView)
         NotificationCenter.default.addObserver(self, selector: #selector(takeFocus(_:)),
@@ -247,6 +278,8 @@ final class LoupeController: NSObject {
         fullTask?.cancel()
         model.loupeHDRHeadroom = nil
         model.editor.follow(nil)
+        if let escapeMonitor { NSEvent.removeMonitor(escapeMonitor) }
+        escapeMonitor = nil
         neighborTasks.forEach { $0.cancel() }
         if let frameObserver { NotificationCenter.default.removeObserver(frameObserver) }
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
@@ -388,9 +421,16 @@ final class LoupeController: NSObject {
         let editor = model.editor
         _ = (editor.adjustments.local, editor.selectedMaskID, editor.isBrushing, editor.isSamplingColor,
              editor.maskFrameSize, editor.brushTemplate)
+        updateMagnifier()
+        // The crosshair over the photo while a fringe slot picks.
+        if editor.pickingFringeSlot != pickingSlotShown {
+            pickingSlotShown = editor.pickingFringeSlot
+            scrollView.window?.invalidateCursorRects(for: scrollView)
+            syncEscapeMonitor()
+        }
         // Hidden under the sharpening map too: clicks then reach the canvas (zoom, pan), never a mask (R8).
         maskView.isHidden = editor.state != .ready || editor.cropSession != nil || editor.selectedMaskID == nil
-            || editor.showsSharpeningMap
+            || editor.sharpeningMap.isShown || editor.pickingFringeSlot != nil
         maskView.refresh()
     }
 
@@ -486,6 +526,187 @@ final class LoupeController: NSObject {
     }
 
     // MARK: Zoom
+
+    /// A click while a fringe slot picks, at `point` in the photo's view; a
+    /// click on the surround does nothing (chromatic-aberration design §4).
+    private func pickFringe(at point: NSPoint) {
+        guard imageView.bounds.contains(point) else { return }
+        let geometry = magnifierGeometry(atHostPoint: hostView.convert(point, from: imageView))
+        model.editor.pickFringe(at: geometry.unit, devicePixelsAcross: geometry.devicePixelsAcross)
+    }
+
+    // MARK: Pixel magnifier
+
+    /// What the debug script reads of the magnifier.
+    struct MagnifierState {
+        var isVisible = false
+        var placement = PixelMagnifierPlacement()
+        var frame = NSRect.zero
+        var reading: PixelMagnifier.Reading?
+        var picture: PixelMagnifier.Picture?
+        var isReady = false
+        var backing = 2
+    }
+
+    /// The photo's width on screen in device pixels.
+    var devicePixelsAcross: Double {
+        Double(imageView.bounds.width * scrollView.magnification * (hostView.window?.backingScaleFactor ?? 2))
+    }
+
+    /// The photo's width on screen in device pixels, and `point` (canvas
+    /// points) as output unit coordinates: the middle of its device pixel
+    /// (ruling 18 speaks of one screen pixel).
+    private func magnifierGeometry(atHostPoint point: NSPoint) -> (unit: CGPoint, devicePixelsAcross: Double) {
+        let backing = hostView.convertToBacking(point)
+        let snapped = hostView.convertFromBacking(NSPoint(x: backing.x.rounded(.down) + 0.5, y: backing.y.rounded(.down) + 0.5))
+        let inImage = imageView.convert(snapped, from: hostView)
+        let size = imageView.bounds.size
+        let unit = CGPoint(x: min(max(inImage.x / max(size.width, 1), 0), 0.999_999),
+                           y: min(max(1 - inImage.y / max(size.height, 1), 0), 0.999_999))
+        return (unit, devicePixelsAcross)
+    }
+
+    /// The pointer moved (`mouseMoved`, or a drag panning the photo).
+    func movePointer(toWindowPoint point: NSPoint?) {
+        magnifierDebugUnit = nil
+        magnifierPointer = point.map { hostView.convert($0, from: nil) }
+        updateMagnifier()
+    }
+
+    /// A click's geometry at output unit coordinates: the script's clicks take a real click's path.
+    func clickGeometry(atUnit unit: CGPoint) -> (unit: CGPoint, devicePixelsAcross: Double) {
+        let size = imageView.bounds.size
+        return magnifierGeometry(atHostPoint: imageView.convert(NSPoint(x: unit.x * size.width, y: (1 - unit.y) * size.height),
+                                                                to: hostView))
+    }
+
+    /// The debug script's `magnifier move`.
+    func moveMagnifierPointer(toUnit unit: CGPoint) {
+        magnifierDebugUnit = unit
+        updateMagnifier()
+    }
+
+    /// Pixel Magnifier level from `-` and `=` while picking.
+    private func handleMagnifierKey(_ event: NSEvent) -> Bool {
+        guard model.isPixelMagnifierActive,
+              event.modifierFlags.intersection(.deviceIndependentFlagsMask).subtracting(.shift).isEmpty else { return false }
+        switch event.charactersIgnoringModifiers {
+        case "=", "+": model.stepPixelMagnifierLevel(up: true)
+        case "-": model.stepPixelMagnifierLevel(up: false)
+        default: return false
+        }
+        return true
+    }
+
+    @objc private func visibleRectChanged(_ notification: Notification) {
+        guard model.editor.pixelMagnifierIsPicking else { return }
+        // The crosshair's area follows the photo on screen (design §4 step 2).
+        scrollView.window?.invalidateCursorRects(for: scrollView)
+        updateMagnifier()
+    }
+
+    /// While a tool is picking, Esc cancels it from wherever the keyboard is
+    /// (design §4): an inspector button or a closed pop-up too. Text fields
+    /// keep their own Esc first, and an open menu tracks its own events.
+    private func syncEscapeMonitor() {
+        let picking = model.editor.pixelMagnifierIsPicking
+        if picking, escapeMonitor == nil {
+            escapeMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                self?.cancelsPicking(event) == true ? nil : event
+            }
+        } else if !picking, let monitor = escapeMonitor {
+            NSEvent.removeMonitor(monitor)
+            escapeMonitor = nil
+        }
+    }
+
+    private func cancelsPicking(_ event: NSEvent) -> Bool {
+        guard event.keyCode == 53, event.window === hostView.window, model.editor.pixelMagnifierIsPicking,
+              !(event.window?.firstResponder is NSText) else { return false }
+        model.editor.armFringePicker(nil)
+        return true
+    }
+
+    /// Shows the magnifier for what is under the pointer now, or hides it
+    /// (design §20 "When it shows"). Called for every change: pointer,
+    /// pixels ready, level, pan, zoom, photo.
+    func updateMagnifier() {
+        let editor = model.editor
+        guard editor.pixelMagnifierIsPicking, model.mode == .loupe, let point = magnifierHostPoint(),
+              isOverPhoto(point), magnifierDebugUnit != nil || model.isWindowKey else {
+            hideMagnifier()
+            return
+        }
+        let geometry = magnifierGeometry(atHostPoint: point)
+        let backing = Int(hostView.window?.backingScaleFactor ?? 2)
+        var content = PixelMagnifierView.Content(level: model.pixelMagnifierLevel, backing: backing)
+        var state = MagnifierState(isVisible: true, backing: backing)
+        if let tool = editor.pixelMagnifierTool {
+            if let reading = PixelMagnifier.reading(tool: tool, atOutput: geometry.unit,
+                                                    devicePixelsAcross: geometry.devicePixelsAcross) {
+                let picture = PixelMagnifier.picture(image: tool.image, center: reading.pixel, level: model.pixelMagnifierLevel,
+                                                     deviceSize: Int(PixelMagnifierLayout.pictureDiameter) * backing)
+                content.picture = picture
+                content.values = reading.values
+                content.verdict = reading.verdict
+                content.note = reading.note
+                state.reading = reading
+                state.picture = picture
+                state.isReady = true
+            }
+        }
+        magnifierSpinner(waiting: !state.isReady)
+        let placement = PixelMagnifierPlacement.place(pointer: CGPoint(x: point.x, y: hostView.bounds.height - point.y),
+                                                      canvas: hostView.bounds.size, previous: magnifierPlacement)
+        magnifierPlacement = placement
+        let size = PixelMagnifierLayout.compositeSize
+        magnifierView.setFrameOrigin(NSPoint(x: placement.origin.x.rounded(),
+                                             y: (hostView.bounds.height - placement.origin.y - size.height).rounded()))
+        magnifierView.isHidden = false
+        magnifierView.show(content)
+        state.placement = placement
+        state.frame = magnifierView.frame
+        magnifierState = state
+    }
+
+    private func hideMagnifier() {
+        magnifierSpinner(waiting: false)
+        magnifierPlacement = nil
+        if !magnifierView.isHidden { magnifierView.isHidden = true }
+        magnifierState = MagnifierState()
+    }
+
+    private func magnifierSpinner(waiting: Bool) {
+        guard waiting else {
+            magnifierSpinnerTask?.cancel()
+            magnifierSpinnerTask = nil
+            magnifierView.setSpinning(false)
+            return
+        }
+        guard magnifierSpinnerTask == nil else { return }
+        magnifierSpinnerTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled else { return }
+            self?.magnifierView.setSpinning(true)
+        }
+    }
+
+    /// The pointer on the canvas: the debug script's, or the last real one.
+    private func magnifierHostPoint() -> NSPoint? {
+        if let unit = magnifierDebugUnit {
+            let size = imageView.bounds.size
+            return imageView.convert(NSPoint(x: unit.x * size.width, y: (1 - unit.y) * size.height), to: hostView)
+        }
+        return magnifierPointer
+    }
+
+    /// The same area as the crosshair: the photo where the scroll view shows it.
+    private func isOverPhoto(_ point: NSPoint) -> Bool {
+        guard hostView.bounds.contains(point) else { return false }
+        let inClip = scrollView.contentView.convert(point, from: hostView)
+        guard scrollView.contentView.bounds.contains(inClip) else { return false }
+        return imageView.bounds.contains(imageView.convert(point, from: hostView))
+    }
 
     func toggleZoom(at point: NSPoint? = nil) {
         zoom = zoom == .fit ? .actualSize : .fit
@@ -609,6 +830,8 @@ final class LoupeController: NSObject {
         let notes = model.editor.machineLearningNotApplied == nil ? [] : [MachineLearningText.canvasValue]
         let value = PhotoAccessibility.loupeValue(for: item, offline: model.isOffline(item), notes: notes, index: index,
                                                   count: model.items.count)
+        if model.editor.pixelMagnifierIsPicking { return LensText.pickingCanvasValue(value) }
+        if let fringeMap = model.editor.shownFringeMap { return LensText.canvasValue(fringeMap, photoValue: value) }
         guard let map = model.editor.shownSharpeningMap else { return value }
         return SharpeningMapText.canvasValue(map, photoValue: value)
     }
@@ -643,6 +866,24 @@ final class LoupeController: NSObject {
                 [weak self] in self?.model.toggleSharpeningMap(from: .menu)
             })
         }
+        if model.canShowFringeMap {
+            let titles = LensText.menuTitle
+            actions.append(PhotoAccessibility.action(model.editor.showsFringeMap ? titles.hide : titles.show) {
+                [weak self] in self?.model.toggleFringeMap(from: .menu)
+            })
+        }
+        if model.isPixelMagnifierActive {
+            if model.pixelMagnifierLevel.stepped(up: true) != nil {
+                actions.append(PhotoAccessibility.action(PixelMagnifierText.zoomIn) { [weak self] in
+                    self?.model.stepPixelMagnifierLevel(up: true)
+                })
+            }
+            if model.pixelMagnifierLevel.stepped(up: false) != nil {
+                actions.append(PhotoAccessibility.action(PixelMagnifierText.zoomOut) { [weak self] in
+                    self?.model.stepPixelMagnifierLevel(up: false)
+                })
+            }
+        }
         return actions
     }
 
@@ -661,6 +902,7 @@ final class LoupeController: NSObject {
                 break
             }
         }
+        if handleMagnifierKey(event) { return true }
         if let action = CullingKeymap.action(for: event) {
             model.perform(action)
             return true
@@ -680,8 +922,14 @@ final class LoupeController: NSObject {
         case .right, .down: model.moveFocus(by: 1)
         case .home: model.setFocus(0)
         case .end: model.setFocus(model.items.count - 1)
+        case .exitLoupe where model.editor.pickingFringeSlot != nil:
+            // Esc backs out one level: the crop session (above), picking, the map, review, then the loupe.
+            model.editor.armFringePicker(nil)
+            return true
+        case .exitLoupe where model.editor.showsFringeMap:
+            model.setFringeMap(false, from: .key)
+            return true
         case .exitLoupe where model.editor.showsSharpeningMap:
-            // Esc backs out one level: the crop session (above), the map, review, then the loupe.
             model.setSharpeningMap(false, from: .key)
             return true
         case .exitLoupe where model.isReviewing:
@@ -717,6 +965,30 @@ final class LoupeHostView: NSView {
         super.viewDidMoveToWindow()
         window?.makeFirstResponder(self)
         controller?.windowDidChange()
+    }
+
+    private var pointerArea: NSTrackingArea?
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let pointerArea { removeTrackingArea(pointerArea) }
+        // The pixel magnifier follows the pointer (design §20).
+        let area = NSTrackingArea(rect: .zero, options: [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
+                                  owner: self, userInfo: nil)
+        addTrackingArea(area)
+        pointerArea = area
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        controller?.movePointer(toWindowPoint: event.locationInWindow)
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        controller?.movePointer(toWindowPoint: event.locationInWindow)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        controller?.movePointer(toWindowPoint: nil)
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {
@@ -799,6 +1071,15 @@ final class LoupeScrollView: NSScrollView {
     /// Called with the clicked point in the document view.
     var onClick: ((NSPoint) -> Void)?
     var onDoubleClick: (() -> Void)?
+    /// A fringe slot is picking: a click picks at once (`onPick`).
+    var isPicking: (() -> Bool)?
+    var onPick: ((NSPoint) -> Void)?
+    /// The photo's rect in the document view while the crosshair shows over it.
+    var photoRect: (() -> NSRect?)?
+    /// The pointer moved during a drag (window coordinates).
+    var onPointerMoved: ((NSPoint) -> Void)?
+    /// When the last pick landed: the second click of a double-click is ignored.
+    private var lastPick: TimeInterval?
     /// Called with the zoom factor of an Option-scroll and the pointer in window coordinates.
     var onZoomScroll: ((CGFloat, NSPoint) -> Void)?
     /// How far the mouse moves before a click becomes a drag, in points.
@@ -826,20 +1107,34 @@ final class LoupeScrollView: NSScrollView {
         cancelPendingClick()
         downLocation = nil
         switch event.clickCount {
-        case 1: downLocation = event.locationInWindow
-        case 2: onDoubleClick?()
+        case 1:
+            downLocation = event.locationInWindow
+            // The outline shows the pixel a click from here would take (R22).
+            if isPicking?() == true { onPointerMoved?(event.locationInWindow) }
+        case 2:
+            // A habitual double-click right after a pick stays in the loupe.
+            if let lastPick, event.timestamp - lastPick < NSEvent.doubleClickInterval { return }
+            onDoubleClick?()
         default: break
         }
+    }
+
+    override func resetCursorRects() {
+        super.resetCursorRects()
+        guard let rect = photoRect?(), let documentView else { return }
+        addCursorRect(convert(documentView.convert(rect, to: self), to: self).intersection(bounds), cursor: .crosshair)
     }
 
     override func mouseDragged(with event: NSEvent) {
         guard let down = downLocation else { return }
         let location = event.locationInWindow
         if dragOrigin == nil {
+            // Within the threshold this is still a click at `down`: the outline stays (R22).
             guard hypot(location.x - down.x, location.y - down.y) > Self.dragThreshold else { return }
             dragOrigin = down
             NSCursor.closedHand.push()
         }
+        onPointerMoved?(location)
         guard let origin = dragOrigin else { return }
         var bounds = contentView.bounds.origin
         bounds.x -= (location.x - origin.x) / magnification
@@ -859,6 +1154,11 @@ final class LoupeScrollView: NSScrollView {
             return
         }
         guard let down = downLocation, let point = documentView?.convert(down, from: nil) else { return }
+        if isPicking?() == true {
+            lastPick = event.timestamp
+            onPick?(point)
+            return
+        }
         pendingClick = Task { [weak self] in
             try? await Task.sleep(for: .seconds(NSEvent.doubleClickInterval))
             guard !Task.isCancelled, let self else { return }
@@ -917,6 +1217,8 @@ struct LoupeCaption: View {
             // The map takes Original's place; the two are never on screen together.
             if let map = model.editor.shownSharpeningMap {
                 CaptionBadge(title: SharpeningMapText.badge(map), help: SharpeningMapText.badgeHelp(map))
+            } else if let map = model.editor.shownFringeMap {
+                CaptionBadge(title: LensText.badge(map), help: LensText.badgeHelp(map))
             } else if model.editor.showsOriginal {
                 CaptionBadge(title: String(localized: "Original"),
                              help: String(localized: "Showing the photo without adjustments. Press \\ to show them again."))
@@ -956,6 +1258,8 @@ extension LoupeCaption {
             return String(localized: "Refining the sharpening map",
                           comment: "Tooltip and VoiceOver label of the loupe caption's spinner")
         }
+        if model.editor.shownFringeMap != nil, model.editor.isRefiningSharpeningMap { return LensText.refiningMap }
+        if model.editor.isRefiningPickPreview { return LensText.refiningPhoto }
         return model.editor.isAwaitingMachineLearningFrame ? MachineLearningText.spinner : nil
     }
 }

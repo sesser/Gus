@@ -268,6 +268,70 @@ Compiling the Metal source and both pipelines took 134 ms the first time and
 1.2 ms afterwards (Metal's shader cache). The kernels read and write 32-bit
 float; with half float the full-size gain took 12.7 ms and the blur 24.4 ms.
 
+### Stitchable kernels
+
+The same command also times `StitchableKernels`: the same gain and blur as
+Core Image kernels compiled from Metal source with
+`CIKernel.kernels(withMetalString:)`, which Core Image can fuse with its own
+filters, and a chain of three gains around a stock `CIColorMatrix`. Passes
+are Core Image's (`CIRenderInfo.passCount`). First call, then the median of
+seven; Apple M4 Pro, macOS 27.2, 2026-11-07:
+
+| | preview 2560 × 1707 | passes | full 6000 × 4000 | passes |
+|---|---|---|---|---|
+| source only | 6.3 / 2.2 ms | 1 | 10.7 / 7.2 ms | 1 |
+| gain, runtime kernel | 8.1 / 4.1 ms | 3 | 27.9 / 22.7 ms | 12 |
+| gain, stitchable | 18.9 / 1.2 ms | 1 | 7.6 / 7.7 ms | 1 |
+| gain, `CIExposureAdjust` | 1.3 / 1.2 ms | 1 | 7.4 / 7.6 ms | 1 |
+| blur σ 4, runtime kernel | 10.8 / 7.2 ms | 4 | 46.8 / 41.9 ms | 16 |
+| blur σ 4, stitchable | 11.2 / 2.7 ms | 3 | 18.7 / 20.0 ms | 6 |
+| blur σ 4, `CIGaussianBlur` | 9.5 / 2.6 ms | 3 | 33.2 / 15.8 ms | 6 |
+| chain, runtime kernels | 11.3 / 8.6 ms | 6 | 53.7 / 50.3 ms | 24 |
+| chain, stitchable | 10.3 / 1.2 ms | 1 | 7.8 / 7.4 ms | 1 |
+| chain, stock filters | 1.3 / 1.2 ms | 1 | 6.8 / 7.2 ms | 1 |
+
+A stitchable gain, or a chain of them with a stock filter between, costs
+what the stock filter costs: Core Image folds it into the pass that reads
+the source. The naive stitchable blur (every tap read, weights computed per
+tap) takes as many passes as `CIGaussianBlur` and about 25% longer at full
+size. Compiling the stitchable source took about 300 ms on the first launch
+after a build and about 1 ms afterwards. These kernels run in the working
+format (`RGBAh`), so their accuracy is half float's (`StitchableKernelTests`).
+
+### Lens heading
+
+`photobench edits` also times the chromatic aberration controls next to a
+color slider (docs/features/chromatic-aberration, R18): live frames at 2560 px
+while Saturation, a fringe slot's Tolerance (Purple and Green filled), the
+fringe map and Red/cyan move. Median of 60 frames over three 6000 × 4000
+files; Apple M4 Pro, macOS 27.2, 2026-11-08:
+
+| ms (p50) | DNG | HEIC | JPEG |
+|---|---|---|---|
+| exposure | 64.9 | 24.5 | 23.8 |
+| saturation | 64.7 | 26.2 | 26.1 |
+| fringe tolerance | 78.0 | 27.1 | 27.2 |
+| fringe map | 17.2 | 10.1 | 10.5 |
+| color alignment | 13.9 | 30.5 | 33.2 |
+
+The pixel magnifier (arming to first pixels, update per pointer move, memory
+held, and Saturation's live frames with it held), median over the same files:
+
+| | DNG | HEIC | JPEG |
+|---|---|---|---|
+| arming to first pixels (ms) | 142 | 33 | 48 |
+| update per pointer move, 800% (ms) | 0.15 | 0.14 | 0.15 |
+| update per pointer move, 100% (ms) | 3.6 | 3.5 | 3.6 |
+| update per pointer move, 100%, straightened crop (ms) | 3.9 | 3.9 | 4.0 |
+| memory held while picking (MB) | 183 | 183 | 183 |
+| live saturation, magnifier held (ms) | 66.2 | 25.8 | 26.0 |
+| live saturation (ms) | 66.3 | 25.3 | 25.6 |
+
+The Lens kernels are seven Metal libraries (one kernel each); compiling them
+took 2.2 s on the first launch after a build, so the editor compiles them in
+the background when the first photo opens. `photobench scenes --output DIR`
+writes the test scenes as files for checks in the app.
+
 ## Reproducing
 
 Build the tools:

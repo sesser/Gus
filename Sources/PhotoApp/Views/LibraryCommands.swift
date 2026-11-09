@@ -31,6 +31,26 @@ struct LibraryCommands: Commands {
         return test(state)
     }
 
+    /// View ▸ Pixel Magnifier (design §20): dimmed unless a tool is picking.
+    private var pixelMagnifierMenu: some View {
+        Menu(PixelMagnifierText.menuTitle) {
+            Button(String(localized: "Zoom In")) { model?.stepPixelMagnifierLevel(up: true) }
+                .keyboardShortcut("=", modifiers: [])
+                .disabled(!canByKey { $0.isPixelMagnifierActive && $0.pixelMagnifierLevel.stepped(up: true) != nil })
+            Button(String(localized: "Zoom Out")) { model?.stepPixelMagnifierLevel(up: false) }
+                .keyboardShortcut("-", modifiers: [])
+                .disabled(!canByKey { $0.isPixelMagnifierActive && $0.pixelMagnifierLevel.stepped(up: false) != nil })
+            Divider()
+            ForEach(PixelMagnifierLevel.allCases, id: \.self) { level in
+                Toggle(PixelMagnifierText.title(level), isOn: Binding(
+                    get: { menu?.state.pixelMagnifierLevel == level },
+                    set: { _ in model?.setPixelMagnifierLevel(level) }))
+                    .disabled(!can { $0.isPixelMagnifierActive })
+            }
+        }
+        .disabled(!can { $0.isPixelMagnifierActive })
+    }
+
     var body: some Commands {
         fileCommands
         editCommands
@@ -189,6 +209,7 @@ struct LibraryCommands: Commands {
             Button(isLoupe ? String(localized: "Zoom Out") : String(localized: "Smaller Thumbnails")) { resize(larger: false) }
                 .keyboardShortcut("-", modifiers: .command)
                 .disabled(!can { $0.mode == .grid || ($0.showsLoupePhoto && $0.loupeZoom.canZoomOut) })
+            pixelMagnifierMenu
             Button(menu?.state.showsOriginal == true ? String(localized: "Show Adjustments")
                                                       : String(localized: "Show Original")) {
                 model?.editor.toggleOriginal()
@@ -453,6 +474,10 @@ struct LibraryCommands: Commands {
                 model?.toggleSharpeningMap(from: .menu)
             }
             .disabled(!can { $0.canShowSharpeningMap })
+            Button(menu?.state.showsFringeMap == true ? LensText.menuTitle.hide : LensText.menuTitle.show) {
+                model?.toggleFringeMap(from: .menu)
+            }
+            .disabled(!can { $0.canShowFringeMap })
             Divider()
             Button("Save Adjustments as Preset…") { model?.promptForAdjustmentPreset() }
                 .disabled(!can { $0.canSaveAsPreset })

@@ -29,7 +29,96 @@ extension LibraryModel {
     func pasteAdjustments() {
         guard let copiedAdjustments else { return }
         let actionName = String(localized: "Paste Adjustments", comment: "Undo action name")
+        if copiedAdjustments.needsAlignmentMeasurement {
+            changeAdjustmentsMeasuringAlignment(actionName: actionName) { copiedAdjustments.pasted(onto: $0) }
+            return
+        }
         applyAdjustments(copiedAdjustments, toVersions: batchSelection(action: actionName).versionIDs, actionName: actionName)
+    }
+
+    /// A paste or preset that carries automatic color alignment: each photo
+    /// it reaches is measured for itself (chromatic-aberration R16), one at a
+    /// time with progress in Activity under the command's title, Stop
+    /// writing nothing; then everything is saved as one undo step. A photo
+    /// that can't be measured is left completely unchanged (R16a): offline
+    /// ones with the existing warning, unreadable ones with the export's
+    /// "the original could not be read". In the loupe, the inspector shows
+    /// the measuring and, when it fails, "This photo could not be measured."
+    /// `toolbarTitle` is `actionName` fitted to the toolbar, when it can be long.
+    func changeAdjustmentsMeasuringAlignment(actionName: String, toolbarTitle: String? = nil,
+                                             _ transform: @escaping @Sendable (Adjustments) -> Adjustments) {
+        let selection = batchSelection(action: actionName, needsMaster: { _ in true })
+        let sources = selection.versionIDs.compactMap { id -> (Int64, URL, String)? in
+            guard let item = item(versionID: id), let url = sourceURL(for: item) else { return nil }
+            return (id, url, item.fileName)
+        }
+        guard !sources.isEmpty else { return }
+        let catalog = self.catalog
+        let generator = previews.interactiveGenerator
+        let inLoupe = mode == .loupe
+        batchAutoTask?.cancel()
+        let run = batchAutoRun.begin()
+        setBatchAutoProgress((0, sources.count), title: actionName, toolbarTitle: toolbarTitle)
+        if inLoupe { editor.setMeasuringAlignment(true) }
+        batchAutoTask = Task {
+            defer {
+                if batchAutoRun.owns(run) {
+                    setBatchAutoProgress(nil)
+                    batchAutoTask = nil
+                    if inLoupe { editor.setMeasuringAlignment(false) }
+                }
+            }
+            guard let stored = try? await catalog.editStacks(forVersions: sources.map(\.0)) else { return }
+            var measured = BatchEdit.AlignmentMeasurements()
+            for (index, (id, url, name)) in sources.enumerated() {
+                guard !Task.isCancelled else { return }
+                // Stacks this build can't read stay in the list below: the catalog skips and reports them.
+                guard let stack = stored.stacks[id] else { continue }
+                let values = transform(Adjustments(stack: stack))
+                if values.needsAlignmentMeasurement {
+                    let alignment = await Task.detached(priority: .userInitiated) {
+                        try? ColorAlignmentMeasurement.measure(source: url, adjustments: values, generator: generator)
+                    }.value
+                    measured.record(alignment, id: id, name: name)
+                } else {
+                    measured.record(values.colorAlignment, id: id, name: name)
+                }
+                guard batchAutoRun.owns(run) else { return }
+                setBatchAutoProgress((index + 1, sources.count), title: actionName, toolbarTitle: toolbarTitle)
+            }
+            guard !Task.isCancelled, batchAutoRun.owns(run) else { return }
+            let unreadable = measured.unreadableOriginals
+            if !unreadable.isEmpty {
+                // One row for the command (design §19 DQ-2): the count, then the files.
+                let summary = Self.unreadableSummary(unreadable.count)
+                report(Self.unreadableDetail(summary, names: unreadable), action: actionName, warning: true,
+                       announcing: summary)
+            }
+            if inLoupe, !unreadable.isEmpty { editor.noteAlignmentMeasureFailed() }
+            let alignments = measured.alignments
+            changeAdjustments(ofVersions: measured.versionsToChange(from: sources.map(\.0)), actionName: actionName) { id, values in
+                let changed = transform(values)
+                guard changed.needsAlignmentMeasurement, let alignment = alignments[id] else { return changed }
+                return changed.measuringAlignment(alignment)
+            }
+        }
+    }
+
+    /// The first line of the row for originals a measuring paste or preset
+    /// could not read.
+    static func unreadableSummary(_ count: Int) -> String {
+        String(localized: "\(count) photos were left unchanged: their originals could not be read.",
+               comment: "Activity, after a paste or preset that measures color alignment: originals that could not be read; the files follow")
+    }
+
+    /// The summary, one line per file up to the export's limit, then "And N more.".
+    static func unreadableDetail(_ summary: String, names: [String]) -> String {
+        let limit = ExportActivityReport.failureListLimit
+        var lines = [summary] + names.prefix(limit).map { String(localized: "\($0): the original could not be read.") }
+        if names.count > limit {
+            lines.append(String(localized: "And \(names.count - limit) more.", comment: "Activity: failures past the listed ones"))
+        }
+        return lines.joined(separator: "\n")
     }
 
     // MARK: Applying to many photos

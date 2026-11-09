@@ -5,6 +5,50 @@
 /// camera frame) left out while their volume is offline. Stacks this build
 /// cannot read are left out later, by the catalog.
 public enum BatchEdit {
+    /// Which run of a replaceable job is the current one: a cancelled run's
+    /// clean-up only touches state it still owns.
+    public struct LatestRun: Sendable {
+        public private(set) var current = 0
+
+        public init() {}
+
+        public mutating func begin() -> Int {
+            current += 1
+            return current
+        }
+
+        public func owns(_ run: Int) -> Bool { run == current }
+    }
+
+    /// What measuring color alignment found for a paste or preset (R16a).
+    public struct AlignmentMeasurements: Sendable {
+        public private(set) var alignments: [Int64: ColorAlignment] = [:]
+        /// Files whose originals could not be read, in the order measured.
+        public private(set) var unreadableOriginals: [String] = []
+        private var failed = Set<Int64>()
+
+        public init() {}
+
+        /// `alignment` nil: the original could not be measured.
+        public mutating func record(_ alignment: ColorAlignment?, id: Int64, name: String) {
+            if let alignment {
+                alignments[id] = alignment
+            } else {
+                failed.insert(id)
+                unreadableOriginals.append(name)
+            }
+        }
+
+        /// The versions to change: all but those whose originals could not be
+        /// read. A version whose stack this build can't read has no
+        /// measurement either, and stays in: the catalog skips it and reports it.
+        public func versionsToChange(from ids: [Int64]) -> [Int64] {
+            var kept: [Int64] = []
+            for id in ids where !failed.contains(id) { kept.append(id) }
+            return kept
+        }
+    }
+
     public struct Candidate: Hashable, Sendable {
         public var versionID: Int64
         public var isVideo: Bool

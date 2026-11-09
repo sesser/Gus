@@ -15,6 +15,10 @@ public struct Adjustments: Hashable, Sendable {
     /// carry it, copy and paste does.
     public var crop = Crop()
     public var decode = RawDecode()
+    /// Lateral color: red and blue lined up with green, before the crop.
+    public var colorAlignment = ColorAlignment()
+    /// Picked fringe colors turned gray near high-contrast edges, before the crop.
+    public var colorFringes = ColorFringes()
     public var whiteBalance = WhiteBalance()
     public var exposure = Exposure()
     public var tone = Tone()
@@ -91,6 +95,8 @@ public struct Adjustments: Hashable, Sendable {
         }
         add(crop)
         add(decode)
+        add(colorAlignment)
+        add(colorFringes)
         add(whiteBalance)
         add(exposure)
         add(tone)
@@ -119,6 +125,8 @@ public struct Adjustments: Hashable, Sendable {
         switch operation.kind {
         case Crop.kind: crop = Crop(values)
         case RawDecode.kind: decode = RawDecode(values)
+        case ColorAlignment.kind: colorAlignment = ColorAlignment(values)
+        case ColorFringes.kind: colorFringes = ColorFringes(values)
         case WhiteBalance.kind: whiteBalance = WhiteBalance(values)
         case Exposure.kind: exposure = Exposure(values)
         case Tone.kind: tone = Tone(values)
@@ -146,6 +154,8 @@ public struct Adjustments: Hashable, Sendable {
         switch kind {
         case Crop.kind: crop.parameters
         case RawDecode.kind: decode.parameters
+        case ColorAlignment.kind: colorAlignment.parameters
+        case ColorFringes.kind: colorFringes.parameters
         case WhiteBalance.kind: whiteBalance.parameters
         case Exposure.kind: exposure.parameters
         case Tone.kind: tone.parameters
@@ -168,6 +178,8 @@ public struct Adjustments: Hashable, Sendable {
         switch kind {
         case Crop.kind: crop = Crop()
         case RawDecode.kind: decode = RawDecode()
+        case ColorAlignment.kind: colorAlignment = ColorAlignment()
+        case ColorFringes.kind: colorFringes = ColorFringes()
         case WhiteBalance.kind: whiteBalance = WhiteBalance()
         case Exposure.kind: exposure = Exposure()
         case Tone.kind: tone = Tone()
@@ -191,6 +203,8 @@ public struct Adjustments: Hashable, Sendable {
         switch kind {
         case Crop.kind: crop = source.crop
         case RawDecode.kind: decode = source.decode
+        case ColorAlignment.kind: colorAlignment = source.colorAlignment
+        case ColorFringes.kind: colorFringes = source.colorFringes
         case WhiteBalance.kind: whiteBalance = source.whiteBalance
         case Exposure.kind: exposure = source.exposure
         case Tone.kind: tone = source.tone
@@ -251,13 +265,14 @@ public struct Adjustments: Hashable, Sendable {
 
     /// The Adjust tab's headings, used to reset a group of modules.
     public enum Section: String, CaseIterable, Sendable {
-        case develop, tone, details, colorMixer, colorGrading, effects
+        case develop, tone, details, lens, colorMixer, colorGrading, effects
 
         public var groups: [Group] {
             switch self {
             case .develop: [.profile, .whiteBalance, .light, .presence]
             case .tone: [.toneCurve]
             case .details: [.sharpening, .noiseReduction]
+            case .lens: [.colorFringes, .colorAlignment]
             case .colorMixer: [.colorMixer]
             case .colorGrading: [.colorGrade]
             case .effects: [.lookTable, .vignette, .grain]
@@ -269,6 +284,7 @@ public struct Adjustments: Hashable, Sendable {
     public enum Group: String, CaseIterable, Sendable {
         case profile, whiteBalance, light, presence, toneCurve, sharpening, noiseReduction, colorMixer, colorGrade
         case lookTable, vignette, grain
+        case colorFringes, colorAlignment
 
         public var kinds: [EditOperationKind] {
             switch self {
@@ -284,6 +300,8 @@ public struct Adjustments: Hashable, Sendable {
             case .lookTable: [LookTable.kind]
             case .vignette: [Vignette.kind]
             case .grain: [Grain.kind]
+            case .colorFringes: [ColorFringes.kind]
+            case .colorAlignment: [ColorAlignment.kind]
             }
         }
     }

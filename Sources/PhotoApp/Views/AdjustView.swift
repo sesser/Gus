@@ -88,6 +88,10 @@ struct AdjustView: View {
                             DetailControls(model: model)
                         }
                         InspectorSeparator()
+                        AdjustSection(.lens, editor: editor) {
+                            LensControls(model: model)
+                        }
+                        InspectorSeparator()
                         MasksSection(editor: editor)
                         InspectorSeparator()
                         AdjustSection(.effects, editor: editor) {

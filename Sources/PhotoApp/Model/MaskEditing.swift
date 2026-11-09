@@ -60,7 +60,8 @@ extension AdjustmentEditor {
     /// has a mask, its frames are the camera's frame: scaled up to the sensor.
     var maskSourceSize: CGSize? {
         guard let size = maskFrameSize else { return nil }
-        if let cameraRect, adjustments.crop.isIdentity, frame?.adjustments.local.renderedMasks.isEmpty ?? true {
+        // Frames of the whole sensor (a crop, masks or color alignment) need no scaling.
+        if let cameraRect, adjustments.crop.isIdentity, !(frame?.adjustments.decodeSettings.fullFrame ?? false) {
             return CGSize(width: size.width / cameraRect.width, height: size.height / cameraRect.height)
         }
         return size

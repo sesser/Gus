@@ -59,6 +59,12 @@ struct LibraryMenuState: Equatable {
     /// (`LibraryModel.canShowSharpeningMap`).
     var showsSharpeningMap: Bool
     var canShowSharpeningMap: Bool
+    /// The fringe map (chromatic-aberration design §6), `LibraryModel.canShowFringeMap`.
+    var showsFringeMap: Bool
+    var canShowFringeMap: Bool
+    /// A tool is picking with the pixel magnifier, and its zoom.
+    var isPixelMagnifierActive: Bool
+    var pixelMagnifierLevel: PixelMagnifierLevel
     /// The map on screen says no sharpening is applied (design §7).
     var sharpeningMapNotApplied: Bool
     /// The loupe shows a video.
@@ -140,6 +146,10 @@ struct LibraryMenuState: Equatable {
         showsMaskOverlay = model.editor.showsMaskOverlay
         showsSharpeningMap = model.editor.showsSharpeningMap
         canShowSharpeningMap = model.canShowSharpeningMap
+        showsFringeMap = model.editor.showsFringeMap
+        canShowFringeMap = model.canShowFringeMap
+        isPixelMagnifierActive = model.isPixelMagnifierActive
+        pixelMagnifierLevel = model.pixelMagnifierLevel
         sharpeningMapNotApplied = model.editor.shownSharpeningMap?.isNotApplied ?? false
         showsOriginal = model.editor.showsOriginal
         loupeZoom = model.loupeZoom

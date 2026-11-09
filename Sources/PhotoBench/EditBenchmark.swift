@@ -19,6 +19,13 @@ enum EditBenchmark {
         return adjustments
     }
 
+    /// One pointer move of the pixel magnifier.
+    private static func magnifierUpdate(_ tool: FringeMagnifierTool, at unit: CGPoint, level: PixelMagnifierLevel) {
+        guard let reading = PixelMagnifier.reading(tool: tool, atOutput: unit, devicePixelsAcross: 2560) else { return }
+        let picture = PixelMagnifier.picture(image: tool.image, center: reading.pixel, level: level, deviceSize: 256)
+        _ = picture.bitmap(surround: (24, 24, 24))
+    }
+
     static func run(_ arguments: Arguments) async throws -> [String: any Sendable] {
         let library = try BenchLibrary(arguments)
         let limit = arguments.int("limit", default: 12)
@@ -48,6 +55,18 @@ enum EditBenchmark {
             var firstFrame: [Double] = []
             var nextFrames: [Double] = []
             var decodeChanges: [Double] = []
+            // The Lens heading's controls next to a color slider (chromatic-aberration R18, AC15).
+            var saturation: [Double] = []
+            var fringeTolerance: [Double] = []
+            var fringeMap: [Double] = []
+            var alignment: [Double] = []
+            // The pixel magnifier (chromatic-aberration R36, AC31).
+            var magnifierFirstPixels: [Double] = []
+            var magnifierUpdate: [Double] = []
+            var magnifierUpdate100: [Double] = []
+            var magnifierUpdateCropped: [Double] = []
+            var magnifierHeldMB: [Double] = []
+            var saturationWithMagnifier: [Double] = []
             for url in urls where load == nil {
                 identity.append(try await measure { _ = try generator.jpegData(source: url, stack: .identity, tier: .preview) }.1.milliseconds)
                 edited.append(try await measure { _ = try generator.jpegData(source: url, stack: stack, tier: .preview) }.1.milliseconds)
@@ -60,6 +79,57 @@ enum EditBenchmark {
                     values.exposure.ev = 0.4 + Double(frame) * 0.02
                     nextFrames.append(try await measure { _ = try await session.render(values, interactive: true) }.1.milliseconds)
                 }
+                for frame in 0..<frames {
+                    values.presence.saturation = 5 + Double(frame)
+                    saturation.append(try await measure { _ = try await session.render(values, interactive: true) }.1.milliseconds)
+                }
+                values.colorFringes = ColorFringes(slot1: CommonFringeColor.purple.slot, slot2: CommonFringeColor.green.slot)
+                for frame in 0..<frames {
+                    values.colorFringes.slot1?.tolerance = 25 + Double(frame)
+                    fringeTolerance.append(try await measure { _ = try await session.render(values, interactive: true) }.1.milliseconds)
+                }
+                for frame in 0..<frames {
+                    values.colorFringes.slot1?.tolerance = 25 + Double(frame)
+                    fringeMap.append(try await measure {
+                        _ = try await session.render(values, interactive: true, content: .fringeMap)
+                    }.1.milliseconds)
+                }
+                for frame in 0..<frames {
+                    values.colorAlignment = ColorAlignment(red: 5 + Double(frame), blue: -5)
+                    alignment.append(try await measure { _ = try await session.render(values, interactive: true) }.1.milliseconds)
+                }
+                values = typical
+                // Arming: the held pixels, on a context of their own as in the app.
+                let magnifierGenerator = generator.withEngine(RenderEngine(contextCount: 1, name: "pixel-magnifier"))
+                var held: FringeSamplePixels?
+                magnifierFirstPixels.append(try await measure {
+                    held = try FringePicker.samplePixels(source: url, values: values, generator: magnifierGenerator)
+                }.1.milliseconds)
+                if let pixels = held {
+                    magnifierHeldMB.append(Double(pixels.byteCount) / 1_048_576)
+                    let tool = FringeMagnifierTool(pixels: pixels, crop: Crop())
+                    let croppedTool = FringeMagnifierTool(pixels: pixels, crop: Crop(rect: CropRect(x: 0.1, y: 0.1, width: 0.8, height: 0.8), angle: 3))
+                    for frame in 0..<frames {
+                        let unit = CGPoint(x: 0.3 + Double(frame) * 0.01, y: 0.4)
+                        magnifierUpdate.append(await measure {
+                            Self.magnifierUpdate(tool, at: unit, level: .standard)
+                        }.1.milliseconds)
+                        // The largest picture the magnifier draws, and the costliest cells (a straightened crop).
+                        magnifierUpdate100.append(await measure {
+                            Self.magnifierUpdate(tool, at: unit, level: .percent100)
+                        }.1.milliseconds)
+                        magnifierUpdateCropped.append(await measure {
+                            Self.magnifierUpdate(croppedTool, at: unit, level: .percent100)
+                        }.1.milliseconds)
+                    }
+                    for frame in 0..<frames {
+                        values.presence.saturation = 25 + Double(frame)
+                        saturationWithMagnifier.append(try await measure {
+                            _ = try await session.render(values, interactive: true)
+                        }.1.milliseconds)
+                    }
+                    values = typical
+                }
                 if SupportedFormats.isRaw(pathExtension: url.pathExtension) {
                     for frame in 0..<4 {
                         values.whiteBalance = WhiteBalance(preset: .custom, temperature: 4000 + Double(frame) * 500, tint: 0)
@@ -70,9 +140,15 @@ enum EditBenchmark {
             var entry: [String: any Sendable] = [:]
             for (name, values) in [("preview identity", identity), ("preview edited", edited),
                                    ("live first frame", firstFrame), ("live next frame", nextFrames),
-                                   ("live white balance", decodeChanges)] where !values.isEmpty {
+                                   ("live white balance", decodeChanges), ("live saturation", saturation),
+                                   ("live fringe tolerance", fringeTolerance), ("live fringe map", fringeMap),
+                                   ("live color alignment", alignment),
+                                   ("magnifier first pixels", magnifierFirstPixels), ("magnifier update", magnifierUpdate),
+                                   ("magnifier update 100%", magnifierUpdate100), ("magnifier 100%, cropped", magnifierUpdateCropped),
+                                   ("magnifier held MB", magnifierHeldMB),
+                                   ("saturation, magnifier held", saturationWithMagnifier)] where !values.isEmpty {
                 let stats = Stats(values)
-                print("  \(name.padding(toLength: 19, withPad: " ", startingAt: 0)) \(stats.line)")
+                print("  \(name.padding(toLength: 27, withPad: " ", startingAt: 0)) \(stats.line)")
                 entry[name] = stats.dictionary
             }
             results[format] = entry

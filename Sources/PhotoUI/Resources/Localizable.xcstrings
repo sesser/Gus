@@ -211,7 +211,7 @@
       }
     },
     "%@: the original could not be read." : {
-      "comment" : "Export report: file name",
+      "comment" : "Export report: file name; also a file line under the left-unchanged row of a paste or preset that measures color alignment",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -597,6 +597,29 @@
         }
       }
     },
+    "%lld photos were left unchanged: their originals could not be read." : {
+      "comment" : "Activity, after a paste or preset that measures color alignment: originals that could not be read; one line per file follows",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photo was left unchanged: its original could not be read."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photos were left unchanged: their originals could not be read."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld photos were skipped because their files already exist." : {
       "comment" : "Activity: an export skipped photos whose names were taken, as the person chose",
       "localizations" : {
@@ -759,7 +782,7 @@
       }
     },
     "100%" : {
-      "comment" : "Toolbar, loupe: show the photo at actual size",
+      "comment" : "Toolbar, loupe: show the photo at actual size; also a zoom level of the pixel magnifier",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -776,6 +799,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "16 Bits per Channel"
+          }
+        }
+      }
+    },
+    "1600%" : {
+      "comment" : "A zoom level of the pixel magnifier; no thousands separator",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1600%"
           }
         }
       }
@@ -802,6 +836,17 @@
         }
       }
     },
+    "200%" : {
+      "comment" : "A zoom level of the pixel magnifier; no thousands separator",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "200%"
+          }
+        }
+      }
+    },
     "35 mm Eq." : {
       "comment" : "Info tab: 35 mm equivalent focal length tile",
       "localizations" : {
@@ -824,6 +869,17 @@
         }
       }
     },
+    "400%" : {
+      "comment" : "A zoom level of the pixel magnifier; no thousands separator",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "400%"
+          }
+        }
+      }
+    },
     "4:3" : {
       "comment" : "Crop aspect ratio",
       "localizations" : {
@@ -842,6 +898,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "8 Bits per Channel"
+          }
+        }
+      }
+    },
+    "800%" : {
+      "comment" : "A zoom level of the pixel magnifier; no thousands separator",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "800%"
           }
         }
       }
@@ -1300,6 +1367,17 @@
         }
       }
     },
+    "Align automatically" : {
+      "comment" : "Check box",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Align automatically"
+          }
+        }
+      }
+    },
     "All %lld Photos Are Already in the Library" : {
       "comment" : "Import window: every shot is in the library",
       "localizations" : {
@@ -1377,6 +1455,17 @@
         }
       }
     },
+    "Almost no color" : {
+      "comment" : "The pixel magnifier's plate, at a spot a click would refuse; short state, not a sentence",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Almost no color"
+          }
+        }
+      }
+    },
     "Already in the library" : {
       "comment" : "Import window tile help",
       "localizations" : {
@@ -1433,7 +1522,7 @@
       }
     },
     "And %lld more." : {
-      "comment" : "Activity: failures past the listed ones",
+      "comment" : "Activity: failures past the listed ones (export; a paste or preset that measures color alignment)",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1609,6 +1698,17 @@
         }
       }
     },
+    "Aqua" : {
+      "comment" : "Fringe color name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aqua"
+          }
+        }
+      }
+    },
     "Aquas" : {
       "comment" : "Color mixer band",
       "localizations" : {
@@ -1697,6 +1797,17 @@
         }
       }
     },
+    "B" : {
+      "comment" : "The pixel magnifier's plate: blue. A color channel; not translated without checking",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "B"
+          }
+        }
+      }
+    },
     "Back" : {
       "comment" : "Look-up table sheet: back to the tables from a page",
       "localizations" : {
@@ -1715,6 +1826,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Balance"
+          }
+        }
+      }
+    },
+    "Before edits" : {
+      "comment" : "The pixel magnifier's plate: the fringe tool's note; what the magnifier draws",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Before edits"
           }
         }
       }
@@ -1780,6 +1902,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Blue"
+          }
+        }
+      },
+      "comment" : "fringe color name"
+    },
+    "Blue/yellow" : {
+      "comment" : "Slider",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blue/yellow"
           }
         }
       }
@@ -2158,6 +2292,17 @@
         }
       }
     },
+    "Choose Fringe Color" : {
+      "comment" : "Undo action name, a color from the list",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose Fringe Color"
+          }
+        }
+      }
+    },
     "Choose Image…" : {
       "comment" : "Export sheet: choose the watermark image",
       "localizations" : {
@@ -2176,6 +2321,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Choose a PNG image. Transparent areas stay see-through."
+          }
+        }
+      }
+    },
+    "Choose a common fringe color for Color %lld, pick one from the photo, or clear it" : {
+      "comment" : "Fringe slot menu's tooltip and VoiceOver help",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a common fringe color for Color %lld, pick one from the photo, or clear it"
           }
         }
       }
@@ -2290,7 +2446,7 @@
       }
     },
     "Clear" : {
-      "comment" : "Clears the rating and flag filters",
+      "comment" : "Clears the rating and flag filters; empties a fringe slot (slot menu)",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2317,6 +2473,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Clear Flag"
+          }
+        }
+      }
+    },
+    "Clear Fringe Color" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear Fringe Color"
+          }
+        }
+      }
+    },
+    "Click a colored fringe in the photo to pick Color %lld. The magnifier outlines the pixel a click takes. Press Esc to cancel." : {
+      "comment" : "Inspector caption, picking an empty slot",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Click a colored fringe in the photo to pick Color %lld. The magnifier outlines the pixel a click takes. Press Esc to cancel."
+          }
+        }
+      }
+    },
+    "Click a fringe in the photo to pick its color" : {
+      "comment" : "Eyedropper tooltip and VoiceOver help",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Click a fringe in the photo to pick its color"
           }
         }
       }
@@ -2420,6 +2609,116 @@
         }
       }
     },
+    "Color %lld" : {
+      "comment" : "Fringe slot row label and VoiceOver group name; the argument is 1 or 2",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color %lld"
+          }
+        }
+      }
+    },
+    "Color %lld cleared." : {
+      "comment" : "VoiceOver announcement after a clear",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color %lld cleared."
+          }
+        }
+      }
+    },
+    "Color %lld commands" : {
+      "comment" : "VoiceOver label of a fringe slot's menu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color %lld commands"
+          }
+        }
+      }
+    },
+    "Color %lld set to %@." : {
+      "comment" : "VoiceOver announcement after a pick or a choice from the list; %lld slot, %@ hue name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color %1$lld set to %2$@."
+          }
+        }
+      }
+    },
+    "Color %lld tolerance" : {
+      "comment" : "VoiceOver label of a fringe slot's Tolerance slider",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color %lld tolerance"
+          }
+        }
+      }
+    },
+    "Color %lld tolerance value" : {
+      "comment" : "VoiceOver label of a fringe slot's Tolerance field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color %lld tolerance value"
+          }
+        }
+      }
+    },
+    "Color %lld's effect is hidden while you pick. Click a colored fringe, or press Esc to cancel." : {
+      "comment" : "Inspector caption, replacing",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color %lld's effect is hidden while you pick. Click a colored fringe, or press Esc to cancel."
+          }
+        }
+      }
+    },
+    "Color Alignment" : {
+      "comment" : "Adjust tab group under Lens and preset group: lines up red and blue with green toward the corners",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color Alignment"
+          }
+        }
+      }
+    },
+    "Color Fringes" : {
+      "comment" : "Adjust tab group under Lens and preset group: picked fringe colors turned gray near high-contrast edges",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color Fringes"
+          }
+        }
+      }
+    },
+    "Color Fringes is turned off. Turn it on to remove color from the white areas, and the gray areas in part." : {
+      "comment" : "Legend, group off",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color Fringes is turned off. Turn it on to remove color from the white areas, and the gray areas in part."
+          }
+        }
+      }
+    },
     "Color Grading" : {
       "comment" : "Adjust tab heading",
       "localizations" : {
@@ -2514,6 +2813,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Commas separate alternatives: “orf, arw”. Words must all match: “sony jpg”."
+          }
+        }
+      }
+    },
+    "Common Fringe Colors" : {
+      "comment" : "Section header in the slot menu: Purple and Green follow it",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Common Fringe Colors"
           }
         }
       }
@@ -3475,6 +3785,17 @@
         }
       }
     },
+    "Exit Review (F) to show the fringe map." : {
+      "comment" : "Toggle tooltip, review mode",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exit Review (F) to show the fringe map."
+          }
+        }
+      }
+    },
     "Exit Review (F) to show the sharpening map." : {
       "comment" : "Tooltip of the dimmed Sharpening Map toggle in review mode; Exit Review is the View menu item",
       "localizations" : {
@@ -4017,6 +4338,28 @@
         }
       }
     },
+    "Finish cropping to pick a fringe color." : {
+      "comment" : "Eyedropper tooltip, dimmed in a crop session",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finish cropping to pick a fringe color."
+          }
+        }
+      }
+    },
+    "Finish cropping to show the fringe map." : {
+      "comment" : "Toggle tooltip, crop session",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finish cropping to show the fringe map."
+          }
+        }
+      }
+    },
     "Finish cropping to show the sharpening map." : {
       "comment" : "Tooltip of the dimmed Sharpening Map toggle during a crop session",
       "localizations" : {
@@ -4181,6 +4524,50 @@
         }
       }
     },
+    "Fringe Map" : {
+      "comment" : "Inspector toggle; caption badge",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fringe Map"
+          }
+        }
+      }
+    },
+    "Fringe Map · Not Applied" : {
+      "comment" : "Caption badge, Color Fringes off",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fringe Map · Not Applied"
+          }
+        }
+      }
+    },
+    "Fringe map, %@" : {
+      "comment" : "Canvas VoiceOver value; %@ is the photo's usual value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fringe map, %@"
+          }
+        }
+      }
+    },
+    "Fringe map, not applied, %@" : {
+      "comment" : "Canvas VoiceOver value, group off",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fringe map, not applied, %@"
+          }
+        }
+      }
+    },
     "From" : {
       "comment" : "Import window source picker",
       "localizations" : {
@@ -4210,6 +4597,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Full Size"
+          }
+        }
+      }
+    },
+    "G" : {
+      "comment" : "The pixel magnifier's plate: green. A color channel; not translated without checking",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "G"
           }
         }
       }
@@ -4254,7 +4652,8 @@
             "value" : "Green"
           }
         }
-      }
+      },
+      "comment" : "fringe color name; a common fringe color in the slot menu"
     },
     "Greens" : {
       "comment" : "Color mixer band",
@@ -4339,6 +4738,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Hide Film Strip"
+          }
+        }
+      }
+    },
+    "Hide Fringe Map" : {
+      "comment" : "Adjust menu; loupe context menu; VoiceOver action",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide Fringe Map"
           }
         }
       }
@@ -5281,6 +5691,17 @@
         }
       }
     },
+    "L" : {
+      "comment" : "The pixel magnifier's plate: luminance; not translated without checking",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L"
+          }
+        }
+      }
+    },
     "LZW" : {
       "comment" : "Export window: TIFF compression",
       "localizations" : {
@@ -5336,7 +5757,7 @@
       }
     },
     "Lens" : {
-      "comment" : "Inspector info row and template token",
+      "comment" : "Inspector info row and template token; Adjust tab heading for lens corrections: color fringes, color alignment",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -5631,6 +6052,17 @@
         }
       }
     },
+    "Magenta" : {
+      "comment" : "Fringe color name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Magenta"
+          }
+        }
+      }
+    },
     "Magentas" : {
       "comment" : "Color mixer band",
       "localizations" : {
@@ -5796,6 +6228,39 @@
         }
       }
     },
+    "Measure this photo and line up its red and blue edges with the green" : {
+      "comment" : "Check box tooltip and help",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Measure this photo and line up its red and blue edges with the green"
+          }
+        }
+      }
+    },
+    "Measured on this photo. Paste and presets measure each photo again." : {
+      "comment" : "Caption, automatic",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Measured on this photo. Paste and presets measure each photo again."
+          }
+        }
+      }
+    },
+    "Measuring color alignment" : {
+      "comment" : "Spinner tooltip and VoiceOver label",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Measuring color alignment"
+          }
+        }
+      }
+    },
     "Measuring exposure %lld of %lld" : {
       "comment" : "Activity: batch Auto Exposure",
       "localizations" : {
@@ -5803,6 +6268,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Measuring exposure %lld of %lld"
+          }
+        }
+      }
+    },
+    "Measuring this photo…" : {
+      "comment" : "Caption, measuring",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Measuring this photo…"
           }
         }
       }
@@ -6311,6 +6787,17 @@
         }
       }
     },
+    "No color edges were found to correct in this photo." : {
+      "comment" : "Caption, measured nothing",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No color edges were found to correct in this photo."
+          }
+        }
+      }
+    },
     "No keywords" : {
       "comment" : "Inspector, selection has no keywords",
       "localizations" : {
@@ -6411,7 +6898,7 @@
       }
     },
     "None" : {
-      "comment" : "No value in a metadata comparison",
+      "comment" : "No value in a metadata comparison; an empty fringe slot's value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6692,7 +7179,8 @@
             "value" : "Orange"
           }
         }
-      }
+      },
+      "comment" : "Fringe color name"
     },
     "Oranges" : {
       "comment" : "Color mixer band",
@@ -6946,6 +7434,17 @@
         }
       }
     },
+    "Pick Color %lld" : {
+      "comment" : "VoiceOver label of a fringe slot's eyedropper",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick Color %lld"
+          }
+        }
+      }
+    },
     "Pick Colors" : {
       "comment" : "Color range button",
       "localizations" : {
@@ -6953,6 +7452,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Pick Colors"
+          }
+        }
+      }
+    },
+    "Pick Fringe Color" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick Fringe Color"
+          }
+        }
+      }
+    },
+    "Pick a fringe's color in the photo with the eyedropper, or choose Purple or Green from the menu beside it. The color turns gray where it lines a high-contrast edge." : {
+      "comment" : "Inspector caption, no pick",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick a fringe's color in the photo with the eyedropper, or choose Purple or Green from the menu beside it. The color turns gray where it lines a high-contrast edge."
+          }
+        }
+      }
+    },
+    "Pick from Photo" : {
+      "comment" : "Arms the slot's eyedropper",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick from Photo"
+          }
+        }
+      }
+    },
+    "Pick or choose a fringe color to show the fringe map." : {
+      "comment" : "Toggle tooltip, dimmed with no pick",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick or choose a fringe color to show the fringe map."
           }
         }
       }
@@ -6967,6 +7510,17 @@
         }
       }
     },
+    "Picking a fringe color, %@" : {
+      "comment" : "Canvas VoiceOver value while picking",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Picking a fringe color, %@"
+          }
+        }
+      }
+    },
     "Picks" : {
       "comment" : "Built-in album",
       "localizations" : {
@@ -6974,6 +7528,72 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Picks"
+          }
+        }
+      }
+    },
+    "Pixel Magnifier" : {
+      "comment" : "View menu and loupe context submenu title: the small view of the photo's own pixels beside the pointer while picking; shared by every tool that uses it",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pixel Magnifier"
+          }
+        }
+      }
+    },
+    "Pixel Magnifier Zoom In" : {
+      "comment" : "Canvas VoiceOver action",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pixel Magnifier Zoom In"
+          }
+        }
+      }
+    },
+    "Pixel Magnifier Zoom Out" : {
+      "comment" : "Canvas VoiceOver action",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pixel Magnifier Zoom Out"
+          }
+        }
+      }
+    },
+    "Pixel magnifier" : {
+      "comment" : "Inspector row label; sentence-style",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pixel magnifier"
+          }
+        }
+      }
+    },
+    "Pixel magnifier at %@." : {
+      "comment" : "VoiceOver announcement after a level change by key, menu or action; %@ is the percentage",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pixel magnifier at %@."
+          }
+        }
+      }
+    },
+    "Pixel magnifier zoom" : {
+      "comment" : "The pop-up's VoiceOver label",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pixel magnifier zoom"
           }
         }
       }
@@ -7195,7 +7815,8 @@
             "value" : "Purple"
           }
         }
-      }
+      },
+      "comment" : "fringe color name; a common fringe color in the slot menu"
     },
     "Purples" : {
       "comment" : "Color mixer band",
@@ -7248,6 +7869,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Quit While Importing?"
+          }
+        }
+      }
+    },
+    "R" : {
+      "comment" : "The pixel magnifier's plate: red. A color channel; not translated without checking",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "R"
           }
         }
       }
@@ -7324,6 +7956,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Raise Strength to add grain. Grain is easiest to judge at 1:1 (Z)."
+          }
+        }
+      }
+    },
+    "Raise Tolerance to include colors further from the picked one. Colors away from high-contrast edges keep theirs." : {
+      "comment" : "Inspector caption, at least one pick",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Raise Tolerance to include colors further from the picked one. Colors away from high-contrast edges keep theirs."
           }
         }
       }
@@ -7425,6 +8068,18 @@
             "value" : "Red"
           }
         }
+      },
+      "comment" : "fringe color name"
+    },
+    "Red/cyan" : {
+      "comment" : "Slider",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Red/cyan"
+          }
+        }
       }
     },
     "Reds" : {
@@ -7445,6 +8100,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Reduce noise with the machine learning model in the macOS raw decoder. Luminance sets the amount; Color isn't used."
+          }
+        }
+      }
+    },
+    "Refining the fringe map" : {
+      "comment" : "Caption spinner tooltip and VoiceOver label",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Refining the fringe map"
+          }
+        }
+      }
+    },
+    "Refining the photo" : {
+      "comment" : "Caption spinner while replacing a pick zoomed in",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Refining the photo"
           }
         }
       }
@@ -7608,6 +8285,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Remove this table from the collection"
+          }
+        }
+      }
+    },
+    "Removes red/cyan and blue/yellow outlines that widen toward the corners." : {
+      "comment" : "Caption, off",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Removes red/cyan and blue/yellow outlines that widen toward the corners."
           }
         }
       }
@@ -8249,6 +8937,17 @@
         }
       }
     },
+    "Set by hand. Paste and presets copy these values." : {
+      "comment" : "Caption, hand-set",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set by hand. Paste and presets copy these values."
+          }
+        }
+      }
+    },
     "Set the exposure from the photo's brightness" : {
       "comment" : "Auto exposure button tooltip",
       "localizations" : {
@@ -8410,6 +9109,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Show Film Strip"
+          }
+        }
+      }
+    },
+    "Show Fringe Map" : {
+      "comment" : "Adjust menu; loupe context menu; VoiceOver action",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Fringe Map"
           }
         }
       }
@@ -8622,6 +9332,39 @@
         }
       }
     },
+    "Show where fringe color is removed, in place of the photo" : {
+      "comment" : "Toggle tooltip and help, enabled",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show where fringe color is removed, in place of the photo"
+          }
+        }
+      }
+    },
+    "Showing the fringe map." : {
+      "comment" : "Announcement",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Showing the fringe map."
+          }
+        }
+      }
+    },
+    "Showing the fringe map. Color Fringes is turned off." : {
+      "comment" : "Announcement, not applied",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Showing the fringe map. Color Fringes is turned off."
+          }
+        }
+      }
+    },
     "Showing the photo without adjustments. Press \\ to show them again." : {
       "comment" : "Tooltip of the loupe's Original badge",
       "localizations" : {
@@ -8673,6 +9416,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Showing where Masking lets sharpening through instead of the photo: white is sharpened, black is not. Press Esc to see the photo again."
+          }
+        }
+      }
+    },
+    "Showing where fringe color is removed instead of the photo: white loses its color, black keeps it. Press Esc to see the photo again." : {
+      "comment" : "Badge tooltip, applied",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Showing where fringe color is removed instead of the photo: white loses its color, black keeps it. Press Esc to see the photo again."
+          }
+        }
+      }
+    },
+    "Showing where fringe color would be removed instead of the photo. Color Fringes is turned off. Press Esc to see the photo again." : {
+      "comment" : "Badge tooltip, not applied",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Showing where fringe color would be removed instead of the photo. Color Fringes is turned off. Press Esc to see the photo again."
           }
         }
       }
@@ -9193,6 +9958,28 @@
         }
       }
     },
+    "That spot has almost no color." : {
+      "comment" : "VoiceOver announcement",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That spot has almost no color."
+          }
+        }
+      }
+    },
+    "That spot has almost no color. Click a colored fringe, or press Esc to cancel." : {
+      "comment" : "Inspector caption after a neutral click",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That spot has almost no color. Click a colored fringe, or press Esc to cancel."
+          }
+        }
+      }
+    },
     "That would pass the limit on masks, components or brush points." : {
       "comment" : "Status line",
       "localizations" : {
@@ -9211,6 +9998,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The color space the tables were made for. Most creative tables expect sRGB."
+          }
+        }
+      }
+    },
+    "The original could not be read. Make sure it's available, then pick again." : {
+      "comment" : "Inspector caption and VoiceOver announcement when picking ends because the photo's pixels could not be read",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The original could not be read. Make sure it's available, then pick again."
           }
         }
       }
@@ -9335,6 +10133,17 @@
         }
       }
     },
+    "This photo could not be measured." : {
+      "comment" : "Caption, failed",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This photo could not be measured."
+          }
+        }
+      }
+    },
     "This photo is set to use machine learning noise reduction, but it could not be applied to this photo. It's shown with Luminance and Color instead." : {
       "comment" : "Tooltip of the Machine Learning Not Applied badge: the decode failed for this file",
       "localizations" : {
@@ -9433,7 +10242,7 @@
       }
     },
     "Tolerance" : {
-      "comment" : "Color range slider",
+      "comment" : "Color range slider; each fringe slot's Tolerance",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -9531,6 +10340,17 @@
         }
       }
     },
+    "Turn Off Automatic Alignment" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn Off Automatic Alignment"
+          }
+        }
+      }
+    },
     "Turn Off Machine Learning" : {
       "comment" : "Undo action name",
       "localizations" : {
@@ -9571,6 +10391,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Turn On %@"
+          }
+        }
+      }
+    },
+    "Turn On Automatic Alignment" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn On Automatic Alignment"
           }
         }
       }
@@ -9946,6 +10777,17 @@
         }
       }
     },
+    "White areas lose their color, gray areas in part, and black areas keep it." : {
+      "comment" : "Legend, applied",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "White areas lose their color, gray areas in part, and black areas keep it."
+          }
+        }
+      }
+    },
     "Whites" : {
       "comment" : "Adjustment slider; also its undo action name",
       "localizations" : {
@@ -10031,7 +10873,8 @@
             "value" : "Yellow"
           }
         }
-      }
+      },
+      "comment" : "Fringe color name"
     },
     "Yellows" : {
       "comment" : "Color mixer band",
@@ -10067,7 +10910,7 @@
       }
     },
     "Zoom In" : {
-      "comment" : "View menu in the loupe (⌘=): the next zoom step",
+      "comment" : "View menu in the loupe (⌘=): the next zoom step; also the pixel magnifier's zoom in View ▸ Pixel Magnifier",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -10078,12 +10921,23 @@
       }
     },
     "Zoom Out" : {
-      "comment" : "View menu in the loupe (⌘−): the previous zoom step, or Fit",
+      "comment" : "View menu in the loupe (⌘−): the previous zoom step, or Fit; also the pixel magnifier's zoom in View ▸ Pixel Magnifier",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Zoom Out"
+          }
+        }
+      }
+    },
+    "Zoom of the pixel magnifier. Press - or = while picking to change it." : {
+      "comment" : "The pop-up's tooltip and VoiceOver help",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zoom of the pixel magnifier. Press - or = while picking to change it."
           }
         }
       }

@@ -21,10 +21,13 @@ public enum CameraRawFeature: String, CaseIterable, Sendable {
     /// Spot removal and other retouching.
     case retouching
     case crop
-    /// Lens profiles, distortion, lens vignetting, chromatic aberration.
+    /// Lens profiles, distortion and lens vignetting (chromatic aberration
+    /// maps to Color Alignment).
     case lensCorrections
     /// Perspective and upright corrections.
     case transform
+    /// Purple and green fringe removal: mapped to Color Fringes now, never
+    /// reported; kept so older reports still read.
     case defringe
     /// Vignette feather, style and highlight protection.
     case vignetteStyle
@@ -95,6 +98,7 @@ public enum CameraRawMapping {
             colorMixer()
             colorGrade()
             details()
+            lens()
             effects()
             notes()
         }
@@ -266,6 +270,41 @@ public enum CameraRawMapping {
             }
         }
 
+        /// Automatic lateral chromatic aberration removal is Align
+        /// automatically (measured on each photo it is applied to). Purple and
+        /// green fringe removal fill Color 1 and Color 2 with the listed
+        /// colors; their hue range there, wider or narrower than its default,
+        /// widens or narrows the starting Tolerance in proportion. The amount
+        /// has no equivalent (graying is full at the middle of a range):
+        /// above 0 is on (prd R17).
+        mutating func lens() {
+            if has(["AutoLateralCA"]) {
+                groups.insert(.colorAlignment)
+                adjustments.colorAlignment = ColorAlignment(automatic: values["AutoLateralCA"]?.bool == true)
+            }
+            if has(["DefringePurpleAmount", "DefringeGreenAmount"]) {
+                groups.insert(.colorFringes)
+                adjustments.colorFringes.slot1 = fringeSlot(.purple, amount: "DefringePurpleAmount",
+                                                            hue: ("DefringePurpleHueLo", "DefringePurpleHueHi"),
+                                                            defaultHue: 30...70)
+                adjustments.colorFringes.slot2 = fringeSlot(.green, amount: "DefringeGreenAmount",
+                                                            hue: ("DefringeGreenHueLo", "DefringeGreenHueHi"),
+                                                            defaultHue: 40...60)
+            }
+        }
+
+        func fringeSlot(_ color: CommonFringeColor, amount: String, hue: (String, String),
+                        defaultHue: ClosedRange<Double>) -> ColorFringes.Slot? {
+            guard let value = number(amount), value > 0 else { return nil }
+            var slot = color.slot
+            let low = number(hue.0) ?? defaultHue.lowerBound, high = number(hue.1) ?? defaultHue.upperBound
+            let width = high - low, defaultWidth = defaultHue.upperBound - defaultHue.lowerBound
+            if width > 0, abs(width - defaultWidth) > 1e-6 {
+                slot.tolerance = ColorFringes.clampedTolerance((slot.tolerance * width / defaultWidth).rounded())
+            }
+            return slot
+        }
+
         mutating func effects() {
             if has(["PostCropVignetteAmount"]) {
                 groups.insert(.vignette)
@@ -308,8 +347,8 @@ public enum CameraRawMapping {
                 unsupported.insert(.retouching)
             }
             if values["HasCrop"]?.bool == true || changes(["CropAngle"]) { unsupported.insert(.crop) }
-            if values["LensProfileEnable"]?.bool == true || values["AutoLateralCA"]?.bool == true
-                || changes(["LensManualDistortionAmount", "VignetteAmount"]) {
+            // Automatic chromatic aberration removal maps to Color Alignment (`lens`).
+            if values["LensProfileEnable"]?.bool == true || changes(["LensManualDistortionAmount", "VignetteAmount"]) {
                 unsupported.insert(.lensCorrections)
             }
             if changes(["PerspectiveVertical", "PerspectiveHorizontal", "PerspectiveRotate", "PerspectiveAspect",
@@ -317,7 +356,6 @@ public enum CameraRawMapping {
                 || changes(["PerspectiveScale"], from: 100) {
                 unsupported.insert(.transform)
             }
-            if changes(["DefringePurpleAmount", "DefringeGreenAmount"]) { unsupported.insert(.defringe) }
             if let version = values["ProcessVersion"]?.number, version < 6.7 { unsupported.insert(.legacyProcess) }
         }
 

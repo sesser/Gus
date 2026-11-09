@@ -15,6 +15,9 @@ public struct AdjustmentParameter: Hashable, Sendable {
         case points
         /// On or off, written `true` or `false`.
         case boolean
+        /// An OkLab color: a list `[L, a, b]`, L 0 … 1, a and b −0.5 … 0.5.
+        /// Scripts may also give a common fringe color's name (`CommonFringeColor`).
+        case okLabColor
     }
 
     public var name: String
@@ -68,7 +71,8 @@ extension Adjustments {
         }
         return [describe(Crop.self), describe(RawDecode.self), describe(WhiteBalance.self), describe(Exposure.self),
                 describe(Tone.self), describe(Presence.self), describe(ToneCurve.self), describe(ColorMixer.self),
-                describe(ColorGrade.self), describe(LookTable.self), describe(Vignette.self),
+                describe(ColorGrade.self), describe(ColorAlignment.self), describe(ColorFringes.self),
+                describe(LookTable.self), describe(Vignette.self),
                 describe(NoiseReduction.self), describe(Sharpen.self), describe(Grain.self)]
     }()
 

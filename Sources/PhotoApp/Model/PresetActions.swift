@@ -31,6 +31,18 @@ extension LibraryModel {
 
     /// Gives the selection (grid) or the photo on screen (loupe) the preset's groups.
     func applyAdjustmentPreset(_ preset: AdjustmentPreset) {
+        if preset.groups.contains(.colorAlignment), preset.adjustments.needsAlignmentMeasurement {
+            // Measured on each photo it reaches (chromatic-aberration R16).
+            let toolbarTitle = ToolbarMetrics.statusLine(name: preset.name) {
+                String(localized: "Apply Preset \($0)", comment: "Undo action name")
+            }
+            changeAdjustmentsMeasuringAlignment(actionName: String(localized: "Apply Preset \(preset.name)",
+                                                                   comment: "Undo action name"),
+                                                toolbarTitle: toolbarTitle) {
+                preset.applied(onto: $0)
+            }
+            return
+        }
         changeAdjustments(ofVersions: batchSelection(action: String(localized: "Apply Preset \(preset.name)", comment: "Undo action name")).versionIDs,
                           actionName: String(localized: "Apply Preset \(preset.name)", comment: "Undo action name")) {
             preset.applied(onto: $0)
@@ -39,7 +51,7 @@ extension LibraryModel {
 
     /// Shows the photo in the loupe with the preset, without saving it.
     func previewAdjustmentPreset(_ preset: AdjustmentPreset) {
-        editor.preview { $0 = preset.applied(onto: $0) }
+        editor.previewMeasuringAlignment { $0 = preset.applied(onto: $0) }
     }
 
     // MARK: Saving

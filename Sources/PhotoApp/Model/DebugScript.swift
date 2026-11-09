@@ -42,13 +42,24 @@ import PhotoUI
 ///     stop                  (File ▸ Stop's action in the library window: the newest running job)
 ///     windowshot <title text> <file.png>   (snapshots another visible window, e.g. Settings)
 ///     sidebarsection [albums|dates|keywords|projects show|hide]   (prints the hidden sidebar sections)
-///     contextmenu cell <n>|loupe|video [controls]|slider <title> [<item>[/<sub>]]   (prints a right-click's menu there,
+///     contextmenu cell <n>|loupe|at <x> <y>|video [controls]|slider <title> [<item>[/<sub>]]   (prints a right-click's menu there,
 ///                           or runs an item; video controls aims at AVKit's control bar)
 ///     editvalue <title>     (puts the keyboard in the value field of the inspector slider with that title)
 ///     accessibility <role>|any [<n> press|<action name>] | focused   (lists the window's accessibility
 ///                           elements with that role, e.g. AXImage, or runs an action on the nth; see AccessibilityProbe)
 ///     scroll <y>|bottom     (scrolls the inspector's Adjust tab to a point from its top)
 ///     sharpenmap on|off|toggle   (Adjust ▸ Show / Hide Sharpening Map's action: reveals Masking, announces)
+///     fringemap on|off|toggle    (Adjust ▸ Show / Hide Fringe Map's action: reveals Color Fringes, announces)
+///     fringearm 1|2|off     (arms or disarms a fringe slot's eyedropper, as its button does)
+///     contextmenu fringe 1|2 [<item>]   (lists a fringe slot's context menu, or runs the item so titled)
+///     magnifier failsample on|off   (sampled renders for picking fail as an unreadable original would; touches no file)
+///     magnifier resignkeyboard   (takes the keyboard off the loupe)
+///     magnifier level <percent>|up|down   magnifier move <x> <y>   (the pixel magnifier: the level, and
+///                           the pointer at unit coordinates of the photo on screen, as a real move would)
+///     print magnifier [pixels]   (visible, level, placement, outlined pixel, values, verdict, cells;
+///                           `pixels` also lists every cell drawn)
+///     print fringe          (slots, their menu, picking, the last sample, the cursor, captions, the fringe
+///                           map, color alignment)
 ///     print sharpenmap      (asked for, on screen with its badge and legend, refining, can show, the
 ///                           overlay and Show Original, the inspector, the scroll position of the Adjust tab)
 ///     hdr on|off            (the View menu's Show HDR; snapshots show HDR clipped at white)
@@ -78,7 +89,7 @@ import PhotoUI
 ///     lutwindow open|close|all|collection <name>|expand <name>|select <name>|apply|manage|back|snapshot <file> (the sheet)
 ///            | importmenu <folder> (Adjust ▸ Import Look-Up Tables… once its panel returns the folder) | importrun
 ///            (the import page's Import) | page (prints it)
-///     copyadjust            pasteadjust            preset save|apply|delete|preview <name> | preset (prints them)
+///     copyadjust            pasteadjust [uncheck|loupeuncheck]            preset save|apply|delete|preview <name> | preset (prints them)
 ///     preset import <path>…  (prints the summary)   preset summary <path>… (imports, shows the alert)
 ///     preset export <file> [<name>]                 preset window | windowshot <png> (the sheet)
 ///     preset previewend     (ends a preset preview, as the pointer leaving it does)
@@ -114,13 +125,23 @@ enum DebugScript {
             for command in commands where !command.isEmpty {
                 let words = command.split(separator: " ")
                 // "accessibility <role> <n> <action>" runs an action; listing changes nothing.
-                let grouped = changing.contains(String(words.first ?? ""))
+                // "contextmenu fringe <n>" lists, and its Pick from Photo only arms.
+                let grouped = (changing.contains(String(words.first ?? ""))
+                    && !DebugLensCommands.contextMenuChangesNothing(words.map(String.init)))
                     || (words.first == "accessibility" && words.count >= 4)
                 if grouped { undoManager.beginUndoGrouping() }
                 await run(command, model: model)
                 if grouped { undoManager.endUndoGrouping() }
             }
         }
+    }
+
+    /// Waits while a paste or a preset measures color alignment, so its save
+    /// lands in the command's undo group.
+    private static func waitForBatchMeasuring(_ model: LibraryModel) async {
+        try? await Task.sleep(for: .milliseconds(100))
+        while model.batchAutoTask != nil { try? await Task.sleep(for: .milliseconds(100)) }
+        try? await Task.sleep(for: .milliseconds(200))
     }
 
     private static var window: NSWindow? {
@@ -199,6 +220,12 @@ enum DebugScript {
             perform(Selector((verb + ":")), verb)
         case "inspector":
             model.showsInspector = rest.first != "off"
+        case "magnifier":
+            DebugLensCommands.magnifier(rest, model: model)
+            try? await Task.sleep(for: .milliseconds(200))
+        case "fringemap", "fringearm":
+            DebugLensCommands.run(verb, rest, model: model)
+            try? await Task.sleep(for: .milliseconds(300))
         case "sharpenmap":
             // The menu's path; it changes no photo, so it gets no undo group.
             switch rest.first {
@@ -387,6 +414,10 @@ enum DebugScript {
             try? await Task.sleep(for: .milliseconds(200))
         case "pasteadjust":
             model.pasteAdjustments()
+            if let mode = rest.first { await DebugLensCommands.uncheckDuringPaste(mode, model: model) }
+            // A paste that measures color alignment saves when the measuring is
+            // done: inside this command's undo group (`changing`).
+            await waitForBatchMeasuring(model)
         case "preset":
             let name = rest.dropFirst().joined(separator: " ")
             switch rest.first {
@@ -435,6 +466,7 @@ enum DebugScript {
                 try? await Task.sleep(for: .milliseconds(500))
             case "apply":
                 if let preset = model.adjustmentPresets.first(where: { $0.name == name }) { model.applyAdjustmentPreset(preset) }
+                await waitForBatchMeasuring(model)
             case "delete":
                 if let preset = model.adjustmentPresets.first(where: { $0.name == name }) {
                     model.deleteAdjustmentPreset(preset)
@@ -514,6 +546,9 @@ enum DebugScript {
             } else {
                 print("debug-script: no window for windowshot \(rest.joined(separator: " "))")
             }
+        case "contextmenu" where rest.first == "fringe":
+            DebugLensCommands.contextMenu(Array(rest.dropFirst()), model: model)
+            try? await Task.sleep(for: .milliseconds(300))
         case "contextmenu":
             runContextMenu(rest)
             try? await Task.sleep(for: .milliseconds(300))
@@ -540,7 +575,11 @@ enum DebugScript {
             } else if rest.first == "ml" {
                 DebugMachineLearningCommands.printState(model: model, window: window)
             } else {
-                printState(rest.first ?? "", model: model)
+                if rest.first == "magnifier", rest.dropFirst().first == "pixels" {
+                    DebugLensCommands.printMagnifier(all: true, model: model)
+                } else {
+                    printState(rest.first ?? "", model: model)
+                }
             }
         case "quit":
             // An open sheet would keep the app from quitting; SwiftUI's close
@@ -767,6 +806,18 @@ enum DebugScript {
             path.removeFirst()
             view = grid
             point = grid.convert(NSPoint(x: frame.midX, y: frame.midY), to: nil)
+        case "at":
+            // At a point as `buttons` prints it (y from the top of the window).
+            guard path.count >= 2, let x = Double(path[0]), let y = Double(path[1]) else { break }
+            path.removeFirst(2)
+            point = NSPoint(x: x, y: window.frame.height - y)
+            var hit = window.contentView?.superview?.hitTest(point) ?? root.hitTest(point)
+            var probe = NSEvent.mouseEvent(with: .rightMouseDown, location: point, modifierFlags: [],
+                                           timestamp: ProcessInfo.processInfo.systemUptime,
+                                           windowNumber: window.windowNumber, context: nil, eventNumber: 0,
+                                           clickCount: 1, pressure: 1)
+            while let candidate = hit, let event = probe, candidate.menu(for: event) == nil { hit = candidate.superview; probe = event }
+            view = hit
         case "loupe":
             view = descendant(of: LoupeHostView.self, in: root)
             point = view.map { $0.convert(NSPoint(x: $0.bounds.midX, y: $0.bounds.midY), to: nil) } ?? .zero
@@ -798,7 +849,9 @@ enum DebugScript {
             func show(_ menu: NSMenu, _ prefix: String) {
                 for item in menu.items {
                     let mark = item.state == .on ? " checked" : item.state == .mixed ? " mixed" : ""
-                    print("debug-script: context \(item.isSeparatorItem ? "—" : prefix + item.title)\(mark)")
+                    let kind = item.isSectionHeader ? " [section]" : ""
+                    let image = item.image == nil ? "" : " [image]"
+                    print("debug-script: context \(item.isSeparatorItem ? "—" : prefix + item.title)\(mark)\(kind)\(image)")
                     if let sub = item.submenu { show(sub, prefix + item.title + "/") }
                 }
             }
@@ -949,6 +1002,10 @@ enum DebugScript {
         case "inspector":
             print("debug-script: inspector shown \(model.showsInspector) tab \(model.inspectorTab) keywords expanded "
                   + "\(InspectorExpansion.shared.isExpanded(InspectorView.keywordsKey, family: .info, default: true))")
+        case "fringe":
+            DebugLensCommands.printState(model: model)
+        case "magnifier":
+            DebugLensCommands.printMagnifier(all: false, model: model)
         case "sharpenmap":
             let editor = model.editor
             let shown = editor.shownSharpeningMap

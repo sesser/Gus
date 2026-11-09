@@ -52,8 +52,9 @@ photos the library does not have yet, and a folder with nothing new makes none.
 | arrows | move selection (⇧ extends) | ← → previous / next photo |
 | Home, End, Page Up, Page Down | jump | first / last photo |
 | Return, Space, double-click | open the loupe | back to the grid |
-| Esc | | hides the sharpening map, else leaves review, else back to the grid |
+| Esc | | cancels picking a fringe color, else hides the fringe or sharpening map, else leaves review, else back to the grid |
 | F | review the focused photo | enter or leave review |
+| - and = | | while picking a color, pixel magnifier zoom out / in |
 | Z, click | | toggle fit / 100 % at the clicked point (⌥-scroll and pinch zoom too; drag pans) |
 | 0–5 | set rating | set rating |
 | [ and ] | lower / raise rating | lower / raise rating |
@@ -237,6 +238,75 @@ with Luminance and Color instead, and shows a **Machine Learning Not Applied**
 badge in the caption, whose tooltip gives the reason. Exports say in Activity
 how many photos were written without it, and why.
 
+**Lens** (after Details) removes the colored fringes a lens leaves along
+high-contrast edges. It has two groups, each with its own check box: **Color
+Fringes** and **Color Alignment**. Both are off until you use them, and a photo
+you never touch renders exactly as before.
+
+**Color Fringes** turns a fringe's color gray where it lines a high-contrast
+edge: purple or green halos along branches against the sky, window frames,
+backlit hair, and the soft rims of out-of-focus highlights. It has two slots,
+**Color 1** and **Color 2**, because purple and green fringes often appear
+together. To fill a slot, click its eyedropper and click a colored fringe in
+the photo: the pointer is a crosshair over the photo, and the **pixel magnifier**
+beside it shows the photo's own pixels, with an outline around the one a click
+takes and that pixel's R, G, B and L values (0–255, Display P3). At 100% and
+closer that is the pixel under the pointer; zoomed out further, the most colorful
+pixel under it. The slot then shows a swatch and the color's name. A drag still pans while
+the eyedropper is on, and Esc cancels. A spot with almost no color is not taken;
+the text under the slots says so and the eyedropper stays on. If the original
+can't be read when you click the eyedropper, picking ends and the text under the
+slots says so; make it available and click the eyedropper again. When the magnifier
+reads **Almost no color**, a click there won't be taken. It shows the photo before
+your edits, so its colors can differ from the photo around it and from the slot's
+swatch. Change its zoom with the **Pixel magnifier** pop-up under the slots,
+**View ▸ Pixel Magnifier**, the photo's context menu, or `-` and `=` while picking;
+the app remembers it. Or, without
+pointing at the photo, choose **Purple** or **Green** under **Common Fringe
+Colors** in the slot's ⋯ menu (or the row's context menu); a slot filled this
+way behaves exactly like one filled by picking. **Pick from Photo** in the same
+menu arms the eyedropper, and **Clear** empties the slot. Each pick, choice or
+clear is one undo step. Picking again for a filled slot hides that slot's
+effect while you pick, so you can find the fringe again.
+
+Under each filled slot, **Tolerance** widens or narrows the colors it grays:
+colors at the middle of the range lose their color fully, colors toward its edge
+less and less. A new color starts at a Tolerance that grays a typical fringe of
+its kind; double-click the slider to go back to it. Graying keeps each pixel's
+brightness, so edges gain no dark or light outline. Colors away from
+high-contrast edges keep theirs, so a purple flower or a green leaf stays as it
+is even when its color is in a range; only its outline can be grayed if it is a
+high-contrast edge. The colors are matched on the photo as it comes from the
+file, before the other adjustments, so changing Saturation, a look-up table or
+any later adjustment does not change what is grayed. (For a raw file, White
+Balance and Profile are applied as the file is decoded, before that point.
+After a large White Balance change or a different Profile, show the Fringe Map:
+if the fringe no longer shows white, pick or choose its color again.)
+
+**Fringe Map** (the toggle under the slots, **Adjust ▸ Show Fringe Map**, or the
+loupe's context menu) shows where fringe color is removed, in place of the
+photo: white loses its color, gray in part, black keeps it. It works like the
+sharpening map: a **Fringe Map** badge in the caption, the full-size map once you
+pause, Esc to see the photo again. With Color Fringes turned off it still shows
+the slots' reach and the badge reads **Fringe Map · Not Applied**. Clicking an
+eyedropper while it is shown suspends it until the pick or Esc. Only one map is
+on screen at a time; showing one replaces the other.
+
+**Color Alignment** removes red/cyan and blue/yellow outlines that widen toward
+the corners. Select **Align automatically**: the photo is measured (a small
+spinner shows meanwhile), and the measured correction is saved with it, so every
+rendering of the photo, in previews, exports and `photocli`, applies the same
+correction. It is centered on the middle of the sensor, so cropping, rotating or
+straightening never changes it. **Red/cyan** and **Blue/yellow** show the
+correction; moving either sets it by hand from there and clears **Align
+automatically**. Deselecting it removes the correction. Paste Adjustments and
+presets measure each photo that receives automatic alignment for itself, with
+progress in Activity; photos whose original is offline or can't be read are
+left completely unchanged, and Activity says so. Hand-set values are copied as
+they are. Lightroom presets that remove purple or green fringes, or remove
+chromatic aberration automatically, import as Color Fringes (Purple, Green) and
+Align automatically.
+
 **Presets** (the Adjust tab's first heading, and **Adjust ▸ Apply Preset**)
 apply saved adjustments to the photo in the loupe or to every selected photo.
 The heading shows the focused photo with each preset, by collection; in the
@@ -247,7 +317,10 @@ the menu commands below. **Copy Adjustments**, **Paste Adjustments** and
 to **Original** (`\`). **Save Adjustments as
 Preset…** asks for a name, a collection and the groups of controls to include
 (those the photo changes are checked): applying the preset replaces only those
-and leaves the photo's other settings alone. **Import Presets…** reads this
+and leaves the photo's other settings alone. A preset with all settings,
+including one saved before Color Fringes and Color Alignment existed, also
+replaces those two (clearing a photo's fringe colors and alignment); **Manage
+Presets…** can take them out of it. **Import Presets…** reads this
 app's preset files and Lightroom presets (`.lrtemplate`, `.xmp`, and
 `.dng` mobile presets), or folders of them. A folder becomes a collection unless
 its presets name their own, and a pack that holds a preset in several formats
@@ -337,7 +410,11 @@ adjustments, `query projects` and `query images` (smart-album rules as JSON),
 `mask remove` (a version's local adjustments; `--dry-run` only shows the
 result). `noiseReduction.machineLearning=true` turns on machine learning noise
 reduction; `render` and `export` report in their JSON whether it was applied,
-and why not. `photocli adjustments` lists every adjustment and its range;
+and why not. `colorFringes.color1=purple` (or `green`, or OkLab `L,a,b`) fills a
+fringe slot, `colorFringes.tolerance1=40` sets its Tolerance, and
+`colorAlignment.automatic=true` measures the original and stores the
+correction (`colorAlignment.red` and `blue` set it by hand), and
+`colorAlignment.automatic=false` alone removes it, as unchecking does. `photocli adjustments` lists every adjustment and its range;
 `photocli help` lists the commands. Each prints one JSON object. Pass
 `--library-root` as for the app; without it the standard library is used.
 

@@ -27,6 +27,15 @@ public struct LinearImage: Sendable, Equatable {
                        format: .RGBAf, colorSpace: RenderEngine.workingColorSpace)
     }
 
+    /// The image as an 8-bit opaque image in `colorSpace`, for writing it as
+    /// a file (JPEG, HEIC, TIFF, or a DNG's mosaic).
+    public func cgImage(colorSpace: CGColorSpace) -> CGImage? {
+        let context = CIContext(options: [.workingColorSpace: RenderEngine.workingColorSpace,
+                                          .workingFormat: CIFormat.RGBAh])
+        return context.createCGImage(ciImage, from: CGRect(x: 0, y: 0, width: width, height: height),
+                                     format: .RGBA8, colorSpace: colorSpace)
+    }
+
     /// The pixel at column `x` and row `y` (from the top).
     public subscript(x: Int, y: Int) -> SIMD4<Float> {
         let i = (y * width + x) * 4
@@ -58,6 +67,22 @@ public enum TestScene: String, CaseIterable, Sendable {
     /// Step edges, a slanted edge, line pairs of 1, 2 and 3 pixels and a star
     /// of 24 sectors, dark grey on light grey.
     case edgeTarget
+    /// Chromatic aberration scene (a): two dark bars on a light neutral
+    /// background, each with a purple fringe on its left and a green one on
+    /// its right (different purples and greens, as real fringes vary); a
+    /// defocused bright disc on a dark ground with a soft purple rim; a blue
+    /// sky meeting a dark ridge without a fringe (`FringeScene`).
+    case fringes
+    /// Scene (b): scene (a) with a large purple and a large green patch on the
+    /// sky, as bright as the sky, so no high-contrast edge is near them.
+    case fringeSubjects
+    /// Scene (c): dark discs on a light ground with the red image 0.4 % larger
+    /// and the blue 0.3 % smaller than the green, about the frame's center
+    /// (`lateralColor(width:height:red:blue:)` for other amounts).
+    case lateralColor
+    /// Scene (d): every pixel has a known, distinct color out to the outermost
+    /// rows and columns (`pixelGridColor`), for the pixel magnifier.
+    case pixelGrid
 
     public static let defaultWidth = 256
     public static let defaultHeight = 192
@@ -69,6 +94,10 @@ public enum TestScene: String, CaseIterable, Sendable {
         case .patchChart: Self.patchChart(width, height)
         case .hazyLandscape: Self.hazyLandscape(width, height)
         case .edgeTarget: Self.edgeTarget(width, height)
+        case .fringes: FringeScene.image(width, height, subjects: false)
+        case .fringeSubjects: FringeScene.image(width, height, subjects: true)
+        case .lateralColor: Self.lateralColor(width: width, height: height)
+        case .pixelGrid: Self.pixelGrid(width, height)
         }
     }
 
@@ -190,11 +219,57 @@ public enum TestScene: String, CaseIterable, Sendable {
         }
     }
 
+    /// Scene (d)'s color at pixel (x, y), perceptual: red and green count the
+    /// column and row, and blue jumps between neighbors, so no two neighbors match.
+    public static func pixelGridColor(x: Int, y: Int, width: Int, height: Int) -> SIMD3<Double> {
+        let red = Double(x) / Double(max(width - 1, 1))
+        let green = Double(y) / Double(max(height - 1, 1))
+        let blue = Double((x * 37 + y * 101) % 256) / 255
+        return SIMD3(red, green, blue)
+    }
+
+    private static func pixelGrid(_ width: Int, _ height: Int) -> LinearImage {
+        fill(width, height) { x, y in
+            decode(pixelGridColor(x: x, y: y, width: width, height: height))
+        }
+    }
+
+    /// Scene (c)'s default magnifications of the red and blue images, relative to the green.
+    public static let lateralRed = 0.004
+    public static let lateralBlue = -0.003
+
+    /// Scene (c) with the red and blue images magnified by `red` and `blue`
+    /// (fractions) about the frame's center: each channel shows the neutral
+    /// pattern at its own scale, supersampled.
+    public static func lateralColor(width: Int = defaultWidth, height: Int = defaultHeight,
+                                    red: Double = lateralRed, blue: Double = lateralBlue) -> LinearImage {
+        let light = decode(0.85), dark = decode(0.15)
+        let cx = Double(width) / 2, cy = Double(height) / 2
+        let unit = Double(width) / Double(defaultWidth)
+        // Discs of radius 7 every 24 pixels of the default size, offset by half a
+        // step in alternate rows, so edges face every direction everywhere.
+        func pattern(_ x: Double, _ y: Double) -> Double {
+            let u = x / unit, v = y / unit
+            let row = (v / 24).rounded(.down)
+            let shift: Double = row.truncatingRemainder(dividingBy: 2) == 0 ? 0 : 12
+            let du = (u - shift).truncatingRemainder(dividingBy: 24)
+            let dx = (du < 0 ? du + 24 : du) - 12
+            let dy = v - row * 24 - 12
+            return dx * dx + dy * dy < 49 ? dark : light
+        }
+        func channel(_ x: Double, _ y: Double, _ magnification: Double) -> Double {
+            pattern(cx + (x - cx) / (1 + magnification), cy + (y - cy) / (1 + magnification))
+        }
+        return fill(width, height, supersample: 4) { x, y in
+            SIMD3(channel(x, y, red), pattern(x, y), channel(x, y, blue))
+        }
+    }
+
     // MARK: Helpers
 
     /// Builds an opaque image from linear colors. With `supersample` > 1,
     /// `color` gets continuous coordinates and each pixel averages a grid of samples.
-    private static func fill(_ width: Int, _ height: Int, supersample: Int = 1,
+    static func fill(_ width: Int, _ height: Int, supersample: Int = 1,
                              color: (Double, Double) -> SIMD3<Double>) -> LinearImage {
         var pixels = [Float](repeating: 1, count: width * height * 4)
         let n = Double(supersample * supersample)

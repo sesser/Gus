@@ -400,6 +400,14 @@ final class LibraryModel {
     /// Masking's row should scroll into view once the inspector shows it
     /// (showing the sharpening map from a menu; design §3).
     var revealsMaskingRow = false
+    /// The pixel magnifier's zoom: this Mac's preference, for every tool and
+    /// every library (design §20), never part of a photo.
+    var pixelMagnifierLevel = PixelMagnifierLevel(stored: UserDefaults.standard.integer(forKey: PixelMagnifierLevel.defaultsKey)) {
+        didSet { UserDefaults.standard.set(pixelMagnifierLevel.rawValue, forKey: PixelMagnifierLevel.defaultsKey) }
+    }
+    /// The Lens heading's Color Fringes group should scroll into view
+    /// (Show Fringe Map from the menu, chromatic-aberration design §6).
+    var revealsFringeRow = false
     var showsInspector: Bool {
         // Review hides it for a while; the person's choice is what's kept.
         didSet { if !review.isReviewing { UserDefaults.standard.set(showsInspector, forKey: Self.showsInspectorKey) } }
@@ -539,7 +547,14 @@ final class LibraryModel {
     private(set) var activityTick = 0
     /// Batch Auto Exposure measuring the grid's selection.
     private(set) var batchAutoProgress: (done: Int, total: Int)?
+    /// The command a batch measurement runs for (Paste Adjustments, Apply
+    /// Preset …, measuring color alignment); nil for Auto Exposure.
+    private(set) var batchAutoTitle: String?
+    /// `batchAutoTitle` fitted to the toolbar (a long preset name shortened in the middle).
+    private(set) var batchAutoToolbarTitle: String?
     @ObservationIgnored var batchAutoTask: Task<Void, Never>?
+    /// Which batch measurement is current: a cancelled one clears only its own state.
+    @ObservationIgnored var batchAutoRun = BatchEdit.LatestRun()
 
     private func scheduleActivityTick() {
         Task {
@@ -553,8 +568,10 @@ final class LibraryModel {
         activity.markSeen()
     }
 
-    func setBatchAutoProgress(_ progress: (done: Int, total: Int)?) {
+    func setBatchAutoProgress(_ progress: (done: Int, total: Int)?, title: String? = nil, toolbarTitle: String? = nil) {
         batchAutoProgress = progress
+        batchAutoTitle = progress == nil ? nil : title
+        batchAutoToolbarTitle = progress == nil ? nil : toolbarTitle
     }
     private(set) var onlineVolumeIDs: Set<Int64> = []
 

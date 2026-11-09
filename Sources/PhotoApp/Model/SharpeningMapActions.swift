@@ -127,3 +127,45 @@ enum SharpeningMapText {
          String(localized: "Hide Sharpening Map", comment: "Returns the loupe to the photo"))
     }
 }
+
+/// The fringe map's commands (docs/features/chromatic-aberration/design.md
+/// §6): the Adjust menu, the loupe's context menu and VoiceOver action, Esc,
+/// and the inspector's toggle. It shares the sharpening map's slot.
+extension LibraryModel {
+    /// Show Fringe Map can act: the sharpening map's conditions, and at least
+    /// one filled slot (with none the map would be all black).
+    var canShowFringeMap: Bool {
+        canShowSharpeningMap && !editor.adjustments.colorFringes.isIdentity
+    }
+
+    func toggleFringeMap(from command: SharpeningMapCommand) {
+        setFringeMap(!editor.showsFringeMap, from: command)
+    }
+
+    func setFringeMap(_ shown: Bool, from command: SharpeningMapCommand) {
+        if shown {
+            guard canShowFringeMap, !editor.showsFringeMap else { return }
+            editor.showMap(.fringeMap)
+            guard editor.showsFringeMap else { return }
+            if command == .menu { revealColorFringes() }
+            if command != .button {
+                AccessibilityText.announce(LensText.showAnnouncement(FringeMapStatus(editor.adjustments)))
+            }
+        } else {
+            guard editor.showsFringeMap else { return }
+            editor.hideSharpeningMap()
+            if command != .button {
+                AccessibilityText.announce(String(localized: "Showing the photo.",
+                                                  comment: "VoiceOver, when the sharpening map is hidden"))
+            }
+        }
+    }
+
+    /// The inspector on Adjust with Lens expanded and Color Fringes in view.
+    private func revealColorFringes() {
+        showsInspector = true
+        inspectorTab = .adjust
+        InspectorExpansion.shared.set(AdjustSection<EmptyView>.key(.lens), true)
+        revealsFringeRow = true
+    }
+}

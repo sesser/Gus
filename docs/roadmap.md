@@ -149,6 +149,81 @@ it in [`library-launch-guard/qa.md`](features/library-launch-guard/qa.md)
 Follow-up: 16 of 16 pass, nothing open. "Checks pending" cleared on its
 Shipped row, and ui-redesign-onscreen-check (h) marked done.
 
+2026-11-07: owner's request. Chromatic aberration and fringing
+correction comes out of lens-corrections (Later) as a new row,
+chromatic-aberration. The owner said: "make it the next item". Owner's
+reason: "Most raw files already have geo corrections and vignetting baked
+in but the fringing usually isn't". Now had one free slot, so the row
+goes into Now as the first item, the next one to start, and Now is full
+again. Nothing moved out. lens-corrections stays in Later, now covering
+distortion, lens vignetting and lens profiles only, which are lower
+priority because the raw decoder usually applies them. The new row is an
+Idea and needs intake first: which corrections "and others" covers,
+automatic or manual, which file formats, and presets and paste. The
+questions are with the owner. Feasibility: the stitchable-kernels spike
+(`docs/PROFILING.md` "Stitchable kernels"; branch
+`feature/stitchable-kernels-spike`, not merged) shows that custom
+per-pixel and warp kernels can run without a Metal build step, at the
+cost of a stock filter. Until now, the lack of such kernels was why lens
+corrections were held back.
+
+2026-11-07: specified chromatic-aberration as a Draft
+([`features/chromatic-aberration/prd.md`](features/chromatic-aberration/prd.md)).
+The owner answered two intake questions. For fringe halos: "a color
+picker that will turn the fringe gray. And a slider to widen or narrow
+the color range". For test photos: none on hand, so QA uses synthetic
+scenes, and a real-photo check (M1) waits without blocking. The other
+answers are proposed defaults in the PRD's Assumptions, not confirmed.
+These include whether lateral color-edge correction is still in scope
+(Q1), plus one or more picks, near edges only or everywhere, and an
+amount control (OQ1 to OQ3). The row moves to Specified, with the PRD
+still Draft until the owner confirms. The same day, the owner answered
+"Defaults are good", accepting every proposed default: lateral
+correction in scope, a second pick, near edges only, no amount control,
+and A1 to A7. The PRD is approved, and those answers are recorded as its
+Owner rulings 3–13.
+
+2026-11-07: apple-ui-designer wrote
+[`features/chromatic-aberration/design.md`](features/chromatic-aberration/design.md).
+I ruled its two requirements issues (PRD Revisions). RI-1: a paste,
+preset or batch that carries automatic lateral correction leaves
+offline or unreadable photos unchanged, with the existing Activity
+warning, as batch automatic exposure does. RI-2: fine-tuning makes the
+correction hand-set, and paste copies it as it is. Both match what the
+design applied, so the row moves to Designed. The designer's two groups
+satisfy R12. One owner question from the design is open: a way to fill a
+fringe slot without pointing at the photo. Proposed: not in this feature,
+and a Later Idea row `fringe-color-presets`, not added until the owner
+answers.
+
+2026-11-07: the owner answered that question: "It should go into this
+feature now." Filling a fringe slot from a short list of common fringe
+colors (at least purple and green), usable by keyboard and VoiceOver, is
+now PRD R1a–R1c. A listed color behaves exactly like a picked one. The
+`fringe-color-presets` row is not added. The PRD stays approved. The
+design needs revising for the list, so the row goes back from Designed
+to Specified until design.md is updated.
+
+2026-11-08: chromatic-aberration was built (R1–R18, PR #48 open, CI green,
+reviews not started). The owner tried it on a raw ("it works well") and added
+a pixel magnifier tied to the pointer while picking a color (PRD ruling 16,
+R19–R36). Six owner questions are open (OQ6–OQ11), each with a default. The
+row is In progress: it stays in Now. Whether Pick Colors adopts the
+magnifier is OQ6; a row for it is added only once that is answered.
+
+2026-11-08: the owner accepted all six defaults ("Defaults are fine."), and
+R19–R36 are Approved (PRD rulings 17–22). The magnifier serves the fringe
+eyedropper only for now, so Pick Colors' adoption is the new Later row
+pick-colors-magnifier. The row stays In progress, next with the designer.
+
+2026-11-08: Ship pass for chromatic-aberration (PR #48). Moved from Now to
+Shipped. Code review, design review and QA have no open findings against the
+feature, and the owner confirmed every person check in qa.md, so no checks
+are pending. QA's three low follow-ups were not fixed; the owner was told and
+chose to ship. Q1 joined qa-test-gaps, Q3 joined debug-script-undo-groups, and
+Q2 is the new row debug-resignkeyboard-inactive. pick-colors-magnifier now
+says what shipped. Now has two items; I did not move anything in.
+
 Where specs live: new features get `docs/features/<slug>/`. The phase plans
 (`docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`) and `docs/UI_REDESIGN.md`
 stay as the historical record (owner, 2026-11-04). Bare `PHASE<n>_PLAN.md`
@@ -189,8 +264,10 @@ Set by the owner 2026-11-06: library-launch-guard, viewport-render-1to1 and
 edit-history. This superseded the owner's earlier rule (2026-11-06) that
 the third slot stays empty until the manual checks are done.
 publishing-engine and ui-redesign-onscreen-check moved to Later.
-library-launch-guard shipped 2026-11-07 (PR #47), so one slot is free; the
-owner decides what, if anything, fills it.
+library-launch-guard shipped 2026-11-07 (PR #47), and that freed a slot.
+The owner filled it the same day with chromatic-aberration, which is the
+next item to start ("make it the next item"). It shipped 2026-11-08 (PR
+#48), which frees that slot; the owner has not filled it.
 
 | Slug | Problem | Status | Folder | Source |
 |------|---------|--------|--------|--------|
@@ -237,8 +314,9 @@ doesn't hold them back.
 | export-missing-file-reason | An export whose original is missing from a connected volume says "the volume … is not connected". Since E14 that Activity warning is the only report the person gets | Idea | Small fix, made more visible by E14. Product intent (mine; owner may overrule): the reason tells a disconnected volume apart from a missing file, because the person fixes them differently. The wording belongs to the designer. Intake: whether the grid and loupe's Offline state should draw the same line (not checked) | `ui-redesign/qa.md` Q3; `ui-redesign/design.md` E14 |
 | appkitbutton-enablement | Some inspector buttons look enabled when they should be dimmed (the mask eye button and other Adjust tab buttons are likely affected): `AppKitButton(isEnabled: false)` doesn't reliably dim | Idea | A defect, small, and against principle 4; it may go as a bug fix (workflow: bug fixes skip steps 1 and 2). Placed with the small fixes only because a workaround covers the buttons the reconcile changes touched | `ui-redesign/status.md` "Found, not fixed" |
 | ci-test-crash | The test process sometimes crashes on CI (signal 11), so that run reports nothing about the tests that had not finished. Per the comment PR #42 added to the workflow, it has happened on `develop` since PR #39 (ml-denoise) and never reproduced locally. PR #40's CI passed on both runners, so it is intermittent | Idea | Tooling first, but it moves up if the backtraces point into app code: the crash started with ml-denoise, so it could be a real crash in shipped code rather than in a test. For the engineer, as a bug fix: the next crashing run now leaves a backtrace of every thread and the system crash reports as artifacts (PR #42); read them, then fix or report. Owner to confirm it still happens | `.github/workflows/build.yml` Test step comment (PR #42, `bug/ci-crash-capture`, merge 14dc0c1); no other record in `docs/` |
-| debug-script-undo-groups | Debug-script commands that change nothing (`ml wait`, `ml ready`, `ml override`, a `key` with no effect, `adjust crop show`, `adjust crop begin`) open undo groups and leave empty undo steps, so scripted undo checks misread. `ml override` also reloads before the last save lands, and a frame still in flight can override the new state | Idea | Tooling only; people using the app don't see it. Ahead of qa-test-gaps because the loupe-caption-narrow recheck uses `ml override` (the workaround until then: `wait` before an override, `ml override clear` between two). For the engineer, as a bug fix | `ml-denoise/qa.md` Q2, Q3; `sharpen-mask-preview/qa.md` Q4; `ui-redesign/qa.md` Q2 |
-| qa-test-gaps | Three tests don't check what they are named for. ml-denoise AC10's "Reset All clears it" asserts the Details reset. Nothing observable shows that the sharpening map after a pause is the refined frame (AC7, R6). `FolderImportQueueTests` passes without E13's change. Also: the app-side half of the stale-preview fix (a hash shown only after its write, batch undo, the grid cell's silence on a refused render) has no automated test, because there is no test target for the app module. Likewise, nothing automated fails if the loupe's load or the library reload stops reading through the write chain (`writes.read`); QA's scripts S2, S3b, S3c, S4 and S5b, which reproduce on `develop`, are the only regression check. Nothing automated fails if the app's launcher stops asking the launch guard before it opens the library, or if `LibraryModel.open`'s backstop goes; the rule is unit-tested in PhotoCore, the wiring only by QA's scripted launches. `LocalizationTests` reads `String(localized: "` on one line only, so a `String(` call with `localized:` on the next line is never checked against the catalog (8 calls in 3 files, older than library-launch-guard) | Idea | For the engineer, as a bug fix. All these behaviors passed by script, so no defect is known; the risk is a regression nobody notices. The first three fixes are an assertion, a rename, a testable rule, or more detail in `print sharpenmap`. editor-follow-edit-drop (PR #43) moved the ordering rule into PhotoCore (`WriteChain`, tested there), so what stays untested is that the app uses it; the launch guard is the same case. The scanner gap is a matter of reading the call across lines. Whether to add an app test target is the engineer's call | `ml-denoise/qa.md` Q4; `sharpen-mask-preview/qa.md` Q3; `ui-redesign/qa.md` Q1; `stale-preview-after-save/qa.md` O2; `editor-follow-edit-drop/qa.md` O2; `library-launch-guard/qa.md` O1, O2 (and `code-review.md` second pass) |
+| debug-script-undo-groups | Debug-script commands that change nothing (`ml wait`, `ml ready`, `ml override`, a `key` with no effect, `adjust crop show`, `adjust crop begin`) open undo groups and leave empty undo steps, so scripted undo checks misread. `ml override` also reloads before the last save lands, and a frame still in flight can override the new state. The opposite case: a posted click that completes a fringe pick saves in a Task after the command returns, so nothing groups its undo step and `registerUndo` raises (`DebugScript.swift:118`; it blocks any posted-event check of a completed pick) | Idea | Tooling only; people using the app don't see it. Ahead of qa-test-gaps because the loupe-caption-narrow recheck uses `ml override` (the workaround until then: `wait` before an override, `ml override clear` between two). For the engineer, as a bug fix | `ml-denoise/qa.md` Q2, Q3; `sharpen-mask-preview/qa.md` Q4; `ui-redesign/qa.md` Q2; `chromatic-aberration/qa.md` Q3 |
+| debug-resignkeyboard-inactive | The debug command `magnifier resignkeyboard` can silently do nothing in a process that isn't active: it uses `NSApp.mainWindow`, which is nil there, so a following Esc check proves nothing (`DebugLensCommands.swift:74`) | Idea | Tooling only; correct with the app active. For the engineer, as a bug fix | `chromatic-aberration/qa.md` Q2 |
+| qa-test-gaps | Three tests don't check what they are named for. ml-denoise AC10's "Reset All clears it" asserts the Details reset. Nothing observable shows that the sharpening map after a pause is the refined frame (AC7, R6). `FolderImportQueueTests` passes without E13's change. Also: the app-side half of the stale-preview fix (a hash shown only after its write, batch undo, the grid cell's silence on a refused render) has no automated test, because there is no test target for the app module. Likewise, nothing automated fails if the loupe's load or the library reload stops reading through the write chain (`writes.read`); QA's scripts S2, S3b, S3c, S4 and S5b, which reproduce on `develop`, are the only regression check. Nothing automated fails if the app's launcher stops asking the launch guard before it opens the library, or if `LibraryModel.open`'s backstop goes; the rule is unit-tested in PhotoCore, the wiring only by QA's scripted launches. `LocalizationTests` reads `String(localized: "` on one line only, so a `String(` call with `localized:` on the next line is never checked against the catalog (8 calls in 3 files, older than library-launch-guard). From chromatic-aberration: no automated test for four review fixes, C2's replacement race, C3, C7/C13 and C9/F1, which were checked by reading, by script or by a person, because no test target reaches the app module | Idea | For the engineer, as a bug fix. All these behaviors passed by script, so no defect is known; the risk is a regression nobody notices. The first three fixes are an assertion, a rename, a testable rule, or more detail in `print sharpenmap`. editor-follow-edit-drop (PR #43) moved the ordering rule into PhotoCore (`WriteChain`, tested there), so what stays untested is that the app uses it; the launch guard is the same case. The scanner gap is a matter of reading the call across lines. Whether to add an app test target is the engineer's call | `ml-denoise/qa.md` Q4; `sharpen-mask-preview/qa.md` Q3; `ui-redesign/qa.md` Q1; `stale-preview-after-save/qa.md` O2; `editor-follow-edit-drop/qa.md` O2; `library-launch-guard/qa.md` O1, O2 (and `code-review.md` second pass); `chromatic-aberration/qa.md` Q1 |
 
 ## Later
 
@@ -253,9 +331,10 @@ depends on. Ordering below them is judgment.
 | ui-redesign-onscreen-check | Shipped work that only a person can check. (a) The older redesign: glass panes, VoiceOver speech, macOS 15 path, 13" Export sheet. (b) The film strip: steps, height cap, show/hide, resize drag, crop session, Increase Contrast. (c) ui-redesign-reconcile: **done** (owner, 2026-11-06: "I've checked all the P1-P10 of the ui-redesign"; all passed, no findings): P1–P10 in [`ui-redesign/qa.md`](features/ui-redesign/qa.md) "For a person", incl. AC2. (d) sharpen-mask-preview: P1–P8 in [`sharpen-mask-preview/qa.md`](features/sharpen-mask-preview/qa.md) "For a person", incl. the ⇧↑ check for its Q2. (e) ml-denoise: P1–P9 in [`ml-denoise/qa.md`](features/ml-denoise/qa.md) "For a person", incl. AC13 (P9, your raws: ML vs classical at 100). (f) stale-preview-after-save, optional: P2 in [`stale-preview-after-save/qa.md`](features/stale-preview-after-save/qa.md) "For a person" (drag Exposure three times on a real raw, back to the grid, relaunch; the thumbnail shows the last value and never goes blank). (g) editor-follow-edit-drop, optional: P1 in [`editor-follow-edit-drop/qa.md`](features/editor-follow-edit-drop/qa.md) "For a person" (a scratch library with a few real raws and a few thousand photos: drag Exposure, → then ← at once, drag Contrast, three times; paste onto a few thousand photos and open one at once; relaunch. Every drag survives, the Adjust tab shows the pasted values once it stops loading, and how long it shows loading is acceptable to you, qa.md O1). (h) library-launch-guard: **done** (owner, 2026-11-07: "P1-P4 pass visual testing"; no findings; recorded in qa.md's Follow-up): P1–P3 and the optional P4 in [`library-launch-guard/qa.md`](features/library-launch-guard/qa.md) "For a person" (a `.debugtest` copy opened from the Finder or `open` shows the alert in front and quits on Return or a click; VoiceOver reads it; `swift run PhotoApp` shows it and exits 64; optionally, the release bundle with `--debug-script` and no `--library-root` exits 64 with no alert). Items that need another Mac (macOS 15, which the owner doesn't have: (a)'s macOS 15 path; macOS 15 or 26: ml P6, sharpen P8; a Mac without the RAW 9 model: ml P8, the RI-E6 (d) check) stay open here until one is available | Idea | Owner, 2026-11-06: moved from Now to Later, holding (a), (b), (d), (e), (f) and (g); nothing dropped. (h) added at library-launch-guard's Ship, 2026-11-07, and done the same day. The checks stay pending on each feature's Shipped row until done. Every person-only check is gathered here (owner, 2026-11-06, earlier ruling 3) | `UI_REDESIGN.md` status, "Not yet checked on screen"; §11 "Implementation status", last item; the five qa.md files above (2026-11-06) |
 | publishing-engine | Getting edited photos into Apple Photos or Immich means exporting to a folder and uploading by hand | Idea | Owner, 2026-11-06: moved from Now to Later | Issue #28; `PHASE4_PLAN.md` out of scope ("export to services") |
 | publishing-plugins | Destinations beyond the built-ins need app changes | Idea | Depends on publishing-engine settling `PublishTarget` | Issue #29 |
+| pick-colors-magnifier | The Color Range mask's Pick Colors doesn't use the Pixel Magnifier, so the person can't see which pixel a click takes or read its values | Idea | The Pixel Magnifier shipped in chromatic-aberration (PR #48) and is built for other tools to use (`PixelMagnifierTool`; AC29 proves it with a test tool). So far only the fringe eyedropper uses it. Pick Colors needs its own answers to R22 and R25: it samples the on-screen frame, after edits, at that frame's resolution, has no snap and stays on for several clicks | `chromatic-aberration/prd.md` OQ6, owner, 2026-11-08 |
 | dng-export | No DNG output | Idea | ImageIO cannot write DNG; needs a writer of our own | CLAUDE.md Not yet; `PHASE4_PLAN.md` Formats; issue #6 (asked, closed without it) |
 | healing | No spot removal or healing | Idea | Phase 5's test loop was built with healing and lens corrections in mind | CLAUDE.md Not yet; `PHASE5_PLAN.md` intro; `PHASE6_PLAN.md` out of scope |
-| lens-corrections | No distortion, vignetting or chromatic aberration correction | Idea | Interacts with the decoder's own lens correction on camera-cropped raws | CLAUDE.md Not yet; `PHASE6_PLAN.md` finding 1 |
+| lens-corrections | No correction of geometric distortion or lens vignetting, and no lens profiles. Chromatic aberration and fringing moved to chromatic-aberration (Now, owner, 2026-11-07) | Idea | Lower priority, owner, 2026-11-07: the raw decoder usually applies distortion and vignetting already. Interacts with the decoder's own lens correction on camera-cropped raws | CLAUDE.md Not yet; `PHASE6_PLAN.md` finding 1 |
 | ai-masks | No subject, sky, object or people masks | Idea | | CLAUDE.md Not yet; `PHASE6_PLAN.md` out of scope |
 | dcp-profiles | Adobe `.dcp` camera profiles not supported | Idea | | CLAUDE.md Not yet; `PHASE3_PLAN.md` out of scope |
 | stacks | No hand-made or burst stacks | Idea | `stack` / `stackMember` tables and `Catalog.createStack` exist, no UI | CLAUDE.md Not yet; `PHASE2_PLAN.md` out of scope |
@@ -313,6 +392,7 @@ Dates are from git history (first commit of the work) or the phase document.
 | editor-follow-edit-drop | 2026-11-06 | **Shipped, checks pending.** Bug fix, no PRD or design (folder has status.md, code-review.md, qa.md), one change with reload-items-stale-hash. Merged via PR #43 (`bug/editor-follow-edit-drop`, merge commit 520d479). Leaving a photo in the loupe and coming back before the last save landed, then changing something, wrote the older values back and silently dropped the earlier edit. The loupe now loads a photo's edits only after every pending save has landed, and reads again if another write was queued meanwhile; that also closes an undo or paste being lost while the photo loads. The ordering rule is in PhotoCore (`WriteChain`) with deterministic tests that fail without it; no rendering changed. Code review: ready to merge, no findings. QA: all 13 items pass; each route reproduces on `develop` and none on the branch. **Expected cost** (qa.md O1): behind a batch of about 30,000 photos the Adjust tab shows loading for about 3 s; batches of normal size take milliseconds. Open for a person: P1 (optional, real keys on real raws, and whether that loading time is acceptable) in [`editor-follow-edit-drop/qa.md`](features/editor-follow-edit-drop/qa.md), done under ui-redesign-onscreen-check (g). Follow-ups: reads-beside-write-chain (Next, code-review.md Q1), and qa.md O2 under qa-test-gaps (Next). Found by `stale-preview-after-save/code-review.md` Q2. [`features/editor-follow-edit-drop/`](features/editor-follow-edit-drop/) |
 | reload-items-stale-hash | 2026-11-06 | **Shipped.** Fixed in the same change as editor-follow-edit-drop (PR #43, merge commit 520d479; records in [`features/editor-follow-edit-drop/`](features/editor-follow-edit-drop/)). A library reload that read rows before an edit's or culling key's write could apply after it and put the old values back. On screen, a grid cell showed the previous look or stayed blank. **Not display only, as the Next row had said** (corrected 2026-11-06, qa.md Q1): the same race put old ratings, flags and labels back, and the next rating, flag or label key then saved the stale values of the other two (on `develop`, a flag ended stored as rejected after `U` cleared it). Now a reload applies its rows only if no write was queued while it read; otherwise it reads again. QA: reproduced on `develop` (S3b 5 of 14 rounds, S3c 6 of 6, S4 7 of 9), not on the branch. No person check open for it. A reload waits behind a long write the same way as the loupe (qa.md O1). App-side regression gap: qa.md O2 under qa-test-gaps. Found by `stale-preview-after-save/code-review.md` "Checked and fine" |
 | library-launch-guard | 2026-11-07 | **Shipped.** Bug fix, no PRD or design (folder has status.md, code-review.md, review.md, qa.md). PR #47 (`bug/library-launch-guard`). A test copy of the app could open the owner's real library (it happened once during QA on 2026-11-06, nothing changed; `ui-redesign/qa.md` "Incident in this QA run"). Now the app refuses a test launch that has no `--library-root`, before it opens or creates anything in the standard data and cache folders. A test launch is a bundle whose identifier isn't the release one (no bundle, as with `swift run`, included) or a launch with `--debug-script` or `--benchmark-scroll` (owner rulings 1–4, 2026-11-07, status.md). Refused: the reason on standard error, then an alert ("Can't Open the Library") and quit with status 64; a scripted launch exits 64 at once with no alert. The standalone importer has no library and is not guarded; `photocli` and `photobench` are unchanged (out of the rulings' scope). Code review: two passes, ready to merge, C1 and C2 fixed and confirmed. Design review: F1 (alert message and comments) fixed and confirmed; I1 (Escape) not taken. QA: passes, no findings; reproduced on `develop` (D5), not on the branch, the owner's library untouched. The person checks P1–P3 and the optional P4 in [`library-launch-guard/qa.md`](features/library-launch-guard/qa.md) "For a person" (ui-redesign-onscreen-check (h)) all passed (owner, 2026-11-07, no findings; qa.md Follow-up: 16 of 16 pass); "checks pending" cleared the same day. Follow-ups: qa.md O1 and O2 under qa-test-gaps (Next). [`features/library-launch-guard/`](features/library-launch-guard/) |
+| chromatic-aberration | 2026-11-08 | **Shipped.** PR #48; folder [`features/chromatic-aberration/`](features/chromatic-aberration/). The Lens heading in the Adjust tab: Color Fringes grays up to two fringe colors near high-contrast edges, picked from the photo or chosen from a short list (Purple, Green), with a Fringe Map; Color Alignment measures and corrects red/cyan and blue/yellow edges, stored with the edit and measured for each photo that receives it. The Pixel Magnifier shows the photo's own pixels while picking, the pixel a click takes and its values, at a level that persists; it is built for other tools to use. Off by default, no existing render changed. The owner confirmed every person check in [`qa.md`](features/chromatic-aberration/qa.md) (P1–P13). Known limitation: if the Lens kernels can't compile, the corrections are skipped with no message (RI-CR1, PRD). Follow-ups, not fixed, the owner chose to ship: QA Q1 (qa-test-gaps), Q3 (debug-script-undo-groups), Q2 (debug-resignkeyboard-inactive); pick-colors-magnifier |
 
 ## Dropped
 

@@ -15,12 +15,17 @@ public actor LiveRenderSession {
         case photo
         /// The sharpening map in place of the photo (`AdjustmentRenderer.sharpeningMask`).
         case sharpeningMap
+        /// The fringe map in place of the photo (`AdjustmentRenderer.fringeMap`).
+        case fringeMap
+
+        /// One of the maps, shown in place of the photo.
+        public var isMap: Bool { self != .photo }
     }
 
     /// One rendered frame, ready for a layer.
     public struct Frame: Sendable {
         public let image: DecodedImage
-        /// Nil while a mask overlay is drawn over the frame, and for the sharpening map.
+        /// Nil while a mask overlay is drawn over the frame, and for the maps.
         public let histogram: Histogram?
         public let content: Content
         /// The mask overlay is drawn over the photo.
@@ -252,8 +257,15 @@ public actor LiveRenderSession {
         if level > 0 {
             (source, context) = try draft(of: base, key: baseKey, factor: factor)
         }
-        var image = try linear(adjustments, source: source, context: context, level: level, baseKey: baseKey,
+        var image: CIImage
+        if content == .fringeMap {
+            // The fringe map needs only the decoded image (chromatic-aberration design §6).
+            guard let adjusting = renderer as? AdjustmentRenderer else { throw PreviewGenerator.Failure.renderFailed }
+            image = AdjustmentRenderer.sharpeningMapDisplay(adjusting.fringeMap(adjustments, to: source, context: context))
+        } else {
+            image = try linear(adjustments, source: source, context: context, level: level, baseKey: baseKey,
                                cancellation: cancellation, untilSharpening: content == .sharpeningMap)
+        }
         try cancellation?.check()
         if content == .sharpeningMap {
             // The stored Sharpening values, also while the group is turned off (design §11).
@@ -425,6 +437,18 @@ public actor LiveRenderSession {
             bases[baseOrder.removeFirst()] = nil
         }
         return base
+    }
+}
+
+/// What the full-resolution refinement after a pause (or a zoom) renders:
+/// the map on screen, or the photo without the slot being picked again
+/// (chromatic-aberration design §4, zoomed in only). Nil for neither.
+public enum LoupeRefinement: Equatable, Sendable {
+    case map, photoWithoutSlot
+
+    public static func wanted(content: LiveRenderSession.Content, replacesSlot: Bool, isZoomed: Bool) -> LoupeRefinement? {
+        if content.isMap { return .map }
+        return replacesSlot && isZoomed ? .photoWithoutSlot : nil
     }
 }
 

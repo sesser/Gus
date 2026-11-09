@@ -171,12 +171,15 @@ enum LibraryCommands {
             throw CommandError(.versionNotFound, "No version \(id)")
         }
         let before = try details.version.readableEditStack()
-        let after: EditStack
+        var after: EditStack
         do throws(AdjustmentEdit.Failure) {
             after = try before.applying(edits)
         } catch {
             throw commandError(error)
         }
+        after = try alignColors(after, edits: edits,
+                                source: details.volume.url(forRelativePath: details.image.relativePath),
+                                lookTables: library.lookTables)
         // Machine learning noise reduction is never stored on a file that is not RAW (PRD R10).
         if !SupportedFormats.isRaw(pathExtension: (details.image.fileName as NSString).pathExtension),
            Adjustments(stack: after).asksForMachineLearning, !Adjustments(stack: before).asksForMachineLearning {
@@ -195,6 +198,41 @@ enum LibraryCommands {
             "written": .bool(changed && !dryRun),
             "dryRun": .bool(dryRun),
         ]
+    }
+
+    /// Color alignment as the app sets it: `colorAlignment.automatic=true`
+    /// measures the master and stores what it measured (R8); setting `red` or
+    /// `blue` makes the values hand-set (R10); `colorAlignment.automatic=false`
+    /// alone removes the correction.
+    static func alignColors(_ stack: EditStack, edits: [AdjustmentEdit], source: URL,
+                            lookTables: LookTableStore?) throws -> EditStack {
+        func sets(_ name: String, to value: String? = nil) -> Bool {
+            edits.contains {
+                if case .set(ColorAlignment.kind, name, let text) = $0 { value == nil || text == value } else { false }
+            }
+        }
+        var values = Adjustments(stack: stack)
+        if sets("automatic", to: "true") {
+            guard FileManager.default.fileExists(atPath: source.path) else {
+                throw CommandError(.fileNotFound, "colorAlignment.automatic measures the original; no file at \(source.path)")
+            }
+            let generator = PreviewGenerator(engine: RenderEngine(contextCount: 1, name: "command-line"),
+                                             renderer: AdjustmentRenderer(lookTables: lookTables))
+            do {
+                let measured = try ColorAlignmentMeasurement.measure(source: source, adjustments: values, generator: generator)
+                values = values.measuringAlignment(measured)
+            } catch {
+                throw CommandError(.renderFailed, "colorAlignment.automatic: the original could not be measured")
+            }
+        } else if sets("red") || sets("blue") {
+            values.colorAlignment.automatic = false
+        } else if sets("automatic", to: "false") {
+            // Unchecking removes the correction, as the check box does.
+            values.colorAlignment = ColorAlignment()
+        } else {
+            return stack
+        }
+        return values.editStack
     }
 
     static func commandError(_ failure: AdjustmentEdit.Failure) -> CommandError {

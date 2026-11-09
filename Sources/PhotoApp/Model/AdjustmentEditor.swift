@@ -89,13 +89,23 @@ final class AdjustmentEditor {
     /// Drags on the photo paint into the selected mask's brush.
     var isBrushing = false {
         // Painting needs the photo on screen.
-        didSet { if isBrushing { endSharpeningMap() } }
+        didSet {
+            if isBrushing {
+                endSharpeningMap()
+                pickingFringeSlot = nil
+            }
+        }
     }
     /// The settings the next stroke paints with (its points are unused).
     var brushTemplate = BrushStroke(size: 0.03)
     /// Clicks on the photo add a color to the selected mask's color range.
     var isSamplingColor = false {
-        didSet { if isSamplingColor { endSharpeningMap() } }
+        didSet {
+            if isSamplingColor {
+                endSharpeningMap()
+                pickingFringeSlot = nil
+            }
+        }
     }
     /// The mask frame's size in pixels, from the latest frame: its proportions
     /// place masks on screen.
@@ -125,9 +135,83 @@ final class AdjustmentEditor {
 
     // MARK: Sharpening map state
 
-    /// Whether the sharpening map is asked for, and what it suspended (design §6).
+    /// Whether a map is asked for, and what it suspended (design §6). One
+    /// slot serves both maps (chromatic-aberration design §6): `mapKind` says
+    /// which; switching maps keeps what the first suspended.
     private(set) var sharpeningMap = SharpeningMapState()
-    var showsSharpeningMap: Bool { sharpeningMap.isShown }
+    /// The map the slot holds while `sharpeningMap.isShown`.
+    private(set) var mapKind = LiveRenderSession.Content.sharpeningMap
+    var showsSharpeningMap: Bool { sharpeningMap.isShown && mapKind == .sharpeningMap }
+    var showsFringeMap: Bool { sharpeningMap.isShown && mapKind == .fringeMap }
+    /// What the fringe map on screen says (badge, legend, VoiceOver); nil
+    /// while it is not on screen.
+    private(set) var shownFringeMap: FringeMapStatus?
+    /// What frames show now: the photo, or the map asked for. The fringe map
+    /// is suspended while an eyedropper is armed (chromatic-aberration design §6).
+    var currentContent: LiveRenderSession.Content {
+        guard sharpeningMap.isShown else { return .photo }
+        return mapKind == .fringeMap && pickingFringeSlot != nil ? .photo : mapKind
+    }
+
+    // MARK: Color fringes and alignment state
+
+    /// The fringe slot whose eyedropper is armed (1 or 2), nil when none
+    /// (chromatic-aberration design §4). Never saved, never an undo step.
+    var pickingFringeSlot: Int? {
+        didSet {
+            guard oldValue != pickingFringeSlot else { return }
+            fringePickRefused = false
+            if pickingFringeSlot != nil { fringePixelsUnreadable = false }
+            syncSamplePixels()
+            if pickingFringeSlot != nil {
+                // One picking or painting tool at a time; the photo being edited.
+                isBrushing = false
+                isSamplingColor = false
+                if showsSharpeningMap { endSharpeningMap() }
+                showsOriginal = false
+            }
+            guard state == .ready else { return }
+            if fringeSlotIsReplaced(oldValue) || fringeSlotIsReplaced(pickingFringeSlot) || showsFringeMap {
+                showsLive = true
+                requestRender(interactive: false)
+            }
+        }
+    }
+    /// The pixels picks sample, held while a slot is picking (status.md OQ14);
+    /// nil until the first render is done, or after a change that alters them.
+    private(set) var fringeSamplePixels: FringeSamplePixels?
+    @ObservationIgnored private var samplePixelsTask: Task<FringeSamplePixels?, Never>?
+    @ObservationIgnored private var samplePixelsKey: SamplePixelsKey?
+    /// A context of its own, so holding the pixels never queues behind a preview or slows a live frame.
+    @ObservationIgnored private lazy var samplePixelsEngine = RenderEngine(contextCount: 1, name: "pixel-magnifier")
+    private struct SamplePixelsKey: Equatable {
+        var source: URL
+        var settings: RAWDecodeSettings
+        var alignment: ColorAlignment
+    }
+    /// The last click while picking found almost no color (design §4).
+    private(set) var fringePickRefused = false
+    /// Picking ended because the pixels couldn't be read (design §19 DQ-4).
+    private(set) var fringePixelsUnreadable = false
+    /// The debug script's way to make the sampled render fail (DR22) without touching a file.
+    @ObservationIgnored var debugFailsSamplePixels = false
+    /// The last sample: where it was taken (mask frame, unit) and whether it was refused.
+    @ObservationIgnored private(set) var lastFringeSample: (point: CGPoint, refused: Bool)?
+    @ObservationIgnored private var fringePickTask: Task<Void, Never>?
+    /// When the last pick landed (the double-click after it is ignored).
+    @ObservationIgnored var lastFringePick: Date?
+    /// The full-resolution frame of a replaced slot's preview is still rendering 0.5 s on.
+    private(set) var isRefiningPickPreview = false
+    /// Each filled slot's color as a pixel of it looks in the photo now (linear Rec. 2020).
+    private(set) var fringeSwatches: [Int: SIMD3<Double>] = [:]
+    @ObservationIgnored private var swatchTask: Task<Void, Never>?
+    /// Align automatically is measuring this photo.
+    private(set) var isMeasuringAlignment = false
+    /// The last measurement of this photo failed (its original could not be read).
+    private(set) var alignmentMeasureFailed = false
+    @ObservationIgnored private var alignmentTask: Task<Void, Never>?
+    /// Measures a hovered preset's automatic alignment on this photo.
+    @ObservationIgnored private var hoverAlignmentTask: Task<Void, Never>?
     /// What the sharpening map on screen says (badge, legend, VoiceOver);
     /// nil while the photo is on screen. Set with the frame that shows it,
     /// so nothing claims a map that is not on screen (design §5).
@@ -136,7 +220,7 @@ final class AdjustmentEditor {
     private(set) var isRefiningSharpeningMap = false
     /// The loupe is zoomed in: the refined map renders at full size, not the fit size.
     @ObservationIgnored var loupeIsZoomed = false {
-        didSet { if loupeIsZoomed != oldValue, sharpeningMap.isShown { scheduleMapRefinement() } }
+        didSet { if loupeIsZoomed != oldValue, refinementWanted != nil { scheduleMapRefinement() } }
     }
     @ObservationIgnored private var mapRefiner: SharpeningMapRefiner?
     /// The full-resolution map's input is held (for the debug script).
@@ -242,6 +326,8 @@ final class AdjustmentEditor {
         let cache = library.previews.cache
         let previewKey = library.previewRequest(for: newItem, tier: .preview)?.key
         let writes = library.writes
+        // The Lens kernels compile once, the first time; not on the first frame that needs them.
+        Self.prepareLensKernelsOnce()
         loadTask = Task {
             let defaults = SupportedFormats.isRaw(pathExtension: url.pathExtension)
                 ? await Task.detached(priority: .userInitiated) { RawDefaults(source: url) }.value : nil
@@ -270,6 +356,7 @@ final class AdjustmentEditor {
                     session = LiveRenderSession(source: url, generator: generator, colorSpace: colorSpace)
                     state = .ready
                     refreshMachineLearning()
+                    refreshFringeSwatches()
                     if cropsWhenReady == versionID {
                         cropsWhenReady = nil
                         beginCrop()
@@ -333,6 +420,20 @@ final class AdjustmentEditor {
         isSamplingColor = false
         maskFrameSize = nil
         stopAwaitingMachineLearning()
+        pickingFringeSlot = nil
+        fringePickTask?.cancel()
+        fringePickTask = nil
+        lastFringeSample = nil
+        lastFringePick = nil
+        fringePixelsUnreadable = false
+        shownFringeMap = nil
+        mapKind = .sharpeningMap
+        swatchTask?.cancel()
+        if !fringeSwatches.isEmpty { fringeSwatches = [:] }
+        alignmentTask?.cancel()
+        alignmentTask = nil
+        isMeasuringAlignment = false
+        alignmentMeasureFailed = false
         offlineAsksMachineLearning = false
         arrivedWithFailedFallback = false
         previewWasCached = true
@@ -382,10 +483,14 @@ final class AdjustmentEditor {
         showsOriginal = false
         isChanging = phase == .changing
         if next != adjustments {
+            if next.colorAlignment != adjustments.colorAlignment { alignmentMeasureFailed = false }
+            fringePixelsUnreadable = false
             adjustments = next
             sharpeningMap.valuesChanged()
             showsLive = true
             refreshMachineLearning()
+            refreshFringeSwatches()
+            syncSamplePixels()
             requestRender(interactive: phase == .changing)
             if cropSession != nil, phase == .committed { renderCropImage() }
         } else if phase == .committed, lastFrameWasInteractive || renderingInteractive
@@ -450,9 +555,25 @@ final class AdjustmentEditor {
     /// overlay and Show Original and turns the mask tools off; the photo
     /// stays until the first map frame is ready.
     func showSharpeningMap() {
-        guard canShowSharpeningMap, !sharpeningMap.isShown else { return }
+        showMap(.sharpeningMap)
+    }
+
+    /// Shows `kind` in the map slot. Over the other map it takes its place
+    /// and keeps what that one suspended (chromatic-aberration design §6).
+    func showMap(_ kind: LiveRenderSession.Content) {
+        guard canShowSharpeningMap, kind.isMap else { return }
+        if sharpeningMap.isShown {
+            guard mapKind != kind else { return }
+            stopMapRefinement()
+            if kind == .sharpeningMap { pickingFringeSlot = nil }
+            mapKind = kind
+            requestRender(interactive: false)
+            return
+        }
         isBrushing = false
         isSamplingColor = false
+        if kind == .sharpeningMap { pickingFringeSlot = nil }
+        mapKind = kind
         sharpeningMap.show(overlay: showsMaskOverlay, original: showsOriginal)
         showsMaskOverlay = false
         showsOriginal = false
@@ -485,6 +606,7 @@ final class AdjustmentEditor {
     private func leaveSharpeningMap() {
         stopMapRefinement()
         mapRefiner = nil
+        mapKind = .sharpeningMap
     }
 
     private func stopMapRefinement() {
@@ -494,38 +616,52 @@ final class AdjustmentEditor {
         mapRefinement = nil
         mapRefineGeneration += 1
         if isRefiningSharpeningMap { isRefiningSharpeningMap = false }
+        if isRefiningPickPreview { isRefiningPickPreview = false }
     }
 
     /// Once input pauses for about 150 ms, renders the map from the
     /// full-resolution master at the loupe's zoom (prd.md R6); the estimate
     /// stays on screen until it is ready. A spinner shows if it is still
     /// running about 0.5 s after the last input.
+    /// What a refinement would render now (design §4, §6).
+    private var refinementWanted: LoupeRefinement? {
+        LoupeRefinement.wanted(content: currentContent, replacesSlot: fringeSlotIsReplaced(pickingFringeSlot), isZoomed: loupeIsZoomed)
+    }
+
     private func scheduleMapRefinement() {
         stopMapRefinement()
-        guard sharpeningMap.isShown, let session, let url = sourceURL, let library else { return }
+        let content = currentContent
+        guard let wanted = refinementWanted, let session, let url = sourceURL, let library else { return }
+        let refinesPhoto = wanted == .photoWithoutSlot
         let refiner = mapRefiner ?? SharpeningMapRefiner(source: url, generator: library.previews.interactiveGenerator,
                                                          colorSpace: library.previews.displayColorSpace)
         mapRefiner = refiner
-        let values = previewValues ?? adjustments
+        let values = refinesPhoto ? valuesOnScreen : (previewValues ?? adjustments)
         let longEdge = loupeIsZoomed ? nil : session.longEdge
         let generation = mapRefineGeneration
         mapRefineTask = Task {
             try? await Task.sleep(for: .milliseconds(150))
-            guard !Task.isCancelled, sharpeningMap.isShown, pendingRender == nil else { return }
+            guard !Task.isCancelled, content == currentContent, pendingRender == nil else { return }
             let token = RenderCancellation()
             mapRefinement = token
             let spinner = Task {
                 try? await Task.sleep(for: .milliseconds(350))
-                if !Task.isCancelled, generation == mapRefineGeneration { isRefiningSharpeningMap = true }
+                if !Task.isCancelled, generation == mapRefineGeneration {
+                    if refinesPhoto { isRefiningPickPreview = true } else { isRefiningSharpeningMap = true }
+                }
             }
             defer {
                 spinner.cancel()
-                if generation == mapRefineGeneration { isRefiningSharpeningMap = false }
+                if generation == mapRefineGeneration {
+                    isRefiningSharpeningMap = false
+                    isRefiningPickPreview = false
+                }
             }
             do {
-                let refined = try await refiner.render(values, longEdge: longEdge, cancellation: token)
-                guard !Task.isCancelled, generation == mapRefineGeneration, sharpeningMap.isShown,
-                      session === self.session, (previewValues ?? adjustments) == values else { return }
+                let refined = try await refiner.render(values, longEdge: longEdge, content: content, cancellation: token)
+                guard !Task.isCancelled, generation == mapRefineGeneration, content == currentContent,
+                      session === self.session,
+                      (refinesPhoto ? valuesOnScreen : (previewValues ?? adjustments)) == values else { return }
                 show(refined)
             } catch is CancellationError {
                 // Newer input; its frame schedules another refinement.
@@ -550,6 +686,13 @@ final class AdjustmentEditor {
             if shownSharpeningMap != status { shownSharpeningMap = status }
         } else if shownSharpeningMap != nil {
             shownSharpeningMap = nil
+        }
+        if rendered.content == .fringeMap {
+            showsLive = true
+            let status = FringeMapStatus(rendered.adjustments)
+            if shownFringeMap != status { shownFringeMap = status }
+        } else if shownFringeMap != nil {
+            shownFringeMap = nil
         }
         frameRevision += 1
     }
@@ -579,6 +722,10 @@ final class AdjustmentEditor {
                 sharpeningMap.valuesChanged()
                 showsLive = true
                 refreshMachineLearning()
+                fringePixelsUnreadable = false
+                refreshFringeSwatches()
+                syncSamplePixels()
+                endFringeMapWithoutPicks()
                 requestRender(interactive: false)
             }
         }
@@ -613,6 +760,10 @@ final class AdjustmentEditor {
         showsOriginal = false
         sharpeningMap.valuesChanged()
         refreshMachineLearning()
+        fringePixelsUnreadable = false
+        refreshFringeSwatches()
+        syncSamplePixels()
+        endFringeMapWithoutPicks()
         // The map stays on screen until its next frame; the photo's renditions follow otherwise.
         if !sharpeningMap.isShown { showsLive = false }
         // For the histogram; the loupe loads the new edit's renditions itself.
@@ -775,8 +926,41 @@ final class AdjustmentEditor {
         refreshMachineLearning()
     }
 
+    /// A hovered preset that carries automatic alignment (chromatic-aberration
+    /// design §10): shown at once with the photo's own alignment, then with
+    /// the alignment measured on this photo once that is done. Nothing
+    /// measured here is saved unless the preset is applied.
+    func previewMeasuringAlignment(_ body: @escaping (inout Adjustments) -> Void) {
+        guard state == .ready else { return }
+        var target = adjustments
+        body(&target)
+        hoverAlignmentTask?.cancel()
+        guard target.needsAlignmentMeasurement, let library, let url = sourceURL else {
+            preview(body)
+            return
+        }
+        let current = adjustments.colorAlignment
+        preview { values in
+            body(&values)
+            values.colorAlignment = current
+        }
+        let generator = library.previews.interactiveGenerator
+        let measuring = target
+        hoverAlignmentTask = Task {
+            let measured = await Task.detached(priority: .utility) {
+                try? ColorAlignmentMeasurement.measure(source: url, adjustments: measuring, generator: generator)
+            }.value
+            guard !Task.isCancelled, isPreviewing, previewValues != nil, let measured else { return }
+            preview { values in
+                body(&values)
+                values = values.measuringAlignment(measured)
+            }
+        }
+    }
+
     /// Back to the applied values (the menu closed without a pick).
     func endPreview() {
+        hoverAlignmentTask?.cancel()
         guard isPreviewing else { return }
         isPreviewing = false
         previewValues = nil
@@ -798,7 +982,7 @@ final class AdjustmentEditor {
             cancellation = RenderCancellation()
             refinement = cancellation
         }
-        pendingRender = (previewValues ?? (showsOriginal ? .none : adjustments), interactive, cancellation)
+        pendingRender = (valuesOnScreen, interactive, cancellation)
         if let values = pendingRender?.values, decodesWithMachineLearning(values) {
             awaitMachineLearning(values)
         } else {
@@ -812,13 +996,13 @@ final class AdjustmentEditor {
                 defer { renderingInteractive = false }
                 do {
                     let overlay = showsMaskOverlay && !showsOriginal ? selectedMaskID : nil
-                    let content: LiveRenderSession.Content = sharpeningMap.isShown ? .sharpeningMap : .photo
+                    let content = currentContent
                     let rendered = try await session.render(next.values, interactive: next.interactive,
                                                             allowsDrafts: allowsDrafts, overlayMask: overlay,
                                                             content: content, cancellation: next.cancellation)
                     guard !Task.isCancelled, session === self.session else { break }
-                    // A map frame rendered before the map was hidden: the photo's frame follows.
-                    if rendered.content == .sharpeningMap, !sharpeningMap.isShown { continue }
+                    // A frame rendered before the map was hidden or switched: the right one follows.
+                    if rendered.content != currentContent { continue }
                     maskFrameSize = rendered.maskFrameSize
                     lastFrameWasInteractive = next.interactive
                     // Only frames showing the photo give the histogram (R7).
@@ -827,8 +1011,11 @@ final class AdjustmentEditor {
                     }
                     show(rendered)
                     seedPreviewIfRendered()
-                    if rendered.content == .sharpeningMap {
+                    if rendered.content.isMap {
                         // The map's refinement is the full-resolution one, not a full-size frame.
+                        if pendingRender == nil { scheduleMapRefinement() }
+                    } else if fringeSlotIsReplaced(pickingFringeSlot), loupeIsZoomed {
+                        // Picking again zoomed in: the photo without the slot, refined to full resolution.
                         if pendingRender == nil { scheduleMapRefinement() }
                     } else if next.interactive {
                         scheduleRefinement()
@@ -901,6 +1088,7 @@ final class AdjustmentEditor {
               let versionID = item?.versionID else { return }
         // Crop ends the map; it does not come back after Done (design §6).
         endSharpeningMap()
+        pickingFringeSlot = nil
         showsOriginal = false
         isPreviewing = false
         previewValues = nil
@@ -1044,6 +1232,255 @@ final class AdjustmentEditor {
             guard let image = await renderWholeImage(), !Task.isCancelled, cropSession != nil else { return }
             cropImage = image
         }
+    }
+
+    // MARK: Color fringes (chromatic-aberration design §3–§6)
+
+    /// Values a frame should show: a hover preview's, the original, or the
+    /// edited values; while a filled slot is picked again, without that
+    /// slot's graying (design §4), as a preview never saved.
+    var valuesOnScreen: Adjustments {
+        var values = previewValues ?? (showsOriginal ? .none : adjustments)
+        if let slot = pickingFringeSlot, values.colorFringes[slot: slot] != nil {
+            values.colorFringes[slot: slot] = nil
+        }
+        return values
+    }
+
+    /// Picking `slot` would replace a color it holds.
+    func fringeSlotIsReplaced(_ slot: Int?) -> Bool {
+        guard let slot else { return false }
+        return adjustments.colorFringes[slot: slot] != nil
+    }
+
+    /// Picking from the photo is possible: an editable photo, no crop session.
+    var canPickFringe: Bool { state == .ready && cropSession == nil && cropImageTask == nil }
+
+    /// Arms `slot`'s eyedropper, or disarms it when it is armed (the button
+    /// and Pick from Photo); nil disarms whichever is armed (Esc).
+    func armFringePicker(_ slot: Int?) {
+        guard let slot else {
+            pickingFringeSlot = nil
+            return
+        }
+        guard canPickFringe else { return }
+        pickingFringeSlot = pickingFringeSlot == slot ? nil : slot
+    }
+
+    /// A tool is picking with the pixel magnifier.
+    var pixelMagnifierIsPicking: Bool { pickingFringeSlot != nil }
+
+    /// The fringe tool for the pixel magnifier and the click, once its pixels are held.
+    var pixelMagnifierTool: (any PixelMagnifierTool)? { fringeMagnifierTool }
+
+    /// The fringe tool itself (the click, and the debug script's mask points).
+    var fringeMagnifierTool: FringeMagnifierTool? {
+        fringeSamplePixels.map {
+            FringeMagnifierTool(pixels: $0, crop: maskCrop, note: LensText.magnifierNote, refusal: LensText.almostNoColorState)
+        }
+    }
+
+    /// Bytes the magnifier holds now (the debug script, photobench's record).
+    var samplePixelsByteCount: Int { fringeSamplePixels?.byteCount ?? 0 }
+
+    /// Holds the sampled image while a slot is picking (status.md OQ14): one
+    /// render off the main thread when picking starts, and again only when
+    /// something that changes that image changes (R30). Released as soon as
+    /// picking ends (R36).
+    private func syncSamplePixels() {
+        guard pickingFringeSlot != nil, state == .ready, let library, let url = sourceURL else {
+            samplePixelsTask?.cancel()
+            samplePixelsTask = nil
+            samplePixelsKey = nil
+            if fringeSamplePixels != nil { fringeSamplePixels = nil }
+            return
+        }
+        var settings = isRaw ? adjustments.decodeSettings : .none
+        settings.fullFrame = isRaw
+        let key = SamplePixelsKey(source: url, settings: settings, alignment: adjustments.effective.colorAlignment)
+        guard key != samplePixelsKey else { return }
+        samplePixelsKey = key
+        if fringeSamplePixels != nil { fringeSamplePixels = nil }
+        samplePixelsTask?.cancel()
+        let values = adjustments
+        let generator = library.previews.generator.withEngine(samplePixelsEngine)
+        let fails = debugFailsSamplePixels
+        samplePixelsTask = Task {
+            let result = await Task.detached(priority: .userInitiated) { () -> Result<FringeSamplePixels, any Error> in
+                if fails { return .failure(CocoaError(.fileReadUnknown)) }
+                return Result { try FringePicker.samplePixels(source: url, values: values, generator: generator) }
+            }.value
+            guard !Task.isCancelled, samplePixelsKey == key else { return nil }
+            switch result {
+            case .success(let pixels):
+                fringeSamplePixels = pixels
+                return pixels
+            case .failure(let error):
+                Self.log.error("Reading the photo for picking failed: \(error.localizedDescription, privacy: .public)")
+                // Picking ends and the caption says why (design §19 DQ-4); a waiting click is dropped.
+                pickingFringeSlot = nil
+                fringePixelsUnreadable = true
+                AccessibilityText.announce(LensText.originalUnreadable)
+                return nil
+            }
+        }
+    }
+
+    /// A click while a slot is picking, at `point` (output unit coordinates,
+    /// y down: the middle of the pointer's device pixel), with the output
+    /// `devicePixelsAcross` wide on screen. Takes the pixel the magnifier
+    /// outlines there, the same rule (R22), or refuses a spot with almost
+    /// no color (design §4). A click before the pixels are held waits for
+    /// them and follows the same rule.
+    func pickFringe(at point: CGPoint, devicePixelsAcross: Double) {
+        guard let slot = pickingFringeSlot, state == .ready, samplePixelsTask != nil,
+              let versionID = item?.versionID else { return }
+        let crop = maskCrop
+        fringePickTask?.cancel()
+        fringePickTask = Task {
+            var pixels = fringeSamplePixels
+            if pixels == nil { pixels = await samplePixelsTask?.value }
+            // A change of the sampled image can have started another render.
+            if pixels == nil { pixels = await samplePixelsTask?.value }
+            guard !Task.isCancelled, item?.versionID == versionID, pickingFringeSlot == slot, let pixels else { return }
+            let tool = FringeMagnifierTool(pixels: pixels, crop: crop)
+            guard let result = FringePicker.pick(tool: tool, atOutput: point, devicePixelsAcross: devicePixelsAcross) else { return }
+            switch result {
+            case .color(let color, let at):
+                lastFringeSample = (at, false)
+                lastFringePick = Date()
+                pickingFringeSlot = nil
+                change(LensText.pickUndoName, phase: .committed) {
+                    $0.colorFringes[slot: slot] = ColorFringes.Slot(color: color)
+                }
+                AccessibilityText.announce(LensText.setAnnouncement(slot: slot, color: color))
+            case .almostNoColor(let at):
+                lastFringeSample = (at, true)
+                fringePickRefused = true
+                AccessibilityText.announce(LensText.almostNoColorAnnouncement)
+            }
+        }
+    }
+
+    /// Fills `slot` with a listed color at its starting Tolerance, as one
+    /// undo step; cancels any picking (design §3 "The slot menu").
+    func fillFringe(_ slot: Int, with listed: CommonFringeColor) {
+        guard state == .ready else { return }
+        pickingFringeSlot = nil
+        change(LensText.chooseUndoName, phase: .committed) { $0.colorFringes[slot: slot] = listed.slot }
+        AccessibilityText.announce(LensText.setAnnouncement(slot: slot, color: listed.color))
+    }
+
+    /// Empties `slot`, as one undo step; the fringe map ends with the last pick.
+    func clearFringe(_ slot: Int) {
+        guard state == .ready, adjustments.colorFringes[slot: slot] != nil else { return }
+        if pickingFringeSlot == slot { pickingFringeSlot = nil }
+        change(LensText.clearUndoName, phase: .committed) { $0.colorFringes[slot: slot] = nil }
+        AccessibilityText.announce(LensText.clearedAnnouncement(slot: slot))
+        endFringeMapWithoutPicks()
+    }
+
+    /// With no pick left there is nothing to map: the fringe map ends.
+    private func endFringeMapWithoutPicks() {
+        guard showsFringeMap, adjustments.colorFringes.isIdentity else { return }
+        endSharpeningMap()
+        AccessibilityText.announce(String(localized: "Showing the photo.",
+                                          comment: "VoiceOver, when the sharpening map is hidden"))
+    }
+
+    func setFringeTolerance(_ slot: Int, _ value: Double, phase: EditPhase) {
+        change(LensText.toleranceTitle, phase: phase) { $0.colorFringes[slot: slot]?.tolerance = value }
+    }
+
+    /// The swatches follow the values: the stored colors through the
+    /// adjustments after the fringe step (design §14 OQ2, point 3).
+    private func refreshFringeSwatches() {
+        swatchTask?.cancel()
+        guard state == .ready, let library else { return }
+        let values = adjustments
+        let slots = [1, 2].compactMap { number in values.colorFringes[slot: number].map { (number, $0.color) } }
+        guard !slots.isEmpty else {
+            if !fringeSwatches.isEmpty { fringeSwatches = [:] }
+            return
+        }
+        let isRaw = isRaw
+        let generator = library.previews.interactiveGenerator
+        swatchTask = Task {
+            try? await Task.sleep(for: .milliseconds(60))
+            guard !Task.isCancelled else { return }
+            let colors = await Task.detached(priority: .utility) {
+                Dictionary(uniqueKeysWithValues: slots.compactMap { number, color in
+                    FringePicker.swatch(color, values: values, isRaw: isRaw, generator: generator).map { (number, $0) }
+                })
+            }.value
+            guard !Task.isCancelled, values == adjustments else { return }
+            fringeSwatches = colors
+        }
+    }
+
+    private static let lensKernels = Task.detached(priority: .utility) { AdjustmentRenderer.prepareLensKernels() }
+
+    /// Starts compiling the Lens kernels the first time a photo opens.
+    static func prepareLensKernelsOnce() {
+        _ = lensKernels
+    }
+
+    // MARK: Color alignment (chromatic-aberration design §7)
+
+    /// Align automatically: on measures the photo and saves the values as one
+    /// undo step; off removes the correction. Unchecking while measuring
+    /// stops it and saves nothing.
+    func setAutomaticAlignment(_ isOn: Bool) {
+        guard state == .ready else { return }
+        if !isOn {
+            if isMeasuringAlignment {
+                // Stops what is measuring this photo and saves nothing: the editor's own
+                // task, or with none, the paste or preset measuring it. A batch running
+                // for other photos goes on.
+                if alignmentTask == nil { library?.batchAutoTask?.cancel() }
+                alignmentTask?.cancel()
+                alignmentTask = nil
+                isMeasuringAlignment = false
+                return
+            }
+            change(LensText.turnOffAutomaticUndoName, phase: .committed) { $0.colorAlignment = ColorAlignment() }
+            return
+        }
+        guard !isMeasuringAlignment, let library, let url = sourceURL, let versionID = item?.versionID else { return }
+        isMeasuringAlignment = true
+        alignmentMeasureFailed = false
+        let values = adjustments
+        let generator = library.previews.interactiveGenerator
+        alignmentTask = Task {
+            let measured = await Task.detached(priority: .userInitiated) {
+                try? ColorAlignmentMeasurement.measure(source: url, adjustments: values, generator: generator)
+            }.value
+            guard !Task.isCancelled, item?.versionID == versionID else { return }
+            isMeasuringAlignment = false
+            alignmentTask = nil
+            guard let measured else {
+                alignmentMeasureFailed = true
+                return
+            }
+            change(LensText.turnOnAutomaticUndoName, phase: .committed) { $0 = $0.measuringAlignment(measured) }
+            AccessibilityText.announce(LensText.alignmentCaption(LensText.alignmentState(of: self)))
+        }
+    }
+
+    /// A paste or preset measuring the open photo (`changeAdjustmentsMeasuringAlignment`).
+    func setMeasuringAlignment(_ isMeasuring: Bool) {
+        isMeasuringAlignment = isMeasuring
+        if isMeasuring { alignmentMeasureFailed = false }
+    }
+
+    /// A paste or preset could not measure the open photo, which it left unchanged.
+    func noteAlignmentMeasureFailed() {
+        alignmentMeasureFailed = true
+    }
+
+    /// A Red/cyan or Blue/yellow slider: the values become hand-set (R10).
+    func setAlignment(red: Double? = nil, blue: Double? = nil, title: String, phase: EditPhase) {
+        change(title, phase: phase) { $0.colorAlignment.setByHand(red: red, blue: blue) }
     }
 
     // MARK: Auto

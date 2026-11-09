@@ -53,6 +53,10 @@ I built this with Claude. AI did the work, I did the orchestration.
   it back
 - Optional machine learning noise reduction for raw files, run on the Mac
   (macOS 27 or later, for cameras Apple's raw decoder supports)
+- Color fringe removal: pick a purple or green fringe from the photo, with a
+  pixel magnifier showing the exact pixel and its values, or choose one from a
+  short list, and it turns gray along high-contrast edges. Red/cyan and
+  blue/yellow edges toward the corners are measured and corrected automatically.
 - Masks: linear and radial gradients, a brush, and luminance and color
   ranges, combined by adding, subtracting or intersecting. Each mask
   carries its own exposure, tone, white balance, presence and sharpening.
@@ -86,8 +90,9 @@ app doesn't have open.
 
 ## Not there yet
 
-Healing, lens corrections, DNG export, automatic (subject/sky) masks, DCP
-camera profiles, hand-made and burst stacks,
+Healing, distortion and lens vignetting corrections, lens profiles, DNG
+export, automatic (subject/sky) masks, DCP camera profiles, hand-made and
+burst stacks,
 hierarchical keywords, importing straight from a camera over USB, a second
 backup destination on import. Metadata is never written into original
 files; it goes to XMP sidecars.
@@ -155,7 +160,7 @@ the only third-party dependency.
 | `Sources/PhotoImporter` | The standalone importer |
 | `Sources/PhotoCLI` | `photocli` |
 | `Sources/PhotoFixtures` | Synthetic JPEG, HEIC and DNG files for tests and benchmarks |
-| `Sources/PhotoBench` | Synthetic library generator and profiling (`photobench`) |
+| `Sources/PhotoBench` | Synthetic library generator, test scene files and profiling (`photobench`) |
 | `Sources/StringCatalogCompiler` | Compiles the String Catalog for the build script |
 | `Sources/AppIconCompiler` | Turns `Support/AppIcon.png` into the app icon |
 | `Tests/PhotoCoreTests` | Tests, golden images and CPU reference implementations |

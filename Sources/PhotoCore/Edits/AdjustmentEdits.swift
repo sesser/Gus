@@ -85,6 +85,19 @@ public enum AdjustmentEdit: Hashable, Sendable {
                   values.allSatisfy({ (0...1).contains($0) })
             else { return .failure(InvalidValue("a list x0,y0,x1,y1,… of at least two points, each 0 … 1")) }
             return .success(.list(values.map(EditParameter.number)))
+        case .okLabColor:
+            if let listed = CommonFringeColor(name: text) {
+                let color = listed.color
+                return .success(.list([.number(color.x), .number(color.y), .number(color.z)]))
+            }
+            let values = text.split(separator: ",").compactMap { Double($0.trimmingCharacters(in: .whitespaces)) }
+            guard values.count == 3, (0...1).contains(values[0]), (-0.5...0.5).contains(values[1]),
+                  (-0.5...0.5).contains(values[2])
+            else {
+                let names = CommonFringeColor.allCases.map(\.rawValue).joined(separator: ", ")
+                return .failure(InvalidValue("an OkLab color L,a,b (L 0 … 1, a and b −0.5 … 0.5) or one of \(names)"))
+            }
+            return .success(.list(values.map(EditParameter.number)))
         case .boolean:
             switch text {
             case "true": return .success(.bool(true))
