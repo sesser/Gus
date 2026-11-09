@@ -459,7 +459,25 @@ in PhotoCore, asked first by `AppLauncher`, the app's `@main`;
 `LibraryModel.open` checks again). `photocli`, `photobench` and the
 standalone importer are not guarded.
 
-Not yet: AI masks, healing, lens corrections, DNG export, `.dcp` profiles,
+Chromatic aberration and color fringes (`docs/features/chromatic-aberration/`,
+PR #48): a Lens heading in the Adjust tab with two groups, applied to the
+decoded image before the crop (`Edits/LensCorrections.swift`,
+`LensRenderer.swift`, `Kernels/LensKernels.swift`). Color Fringes
+(`colorFringes`) grays up to two colors near high-contrast edges, each with a
+Tolerance, filled by picking from the photo (`FringePicker`) or from a short
+list, with a Fringe Map. Color Alignment (`colorAlignment`) measures red/cyan
+and blue/yellow edges once and stores the result, or takes hand-set values;
+paste and presets measure each receiving photo, and one that can't be measured
+is left unchanged. Off by default, so no existing render changed. The Pixel
+Magnifier (`Edits/PixelMagnifier.swift`, `PixelMagnifierTool`;
+`Loupe/PixelMagnifierView.swift`) shows the sampled image's full-resolution
+pixels while picking, the pixel a click takes and its values, at a level kept
+as a preference. A view only, built for other tools; only the fringe eyedropper
+uses it so far. If the Lens kernels can't compile, the corrections are skipped
+with no message (RI-CR1, a known limitation).
+
+Not yet: AI masks, healing, lens corrections (distortion, lens vignetting,
+profiles), DNG export, `.dcp` profiles,
 general (hand-made or burst) stacks, hierarchical
 keywords, PTP cameras, a second backup destination. Writing metadata into
 originals was dropped (2026-11-04, `docs/roadmap.md`): originals are never

@@ -1,11 +1,9 @@
 # Chromatic aberration and color fringe removal
 
-Status: Approved: R1–R18 (owner, 2026-11-07) and R19–R36, the pixel magnifier
-(owner, 2026-11-08). All built (status.md), and PR #48 is open. Code review
-and design review have run at 7bbdfe5 (code-review.md, review.md), and both
-have findings open. QA has not run.
+Status: Shipped 2026-11-08, PR #48. Known limitation: RI-CR1 (Dependencies
+and impact). QA's follow-ups Q1–Q3 are on the roadmap.
 Slug: chromatic-aberration
-Roadmap: Now
+Roadmap: Shipped
 
 ## Problem
 
@@ -389,10 +387,9 @@ AC1a (R1a, R1c): On scene (a), with no click on the photo, filling Color 1
 with purple and Color 2 with green from the list grays the purple fringe,
 the defocused disc's purple rim and the green fringe, at the ranges the
 listed colors start with, within AC1's tolerances. This is checked
-through the debug script, and through the accessibility actions and
-values the `accessibility` command lists: the list can be reached and
-used, and each slot then reports its color. Not one step of it needs a
-pointer.
+through the debug script: the list's real menu fills each slot, and each
+slot then reports its color. M2 checks that the route works with VoiceOver
+and the keyboard, with not one step needing a pointer.
 
 AC1b (R1b): A slot filled with the listed purple stores its color the same
 way as a picked one. When a pick stores the same color value, the two
@@ -581,7 +578,7 @@ OQ1). For those rims it records whether they are grayed; where they are
 not, whether the Fringe Map shows them outside the edge rule and whether
 widening Tolerance fixes them (RI-E1 ruling, 2026-11-08).
 
-M2 (manual, R1a): with VoiceOver on and no pointer use, on a synthetic
+M2 (manual, R1a, AC1a): with VoiceOver on and no pointer use, on a synthetic
 scene (a) photo, a person fills both slots from the list, changes each
 range, shows and hides what the feature affects, and clears a slot. Each
 step is announced understandably. QA lists it under "For a person".
@@ -924,3 +921,24 @@ are fine.").
     row.
   - **Status line corrected.** AC19's test landed in 7bbdfe5, and the line
     now gives the state of the reviews.
+- 2026-11-08: Ship pass, PR #48. Status set to Shipped. Code review, design
+  review and QA have no open findings against the feature, and the owner
+  confirmed every "For a person" check in qa.md (P1–P13: "I've checked all the
+  "For a person" checks in qa.md and everything seems to work well. I approve.
+  Ship it").
+  - **RI-Q1, AC1a's `accessibility` clause: moved.** The command sees SwiftUI
+    elements only with an assistive app attached (`CLAUDE.md`), so it could
+    never list the route. AC1a now rests on the debug script for the list and
+    each slot's color, and on M2 for VoiceOver and the keyboard, which the
+    owner confirmed (qa.md P10). R1a is unchanged: only how the clause is
+    checked moved. No check ever showed the old clause.
+  - **M1 and the edge rule.** The owner's sign-off covers M1 (qa.md P1) and
+    reports no misses, but records no notes on the listed colors or on
+    bokeh rims. So nothing calls for a change to the list or for an adjustable
+    edge rule (RI-E1), and no roadmap row is added for either.
+  - **RI-CR1 stands** as a known limitation.
+  - **Follow-ups, not fixed before Ship; the owner was told and chose to
+    ship.** qa.md Q1 (no automated test for C2's race, C3, C7/C13, C9/F1)
+    joins the roadmap row qa-test-gaps; Q3 joins debug-script-undo-groups; Q2
+    is the new row debug-resignkeyboard-inactive. Pick Colors stays the Later
+    row pick-colors-magnifier.

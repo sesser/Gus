@@ -996,7 +996,7 @@ offline warning).
 | DR19 | Level: inspector pop-up only while picking, between Fringe Map and the caption; `-` and `=` step without wrapping; View ▸ Pixel Magnifier and its checked item; context submenu only while picking; picking stays armed through every path; persisted across photos, slots, relaunch (AC22, AC23) | `magnifier level`, `menuitems "Pixel Magnifier"`, `menupress`, `contextmenu loupe`, `key` |
 | DR20 | No keyboard focus taken, no accessibility element for the magnifier, no announcement on movement; pop-up label and value; canvas actions; announcement on a level change (AC28) | `accessibility`, `print responder`; manual (M3) |
 | DR21 | Increase Contrast: outline, grid and plate as §20 specify. The caption, user guide and strings use §1's and §12's terms | Manual (M3); reading |
-| DR22 | The pixels can't be made (§19 DQ-4): picking ends with no undo step, the caption says why and the announcement is posted once; a waiting click is dropped; arming again retries; pixels already held keep working after an eject | Debug script with an original removed before arming, `print fringe`, `print magnifier`, `print undo`; code review |
+| DR22 | The pixels can't be made (§19 DQ-4): picking ends with no undo step, the caption says why and the announcement is posted once; a waiting click is dropped; arming again retries; pixels already held keep working after an eject | Debug script: `magnifier failsample on` before arming (the sampled render fails in memory, and no file is touched; a test never moves or removes an original), `print fringe`, `print magnifier`, `print undo`; code review |
 
 ## 17. Requirements issues (ruled)
 

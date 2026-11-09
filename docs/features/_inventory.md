@@ -24,6 +24,10 @@ guard row under Quality and tooling), from its `status.md` and
 `docs/USER_GUIDE.md` "Development options". Its person checks passed the
 same day (qa.md Follow-up).
 
+Updated 2026-11-08 (Ship pass) for PR #48 (chromatic-aberration: the Lens rows
+under Editing, Pixel Magnifier under Loupe, and the Lightroom import, `develop`
+and `photobench` rows), from its `status.md` and `docs/USER_GUIDE.md`.
+
 Markers:
 
 - **[inferred from code]**: no document states it; the claim rests on code alone.
@@ -102,6 +106,7 @@ Abbreviations: P1–P6 = `docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR
 | Show Original (`\`) | Before/after while editing | P3 sidebar; UIR §4 |
 | HDR display | HDR sources (float DNG, gain maps, HLG/PQ) render HDR on EDR screens; View ▸ Hide HDR Highlights | CL Rendering; UG |
 | Film strip | The source's photos in a strip between the loupe (or video loupe) and the caption. Clicking a photo focuses it, and the focused photo stays centered. A drag handle resizes it in steps (48–120 pt, capped at 25% of the loupe height). Caption toggle and ⌥⌘B show or hide it with a slide. VoiceOver list and splitter. Never shown in review mode | Issue #25 (closed); UIR §11; `Loupe/FilmStrip*.swift`, `Browser/FilmStripGeometry.swift`. Not yet checked on screen. §11's checklist leaves 7 build items unticked that the code appears to implement |
+| Pixel Magnifier | While a fringe slot picks, a round view beside the pointer shows the photo's own full-resolution pixels before edits, outlines the pixel a click takes and gives its R, G, B and L (0–255, Display P3). Levels 100–1600%, remembered as a preference. A view only. Built for other tools; only the fringe eyedropper uses it so far | `chromatic-aberration/prd.md` R19–R36; UG; `Edits/PixelMagnifier.swift` |
 
 ## Metadata, keywords and sidecars
 
@@ -128,11 +133,15 @@ Abbreviations: P1–P6 = `docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR
 | Details | Sharpening (amount, radius, detail, masking); noise reduction | P3 |
 | Sharpening map | Shows in the loupe where Masking lets sharpening through: live while values change, full resolution once input pauses; "Not Applied" when nothing is sharpened. A view only: not saved, no undo, never in previews or exports | `sharpen-mask-preview/`; UG; `Edits/SharpeningMap.swift`. Manual checks M1–M9 open |
 | Machine learning noise reduction | Raw files only, opt-in per photo, in the Noise Reduction group (Luminance is its amount, Color dimmed while it applies). Uses the macOS 27 raw decoder's version 9 (`9.dng` / `9` in the Decoder pop-up); no model shipped or downloaded. Where it can't apply (older macOS, unsupported camera, failed decode) the photo renders classically, keeps the setting, and the caption badge and Activity say why. Carried by paste, presets and batch commands to raws only | `ml-denoise/`; UG; `Edits/MachineLearningNoiseReduction.swift`. A missing model is not detected yet (RI-E6); AC13 and manual checks open |
+| Color Fringes | Lens heading. Two slots, filled by picking from the photo or from a short list (Purple, Green); each slot's color turns gray near high-contrast edges only, keeping brightness, with its own Tolerance. Matches on the decoded photo before other adjustments (a raw's White Balance and Profile come first). Off by default; not in masks; photos only | `chromatic-aberration/prd.md`; UG |
+| Fringe Map | Shows in the loupe where fringe color is removed; a view only, one map on screen at a time | `chromatic-aberration/prd.md` R6; UG |
+| Color Alignment | Lens heading. Align automatically measures red/cyan and blue/yellow edges once and stores the correction, centered on the sensor so crops don't change it; or set by hand. Paste and presets measure each receiving photo; one that can't be measured is left unchanged, and Activity says so | `chromatic-aberration/prd.md`; UG |
 | Effects | Look-up table, vignette, grain | P3 |
 | Group on/off | Check box per group keeps edits but disables them | P3 sidebar; UIR §4 |
 | Copy / Paste Adjustments | Paste carries crop, not masks | UG; P6 |
 | Live rendering | Decoded master reused per frame; one save and undo step per gesture; stage cache and adaptive drafts. The loupe loads a photo's edits only after its pending saves land (shows loading meanwhile), and library reloads never put back values older than a change already made | CL Editing; P6 Caching and drafts; `editor-follow-edit-drop/status.md` (PR #43) |
 | Runtime GPU kernels (spike) | Compiled at run time; not used by the renderer | P5; `Edits/Kernels/RuntimeKernels.swift` |
+| Lens kernels | Stitchable Core Image kernels compiled at run time, used by the Lens heading. If they can't compile, the corrections are skipped with no message (known limitation, RI-CR1) | `chromatic-aberration/prd.md`; `Edits/Kernels/LensKernels.swift` |
 
 ## Crop
 
@@ -157,7 +166,7 @@ Abbreviations: P1–P6 = `docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR
 |---|---|---|
 | Adjustment presets | Partial presets by group, collections, hover preview, preview tiles | P3 second pass |
 | Preset files | xz-compressed JSON with embedded `.cube` files; Finder double-click imports | P3 second pass; `Support/Info.plist` (exported type) |
-| Lightroom preset import | `.lrtemplate`, `.xmp`, `.dng`; report of unmapped settings | P3 second pass; `Presets/` |
+| Lightroom preset import | `.lrtemplate`, `.xmp`, `.dng`; report of unmapped settings. Purple and green fringe removal and automatic chromatic aberration removal map to the Lens groups | P3 second pass; `Presets/` |
 | Manage Presets sheet | Rename, move, export, delete, change groups | P3; UIR §8 |
 | Look-up tables | `.cube` import into flat collections, copied into `Library/LUTs/`; built-ins generated in code; per-table color space | P3 Look-up tables |
 | LUT hover preview and browser | Hover in the menu previews; browser sheet with Import and Manage pages; Apply closes, double-click applies and stays | P3; issue #1; UIR §8 Other sheets |
@@ -180,7 +189,7 @@ Abbreviations: P1–P6 = `docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR
 | Capability | What it does | Source |
 |---|---|---|
 | Registry and contract | One JSON object out; exit codes 0/1/2; `--library-root` | P5 Command line |
-| Commands | `render`, `adjustments`, `query projects`, `query images`, `develop`, `rate`, `flag`, `label`, `export`, `help`. `develop` sets `noiseReduction.machineLearning` on raws only; `render` and `export` JSON say whether it applied | P5 Commands; `Commands/`; `ml-denoise/status.md` AC11 |
+| Commands | `render`, `adjustments`, `query projects`, `query images`, `develop`, `rate`, `flag`, `label`, `export`, `help`. `develop` sets `colorFringes.*` and `colorAlignment.*` (`colorAlignment.automatic=true` measures the original), and `noiseReduction.machineLearning` on raws only; `render` and `export` JSON say whether it applied | P5 Commands; `Commands/`; `ml-denoise/status.md` AC11 |
 | Mask commands | `mask list`, `mask add`, `mask set`, `mask remove` | P6 Results; `Commands/MaskCommands.swift` (not in CL's or UG's command lists) |
 
 ## UI shell
@@ -224,7 +233,7 @@ Abbreviations: P1–P6 = `docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR
 |---|---|---|
 | Goldens and CPU references | 16-bit PNG goldens per module; RAW goldens fingerprinted per macOS build | P5; P6 finding 7; CL Checking image code |
 | CI | Build and test on `macos-26` and `macos-15`; CodeQL; golden failure images uploaded; when the test process crashes, a backtrace of every thread goes to the log and the system crash reports are uploaded | P5 Notes; P6 question D; `.github/workflows/` (crash capture: PR #42) |
-| `photobench` | Synthetic libraries; import, preview, query, edits, masks, kernels, blend-error benchmarks; `denoise` times machine learning noise reduction | `docs/PROFILING.md`; P6; `ml-denoise/status.md` R14 |
+| `photobench` | Synthetic libraries; import, preview, query, edits, masks, kernels, blend-error benchmarks; `denoise` times machine learning noise reduction; `scenes` writes the chromatic aberration test scenes (fringes, fringe subjects, pixel grid, lateral color) as TIFFs and a DNG | `docs/PROFILING.md`; P6; `ml-denoise/status.md` R14 |
 | Debug script | Drives the app for snapshots and checks | CL Commands; `Model/DebugScript.swift` |
 | Launch guard | A test launch without `--library-root` is refused before anything in the standard data or cache folders is opened or created: a bundle identifier other than the release one (or none, as with `swift run`), or `--debug-script` / `--benchmark-scroll`. The reason goes to standard error; a launch a person started then shows an alert; either way the app quits with status 64. `photocli`, `photobench` and the standalone importer are not guarded | `library-launch-guard/status.md` (PR #47); UG Development options; `Launch/LibraryLaunchGuard.swift`, `AppLauncher.swift` |
 | Branding isolation | Brand values only in `AppBranding.swift` / `Branding.xcconfig`; enforced by tests | CL Naming rules |

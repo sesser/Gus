@@ -9,17 +9,16 @@ with [`status.md`](status.md) as the engineer's record. Second pass:
 **How this was reviewed.** Code was read, not run: the designer doesn't build
 (`CLAUDE.md`), and no bundle was launched. Every verdict below is from reading the
 source, the String Catalog, `docs/USER_GUIDE.md` and the debug-script results
-status.md records. "Pass" means the code does what the design says. Nothing about
-how it looks or feels on screen has been seen; that is what the manual checks are
-for. Findings F1–F3 come from reading code paths, so confirm each one at the app
+status.md records. "Pass" means the code does what the design says. The designer
+has not seen how it looks or feels on screen; the owner's on-screen checks are
+recorded below. Findings F1–F3 come from reading code paths, so confirm each one at the app
 when fixing it.
 
 ## Verdict
 
 **Passes the design. F1–F5 and DR22 are confirmed from code at `10c4013`, and no
-design finding is open.** What remains is the on-screen list below: nobody on the
-design side has seen this run, and the magnifier's legibility and feel (M3, M8) are
-still the biggest open question. The first pass found three fixes to make before
+design finding is open.** The owner has done the on-screen checks and approved
+(below). The first pass found three fixes to make before
 merge and two small ones; they are kept below as the record.
 
 ## Findings
@@ -81,7 +80,7 @@ picking, so it is dropped with no undo step.
 - **Clearing:** on arming, on any change (`change`, and both undo and redo paths), and
   on another photo. A hover preview or showing the map doesn't clear it, which is right.
 - **Text:** the string, its catalog entry and the guide's sentence match the ruling.
-- Pixels already held keep working after an eject (engineer's script).
+- Pixels already held keep working if the sampled render later fails (debug script).
 
 ## Improvements (judgment, not violations)
 
@@ -123,8 +122,8 @@ picking, so it is dropped with no undo step.
 | DR8 | One map slot | Pass (F4 confirmed) |
 | DR9 | Color Alignment states and captions | Pass (code) |
 | DR10 | Paste and presets | Pass (code, status.md) |
-| DR11 | Keyboard and VoiceOver | Needs manual check: M5 |
-| DR12 | Increase Contrast, Reduce Motion | Needs manual check: M3 |
+| DR11 | Keyboard and VoiceOver | M5, confirmed by the owner |
+| DR12 | Increase Contrast, Reduce Motion | M3, confirmed by the owner |
 | DR13 | Strings and guide terms | Pass |
 | DR14 | Esc order | Pass (F2 confirmed); by hand in M5 |
 | DR15 | Magnifier shows and hides | Pass (code, status.md) |
@@ -155,22 +154,26 @@ sentence covers DQ-4 in the same terms. No changes needed.
 
 ## On-screen checks for a person
 
-None of these has been seen by the designer. Run them on the bundled app, against a
+**Confirmed by the owner, 2026-11-08.** These checks are among the "For a person"
+checks in `qa.md`. The owner's words: "I've checked all the "For a person" checks in
+qa.md and everything seems to work well. I approve. Ship it"
+
+The designer has not seen these on screen. They are run on the bundled app, against a
 copy with its own bundle identifier and a scratch library, always with
 `--library-root`. These are this review's own numbers; the PRD's M1–M3 are named as
 "PRD M1" and so on.
 
-| # | Check | Where |
-|---|---|---|
-| M1 | **Real input (AC27, DR3).** With the magnifier showing: a click picks; a drag pans and the magnifier follows; a double-click picks once and stays in the loupe; right-click opens the context menu with Pixel Magnifier ▸ and picking stays on, the magnifier staying put while the menu is open and updating when a level is chosen. In a window small enough to clamp it, a click over its drawing picks | Owner's Mac, `open` launch |
-| M2 | **Not ready (R20, DR18).** On a large raw, arm the eyedropper: an empty ring, dashes and the level, a spinner only after about half a second, and a click in that moment still stores the pick | 24 MP or larger raw |
-| M3 | **Legibility (R33, PRD M3, DR12, DR17, DR21).** Outline, ring and plate read over white, black and busy content, at each level, on Retina and a standard display, and after moving the window between them. With Increase Contrast: heavier outline, stronger grid, no dimmed text on the plate. The outline encloses exactly its pixel at 100%, where the pixel is one device pixel. The picture is the same way up as the view, and a quarter-turned photo matches. At a photo corner at 800% and 1600%, the grid stops at the photo's edge and the hairline marks it (F3). Reduce Motion: nothing animates | Owner's Mac |
-| M4 | **The inspector's look (DR1, DR2, DR2a, DR7).** Glass panes don't snapshot. Lens after Details; "Pixel magnifier" fits its 80 pt label column; the pop-up row sits between Fringe Map and the caption and only the caption moves when it appears; swatches are the Color Mixer's size and readable when dark; right-click anywhere on a slot row, and in that menu the "Common Fringe Colors" header is a real section header and Purple and Green show their own colors (F5); the fringe map in the frame at fit and 100% | Owner's Mac |
-| M5 | **Keyboard and VoiceOver (R1a, R33, DR2b, DR11, DR20, PRD M2).** With Keyboard Navigation on: the §11 Tab order, the pop-up after Fringe Map, and Space opening it. Esc with the keyboard on the eyedropper or a closed pop-up cancels picking. Esc with a pop-up or ⋯ menu open only closes it, and picking stays on. Esc in the Tolerance field hands the keyboard back first. With picking on, Esc in the Export sheet or the ⌘K popover closes only that (F2). `-` and `=` at default settings. VoiceOver: the slot group, "Pick Color 1", "Color 1 commands", the menu's header and items, "Color 1 tolerance", "Pixel magnifier zoom" and its value, "Pixel magnifier at 800%." after a key, the canvas actions, and nothing spoken as the pointer moves | Owner's Mac |
-| M6 | **Replacing at 100% (DR5).** On a 24 MP photo, arming a filled slot shows the photo without that slot's graying at full resolution, the spinner only after 0.5 s, and Esc restores | 24 MP photo |
-| M7 | **Long preset title (§19 DQ-3).** Apply a preset with a long name and Align automatically to several photos: the toolbar shortens the name in the middle, and the popover shows it whole with "‹n› of ‹m›" and Stop | Owner's library copy |
-| M8 | **Feel (R36, PRD M3).** The magnifier feels attached to the pointer and flips without flicker at the right and bottom edges; arming has no hitch; arming at fit then Z, and arming at 100% then Z, leave the crosshair over the photo only, agreeing with the magnifier, with no flicker during the zoom (F1) | Owner's Mac, real raw |
-| M9 | **Pixels can't be read (DQ-4, DR22).** With the file moved away before arming (`magnifier hideoriginal` on a scratch library): the eyedropper turns off, the pointer is the arrow, and the sentence is readable under the slots in the inspector's glass pane. VoiceOver says it once. Restoring the file and clicking the eyedropper works | Bundle copy, scratch library only |
+| # | Check | Where | State |
+|---|---|---|---|
+| M1 | **Real input (AC27, DR3).** With the magnifier showing: a click picks; a drag pans and the magnifier follows; a double-click picks once and stays in the loupe; right-click opens the context menu with Pixel Magnifier ▸ and picking stays on, the magnifier staying put while the menu is open and updating when a level is chosen. In a window small enough to clamp it, a click over its drawing picks | Owner's Mac, `open` launch | Confirmed by the owner |
+| M2 | **Not ready (R20, DR18).** On a large raw, arm the eyedropper: an empty ring, dashes and the level, a spinner only after about half a second, and a click in that moment still stores the pick | 24 MP or larger raw | Confirmed by the owner |
+| M3 | **Legibility (R33, PRD M3, DR12, DR17, DR21).** Outline, ring and plate read over white, black and busy content, at each level, on Retina and a standard display, and after moving the window between them. With Increase Contrast: heavier outline, stronger grid, no dimmed text on the plate. The outline encloses exactly its pixel at 100%, where the pixel is one device pixel. The picture is the same way up as the view, and a quarter-turned photo matches. At a photo corner at 800% and 1600%, the grid stops at the photo's edge and the hairline marks it (F3). Reduce Motion: nothing animates | Owner's Mac | Confirmed by the owner |
+| M4 | **The inspector's look (DR1, DR2, DR2a, DR7).** Glass panes don't snapshot. Lens after Details; "Pixel magnifier" fits its 80 pt label column; the pop-up row sits between Fringe Map and the caption and only the caption moves when it appears; swatches are the Color Mixer's size and readable when dark; right-click anywhere on a slot row, and in that menu the "Common Fringe Colors" header is a real section header and Purple and Green show their own colors (F5); the fringe map in the frame at fit and 100% | Owner's Mac | Confirmed by the owner |
+| M5 | **Keyboard and VoiceOver (R1a, R33, DR2b, DR11, DR20, PRD M2).** With Keyboard Navigation on: the §11 Tab order, the pop-up after Fringe Map, and Space opening it. Esc with the keyboard on the eyedropper or a closed pop-up cancels picking. Esc with a pop-up or ⋯ menu open only closes it, and picking stays on. Esc in the Tolerance field hands the keyboard back first. With picking on, Esc in the Export sheet or the ⌘K popover closes only that (F2). `-` and `=` at default settings. VoiceOver: the slot group, "Pick Color 1", "Color 1 commands", the menu's header and items, "Color 1 tolerance", "Pixel magnifier zoom" and its value, "Pixel magnifier at 800%." after a key, the canvas actions, and nothing spoken as the pointer moves | Owner's Mac | Confirmed by the owner |
+| M6 | **Replacing at 100% (DR5).** On a 24 MP photo, arming a filled slot shows the photo without that slot's graying at full resolution, the spinner only after 0.5 s, and Esc restores | 24 MP photo | Confirmed by the owner |
+| M7 | **Long preset title (§19 DQ-3).** Apply a preset with a long name and Align automatically to several photos: the toolbar shortens the name in the middle, and the popover shows it whole with "‹n› of ‹m›" and Stop | Owner's library copy | Confirmed by the owner |
+| M8 | **Feel (R36, PRD M3).** The magnifier feels attached to the pointer and flips without flicker at the right and bottom edges; arming has no hitch; arming at fit then Z, and arming at 100% then Z, leave the crosshair over the photo only, agreeing with the magnifier, with no flicker during the zoom (F1) | Owner's Mac, real raw | Confirmed by the owner |
+| M9 | **Pixels can't be read (DQ-4, DR22).** With `magnifier failsample on` before arming (the sampled render fails in memory, and no file is touched; a test never moves or removes an original): the eyedropper turns off, the pointer is the arrow, and the sentence is readable under the slots in the inspector's glass pane. VoiceOver says it once. With `magnifier failsample off`, clicking the eyedropper works | Bundle copy, scratch library only | Confirmed by the owner |
 
 ## Requirements issues
 
