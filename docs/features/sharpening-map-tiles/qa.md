@@ -26,7 +26,7 @@ commit, and no golden or pipeline version moved. One person's check (P1) is open
 |----|-----|----------|--------|
 | B1. The bug reproduces in the real app on `develop` at Fit (Steps to reproduce, Actual) | Script | S0, S1, S2, S4's Fit frames: 33 of 76 Fit snapshots wrong. The launch's first refinement was wrong in all 9 Fit launches of S0, S1 and S2. In S2's cold-preview-cache launches 22 of 30 snapshots were wrong, first and later refinements alike (O2). Wrong cells are whole 1/4-width, 1/2-height rectangles: flipped, misplaced or noisier | Pass |
 | B2. Reproduces at 100%, and back at Fit after 100% | Script | S3, S4: 6 of 38 snapshots wrong at 100%; S3's return-to-Fit frames: 1 of 10 wrong | Pass |
-| B3. Gone at Fit on the branch, first refinement and after Masking moves (Expected) | Script | S1, S2, S4, S3's back-at-Fit frames: 0 of 84 wrong; the 10 Masking values give one identical map each across all 8 launches | Pass |
+| B3. Gone at Fit on the branch, first refinement and after Masking moves (Expected) | Script | S1, S2, S4, S3's back-at-Fit frames: 0 of 84 wrong; in S1 and S2 the 9 distinct Masking values give one identical map each, in every launch that has them (8 launches) | Pass |
 | B4. Gone at 100% with Masking moved, on the branch | Script | S3, S4, probe: 0 of 39 at 100%; identical across the launches of each script | Pass |
 | B5. Cancelled refinements: the next refinement is correct (status.md, For QA 3; Cancellation) | Script, Test | S4 (branch): 0 of 12 wrong; its 9 Fit frames are identical to S2's correct map for the same Masking (worst 0), its 3 100% frames are identical across the launches and were viewed. Test: `SharpeningMapSessionTests.cancelledRefinementKeepsTheInput` passes (guard, not a regression test, per status.md) | Pass |
 | B6. Every refinement equals the map from the full-resolution master, apart from the input's rounding (Expected) | Test | `SharpeningMapRawFileTests.refinedMapsMatchRenderedPixels`: 5 of 5 cold processes pass, each comparison worst 0 (same graph over eagerly rendered pixels, status.md). `refinedIsFullResolution` (synthetic, AC7 of sharpen-mask-preview) passes | Pass |
@@ -45,8 +45,9 @@ How snapshots were judged: each script's frames were compared cell by cell (4 ×
 is "wrong" when at least 4% of its pixels differ by 16 or more of 255 (luma) and
 the worst difference is at least 64; all wrong cells were judged by eye as well.
 Every snapshot was viewed directly, on a contact sheet at reduced size, or is
-identical (content hash, or per-cell difference 0) to one viewed. S1 and S2's
-branch maps group into exactly 10 images, one per Masking value. The frames'
+identical (content hash, or per-cell difference 0) to one viewed. S1 and S2's 65
+branch snapshots group into exactly 9 images, one per distinct Masking value (23
+comes up twice in each script; see Follow-up). The frames'
 Masking and that the map is on screen are from `print sharpenmap` (`frame map of
 applied values masking N`, `refining false`); as in `sharpen-mask-preview/qa.md`
 (Q3), the script cannot say the frame on screen is the refined one, so each snapshot
@@ -111,7 +112,7 @@ Result: develop, the first refinement wrong at (2,2) in 3 of 3 launches (68.1% o
 the cell's pixels off), the other 12 snapshots clean; branch, 15 of 15 clean,
 identical across the three launches (worst 0).
 
-**S2: Fit, ten Masking moves.** Five launches per build, 3 cold and 2 warm.
+**S2: Fit, ten maps (nine Masking moves, 23 first and last).** Five launches per build, 3 cold and 2 warm.
 `wait 2; focus P1040037; loupe; wait 3; adjust amount 98; adjust radius 1.4; adjust detail 52; adjust masking 23; wait 2; sharpenmap on; wait 4; print sharpenmap; snapshot SHOTS/m00-23.png; adjust masking 30; wait 3; print sharpenmap; snapshot SHOTS/m01-30.png; adjust masking 18; wait 3; print sharpenmap; snapshot SHOTS/m02-18.png; adjust masking 45; wait 3; print sharpenmap; snapshot SHOTS/m03-45.png; adjust masking 12; wait 3; print sharpenmap; snapshot SHOTS/m04-12.png; adjust masking 35; wait 3; print sharpenmap; snapshot SHOTS/m05-35.png; adjust masking 27; wait 3; print sharpenmap; snapshot SHOTS/m06-27.png; adjust masking 20; wait 3; print sharpenmap; snapshot SHOTS/m07-20.png; adjust masking 40; wait 3; print sharpenmap; snapshot SHOTS/m08-40.png; adjust masking 23; wait 3; print sharpenmap; snapshot SHOTS/m09-23.png; quit`
 
 | Masking | 23 | 30 | 18 | 45 | 12 | 35 | 27 | 20 | 40 | 23 |
@@ -184,7 +185,8 @@ library is safe with the steps below: the commands make a copy of the app with
 its own bundle identifier, so your real preferences and library stay out of it,
 and pass `--library-root`. QA did not open or inspect that folder, so these steps
 assume it is a library root (that it holds a `Library` folder, as `--library-root`
-creates).
+creates). A short second pass in a fresh library is the cold run (see **Warm or
+cold** below).
 
 Paste, then press Return (zsh; quit any running copy of the app first):
 
@@ -205,15 +207,21 @@ beside the masters that library points at. (QA confirmed that preference on a co
 of the app: `print disk` reports `writes false`.)
 
 1. Open `P1040037.RW2` in the loupe, on the display where you saw the fault. Note
-   the Masking value (your stack is saved in that library; you'll put it back).
+   Amount, Radius, Detail and Masking (your stack is saved in that library; you'll
+   put it back). Don't show the map yet: step 2 has to be this launch's first map.
 2. At Fit: **Adjust ▸ Show Sharpening Map** (or the toggle under Details ▸
    Sharpening). Wait for the small spinner to stop, then look at the whole map.
 3. Move Masking four times (for example to 30, 18, 45, then 23). After each move,
    wait for the spinner to stop and look again.
-4. Press **Z** for 100%. Wait for the spinner, then look. Move Masking twice more
+4. Still at Fit, move Amount, Radius and Detail a little, one at a time, and look
+   after each. QA moved only Masking with the map on; these three reuse the same
+   kept input in the code, but nobody has run them. Amount and Detail each rerun
+   the refinement but should leave the map looking exactly the same (it reads only
+   Radius and Masking), so any change there is a fault.
+5. Press **Z** for 100%. Wait for the spinner, then look. Move Masking twice more
    (for example 30, then back to 23); look after each. Press **Z** to return to Fit.
-5. Press **⌘Z** once per Masking move, or set it back to the value from step 1.
-   Then **⌘Q** to quit. Drag `Gus-branch-qa.app` from the Desktop to the Trash.
+6. Press **⌘Z** once per slider move, or set all four back to the values from step
+   1. Then **⌘Q** to quit.
 
 What to look for, at Fit and at 100%: a straight-edged rectangle about one
 quarter of the photo wide and half its height, in which the map's content is
@@ -226,12 +234,51 @@ Pass: no rectangle like that in any view. If you see one, note the Masking
 value, whether at Fit or at 100%, and take a screenshot, and send it back to the
 engineer.
 
-Rather not touch that library at all? Copy the RW2 into a new folder and use a
-fresh `--library-root` instead (the Setup above shows the `photobench import`
-line). The plain stack (Amount 98, Radius 1.4, Detail 52, Masking 23) reproduced
-the fault on `develop`, so it is a fair substitute, but your own stack would not
-be in the test.
+**Warm or cold.** On `develop` with previews already cached, only the launch's
+first map went wrong (O2: 5 of 5 warm Fit launches). You have already looked at
+this photo in `gus-playground`, so its cache is probably warm: there, step 2 is the
+real test and the moves in steps 3 and 4 prove little. To repeat step 2, quit and
+relaunch. That library's previews are in its own `Previews` folder, not in the app
+copy's data, so going cold there would mean deleting part of the library. Don't:
+use a fresh library for the cold run, where every move counts.
+
+Copy (not move) your `P1040037.RW2` into a new folder,
+`~/Desktop/gus-qa-cold/photos`. Quit the app, then paste:
+
+```
+cd /Users/randy/Projects/Gus/.claude/worktrees/amazing-gates-111e8a
+swift run -c release photobench import --library-root ~/Desktop/gus-qa-cold/lib --source ~/Desktop/gus-qa-cold/photos
+open -W -n ~/Desktop/Gus-branch-qa.app --args --library-root ~/Desktop/gus-qa-cold/lib
+```
+
+Open the photo in the loupe, set Amount 98, Radius 1.4, Detail 52 and Masking 23,
+then do steps 2 to 5 and quit. A new library has no previews on its first launch;
+on `develop` that case (S0) went wrong on the first map and after a Masking move.
+Your own stack is not in this run, so it adds to the playground pass rather than
+replacing it; if you would rather not open the playground at all, it is a fair
+substitute without your stack. Afterwards, drag `Gus-branch-qa.app` and
+`gus-qa-cold` from the Desktop to the Trash.
 
 ## Follow-up
 
-None yet. P1 is open.
+**2026-11-09, from the product manager's review (`pm-review.md`).** Verdict
+unchanged. Code unchanged since the tested commit: `git diff a452c86 HEAD` touches
+only `pm-review.md` and this file. No new app runs or tests; the first item
+re-read the existing snapshot files.
+
+- **Count corrected: loose counting, no finding.** This file said S1 and S2's
+  branch maps were 10 images. Comparing the files, their 65 snapshots are 9
+  distinct images for the 9 distinct Masking values, each value's images identical
+  across launches. Masking 23 comes up twice in each script, and its first and last
+  maps are byte-identical PNG files in all 8 Fit launches (S1, S2) and all 5 at
+  100% (S3), difference 0. So nothing here bears on R6 of `sharpen-mask-preview`.
+  B3, the sentence under the table and S2's heading are corrected.
+- **P1 extended; still one check, still Open.** Added that on a warm preview cache
+  step 2 is the real test, and a fresh-library pass for the cold run, because the
+  playground's previews live in its own `Previews` folder
+  (`LibraryLocations.rooted(at:)`), which is not the bundle copy's data. Added step
+  4, moving Amount, Radius and Detail, with the stack put back in step 6. Read for
+  it, not run: the refiner's key ignores every Sharpen value
+  (`SharpeningMapRefiner.swift:62-66`), a change to any of them schedules a
+  refinement (`AdjustmentEditor.change`, `requestRender`), and the mask reads only
+  Radius and Masking (`AdjustmentRenderer.sharpeningMask`).
