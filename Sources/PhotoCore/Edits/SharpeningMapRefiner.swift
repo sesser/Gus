@@ -126,10 +126,12 @@ public actor SharpeningMapRefiner {
     /// Renders `image` once to a half-float image in the working space.
     ///
     /// `deferred: false`, so what is kept is pixels. Core Image's default
-    /// keeps a large image lazy (measured: a side over 4096 pixels), to be
-    /// pulled in tiles when something reads it; when the mask graph read such
-    /// an input of a real camera raw, cells of the map came back flipped or
-    /// misplaced (docs/features/sharpening-map-tiles/status.md).
+    /// defers an image with a side over 4096 pixels, and `CIImage(cgImage:)`
+    /// reads a deferred half-float image at once only up to about 17 MP (both
+    /// measured, neither documented). A kept input over that stays lazy until
+    /// the mask graph pulls it in tiles, and cells of a real camera raw's map
+    /// then came back flipped or misplaced
+    /// (docs/features/sharpening-map-tiles/status.md).
     func materialize(_ image: CIImage) throws -> CIImage {
         let extent = image.extent.integral
         guard !extent.isInfinite, !extent.isEmpty,

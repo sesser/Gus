@@ -217,20 +217,40 @@ struct SharpeningMapSessionTests {
 
     /// The mechanism behind the wrong cells (docs/features/sharpening-map-tiles/status.md):
     /// a deferred render asks its source for nothing until something reads
-    /// the result, so a lazy input fails both expectations here. The size is
-    /// the real file's: Core Image defers only an image with a side over
-    /// 4096, and `CIImage(cgImage:)` reads a lazy image at once up to at
-    /// least 16.8 MP (both measured, neither documented), so anything
-    /// smaller passes with or without `deferred: false`. The artifact itself
-    /// needs a real camera raw: `SharpeningMapRawFileTests`.
+    /// the result, so a lazy input fails the last two expectations here. The
+    /// size is the real file's: Core Image defers only an image with a side
+    /// over 4096, and `CIImage(cgImage:)` reads a deferred half-float image
+    /// at once up to about 17 MP, so anything smaller passes with or without
+    /// `deferred: false`.
+    ///
+    /// Those limits are measured, not documented, so a later macOS can move
+    /// them and leave this test passing without testing anything. The control
+    /// makes that a failure: the same image through the call `materialize`
+    /// used before the fix must still be asked for nothing. If it fails, this
+    /// guard no longer detects a lazy input: find a size that still defers, or
+    /// replace the test. The artifact itself needs a real camera raw:
+    /// `SharpeningMapRawFileTests`.
     @Test("The kept input holds pixels when it is made, so reading it renders nothing again")
     func keptInputIsRendered() async throws {
         let generator = PreviewGenerator(engine: RenderEngine(contextCount: 1, name: "map-test"))
         let refiner = SharpeningMapRefiner(source: URL(filePath: "/unused.jpg"), generator: generator, colorSpace: nil)
+        func image(from provider: CountingProvider) -> CIImage {
+            CIImage(imageProvider: provider, size: 5472, 3648, format: .BGRA8,
+                    colorSpace: RenderEngine.outputColorSpace, options: nil)
+        }
+
+        let control = CountingProvider()
+        let controlImage = image(from: control)
+        let deferred = try #require(generator.engine.withContext {
+            $0.createCGImage(controlImage, from: controlImage.extent, format: .RGBAh, colorSpace: RenderEngine.workingColorSpace)
+        })
+        _ = CIImage(cgImage: deferred)
+        let system = ProcessInfo.processInfo.operatingSystemVersionString
+        #expect(control.calls.withLock { $0 } == 0,
+                "Core Image no longer defers this image on \(system): this test can't detect a lazy input here and needs revisiting (see its comment)")
+
         let provider = CountingProvider()
-        let image = CIImage(imageProvider: provider, size: 5472, 3648, format: .BGRA8,
-                            colorSpace: RenderEngine.outputColorSpace, options: nil)
-        let kept = try await refiner.materialize(image)
+        let kept = try await refiner.materialize(image(from: provider))
         let pulled = provider.calls.withLock { $0 }
         #expect(pulled > 0, "materialize returned without rendering: the input it keeps is lazy")
         for _ in 0..<2 {
@@ -300,12 +320,13 @@ struct LargeSharpeningMapTests {
     }
 }
 
-/// The refined map of a real camera raw against the map computed directly,
-/// which is rendered last because an earlier direct render of the file in the
-/// same process hides the fault (docs/features/sharpening-map-tiles/status.md).
-/// So run this suite alone: `CAMERA_RAW_SAMPLE=path/to/file.RW2 swift test
-/// --filter SharpeningMapRawFileTests`. The file is only read. The synthetic
-/// DNG does not trigger the fault, and a file that doesn't can only pass.
+/// Wrong cells of the refined map on a real camera raw. Each refinement is
+/// compared with the mask graph over the same input rendered to pixels here,
+/// last: a full-resolution render earlier in the process hides the fault
+/// (docs/features/sharpening-map-tiles/status.md). So run this suite alone:
+/// `CAMERA_RAW_SAMPLE=path/to/file.RW2 swift test --filter SharpeningMapRawFileTests`.
+/// The file is only read. A file that doesn't trigger the fault passes and
+/// shows nothing; the synthetic DNG doesn't trigger it.
 @Suite("Sharpening map on a camera RAW file",
        .enabled(if: ProcessInfo.processInfo.environment["CAMERA_RAW_SAMPLE"] != nil,
                 "Set CAMERA_RAW_SAMPLE to a camera raw and run this suite alone"))
@@ -317,10 +338,14 @@ struct SharpeningMapRawFileTests {
     }
 
     /// Every run renders a first refinement, one from the input it kept, and
-    /// a first refinement of another refiner. Each is compared, by whole
-    /// image, with the direct map: a first refinement can be the wrong one.
-    @Test("Refined maps, first and from a kept input, match the direct map at fit")
-    func refinedMapsMatchTheDirectMap() async throws {
+    /// a first refinement of another refiner: a first refinement can be the
+    /// wrong one too. Each must equal, pixel for pixel, the same graph over
+    /// the same pixels. Against the direct map the two sides would differ by
+    /// the input's half-float rounding, and no bound on that has been derived
+    /// that holds on real files (status.md, Code review C1); here rounding
+    /// isn't part of the comparison, and a wrong cell differs by up to 255.
+    @Test("Refined maps, first and from a kept input, equal the same graph over eagerly rendered pixels")
+    func refinedMapsMatchRenderedPixels() async throws {
         let url = URL(fileURLWithPath: ProcessInfo.processInfo.environment["CAMERA_RAW_SAMPLE"] ?? "")
         let longEdge = PreviewTier.preview.longEdge
         let generator = PreviewGenerator(engine: RenderEngine.interactive())
@@ -342,21 +367,26 @@ struct SharpeningMapRawFileTests {
         }
 
         let renderer = AdjustmentRenderer()
-        var direct: [Double: CGImage] = [:]
+        var eager: [Double: CGImage] = [:]
         for masking in [23.0, 30] {
             let values = Self.values(masking: masking)
             let decoded = try PreviewGenerator.decode(url, longEdge: nil, draft: false,
                                                       settings: renderer.decodeSettings(for: values.editStack))
-            let map = renderer.sharpeningMap(values, to: decoded.image, context: decoded.context).scaledToFit(longEdge: longEdge)
-            let rendered = try #require(generator.engine.makeCGImage(AdjustmentRenderer.sharpeningMapDisplay(map)))
-            direct[masking] = rendered
+            let input = renderer.sharpeningInput(values, to: decoded.image, context: decoded.context)
+            let extent = input.extent.integral
+            let pixels = try #require(generator.engine.withContext {
+                $0.createCGImage(input, from: extent, format: .RGBAh, colorSpace: RenderEngine.workingColorSpace, deferred: false)
+            })
+            let kept = CIImage(cgImage: pixels).transformed(by: CGAffineTransform(translationX: extent.minX, y: extent.minY))
+            let mask = AdjustmentRenderer.sharpeningMask(kept, values.sharpen, scale: decoded.context.scale)
+                .scaledToFit(longEdge: longEdge)
+            let rendered = try #require(generator.engine.makeCGImage(AdjustmentRenderer.sharpeningMapDisplay(mask)))
+            eager[masking] = rendered
         }
         for map in maps {
-            let expected = try #require(direct[map.masking])
-            // One more half-float rounding than the direct graph, and nothing upstream of it (see `refinedIsFullResolution`).
-            let allowed = SharpeningMapSessionTests.allowedSteps(roundings: 1, upstream: 1, masking: map.masking)
+            let expected = try #require(eager[map.masking])
             let difference = try SharpeningMapSessionTests.difference(map.image, expected)
-            #expect(difference.worst <= allowed, "\(map.label): worst \(difference.worst), allowed \(allowed)")
+            #expect(difference.worst == 0, "\(map.label): worst \(difference.worst) against the same pixels")
         }
     }
 }
