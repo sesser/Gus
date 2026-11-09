@@ -53,4 +53,29 @@ None for the designer or the product manager.
 
 ## Follow-up
 
-Filled in on the second pass.
+Second pass, 2026-11-09, `42bff8f..f1d75c9` (commits read: f1d75c9; 42bff8f
+only records this review). **All five findings are fixed, one new Nit, no open
+Blocker or Should fix. Ready for qa-tester.**
+
+Build and tests at f1d75c9: `swift build` clean; `swift test` 637 tests in 109
+suites passed, 1 known issue; `SharpeningMapRawFileTests` passed in 3 of 3 cold
+processes on the branch; the only compiler warning is the existing
+`SmartAlbumTests.swift:165`. CI run 42680660937 on f1d75c9 passed on macos-15
+and macos-26, which clears the CI note under Verdict.
+
+The checks below ran in a scratch copy of f1d75c9 outside the repository, with
+the same temporary `deferred:` switch and probes as the first pass.
+
+| # | Outcome | Commit | Checked |
+|---|---------|--------|---------|
+| C1 | Fixed | f1d75c9 | The test no longer uses `allowedSteps`, so it has no bound to exceed. It still fails for the fault and for the right reason. With both oracles on every map, 4 cold processes without the fix: the new one flagged 41 of 60 comparisons (13, 1, 15 and 12 per process), the old direct-map one the same 41, no disagreement, and the difference is 0 or 255, never between. The eager reference does not share the fault: against the direct map it is worst 5 at Masking 23 and worst 3 at 30 (means 0.036 and 0.025), the same as a clean refinement, in all 7 processes with and without the fix. It cannot hide the fault either: it is made after every refinement, and each refined map's pixels are read before it. Exact equality held: 45 of 45 comparisons worst 0 in 3 cold processes, and 15 of 15 run beside `GoldenTests` in one process under GPU load. "Can only pass" is corrected and Masking 23 recorded. I reproduced the truncation claim (59,878,294 components below the float32 value, 10 above, 7,264 equal; mean −0.9995 and worst 1.9998 half-steps) and the float32 input being identical to the direct graph (worst 0 at Masking 5, 23, 30). The rest of the model's gap stays unexplained, as `status.md` says (Follow-up 2). Limit, stated in `status.md`: this test no longer compares with the direct map on a real file, so a fault in the eager path that repeated identically on both sides would pass. None was observed. As before, a process can flag very little (1 of 15, twice now), so a pass on one process is weak evidence on its own. |
+| C2 | Fixed | f1d75c9 | The control is the old call: same engine, `.RGBAh`, working space and integer extent, and it includes the `CIImage(cgImage:)` wrap, which is where the second limit lives. It passes at 5472 × 3648 and fires at both limits: 4096 × 3072 (rendered when created) and 4928 × 3264 (deferred, read when wrapped). Without the fix the control passes and the test fails with 2 issues, `pulled > 0` and the later reads. CI passed it on both runners, so the premise holds on macos-15 and macos-26 too. Like the test, it is shown only for a provider-backed image. |
+| C3 | Fixed | f1d75c9 | The note is corrected and Follow-up 1 is written for a roadmap Idea, with the thread marked not confirmed. `RenderEngine.makeCGImage` is unchanged. |
+| C4 | Fixed | f1d75c9 | The comment names both limits, "about 17 MP" matches the probes (between 16.8 and 17.5 MP), and it still claims no cause. |
+| C5 | Fixed | f1d75c9 | All three places updated, marked as the reviewer's numbers, and the "hides the fault" wording narrowed to a full-resolution direct render. |
+
+New finding, second pass:
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|----------|-------|---------|---------|------|
+| C6 | Nit | `Tests/PhotoCoreTests/SharpeningMapSessionTests.swift:25-33` | The comment on `allowedSteps` still says "half-float roundings (2⁻¹¹ relative each)", which `status.md` Follow-up 2 now records as wrong for this write. It can go with Follow-up 2; it needs no further pass on this branch. | On the real file 59,878,294 of 59,885,568 components come out below the float32 value, so one write can be off by 2⁻¹⁰. A tolerance derived from this comment starts from a value too small. `LensTests.swift:120` already says "or toward zero, 2⁻¹⁰". | Comment accuracy; `CLAUDE.md`, Checking image code |
