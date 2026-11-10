@@ -15,10 +15,13 @@ public struct ActivityLog: Hashable, Sendable {
 
     /// Newest last, at most `limit`.
     public private(set) var messages: [Message] = []
-    /// Messages posted since the popover was last opened.
+    /// Messages posted since the popover was last closed.
     public private(set) var unseenCount = 0
     /// One of the unseen messages is a warning.
     public private(set) var unseenHasWarning = false
+    /// The popover is open. The toolbar item is its anchor, so the item stays
+    /// while this is true (`showsItem`).
+    public private(set) var isPopoverShown = false
     public let limit: Int
     private var nextID = 0
 
@@ -36,10 +39,24 @@ public struct ActivityLog: Hashable, Sendable {
         unseenHasWarning = unseenHasWarning || isWarning
     }
 
-    /// The popover was opened.
-    public mutating func markSeen() {
-        unseenCount = 0
-        unseenHasWarning = false
+    /// The popover opened or closed. Closing it marks every message read,
+    /// those posted while it was open included: it listed them all. Opening
+    /// it does not: reading the messages hides an idle item, and hiding the
+    /// item takes away the popover's anchor before it can open (issue #56).
+    public mutating func setPopoverShown(_ shown: Bool) {
+        guard shown != isPopoverShown else { return }
+        isPopoverShown = shown
+        if !shown {
+            unseenCount = 0
+            unseenHasWarning = false
+        }
+    }
+
+    /// Whether the toolbar shows the Activity item: while a job runs, while
+    /// messages are unread, and while its popover is open (after its job
+    /// ended, say).
+    public func showsItem(jobsRunning: Bool) -> Bool {
+        jobsRunning || unseenCount > 0 || isPopoverShown
     }
 
     /// Rendering previews and suggesting keywords run in the background

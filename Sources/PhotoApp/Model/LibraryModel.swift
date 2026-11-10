@@ -576,9 +576,10 @@ final class LibraryModel {
         }
     }
 
-    /// The Activity popover was opened.
-    func markActivitySeen() {
-        activity.markSeen()
+    /// The Activity popover opened or closed; closing it marks the messages
+    /// read (`ActivityLog.setPopoverShown`).
+    func setActivityPopoverShown(_ shown: Bool) {
+        activity.setPopoverShown(shown)
     }
 
     func setBatchAutoProgress(_ progress: (done: Int, total: Int)?, title: String? = nil, toolbarTitle: String? = nil) {

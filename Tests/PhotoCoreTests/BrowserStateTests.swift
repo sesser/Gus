@@ -153,7 +153,8 @@ struct ActivityLogTests {
         for text in ["a", "b", "c", "d"] { log.post(text) }
         #expect(log.messages.map(\.text) == ["b", "c", "d"])
         #expect(log.unseenCount == 3)
-        log.markSeen()
+        log.setPopoverShown(true)
+        log.setPopoverShown(false)
         #expect(log.unseenCount == 0)
         log.post("b")
         #expect(log.messages.map(\.text) == ["c", "d", "b"])
@@ -169,8 +170,54 @@ struct ActivityLogTests {
         #expect(log.unseenHasWarning)
         #expect(log.messages.last?.title == nil)
         #expect(log.messages[1].title == "Set Rating")
-        log.markSeen()
+        log.setPopoverShown(true)
+        log.setPopoverShown(false)
         #expect(!log.unseenHasWarning)
+    }
+
+    /// Issue #56: the click on an idle item marked its messages read at once,
+    /// which hid the item, the popover's anchor, so no popover opened.
+    @Test func openingThePopoverLeavesTheItemAndItsMessagesUntilItCloses() {
+        var log = ActivityLog()
+        #expect(!log.showsItem(jobsRunning: false))
+        log.post("This entry can't be applied.", title: "Revert to Earlier Edit", isWarning: true)
+        #expect(log.showsItem(jobsRunning: false))
+
+        log.setPopoverShown(true)
+        #expect(log.isPopoverShown)
+        #expect(log.showsItem(jobsRunning: false))
+        // Still unread, so the idle item keeps its warning symbol under the popover.
+        #expect(log.unseenCount == 1)
+        #expect(log.unseenHasWarning)
+
+        // Posted while the popover is open: it lists them, so closing reads them too.
+        log.post("Imported: 4. Already in the library: 0.", title: "Add Folder “Trip”")
+        #expect(log.unseenCount == 2)
+        log.setPopoverShown(false)
+        #expect(!log.isPopoverShown)
+        #expect(log.unseenCount == 0)
+        #expect(!log.unseenHasWarning)
+        #expect(!log.showsItem(jobsRunning: false))
+        #expect(log.messages.count == 2)
+    }
+
+    @Test func theItemStaysWhenItsJobEndsUnderAnOpenPopover() {
+        var log = ActivityLog()
+        #expect(log.showsItem(jobsRunning: true))
+        log.setPopoverShown(true)
+        // The job ended without a message: nothing unread, nothing running.
+        #expect(log.unseenCount == 0)
+        #expect(log.showsItem(jobsRunning: false))
+        log.setPopoverShown(false)
+        #expect(!log.showsItem(jobsRunning: false))
+    }
+
+    @Test func closingAPopoverThatIsNotOpenReadsNothing() {
+        var log = ActivityLog()
+        log.post("Exported 3 photos.")
+        log.setPopoverShown(false)
+        #expect(log.unseenCount == 1)
+        #expect(log.showsItem(jobsRunning: false))
     }
 
     @Test func keepsTwentyByDefault() {

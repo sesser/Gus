@@ -42,6 +42,10 @@ import PhotoUI
 ///     deselectall           (Edit ▸ Deselect All's action in the grid)
 ///     toolbar [add <text>]  (lists the toolbar's items; add inserts an allowed item whose identifier contains text)
 ///     stop                  (File ▸ Stop's action in the library window: the newest running job)
+///     activity open|close|snapshot <file.png>|click <x> <y>   (the toolbar Activity item's click, only while
+///                           the item is shown; its popover closing, as a click outside it does; a picture of the
+///                           open popover; a click in it, in its window's points from the top left. print activity
+///                           shows `popover`, what the model holds, and whether a popover is `on screen`)
 ///     windowshot <title text> <file.png>   (snapshots another visible window, e.g. Settings)
 ///     sidebarsection [albums|dates|keywords|projects show|hide]   (prints the hidden sidebar sections)
 ///     contextmenu cell <n>|loupe|at <x> <y>|video [controls]|slider <title> [<item>[/<sub>]]   (prints a right-click's menu there,
@@ -151,6 +155,11 @@ enum DebugScript {
         // The library window, not the import or look-up table window.
         NSApp.windows.first { $0.isVisible && $0.contentView != nil && $0.className.contains("Window")
             && $0.title != String(localized: "Import") && $0.title != String(localized: "Look-Up Tables") }
+    }
+
+    /// The window of a popover that is on screen (the Activity item's).
+    private static var popoverWindow: NSWindow? {
+        NSApp.windows.first { $0.isVisible && $0.className.contains("Popover") }
     }
 
     private static func run(_ command: String, model: LibraryModel) async {
@@ -523,6 +532,32 @@ enum DebugScript {
             printMenuItems(containing: rest.joined(separator: " "))
         case "helpmenu":
             HelpMenuProbe.print()
+        case "activity":
+            switch rest.first {
+            case "open" where !ActivityToolbarItem.isVisible(model):
+                // Nothing to click: a popover asked for with its item hidden never opens.
+                print("debug-script: the Activity item is not shown")
+            case "open", "close":
+                // The Activity item's click, and its popover closing.
+                model.setActivityPopoverShown(rest.first == "open")
+                try? await Task.sleep(for: .milliseconds(500))
+            case "snapshot" where rest.count == 2:
+                if let popover = popoverWindow {
+                    WindowSnapshot.write(popover, to: URL(fileURLWithPath: (rest[1] as NSString).expandingTildeInPath))
+                } else {
+                    print("debug-script: no popover on screen")
+                }
+            case "click" where rest.count == 3:
+                // A click in the open popover (its Stop buttons), in its window's points from the top left.
+                if let popover = popoverWindow, let point = windowPoint(Array(rest.dropFirst()), in: popover) {
+                    postClick(at: point, in: popover)
+                    try? await Task.sleep(for: .milliseconds(500))
+                } else {
+                    print("debug-script: no popover on screen")
+                }
+            default:
+                print("debug-script: unknown activity command")
+            }
         case "stop":
             // File ▸ Stop's action in the library window: the newest job.
             if let job = model.newestStoppableJob { model.stop(job) }
@@ -1017,8 +1052,11 @@ enum DebugScript {
                 $0.title + ($0.toolbarTitle.map { " (toolbar: \($0))" } ?? "") + ($0.detail.map { " | " + $0 } ?? "")
             }
                 .joined(separator: "; ")
+            // `popover`: what the model holds; `on screen`: AppKit has a popover's window up.
+            let onScreen = popoverWindow != nil
             print("debug-script: activity visible \(ActivityToolbarItem.isVisible(model)) jobs [\(jobs)] unseen \(model.activity.unseenCount)"
-                  + " warning \(model.activity.unseenHasWarning) last \(model.activity.messages.last.map { "[\($0.title ?? "-")] \($0.text)" } ?? "-")")
+                  + " warning \(model.activity.unseenHasWarning) popover \(model.activity.isPopoverShown) on screen \(onScreen)"
+                  + " last \(model.activity.messages.last.map { "[\($0.title ?? "-")] \($0.text)" } ?? "-")")
         case "grid":
             if let scroll = window.flatMap({ descendant(of: PhotoCollectionView.self, in: $0.contentView) })?.enclosingScrollView {
                 print("debug-script: grid inset top \(scroll.contentInsets.top) visible \(scroll.documentVisibleRect.integral)"
