@@ -1,8 +1,8 @@
 # Edit history
 
-Status: Approved
+Status: Shipped 2026-11-10, checks pending (see [qa.md](qa.md) "For a person", P1-P6)
 Slug: edit-history
-Roadmap: Now
+Roadmap: Shipped
 
 ## Problem
 A photo's edits are one current state. The window's undo steps are the only
