@@ -128,7 +128,7 @@ public struct AutoAdjuster: Sendable {
                                          tint: WhiteBalance.tintRange) { mired, tint in
                 raw.neutralTemperature = Float(1_000_000 / mired)
                 raw.neutralTint = Float(tint)
-                return raw.outputImage.flatMap { PixelSample($0, engine: engine)?.neutralAverage() }
+                return RAWDecodeGraph.output(of: raw).flatMap { PixelSample($0, engine: engine)?.neutralAverage() }
             }
             let temperature = (1_000_000 / solved.mired).rounded()
             return WhiteBalance(preset: .auto, temperature: temperature, tint: solved.tint.rounded())

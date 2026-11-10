@@ -59,6 +59,14 @@ LARGE_RENDER_TESTS=1 swift test --filter "LargeRenderTests|LargeBrushTests"
 CAMERA_RAW_SAMPLE=path/to/file.RW2 swift test --filter CameraRAWMaskTests
 ```
 
+```bash
+RAW_EDGE_SAMPLES=wide.RW2:longer.RW2 swift test --filter RAWEdgeSmearTests
+```
+
+```bash
+RAW_CONTEXT_SOAK=12000 swift test --filter RAWContextSoakTests
+```
+
 The build does not depend on Xcode: everything goes through SwiftPM, and tests
 use Swift Testing (not XCTest). `Scripts/build-app.sh` assembles the `.app`
 bundle (Info.plist from `Branding.xcconfig`, String Catalog compiled by the
@@ -303,7 +311,13 @@ compatible and never put `#` comment lines inside pasted command snippets.
   master (half-float extended linear Display P3, tagged with its content
   headroom), memory-only, for HDR content only: floating-point DNGs, gain maps,
   HLG/PQ. Camera raws stay SDR. The layer enables extended range only while it
-  shows an HDR image.
+  shows an HDR image. Every `CIRAWFilter` whose image is rendered takes it
+  from `RAWDecodeGraph.output(of:)`, which gives each decode a render graph
+  of its own: the decoder's lens correction reads a table that is not in Core
+  Image's graph digest, and a context reusing one decode's prepared graph for
+  another smeared its edges. This rests on Core Image behavior observed on
+  macOS 27.2 only, so run `RAWEdgeSmearTests` (two real wide-angle raws) on
+  every new macOS.
 - **Concurrency**: Swift 6 strict concurrency. Import and preview work is async
   and cancellable; no image decoding on the main thread. Images are fully
   decoded and converted to the window's color space (BGRA) before they reach
@@ -514,6 +528,26 @@ starts empty; history is gone with its version; unreadable stacks, videos
 and offline masters have none (`Catalog/EditHistory.swift`,
 `EditHistoryPanel.swift`; `Views/HistoryPanel.swift`). No rendering changed.
 Manual checks P1–P6 are open (`docs/features/edit-history/qa.md`).
+
+RAW edge smear (`docs/features/raw-edge-smear/`, bug fix, issue #55, branch
+`bug/raw-edge-smear`): a fault in Core Image's RAW decoder made some raws
+(4 of 54 in one Panasonic folder, by decoding order) come out with their
+left and right edges smeared, because a context reused what it prepared for
+an earlier raw whose lens correction table differed. Every RAW decode now
+takes its image from `RAWDecodeGraph.output(of:)`, a pass-through clamp with
+bounds of its own per decode (`Preview/RAWDecodeGraph.swift`), so the shared
+contexts never reuse one decode's graph for another. Previews, live frames,
+the 100% region, resized exports and Color Alignment's automatic measurement
+are right whatever was rendered before. `PreviewCacheKey.currentPipelineVersion`
+is 8: only so previews cached smeared are made again. No golden moved; healthy
+photos are not byte for byte as before (about a quarter of cached previews
+differ by 1 to 4 levels in a few thousandths of a percent of their values,
+float rounding). Rests on undocumented Core Image behavior observed on macOS
+27.2: run `RAWEdgeSmearTests` on real files on every new macOS. Shipped,
+checks pending: P2 (macOS 26 and 15, whether the fault and the fix hold
+there) in `docs/features/raw-edge-smear/qa.md`. Color Alignment values
+measured automatically before the fix may be slightly wrong until measured
+again.
 
 Not yet: AI masks, healing, lens corrections (distortion, lens vignetting,
 profiles), DNG export, `.dcp` profiles,

@@ -28,8 +28,10 @@ public enum PreviewTier: String, Sendable, Hashable, CaseIterable {
 public struct PreviewCacheKey: Hashable, Sendable, CustomStringConvertible {
     /// Bump when rendering changes in a way that should invalidate cached previews,
     /// or when cached previews may be wrong (7: previews cached under an edit's
-    /// hash before its catalog write landed, stale-preview-after-save).
-    public static let currentPipelineVersion = 7
+    /// hash before its catalog write landed, stale-preview-after-save; 8:
+    /// previews of camera raws cached with their edges smeared, raw-edge-smear;
+    /// nothing else looks different).
+    public static let currentPipelineVersion = 8
 
     public let contentHash: String
     public let editStackHash: String
