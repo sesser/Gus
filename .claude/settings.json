@@ -9,6 +9,8 @@
       "Bash(GOLDENS_REPORT=1 swift test *)",
       "Bash(LARGE_RENDER_TESTS=1 swift test *)",
       "Bash(CAMERA_RAW_SAMPLE=* swift test *)",
+      "Bash(RAW_EDGE_SAMPLES=* swift test *)",
+      "Bash(RAW_CONTEXT_SOAK=* swift test *)",
       "Bash(Scripts/build-app.sh)",
       "Bash(Scripts/build-app.sh *)",
       "Bash(./Scripts/build-app.sh)",

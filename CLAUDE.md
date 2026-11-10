@@ -59,6 +59,14 @@ LARGE_RENDER_TESTS=1 swift test --filter "LargeRenderTests|LargeBrushTests"
 CAMERA_RAW_SAMPLE=path/to/file.RW2 swift test --filter CameraRAWMaskTests
 ```
 
+```bash
+RAW_EDGE_SAMPLES=wide.RW2:longer.RW2 swift test --filter RAWEdgeSmearTests
+```
+
+```bash
+RAW_CONTEXT_SOAK=12000 swift test --filter RAWContextSoakTests
+```
+
 The build does not depend on Xcode: everything goes through SwiftPM, and tests
 use Swift Testing (not XCTest). `Scripts/build-app.sh` assembles the `.app`
 bundle (Info.plist from `Branding.xcconfig`, String Catalog compiled by the
@@ -303,7 +311,13 @@ compatible and never put `#` comment lines inside pasted command snippets.
   master (half-float extended linear Display P3, tagged with its content
   headroom), memory-only, for HDR content only: floating-point DNGs, gain maps,
   HLG/PQ. Camera raws stay SDR. The layer enables extended range only while it
-  shows an HDR image.
+  shows an HDR image. Every `CIRAWFilter` whose image is rendered takes it
+  from `RAWDecodeGraph.output(of:)`, which gives each decode a render graph
+  of its own: the decoder's lens correction reads a table that is not in Core
+  Image's graph digest, and a context reusing one decode's prepared graph for
+  another smeared its edges. This rests on Core Image behavior observed on
+  macOS 27.2 only, so run `RAWEdgeSmearTests` (two real wide-angle raws) on
+  every new macOS.
 - **Concurrency**: Swift 6 strict concurrency. Import and preview work is async
   and cancellable; no image decoding on the main thread. Images are fully
   decoded and converted to the window's color space (BGRA) before they reach

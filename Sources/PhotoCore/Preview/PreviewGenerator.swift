@@ -200,8 +200,10 @@ public struct PreviewGenerator: Sendable {
                 raw.isDraftModeEnabled = draft
             }
             // The decoder can give an empty image without an error (a small
-            // synthetic DNG does): treat it as no output.
-            if let output = raw.outputImage, !output.extent.isEmpty {
+            // synthetic DNG does): treat it as no output. The image has a
+            // graph of its own, or the decode before it could smear its edges
+            // (`RAWDecodeGraph`).
+            if let output = RAWDecodeGraph.output(of: raw), !output.extent.isEmpty {
                 return Decoded(image: output, context: RenderContext(scale: Self.scale(of: output, native: native),
                                                                      isRaw: true,
                                                                      cameraFrame: wholeSensor == nil ? nil : CameraFrame.rect(of: url)),
