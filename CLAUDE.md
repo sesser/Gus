@@ -529,6 +529,26 @@ and offline masters have none (`Catalog/EditHistory.swift`,
 `EditHistoryPanel.swift`; `Views/HistoryPanel.swift`). No rendering changed.
 Manual checks P1–P6 are open (`docs/features/edit-history/qa.md`).
 
+RAW edge smear (`docs/features/raw-edge-smear/`, bug fix, issue #55, branch
+`bug/raw-edge-smear`): a fault in Core Image's RAW decoder made some raws
+(4 of 54 in one Panasonic folder, by decoding order) come out with their
+left and right edges smeared, because a context reused what it prepared for
+an earlier raw whose lens correction table differed. Every RAW decode now
+takes its image from `RAWDecodeGraph.output(of:)`, a pass-through clamp with
+bounds of its own per decode (`Preview/RAWDecodeGraph.swift`), so the shared
+contexts never reuse one decode's graph for another. Previews, live frames,
+the 100% region, resized exports and Color Alignment's automatic measurement
+are right whatever was rendered before. `PreviewCacheKey.currentPipelineVersion`
+is 8: only so previews cached smeared are made again. No golden moved; healthy
+photos are not byte for byte as before (about a quarter of cached previews
+differ by 1 to 4 levels in a few thousandths of a percent of their values,
+float rounding). Rests on undocumented Core Image behavior observed on macOS
+27.2: run `RAWEdgeSmearTests` on real files on every new macOS. Shipped,
+checks pending: P2 (macOS 26 and 15, whether the fault and the fix hold
+there) in `docs/features/raw-edge-smear/qa.md`. Color Alignment values
+measured automatically before the fix may be slightly wrong until measured
+again.
+
 Not yet: AI masks, healing, lens corrections (distortion, lens vignetting,
 profiles), DNG export, `.dcp` profiles,
 general (hand-made or burst) stacks, hierarchical
