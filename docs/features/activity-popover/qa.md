@@ -203,4 +203,7 @@ Folder Without Copying…) to get an idle unread message.
 
 ## Follow-up
 
-None yet.
+**Sign-off, 2026-11-10.** The owner signed off on `d8d05ba`
+(`bug/activity-popover-anchor`, issue #56). P1–P6 checked by the owner and
+verified. Left open: P7 and P8, unverified, by the owner's explicit word; P9
+and P10, which the owner did not report either way.
