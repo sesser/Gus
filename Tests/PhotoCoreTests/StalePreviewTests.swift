@@ -147,7 +147,7 @@ struct StalePreviewTests {
             await #expect(throws: PreviewService.Failure.staleEditStack) {
                 _ = try await previews.image(for: try request(edit.renderHash))
             }
-            try await catalog.setEditStack(edit, forVersion: unedited.versionID)
+            try await catalog.setEditStack(edit, forVersion: unedited.versionID, historyLabel: "Test")
             let edited = try #require(try await catalog.libraryItems(matching: LibraryFilter()).first)
             #expect(edited.editStackHash == edit.renderHash)
             let editedLevel = try Self.meanLevel(try await previews.image(for: try request(edited.editStackHash)))
@@ -162,7 +162,7 @@ struct StalePreviewTests {
                 _ = try await previews.image(for: undoneRequest)
             }
             #expect(!previews.cache.contains(undoneRequest.key))
-            try await catalog.setEditStack(.identity, forVersion: unedited.versionID)
+            try await catalog.setEditStack(.identity, forVersion: unedited.versionID, historyLabel: "Test")
             let undone = try Self.meanLevel(try await previews.image(for: undoneRequest))
             #expect(abs(undone - original) < 3)
             #expect(undone < editedLevel - 20)

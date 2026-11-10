@@ -46,7 +46,7 @@ struct UnreadableStackTests {
         var bright = Adjustments()
         bright.exposure.ev = 1
         await #expect(throws: UnreadableEditStacks.self) {
-            try await fixture.catalog.setEditStack(bright.editStack, forVersion: id)
+            try await fixture.catalog.setEditStack(bright.editStack, forVersion: id, historyLabel: "Test")
         }
         let after = try await Self.stored(id, in: fixture.catalog)
         #expect(after.json == json && after.hash == Self.storedHash)
@@ -60,7 +60,7 @@ struct UnreadableStackTests {
         try await Self.store(Self.newerJSON, forVersion: ids[0], in: fixture.catalog)
         var copied = Adjustments()
         copied.tone.contrast = 25
-        let pasted = try await fixture.catalog.changeEditStacks(ofVersions: ids) { copied.pasted(onto: $0) }
+        let pasted = try await fixture.catalog.changeEditStacks(ofVersions: ids, historyLabel: "Test") { copied.pasted(onto: $0) }
         #expect(pasted.unreadable == [ids[0]: .newerVersion(99)])
         #expect(Array(pasted.after.keys) == [ids[1]])
         #expect(Adjustments(stack: try #require(try await fixture.catalog.version(id: ids[1])?.decodedEditStack()))
@@ -69,7 +69,7 @@ struct UnreadableStackTests {
         var warm = Adjustments()
         warm.whiteBalance.relativeTemperature = 30
         let preset = AdjustmentPreset(name: "warm", groups: [.whiteBalance], adjustments: warm)
-        let applied = try await fixture.catalog.changeEditStacks(ofVersions: ids) { preset.applied(onto: $0) }
+        let applied = try await fixture.catalog.changeEditStacks(ofVersions: ids, historyLabel: "Test") { preset.applied(onto: $0) }
         #expect(applied.unreadable.keys.sorted() == [ids[0]])
 
         let after = try await Self.stored(ids[0], in: fixture.catalog)
@@ -85,7 +85,7 @@ struct UnreadableStackTests {
         var bright = Adjustments()
         bright.exposure.ev = 1
         await #expect(throws: UnreadableEditStacks.self) {
-            try await fixture.catalog.setEditStacks([ids[0]: bright.editStack, ids[1]: bright.editStack])
+            try await fixture.catalog.setEditStacks([ids[0]: bright.editStack, ids[1]: bright.editStack], historyLabel: "Test")
         }
         #expect(try await Self.stored(ids[0], in: fixture.catalog).json == Self.newerJSON)
         #expect(try await Self.stored(ids[1], in: fixture.catalog) == readableBefore)

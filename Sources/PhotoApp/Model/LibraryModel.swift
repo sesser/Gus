@@ -412,6 +412,18 @@ final class LibraryModel {
         // Review hides it for a while; the person's choice is what's kept.
         didSet { if !review.isReviewing { UserDefaults.standard.set(showsInspector, forKey: Self.showsInspectorKey) } }
     }
+    /// The loupe's History panel at the bottom of the inspector is expanded
+    /// (collapsed by default, remembered; never part of the review layout).
+    var showsHistory: Bool {
+        didSet { UserDefaults.standard.set(showsHistory, forKey: Self.showsHistoryKey) }
+    }
+    /// The open photo's history entries and the photo they belong to.
+    var history = EditHistoryList()
+    /// Bumped when a write recorded an entry, so the list reloads.
+    var historyRevision = 0
+    /// View ▸ Show History asked for the keyboard; the list takes it once it
+    /// is on screen and clears this.
+    var historyWantsKeyboard = false
     /// The sidebar column (the split view's visibility).
     var showsSidebar = true
     /// Review mode (View ▸ Enter Review, F) and the layout it goes back to.
@@ -489,6 +501,7 @@ final class LibraryModel {
     private static let groupPairsKey = "browser.groupPairs"
     private static let showsHDRKey = "loupe.showsHDR"
     private static let showsFilmStripKey = "loupe.showsFilmStrip"
+    private static let showsHistoryKey = "inspector.showsHistory"
     private static let filmStripSizeKey = "loupe.filmStripSize"
     private static let showsInspectorKey = "browser.showsInspector"
     private static let gridInspectorTabKey = "browser.inspectorTab"
@@ -628,6 +641,7 @@ final class LibraryModel {
         showsFilmStrip = defaults.object(forKey: Self.showsFilmStripKey) as? Bool ?? true
         filmStripSize = FilmStripGeometry.validatedSize(defaults.object(forKey: Self.filmStripSizeKey) as? Double)
         showsInspector = defaults.bool(forKey: Self.showsInspectorKey)
+        showsHistory = defaults.bool(forKey: Self.showsHistoryKey)
         gridInspectorTab = defaults.string(forKey: Self.gridInspectorTabKey).flatMap(InspectorTab.init(rawValue:)) ?? .info
         loupeInspectorTab = defaults.string(forKey: Self.loupeInspectorTabKey).flatMap(InspectorTab.init(rawValue:))
             ?? .adjust

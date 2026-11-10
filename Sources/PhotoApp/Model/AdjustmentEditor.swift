@@ -761,9 +761,13 @@ final class AdjustmentEditor {
         guard let library else { return }
         let catalog = library.catalog
         let hash = stack.renderHash
+        // The entry carries the undo step's name, or "Undo ..." / "Redo ..." when this write is one.
+        let label = HistoryText.label(actionName, undoing: library.undoManager.isUndoing,
+                                      redoing: library.undoManager.isRedoing)
         library.persist { [weak self] in
-            try await catalog.setEditStack(stack, forVersion: versionID)
+            try await catalog.setEditStack(stack, forVersion: versionID, historyLabel: label)
             self?.showSaved(hash, forVersion: versionID)
+            self?.library?.historyChanged()
         }
         if versionID == item?.versionID {
             let values = Adjustments(stack: stack)
@@ -787,6 +791,35 @@ final class AdjustmentEditor {
             editor.apply(previous, toVersion: versionID, undoingTo: stack, actionName: actionName)
         }
         library.undoManager.setActionName(actionName)
+    }
+
+    /// Puts the open photo in the state `entry` recorded, through the same
+    /// write as an edit (A5: the current entry, or a state the photo already
+    /// has, does nothing). A crop session is not a stack state, so it blocks
+    /// the revert (the rows are dimmed).
+    func revert(toHistoryEntry entry: EditHistoryEntry, ofVersion versionID: Int64) {
+        guard state == .ready, cropSession == nil, item?.versionID == versionID, let library else { return }
+        let catalog = library.catalog
+        Task { [weak self] in
+            let snapshot: EditStack?
+            do {
+                snapshot = try await catalog.editHistoryStack(entryID: entry.id, forVersion: versionID)
+            } catch {
+                // A damaged row or a schema this build can't read: say so instead of a dead row.
+                let message = String(localized: "Its saved state can't be read. The photo is unchanged.",
+                                     comment: "Activity, after choosing a History entry whose saved state is damaged or from a newer version; the row's title is the revert's name")
+                self?.library?.report(message, action: HistoryText.revert(toLabel: entry.label), warning: true)
+                return
+            }
+            // Nil: the entry was trimmed meanwhile; nothing to go back to.
+            guard let stack = snapshot, let self, state == .ready, cropSession == nil, item?.versionID == versionID,
+                  !stack.hasSameContent(as: committed.editStack) else { return }
+            showsOriginal = false
+            let name = HistoryText.revert(toLabel: entry.label)
+            apply(stack, toVersion: versionID, undoingTo: committed.editStack, actionName: name)
+            AccessibilityText.announce(String(localized: "Reverted to \(entry.label)",
+                                              comment: "VoiceOver, after choosing an earlier state in the History list; the entry's label follows"))
+        }
     }
 
     /// Shows a saved stack's hash, once its write has landed: the grid, film

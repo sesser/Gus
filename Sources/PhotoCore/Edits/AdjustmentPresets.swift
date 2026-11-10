@@ -186,38 +186,59 @@ extension Catalog {
 
     /// Gives each of `ids` `transform` of its adjustments (paste, a preset),
     /// leaving versions whose stacks cannot be read as they are. Returns the
-    /// stacks before and after, for undo, and the versions left alone.
-    public func changeEditStacks(ofVersions ids: [Int64],
+    /// stacks before and after, for undo, and the versions left alone. Each
+    /// version the change alters gets one history entry named `historyLabel`.
+    public func changeEditStacks(ofVersions ids: [Int64], historyLabel: String,
                                  _ transform: (Adjustments) -> Adjustments) async throws -> EditStackChange {
-        try await changeEditStacks(ofVersions: ids) { _, values in transform(values) }
+        try await changeEditStacks(ofVersions: ids, historyLabel: historyLabel) { _, values in transform(values) }
     }
 
     /// As above, with each version's id, for changes that differ per photo
     /// (a measured exposure, a raw's camera frame).
-    public func changeEditStacks(ofVersions ids: [Int64],
+    public func changeEditStacks(ofVersions ids: [Int64], historyLabel: String,
                                  _ transform: (Int64, Adjustments) -> Adjustments) async throws -> EditStackChange {
         let stored = try await editStacks(forVersions: ids)
         var after: [Int64: EditStack] = [:]
         for (id, stack) in stored.stacks {
             after[id] = transform(id, Adjustments(stack: stack)).editStack
         }
-        try await setEditStacks(after)
+        try await setEditStacks(after, historyLabel: historyLabel)
         return EditStackChange(before: stored.stacks, after: after, unreadable: stored.unreadable)
     }
 
-    /// Replaces several versions' edit stacks in one transaction. Throws
-    /// `UnreadableEditStacks`, writing nothing, when any stored stack among them
-    /// cannot be read.
-    public func setEditStacks(_ stacks: [Int64: EditStack], at date: Date = Date()) async throws {
-        let rows = try stacks.map { ($0.key, try $0.value.jsonString(), $0.value.renderHash) }
+    /// Replaces several versions' edit stacks in one transaction, with one
+    /// history entry named `historyLabel` for each whose stack changed. Throws
+    /// `UnreadableEditStacks`, writing nothing, when any stored stack among
+    /// them cannot be read.
+    public func setEditStacks(_ stacks: [Int64: EditStack], historyLabel: String,
+                              at date: Date = Date()) async throws {
+        try await setEditStacks(stacks, historyLabel: historyLabel, at: date, byteBudget: EditHistory.maxBytes)
+    }
+
+    /// As above, with the history's byte budget (tests use a small one).
+    func setEditStacks(_ stacks: [Int64: EditStack], historyLabel: String, at date: Date, byteBudget: Int) async throws {
+        let rows = try stacks.map { ($0.key, $0.value, try $0.value.jsonString(), $0.value.renderHash) }
         try await database.write { db in
-            try Self.refuseUnreadableStacks(of: Array(stacks.keys), db)
-            for (id, json, hash) in rows {
+            var previous: [Int64: EditStack] = [:]
+            var failures: [Int64: EditStack.ReadFailure] = [:]
+            for chunk in Array(stacks.keys).chunked(into: 10_000) {
+                for version in try VersionRecord.filter(keys: chunk).fetchAll(db) {
+                    guard let id = version.id else { continue }
+                    do { previous[id] = try version.decodedEditStack() } catch { failures[id] = EditStack.ReadFailure(error) }
+                }
+            }
+            if !failures.isEmpty { throw UnreadableEditStacks(failures: failures) }
+            for (id, stack, json, hash) in rows {
                 _ = try VersionRecord.filter(key: id).updateAll(db, [
                     VersionRecord.Columns.editStack.set(to: json),
                     VersionRecord.Columns.editStackHash.set(to: hash),
                     VersionRecord.Columns.modifiedAt.set(to: date),
                 ])
+                // A change that leaves the stack as it was has nothing to record (R10).
+                if let before = previous[id], !before.hasSameContent(as: stack) {
+                    try Self.recordHistory(db, versionID: id, label: historyLabel, stackJSON: json, at: date,
+                                           byteBudget: byteBudget)
+                }
             }
         }
     }

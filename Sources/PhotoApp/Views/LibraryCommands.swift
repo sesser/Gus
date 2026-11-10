@@ -291,6 +291,13 @@ struct LibraryCommands: Commands {
             Toggle("Adjust", isOn: tabBinding(.adjust))
                 .keyboardShortcut("2", modifiers: [.command, .option])
                 .disabled(!can())
+            // The loupe's History panel (edit-history design §8): the title follows its state.
+            Button(menu?.state.historyIsOpen == true ? String(localized: "Hide History")
+                                                     : String(localized: "Show History")) {
+                model?.toggleHistory()
+            }
+            .keyboardShortcut("3", modifiers: [.command, .option])
+            .disabled(!can { $0.canShowHistory })
             Divider()
         }
     }

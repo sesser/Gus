@@ -62,6 +62,9 @@ I built this with Claude. AI did the work, I did the orchestration.
 - Masks: linear and radial gradients, a brush, and luminance and color
   ranges, combined by adding, subtracting or intersecting. Each mask
   carries its own exposure, tone, white balance, presence and sharpening.
+- A History panel in the loupe's inspector lists a photo's saved edits and
+  keeps them across restarts; click an earlier entry to go back to it, and
+  undo that if you change your mind
 - Before/after, copy and paste, and presets, including import of Lightroom
   presets (`.lrtemplate`, `.xmp`, `.dng`) with a report of anything that
   doesn't carry over

@@ -188,7 +188,7 @@ enum LibraryCommands {
         let dryRun = arguments.flag("dryRun")
         let changed = after != before
         if changed, !dryRun {
-            try await library.catalog.setEditStack(after, forVersion: id)
+            try await library.catalog.setEditStack(after, forVersion: id, historyLabel: EditHistory.developCommandLabel)
         }
         return [
             "versionID": JSONValue(id),

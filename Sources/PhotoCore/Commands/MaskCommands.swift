@@ -99,7 +99,7 @@ enum MaskCommands {
         let dryRun = invocation.arguments.flag("dryRun")
         let changed = after != before
         if changed, !dryRun {
-            try await library.catalog.setEditStack(after, forVersion: id)
+            try await library.catalog.setEditStack(after, forVersion: id, historyLabel: EditHistory.maskCommandLabel)
         }
         return [
             "versionID": JSONValue(id), "masks": masksJSON(local), "editStack": try JSONValue(encoding: after),

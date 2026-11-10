@@ -63,6 +63,7 @@ photos the library does not have yet, and a folder with nothing new makes none.
 | ⌘= and ⌘− | thumbnail size | zoom in / out |
 | ⌘Return | switch grid / loupe | switch grid / loupe |
 | ⌥⌘B | | show / hide the film strip |
+| ⌥⌘3 | | show / hide the History panel (**View ▸ Show History**) |
 | ⇧⌘A | keep only the focused photo selected | |
 | ⌘. | stop the newest export, folder add or import (**File ▸ Stop Export**, **Stop Adding Folders** or **Stop Import**) | same |
 | ⌘K | add keywords | add keywords |
@@ -372,6 +373,39 @@ lists up to ten of them with the reason for each. Photos skipped because you
 chose to skip existing files get a note of their own. The Finder can show the
 files when it is done.
 
+**History**: in the loupe, the **History** panel at the bottom of the inspector
+(under the Info and Adjust tabs) lists the changes made to the open photo's
+adjustments, newest first, each with its name ("Exposure", "Crop", "Paste
+Adjustments"…) and the time. It is collapsed until you open it: click its
+heading, or choose **View ▸ Show History** (⌥⌘3, which also brings the
+inspector back if it is hidden and puts the keyboard in the list). The entry
+with the check mark and the heavier type is the photo's current state; it is
+always the top one. Click an earlier entry, or choose it with the arrow keys
+and press Return or Space, to put the photo in the state it had then. That is a
+change like any other: it is saved, **Edit ▸ Undo** takes it back ("Undo Revert
+to “Exposure”"), it adds a new entry at the top ("Revert to “Exposure”"), and
+no earlier entry is removed. Undo and redo are listed too ("Undo Exposure",
+"Redo Exposure"), so the list is a complete log of what happened to the photo.
+Esc in the list returns the keyboard to the loupe. One entry is added per
+saved change: a slider drag, a crop saved with **Done**, and a paste or preset
+are one entry each (a paste adds one to every photo it changes, and none to a
+photo that already had those values). Each photo, and each file of a RAW+JPEG
+pair, has its own list. A list keeps the latest 100 entries, dropping the
+oldest (fewer when the edits are very large, such as long brush work: the list
+also has a size limit, and the newest entry is always kept), and cannot be
+cleared. A version made as a copy of another starts with an empty list. History is kept in the library and is there
+after you quit and open the app again, but it begins with the first recorded change:
+there is no entry for the photo as it was before that change, so to get back to the start use **Reset All Adjustments**, **Undo** or the
+**Original** toggle (which only shows the original). While a crop is being
+edited the rows are dimmed and do nothing: finish cropping first. The panel
+says so instead of listing when the photo is a video, when its original is
+offline, when its adjustments were made by a newer version of the app and
+cannot be read (they are never written over), or when the list could not be read.
+An earlier state whose saved copy is damaged or from a newer version reports it
+in Activity and leaves the photo unchanged. It is not shown in the grid or in
+review mode. History is not written to sidecars or exports. Edits made with
+`photocli` are listed too, as "Develop (command line)" or "Mask (command line)".
+
 **Undo**: ⌘Z and ⇧⌘Z undo and redo culling, keyword, album and pair changes,
 adjustments, crop and rotation, and the Info tab's descriptive fields (title,
 description and the like), including changes made to many photos at once.
@@ -431,4 +465,5 @@ correction (`colorAlignment.red` and `blue` set it by hand), and
 It can read a library at any time, but it changes one only while the app has
 it closed: while the app is open, `develop`, `rate`, `flag`, `label`,
 `mask add`, `mask set` and `mask remove` refuse and say so. Changes made from
-the terminal cannot be undone in the app.
+the terminal cannot be undone in the app, but `develop`, `mask add`, `mask set`
+and `mask remove` add an entry to the photo's History, which can be reverted to there.

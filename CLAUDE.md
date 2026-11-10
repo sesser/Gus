@@ -497,6 +497,24 @@ blank; the histogram stays whole-photo. The full-resolution copy is held
 only at covered zooms, with no memory cap. Below 100% nothing changed; no
 rendering changed.
 
+Edit history (`docs/features/edit-history/`, branch `feature/edit-history`):
+a History panel at the foot of the inspector in the loupe (both tabs;
+View ▸ Show / Hide History, ⌥⌘3; not in the grid or review mode) lists the
+open photo's saved edits, newest first, with a label (the undo action name,
+stored as text) and a time, the current state marked. Choosing an earlier
+entry writes its snapshot back as a new entry and one undo step; nothing is
+erased, and reverting to a state the photo already has does nothing. Stored
+per version in `editHistory` (migration v14; the stack as LZFSE-compressed
+JSON, at most 100 entries and 4 MiB per version, the newest always kept; no
+clear command), written in the same transaction as the stack by
+`setEditStack` and the batch writers (`historyLabel` is required), so undo,
+redo, revert, batch actions and `photocli` edits all record entries. Edits
+only; each file of a RAW+JPEG pair has its own history; a copied version
+starts empty; history is gone with its version; unreadable stacks, videos
+and offline masters have none (`Catalog/EditHistory.swift`,
+`EditHistoryPanel.swift`; `Views/HistoryPanel.swift`). No rendering changed.
+Manual checks P1–P6 are open (`docs/features/edit-history/qa.md`).
+
 Not yet: AI masks, healing, lens corrections (distortion, lens vignetting,
 profiles), DNG export, `.dcp` profiles,
 general (hand-made or burst) stacks, hierarchical

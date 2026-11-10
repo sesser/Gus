@@ -626,7 +626,7 @@ struct AdjustmentPresetTests {
         let ids = try await fixture.addMasters([CatalogFixture.master(1), CatalogFixture.master(2)])
         var bright = Adjustments()
         bright.exposure.ev = 1
-        try await fixture.catalog.setEditStacks([ids[0]: bright.editStack, ids[1]: .identity])
+        try await fixture.catalog.setEditStacks([ids[0]: bright.editStack, ids[1]: .identity], historyLabel: "Test")
         let stored = try await fixture.catalog.editStacks(forVersions: ids)
         #expect(Adjustments(stack: try #require(stored.stacks[ids[0]])) == bright)
         #expect(stored.stacks[ids[1]] == .identity)

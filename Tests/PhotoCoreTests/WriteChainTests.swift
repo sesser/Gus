@@ -187,7 +187,7 @@ struct WriteChainTests {
         // The commit made before leaving the photo, behind a slower write.
         chain.enqueue { await slow.wait() }
         chain.enqueue {
-            do { try await catalog.setEditStack(firstStack, forVersion: versionID) } catch { Issue.record(error) }
+            do { try await catalog.setEditStack(firstStack, forVersion: versionID, historyLabel: "Test") } catch { Issue.record(error) }
         }
         // Back on the photo: the editor loads its stack (`AdjustmentEditor.follow`).
         let load = Task {
@@ -202,7 +202,7 @@ struct WriteChainTests {
         next.tone.contrast = 20
         let nextStack = next.editStack
         chain.enqueue {
-            do { try await catalog.setEditStack(nextStack, forVersion: versionID) } catch { Issue.record(error) }
+            do { try await catalog.setEditStack(nextStack, forVersion: versionID, historyLabel: "Test") } catch { Issue.record(error) }
         }
         _ = await chain.settled()
         let saved = try await Self.values(catalog, versionID)
@@ -239,7 +239,7 @@ struct WriteChainTests {
         // The editor commits; its hash is shown once the write has landed (`showSaved`).
         chain.enqueue {
             do {
-                try await catalog.setEditStack(editStack, forVersion: versionID)
+                try await catalog.setEditStack(editStack, forVersion: versionID, historyLabel: "Test")
                 store.shownHash = editStack.renderHash
             } catch {
                 Issue.record(error)

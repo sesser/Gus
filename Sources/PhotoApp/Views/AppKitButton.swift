@@ -30,6 +30,13 @@ struct AppKitButton: NSViewRepresentable {
     /// VoiceOver's name for a button without a title, when it differs from
     /// `help` (a dimmed button's help says why it is dimmed).
     var accessibilityLabel: String?
+    /// VoiceOver's value and hint, for a button that stands for a state (a
+    /// heading's "expanded" and its count).
+    var accessibilityValue: String?
+    var accessibilityHint: String?
+    /// Title and symbol start at the leading edge of a wide button, instead of
+    /// centered (a heading whose whole row is the click target).
+    var leadingAligned = false
     var isEnabled = true
     let action: () -> Void
 
@@ -88,6 +95,9 @@ struct AppKitButton: NSViewRepresentable {
         button.contentTintColor = tint
         button.toolTip = help
         if title.isEmpty, let label = accessibilityLabel ?? help { button.setAccessibilityLabel(label) }
+        button.alignment = leadingAligned ? .left : .center
+        if let accessibilityValue { button.setAccessibilityValue(accessibilityValue) }
+        if let accessibilityHint { button.setAccessibilityHelp(accessibilityHint) }
         button.isEnabled = isEnabled
     }
 

@@ -11,6 +11,7 @@ struct InspectorView: View {
     static let keywordsKey = "info.section.keywords"
 
     @Bindable var model: LibraryModel
+    @State private var columnHeight: CGFloat = 600
 
     /// Pinned at the top, not scrolling: the tabs, full width; the histogram;
     /// in the loupe's Adjust tab, Original and the ⋯ menu.
@@ -43,7 +44,10 @@ struct InspectorView: View {
                 case .adjust: AdjustView(model: model)
                 }
             }
+            // The loupe's History, below whichever tab shows (edit-history design §2).
+            HistoryPanel(model: model, columnHeight: columnHeight)
         }
+        .onGeometryChange(for: CGFloat.self, of: \.size.height) { columnHeight = $0 }
     }
 }
 
