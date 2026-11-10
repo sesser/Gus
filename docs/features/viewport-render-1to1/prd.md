@@ -1,8 +1,8 @@
 # Sharp live frames at 100%
 
-Status: Approved
+Status: Shipped 2026-11-09, PR #49
 Slug: viewport-render-1to1
-Roadmap: Now
+Roadmap: Shipped
 
 ## Problem
 
@@ -255,8 +255,11 @@ area equals the same area of the full-resolution render with no adjustments,
 within the stated tolerance.
 
 AC6 (R4): Debug-script check at 100% for RAW white balance, profile and
-Luminance. After a scripted change with no commit and then a pause, the frame
-reports as sharp and matches R12. The time from pause to sharp frame is
+Luminance. For white balance and Luminance, after a scripted change with no
+commit and then a pause, the frame reports as sharp and matches R12. Profile
+is chosen from a menu and is saved on the first change, so it has no held
+state: after the change is saved, the frame reports as sharp and matches R12.
+The time from pause (or, for Profile, from the save) to sharp frame is
 recorded in `status.md`.
 
 AC7 (R5): On macOS 27 with a supported raw, at 100%. A change to Luminance
@@ -441,3 +444,12 @@ included.
 - 2026-11-09: The owner confirmed Highlights crossing 0 falls under ruling 9
   ("Yes"). Ruling 9 and R6 now name Exposure and Highlights. Status stays
   Approved.
+- 2026-11-09: AC6 restated for Profile, which is a menu and saved on the first
+  change, so it is checked after the change is saved (QA's RI-Q1 in `qa.md`).
+  No requirement changed.
+- 2026-11-09 (Ship): merged as PR #49 without a Ship pass; recorded now.
+  Shipped with no checks pending: the owner did P1–P10 at the sign-off of
+  the follow-up bug fix `viewport-render-qa-findings` (its `qa.md`), which
+  fixed QA's Q1 (the machine learning spinner stayed on) and a longer stall
+  after letting go of White Balance. QA's Q2 was withdrawn. Follow-ups are on
+  the roadmap.

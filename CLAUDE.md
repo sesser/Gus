@@ -485,6 +485,18 @@ as a preference. A view only, built for other tools; only the fringe eyedropper
 uses it so far. If the Lens kernels can't compile, the corrections are skipped
 with no message (RI-CR1, a known limitation).
 
+Sharp live frames at 100% (`docs/features/viewport-render-1to1/`, PR #49,
+and the bug fix `docs/features/viewport-render-qa-findings/`): at 100% and
+above, live frames are the visible area rendered from the full-resolution
+decode at the photo's own scale, matching the render after letting go,
+for every live change (sliders, curve, wheels, mask handles, brush, hover
+previews, Show Original, mask overlay). RAW decode settings are soft while
+moving and sharp on a pause; a drag may start soft, or go soft briefly while
+a mid-drag decode change (Exposure or Highlights crossing 0) decodes. Never
+blank; the histogram stays whole-photo. The full-resolution copy is held
+only at covered zooms, with no memory cap. Below 100% nothing changed; no
+rendering changed.
+
 Not yet: AI masks, healing, lens corrections (distortion, lens vignetting,
 profiles), DNG export, `.dcp` profiles,
 general (hand-made or burst) stacks, hierarchical

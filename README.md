@@ -45,6 +45,8 @@ I built this with Claude. AI did the work, I did the orchestration.
 
 **Editing**
 
+- At 100% and above, the photo's real pixels while you drag a slider, so
+  fine detail can be judged without letting go
 - Crop, rotate and straighten
 - White balance, exposure (with Auto), tone, clarity, vibrance and
   saturation, a tone curve, a color mixer and color grading

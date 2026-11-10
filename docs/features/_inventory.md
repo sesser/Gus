@@ -28,6 +28,10 @@ Updated 2026-11-08 (Ship pass) for PR #48 (chromatic-aberration: the Lens rows
 under Editing, Pixel Magnifier under Loupe, and the Lightroom import, `develop`
 and `photobench` rows), from its `status.md` and `docs/USER_GUIDE.md`.
 
+Updated 2026-11-09 (Ship pass) for PR #49 (viewport-render-1to1: Sharp live
+frames at 100% under Loupe, the Live rendering row) and the bug fix
+viewport-render-qa-findings, from their `status.md` and `prd.md`.
+
 Markers:
 
 - **[inferred from code]**: no document states it; the claim rests on code alone.
@@ -102,6 +106,7 @@ Abbreviations: P1–P6 = `docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR
 | Capability | What it does | Source |
 |---|---|---|
 | Loupe | Fit, 100% and zoom steps 25–800%, pinch and ⌥-scroll, neighbour preloading | P1 App; UIR §6 |
+| Sharp live frames at 100% | At 100% and above, while a value changes (sliders, curve, wheels, mask handles, brush, hover previews, Show Original, mask overlay) the loupe shows the visible part rendered from full-resolution pixels, matching the render after letting go. RAW white balance, profile and noise reduction are soft while moving, sharp on a pause; a drag may start soft, and may go soft briefly when Exposure or Highlights cross 0. Never blank; histogram stays whole-photo. Full-resolution copy held only at covered zooms, no memory cap. Below 100% unchanged | `viewport-render-1to1/` (PR #49); `viewport-render-qa-findings/`; UG |
 | Caption line | Position, stars, flag, label name, Filtered/Original/HDR/Offline badges | UIR §1 |
 | Show Original (`\`) | Before/after while editing | P3 sidebar; UIR §4 |
 | HDR display | HDR sources (float DNG, gain maps, HLG/PQ) render HDR on EDR screens; View ▸ Hide HDR Highlights | CL Rendering; UG |
@@ -139,7 +144,7 @@ Abbreviations: P1–P6 = `docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR
 | Effects | Look-up table, vignette, grain | P3 |
 | Group on/off | Check box per group keeps edits but disables them | P3 sidebar; UIR §4 |
 | Copy / Paste Adjustments | Paste carries crop, not masks | UG; P6 |
-| Live rendering | Decoded master reused per frame; one save and undo step per gesture; stage cache and adaptive drafts. The loupe loads a photo's edits only after its pending saves land (shows loading meanwhile), and library reloads never put back values older than a change already made | CL Editing; P6 Caching and drafts; `editor-follow-edit-drop/status.md` (PR #43) |
+| Live rendering | Decoded master reused per frame; one save and undo step per gesture; stage cache and adaptive drafts at fit; at 100% and above, frames of the visible area at full resolution (see Sharp live frames at 100%). The loupe loads a photo's edits only after its pending saves land (shows loading meanwhile), and library reloads never put back values older than a change already made | CL Editing; P6 Caching and drafts; `editor-follow-edit-drop/status.md` (PR #43) |
 | Runtime GPU kernels (spike) | Compiled at run time; not used by the renderer | P5; `Edits/Kernels/RuntimeKernels.swift` |
 | Lens kernels | Stitchable Core Image kernels compiled at run time, used by the Lens heading. If they can't compile, the corrections are skipped with no message (known limitation, RI-CR1) | `chromatic-aberration/prd.md`; `Edits/Kernels/LensKernels.swift` |
 
