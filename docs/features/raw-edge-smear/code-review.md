@@ -254,3 +254,39 @@ Still open, none of it a finding:
   `CLAUDE.md` changes.
 - Not checked: RAW files the RAW decoder gives no image for, which ImageIO
   decodes outside the app's contexts; the app was not launched.
+
+### Third pass, 2026-11-10
+
+Reviewed: `13b1f90..26a66af`. Two things in it came after the second pass,
+both in `Tests/PhotoCoreTests/RAWDecodeGraphTests.swift` only: the C4 fix
+(in `14f0383`, with the fix as reviewed) and the CI fix (`26a66af`). The
+source files in `14f0383` are the ones the second pass reviewed; `824d5a6` is
+the Ship commit (docs only). Build and tests, run here on macOS 27.2:
+`swift test` 690 tests in 116 suites passed, 1 known issue (the existing
+one); `RAW_CONTEXT_SOAK=3000 swift test --filter "RAWContextSoakTests|SoakGrowthTests"`
+passed.
+
+**Third-pass verdict: no findings. Nothing new for qa-tester.**
+
+| # | Status | Notes |
+| --- | --- | --- |
+| C4 | Fixed, `14f0383` | The soak's limits now scale with the count (`SoakGrowth`): growth after the first quarter under 24 MB plus 5 KB a preview, and a fitted slope under 10 KB a preview, both asserted. The count is never under 3,000, where the 50 KB leak is 110 MB against 35 MB allowed. `SoakGrowthTests` runs in CI on recorded footprints: the three level runs pass (also read as a 3,000-preview run), both recorded leaks fail, and 50 KB a preview at 3,000 fails. At 3,000 on the branch: 427 to 443 MB, 0.9 KB a preview, passed. |
+
+**The CI fix (`26a66af`), `keysDiffer`, lines 146 to 149.** The macOS 15
+toolchain could not type-check `Array(1...5000) + [UInt64 literals]` mapped
+with `Key.init(serial:)`. The list is now built as two `[UInt64]` arrays and
+mapped with `{ Key(serial: $0) }`. The test checks what it did:
+
+- **Same serials.** The old and the new expression, compiled side by side
+  here, give equal arrays: 5,006 values, 1 to 5,000, then `carry − 1`,
+  `carry`, `carry + 1`, `2 × carry`, `5000 × carry + 17` and `2⁴⁴ − 1`.
+- **Same initializer.** `Key(serial: $0)` is `Key.init(serial:)`; the other
+  initializer takes `low` and `high`.
+- **Same assertions.** The lines after the list are untouched: the keys are
+  all different, every bound is finite, at least `Key.base` and under 4 × 10³⁰,
+  and neighbours differ in each digit.
+- Nothing else in the file changed in that commit (4 lines added, 2 removed),
+  and no source changed.
+
+Not checked: that the file now compiles on the macOS 15 toolchain. This Mac
+has only the current one; the pull request's CI run is the check.
