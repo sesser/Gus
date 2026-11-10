@@ -795,8 +795,18 @@ final class AdjustmentEditor {
         guard state == .ready, cropSession == nil, item?.versionID == versionID, let library else { return }
         let catalog = library.catalog
         Task { [weak self] in
-            guard let stack = try? await catalog.editHistoryStack(entryID: entry.id, forVersion: versionID) else { return }
-            guard let self, state == .ready, cropSession == nil, item?.versionID == versionID,
+            let snapshot: EditStack?
+            do {
+                snapshot = try await catalog.editHistoryStack(entryID: entry.id, forVersion: versionID)
+            } catch {
+                // A damaged row or a schema this build can't read: say so instead of a dead row.
+                let message = String(localized: "“\(entry.label)” can't be restored: its saved state can't be read.",
+                                     comment: "Activity, after choosing a History entry whose saved state is damaged or from a newer version; the entry's label first")
+                self?.library?.report(message, action: String(localized: "Revert"), warning: true)
+                return
+            }
+            // Nil: the entry was trimmed meanwhile; nothing to go back to.
+            guard let stack = snapshot, let self, state == .ready, cropSession == nil, item?.versionID == versionID,
                   !stack.hasSameContent(as: committed.editStack) else { return }
             showsOriginal = false
             let name = HistoryText.revert(toLabel: entry.label)

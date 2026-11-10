@@ -391,10 +391,11 @@ saved change: a slider drag, a crop saved with **Done**, and a paste or preset
 are one entry each (a paste adds one to every photo it changes, and none to a
 photo that already had those values). Each photo, and each file of a RAW+JPEG
 pair, has its own list. A list keeps the latest 100 entries, dropping the
-oldest, and cannot be cleared. History is kept in the library and is there
-after you quit and open the app again, but it begins with the first change made
-after this feature was added: there is no entry for the photo as it was before,
-so to get back to the start use **Reset All Adjustments**, **Undo** or the
+oldest (fewer when the edits are very large, such as long brush work: the list
+also has a size limit, and the newest entry is always kept), and cannot be
+cleared. A version made as a copy of another starts with an empty list. History is kept in the library and is there
+after you quit and open the app again, but it begins with the first recorded change:
+there is no entry for the photo as it was before that change, so to get back to the start use **Reset All Adjustments**, **Undo** or the
 **Original** toggle (which only shows the original). While a crop is being
 edited the rows are dimmed and do nothing: finish cropping first. The panel
 says so instead of listing when the photo is a video, when its original is

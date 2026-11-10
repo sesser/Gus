@@ -3,14 +3,14 @@
 Owner: swift-macos-engineer. Feature: `edit-history`. Branch: `feature/edit-history`.
 Spec: [`prd.md`](prd.md) (Approved), [`design.md`](design.md) (Designed; §14 owner rulings).
 
-**State: Done** (2026-11-09). Every acceptance criterion is built and has a test
+**State: Done** (2026-11-09; review fixes 2026-11-10, below). Every acceptance criterion is built and has a test
 or a named check. Open for others: the designer's manual checks (AC14, D7, D13),
 listed under "For a person" below, and the optional palette toolbar item, not built.
 
 ## Baseline and latest results
 
 - Baseline on `feature/edit-history` before any change: `swift build` clean.
-- Latest: `swift build` clean, no warnings. `swift test`: 668 tests in 111
+- Latest: `swift build` clean, no warnings. `swift test`: 672 tests in 111
   suites passed, 1 known issue (the one the baseline already carries). No golden
   moved and `UPDATE_GOLDENS` was never used; `PreviewCacheKey.currentPipelineVersion`
   is untouched (AC16).
@@ -25,7 +25,7 @@ listed under "For a person" below, and the optional palette toolbar item, not bu
 PhotoCore (no AppKit or SwiftUI):
 - `Catalog/CatalogSchema.swift`: migration `v14`, table `editHistory`
   (`id`, `versionId` → `version` ON DELETE CASCADE and indexed, `label`,
-  `createdAt`, `stack`). Generic names.
+  `createdAt`, `stack` as an LZFSE-compressed BLOB). Generic names.
 - `Catalog/EditHistory.swift` (new): `EditHistory.maxEntries = 100`, the
   command-line labels, `EditHistoryEntry`, `Catalog.editHistory(forVersion:)`
   (newest first, reads no snapshots), `Catalog.editHistoryStack(entryID:forVersion:)`,
@@ -96,11 +96,26 @@ A library of 20,000 photos with ten entries each at the typical size is about
 what makes a stack large: at `MaskLimits`' ceiling (200,000 points per mask, 32
 masks) one snapshot could in theory reach about 100 MB, so the cap alone does not
 bound a pathological photo; real brushwork stays in the tens to hundreds of KB.
-Decision: plain JSON text, no compression. It is debuggable with `sqlite3`, adds no
-format to migrate, and compression buys little at the typical size. If brush-heavy
-photos prove costly, compressing `stack` (LZFSE, about 4x on brush data) is a
-change local to `recordHistory` and `editHistoryStack`, and needs no spec change.
-Recorded for the owner; nothing to rule now.
+Decision (superseded by the owner's ruling on code-review C1, 2026-11-10, below):
+plain JSON.
+
+**C1 (owner ruling): compress snapshots and add a byte budget.** Same migration
+`v14` (not shipped, so edited in place; no extra migration). `stack` is a BLOB
+holding the stack JSON compressed with LZFSE (`NSData.compressed(using: .lzfse)`,
+`EditHistory.compress` / `decompress`). After each insert, `recordHistory` keeps the
+newest 100 entries and, within them, as many newest ones as fit in
+`EditHistory.maxBytes` = **4 MiB** of stored (compressed) bytes per version; older
+ones are deleted in the same transaction. The newest entry always survives, even if
+it alone is over the budget.
+
+Why 4 MiB: ordinary work never meets it (100 typical stacks are under 100 KB; 100
+snapshots of a tidy 5,000-dab brush path about 1.8 MB), while a scribbled 50,000-dab
+brush photo, about 380 KB a snapshot, keeps about 10 entries (measured in
+`EditHistoryTests.defaultBudget`: 30 edits kept 10 entries, 3.8 MB). At the budget a
+version costs at most ~4 MiB plus its newest snapshot, so 20,000 maxed-out photos
+would be 80 GB at the very worst, but only photos with heavy brushwork get anywhere
+near it; the typical library stays near the 150 MB figure above. Past the budget the
+person loses the oldest states of that one photo, never the current one.
 
 The write cost per edit is one extra INSERT of the same JSON the stack write already
 produces, in the same transaction, plus one DELETE bounded by the cap.
@@ -244,5 +259,30 @@ None blocking. Two notes for the designer:
 
 - The palette-only History toolbar item (optional in design §8).
 - R16 (Could): the per-row summary of what changed.
-- Compression of snapshots (see Q4).
-- Review findings: none yet.
+- I1 (inset selection style): not done. It changes cell geometry and I cannot see
+  the result here; left for the designer's M6 check.
+
+## Review findings (second pass, 2026-11-10)
+
+Code review (`code-review.md`) and design review (`review.md`) of 4db535f.
+
+| # | State | What was done |
+|---|---|---|
+| C1 | Fixed | LZFSE-compressed snapshots and a 4 MiB per-version byte budget, newest always kept, in migration v14 (owner ruling). Tests: `snapshotsAreCompressed` (stored size under half of the JSON, same stack back), `byteBudgetTrimsTheOldest` (oldest dropped first, survivors revert exactly), `newestEntryAlwaysSurvives` (budget of 10 bytes keeps the newest), `defaultBudget` (bounds a scribbled brush photo) |
+| C2 | Fixed | An entry whose snapshot can't be read or decoded now reports in Activity as a warning ("“…” can't be restored: its saved state can't be read.", action "Revert"); a nil result (entry trimmed meanwhile) stays silent. My call: a message over disabling the row, since the row can't be known bad until its snapshot is read, and the list never reads snapshots |
+| C3 | Fixed | A failed list read is logged and sets the list failed; the panel shows `unavailable(.failed)` ("History is unavailable. It could not be read from the library.") instead of loading forever. Test: `panelStates` |
+| C4 | Recorded (owner ruling) | A copied version stays empty, no seed entry; the guide says so |
+| F1 | Fixed | The keyboard request is set only when the panel state has entries (`canTakeKeyboard`, tested), cleared on collapse and when the focused photo changes, and cleared from a task, not inside the view update |
+| F2 | Fixed | A click on the current or a dimmed row gives the keyboard back to the loupe |
+| F3 | Fixed | `HistoryCell.configure` sets `toolTip` (label, exact time, the crop hint when dimmed); the dead delegate method is removed |
+| F4 | Fixed (needs M3) | The body stays in the hierarchy with a frame height of 0 or the body height and `.clipped()`, so the frame animates; collapsed it refuses first responder, hit tests and VoiceOver |
+| F5 | Fixed (needs M4) | Home, End, Page Up and Page Down move the cursor and scroll it into view |
+| F6 | Fixed | The guide now says "it begins with the first recorded change: there is no entry for the photo as it was before that change"; it also mentions the size limit and that a copied version starts empty |
+| I3 | Fixed | `setAccessibilityChildren([])` on the cell; the probe lists one `AXCell` per row |
+| I4 | Fixed | While the next photo's list loads, the header keeps the previous count |
+| I1 | Not done | See "Not done" |
+
+Checks: `swift build` clean; `swift test` 672 passed (1 known issue); debug script on the
+bundle copy: edit, edit, revert, collapse all behaved as before, rows are `AXCell`s.
+Not verifiable here: animation (F4), Home/End/Page keys (F5), the keyboard fixes F1
+and F2 (no key window), the tooltip (F3): the designer's M2 to M4, M7.

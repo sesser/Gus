@@ -4974,6 +4974,17 @@
         }
       }
     },
+    "History is unavailable. It could not be read from the library." : {
+      "comment" : "History panel: reading the entries from the catalog failed",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "History is unavailable. It could not be read from the library."
+          }
+        }
+      }
+    },
     "History is unavailable. This version can't read this photo's edits." : {
       "comment" : "History panel: the stored edits are from a newer version or damaged",
       "localizations" : {
@@ -8674,6 +8685,17 @@
         }
       }
     },
+    "Revert" : {
+      "comment" : "Activity action title for a failed return to an earlier History state",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Revert"
+          }
+        }
+      }
+    },
     "Revert to This State" : {
       "comment" : "VoiceOver: the History row's action",
       "localizations" : {
@@ -11599,6 +11621,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ƒ/%@"
+          }
+        }
+      }
+    },
+    "“%@” can't be restored: its saved state can't be read." : {
+      "comment" : "Activity, after choosing a History entry whose saved state is damaged or from a newer version; the entry's label first",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” can't be restored: its saved state can't be read."
           }
         }
       }

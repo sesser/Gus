@@ -18,6 +18,8 @@ public enum EditHistoryPanelState: Equatable, Sendable {
         case offline
         /// The stored stack can't be read by this build: nothing is written, so no list.
         case unreadable
+        /// The list could not be read from the catalog.
+        case failed
     }
 
     /// What the editor knows of the photo in the loupe.
@@ -29,8 +31,10 @@ public enum EditHistoryPanelState: Equatable, Sendable {
         case unreadable
     }
 
-    /// `entryCount` is nil until the list for the shown photo has loaded.
-    public static func make(isLoupe: Bool, isReviewing: Bool, source: Source, entryCount: Int?) -> Self {
+    /// `entryCount` is nil until the list for the shown photo has loaded;
+    /// `listFailed` says the read for it failed.
+    public static func make(isLoupe: Bool, isReviewing: Bool, source: Source, entryCount: Int?,
+                            listFailed: Bool = false) -> Self {
         guard isLoupe, !isReviewing else { return .absent }
         switch source {
         case .notReady: return .loading
@@ -38,6 +42,7 @@ public enum EditHistoryPanelState: Equatable, Sendable {
         case .offline: return .unavailable(.offline)
         case .unreadable: return .unavailable(.unreadable)
         case .ready:
+            if listFailed { return .unavailable(.failed) }
             guard let entryCount else { return .loading }
             return entryCount == 0 ? .empty : .entries(entryCount)
         }
@@ -99,4 +104,13 @@ public struct EditHistoryTime {
 
     /// The tooltip's full date and time with seconds.
     public func exactText(_ date: Date) -> String { exact.string(from: date) }
+}
+
+extension EditHistoryPanelState {
+    /// Whether ⌥⌘3 may hand the keyboard to the list: only a list with rows has
+    /// anything to move in (a request left pending would fire much later).
+    public var canTakeKeyboard: Bool {
+        if case .entries = self { return true }
+        return false
+    }
 }

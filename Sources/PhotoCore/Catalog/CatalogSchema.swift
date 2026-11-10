@@ -421,9 +421,10 @@ enum CatalogSchema {
     }
 
     /// One row per saved change to a version's edit stack: its label, its time
-    /// and the stack as it was then (a snapshot, so a revert is exact). Rows go
-    /// with their version. The cap of `EditHistory.maxEntries` is kept by the
-    /// write that adds a row, not by the schema.
+    /// and the stack as it was then (a snapshot, so a revert is exact), as LZFSE
+    /// compressed JSON (`EditHistory.compress`). Rows go
+    /// with their version. The caps (`EditHistory.maxEntries` and
+    /// `maxBytes`) are kept by the write that adds a row, not by the schema.
     private static func addEditHistory(_ db: Database) throws {
         try db.create(table: "editHistory") { t in
             t.autoIncrementedPrimaryKey("id")
@@ -431,7 +432,7 @@ enum CatalogSchema {
                 .references("version", onDelete: .cascade)
             t.column("label", .text).notNull()
             t.column("createdAt", .datetime).notNull()
-            t.column("stack", .text).notNull()
+            t.column("stack", .blob).notNull()
         }
     }
 }

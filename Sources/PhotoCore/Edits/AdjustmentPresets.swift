@@ -212,6 +212,11 @@ extension Catalog {
     /// them cannot be read.
     public func setEditStacks(_ stacks: [Int64: EditStack], historyLabel: String,
                               at date: Date = Date()) async throws {
+        try await setEditStacks(stacks, historyLabel: historyLabel, at: date, byteBudget: EditHistory.maxBytes)
+    }
+
+    /// As above, with the history's byte budget (tests use a small one).
+    func setEditStacks(_ stacks: [Int64: EditStack], historyLabel: String, at date: Date, byteBudget: Int) async throws {
         let rows = try stacks.map { ($0.key, $0.value, try $0.value.jsonString(), $0.value.renderHash) }
         try await database.write { db in
             var previous: [Int64: EditStack] = [:]
@@ -231,7 +236,8 @@ extension Catalog {
                 ])
                 // A change that leaves the stack as it was has nothing to record (R10).
                 if let before = previous[id], !before.hasSameContent(as: stack) {
-                    try Self.recordHistory(db, versionID: id, label: historyLabel, stackJSON: json, at: date)
+                    try Self.recordHistory(db, versionID: id, label: historyLabel, stackJSON: json, at: date,
+                                           byteBudget: byteBudget)
                 }
             }
         }

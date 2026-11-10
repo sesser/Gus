@@ -7,6 +7,23 @@ public enum EditHistory {
     /// Entries kept per version; adding one past this drops the oldest.
     public static let maxEntries = 100
 
+    /// Stored (compressed) snapshot bytes kept per version, on top of the entry
+    /// cap: 4 MiB. 100 typical stacks are under 100 KB, and 100 snapshots of a
+    /// tidy 5,000-dab brush path about 1.8 MB, so ordinary work never meets it.
+    /// Scribbled brush work of 50,000 dabs (about 380 KB a snapshot, measured)
+    /// keeps about 10 entries instead of filling the catalog. The newest entry
+    /// always stays, whatever its size.
+    public static let maxBytes = 4 * 1024 * 1024
+
+    /// A snapshot as stored: the stack's JSON, LZFSE compressed.
+    static func compress(_ json: String) throws -> Data {
+        try (Data(json.utf8) as NSData).compressed(using: .lzfse) as Data
+    }
+
+    static func decompress(_ data: Data) throws -> Data {
+        try (data as NSData).decompressed(using: .lzfse) as Data
+    }
+
     /// Labels for changes made outside the app, where nothing names an undo
     /// step. Plain English: `photocli` has no String Catalog.
     public static let developCommandLabel = "Develop (command line)"
@@ -44,21 +61,33 @@ extension Catalog {
     /// (or no longer) there.
     public func editHistoryStack(entryID: Int64, forVersion versionID: Int64) async throws -> EditStack? {
         try await database.read { db in
-            guard let json = try String.fetchOne(db, sql: "SELECT stack FROM editHistory WHERE id = ? AND versionId = ?",
+            guard let stored = try Data.fetchOne(db, sql: "SELECT stack FROM editHistory WHERE id = ? AND versionId = ?",
                                                  arguments: [entryID, versionID]) else { return nil }
-            return try EditStack.decode(from: json)
+            return try EditStack.decode(from: EditHistory.decompress(stored))
         }
     }
 
-    /// Adds an entry for `versionID` and trims the version to the cap, inside
-    /// the caller's write so an entry is saved with its edit.
-    static func recordHistory(_ db: Database, versionID: Int64, label: String, stackJSON: String, at date: Date) throws {
+    /// Adds an entry for `versionID` and trims the version's history, inside
+    /// the caller's write so an entry is saved with its edit: to the newest
+    /// `maxEntries`, then to `byteBudget` stored bytes, dropping the oldest. The
+    /// entry just added is never trimmed.
+    static func recordHistory(_ db: Database, versionID: Int64, label: String, stackJSON: String, at date: Date,
+                              byteBudget: Int = EditHistory.maxBytes) throws {
         try db.execute(sql: "INSERT INTO editHistory (versionId, label, createdAt, stack) VALUES (?, ?, ?, ?)",
-                       arguments: [versionID, label, date, stackJSON])
-        try db.execute(sql: """
-            DELETE FROM editHistory WHERE versionId = ?1
-              AND id NOT IN (SELECT id FROM editHistory WHERE versionId = ?1 ORDER BY id DESC LIMIT ?2)
-            """, arguments: [versionID, EditHistory.maxEntries])
+                       arguments: [versionID, label, date, try EditHistory.compress(stackJSON)])
+        let rows = try Row.fetchAll(db, sql: "SELECT id, length(stack) FROM editHistory WHERE versionId = ? ORDER BY id DESC",
+                                    arguments: [versionID])
+        var total = 0
+        var oldestKept: Int64?
+        for (index, row) in rows.enumerated() {
+            let size: Int = row[1]
+            total += size
+            guard index == 0 || (index < EditHistory.maxEntries && total <= byteBudget) else { break }
+            oldestKept = row[0]
+        }
+        if let oldestKept {
+            try db.execute(sql: "DELETE FROM editHistory WHERE versionId = ? AND id < ?", arguments: [versionID, oldestKept])
+        }
     }
 }
 

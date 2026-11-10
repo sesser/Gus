@@ -273,6 +273,90 @@ struct EditHistoryTests {
         #expect(plan.contains("editHistory"))
     }
 
+    // MARK: Snapshot size (code review C1)
+
+    private static func brushStack(dabs: Int, exposure ev: Double, scattered: Bool = false) -> EditStack {
+        var values = Adjustments()
+        values.exposure.ev = ev
+        var state: UInt64 = 12345
+        func next() -> Double {
+            state = state &* 6364136223846793005 &+ 1442695040888963407
+            return Double(state >> 11) / Double(1 << 53)
+        }
+        // A tidy path compresses far better than a scribble; the scribble is the heavy case.
+        let points = (0..<dabs).map {
+            scattered ? MaskPoint(x: next(), y: next())
+                      : MaskPoint(x: 0.2 + Double($0 % 700) * 0.0007, y: 0.3 + Double($0 / 7) * 0.0003)
+        }
+        values.local = LocalAdjustments(masks: [
+            Mask(components: [MaskComponent(.brush(Brush(strokes: [BrushStroke(points: points)])))]),
+        ])
+        return values.editStack
+    }
+
+    private static func storedBytes(_ catalog: Catalog, _ id: Int64) async throws -> Int {
+        try await catalog.database.read { db in
+            try Int.fetchOne(db, sql: "SELECT COALESCE(SUM(length(stack)), 0) FROM editHistory WHERE versionId = ?",
+                             arguments: [id]) ?? 0
+        }
+    }
+
+    @Test("Snapshots are stored LZFSE compressed and read back as the same stack")
+    func snapshotsAreCompressed() async throws {
+        let (fixture, id) = try await Self.one()
+        let stack = Self.brushStack(dabs: 5000, exposure: 1)
+        try await fixture.catalog.setEditStack(stack, forVersion: id, historyLabel: "Brush")
+        let json = try stack.jsonString()
+        let stored = try await Self.storedBytes(fixture.catalog, id)
+        #expect(stored < json.utf8.count / 2, "stored \(stored) of \(json.utf8.count)")
+        let entry = try #require(try await fixture.catalog.editHistory(forVersion: id).first)
+        #expect(try await fixture.catalog.editHistoryStack(entryID: entry.id, forVersion: id) == stack)
+    }
+
+    @Test("A byte budget drops the oldest entries first; the entry cap still applies")
+    func byteBudgetTrimsTheOldest() async throws {
+        let (fixture, id) = try await Self.one()
+        let stacks = (1...10).map { Self.brushStack(dabs: 2000, exposure: Double($0) / 10) }
+        let size = try EditHistory.compress(try stacks[0].jsonString()).count
+        // Room for four snapshots and a little more.
+        let budget = size * 4 + size / 2
+        for (index, stack) in stacks.enumerated() {
+            try await fixture.catalog.setEditStacks([id: stack], historyLabel: "Edit \(index + 1)",
+                                                    at: Date(timeIntervalSince1970: Double(index)), byteBudget: budget)
+        }
+        let entries = try await fixture.catalog.editHistory(forVersion: id)
+        #expect(entries.map(\.label) == ["Edit 10", "Edit 9", "Edit 8", "Edit 7"])
+        #expect(try await Self.storedBytes(fixture.catalog, id) <= budget)
+        // The survivors still revert exactly.
+        let oldest = try #require(entries.last)
+        #expect(try await fixture.catalog.editHistoryStack(entryID: oldest.id, forVersion: id) == stacks[6])
+    }
+
+    @Test("The newest entry is never trimmed, even when it alone is over the budget")
+    func newestEntryAlwaysSurvives() async throws {
+        let (fixture, id) = try await Self.one()
+        for index in 1...3 {
+            try await fixture.catalog.setEditStacks([id: Self.brushStack(dabs: 2000, exposure: Double(index) / 10)],
+                                                    historyLabel: "Edit \(index)", at: Date(), byteBudget: 10)
+        }
+        let entries = try await fixture.catalog.editHistory(forVersion: id)
+        #expect(entries.map(\.label) == ["Edit 3"])
+        #expect(try await fixture.catalog.editHistoryStack(entryID: entries[0].id, forVersion: id) != nil)
+    }
+
+    @Test("The default budget bounds the history of a photo with long, scribbled brush work")
+    func defaultBudget() async throws {
+        let (fixture, id) = try await Self.one()
+        for index in 1...30 {
+            try await fixture.catalog.setEditStack(Self.brushStack(dabs: 50_000, exposure: Double(index) / 100, scattered: true), forVersion: id,
+                                                   historyLabel: "Edit \(index)")
+        }
+        let count = try await fixture.catalog.editHistory(forVersion: id).count
+        print("edit-history C1: 30 edits of 50,000 scattered dabs keep \(count) entries, \(try await Self.storedBytes(fixture.catalog, id)) bytes")
+        #expect(count < 30 && count > 1)
+        #expect(try await Self.storedBytes(fixture.catalog, id) <= EditHistory.maxBytes)
+    }
+
     // MARK: Panel states (R12, D6)
 
     @Test("The panel is absent in the grid and in review, and says why for a video, offline or unreadable photo")
@@ -287,6 +371,14 @@ struct EditHistoryTests {
         #expect(State.make(isLoupe: true, isReviewing: false, source: .ready, entryCount: nil) == .loading)
         #expect(State.make(isLoupe: true, isReviewing: false, source: .ready, entryCount: 0) == .empty)
         #expect(State.make(isLoupe: true, isReviewing: false, source: .ready, entryCount: 12) == .entries(12))
+        // A failed read ends the loading state instead of leaving it.
+        #expect(State.make(isLoupe: true, isReviewing: false, source: .ready, entryCount: nil, listFailed: true)
+                == .unavailable(.failed))
+        // Only a list with rows can take the keyboard.
+        #expect(State.entries(3).canTakeKeyboard)
+        for other in [State.absent, .loading, .empty, .unavailable(.video), .unavailable(.failed)] {
+            #expect(!other.canTakeKeyboard)
+        }
     }
 
     @Test("Rows can be reverted only with entries and outside a crop session")

@@ -28,10 +28,13 @@ struct HistoryPanel: View {
             if state != .absent {
                 Divider()
                 header(state)
-                if model.showsHistory {
-                    content(state)
-                        .frame(height: Self.bodyHeight(columnHeight: columnHeight))
-                }
+                // Always in the hierarchy, so the frame animates (growing upward from the header) and
+                // the list is not faded in; collapsed, it is clipped away and out of the key loop.
+                content(state)
+                    .frame(height: model.showsHistory ? Self.bodyHeight(columnHeight: columnHeight) : 0)
+                    .clipped()
+                    .allowsHitTesting(model.showsHistory)
+                    .accessibilityHidden(!model.showsHistory)
             }
         }
         .animation(reduceMotion ? nil : model.showsHistory ? .easeOut(duration: 0.25) : .easeIn(duration: 0.2),
@@ -41,6 +44,7 @@ struct HistoryPanel: View {
             guard let version = model.mode == .loupe && !model.isReviewing ? model.focusedItem?.versionID : nil else { return }
             await model.loadHistory(forVersion: version)
         }
+        .onChange(of: model.focusedItem?.versionID) { model.historyWantsKeyboard = false }
         .onChange(of: state) {
             // A keyboard request only makes sense for a list that is, or is about to be, there.
             switch state {
@@ -59,7 +63,12 @@ struct HistoryPanel: View {
 
     private func header(_ state: EditHistoryPanelState) -> some View {
         let help = model.showsHistory ? String(localized: "Collapse") : String(localized: "Expand")
-        let count: Int? = if case .entries(let count) = state { count } else { nil }
+        // While the next photo's list loads the count stays, so it does not blink between photos.
+        let count: Int? = switch state {
+        case .entries(let count): count
+        case .loading: model.history.entries.isEmpty ? nil : model.history.entries.count
+        default: nil
+        }
         let countText = count.map { String(localized: "\($0) entries", comment: "History panel: how many entries the list holds") }
         return HStack(spacing: 0) {
             AppKitDisclosure(isExpanded: $model.showsHistory, help: help)
@@ -92,6 +101,7 @@ struct HistoryPanel: View {
         case .entries:
             HistoryTable(entries: model.history.entries, time: model.history.time,
                          isEnabled: state.allowsRevert(isCropping: model.editor.cropSession != nil),
+                         isCollapsed: !model.showsHistory,
                          wantsKeyboard: model.historyWantsKeyboard,
                          tookKeyboard: { model.historyWantsKeyboard = false },
                          revert: { model.revertHistory(to: $0) },
@@ -123,6 +133,7 @@ struct HistoryPanel: View {
         case .video: String(localized: "Videos have no edit history.")
         case .offline: String(localized: "History is unavailable while the original is offline.")
         case .unreadable: String(localized: "History is unavailable. This version can't read this photo's edits.")
+        case .failed: String(localized: "History is unavailable. It could not be read from the library.")
         }
     }
 }
@@ -137,6 +148,8 @@ struct HistoryTable: NSViewRepresentable {
     let time: EditHistoryTime
     /// False during a crop session: the rows are dimmed and do nothing.
     let isEnabled: Bool
+    /// The panel is collapsed: the list stays but takes no keyboard.
+    let isCollapsed: Bool
     let wantsKeyboard: Bool
     let tookKeyboard: () -> Void
     let revert: (EditHistoryEntry) -> Void
@@ -192,9 +205,11 @@ struct HistoryTable: NSViewRepresentable {
         coordinator.update(entries: entries)
         if enabledChanged { coordinator.table?.reloadData() }
         scroll.alphaValue = isEnabled ? 1 : 0.5
-        if wantsKeyboard, let table = coordinator.table {
-            tookKeyboard()
+        coordinator.table?.refusesFirstResponder = isCollapsed
+        if wantsKeyboard, !isCollapsed, let table = coordinator.table {
+            // Not inside the view update: the request is cleared once the list has the keyboard.
             Task { @MainActor [weak table] in
+                tookKeyboard()
                 guard let table, let window = table.window else { return }
                 window.makeFirstResponder(table)
             }
@@ -252,20 +267,13 @@ struct HistoryTable: NSViewRepresentable {
             return cell
         }
 
-        func tableView(_ tableView: NSTableView, toolTipFor cell: NSCell, rect: NSRectPointer,
-                       tableColumn: NSTableColumn?, row: Int, mouseLocation: NSPoint) -> String {
-            guard entries.indices.contains(row) else { return "" }
-            let entry = entries[row]
-            let tip = entry.label + "\n" + time.exactText(entry.createdAt)
-            return isEnabled ? tip : tip + "\n" + String(localized: "Finish cropping to go back to an earlier state.")
-        }
-
         /// Type-to-select is off: letters belong to the loupe's keys, not to this list.
         func tableView(_ tableView: NSTableView, typeSelectStringFor tableColumn: NSTableColumn?, row: Int) -> String? { nil }
 
         @objc func clicked() {
             guard let table, table.clickedRow >= 0 else { return }
-            activate(row: table.clickedRow)
+            // A click that changes nothing (the current row, dimmed rows) still gives the keyboard back.
+            if !activate(row: table.clickedRow) { leaveList() }
         }
 
         func activateCursorRow() {
@@ -275,15 +283,19 @@ struct HistoryTable: NSViewRepresentable {
 
         /// Reverts to the row's entry (a no-op for the current one, A5) and, when it
         /// did, hands the keyboard back to the loupe.
-        private func activate(row: Int) {
-            guard entries.indices.contains(row) else { return }
-            activate(entryID: entries[row].id)
+        @discardableResult
+        private func activate(row: Int) -> Bool {
+            guard entries.indices.contains(row) else { return false }
+            return activate(entryID: entries[row].id)
         }
 
-        private func activate(entryID: Int64) {
-            guard isEnabled, let row = entries.firstIndex(where: { $0.id == entryID }), row > 0 else { return }
+        /// True when it asked for a revert.
+        @discardableResult
+        private func activate(entryID: Int64) -> Bool {
+            guard isEnabled, let row = entries.firstIndex(where: { $0.id == entryID }), row > 0 else { return false }
             revert(entries[row])
             leaveList()
+            return true
         }
 
         func leaveList() {
@@ -306,10 +318,24 @@ struct HistoryTable: NSViewRepresentable {
             return accepted
         }
 
+        private var pageSize: Int { max(1, rows(in: visibleRect).length - 1) }
+
+        /// Moves the cursor (not the photo) to `row`, kept within the list and in view.
+        private func moveCursor(to row: Int) {
+            guard numberOfRows > 0 else { return }
+            let target = min(max(row, 0), numberOfRows - 1)
+            selectRowIndexes([target], byExtendingSelection: false)
+            scrollRowToVisible(target)
+        }
+
         override func keyDown(with event: NSEvent) {
             switch event.keyCode {
             case 36, 76, 49: onActivate()    // Return, keypad Enter, Space
             case 53: onEscape()              // Escape
+            case 115: moveCursor(to: 0)                       // Home
+            case 119: moveCursor(to: numberOfRows - 1)        // End
+            case 116: moveCursor(to: selectedRow - pageSize)  // Page Up
+            case 121: moveCursor(to: selectedRow + pageSize)  // Page Down
             default: super.keyDown(with: event)
             }
         }
@@ -352,6 +378,8 @@ final class HistoryCell: NSTableCellView {
         ])
         setAccessibilityElement(true)
         setAccessibilityRole(.cell)
+        // One element per row: its text fields and image are not read again.
+        setAccessibilityChildren([])
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
@@ -369,6 +397,9 @@ final class HistoryCell: NSTableCellView {
         label.font = .systemFont(ofSize: 11, weight: isCurrent ? .semibold : .regular)
         timeField.stringValue = time.short(entry.createdAt)
         marker.isHidden = !isCurrent
+        // The full label and the exact time (a view-based table asks no delegate for tooltips).
+        let tip = entry.label + "\n" + time.exactText(entry.createdAt)
+        toolTip = isEnabled ? tip : tip + "\n" + String(localized: "Finish cropping to go back to an earlier state.")
         let spoken = time.spokenText(entry.createdAt)
         setAccessibilityLabel(entry.label)
         setAccessibilityValue(isCurrent

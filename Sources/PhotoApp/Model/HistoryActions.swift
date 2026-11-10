@@ -1,4 +1,5 @@
 import AppKit
+import OSLog
 import PhotoCore
 import PhotoUI
 
@@ -9,9 +10,13 @@ struct EditHistoryList {
     /// Newest first; the first entry is the current state.
     var entries: [EditHistoryEntry] = []
     var time = EditHistoryTime()
+    /// Reading the entries failed.
+    var failed = false
 }
 
 extension LibraryModel {
+    private static let historyLog = Logger(subsystem: AppBranding.bundleIdentifier, category: "history")
+
     /// What the History panel shows for the focused photo (design §6).
     var historyPanelState: EditHistoryPanelState {
         let focus = focusedItem?.versionID
@@ -30,7 +35,9 @@ extension LibraryModel {
             .notReady
         }
         let loaded = focus != nil && history.versionID == focus ? history.entries.count : nil
-        return .make(isLoupe: mode == .loupe, isReviewing: isReviewing, source: source, entryCount: loaded)
+        let failed = focus != nil && history.versionID == focus && history.failed
+        return .make(isLoupe: mode == .loupe, isReviewing: isReviewing, source: source, entryCount: loaded,
+                     listFailed: failed)
     }
 
     /// View ▸ Show / Hide History applies: the loupe, not reviewing.
@@ -46,11 +53,12 @@ extension LibraryModel {
         guard canShowHistory else { return }
         if historyIsOpen {
             showsHistory = false
+            historyWantsKeyboard = false
             NotificationCenter.default.post(name: .browserShouldTakeFocus, object: self)
         } else {
             showsInspector = true
             showsHistory = true
-            historyWantsKeyboard = true
+            historyWantsKeyboard = historyPanelState.canTakeKeyboard
         }
     }
 
@@ -67,6 +75,9 @@ extension LibraryModel {
         do {
             entries = try await catalog.editHistory(forVersion: versionID)
         } catch {
+            guard !Task.isCancelled else { return }
+            Self.historyLog.error("Reading edit history failed: \(error.localizedDescription, privacy: .public)")
+            history = EditHistoryList(versionID: versionID, entries: [], time: EditHistoryTime(), failed: true)
             return
         }
         guard !Task.isCancelled else { return }
