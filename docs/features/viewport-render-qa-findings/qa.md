@@ -240,3 +240,4 @@ Q2's arrow-key check is gone: the second pass showed no difference from the base
 ## Follow-up
 
 - 2026-11-09, second pass at `fdc87c4` (no source change since `d4a28d0`): Q2 re-measured with the inspector state pinned. Withdrawn: not a regression. It came from inspector state saved by my own `maps` run. P3 (arrow keys) removed from the owner's list. The pre-existing Adjust-tab rebuild is listed for the product manager.
+- 2026-11-09: the owner signed off on `bug/viewport-render-qa-findings` at `32083ae` after doing all of P1–P10. No checks are left open.
