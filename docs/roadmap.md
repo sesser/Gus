@@ -286,7 +286,7 @@ next item to start ("make it the next item"). It shipped 2026-11-08 (PR
 | Slug | Problem | Status | Folder | Source |
 |------|---------|--------|--------|--------|
 | viewport-render-1to1 | At 100% zoom (and other zooms past fit), a control that is moving shows a stretched live frame until the change is saved, so fine detail can't be judged while editing: the 2560 px frame for most controls (2.3× for a 6000 px photo), and a 1280 px decode (4.7×) while RAW white balance, profile or noise reduction move | In progress | [`features/viewport-render-1to1/`](features/viewport-render-1to1/) | `PHASE6_PLAN.md` "The loupe at 100 %" and "Roadmap" |
-| edit-history | No way to see or jump back to an earlier state of a photo's edits | Idea | none yet | Issue #26; `ui-redesign/design.md` RI-6 |
+| edit-history | No way to see or jump back to an earlier state of a photo's edits; undo is in memory, window-wide and lost at relaunch | Designed (design.md; owner confirmed placement and order 2026-11-09) | [`features/edit-history/`](features/edit-history/) | Issue #26; `ui-redesign/design.md` RI-6 |
 
 How each starts:
 
@@ -297,7 +297,13 @@ How each starts:
   confirmed its assumptions A1–A9 ("Yes, as written"), so the PRD is
   approved. It is designed and built, and the owner accepted its speed as
   measured (PRD ruling 8). Code review, design review and QA are next.
-- **edit-history** needs intake, then a PRD and design. Placement and keys
+- **edit-history** was specified 2026-11-09 after the owner answered intake
+  (edits only; persisted per photo with a new migration; click an entry to
+  revert, recorded as a new entry and undoable; 100-entry cap; undo/redo
+  unchanged). The owner then confirmed A1-A6 and the photocli question, so the PRD is Approved.
+  Ordering (newest on top is a working default) and placement (owner prefers
+  a collapsed left-sidebar tab that slides a panel up) go to the designer.
+  Next: apple-ui-designer. Placement and keys
   stay out of the PRD (issue #26's ⌘Y redo and left-sidebar placement are
   proposals that conflict with the shipped ⇧⌘Z, the HIG's standard redo,
   and a sidebar that holds sources, UIR §3; RI-6). The intake questions are
