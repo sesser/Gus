@@ -549,6 +549,19 @@ there) in `docs/features/raw-edge-smear/qa.md`. Color Alignment values
 measured automatically before the fix may be slightly wrong until measured
 again.
 
+Activity popover (`docs/features/activity-popover/`, bug fix, issue #56,
+branch `bug/activity-popover-anchor`): clicking the toolbar's Activity item
+with nothing running and unread messages made the item vanish and the
+messages count as read, so its popover never opened. Now the item stays while
+its popover is open and the messages are read when it closes, not when it
+opens; while a job runs nothing changed. The rule is `ActivityLog.showsItem`
+and `setPopoverShown` in PhotoCore (`Browser/ActivityLog.swift`; the app's
+`ActivityToolbarItem` binds to `isPopoverShown`). The debug script gained
+`activity open|close|snapshot|click`. No rendering changed. Shipped, checks
+pending: P7 and P8 (overflow menu and window close; VoiceOver), P9 (second
+click with a real mouse while a job runs) and P10 (macOS 15 and 26) in
+`docs/features/activity-popover/qa.md`.
+
 Not yet: AI masks, healing, lens corrections (distortion, lens vignetting,
 profiles), DNG export, `.dcp` profiles,
 general (hand-made or burst) stacks, hierarchical

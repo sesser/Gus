@@ -204,7 +204,7 @@ Abbreviations: P1–P6 = `docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR
 |---|---|---|
 | One library window | `NavigationSplitView` with inspector; dark appearance on the library window only | UIR decisions 8–9, §1 |
 | Customizable toolbar | Import menu, Export, Grid/Loupe, size/zoom, Activity, Filter, Search, inspector; palette items | UIR §5 |
-| Activity item | Progress, Stop, last 20 messages; warnings vs information | UIR §1 |
+| Activity item | Progress, Stop, last 20 messages; warnings vs information. Stays while its popover is open; messages count as read when the popover closes, not when it opens | UIR §1; `activity-popover/status.md` |
 | Menu bar | File, Edit, View, Photo, Adjust, Window, Help; bare keys shown, enabled only when grid/loupe has focus. One File ▸ Stop (⌘.) names the newest job; one Edit ▸ Deselect All (⇧⌘A) serves both windows; Adjust has Import Look-Up Tables…, Reset Crop, Show / Hide Mask Overlay; View ▸ Info / Adjust are checked; New Mask and Add to Mask dim at their limits. Help has no items in either app (the dead "‹app› Help" item was removed); the menu stays for Help ▸ Search | UIR §6; CL Menus; `ui-redesign/design.md` §6; `ui-redesign/status.md` E4–E11, E26, E28 |
 | Context menus | Photos, loupe, video loupe (culling, keywords, albums, Play / Pause, Show Grid), sidebar items, inspector headers, slider rows, presets, masks, import cells | UIR §7; `ui-redesign/status.md` E9 |
 | Inspector | Info / Adjust tabs, pinned histogram, Original toggle and ⋯ menu | UIR §4 |
