@@ -151,6 +151,8 @@ final class LoupeController: NSObject {
     private var loadTask: Task<Void, Never>?
     private var hdrTask: Task<Void, Never>?
     private var fullTask: Task<Void, Never>?
+    /// Tells the latest full-rendition load from one it replaced.
+    private var fullLoadGeneration = 0
     /// The model's HDR setting as last applied; changing it reloads the photo.
     var hdrSetting = true {
         didSet { if hdrSetting != oldValue { shownKey = nil } }
@@ -589,7 +591,12 @@ final class LoupeController: NSObject {
         let hdr = hdrAllowed
         let key = shownKey
         fullTask?.cancel()
+        fullLoadGeneration += 1
+        let generation = fullLoadGeneration
+        model.editor.loupeLoadsFullRendition = true
         fullTask = Task { [weak self] in
+            // The last load to finish, however it ended, lets the texture's decode start.
+            defer { if let self, self.fullLoadGeneration == generation { self.model.editor.loupeLoadsFullRendition = false } }
             if hdr, let image = try? await previews.hdrImage(for: request, fullResolution: true) {
                 guard let self, self.shownKey == key else { return }
                 self.display(image, as: .hdrFull)

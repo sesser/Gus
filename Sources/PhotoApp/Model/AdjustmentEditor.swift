@@ -74,6 +74,11 @@ final class AdjustmentEditor {
             refreshSharpFrameWait()
         }
     }
+    /// A full rendition is loading. The texture's decode waits for it: on the
+    /// same GPU it lengthens the rendition's first draw on the main thread.
+    @ObservationIgnored var loupeLoadsFullRendition = false {
+        didSet { if oldValue, !loupeLoadsFullRendition { scheduleRegionPrepare() } }
+    }
     @ObservationIgnored private var sharpWaitTask: Task<Void, Never>?
     /// When the person last changed a value or moved the photo.
     @ObservationIgnored private var lastInputDate: Date = .distantPast
@@ -448,6 +453,7 @@ final class AdjustmentEditor {
         sharpWaitTask = nil
         isAwaitingSharpFrame = false
         loupeAwaitsFullRendition = false
+        loupeLoadsFullRendition = false
         cropSession = nil
         cropImage = nil
         cropImageTask?.cancel()
@@ -1034,13 +1040,15 @@ final class AdjustmentEditor {
     /// Keeps the full-resolution texture ready while the loupe is at 100%
     /// or more, so the first frame of a drag can be sharp.
     private func scheduleRegionPrepare() {
-        guard loupeViewport != nil, state == .ready, let regions = regionRenderer, regionPrepareTask == nil else { return }
+        guard loupeViewport != nil, state == .ready, let regions = regionRenderer, regionPrepareTask == nil,
+              !loupeLoadsFullRendition else { return }
         let values = adjustments
         let token = RenderCancellation()
         regionPrepareCancellation = token
         regionPrepareTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(150))
-            guard !Task.isCancelled, !token.isCancelled, self?.loupeViewport != nil else {
+            // A full rendition that started loading meanwhile asks again when it lands.
+            guard !Task.isCancelled, !token.isCancelled, self?.loupeViewport != nil, self?.loupeLoadsFullRendition == false else {
                 if self?.regionPrepareCancellation === token { self?.regionPrepareTask = nil }
                 return
             }
@@ -1293,6 +1301,9 @@ final class AdjustmentEditor {
                                                                         cancellation: next.cancellation)
                                 guard !Task.isCancelled, session === self.session else { break }
                                 showRegionFrame(rendered)
+                            } else if next.values == awaitedMachineLearningValues {
+                                // The frame the wait was for is already on screen: nothing will land to end it.
+                                stopAwaitingMachineLearning()
                             }
                             regionShown = true
                             lastFrameWasInteractive = next.interactive
@@ -1301,7 +1312,10 @@ final class AdjustmentEditor {
                             // loop, so soft frames keep following the hand: after a
                             // pause (R4, R5), or as soon as a moving frame's settings
                             // have stopped changing (R1, R2).
-                            let decodeNow = next.interactive ? await regions.shouldDecode(whileMoving: next.values) : true
+                            let decodeNow = next.interactive ? await regions.shouldDecode(whileMoving: next.values)
+                                : !LiveFrameRules.decodeWaitsForFullRendition(
+                                    valuesAreSaved: next.values == committed, isChanging: isChanging, hasOverlay: overlay != nil,
+                                    showsOriginal: showsOriginal, isPreviewing: isPreviewing)
                             if decodeNow { startRegionDecode(next.values) }
                             let decoding = decodeNow ? true : await regions.isDecodingOrHolding(next.values)
                             decodeNote = decoding ? "running" : "settling"

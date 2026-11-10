@@ -68,7 +68,7 @@ dependency, no bundle script change.
   test` failed two tests, `SharpeningMapTests` "The map's input is the image the sharpening step
   sees" and `EffectsTests` `grainAddsTextureAroundTheSameLevel` (exact equality of two renders). Of
   three filtered reruns of those suites, the first failed both again and the next two passed. Every
-  full run since has passed. They call `AdjustmentRenderer` directly, which this diff doesn't change;
+  full run I made after that passed (code review's own runs differ: see the follow-up). They call `AdjustmentRenderer` directly, which this diff doesn't change;
   one run of those suites on the code before the fixes passed, which doesn't show whether the failure
   predates this work. See the follow-up under "Open questions and notes".
 - `LARGE_RENDER_TESTS=1 swift test --filter LiveRegionRendererTests`: 12 of 12 passed. The AC1 scene
@@ -217,9 +217,10 @@ sizes (about 6 to 7 a second).
 **How the frame-by-frame check tells a decode is under way (ruling 9).** `print frames` ends a soft
 frame's line at 100% and above with `decode running` (a decode for that frame's settings is under way, starts
 with it, or landed just after it asked) or `decode settling` (the first frame of new settings: the decode starts
-with the next frame if they hold). A soft frame after the first sharp one is allowed only as part of a run of at
-most one `decode settling` frame followed by `decode running` frames. Any other soft frame fails: no label, or more
-than one `decode settling`. Measured for Exposure crossing 0 on a 24 MP DNG: two runs, 5 and 6 soft frames
+with the next frame if they hold). The rule applies to `interactive` lines only (code review C17): the whole frames of a pause or a commit are
+traced as `soft … still` with no label and sit under a current tile. An `interactive` soft frame after the first
+sharp one is allowed only as part of a run of at most one `decode settling` frame followed by `decode running`
+frames. Any other `interactive` soft frame fails: no label, or more than one `decode settling`. Measured for Exposure crossing 0 on a 24 MP DNG: two runs, 5 and 6 soft frames
 (`settling`, then `running`), sharp again with no further input.
 
 **Frame-by-frame (AC2/AC3).** Timeout: **2.5 s** for a sharp frame, from the start of the change and from
@@ -408,9 +409,14 @@ The design question (mask handles over the tile): settled from layer order, `pri
 
 **Follow-ups for Ship.**
 - If 100% feels slow on the Dell, faster region frames (A + C), which needs a ruling on A1/R12 for mid-drag frames.
-- Intermittent `SharpeningMapTests` failures under GPU load (1 in 12 full runs in code review, not reproduced on
+- Intermittent `SharpeningMapTests` failures under GPU load (1 in 13 full runs in code review, not reproduced on
   `dfa0d5c`). The likeliest cause is its float context shared across parallel tests; `.serialized` is a cheap first
   step. The grain test (`EffectsTests`) failing alongside it isn't explained by that.
+- The existing stall when the full rendition is first drawn, on the main thread (`createCGImage` is deferred in
+  `RenderEngine`). `qa.md` M13/RI-D1: the longest main-thread gap after letting go at 100% was 360–385 ms (Amount) and
+  400–407 ms (White Balance) on `develop`. On the feature branch it was 411–429 ms and 622–634 ms, and 1152 ms with
+  machine learning on; the part this feature added is `bug/viewport-render-qa-findings`. Moving the render off the
+  main thread with `deferred: false` also makes the N1/L1 spinner visible, because the wait becomes real.
 
 **Design questions.** None.
 
