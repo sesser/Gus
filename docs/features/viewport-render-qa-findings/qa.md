@@ -7,9 +7,7 @@ Tested: `bug/viewport-render-qa-findings` at `d4a28d0` (the fix is `643e80d`; `d
 
 ## Verdict
 
-**Q1 and the added White Balance stall are fixed and this fix regressed nothing, but Q2 does not pass.** The spinner now ends when the sharp frame lands; the White Balance stall the feature added is gone (back to the baseline's level). Q2 is a real regression, not noise, and this fix doesn't touch it: arriving at a photo at 100% stalls the main thread about 245 ms longer than before the feature (380 → 620 ms), in every round.
-
-Decision needed from the owner: either Q2 goes back to the engineer, or the owner accepts it for now and it gets its own bug, as the full-render stall did (`status.md`).
+**Passes. Q1 and the added White Balance stall are fixed, this fix regressed nothing, and Q2 was a test-setup artifact, not a regression (second pass, below).** The spinner now ends when the sharp frame lands, and the White Balance stall the feature added is gone. With the inspector state set in the script, arriving at a photo at 100% costs the same on the baseline and on this branch: about 380 ms with the inspector hidden, about 610–620 ms with it open on Adjust. In my first pass the ~240 ms difference came from the inspector being open on Adjust in the `before` and `after` bundles only, left there by my own `maps` script. That rebuild of the Adjust tab on every arrival is real but predates the feature: it goes to the product manager as a follow-up.
 
 ## Acceptance criteria
 
@@ -19,10 +17,10 @@ Decision needed from the owner: either Q2 goes back to the engineer, or the owne
 | Q1: it still shows during the wait | Script | `q1-wait`: on `after` the machine learning spinner is on from 946 ms until the sharp frame lands at 2110 ms (`tile shown … applied`), and the sharp-frame spinner covers the time from 525 ms | Pass |
 | Q1: a newer value doesn't end it early | Script | `q1-newer`: two values in one hold. The spinner sequence on `after` matches `before` up to the end, and it ends only when the newest value's sharp frame lands (4293 ms). See the note on the machine learning spinner below | Pass |
 | The added stall: after a direct White Balance commit at 100%, `print frames` shows `decode settling` on the `still` frame with the fix, `decode running` without it (code review C1) | Script | `c1`: three commits on each build. `after`: `decode settling`, and no sharp frame follows at once. `before`: `decode running`, and a sharp frame follows at once. A drag afterwards (`c1`, last block) is sharp from its first frame, so the decode runs once the full rendition has landed | Pass |
-| The stall after letting go (M13): White Balance | Script | Campaign, below: White Balance commit 449 ms against 439 ms on the baseline, against 562 ms on `before`. Paired by round, the fix takes off 113 ms, and the branch is +9 ms against the baseline, inside the A/A noise | Pass |
-| The stall after letting go: Amount | Script | Campaign: 408 ms against 522 ms on the baseline. Not slower | Pass |
-| The stall after letting go: Amount with machine learning on | Script | Campaign: 1293 ms against 1267 ms on the baseline, +26 ms, the size of the A/A noise | Pass |
-| Q2: arriving at a photo at 100% is no slower than the baseline (Bug section, "Expected") | Script | Campaign: 24 arrivals per build, every gap over 100 ms. 379 ms on the baseline, 624 ms on the branch. Regression, not fixed by this change: **Q2** | **Fail (Q2)** |
+| The stall after letting go (M13): White Balance | Script | Campaign, below (`before` and `after` compared in the same inspector state; the baseline comparison is confounded, see the second pass): White Balance commit 449 ms against 439 ms on the baseline, against 562 ms on `before`. Paired by round, the fix takes off 113 ms, and the branch is +9 ms against the baseline, inside the A/A noise | Pass |
+| The stall after letting go: Amount | Script | Campaign: 408 ms against 522 ms on the baseline, in different inspector states (second pass). Not re-run | Open, not shown either way |
+| The stall after letting go: Amount with machine learning on | Script | Campaign: 1293 ms against 1267 ms on the baseline, in different inspector states (second pass). Not re-run | Open, not shown either way |
+| Q2: arriving at a photo at 100% is no slower than the baseline (Bug section, "Expected") | Script | `campaign3` (second pass): 24 arrivals per build in each inspector state, the state set by the script and printed in every run, preferences deleted before each set. Inspector hidden: baseline 380 ms, branch 385 ms (+5, A/A ±16). Open on Adjust: 609 against 618 ms (+9, A/A ±9). The first pass's 379 against 624 ms compared different inspector states | Pass (second pass) |
 | Nothing regressed: frame-by-frame on a slider and on crossings | Script | `ff-slider`: 27 frames, sharp from the first. `ff-crossing`: Exposure crossing 0 in both directions, 6 and 5 soft frames, Highlights 5, each `settling` then `running`, sharp again with no further input | Pass |
 | Nothing regressed: the maps at 100% and at Fit | Script | `maps`, same script on `before` and `after`: identical render and refinement counts. Sharpening Map at 100%: tile down, `nearest true`, a pan renders nothing and doesn't restart the refinement. At Fit: `covered no`, map behaves as before. Fringe Map at 400%: `nearest true` | Pass |
 | Full `swift test` and `LARGE_RENDER_TESTS=1` | Test | `swift test`: 650 tests in 110 suites passed, 1 known issue (the existing `LiveSessionTests` one). `LARGE_RENDER_TESTS=1 swift test --filter LiveRegionRendererTests`: 13 of 13, same worst differences as before (8 steps center, 2 corner, 7 and 2 with the crop, 4 raw, none over tolerance) | Pass |
@@ -33,7 +31,26 @@ Decision needed from the owner: either Q2 goes back to the engineer, or the owne
 
 **A note on the machine learning spinner (not a finding).** While a value is being replaced mid-wait (`q1-wait`, `q1-newer`), the machine learning spinner can drop for a few hundred milliseconds between a soft interactive frame landing and the pause's refinement starting. The sharp-frame spinner fills most of that time. The sequence is the same on `before`, so this fix did not introduce it.
 
-### Q2 and the stall after letting go: the measurement
+### Q2, second pass: the inspector state pinned
+
+The engineer traced Q2 to saved state (`status.md`, "Q2: the cause"), and I confirmed it independently. My `maps` script runs `sharpenmap on`, which opens the inspector on Adjust (`SharpeningMapActions.swift:53`). I ran it on the `before` and `after` bundles only, before the campaign, so their saved preferences kept the inspector open while the baseline and its A/A copy had it hidden. My `maps` logs show `inspector true tab adjust`; the campaign logs didn't print it. With the inspector open on Adjust, each arrival rebuilds the Adjust tab, which is the SwiftUI layout pass the `sample` showed.
+
+**Method (`campaign3`).** Builds: `013c0e8`, its A/A copy and `d4a28d0` (no source has changed since). Two sets, the first with `inspector off` and the second with `inspector on; tab adjust`, run before the photo loads. The scratch identifiers' preferences were deleted before each set, and `print inspector` runs before and after the arrivals in every log. Six rounds per set in alternating order (`baseline baseline2 after`, `after baseline2 baseline`, `baseline2 baseline after`, `after baseline baseline2`, `baseline after baseline2`, `baseline2 after baseline`). Each run does four arrivals with a 5 s heartbeat window and a beat before the key, as in the first pass. The process sampler showed nothing else running, no window was throttled, and none was cheap. `NSAppSleepDisabled` was set on the three scratch identifiers only and removed afterward.
+
+| Inspector | Build | Arrivals | Logged state | Two gaps over 100 ms | Total of gaps over 100 ms, mean ± SD (range) | Paired by round against the baseline |
+|---|---|---|---|---|---|---|
+| Hidden | Baseline | 24 | hidden | 0 | 380 ± 11 ms (346–399) | |
+| Hidden | A/A copy | 24 | hidden | 0 | 376 ± 14 ms (352–401) | −4 mean (−2, +2, −5, −7, −16, +4) |
+| Hidden | This branch | 24 | hidden | 0 | 385 ± 12 ms (364–412) | +5 mean (+10, +13, +8, −2, −7, +9) |
+| Open on Adjust | Baseline | 24 | open, Adjust | 8 | 609 ± 11 ms (587–627) | |
+| Open on Adjust | A/A copy | 24 | open, Adjust | 11 | 612 ± 14 ms (589–653) | +3 mean (−5, +9, +1, +1, +7, +5) |
+| Open on Adjust | This branch | 24 | open, Adjust | 13 | 618 ± 24 ms (585–707) | +9 mean (+3, +24, +8, +7, +4, +5) |
+
+**Result.** In each state the branch is within the A/A noise of the baseline: +5 ms against A/A differences of up to 16 ms when hidden, and +9 ms against up to 9 ms (one round at +24) when open on Adjust. This method resolves about 15–25 ms, and no difference of that size shows. **Q2 is not a regression of the feature; it is withdrawn.** The ~230 ms in Q2 comes from the inspector being open on Adjust, and the baseline pays it too (609 against 380 ms). That is a pre-existing cost, recorded as a follow-up below.
+
+**What this changes in the first pass.** The arrival comparison against the baseline (below) compared different inspector states and is superseded. The commit comparisons against the baseline (Amount, Amount with machine learning on, and the White Balance row's baseline column) carry the same confound and were not re-run. The `before` and `after` comparisons are in the same state and stand, including the White Balance fix (−113 ms) and "the fix doesn't change arrivals". The finding about cheap arrivals (no heartbeat before the key) does not depend on this and stands.
+
+### Q2 and the stall after letting go: the first pass (arrival and baseline comparisons superseded)
 
 Method (code review C2): each run does four arrivals (right, left, right, left, between two photos with the typical stack, at 100%, maximized window on the Dell) and four commits (Amount, White Balance, White Balance, Amount) and two commits with machine learning on, each with a 20 ms main-thread heartbeat, `print loupe`. Arrival windows last 5 s, with a heartbeat just before the key, so a stall during the key command's own 80 ms sleep is not missed (80 ms is subtracted from that gap). Six rounds for each of four builds in alternating order: `baseline baseline2 before after`, then `after before baseline2 baseline`, then `baseline2 baseline after before`, `before after baseline baseline2`, `baseline before baseline2 after`, `after baseline2 before baseline`. Every gap over 100 ms is counted.
 
@@ -99,17 +116,15 @@ Time from the start of the drag to the first sharp frame on screen, by the frame
 
 ## Findings
 
-**Q2 (Medium). Arriving at a photo at 100% stalls the main thread about 245 ms longer than before the feature.**
-Steps: scripted arrivals at 100% between two photos with a typical stack, maximized window, 20 ms heartbeat, 24 arrivals per build (`campaign`).
-Expected (Bug section): no longer than on `develop` before the feature.
-Actual: every arrival on this branch and on `before`: 588–706 ms of stall in total, against 337–437 on the baseline; every one of the 6 rounds shows the branch 222–277 ms higher than the baseline, well above the A/A noise of 28 ms. The stall is either one ~600 ms gap or two (~250 and ~370–400 ms). `sample` shows the extra is a SwiftUI layout pass in the display cycle (`NSDisplayCycleFlush` 92 → 1067 samples over four arrivals); the first draw of the full rendition is unchanged. **This fix does not change it** (`after − before`, +6 ms).
-The next step is to find what invalidates the window's SwiftUI layout on arrival at 100%.
+None open. **Q2 is withdrawn** after the second pass: it came from a difference in saved inspector state between bundles in my own setup, not from the feature (see "Q2, second pass").
+
+**Method note for later QA.** Saved preferences persist per bundle identifier between runs. A check that opens the inspector, changes a tab or shows a map leaves that state for every later run of the same bundle. Before a timing comparison, delete the scratch identifiers' preferences, set the UI state the comparison depends on (inspector, tab, film strip, window size) in the script, and print it in every log.
 
 **Code review's C4** (a raw small enough that Fit is 100%: the decode isn't rescheduled until the next drag) is still a known gap that R6 allows. It was not exercised: the scratch library has no photo that small.
 
 ## Requirements issues and design questions
 
-**For the product manager and the owner: Q2 as a sign-off decision.** Q2 is in this fix's Bug section, and it isn't resolved. Either the engineer fixes it on this branch, or the owner accepts it as a known cost for now, and it gets its own bug row, as the owner already did for the full-render stall in `status.md`.
+**Follow-up for the product manager: rebuilding the Adjust tab on each arrival.** With the inspector open on Adjust, every arrival at a photo at 100% stalls the main thread about 230 ms longer than with it hidden: 609 against 380 ms on `013c0e8`, and the same on this branch. `sample` puts it in a SwiftUI layout pass of the window (`NSDisplayCycleFlush`), and the engineer traces it to the Adjust tab being rebuilt as the editor's state goes `.loading` → `.ready`. It predates the sharp live frames feature and is not changed by this fix, so it isn't for this branch. Proposed: a bug row, "the Adjust tab rebuilds on every photo while it's showing (about 0.23 s per arrow key at 100% on the Dell)", next to the full-render stall that is already a follow-up.
 
 No design questions.
 
@@ -185,34 +200,43 @@ print selection; print loupe; adjust amount 55; $(hb 180) wait 0.5; print select
 
 The first full pass had 5 runs throttled by App Nap or a covered window (heartbeats about 220 ms apart; detected by a median heartbeat over 40 ms), so rounds 2 and 3 were run again with `NSAppSleepDisabled` set on the four scratch identifiers only, and that setting was removed afterward. The numbers above use only unthrottled windows, equal counts per build.
 
+`campaign3` (second pass, Q2): the scratch identifiers' preferences deleted, then six rounds per set on `baseline`, `baseline2` and `after`, with `hb(225)` as above:
+
+```
+$OPEN_LOUPE; <STATE>; wait 1; focus RAW_00001; ml ready; windowsize 3008 1662; wait 1; zoom; wait 5; print inspector;
+print selection; print loupe; key right; $(hb 225) wait 0.5; print selection; print loupe; key left; $(hb 225) wait 0.5; print selection; print loupe; key right; $(hb 225) wait 0.5; print selection; print loupe; key left; $(hb 225) wait 0.5; print inspector
+```
+
+`<STATE>` is `inspector off` in the first set and `inspector on; tab adjust` in the second. Every log printed `inspector shown false tab adjust` or `inspector shown true tab adjust`, as set.
+
 ## For a person
 
 The owner's list for sign-off. It covers this fix and everything left open in `docs/features/viewport-render-1to1/qa.md` (P1–P10 there, shown here as "was P…"). Each item says what is already passed by script. Set up a scratch library as the main session describes (step 5 of `docs/WORKFLOW.md`).
 
-**In order of what matters most. P1–P5 are the ones worth doing. P6–P11 can be skipped or left open at sign-off by naming them.**
+Q2's arrow-key check is gone: the second pass showed no difference from the baseline. Arrowing at 100% with the inspector open on Adjust costs about 0.23 s more than with it hidden on every build, which is the pre-existing follow-up above, not something to sign off here.
+
+**In order of what matters most. P1–P4 are the ones worth doing. P5–P10 can be skipped or left open at sign-off by naming them.**
 
 **P1. Detail while dragging (the owner's M1, was P1).** On a real 24 MP raw at 100% (`Z`), drag Sharpening's Amount, Radius and Detail, watching a fine edge. Then drag Luminance and hold still with the mouse down. *Pass:* the detail changes under your hand for Amount, Radius and Detail; for Luminance, the detail arrives while you hold, without letting go. Drag again, and the picture follows softly and never freezes or snaps to older values. After letting go, the settled image looks the same as the last sharp frame. *Already passed by script:* the frame-by-frame check on a slider and an Exposure crossing in this pass, and on the curve, wheels, mask handles and brush in `viewport-render-1to1/qa.md`, on a synthetic raw and the RW2 copy. A person is needed to judge how it looks.
 
 **P2. The frame rate on the Dell (M9, was P2).** Maximized window, sidebar and inspector showing, a typical stack, at 100%. Drag Amount across its range; paint a brush stroke. *Pass:* an Amount drag reads as continuous at 6 to 7 frames a second; no spinner at the end of the drag; the stroke stays attached to the pointer. If it isn't acceptable, that's the follow-up in `viewport-render-1to1/status.md`, not a defect here. *Measured:* AC9, with no change to the frame path in this fix.
 
-**P3. Arrow keys at 100% (Q2, new).** At 100% on a real raw, arrow through ten photos, watching for the photo to appear and the window to answer. Measured on the Dell at a maximized window: the window stalls about 0.38 s on `develop` before the feature and 0.62 s on this branch, on every arrival. *Decide:* is 0.2 s more per arrow key at 100% acceptable for now? If yes, it gets its own bug row and this fix can proceed; if not, Q2 goes back to the engineer first.
+**P3. Machine learning at 100% (M4, was P3).** With machine learning on, at 100% on a real raw, drag Luminance and hold. *Pass:* the spinner with its machine learning label shows while the wait lasts, and goes when the detail lands, and stays gone (Q1). Change the value again during the wait; the spinner carries on and ends with the newest value. *Already passed by script* on the synthetic DNG on macOS 27 (`q1`, `q1-wait`, `q1-newer`). What's left is a real raw and the label on screen.
 
-**P4. Machine learning at 100% (M4, was P3).** With machine learning on, at 100% on a real raw, drag Luminance and hold. *Pass:* the spinner with its machine learning label shows while the wait lasts, and goes when the detail lands, and stays gone (Q1). Change the value again during the wait; the spinner carries on and ends with the newest value. *Already passed by script* on the synthetic DNG on macOS 27 (`q1`, `q1-wait`, `q1-newer`). What's left is a real raw and the label on screen.
+**P4. Letting go, and the swap (M5, M13, N2, AC10, was P5).** At 100% on a real raw: let go of White Balance with no pause, then of Amount, each followed by an arrow key or a pan within a second; then the same with machine learning on. Also start a new drag right after letting go of White Balance. *Pass:* the photo is never blank; after Amount the sharp frame stays until the full render replaces it; no fade and no shift at the swap (soft to sharp and back; Reduce Motion on and off); a fine edge doesn't move near the center or a corner; no spinning cursor after letting go or during a real three-mask drag; the first drag on a photo doesn't read as a blink; the new drag is soft for a moment, then sharp. *Already scripted:* stall figures (0.4–0.45 s after a commit; about 1.3 s with machine learning on, measured with the inspector open on Adjust); soft-to-sharp timing for the new drag (under 0.8 s). A person is needed for the feel.
 
-**P5. Letting go, and the swap (M5, M13, N2, AC10, was P5).** At 100% on a real raw: let go of White Balance with no pause, then of Amount, each followed by an arrow key or a pan within a second; then the same with machine learning on. Also start a new drag right after letting go of White Balance. *Pass:* the photo is never blank; after Amount the sharp frame stays until the full render replaces it; no fade and no shift at the swap (soft to sharp and back; Reduce Motion on and off); a fine edge doesn't move near the center or a corner; no spinning cursor after letting go or during a real three-mask drag; the first drag on a photo doesn't read as a blink; the new drag is soft for a moment, then sharp. *Already scripted:* stall figures (0.4–0.45 s after a commit; about 1.3 s with machine learning on, the baseline does too); soft-to-sharp timing for the new drag (under 0.8 s). A person is needed for the feel.
+**P5. The look of soft frames, the histogram and the curve (M2, M7, was P4).** At 100% and 400% on a real photo, drag White Balance and pan right after. *Pass:* no stair-stepped blocks in a soft frame; at 400% a settled photo shows real pixels as blocks. During a drag at 100%, the histogram and the curve's backdrop hold, never blank or dim, and catch up on a pause. A pan leaves them alone; at Fit they stay live. *Already passed by script:* soft frame vs sharp at 400% on an edge, histogram hold/catch-up (viewport-render-1to1 `m2`, `ac11`). *May be skipped* if P1 and P2 looked right.
 
-**P6. The look of soft frames, the histogram and the curve (M2, M7, was P4).** At 100% and 400% on a real photo, drag White Balance and pan right after. *Pass:* no stair-stepped blocks in a soft frame; at 400% a settled photo shows real pixels as blocks. During a drag at 100%, the histogram and the curve's backdrop hold, never blank or dim, and catch up on a pause. A pan leaves them alone; at Fit they stay live. *Already passed by script:* soft frame vs sharp at 400% on an edge, histogram hold/catch-up (viewport-render-1to1 `m2`, `ac11`). *May be skipped* if P1 and P2 looked right.
+**P6. The 100% boundary and the spinner (M3, M6, was P6).** Reach 100% by `Z`, the toolbar, ⌘=, and a pinch that selects the 100% segment: real pixels each time. A pinch stopping just below 100% is soft; say whether that's a trap. Hold White Balance still: if a spinner shows, its tooltip is "Refining the photo"; after letting go with no pause no spinner shows (known, L1). *Already passed by script:* `Z`, ⌘=, 97% not covered and soft, 99.5% covered and sharp; spinner timing (viewport-render-1to1 `m3`, `m6`). *May be skipped.*
 
-**P7. The 100% boundary and the spinner (M3, M6, was P6).** Reach 100% by `Z`, the toolbar, ⌘=, and a pinch that selects the 100% segment: real pixels each time. A pinch stopping just below 100% is soft; say whether that's a trap. Hold White Balance still: if a spinner shows, its tooltip is "Refining the photo"; after letting go with no pause no spinner shows (known, L1). *Already passed by script:* `Z`, ⌘=, 97% not covered and soft, 99.5% covered and sharp; spinner timing (viewport-render-1to1 `m3`, `m6`). *May be skipped.*
+**P7. Maps and handles (M11, M12, was P7).** At 400%, a refined Sharpening Map, a Fringe Map and the preview while replacing a pick show blocks, as on `develop`. With a linear or radial mask at 100%, handles stay over the sharp frame during and after a drag, after resizing the window and after entering and leaving review; the brush cursor too. *Already passed by script:* Sharpening and Fringe Maps `nearest true` at 400%; handles over the tile after a resize and review (`m11`, `m12`, `maps`). *Left:* the replaced-pick preview and the brush cursor. *May be skipped.*
 
-**P8. Maps and handles (M11, M12, was P7).** At 400%, a refined Sharpening Map, a Fringe Map and the preview while replacing a pick show blocks, as on `develop`. With a linear or radial mask at 100%, handles stay over the sharp frame during and after a drag, after resizing the window and after entering and leaving review; the brush cursor too. *Already passed by script:* Sharpening and Fringe Maps `nearest true` at 400%; handles over the tile after a resize and review (`m11`, `m12`, `maps`). *Left:* the replaced-pick preview and the brush cursor. *May be skipped.*
+**P8. Keyboard step on a slider (AC4, was P9).** Focus a slider with the keyboard and step it with the arrow keys at 100%. *Pass:* each step ends on a sharp frame of the current value. *May be skipped:* same path as a typed value, which passed by script.
 
-**P9. Keyboard step on a slider (AC4, was P9).** Focus a slider with the keyboard and step it with the arrow keys at 100%. *Pass:* each step ends on a sharp frame of the current value. *May be skipped:* same path as a typed value, which passed by script.
+**P9. VoiceOver (M8, was P8).** At the swap from soft to sharp nothing is announced; a slider speaks its value; the spinner reads its label. *Already passed by script:* nothing announced, the image and its actions present. *May be skipped* unless you use VoiceOver.
 
-**P10. VoiceOver (M8, was P8).** At the swap from soft to sharp nothing is announced; a slider speaks its value; the spinner reads its label. *Already passed by script:* nothing announced, the image and its actions present. *May be skipped* unless you use VoiceOver.
-
-**P11. HDR, only if you have an extended-range display (M10, was P10).** An HDR photo at 100%: no HDR badge during a drag; it returns when the HDR rendition lands; after that a rating key doesn't bring a standard-range tile back. Not run here. *May be skipped* if you have no such display.
+**P10. HDR, only if you have an extended-range display (M10, was P10).** An HDR photo at 100%: no HDR badge during a drag; it returns when the HDR rendition lands; after that a rating key doesn't bring a standard-range tile back. Not run here. *May be skipped* if you have no such display.
 
 ## Follow-up
 
-None yet.
+- 2026-11-09, second pass at `fdc87c4` (no source change since `d4a28d0`): Q2 re-measured with the inspector state pinned. Withdrawn: not a regression. It came from inspector state saved by my own `maps` run. P3 (arrow keys) removed from the owner's list. The pre-existing Adjust-tab rebuild is listed for the product manager.
