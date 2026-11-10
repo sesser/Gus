@@ -243,6 +243,17 @@
         }
       }
     },
+    "%lld" : {
+      "comment" : "A bare number",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld"
+          }
+        }
+      }
+    },
     "%lld K" : {
       "comment" : "Color temperature in kelvin",
       "localizations" : {
@@ -270,6 +281,29 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "%lld colors"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld entries" : {
+      "comment" : "History panel: how many entries the list holds; also VoiceOver's hint on the header",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld entry"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld entries"
                 }
               }
             }
@@ -1897,6 +1931,7 @@
       }
     },
     "Blue" : {
+      "comment" : "fringe color name",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1904,8 +1939,7 @@
             "value" : "Blue"
           }
         }
-      },
-      "comment" : "fringe color name"
+      }
     },
     "Blue/yellow" : {
       "comment" : "Slider",
@@ -3642,6 +3676,28 @@
         }
       }
     },
+    "Each change you make to this photo is listed here." : {
+      "comment" : "History panel: empty list, explanation",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each change you make to this photo is listed here."
+          }
+        }
+      }
+    },
+    "Edit History" : {
+      "comment" : "VoiceOver: the History list's name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit History"
+          }
+        }
+      }
+    },
     "Edit Smart Album" : {
       "comment" : "Undo action name and editor title",
       "localizations" : {
@@ -4338,6 +4394,17 @@
         }
       }
     },
+    "Finish cropping to go back to an earlier state." : {
+      "comment" : "History list: tooltip and VoiceOver hint of rows while a crop session is open",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finish cropping to go back to an earlier state."
+          }
+        }
+      }
+    },
     "Finish cropping to pick a fringe color." : {
       "comment" : "Eyedropper tooltip, dimmed in a crop session",
       "localizations" : {
@@ -4645,6 +4712,7 @@
       }
     },
     "Green" : {
+      "comment" : "fringe color name; a common fringe color in the slot menu",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4652,8 +4720,7 @@
             "value" : "Green"
           }
         }
-      },
-      "comment" : "fringe color name; a common fringe color in the slot menu"
+      }
     },
     "Greens" : {
       "comment" : "Color mixer band",
@@ -4764,6 +4831,17 @@
         }
       }
     },
+    "Hide History" : {
+      "comment" : "View menu: collapses the loupe's History panel",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide History"
+          }
+        }
+      }
+    },
     "Hide Inspector" : {
       "comment" : "View menu",
       "localizations" : {
@@ -4870,6 +4948,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Histogram"
+          }
+        }
+      }
+    },
+    "History" : {
+      "comment" : "History panel header in the inspector, and the toolbar palette item",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "History"
+          }
+        }
+      }
+    },
+    "History is unavailable while the original is offline." : {
+      "comment" : "History panel: the original's volume is not mounted",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "History is unavailable while the original is offline."
+          }
+        }
+      }
+    },
+    "History is unavailable. This version can't read this photo's edits." : {
+      "comment" : "History panel: the stored edits are from a newer version or damaged",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "History is unavailable. This version can't read this photo's edits."
           }
         }
       }
@@ -6635,6 +6746,17 @@
         }
       }
     },
+    "No Edits Yet" : {
+      "comment" : "History panel: empty list, title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Edits Yet"
+          }
+        }
+      }
+    },
     "No Imported Collections" : {
       "comment" : "Look-up table manage sheet, when there are no collections",
       "localizations" : {
@@ -7172,6 +7294,7 @@
       }
     },
     "Orange" : {
+      "comment" : "Fringe color name",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7179,8 +7302,7 @@
             "value" : "Orange"
           }
         }
-      },
-      "comment" : "Fringe color name"
+      }
     },
     "Oranges" : {
       "comment" : "Color mixer band",
@@ -7808,6 +7930,7 @@
       }
     },
     "Purple" : {
+      "comment" : "fringe color name; a common fringe color in the slot menu",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7815,8 +7938,7 @@
             "value" : "Purple"
           }
         }
-      },
-      "comment" : "fringe color name; a common fringe color in the slot menu"
+      }
     },
     "Purples" : {
       "comment" : "Color mixer band",
@@ -8061,6 +8183,7 @@
       }
     },
     "Red" : {
+      "comment" : "fringe color name",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8068,8 +8191,7 @@
             "value" : "Red"
           }
         }
-      },
-      "comment" : "fringe color name"
+      }
     },
     "Red/cyan" : {
       "comment" : "Slider",
@@ -8078,6 +8200,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Red/cyan"
+          }
+        }
+      }
+    },
+    "Redo %@" : {
+      "comment" : "Edit history entry: a change done again; the name of the redone step follows",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Redo %@"
           }
         }
       }
@@ -8537,6 +8670,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Return adds them. Tab completes, Esc closes."
+          }
+        }
+      }
+    },
+    "Revert to This State" : {
+      "comment" : "VoiceOver: the History row's action",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Revert to This State"
+          }
+        }
+      }
+    },
+    "Revert to “%@”" : {
+      "comment" : "Edit history: undo name and entry label of a return to an earlier state; the earlier entry's label in quotes",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Revert to “%@”"
+          }
+        }
+      }
+    },
+    "Reverted to %@" : {
+      "comment" : "VoiceOver, after choosing an earlier state in the History list; the entry's label follows",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reverted to %@"
           }
         }
       }
@@ -9142,6 +9308,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Show HDR Highlights"
+          }
+        }
+      }
+    },
+    "Show History" : {
+      "comment" : "View menu: expands the loupe's History panel in the inspector",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show History"
           }
         }
       }
@@ -10483,6 +10660,17 @@
         }
       }
     },
+    "Undo %@" : {
+      "comment" : "Edit history entry and its undo name: a change taken back; the name of the undone step follows",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undo %@"
+          }
+        }
+      }
+    },
     "Unflagged" : {
       "localizations" : {
         "en" : {
@@ -10664,6 +10852,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Vibrance"
+          }
+        }
+      }
+    },
+    "Videos have no edit history." : {
+      "comment" : "History panel: a video is in the loupe",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Videos have no edit history."
           }
         }
       }
@@ -10866,6 +11065,7 @@
       }
     },
     "Yellow" : {
+      "comment" : "Fringe color name",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -10873,8 +11073,7 @@
             "value" : "Yellow"
           }
         }
-      },
-      "comment" : "Fringe color name"
+      }
     },
     "Yellows" : {
       "comment" : "Color mixer band",
@@ -11030,6 +11229,17 @@
         }
       }
     },
+    "collapsed" : {
+      "comment" : "VoiceOver: value of a heading's button while its section is closed",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "collapsed"
+          }
+        }
+      }
+    },
     "contains" : {
       "comment" : "Smart album rule comparison",
       "localizations" : {
@@ -11037,6 +11247,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "contains"
+          }
+        }
+      }
+    },
+    "current state" : {
+      "comment" : "VoiceOver: value suffix of the History list's current entry",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "current state"
           }
         }
       }
@@ -11092,6 +11313,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ends with"
+          }
+        }
+      }
+    },
+    "expanded" : {
+      "comment" : "VoiceOver: value of a heading's button while its section is open",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "expanded"
           }
         }
       }

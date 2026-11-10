@@ -146,6 +146,7 @@ extension LibraryModel {
         let change = Pending<(before: [Int64: EditStack], after: [Int64: EditStack])>()
         let skipped = Pending<Int>()
         let catalog = self.catalog
+        let label = HistoryText.label(actionName, undoing: undoManager.isUndoing, redoing: undoManager.isRedoing)
         let notRaw = Set(ids.filter { item(versionID: $0).map { $0.fileKind != .raw } ?? false })
         let leftOff = LeftOffCounter()
         let rawOnly: @Sendable (Int64, Adjustments) -> Adjustments = { id, values in
@@ -156,9 +157,10 @@ extension LibraryModel {
         }
         persist {
             // Stacks this build cannot read are left as they are (a newer build's edits).
-            let result = try await catalog.changeEditStacks(ofVersions: ids, rawOnly)
+            let result = try await catalog.changeEditStacks(ofVersions: ids, historyLabel: label, rawOnly)
             change.value = (result.before, result.after)
             skipped.value = result.unreadable.count
+            self.historyChanged()
         }
         afterPendingWrites { model in
             if let value = change.value { model.showEditStacks(value.after) }
@@ -179,10 +181,12 @@ extension LibraryModel {
                                         isUndo: Bool, actionName: String) {
         undoManager.registerUndo(withTarget: self) { model in
             let catalog = model.catalog
+            let label = HistoryText.label(actionName, undoing: isUndo, redoing: !isUndo)
             model.persist { [weak model] in
                 guard let value = change.value else { return }
                 let stacks = isUndo ? value.before : value.after
-                try await catalog.setEditStacks(stacks)
+                try await catalog.setEditStacks(stacks, historyLabel: label)
+                model?.historyChanged()
                 // Only once written: previews render the catalog's stacks.
                 model?.showEditStacks(stacks)
             }

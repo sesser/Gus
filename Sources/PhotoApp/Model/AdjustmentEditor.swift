@@ -755,9 +755,13 @@ final class AdjustmentEditor {
         guard let library else { return }
         let catalog = library.catalog
         let hash = stack.renderHash
+        // The entry carries the undo step's name, or "Undo ..." / "Redo ..." when this write is one.
+        let label = HistoryText.label(actionName, undoing: library.undoManager.isUndoing,
+                                      redoing: library.undoManager.isRedoing)
         library.persist { [weak self] in
-            try await catalog.setEditStack(stack, forVersion: versionID)
+            try await catalog.setEditStack(stack, forVersion: versionID, historyLabel: label)
             self?.showSaved(hash, forVersion: versionID)
+            self?.library?.historyChanged()
         }
         if versionID == item?.versionID {
             let values = Adjustments(stack: stack)
@@ -781,6 +785,25 @@ final class AdjustmentEditor {
             editor.apply(previous, toVersion: versionID, undoingTo: stack, actionName: actionName)
         }
         library.undoManager.setActionName(actionName)
+    }
+
+    /// Puts the open photo in the state `entry` recorded, through the same
+    /// write as an edit (A5: the current entry, or a state the photo already
+    /// has, does nothing). A crop session is not a stack state, so it blocks
+    /// the revert (the rows are dimmed).
+    func revert(toHistoryEntry entry: EditHistoryEntry, ofVersion versionID: Int64) {
+        guard state == .ready, cropSession == nil, item?.versionID == versionID, let library else { return }
+        let catalog = library.catalog
+        Task { [weak self] in
+            guard let stack = try? await catalog.editHistoryStack(entryID: entry.id, forVersion: versionID) else { return }
+            guard let self, state == .ready, cropSession == nil, item?.versionID == versionID,
+                  !stack.hasSameContent(as: committed.editStack) else { return }
+            showsOriginal = false
+            let name = HistoryText.revert(toLabel: entry.label)
+            apply(stack, toVersion: versionID, undoingTo: committed.editStack, actionName: name)
+            AccessibilityText.announce(String(localized: "Reverted to \(entry.label)",
+                                              comment: "VoiceOver, after choosing an earlier state in the History list; the entry's label follows"))
+        }
     }
 
     /// Shows a saved stack's hash, once its write has landed: the grid, film

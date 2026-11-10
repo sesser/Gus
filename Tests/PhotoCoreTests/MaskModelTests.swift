@@ -112,7 +112,7 @@ struct MaskModelTests {
         let id = try #require(try await fixture.addMasters([CatalogFixture.master(1)]).first)
         try await UnreadableStackTests.store(json, forVersion: id, in: fixture.catalog)
         await #expect(throws: UnreadableEditStacks.self) {
-            try await fixture.catalog.setEditStack(Adjustments().editStack, forVersion: id)
+            try await fixture.catalog.setEditStack(Adjustments().editStack, forVersion: id, historyLabel: "Test")
         }
         #expect(try await UnreadableStackTests.stored(id, in: fixture.catalog).json == json)
 

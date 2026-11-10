@@ -18,6 +18,7 @@ enum CatalogSchema {
         migrator.registerMigration("v11", migrate: addPresetCollections)
         migrator.registerMigration("v12", migrate: addExportPresets)
         migrator.registerMigration("v13", migrate: addDescriptiveFields)
+        migrator.registerMigration("v14", migrate: addEditHistory)
         return migrator
     }
 
@@ -417,5 +418,20 @@ enum CatalogSchema {
                  OR OLD.extendedDescription IS NOT NEW.extendedDescription OR OLD.jobTitle IS NOT NEW.jobTitle
             BEGIN INSERT OR IGNORE INTO sidecarQueue (imageId) VALUES (NEW.id); END;
             """)
+    }
+
+    /// One row per saved change to a version's edit stack: its label, its time
+    /// and the stack as it was then (a snapshot, so a revert is exact). Rows go
+    /// with their version. The cap of `EditHistory.maxEntries` is kept by the
+    /// write that adds a row, not by the schema.
+    private static func addEditHistory(_ db: Database) throws {
+        try db.create(table: "editHistory") { t in
+            t.autoIncrementedPrimaryKey("id")
+            t.column("versionId", .integer).notNull().indexed()
+                .references("version", onDelete: .cascade)
+            t.column("label", .text).notNull()
+            t.column("createdAt", .datetime).notNull()
+            t.column("stack", .text).notNull()
+        }
     }
 }

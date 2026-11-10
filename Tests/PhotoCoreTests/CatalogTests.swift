@@ -15,9 +15,9 @@ struct CatalogTests {
         #expect(tables == ["volume", "project", "image", "version", "album", "albumMember",
                            "stack", "stackMember", "keyword", "versionKeyword", "imagePair", "keywordSuggestion",
                            "importRun", "smartAlbum", "metadataSync", "sidecarQueue", "importPreset",
-                           "adjustmentPreset", "lookTableCollection", "lookTableEntry", "exportPreset"])
+                           "adjustmentPreset", "lookTableCollection", "lookTableEntry", "exportPreset", "editHistory"])
         let applied = try await catalog.database.read { db in try CatalogSchema.migrator.appliedMigrations(db) }
-        #expect(applied == ["v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13"])
+        #expect(applied == ["v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14"])
     }
 
     @Test func schemaNamesDoNotEmbedTheProductName() async throws {
@@ -113,7 +113,7 @@ struct CatalogTests {
         let fixture = try await CatalogFixture.make()
         let id = try await fixture.addMasters([CatalogFixture.master(1)])[0]
         let stack = EditStack(operations: [EditOperation(kind: "exposure", parameters: ["ev": .number(0.7)])])
-        try await fixture.catalog.setEditStack(stack, forVersion: id)
+        try await fixture.catalog.setEditStack(stack, forVersion: id, historyLabel: "Test")
         let version = try #require(try await fixture.catalog.version(id: id))
         #expect(try version.decodedEditStack() == stack)
         #expect(version.editStackHash == stack.renderHash)

@@ -78,6 +78,10 @@ struct LibraryMenuState: Equatable {
     /// The loupe's film strip is on (review hides it without changing this).
     var showsFilmStrip: Bool
     var inspectorTab: InspectorTab
+    /// View ▸ Show / Hide History: the panel is shown and expanded, and it can
+    /// be (the loupe, not reviewing).
+    var historyIsOpen: Bool
+    var canShowHistory: Bool
     var showFileInfo: Bool
     var groupPairs: Bool
     var showsHDR: Bool
@@ -157,6 +161,8 @@ struct LibraryMenuState: Equatable {
         isReviewing = model.isReviewing
         showsFilmStrip = model.showsFilmStrip
         inspectorTab = model.inspectorTab
+        historyIsOpen = model.historyIsOpen
+        canShowHistory = model.canShowHistory
         showFileInfo = model.showFileInfo
         groupPairs = model.groupPairs
         showsHDR = model.showsHDR

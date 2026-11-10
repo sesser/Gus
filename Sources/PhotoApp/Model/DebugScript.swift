@@ -13,6 +13,8 @@ import PhotoUI
 ///     sort captureDate|rating|fileName [asc|desc]
 ///     pairs grouped|separate  pairfile raw|jpeg     advance on|off
 ///     selectall             addkeywords <a, b>      keyentry      text <typed text>
+///     history [wait|open|close|revert <n>]   (the loupe's History panel: prints its state and rows, newest first;
+///                           open and close are View ▸ Show / Hide History's action; revert <n> clicks row n, 0-based)
 ///     undo | redo           inspector on|off        keyword <n>   (sidebar keyword n, 0-based)
 ///     print <what>          (state for checks: selection, keywords, undo, suggestions, items, hdr, announcement,
 ///                           title (title, subtitle, filter and sort), activity, messages (every
@@ -129,6 +131,7 @@ enum DebugScript {
                 let grouped = (changing.contains(String(words.first ?? ""))
                     && !DebugLensCommands.contextMenuChangesNothing(words.map(String.init)))
                     || (words.first == "accessibility" && words.count >= 4)
+                    || (words.first == "history" && words.dropFirst().first == "revert")
                 if grouped { undoManager.beginUndoGrouping() }
                 await run(command, model: model)
                 if grouped { undoManager.endUndoGrouping() }
@@ -418,6 +421,8 @@ enum DebugScript {
             await DebugAdjustCommands.run(rest, editor: model.editor)
         case "ml":
             await DebugMachineLearningCommands.run(rest, model: model)
+        case "history":
+            await DebugHistoryCommands.run(rest, model: model, window: window)
         case "export":
             await DebugExportCommands.run(rest, model: model)
         case "lut", "lutimport", "luts", "lutwindow":
