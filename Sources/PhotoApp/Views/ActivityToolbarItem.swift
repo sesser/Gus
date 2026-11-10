@@ -22,18 +22,19 @@ struct ActivityJob: Identifiable {
 /// and suggesting keywords show only after they have run a few seconds.
 struct ActivityToolbarItem: View {
     let model: LibraryModel
-    @State private var showsPopover = false
 
-    /// While a job runs, and while there are messages not yet read.
+    /// While a job runs, while there are messages not yet read, and while the
+    /// popover is open. Whether the popover is open is kept on the model's
+    /// `activity`, not in this view, so that `LibraryToolbar` can read it
+    /// here: the item it hides is the popover's anchor.
     static func isVisible(_ model: LibraryModel) -> Bool {
-        !jobs(model).isEmpty || model.activity.unseenCount > 0
+        model.activity.showsItem(jobsRunning: !jobs(model).isEmpty)
     }
 
     var body: some View {
         let jobs = Self.jobs(model)
         Button {
-            showsPopover = true
-            model.markActivitySeen()
+            model.setActivityPopoverShown(true)
         } label: {
             HStack(spacing: 6) {
                 if let job = jobs.first {
@@ -43,17 +44,22 @@ struct ActivityToolbarItem: View {
                         ProgressView().controlSize(.small)
                     }
                     Text(job.toolbarTitle ?? job.title).monospacedDigit().toolbarStatusText()
-                } else if model.activity.unseenCount > 0 {
+                } else if model.activity.showsItem(jobsRunning: false) {
                     // Idle with unread messages: which kind, the popover says the rest.
+                    // Also while the popover is open after its last job ended
+                    // without a message: the item never stays without a label.
                     Image(systemName: model.activity.unseenHasWarning ? "exclamationmark.triangle" : "info.circle")
-                        .accessibilityLabel(model.activity.messages.last?.text ?? "")
+                        .accessibilityLabel(model.activity.messages.last?.text ?? String(localized: "Activity"))
                 }
             }
             .toolbarCapsuleInset()
         }
         .buttonStyle(.borderless)
         .help(jobs.isEmpty ? (model.activity.messages.last?.text ?? String(localized: "Activity")) : String(localized: "Activity"))
-        .popover(isPresented: $showsPopover, arrowEdge: .bottom) {
+        // The set is the popover closing (a click outside it, Escape).
+        .popover(isPresented: Binding(get: { model.activity.isPopoverShown },
+                                      set: { model.setActivityPopoverShown($0) }),
+                 arrowEdge: .bottom) {
             ActivityPopover(model: model)
         }
     }

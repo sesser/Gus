@@ -417,3 +417,36 @@ because their files already exist." can be read as the originals. If the
 string is touched again, prefer "‹N› photos were skipped because files with
 their names already exist.", which matches the conflict prompt's "files
 already exist in “‹folder›”" (P5). The row title already names the folder.
+
+## 10. Rulings from bug fixes
+
+### Activity popover (issue #56, `docs/features/activity-popover/`, 2026-11-10)
+
+Raised by the engineer on `bug/activity-popover-anchor`. Review:
+`docs/features/activity-popover/review.md`. HIG Popovers read 2026-11-10.
+
+**A1. When Activity's messages count as read (DQ2). Overrides UIR §1's
+"opening its popover marks them read".** The Activity item shows while a job
+runs, while messages are unread, and while its popover is open. Messages are
+read when the popover closes (a click outside it, Escape, a second click on
+the item, or anything else that dismisses it), and every message the popover
+listed counts, those posted while it was open included. Opening it reads
+nothing. Basis: the item is the popover's anchor, and HIG Popovers asks that
+the arrow "points as directly as possible to the element that revealed it";
+reading on open removed the anchor in the same update, which is issue #56.
+Reading on close also keeps the item's symbol steady under the popover
+instead of changing it as the person looks, and a message that arrives while
+the popover is open is on screen before it is counted as read. UIR §1 is
+historical and not edited; this is the current rule.
+
+**A2. The item's label when its popover is open and nothing is running or
+unread (DQ1).** This happens when the last job ends with the popover open
+and posts no message (Rendering previews, Suggesting keywords). The item
+shows `info.circle`, as the idle item with unread information does, until
+the popover closes; then the item goes. Ruled as built. Rejected: closing
+the popover when its job ends (it takes away what the person is reading,
+and a popover should close on the person's action, HIG Popovers); an empty
+item (the arrow points at a blank capsule and VoiceOver finds an unlabeled
+button); keeping the finished job's progress and title (it says a job is
+running when none is). `info.circle` here means "Activity", the item's
+neutral idle form; the triangle is still only for an unread warning.
