@@ -253,4 +253,6 @@ Each needs the bundled app on a real raw. Copy the bundle and pass `--library-ro
 
 ## Follow-up
 
-None yet.
+- **Q1: Fixed** on `bug/viewport-render-qa-findings` (spinner ends when the sharp frame lands). **Q2: Withdrawn**, not a regression. My arrival comparison ran the builds with different saved inspector states, and with the state pinned the feature matches the baseline. See [`../viewport-render-qa-findings/qa.md`](../viewport-render-qa-findings/qa.md).
+- **Arrival figure corrected.** Q2's "`develop` none over 22 ms one way" (the "0" in "0–390 ms") was a measurement artifact: those scripts had no heartbeat before the arrow key, so a stall inside the key command's 80 ms sleep went unseen. Measured properly, `013c0e8` stalls about 380 ms on every arrival with the inspector hidden and about 610 ms with it open on Adjust, the same as the feature. The 590–613 ms branch figures were taken with the inspector open on Adjust.
+- 2026-11-09: this list's owner checks P1–P10 were done at the sign-off of `bug/viewport-render-qa-findings` at `32083ae`, carried over and renumbered in that branch's `qa.md` (each item there says which P it was here). Nothing is left open.

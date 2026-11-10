@@ -352,6 +352,20 @@ struct LiveRegionRendererTests {
         #expect(LiveFrameRules.wholeFrameGoesOnBase(wholeValues: tile, tileValues: tile))
     }
 
+    /// Letting go at 100%: a frame of the saved values leaves the decode for after
+    /// the full rendition, but a held control, the overlay, Show Original and a
+    /// hover preview still need their sharp frame.
+    @Test("Only a settled frame of the saved values leaves the decode for later")
+    func decodeWaitsForTheFullRendition() {
+        let wait = LiveFrameRules.decodeWaitsForFullRendition(valuesAreSaved:isChanging:hasOverlay:showsOriginal:isPreviewing:)
+        #expect(wait(true, false, false, false, false))
+        #expect(!wait(false, false, false, false, false))
+        #expect(!wait(true, true, false, false, false))
+        #expect(!wait(true, false, true, false, false))
+        #expect(!wait(true, false, false, true, false))
+        #expect(!wait(true, false, false, false, true))
+    }
+
     /// C5/F3: real pixels and what keeps its shipped filtering enlarge with
     /// nearest-neighbor at 100% and above; anything soft enlarges smoothly.
     @Test("Nearest-neighbor only for real pixels and the shipped maps (code review C5)")

@@ -264,6 +264,15 @@ public enum LiveFrameRules {
         tileValues == nil || tileValues == wholeValues
     }
 
+    /// A non-interactive frame of the saved values, with nothing changing and
+    /// nothing drawn over the photo, is followed by the full rendition: the
+    /// decode for the next drag waits until that has landed, so it doesn't
+    /// compete for the GPU with the rendition's first draw on the main thread.
+    public static func decodeWaitsForFullRendition(valuesAreSaved: Bool, isChanging: Bool, hasOverlay: Bool,
+                                                   showsOriginal: Bool, isPreviewing: Bool) -> Bool {
+        valuesAreSaved && !isChanging && !hasOverlay && !showsOriginal && !isPreviewing
+    }
+
     /// Nearest-neighbor enlargement is for the photo's real pixels above
     /// 100% (design §2.2), and for what keeps its shipped filtering: the maps
     /// and the replaced fringe slot's preview (A4).
