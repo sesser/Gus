@@ -143,8 +143,10 @@ struct RAWDecodeGraphTests {
     func keysDiffer() {
         // The first decodes, both sides of the first digit's carry, and large serials.
         let carry: UInt64 = 1 << 22
-        let serials = Array(1...5000) + [carry - 1, carry, carry + 1, 2 * carry, 5000 * carry + 17, (1 << 44) - 1]
-        let keys = serials.map(Key.init(serial:))
+        let first: [UInt64] = (1...5000).map { UInt64($0) }
+        let large: [UInt64] = [carry - 1, carry, carry + 1, 2 * carry, 5000 * carry + 17, (1 << 44) - 1]
+        let serials = first + large
+        let keys = serials.map { Key(serial: $0) }
         #expect(Set(keys).count == serials.count)
         for key in keys {
             #expect(key.low.isFinite && key.high.isFinite)
