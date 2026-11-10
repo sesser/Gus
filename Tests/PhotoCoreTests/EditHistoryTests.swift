@@ -273,6 +273,25 @@ struct EditHistoryTests {
         #expect(plan.contains("editHistory"))
     }
 
+    @Test("AC11b: a copied version starts with an empty history, whatever the original has")
+    func copiedVersionStartsEmpty() async throws {
+        let (fixture, id) = try await Self.one()
+        try await fixture.catalog.setEditStack(Self.stack(exposure: 1), forVersion: id, historyLabel: "Exposure")
+        let copy = try #require(try await fixture.catalog.duplicateVersion(id: id).id)
+        #expect(try await fixture.catalog.editHistory(forVersion: copy).isEmpty)
+        #expect(try await fixture.catalog.editHistory(forVersion: id).count == 1)
+        #expect(try await fixture.catalog.version(id: copy)?.decodedEditStack().hasSameContent(as: Self.stack(exposure: 1)) == true)
+    }
+
+    @Test("The revert guard: a stack with the same settings under new operation ids counts as the current state")
+    func revertGuardIgnoresOperationIDs() throws {
+        let rebuilt = Self.stack(exposure: 1)
+        let again = Self.stack(exposure: 1)
+        #expect(rebuilt != again)
+        #expect(rebuilt.hasSameContent(as: again))
+        #expect(!rebuilt.hasSameContent(as: Self.stack(exposure: 2)))
+    }
+
     // MARK: Snapshot size (code review C1)
 
     private static func brushStack(dabs: Int, exposure ev: Double, scattered: Bool = false) -> EditStack {

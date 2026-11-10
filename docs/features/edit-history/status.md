@@ -286,3 +286,19 @@ Checks: `swift build` clean; `swift test` 672 passed (1 known issue); debug scri
 bundle copy: edit, edit, revert, collapse all behaved as before, rows are `AXCell`s.
 Not verifiable here: animation (F4), Home/End/Page keys (F5), the keyboard fixes F1
 and F2 (no key window), the tooltip (F3): the designer's M2 to M4, M7.
+
+## Third pass (2026-11-10): F7, F8, N1
+
+- **F7 fixed.** The Activity row for an unreadable entry now has the title
+  `Revert to “…”` (the existing string, via `HistoryText.revert(toLabel:)`) and the
+  message "Its saved state can't be read. The photo is unchanged." The old
+  "can't be restored" and "Revert" strings are removed from the catalog.
+- **F8 fixed.** The panel text is "History is unavailable. It can't be read from the
+  library."; the guide lists the case and the Activity report.
+- **N1.** Added `copiedVersionStartsEmpty` (AC11b: `duplicateVersion` starts with no
+  entries, the original keeps its one) and `revertGuardIgnoresOperationIDs` (the rule
+  the editor's revert guard uses: same settings under new operation ids are the
+  current state). The guard call itself sits in `AdjustmentEditor`, which has no test
+  target, so "no entry and no undo step on a revert to the current state" stays a
+  qa-tester debug-script check (`history revert` on a row equal to the current stack).
+- `swift build` clean; `swift test` 674 passed, 1 known issue.

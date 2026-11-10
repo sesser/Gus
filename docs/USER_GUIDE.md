@@ -399,8 +399,10 @@ there is no entry for the photo as it was before that change, so to get back to 
 **Original** toggle (which only shows the original). While a crop is being
 edited the rows are dimmed and do nothing: finish cropping first. The panel
 says so instead of listing when the photo is a video, when its original is
-offline, or when its adjustments were made by a newer version of the app and
-cannot be read (they are never written over). It is not shown in the grid or in
+offline, when its adjustments were made by a newer version of the app and
+cannot be read (they are never written over), or when the list could not be read.
+An earlier state whose saved copy is damaged or from a newer version reports it
+in Activity and leaves the photo unchanged. It is not shown in the grid or in
 review mode. History is not written to sidecars or exports. Edits made with
 `photocli` are listed too, as "Develop (command line)" or "Mask (command line)".
 

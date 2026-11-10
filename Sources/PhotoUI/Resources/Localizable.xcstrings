@@ -4974,13 +4974,13 @@
         }
       }
     },
-    "History is unavailable. It could not be read from the library." : {
+    "History is unavailable. It can't be read from the library." : {
       "comment" : "History panel: reading the entries from the catalog failed",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "History is unavailable. It could not be read from the library."
+            "value" : "History is unavailable. It can't be read from the library."
           }
         }
       }
@@ -5600,6 +5600,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Its presets are removed. Photos keep the adjustments they were given."
+          }
+        }
+      }
+    },
+    "Its saved state can't be read. The photo is unchanged." : {
+      "comment" : "Activity, after choosing a History entry whose saved state is damaged or from a newer version; the row's title is the revert's name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Its saved state can't be read. The photo is unchanged."
           }
         }
       }
@@ -8685,17 +8696,6 @@
         }
       }
     },
-    "Revert" : {
-      "comment" : "Activity action title for a failed return to an earlier History state",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Revert"
-          }
-        }
-      }
-    },
     "Revert to This State" : {
       "comment" : "VoiceOver: the History row's action",
       "localizations" : {
@@ -11621,17 +11621,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ƒ/%@"
-          }
-        }
-      }
-    },
-    "“%@” can't be restored: its saved state can't be read." : {
-      "comment" : "Activity, after choosing a History entry whose saved state is damaged or from a newer version; the entry's label first",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "“%@” can't be restored: its saved state can't be read."
           }
         }
       }

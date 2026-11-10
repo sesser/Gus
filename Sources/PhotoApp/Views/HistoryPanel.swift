@@ -133,7 +133,7 @@ struct HistoryPanel: View {
         case .video: String(localized: "Videos have no edit history.")
         case .offline: String(localized: "History is unavailable while the original is offline.")
         case .unreadable: String(localized: "History is unavailable. This version can't read this photo's edits.")
-        case .failed: String(localized: "History is unavailable. It could not be read from the library.")
+        case .failed: String(localized: "History is unavailable. It can't be read from the library.")
         }
     }
 }
