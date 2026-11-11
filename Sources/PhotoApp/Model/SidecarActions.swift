@@ -22,6 +22,10 @@ extension LibraryModel {
                 sidecarSyncPending = false
                 let mounted = onlineVolumeIDs
                 do {
+                    // Writes nothing while a removal from the library has the
+                    // queue paused; the removal asks for a run when it ends.
+                    sidecarSyncIsWriting = true
+                    defer { sidecarSyncIsWriting = false }
                     let report = try await sidecars.processQueue(mountedVolumes: mounted)
                     if report.changedOnDisk > 0 { await refreshDiskChanges() }
                     if report.failed > 0 {

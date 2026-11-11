@@ -248,7 +248,7 @@ struct CatalogTests {
         let ids = try await fixture.addMasters((1...2).map { CatalogFixture.master($0) })
         let album = try await fixture.catalog.createAlbum(name: "Library album")
         try await fixture.catalog.addVersions(ids, toAlbum: album.id!)
-        try await fixture.catalog.deleteProject(id: fixture.project.id!)
+        try await fixture.catalog.removeProject(id: fixture.project.id!)
         #expect(try await fixture.catalog.versionCount() == 0)
         #expect(try await fixture.catalog.versionIDs(inAlbum: album.id!).isEmpty)
         #expect(try await fixture.catalog.volumes().count == 1)

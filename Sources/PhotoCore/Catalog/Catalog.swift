@@ -149,16 +149,24 @@ extension Catalog {
         }
     }
 
+    /// Changes the project's name in the catalog. Its folder on disk keeps
+    /// its name, and no sidecar changes (`ProjectRename` is the rule for
+    /// what a typed name becomes). Removing a project is `removeProject`.
     public func renameProject(id: Int64, to name: String) async throws {
         try await database.write { db in
             _ = try ProjectRecord.filter(key: id).updateAll(db, ProjectRecord.Columns.name.set(to: name))
         }
     }
 
-    /// Removes the project and its masters from the catalog. Files on disk are
-    /// never touched.
-    public func deleteProject(id: Int64) async throws {
-        _ = try await database.write { db in try ProjectRecord.deleteOne(db, key: id) }
+    /// The volumes holding each project's masters, for telling whether a
+    /// project's folder can be reached. A project without photos has no entry.
+    public func projectVolumeIDs() async throws -> [Int64: Set<Int64>] {
+        try await database.read { db in
+            var volumes: [Int64: Set<Int64>] = [:]
+            let rows = try Row.fetchCursor(db, sql: "SELECT DISTINCT projectId, volumeId FROM image")
+            while let row = try rows.next() { volumes[row[0], default: []].insert(row[1]) }
+            return volumes
+        }
     }
 }
 

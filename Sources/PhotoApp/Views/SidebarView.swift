@@ -1,4 +1,6 @@
+import AppKit
 import PhotoCore
+import PhotoUI
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -54,8 +56,23 @@ struct SidebarView: View {
     @AppStorage("sidebar.section.projects.expanded") private var projectsExpanded = true
     @State private var expandedYears: Set<Int> = []
     @State private var expandedProjects: Set<Int64> = []
+    /// The list has the keyboard; set to hand it back after a rename ends.
+    @FocusState private var listHasKeyboard: Bool
 
     var body: some View {
+        ScrollViewReader { proxy in
+            list
+                // File ▸ Rename on a project whose row is out of view: the
+                // section opens and the row scrolls in (library-ops design §4).
+                .onChange(of: model.projectRevealRevision) {
+                    guard let id = model.renamingProjectID else { return }
+                    projectsExpanded = true
+                    Task { proxy.scrollTo(SidebarSelection.project(id)) }
+                }
+        }
+    }
+
+    private var list: some View {
         List(selection: $model.sidebarSelection) {
             Section(isExpanded: $libraryExpanded) {
                 Label("All Photos", systemImage: SidebarSymbols.symbol(for: .allPhotos))
@@ -157,7 +174,9 @@ struct SidebarView: View {
                         .selectionDisabled()
                         .onDrop(of: FolderDrop.types, isTargeted: nil) { FolderDrop.accept($0, model: model) }
                     }
-                    ForEach(model.projects) { summary in
+                    // Identified by their sidebar selection, which no other row
+                    // shares (keywords have ids of the same type): `scrollTo` finds the row.
+                    ForEach(model.projects, id: \.sidebarSelection) { summary in
                         let albums = model.albums.filter { $0.album.projectId == summary.id }
                         let smart = model.smartAlbums.filter { $0.projectID == summary.id }
                         if albums.isEmpty, smart.isEmpty {
@@ -179,6 +198,15 @@ struct SidebarView: View {
             }
         }
         .listStyle(.sidebar)
+        .focused($listHasKeyboard)
+        // Return on a selected project renames it in place, as in the Finder
+        // (library-ops design §3). A view key: only while the list has the keyboard.
+        .onKeyPress(.return) {
+            guard case .project(let id) = model.sidebarSelection, model.renamingProjectID == nil else { return .ignored }
+            model.beginProjectRename(id)
+            return .handled
+        }
+        .background { SidebarMarker(observer: model.windowObserver) }
         .sheet(item: $model.sidebarSheet) { sheet in
             SidebarSheetView(model: model, sheet: sheet)
         }
@@ -241,16 +269,44 @@ struct SidebarView: View {
         }
     }
 
+    /// A project's row. While it is being renamed its name is a text field
+    /// in place; the folder symbol and the count stay (library-ops design §4).
     private func projectRow(_ summary: ProjectSummary) -> some View {
-        Label(summary.project.name, systemImage: SidebarSymbols.symbol(for: .project(summary.id)))
-            .badge(summary.versionCount)
-            .tag(SidebarSelection.project(summary.id))
-            .help(summary.project.sourcePath ?? summary.project.name)
-            .onDrop(of: FolderDrop.types, isTargeted: nil) { FolderDrop.accept($0, model: model) }
-            .contextMenu {
-                Button("New Album in Project…") { model.sidebarSheet = .newAlbum(projectID: summary.id) }
-                Button("New Smart Album in Project…") { model.sidebarSheet = .smartAlbum(nil, projectID: summary.id) }
+        Label {
+            if model.renamingProjectID == summary.id {
+                ProjectNameField(name: summary.project.name) { typed, byKey in
+                    model.endProjectRename(summary.id, typed: typed)
+                    // Return and Escape leave the keyboard with the sidebar;
+                    // a click elsewhere has already taken it there.
+                    if byKey { listHasKeyboard = true }
+                }
+            } else {
+                Text(summary.project.name)
             }
+        } icon: {
+            Image(systemName: SidebarSymbols.symbol(for: .project(summary.id)))
+        }
+        .badge(summary.versionCount)
+        .tag(SidebarSelection.project(summary.id))
+        // The folder's path: renaming the project leaves the folder's name as it is.
+        .help(summary.project.sourcePath ?? summary.project.name)
+        .onDrop(of: FolderDrop.types, isTargeted: nil) { FolderDrop.accept($0, model: model) }
+        .contextMenu {
+            Button("New Album in Project…") { model.sidebarSheet = .newAlbum(projectID: summary.id) }
+            Button("New Smart Album in Project…") { model.sidebarSheet = .smartAlbum(nil, projectID: summary.id) }
+            Divider()
+            RenameButton()
+            // Left out without a folder to reveal (library-ops design §5.2).
+            if model.canShowProjectInFinder(summary.id) {
+                Button(LibraryOpsText.showInFinder) { model.showProjectInFinder(summary.id) }
+            }
+            // Last and alone; left out while an import keeps a removal from starting (§8).
+            if model.canRemoveFromLibrary {
+                Divider()
+                Button(LibraryOpsText.removeProjectMenu, role: .destructive) { model.removeProjectFromLibrary(summary.id) }
+            }
+        }
+        .renameAction { model.beginProjectRename(summary.id) }
     }
 
     /// A section's system header, with Collapse / Expand and Hide Section.
@@ -283,6 +339,67 @@ struct SidebarView: View {
                 set: { expanded in
                     if expanded { set.wrappedValue.insert(id) } else { set.wrappedValue.remove(id) }
                 })
+    }
+}
+
+private extension ProjectSummary {
+    var sidebarSelection: SidebarSelection { .project(id) }
+}
+
+/// A project's name being edited in its sidebar row. It takes the keyboard
+/// when it appears, with the whole name selected. Return saves, Escape puts
+/// the old name back, and losing the keyboard (a click elsewhere, Tab) saves,
+/// as in the Finder.
+private struct ProjectNameField: View {
+    /// `typed` is nil when the edit was cancelled; `byKey` when Return or
+    /// Escape ended it.
+    let onEnd: (_ typed: String?, _ byKey: Bool) -> Void
+    @State private var name: String
+    @State private var ended = false
+    @FocusState private var hasKeyboard: Bool
+
+    init(name: String, onEnd: @escaping (_ typed: String?, _ byKey: Bool) -> Void) {
+        _name = State(initialValue: name)
+        self.onEnd = onEnd
+    }
+
+    var body: some View {
+        TextField(text: $name) { Text(LibraryOpsText.projectNameLabel) }
+            .textFieldStyle(.plain)
+            .labelsHidden()
+            .focused($hasKeyboard)
+            .onSubmit { end(typed: name, byKey: true) }
+            .onExitCommand { end(typed: nil, byKey: true) }
+            .onChange(of: hasKeyboard) { _, has in
+                if !has { end(typed: name, byKey: false) }
+            }
+            // Once the field is in the window: a row scrolled into view for
+            // the rename appears before it is, and a request made then is dropped.
+            .background { WindowReader { if $0 != nil { hasKeyboard = true } } }
+            .accessibilityLabel(LibraryOpsText.projectNameLabel)
+    }
+
+    private func end(typed: String?, byKey: Bool) {
+        guard !ended else { return }
+        ended = true
+        onEnd(typed, byKey)
+    }
+}
+
+/// A view of ours inside the sidebar, by which `LibraryWindowObserver` tells
+/// the sidebar's pane of the split view from the others. AppKit, because
+/// SwiftUI does not say which pane has the window's first responder.
+private struct SidebarMarker: NSViewRepresentable {
+    let observer: LibraryWindowObserver
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        observer.sidebarMarker = view
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        if observer.sidebarMarker !== view { observer.sidebarMarker = view }
     }
 }
 

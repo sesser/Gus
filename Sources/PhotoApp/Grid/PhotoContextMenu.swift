@@ -15,6 +15,7 @@ enum PhotoContextMenu {
         menu.addItem(ActionMenuItem(String(localized: "Open in Loupe")) { model.openLoupe() })
         menu.addItem(.separator())
         addPhotoItems(to: menu, model: model, state: state)
+        addRemoveItem(to: menu, model: model, state: state)
         return menu
     }
 
@@ -23,6 +24,8 @@ enum PhotoContextMenu {
         let state = LibraryMenuState(model)
         let menu = NSMenu()
         addPhotoItems(to: menu, model: model, state: state)
+        // Last, whichever way the menu ends below.
+        defer { addRemoveItem(to: menu, model: model, state: state) }
         guard state.showsLoupePhoto else { return menu }
         menu.addItem(.separator())
         let zoom = state.loupeZoom
@@ -75,7 +78,17 @@ enum PhotoContextMenu {
             model.playback.toggle()
         })
         menu.addItem(ActionMenuItem(String(localized: "Show Grid")) { model.closeLoupe() })
+        addRemoveItem(to: menu, model: model, state: state)
         return menu
+    }
+
+    /// Remove from Library…: the last item of each photo menu, alone after a
+    /// separator, away from the frequent items (library-ops design §2.2).
+    /// Left out while an import keeps a removal from starting (§8).
+    private static func addRemoveItem(to menu: NSMenu, model: LibraryModel, state: LibraryMenuState) {
+        guard state.hasTargets, state.canRemoveFromLibrary else { return }
+        if !menu.items.isEmpty { menu.addItem(.separator()) }
+        menu.addItem(ActionMenuItem(LibraryOpsText.removeFromLibraryMenu) { model.removeTargetsFromLibrary() })
     }
 
     private static func stepZoom(_ model: LibraryModel, in zoomIn: Bool) {
@@ -83,7 +96,7 @@ enum PhotoContextMenu {
                                         userInfo: [LoupeZoomStep.zoomInKey: zoomIn])
     }
 
-    /// Culling, keywords, albums, adjustments, export and the RAW+JPEG pair.
+    /// Culling, keywords, albums, adjustments, export, Show in Finder and the RAW+JPEG pair.
     private static func addPhotoItems(to menu: NSMenu, model: LibraryModel, state: LibraryMenuState) {
         guard state.hasTargets else { return }
         menu.addItem(submenu(String(localized: "Rating"), [
@@ -144,11 +157,15 @@ enum PhotoContextMenu {
             menu.addItem(ActionMenuItem(String(localized: "Rotate Right")) { model.rotate(clockwise: true) })
         }
         let showsPair = state.pairDisplay != nil
-        if state.canExport || showsPair {
+        if state.canExport || state.canShowTargetsInFinder || showsPair {
             menu.addItem(.separator())
         }
         if state.canExport {
             menu.addItem(ActionMenuItem(String(localized: "Export…")) { model.export.begin() })
+        }
+        // Left out when no target's original is online (library-ops design §5.1).
+        if state.canShowTargetsInFinder {
+            menu.addItem(ActionMenuItem(LibraryOpsText.showInFinder) { model.showTargetsInFinder() })
         }
         if let display = state.pairDisplay {
             func item(_ title: String, raw: Bool, _ shown: PairDisplay.State) -> NSMenuItem {

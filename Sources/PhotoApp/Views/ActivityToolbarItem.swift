@@ -68,6 +68,11 @@ struct ActivityToolbarItem: View {
     static func jobs(_ model: LibraryModel) -> [ActivityJob] {
         _ = model.activityTick
         var jobs: [ActivityJob] = []
+        // A removal from the library that takes a moment: indeterminate, and
+        // without Stop (library-ops design §6.3).
+        if let removal = model.removalJob {
+            jobs.append(ActivityJob(id: "removal", title: removal.title, detail: removal.detail, progress: nil, stop: nil))
+        }
         if let progress = model.importProgress {
             // Add Folder “Trip” or Add 3 Folders; "Folder 1 of 3 · 12 of 412", no
             // plural on a second number (the strings cannot inflect it).
