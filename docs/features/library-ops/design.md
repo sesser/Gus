@@ -1,7 +1,8 @@
 # Library operations: design
 
-Owner: apple-ui-designer. Date: 2026-11-10. Issue: #61. Status: complete,
-with four requirements issues open for the product manager (§13). §2–§12
+Owner: apple-ui-designer. Date: 2026-11-10 (rulings added 2026-11-11, §15).
+Issue: #61. Status: complete, with four requirements issues open for the
+product manager (§13). §2–§12
 already assume the default given for each, so the engineer can start; a
 different ruling changes only the lines named in §13.
 
@@ -364,9 +365,11 @@ only acceptable reason to drop to AppKit here.
   Stop**: a half-done transaction can't be stopped part way, and File ▸ Stop
   ⌘. doesn't name it. The window stays usable meanwhile; the two Remove items
   are dimmed until it ends.
-- **Success:** the photos leave every source. The grid keeps the keyboard
-  and focuses the photo that followed the last removed one in the grid's
-  order, or the one before it if none followed; the loupe shows that photo.
+- **Success:** the photos leave every source. The grid keeps the keyboard.
+  If the focused photo was not removed, it keeps the focus (§15, D-L8).
+  Otherwise the grid focuses the photo that followed the last removed one in
+  the grid's order, or the one before it if none followed; the loupe shows
+  that photo.
   If the source is left empty, the loupe returns to the grid and the
   source's empty state shows (UID N3). Keywords that reach zero photos leave
   the sidebar as they already do; albums stay, empty if need be (R6). No
@@ -552,5 +555,22 @@ and `menupress`, or are manual (numbered M‹n› at review).
 
 ## 15. Design questions from implementation
 
-None yet. Rulings will be recorded here as D-L1, D-L2… for the engineer to
-cite.
+**D-L1–D-L7**, the engineer's questions from implementation, were ruled by
+the owner on 2026-11-10 (every default accepted) and are recorded in
+[`review.md`](review.md), "Rulings on the engineer's design questions". In
+short: D-L1 only the two imports block a removal; D-L2 both Activity jobs are
+titled with the command ("Remove from Library" / "Remove Project from
+Library") with "Removing ‹N› photos…" as the detail; D-L3 the message is one
+paragraph; D-L4 the folder sentence is the same for a project with no single
+folder; D-L5 renaming from a row's menu leaves the selection where it was;
+D-L6 the sidebar's Remove Project from Library… keeps the destructive role;
+D-L7 Show in Finder on a project whose folder has gone opens nothing and the
+item dims.
+
+The code review's questions, ruled by the owner on 2026-11-11:
+
+| # | Question | Ruling |
+|---|---|---|
+| D-L8 (Q1) | Where the focus goes after a removal that did not take the focused photo (a project removed from its row's menu while another source is on screen; a grid selection that excludes the focused cell) | **The focused photo keeps the focus.** §6.3's "the photo after the last removed one, else the one before" applies only when the focused photo was removed. Why: moving the focus away from a photo the person is looking at, because of a change elsewhere, loses their place for no reason (HIG: keep people in control; don't move what they didn't act on). §6.3 is amended |
+| D-L9 (Q2) | A smart album of the library or another project whose rule names a removed project | **Left as is.** The rule stays; "is" then matches nothing and "is not" everything, as a rule on a deleted keyword does. No design change. Follow-up issue #143 (`smart-album-removed-project`) |
+| D-L10 (Q3) | Show in Finder for a project made by a copying import reveals the copy destination, the same folder for every such project | **Accepted.** R15 says the source folder when `sourcePath` is set; §5.2 is unchanged. Follow-up issue #144 (`project-reveal-copy-destination`) |
