@@ -179,17 +179,31 @@ enum DebugLibraryOpsCommands {
     /// targets, without opening it.
     static func printReveal(_ model: LibraryModel) async {
         let outcome = await model.finderRevealOutcome()
-        print("debug-script: reveal [" + outcome.urls.map(\.lastPathComponent).joined(separator: ", ") + "]"
-              + " folders \(Set(outcome.urls.map { $0.deletingLastPathComponent() }).count)"
-              + " offline \(outcome.offline) missing \(outcome.missing)"
-              + (outcome.skipped > 0 ? " | \(LibraryOpsText.notShown(outcome))" : ""))
+        let names: String = outcome.urls.map(\.lastPathComponent).joined(separator: ", ")
+        let parents: Set<URL> = Set(outcome.urls.map { $0.deletingLastPathComponent() })
+        var line: String = "debug-script: reveal [\(names)]"
+        line += " folders \(parents.count)"
+        line += " offline \(outcome.offline) missing \(outcome.missing)"
+        if outcome.skipped > 0 {
+            line += " | \(LibraryOpsText.notShown(outcome))"
+        }
+        print(line)
     }
 
     /// `print removal`: whether a removal may start, whether one is asked
     /// for or running, and its Activity job.
     static func printRemoval(_ model: LibraryModel) {
-        print("debug-script: removal can start \(model.canRemoveFromLibrary) removing \(model.isRemoving)"
-              + " asking \(model.pendingRemoval != nil)"
-              + " job \(model.removalJob.map { "'\($0.title)'" + ($0.detail.map { " '\($0)'" } ?? "") } ?? "none")")
+        var job: String = "none"
+        if let removalJob = model.removalJob {
+            job = "'\(removalJob.title)'"
+            if let detail = removalJob.detail {
+                job += " '\(detail)'"
+            }
+        }
+        var line: String = "debug-script: removal can start \(model.canRemoveFromLibrary)"
+        line += " removing \(model.isRemoving)"
+        line += " asking \(model.pendingRemoval != nil)"
+        line += " job \(job)"
+        print(line)
     }
 }
