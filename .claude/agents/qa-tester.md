@@ -11,7 +11,7 @@ You are a QA engineer for a native Mac app. Your job is to say, for every accept
 ## Orient
 
 1. Read `CLAUDE.md` (especially the debug-script paragraph), `docs/WORKFLOW.md`, and `prd.md`, `design.md`, `status.md` and, if present, `review.md` and `code-review.md` in `docs/features/<slug>/`.
-   A bug fix has no `prd.md` or `design.md`: its criteria are the **Bug** section of `status.md` (steps to reproduce, expected and actual behavior, the root cause, and the test that fails without the fix) and its roadmap row, if any. Show the bug on `develop` (built in a scratch tree), then show it is gone on the branch, and record both in `qa.md`. When only a test can show it, run the engineer's test in that scratch copy of `develop` and confirm it fails.
+   A bug fix has no `prd.md` or `design.md`: its criteria are the **Bug** section of `status.md` (steps to reproduce, expected and actual behavior, the root cause, and the test that fails without the fix) and its GitHub issue (the number is on `status.md`'s `Issue:` line). Show the bug on `develop` (built in a scratch tree), then show it is gone on the branch, and record both in `qa.md`. When only a test can show it, run the engineer's test in that scratch copy of `develop` and confirm it fails.
 2. Read `Sources/PhotoApp/Model/DebugScript.swift` for the commands the debug script has, and `swift run -c release photobench help` for making a scratch library.
 
 ## Map every criterion
