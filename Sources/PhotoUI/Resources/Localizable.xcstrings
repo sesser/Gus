@@ -677,6 +677,52 @@
         }
       }
     },
+    "%lld photos weren't shown because their originals are offline or missing." : {
+      "comment" : "Activity, after Show in Finder left photos out",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photo wasn't shown because its original is offline or missing."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photos weren't shown because their originals are offline or missing."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld photos weren't shown because their originals are offline." : {
+      "comment" : "Activity, after Show in Finder left photos out",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photo wasn't shown because its original is offline."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photos weren't shown because their originals are offline."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld points" : {
       "comment" : "VoiceOver value of the film strip's resize handle: the thumbnail step shown (“120 points”)",
       "localizations" : {
@@ -1959,6 +2005,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Blues"
+          }
+        }
+      }
+    },
+    "Both files of each RAW+JPEG pair are removed, %lld files in all." : {
+      "comment" : "Removal confirmation: pairs add files beyond the photos selected (always two or more files)",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Both files of each RAW+JPEG pair are removed, %lld file in all."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Both files of each RAW+JPEG pair are removed, %lld files in all."
+                }
+              }
+            }
           }
         }
       }
@@ -5547,6 +5616,17 @@
         }
       }
     },
+    "It has no photos." : {
+      "comment" : "Project removal confirmation",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It has no photos."
+          }
+        }
+      }
+    },
     "It is removed from %lld photos. The photos stay in the library." : {
       "comment" : "Delete keyword confirmation",
       "localizations" : {
@@ -5563,6 +5643,52 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "It is removed from %lld photos. The photos stay in the library."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Its %lld albums are deleted." : {
+      "comment" : "Project removal confirmation: the project's own albums and smart albums",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Its %lld album is deleted."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Its %lld albums are deleted."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Its %lld photos are removed with it." : {
+      "comment" : "Project removal confirmation",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Its %lld photo is removed with it."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Its %lld photos are removed with it."
                 }
               }
             }
@@ -7930,7 +8056,7 @@
       }
     },
     "Project name" : {
-      "comment" : "Import options row: the new project's name template",
+      "comment" : "Import options row: the new project's name template. Also VoiceOver's label for a project's name field in the sidebar",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8324,12 +8450,35 @@
       }
     },
     "Remove" : {
-      "comment" : "Button removing the photo's look-up table",
+      "comment" : "Button removing the photo's look-up table. Also the button of the removal confirmations",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Remove"
+          }
+        }
+      }
+    },
+    "Remove %lld photos from the library?" : {
+      "comment" : "Removal confirmation title",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Remove %lld photo from the library?"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Remove %lld photos from the library?"
+                }
+              }
+            }
           }
         }
       }
@@ -8345,6 +8494,28 @@
         }
       }
     },
+    "Remove Project from Library" : {
+      "comment" : "Activity job and row title: removing a project",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove Project from Library"
+          }
+        }
+      }
+    },
+    "Remove Project from Library…" : {
+      "comment" : "File menu and project context menu: asks, then removes the project from the library; files stay on disk",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove Project from Library…"
+          }
+        }
+      }
+    },
     "Remove from Album" : {
       "comment" : "Undo action name and Photo menu item",
       "localizations" : {
@@ -8352,6 +8523,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Remove from Album"
+          }
+        }
+      }
+    },
+    "Remove from Library" : {
+      "comment" : "Activity row title: a removal of photos that failed",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove from Library"
+          }
+        }
+      }
+    },
+    "Remove from Library…" : {
+      "comment" : "File menu and photo context menus: asks, then removes the photos from the library; files stay on disk",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove from Library…"
           }
         }
       }
@@ -8400,6 +8593,17 @@
         }
       }
     },
+    "Remove the project “%@” from the library?" : {
+      "comment" : "Removal confirmation title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove the project “%@” from the library?"
+          }
+        }
+      }
+    },
     "Remove this collection" : {
       "comment" : "Look-up table manage sheet: tooltip",
       "localizations" : {
@@ -8444,6 +8648,62 @@
         }
       }
     },
+    "Remove “%@” from the library?" : {
+      "comment" : "Removal confirmation title: one photo's file name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove “%@” from the library?"
+          }
+        }
+      }
+    },
+    "Removed %lld photos from the library." : {
+      "comment" : "VoiceOver, after a removal",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Removed %lld photo from the library."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Removed %lld photos from the library."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Removed the project “%@” from the library." : {
+      "comment" : "VoiceOver, after a project was removed",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Removed the project “%@” from the library."
+          }
+        }
+      }
+    },
+    "Removed “%@” from the library." : {
+      "comment" : "VoiceOver, after one photo was removed; its file name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Removed “%@” from the library."
+          }
+        }
+      }
+    },
     "Removes red/cyan and blue/yellow outlines that widen toward the corners." : {
       "comment" : "Caption, off",
       "localizations" : {
@@ -8451,6 +8711,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Removes red/cyan and blue/yellow outlines that widen toward the corners."
+          }
+        }
+      }
+    },
+    "Removing %lld photos…" : {
+      "comment" : "Activity: a removal from the library that takes a while",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Removing %lld photo…"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Removing %lld photos…"
+                }
+              }
+            }
           }
         }
       }
@@ -8499,6 +8782,17 @@
         }
       }
     },
+    "Rename Project" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rename Project"
+          }
+        }
+      }
+    },
     "Rename or remove collections and tables" : {
       "comment" : "Tooltip of the look-up table Manage button",
       "localizations" : {
@@ -8506,6 +8800,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Rename or remove collections and tables"
+          }
+        }
+      }
+    },
+    "Rename “%@”" : {
+      "comment" : "File menu; the project selected in the sidebar, renamed in place (no sheet follows)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rename “%@”"
           }
         }
       }
@@ -9443,6 +9748,17 @@
         }
       }
     },
+    "Show in Finder" : {
+      "comment" : "File menu, photo and project context menus, and Activity row title: reveals the originals, or a project's folder",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show in Finder"
+          }
+        }
+      }
+    },
     "Show in Finder when done" : {
       "comment" : "Export window",
       "localizations" : {
@@ -10201,6 +10517,50 @@
         }
       }
     },
+    "The files and their sidecar files stay on disk, unchanged. Their edits are lost, along with their ratings, keywords and albums in the library. You can't undo this action." : {
+      "comment" : "Photo removal confirmation",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The files and their sidecar files stay on disk, unchanged. Their edits are lost, along with their ratings, keywords and albums in the library. You can't undo this action."
+          }
+        }
+      }
+    },
+    "The folder stays on disk, unchanged." : {
+      "comment" : "Project removal confirmation: a project without photos",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The folder stays on disk, unchanged."
+          }
+        }
+      }
+    },
+    "The folder, its files and their sidecar files stay on disk, unchanged. The photos' edits are lost, along with their ratings, keywords and albums in the library. You can't undo this action." : {
+      "comment" : "Project removal confirmation",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The folder, its files and their sidecar files stay on disk, unchanged. The photos' edits are lost, along with their ratings, keywords and albums in the library. You can't undo this action."
+          }
+        }
+      }
+    },
+    "The name can't be empty." : {
+      "comment" : "VoiceOver, after an empty project name was refused",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The name can't be empty."
+          }
+        }
+      }
+    },
     "The original could not be read. Make sure it's available, then pick again." : {
       "comment" : "Inspector caption and VoiceOver announcement when picking ends because the photo's pixels could not be read",
       "localizations" : {
@@ -10212,6 +10572,17 @@
         }
       }
     },
+    "The photos couldn't be removed. The library is unchanged." : {
+      "comment" : "Activity warning; the error follows on the next line",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The photos couldn't be removed. The library is unchanged."
+          }
+        }
+      }
+    },
     "The photos stay in the library." : {
       "comment" : "Delete album confirmation",
       "localizations" : {
@@ -10219,6 +10590,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The photos stay in the library."
+          }
+        }
+      }
+    },
+    "The project couldn't be removed. The library is unchanged." : {
+      "comment" : "Activity warning; the error follows on the next line",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The project couldn't be removed. The library is unchanged."
           }
         }
       }

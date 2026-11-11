@@ -70,6 +70,8 @@ photos the library does not have yet, and a folder with nothing new makes none.
 | ⌘I | import from a card or folder | |
 | ⌘N, ⌥⌘N | new album, new smart album | |
 | ⌫ | remove from the album on screen | |
+| ⇧⌘R | show the originals in the Finder (**File ▸ Show in Finder**) | same |
+| ⌘⌫ | remove from the library, after a confirmation (**File ▸ Remove from Library…**) | same |
 | ⌘Z, ⇧⌘Z | undo, redo | undo, redo |
 
 **Review** (View ▸ Enter Review, F): the loupe on the focused photo with the
@@ -143,6 +145,58 @@ and import dates, project, camera, lens, serial number, ISO, aperture, shutter
 speed, focal length, exposure compensation, flash, white balance, location,
 artist, copyright and description, with a live count. Right-click albums to rename,
 edit or delete them.
+
+**Renaming a project**: select the project in the sidebar and choose **File ▸
+Rename “‹name›”**, press Return while the sidebar has the keyboard, or
+right-click the project and choose **Rename**. Its name becomes a text field
+in place, with the whole name selected: Return saves, Esc puts the old name
+back, and clicking elsewhere saves too. Spaces around the name are dropped, an
+empty name is refused (the old one stays), and two projects may have the same
+name. The name is the library's only: the folder on disk keeps its name (the
+row's tooltip still shows its path), and no sidecar changes. Renaming is one
+undo step.
+
+**Show in Finder** (**File ▸ Show in Finder**, ⇧⌘R, and the context menus of
+the grid, the loupe and a video) reveals the originals of the selected photos,
+or of the photo in the loupe, in the Finder: photos in one folder open one
+Finder window with all of them selected, and photos in several folders open
+one window per folder. A grouped RAW+JPEG pair shows its RAW; with **View ▸
+Group RAW+JPEG Pairs** off, each file shows itself. Photos whose originals are
+offline or no longer where the library has them are left out, and the
+toolbar's Activity item says how many; when every selected photo is offline
+the command is dimmed. While the sidebar has the keyboard, the same command
+reveals the selected project's folder instead (also **Show in Finder** in the
+project's context menu). It is dimmed, and left out of the context menu, for a
+project that was not imported from one folder, whose folder is gone or on a
+volume that is not connected, or whose folder is a whole card or disk: the app
+never opens a volume itself.
+
+**Removing photos from the library**: **File ▸ Remove from Library…** (⌘⌫,
+and the last item of the photo context menus) takes the selected photos, or
+the photo in the loupe, out of the library. It asks first, and Return does not
+confirm: click **Remove**, or cancel with Esc or ⌘.. The files and their
+sidecar files stay on disk, unchanged; what goes is what only the library
+holds: the photos' edits and edit history, and their ratings, flags, labels,
+keywords and album memberships in the library. Keywords and albums themselves
+stay, empty if need be. Removing either file of a RAW+JPEG pair removes both,
+and the confirmation says how many files that makes. Photos on a volume that
+is not connected can be removed like any other. A removal cannot be undone,
+and it empties Edit ▸ Undo, since earlier steps may be about photos that are
+gone. The same files can be imported again later; they come in as new photos,
+without their edits (ratings and keywords the app wrote to sidecars are read
+back at import). ⌘⌫ removes photos only while the grid or the loupe has the
+keyboard, so in a text field it deletes text as usual. While an import or a
+folder add is running, the command is dimmed until it ends.
+
+**Removing a project**: select it and choose **File ▸ Remove Project from
+Library…**, or right-click it. The project goes with all its photos, by the
+same rule, and so do the albums and smart albums made inside it (the
+confirmation says how many); albums of the library and of other projects stay,
+without those photos. The folder, its files and their sidecar files stay on
+disk. This cannot be undone either. *Remove* is the word for photos and
+projects, whose files stay on disk; *delete* is for things that exist only in
+the library (albums, smart albums, keywords, presets). File ▸ Delete stays
+dimmed for a project.
 
 **XMP sidecars**: ratings, flags, labels, keywords, creator, copyright, description,
 usage terms and contact details are written to an `.xmp` file next to each
@@ -411,7 +465,8 @@ adjustments, crop and rotation, and the Info tab's descriptive fields (title,
 description and the like), including changes made to many photos at once.
 
 Photos on a volume that is not connected show an offline badge. Their cached
-previews still display, and nothing is removed from the catalog.
+previews still display, and the app never removes them from the catalog by
+itself (you can, with **File ▸ Remove from Library…**).
 
 ## Data locations
 

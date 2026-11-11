@@ -218,7 +218,7 @@ struct EditHistoryTests {
     func historyGoesWithTheVersion() async throws {
         let (fixture, id) = try await Self.one()
         try await fixture.catalog.setEditStack(Self.stack(exposure: 1), forVersion: id, historyLabel: "Exposure")
-        try await fixture.catalog.deleteProject(id: fixture.project.id!)
+        try await fixture.catalog.removeProject(id: fixture.project.id!)
         let rows = try await fixture.catalog.database.read { db in try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM editHistory") }
         #expect(rows == 0)
     }

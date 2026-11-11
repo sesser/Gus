@@ -101,9 +101,25 @@ import PhotoUI
 ///     preset previewend     (ends a preset preview, as the pointer leaving it does)
 ///     export window | windowshot <png> | set <key>=<value>… | template <text> | run [keepboth|overwrite|skip]
 ///            | preset save|apply|delete <name> | print   (see DebugExportCommands)
+///     alert [press <title> | key return|escape|space|cmd+.]   (the alert or sheet on the library window: its texts
+///                           and buttons with their key equivalents; press clicks a button, key sends it a key;
+///                           both wait for a removal they start to end. See DebugLibraryOpsCommands)
+///     sidebarfocus          (hands the keyboard to the sidebar's list, as a click on a row does)
+///     renameproject         (File ▸ Rename's action for the selected project: its row becomes a text field;
+///                           then `text <name>` and `key return`, or `key escape`)
+///     removephotos | removeproject   (File ▸ Remove from Library… and Remove Project from Library…'s actions:
+///                           each asks first; answer with `alert press Remove` or `alert press Cancel`)
+///     removal fail on|off   (removals fail in the catalog until turned off; touches no file)
+///     print projects        (each project's name, count and whether Show in Finder has its folder; the row being
+///                           renamed, its field's text and selection)
+///     print reveal          (the files Show in Finder would select for the targets, the folders, what it leaves out;
+///                           the Finder is not opened)
+///     print removal         (whether a removal may start, is asked for or runs, and its Activity job)
+///
+/// End a scripted rename with a key or `sidebarfocus`: taking the keyboard away another way saves outside any undo group.
 ///
 /// Keys are characters ("3", "p") or names (left, right, up, down, home, end,
-/// pageup, pagedown, return, escape, space); prefix "opt+" or "shift+" for modifiers. Key events go through
+/// pageup, pagedown, return, escape, space, delete, tab); prefix "opt+", "shift+" or "cmd+" for modifiers. Key events go through
 /// the window, so they take the same path as real typing.
 @MainActor
 enum DebugScript {
@@ -124,10 +140,11 @@ enum DebugScript {
             undoManager.groupsByEvent = false
             // Only commands that can change photos get a group; empty groups
             // would otherwise become undo steps that do nothing. A film strip
-            // click moves focus, which saves a crop being edited.
+            // click moves focus, which saves a crop being edited; taking the
+            // keyboard from a project's name field saves the rename.
             let changing: Set<String> = ["key", "addkeywords", "text", "pairfile", "accept", "album", "smartalbum", "remove",
                                          "adjust", "lut", "pasteadjust", "preset", "menupick", "lutwindow", "metadata",
-                                         "menupress", "contextmenu", "filmstripclick", "ml"]
+                                         "menupress", "contextmenu", "filmstripclick", "ml", "sidebarfocus"]
             for command in commands where !command.isEmpty {
                 let words = command.split(separator: " ")
                 // "accessibility <role> <n> <action>" runs an action; listing changes nothing.
@@ -611,6 +628,31 @@ enum DebugScript {
         case "accessibility":
             AccessibilityProbe.run(rest, in: window)
             try? await Task.sleep(for: .milliseconds(200))
+        case "alert":
+            await DebugLibraryOpsCommands.alert(rest, window: window, model: model)
+        case "renameproject":
+            // File ▸ Rename's action for the project selected in the sidebar: its row becomes a field.
+            if let project = model.selectedProject { model.beginProjectRename(project.id) }
+            try? await Task.sleep(for: .milliseconds(500))
+        case "removephotos":
+            // File ▸ Remove from Library…'s action: asks first (see `alert`).
+            model.removeTargetsFromLibrary()
+            try? await Task.sleep(for: .milliseconds(700))
+        case "removeproject":
+            // File ▸ Remove Project from Library…'s action for the selected project: asks first.
+            if let project = model.selectedProject { model.removeProjectFromLibrary(project.id) }
+            try? await Task.sleep(for: .milliseconds(700))
+        case "sidebarfocus":
+            DebugLibraryOpsCommands.focusSidebar(model)
+            try? await Task.sleep(for: .milliseconds(200))
+        case "removal":
+            await DebugLibraryOpsCommands.removal(rest, model: model)
+        case "print" where rest.first == "projects":
+            DebugLibraryOpsCommands.printProjects(model, window: window)
+        case "print" where rest.first == "reveal":
+            await DebugLibraryOpsCommands.printReveal(model)
+        case "print" where rest.first == "removal":
+            DebugLibraryOpsCommands.printRemoval(model)
         case "print":
             if rest.first == "review" {
                 let window = model.windowObserver.window
@@ -1141,7 +1183,10 @@ enum DebugScript {
                   + " playing \(state.isVideoPlaying) pair \(state.pairDisplay.map { "\($0.raw)/\($0.companion)" } ?? "none") savePreset \(state.canSaveAsPreset) resetAll \(state.canResetAll) maskSelected \(state.hasSelectedMask) overlay \(state.showsMaskOverlay)"
                   + " bareKeys \(state.bareKeysActive) editLoupePhoto \(state.canEditLoupePhoto) cropping \(state.isCropping)"
                   + " sharpenMap \(state.showsSharpeningMap) canShowSharpenMap \(state.canShowSharpeningMap)"
-                  + " sharpenMapNotApplied \(state.sharpeningMapNotApplied)")
+                  + " sharpenMapNotApplied \(state.sharpeningMapNotApplied)"
+                  + " sidebarKeys \(state.sidebarHasKeyboard) showInFinder \(state.canShowInFinder)"
+                  + " showTargetsInFinder \(state.canShowTargetsInFinder) canRemove \(state.canRemoveFromLibrary)"
+                  + " sidebarItem \(state.sidebarItem.map { ($0.isProject ? "project " : "") + $0.name } ?? "none")")
         case "empty":
             // The browser's empty state (design.md N3), as the view chooses it.
             print("debug-script: empty \(model.emptyState.map { "\($0)" } ?? "none") source '\(model.title(for: model.sidebarSelection))'"
@@ -1199,11 +1244,11 @@ enum DebugScript {
         }
         let named: [String: (UInt16, String)] = [
             "left": (123, "\u{F702}"), "right": (124, "\u{F703}"), "down": (125, "\u{F701}"), "up": (126, "\u{F700}"),
-            "return": (36, "\r"), "escape": (53, "\u{1B}"), "space": (49, " "),
+            "return": (36, "\r"), "escape": (53, "\u{1B}"), "space": (49, " "), "delete": (51, "\u{7F}"), "tab": (48, "\t"),
             "home": (115, "\u{F729}"), "end": (119, "\u{F72B}"), "pageup": (116, "\u{F72C}"), "pagedown": (121, "\u{F72D}"),
         ]
         let digits: [String: UInt16] = ["0": 29, "1": 18, "2": 19, "3": 20, "4": 21, "5": 23, "6": 22, "7": 26]
-        let letters: [String: UInt16] = ["p": 35, "x": 7, "u": 32, "z": 6, "[": 33, "]": 30]
+        let letters: [String: UInt16] = ["p": 35, "x": 7, "u": 32, "z": 6, "[": 33, "]": 30, "r": 15, ".": 47]
         let (code, characters) = named[key] ?? (digits[key] ?? letters[key] ?? 0, key)
         for type in [NSEvent.EventType.keyDown, .keyUp] {
             guard let event = NSEvent.keyEvent(with: type, location: .zero, modifierFlags: flags,

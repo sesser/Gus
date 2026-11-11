@@ -371,11 +371,15 @@ final class LibraryModel {
     /// The grid, the loupe or the video loupe has the keyboard, so the bare
     /// culling keys act on photos (section 6 of docs/UI_REDESIGN.md).
     private(set) var browserHasKeyboard = false
+    /// The sidebar has the keyboard: File ▸ Show in Finder acts on its
+    /// selected project instead of the photos (library-ops design §5.2).
+    private(set) var sidebarHasKeyboard = false
     @ObservationIgnored private(set) lazy var windowObserver: LibraryWindowObserver = {
-        let observer = LibraryWindowObserver { [weak self] isKey, browser in
+        let observer = LibraryWindowObserver { [weak self] isKey, browser, sidebar in
             guard let self else { return }
             if isWindowKey != isKey { isWindowKey = isKey }
             if browserHasKeyboard != browser { browserHasKeyboard = browser }
+            if sidebarHasKeyboard != sidebar { sidebarHasKeyboard = sidebar }
         }
         // Leaving full screen by a system route ends review; the window
         // stays out of full screen.
@@ -393,6 +397,24 @@ final class LibraryModel {
     }
     /// A sidebar item waiting for its deletion to be confirmed.
     var sidebarDeletion: SidebarDeletion?
+    /// The project whose sidebar row is a text field (File ▸ Rename, the row's
+    /// Rename, Return in the sidebar; docs/features/library-ops/design.md §4).
+    var renamingProjectID: Int64?
+    /// Bumped to scroll the sidebar to the project being renamed.
+    private(set) var projectRevealRevision = 0
+    /// The folder Show in Finder can reveal, for each project that has one
+    /// now (`ProjectFolder`), checked off the main actor (`refreshProjectFolders`).
+    var projectFolders: [Int64: URL] = [:]
+    @ObservationIgnored var projectFoldersGeneration = 0
+    /// A removal from the library was asked for and has not ended: one at a
+    /// time, and the Remove items are off meanwhile.
+    var isRemoving = false
+    /// A removal waiting for its confirmation to be answered.
+    var pendingRemoval: PendingRemoval?
+    /// The running removal as Activity shows it, once it has run a moment.
+    var removalJob: RemovalJob?
+    /// No sidecar is written while a removal runs (`pauseSidecarSync`).
+    @ObservationIgnored var sidecarSyncPaused = false
     /// What the menus need of the loupe's zoom (its controller owns the zoom).
     var loupeZoom = LoupeZoomState()
     /// The open ⌘K keyword field, with the photos it will tag.
@@ -786,7 +808,21 @@ final class LibraryModel {
         if case .project(let id) = sidebarSelection, !projects.contains(where: { $0.id == id }) {
             sidebarSelection = .allPhotos
         }
+        if let id = renamingProjectID, !projects.contains(where: { $0.id == id }) { renamingProjectID = nil }
         scheduleSidebarRefresh()
+        Task { await refreshProjectFolders() }
+    }
+
+    /// Shows a project's new name at once; its write follows on the chain
+    /// (`renameProject`).
+    func showProjectName(_ name: String, forProject id: Int64) {
+        guard let index = projects.firstIndex(where: { $0.id == id }) else { return }
+        projects[index].project.name = name
+    }
+
+    /// Asks the sidebar to bring a project's row into view.
+    func revealProjectRow() {
+        projectRevealRevision += 1
     }
 
     /// Albums, smart albums, dates and their counts, a moment after the last
@@ -854,6 +890,7 @@ final class LibraryModel {
             if online != onlineVolumeIDs {
                 onlineVolumeIDs = online
                 notifyObservers { $0.libraryAvailabilityChanged() }
+                Task { await refreshProjectFolders() }
                 refreshStaleMetadata()
                 if started {
                     scheduleSidecarSync()
@@ -866,6 +903,12 @@ final class LibraryModel {
     }
 
     private func observeVolumes() {
+        // A project's folder may have been moved or deleted in the Finder.
+        volumeObservers.append(NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in await self?.refreshProjectFolders() }
+        })
         let center = NSWorkspace.shared.notificationCenter
         for name in [NSWorkspace.didMountNotification, NSWorkspace.didUnmountNotification,
                      NSWorkspace.didRenameVolumeNotification] {

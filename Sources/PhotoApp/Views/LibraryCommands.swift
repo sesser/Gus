@@ -92,25 +92,51 @@ struct LibraryCommands: Commands {
             .disabled(!can { if case .smartAlbum = $0.sidebarItem { true } else { false } })
             Button(renameTitle) {
                 switch menu?.state.sidebarItem {
+                // A project is renamed in place in the sidebar (library-ops design §4).
+                case .project(let project): model?.beginProjectRename(project.id)
                 case .album(let album): model?.sidebarSheet = .renameAlbum(album)
                 case .keyword(let keyword): model?.sidebarSheet = .renameKeyword(keyword)
                 case .smartAlbum, nil: break
                 }
             }
             .disabled(!can { $0.sidebarItem?.isRenamable == true })
+            // Dimmed for a project, which is removed, not deleted: its files stay.
             Button(deleteTitle) {
                 model?.sidebarDeletion = switch menu?.state.sidebarItem {
                 case .album(let album): .album(album)
                 case .smartAlbum(let album): .smartAlbum(album)
                 case .keyword(let keyword): .keyword(keyword)
-                case nil: nil
+                case .project, nil: nil
                 }
             }
-            .disabled(!can { $0.sidebarItem != nil })
+            .disabled(!can { $0.sidebarItem?.isDeletable == true })
+            Button(LibraryOpsText.removeProjectMenu) {
+                if case .project(let project) = menu?.state.sidebarItem { model?.removeProjectFromLibrary(project.id) }
+            }
+            .disabled(!can { $0.sidebarItem?.isProject == true && $0.canRemoveFromLibrary })
             Divider()
+            // The photo targets' files (library-ops design §2.1). Show in
+            // Finder means the sidebar's project while the sidebar has the keyboard.
+            Button(LibraryOpsText.showInFinder) {
+                guard let model, let state = menu?.state else { return }
+                if state.sidebarHasKeyboard {
+                    if let project = model.selectedProject { model.showProjectInFinder(project.id) }
+                } else {
+                    model.showTargetsInFinder()
+                }
+            }
+            .keyboardShortcut("r", modifiers: [.command, .shift])
+            .disabled(!can { $0.canShowInFinder })
             Button("Export…") { model?.export.begin() }
                 .keyboardShortcut("e", modifiers: [.command, .shift])
                 .disabled(!can { $0.canExport })
+            // On only while the grid or loupe has the keyboard, like a bare
+            // key: enabled elsewhere it would take ⌘⌫ from a text field,
+            // where it deletes to the start of the line.
+            Button(LibraryOpsText.removeFromLibraryMenu) { model?.removeTargetsFromLibrary() }
+                .keyboardShortcut(.delete, modifiers: .command)
+                .disabled(!canByKey { $0.hasTargets && $0.canRemoveFromLibrary })
+            Divider()
             Button("Check for Changes on Disk") { model?.checkForDiskChanges() }
                 .disabled(!can { !$0.isCheckingDisk })
             // One item for ⌘. (design.md P3, I4): the import window's Stop
@@ -141,14 +167,16 @@ struct LibraryCommands: Commands {
         }
     }
 
-    /// "Rename “Holiday”…" for an album or keyword selected in the sidebar.
+    /// "Rename “Holiday”…" for an album or keyword selected in the sidebar,
+    /// which opens a sheet; "Rename “Iceland”" for a project, renamed in place.
     private var renameTitle: String {
         guard can(), let item = menu?.state.sidebarItem, item.isRenamable else { return String(localized: "Rename…") }
+        if item.isProject { return LibraryOpsText.rename(item.name) }
         return String(localized: "Rename “\(item.name)”…", comment: "File menu; the album or keyword selected in the sidebar")
     }
 
     private var deleteTitle: String {
-        guard can(), let item = menu?.state.sidebarItem else { return String(localized: "Delete…") }
+        guard can(), let item = menu?.state.sidebarItem, item.isDeletable else { return String(localized: "Delete…") }
         return String(localized: "Delete “\(item.name)”…", comment: "File menu; the album, smart album or keyword selected in the sidebar")
     }
 

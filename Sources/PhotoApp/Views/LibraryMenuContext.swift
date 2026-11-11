@@ -22,6 +22,9 @@ struct LibraryMenuState: Equatable {
     var isWindowKey: Bool
     /// The grid, loupe or video loupe has the keyboard: bare keys act on photos.
     var browserHasKeyboard: Bool
+    /// The sidebar has the keyboard: File ▸ Show in Finder means its
+    /// selected project (library-ops design §5.2).
+    var sidebarHasKeyboard: Bool
     var mode: BrowserMode
     var itemCount: Int
     /// Culling and batch commands have photos to act on.
@@ -102,10 +105,20 @@ struct LibraryMenuState: Equatable {
     var canExport: Bool
     var isCheckingDisk: Bool
     var hiddenSidebarSections: Set<SidebarSection>
+    /// The photo context menus' Show in Finder: a target's original is online.
+    var canShowTargetsInFinder: Bool
+    /// File ▸ Show in Finder (⇧⌘R): the sidebar's project has a folder to
+    /// reveal while the sidebar has the keyboard, otherwise as above.
+    var canShowInFinder: Bool
+    /// A removal from the library may start: no import and no other removal
+    /// runs (library-ops design §8).
+    var canRemoveFromLibrary: Bool
 
-    /// The album, smart album or keyword selected in the sidebar, for File ▸
-    /// Rename, Delete and Edit Smart Album.
+    /// The project, album, smart album or keyword selected in the sidebar,
+    /// for File ▸ Rename, Delete, Edit Smart Album and Remove Project from
+    /// Library….
     enum SidebarItem: Equatable {
+        case project(ProjectSummary)
         case album(AlbumSummary)
         case smartAlbum(SmartAlbum)
         case keyword(KeywordSummary)
@@ -115,8 +128,18 @@ struct LibraryMenuState: Equatable {
             if case .smartAlbum = self { false } else { true }
         }
 
+        /// A project is removed from the library, not deleted: its files stay.
+        var isDeletable: Bool {
+            if case .project = self { false } else { true }
+        }
+
+        var isProject: Bool {
+            if case .project = self { true } else { false }
+        }
+
         var name: String {
             switch self {
+            case .project(let project): project.project.name
             case .album(let album): album.album.name
             case .smartAlbum(let album): album.name
             case .keyword(let keyword): keyword.name
@@ -128,6 +151,7 @@ struct LibraryMenuState: Equatable {
     init(_ model: LibraryModel) {
         isWindowKey = model.isWindowKey
         browserHasKeyboard = model.browserHasKeyboard
+        sidebarHasKeyboard = model.sidebarHasKeyboard
         mode = model.mode
         itemCount = model.itemCount
         hasTargets = !model.actionTargets.isEmpty
@@ -176,6 +200,7 @@ struct LibraryMenuState: Equatable {
         albums = model.albums
         isInAlbum = model.currentAlbumID != nil
         sidebarItem = switch model.sidebarSelection {
+        case .project: model.selectedProject.map(SidebarItem.project)
         case .album(let id): model.albums.first { $0.id == id }.map(SidebarItem.album)
         case .smartAlbum(let id): model.smartAlbums.first { $0.id == id }.map(SidebarItem.smartAlbum)
         case .keyword(let id): model.keywords.first { $0.id == id }.map(SidebarItem.keyword)
@@ -186,6 +211,11 @@ struct LibraryMenuState: Equatable {
         canExport = ExportTargets.canExport(model.actionTargets.lazy.map { model.items[$0] }, isExporting: isExporting)
         isCheckingDisk = model.isCheckingDisk
         hiddenSidebarSections = model.hiddenSidebarSections
+        canShowTargetsInFinder = model.canShowTargetsInFinder
+        canShowInFinder = model.sidebarHasKeyboard
+            ? model.selectedProject.map { model.canShowProjectInFinder($0.id) } ?? false
+            : canShowTargetsInFinder
+        canRemoveFromLibrary = model.canRemoveFromLibrary
     }
 
     /// Items with a bare key: only while the grid, loupe or video loupe has

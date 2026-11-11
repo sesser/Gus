@@ -10,7 +10,8 @@ extension LibraryModel {
     /// Writes queued sidecar changes shortly after the last change, in the
     /// background. A request while a run is busy starts another run after it.
     func scheduleSidecarSync() {
-        guard writesSidecars else { return }
+        // Not while a removal from the library runs; it asks again when it ends.
+        guard writesSidecars, !sidecarSyncPaused else { return }
         if sidecarSyncTask != nil {
             sidecarSyncPending = true
             return

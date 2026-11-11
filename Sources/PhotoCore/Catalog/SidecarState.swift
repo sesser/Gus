@@ -154,8 +154,14 @@ extension Catalog {
 
     // MARK: Records
 
+    /// Records what a sidecar check found. A master removed from the library
+    /// while it was being checked has nothing to record: without this guard
+    /// the row's foreign key would fail and end the whole check.
     public func saveSync(_ record: MetadataSyncRecord) async throws {
-        try await database.write { db in try record.save(db) }
+        try await database.write { db in
+            guard try ImageRecord.exists(db, key: record.imageId) else { return }
+            try record.save(db)
+        }
     }
 
     /// Updates a master whose file another app changed (embedded metadata, for

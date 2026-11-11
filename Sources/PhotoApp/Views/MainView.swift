@@ -45,6 +45,17 @@ struct MainView: View {
         .sheet(isPresented: $model.showsPresetSheet) {
             PresetManagerSheet(model: model)
         }
+        // Remove from Library… and Remove Project from Library… (library-ops
+        // design §6.2): the form of the app's other deletions. Remove is
+        // destructive and no button is the default, so Return does nothing.
+        .confirmationDialog(model.pendingRemoval?.text.title ?? "",
+                            isPresented: Binding(get: { model.pendingRemoval != nil },
+                                                 set: { if !$0 { model.cancelRemoval() } }),
+                            presenting: model.pendingRemoval) { pending in
+            Button("Remove", role: .destructive) { model.confirmRemoval(pending) }
+        } message: { pending in
+            Text(pending.text.message)
+        }
         .alert(model.presetImportSummary?.title ?? "", isPresented: Binding(
             get: { model.presetImportSummary != nil }, set: { if !$0 { model.presetImportSummary = nil } }
         )) {

@@ -56,7 +56,14 @@ public actor SidecarSync {
             guard !owners.isEmpty else { break }
             let targets = try await catalog.sidecarTargets(owners: owners)
             var done: [Int64] = []
+            var stopped = false
             for target in targets {
+                // Cancelled (a removal from the library waits for this run to
+                // end): stop before the next file, keeping what is done.
+                if Task.isCancelled {
+                    stopped = true
+                    break
+                }
                 guard mountedVolumes.contains(target.volumeID) else {
                     skipped.insert(target.imageID)
                     continue
@@ -67,6 +74,7 @@ public actor SidecarSync {
             // Owners whose master is gone from the catalog.
             done += owners.filter { owner in !targets.contains { $0.imageID == owner } }
             try await catalog.dequeueSidecarWork(done)
+            if stopped { throw CancellationError() }
         }
         return report
     }
