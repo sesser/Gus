@@ -8528,7 +8528,7 @@
       }
     },
     "Remove from Library" : {
-      "comment" : "Activity row title: a removal of photos that failed",
+      "comment" : "Activity job and row title: removing photos (the count is shown under it), and a removal of photos that failed",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8716,7 +8716,7 @@
       }
     },
     "Removing %lld photos…" : {
-      "comment" : "Activity: a removal from the library that takes a while",
+      "comment" : "Activity: under the title of a removal from the library that takes a while",
       "localizations" : {
         "en" : {
           "variations" : {

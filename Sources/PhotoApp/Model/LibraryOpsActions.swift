@@ -179,7 +179,7 @@ extension LibraryModel {
             let plan = try await catalog.photoRemovalPlan(forVersions: versionIDs)
             let confirmation = RemovalConfirmation.photos(shown: count, fileName: fileName, fileCount: plan.fileCount)
             return PendingRemoval(text: LibraryOpsText.alert(confirmation), title: LibraryOpsText.removeFromLibrary,
-                                  job: RemovalJob(title: LibraryOpsText.removing(count)),
+                                  job: RemovalJob(title: LibraryOpsText.removeFromLibrary, detail: LibraryOpsText.removing(count)),
                                   failure: LibraryOpsText.photosNotRemoved,
                                   announcement: fileName.map(LibraryOpsText.removedPhoto) ?? LibraryOpsText.removedPhotos(count),
                                   remove: { try await catalog.removePhotos(versionIDs: versionIDs) })
@@ -265,8 +265,8 @@ extension LibraryModel {
     }
 
     /// Runs the removal on the write chain, after every change made before
-    /// it, with sidecar writing stopped: a run in flight is waited for, and
-    /// none starts until the removal has ended, so no sidecar is written for
+    /// it, with sidecar writing paused: a run in flight is waited for, and
+    /// none writes until the removal has ended, so no sidecar is written for
     /// a photo while it is being removed or after (R5).
     private func removeInOrder(_ remove: @escaping @Sendable () async throws -> RemovalResult) async throws -> RemovalResult {
         let outcome: Result<RemovalResult, any Error> = await withCheckedContinuation { continuation in
@@ -283,14 +283,19 @@ extension LibraryModel {
         return try outcome.get()
     }
 
+    /// Stops sidecar writing and waits for a run in flight. The run ends
+    /// after the file it is on (`SidecarSync.pauseQueue`); it is not
+    /// cancelled, which could end it between writing a sidecar and
+    /// recording that it did. A task still waiting to start its run is
+    /// cancelled, so the removal does not wait out its delay.
     private func pauseSidecarSync() async {
-        sidecarSyncPaused = true
-        sidecarSyncTask?.cancel()
+        sidecars.pauseQueue()
+        if !sidecarSyncIsWriting { sidecarSyncTask?.cancel() }
         await sidecarSyncTask?.value
     }
 
     private func resumeSidecarSync() {
-        sidecarSyncPaused = false
+        sidecars.resumeQueue()
         scheduleSidecarSync()
     }
 
@@ -328,7 +333,7 @@ enum LibraryOpsText {
         String(localized: "Remove Project from Library…", comment: "File menu and project context menu: asks, then removes the project from the library; files stay on disk")
     }
     static var removeFromLibrary: String {
-        String(localized: "Remove from Library", comment: "Activity row title")
+        String(localized: "Remove from Library", comment: "Activity job and row title")
     }
     static var removeProject: String {
         String(localized: "Remove Project from Library", comment: "Activity job and row title")
@@ -348,7 +353,7 @@ enum LibraryOpsText {
     }
 
     static func removing(_ count: Int) -> String {
-        String(localized: "Removing \(count) photos…", comment: "Activity: a removal from the library that takes a while")
+        String(localized: "Removing \(count) photos…", comment: "Activity: under the title of a removal from the library that takes a while")
     }
 
     static var photosNotRemoved: String {

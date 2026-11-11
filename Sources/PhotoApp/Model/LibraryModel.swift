@@ -413,8 +413,9 @@ final class LibraryModel {
     var pendingRemoval: PendingRemoval?
     /// The running removal as Activity shows it, once it has run a moment.
     var removalJob: RemovalJob?
-    /// No sidecar is written while a removal runs (`pauseSidecarSync`).
-    @ObservationIgnored var sidecarSyncPaused = false
+    /// The sidecar task is inside a queue run, not waiting to start one: a
+    /// removal lets it finish its file instead of cancelling it (`pauseSidecarSync`).
+    @ObservationIgnored var sidecarSyncIsWriting = false
     /// What the menus need of the loupe's zoom (its controller owns the zoom).
     var loupeZoom = LoupeZoomState()
     /// The open ⌘K keyword field, with the photos it will tag.

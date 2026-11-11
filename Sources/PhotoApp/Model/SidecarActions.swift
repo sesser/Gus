@@ -10,8 +10,7 @@ extension LibraryModel {
     /// Writes queued sidecar changes shortly after the last change, in the
     /// background. A request while a run is busy starts another run after it.
     func scheduleSidecarSync() {
-        // Not while a removal from the library runs; it asks again when it ends.
-        guard writesSidecars, !sidecarSyncPaused else { return }
+        guard writesSidecars else { return }
         if sidecarSyncTask != nil {
             sidecarSyncPending = true
             return
@@ -23,6 +22,10 @@ extension LibraryModel {
                 sidecarSyncPending = false
                 let mounted = onlineVolumeIDs
                 do {
+                    // Writes nothing while a removal from the library has the
+                    // queue paused; the removal asks for a run when it ends.
+                    sidecarSyncIsWriting = true
+                    defer { sidecarSyncIsWriting = false }
                     let report = try await sidecars.processQueue(mountedVolumes: mounted)
                     if report.changedOnDisk > 0 { await refreshDiskChanges() }
                     if report.failed > 0 {

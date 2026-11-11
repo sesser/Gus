@@ -186,7 +186,8 @@ gone. The same files can be imported again later; they come in as new photos,
 without their edits (ratings and keywords the app wrote to sidecars are read
 back at import). ⌘⌫ removes photos only while the grid or the loupe has the
 keyboard, so in a text field it deletes text as usual. While an import or a
-folder add is running, the command is dimmed until it ends.
+folder add is running, the command is dimmed, and left out of the context
+menus, until it ends; so is **Remove Project from Library…**.
 
 **Removing a project**: select it and choose **File ▸ Remove Project from
 Library…**, or right-click it. The project goes with all its photos, by the
@@ -461,8 +462,9 @@ review mode. History is not written to sidecars or exports. Edits made with
 `photocli` are listed too, as "Develop (command line)" or "Mask (command line)".
 
 **Undo**: ⌘Z and ⇧⌘Z undo and redo culling, keyword, album and pair changes,
-adjustments, crop and rotation, and the Info tab's descriptive fields (title,
-description and the like), including changes made to many photos at once.
+project renames, adjustments, crop and rotation, and the Info tab's descriptive
+fields (title, description and the like), including changes made to many photos
+at once. Removing photos or a project from the library cannot be undone.
 
 Photos on a volume that is not connected show an offline badge. Their cached
 previews still display, and the app never removes them from the catalog by

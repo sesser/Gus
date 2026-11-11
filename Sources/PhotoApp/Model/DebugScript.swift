@@ -103,7 +103,8 @@ import PhotoUI
 ///            | preset save|apply|delete <name> | print   (see DebugExportCommands)
 ///     alert [press <title> | key return|escape|space|cmd+.]   (the alert or sheet on the library window: its texts
 ///                           and buttons with their key equivalents; press clicks a button, key sends it a key;
-///                           both wait for a removal they start to end. See DebugLibraryOpsCommands)
+///                           both wait for a removal they start to end, and run in an undo group of their own
+///                           unless the sheet is a removal's confirmation. See DebugLibraryOpsCommands)
 ///     sidebarfocus          (hands the keyboard to the sidebar's list, as a click on a row does)
 ///     renameproject         (File ▸ Rename's action for the selected project: its row becomes a text field;
 ///                           then `text <name>` and `key return`, or `key escape`)

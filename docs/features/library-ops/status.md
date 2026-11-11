@@ -3,10 +3,13 @@ Issue: #61
 # Library operations: status
 
 Owner: swift-macos-engineer. Branch: `feature/library-ops`. State: **Done** (2026-11-10).
-Nothing is blocked. Next: code-reviewer and the designer's review, then qa-tester.
+Nothing is blocked. The findings of the code review and the design review are fixed
+(**Review findings**); they go back to code-reviewer and the designer for the second pass,
+then qa-tester. Three questions from the code review wait for the owner (Q1–Q3 there).
 
 Spec: [`prd.md`](prd.md) (R1–R18, AC1–AC13), [`design.md`](design.md) (§12 L1–L9).
-Changes are in the working tree, not committed.
+The implementation is commit `fd00a1f`; the rulings and the review fixes are the commit
+after it.
 
 ## Results
 
@@ -32,7 +35,7 @@ project, and it clears the sidecar queue).
     (`RemovalConfirmation`); when a removal may start (`RemovalAvailability`); the focus
     after one (`RemovalFocus`).
   - `Catalog.projectVolumeIDs()`; `Catalog.saveSync` skips a master that is gone;
-    `SidecarSync.processQueue` stops between files when cancelled.
+    `SidecarSync.pauseQueue` / `resumeQueue`: a queue run ends after the file it is on.
 - **PhotoApp**: `Model/LibraryOpsActions.swift` (the three commands and their words),
   `LibraryMenuState` and `LibraryCommands` (File menu), `PhotoContextMenu`, `SidebarView`
   (in-place rename, project row menu), `MainView` (the confirmation), `ActivityToolbarItem`
@@ -58,7 +61,7 @@ in the same transaction, after the masters. Deleting keyword links by cascade fi
 `sidecar_keyword_removed` trigger, but the version is already gone when it looks, so
 nothing is queued again (checked in SQLite and in `cascadesQueueNothing`); the explicit
 delete does not depend on that. Around the transaction the app stops sidecar writing: a run
-in flight is cancelled and waited for, and none starts until the removal has ended
+in flight is paused and waited for, and none writes until the removal has ended
 (`pauseSidecarSync`), so no sidecar is written for a photo while or after it is removed.
 A change made in the last second and a half before a removal (still queued) therefore never
 reaches the sidecar, as R6 says.
@@ -84,7 +87,7 @@ reaches the sidecar, as R6 says.
 | AC12 | `projectFolderRule`, `canReveal`, `projectVolumes` | I: dimmed for offline photos, for a project at a mount point, and for one on a detached volume | M2 |
 | AC13 | — | H: File menu order and keys; grid, loupe, video loupe and project row menus | M5 (enabled states) |
 
-Also tested: `savingSyncForARemovedMaster`, `cancelledQueueRunStops`, `focusAfterRemoval`
+Also tested: `savingSyncForARemovedMaster`, `pausedQueueRunStopsAfterItsFile`, `focusAfterRemoval`
 (design §6.3), and for design §8 `removalAvailability`, `importIntoARemovedProjectFails`
 and `batchEditAfterARemoval`.
 
@@ -165,8 +168,14 @@ pairs, 1 video: 8 photos, 10 files) and "Keep" (3 JPEG in two folders).
 - **N, beside an import.** While a folder of 3,000 photos is added: `removal can start
   false`, no Remove from Library… in the cell's menu, `removephotos` asks nothing. After
   it: both back.
-- **Large.** 30,000 photos removed in one go; a project of 29,989: 0.7 s, Activity job
-  "Remove Project from Library" / "Removing 29,989 photos…".
+- **Large.** 30,000 photos removed in one go: 0.7 s, Activity job "Remove from Library"
+  / "Removing 30,000 photos…" (after F1). A project of 29,989: 0.7 s, "Remove Project from
+  Library" / "Removing 29,989 photos…".
+- **After the review fixes** (second commit). `alert press Delete` on "Delete the album
+  “Test”?": the album goes, undo "Delete Album" brings it back, no crash (C2); a removal's
+  confirmation after it still clears the stack. With sidecar writing on: three photos
+  rated and one of them removed at once: sidecars written for the other two only, the queue
+  empty, nothing flagged as changed on disk.
 
 ## For a person (not checked by me)
 
@@ -230,32 +239,37 @@ pairs, 1 video: 8 photos, 10 files) and "Keep" (3 JPEG in two folders).
 - A project's folder is its absolute `sourcePath`. If its volume is mounted somewhere else
   than at import, Show in Finder is dimmed for the project (its photos are still found).
 - Cached previews of removed photos stay in the Caches folder (they are keyed by content,
-  and a re-import reuses the unedited ones). See Requirements issue 1.
+  and a re-import reuses the unedited ones). Ruled: left as is; purging them is issue #142.
 - `importRun` rows of a removed project stay, pointing at no project; Last Import falls
   back to the newest run that still has photos.
 
-## Open questions
+## Questions and rulings
 
-Returned in my report; none blocks.
+Returned in my report on 2026-11-10. The owner ruled the same day, relayed by the main
+session: "defaults are fine" for every one, so each stays as built except Design question
+2. Nothing is open. The designer and the product manager have not yet recorded these in
+`design.md` §15 and `prd.md`; that is theirs to do.
 
 Design questions:
-1. Which jobs keep a removal from starting (§8): the two imports only; exports and batch
-   measurements are safe beside one. An import started during a removal is not blocked.
-2. Activity job titles: photos "Removing ‹N› photos…" as the title (§6.3); a project
-   "Remove Project from Library" with "Removing ‹N› photos…" under it (§7.3).
-3. The message's sentences are joined in one paragraph.
-4. "The folder …" in the project confirmation when the project has no source folder, or
-   photos in several.
-5. Rename from the menu of a row that is not selected leaves the selection alone.
-6. The sidebar's Remove Project from Library… has the destructive role, like the Delete…
-   items beside it; the photo menus' item is plain (`NSMenu` has no such style).
-7. Show in Finder on a project whose folder has just gone: nothing opens and the item
-   dims, with no message.
+
+| # | Question | Ruling |
+|---|---|---|
+| 1 | Which jobs keep a removal from starting (§8) | As built: the two imports only. Exports and batch measurements do not block one, and an import started during a removal is not blocked |
+| 2 | Activity job titles | **The command's title with the count under it, for photos and projects alike** (D-L2 in `review.md`). Done: O1 under **Review findings** |
+| 3 | The message's sentences joined in one paragraph | As built |
+| 4 | "The folder …" in the project confirmation when the project has no source folder, or photos in several | As built |
+| 5 | Rename from the menu of a row that is not selected | As built: the selection is left alone |
+| 6 | The destructive role on the sidebar's Remove Project from Library… | Kept; the photo menus' item stays plain |
+| 7 | Show in Finder on a project whose folder has just gone | As built: nothing opens and the item dims, with no message |
+| 8 | A folder deleted in the Finder is noticed when the app comes forward, not at once | As built |
 
 Requirements issues:
-1. Should a removal also delete the photos' cached previews?
-2. R12 and sidecars: ratings and keywords written to sidecars before the removal come
-   back at re-import; a change still queued at the removal does not.
+
+| # | Issue | Ruling |
+|---|---|---|
+| 1 | Cached previews of removed photos stay in the Caches folder | Left as is on this branch. Purging them is follow-up issue #142 |
+| 2 | R12 and sidecars: what was written to a sidecar before the removal comes back at re-import; a change still queued does not | Intended. The user guide's wording stays |
+| 3 | A project's folder is its absolute `sourcePath`, so Show in Finder is dimmed for a project whose volume is mounted at another path | Accepted |
 
 ## README
 
@@ -265,4 +279,21 @@ Library… (⌘⌫) and Remove Project from Library…, which change the catalog
 
 ## Review findings
 
-None yet.
+From [`code-review.md`](code-review.md) (C) and [`review.md`](review.md) (F, I), 2026-11-10.
+After the fixes: `swift build` clean, `swift test` 723 tests in 118 suites passed with the
+same known issue, `Scripts/build-app.sh all` built both.
+
+| # | Finding | State |
+|---|---|---|
+| O1 = C3 = F1 | A photo removal's Activity job is titled with its count, not the command | **Fixed.** `RemovalJob(title: removeFromLibrary, detail: removing(count))`; the catalog comments on "Remove from Library" and "Removing %lld photos…" say so. Script: `removal ran 0.7 s, Activity job 'Remove from Library' detail 'Removing 30,000 photos…'` |
+| C1 | `cancelledQueueRunStops` passed without the change it was named for | **Fixed, and the code under it changed.** Writing the test the reviewer asked for showed the stop itself was wrong: a cancelled task's catalog writes throw, so a run cancelled mid-file kept the file it had just written on the queue, and could end between writing a sidecar and recording it (the next run could then take the app's own file for another app's change). A removal now pauses the queue instead of cancelling the run: `SidecarSync.pauseQueue()` makes a run in flight end after its file, recorded and dequeued, and `resumeQueue()` lets the rest go. The task is cancelled only while it is still waiting to start a run. `pausedQueueRunStopsAfterItsFile` pauses from inside the run, when the first file's state is recorded (a SQL function on the catalog's write, no timing), and checks one sidecar written, recorded and dequeued, the other unwritten and queued, nothing written while paused, the rest written after `resumeQueue`. With the stop between files taken out it fails (4 expectations) |
+| C2 | `alert press` / `alert key` answer any sheet with no undo group | **Fixed.** They open an undo group around the answer unless the sheet is a removal's confirmation (`pendingRemoval != nil`), which registers nothing and clears the stack. `alert` is not in `changing`. Script: `alert press Delete` on an album's confirmation, then undo |
+| F2 | The user guide's Undo paragraph does not list project renames | **Fixed**, and it now says a removal cannot be undone |
+| I1 | The guide says only "dimmed" for Remove during an import | **Taken**: "dimmed, and left out of the context menus", for both Remove commands |
+| I2 | "Project name" is one key for two uses | Left, as the review says: until a localization asks |
+| I3 | A rename field that never gets the keyboard would stay a field | Left: script L shows the guard works; the review's remedy is for M2 failing |
+
+Waiting for the owner, not acted on: code-review **Q1** (which photo keeps the focus when a
+removed project is not the source on screen), **Q2** (smart album rules that name a
+removed project) and **Q3** (what Show in Finder reveals for a project made by a copying
+import).

@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 import os
 
 /// Keeps XMP sidecars in step with the catalog, which is the source of truth.
@@ -20,6 +21,9 @@ public actor SidecarSync {
     public let metadataReader: any MetadataReader
     public let hasher: any ContentHasher
     private static let log = Logger(subsystem: AppBranding.bundleIdentifier, category: "sidecars")
+    /// Queue runs write nothing while this is set (`pauseQueue`). A lock, not
+    /// actor state: it is set from outside while a run is suspended in a write.
+    private let queuePaused = Mutex(false)
 
     public init(catalog: Catalog, metadataReader: any MetadataReader, hasher: any ContentHasher = SHA256ContentHasher()) {
         self.catalog = catalog
@@ -45,25 +49,39 @@ public actor SidecarSync {
 
     // MARK: Queue
 
+    /// Stops queue runs from writing: a run in flight ends after the file it
+    /// is on, with that file recorded and taken off the queue, and a run
+    /// started while paused does nothing. The rest stays queued for
+    /// `resumeQueue`. A removal from the library pauses the queue and waits
+    /// for the run to end, so that no sidecar is written for a photo while it
+    /// is being removed. Cancelling the run's task would not do: it can end a
+    /// run between writing a sidecar and recording that it did.
+    public nonisolated func pauseQueue() {
+        queuePaused.withLock { $0 = true }
+    }
+
+    public nonisolated func resumeQueue() {
+        queuePaused.withLock { $0 = false }
+    }
+
+    private nonisolated var isQueuePaused: Bool {
+        queuePaused.withLock { $0 }
+    }
+
     /// Handles queued changes on mounted volumes, writing sidecars when the
     /// files allow it. Masters on other volumes stay queued.
     public func processQueue(mountedVolumes: Set<Int64>) async throws -> Report {
         var report = Report()
         var skipped: Set<Int64> = []
-        while true {
+        while !isQueuePaused {
             try Task.checkCancellation()
             let owners = try await catalog.queuedSidecarOwners(limit: 256 + skipped.count).filter { !skipped.contains($0) }
             guard !owners.isEmpty else { break }
             let targets = try await catalog.sidecarTargets(owners: owners)
             var done: [Int64] = []
-            var stopped = false
             for target in targets {
-                // Cancelled (a removal from the library waits for this run to
-                // end): stop before the next file, keeping what is done.
-                if Task.isCancelled {
-                    stopped = true
-                    break
-                }
+                // Paused: not the next file. What is done is dequeued below.
+                if isQueuePaused { break }
                 guard mountedVolumes.contains(target.volumeID) else {
                     skipped.insert(target.imageID)
                     continue
@@ -74,7 +92,6 @@ public actor SidecarSync {
             // Owners whose master is gone from the catalog.
             done += owners.filter { owner in !targets.contains { $0.imageID == owner } }
             try await catalog.dequeueSidecarWork(done)
-            if stopped { throw CancellationError() }
         }
         return report
     }

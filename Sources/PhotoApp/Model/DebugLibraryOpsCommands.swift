@@ -11,6 +11,12 @@ enum DebugLibraryOpsCommands {
     /// button). `alert press <title>` clicks one and waits for a removal it
     /// starts to end; `alert key <key>` sends a key to it (return, escape,
     /// space, cmd+.) the way the key window would get it.
+    ///
+    /// The command works on whatever sheet is up, so `press` and `key` open
+    /// an undo group around the answer, as `DebugScript` does for commands
+    /// that change the library (Delete on an album's confirmation registers
+    /// an undo step). Not for a removal's confirmation: a removal registers
+    /// nothing and clears the stack, which must not happen inside a group.
     static func alert(_ words: [String], window: NSWindow?, model: LibraryModel) async {
         guard let sheet = window?.attachedSheet, let content = sheet.contentView else {
             print("debug-script: alert none")
@@ -34,13 +40,17 @@ enum DebugLibraryOpsCommands {
                 print("debug-script: alert has no button \(title)")
                 return
             }
-            button.performClick(nil)
-            await settle(model, window: window)
+            await answering(model) {
+                button.performClick(nil)
+                await settle(model, window: window)
+            }
         case "key":
             guard let event = keyEvent(words.dropFirst().first ?? "", in: sheet) else { return }
-            // A key equivalent first, as the application offers it to the key window; then the key itself.
-            if !sheet.performKeyEquivalent(with: event) { sheet.sendEvent(event) }
-            await settle(model, window: window)
+            await answering(model) {
+                // A key equivalent first, as the application offers it to the key window; then the key itself.
+                if !sheet.performKeyEquivalent(with: event) { sheet.sendEvent(event) }
+                await settle(model, window: window)
+            }
             print("debug-script: alert after key \(words.dropFirst().first ?? "") \(window?.attachedSheet == nil ? "closed" : "open")")
         default:
             for text in texts { print("debug-script: alert text \(text)") }
@@ -58,6 +68,17 @@ enum DebugLibraryOpsCommands {
 
     /// Waits for the alert's answer to be handled and, once the alert has
     /// closed, for a removal it started to end.
+    /// Runs `answer` (a click or a key in the sheet, and the wait for what it
+    /// starts) inside an undo group, unless the sheet is a removal's
+    /// confirmation. The script runs with `groupsByEvent` off, so an undo
+    /// step registered outside a group raises.
+    private static func answering(_ model: LibraryModel, _ answer: () async -> Void) async {
+        let grouped = model.pendingRemoval == nil
+        if grouped { model.undoManager.beginUndoGrouping() }
+        await answer()
+        if grouped { model.undoManager.endUndoGrouping() }
+    }
+
     /// Prints how long a removal ran when Activity showed its job.
     private static func settle(_ model: LibraryModel, window: NSWindow?) async {
         let start = ContinuousClock.now

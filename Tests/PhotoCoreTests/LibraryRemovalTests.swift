@@ -446,18 +446,65 @@ struct LibraryRemovalTests {
         #expect(try await Self.count(fixture.catalog, "metadataSync") == 0)
     }
 
-    @Test("A cancelled sidecar run stops before the next file and keeps the rest queued")
-    func cancelledQueueRunStops() async throws {
+    @Test("A sidecar run paused after its first file ends there: that file recorded and dequeued, the next unwritten and queued")
+    func pausedQueueRunStopsAfterItsFile() async throws {
         try await RepositoryFiles.withTemporaryDirectory { root in
             let library = try await Self.makeLibrary(root, files: ["a.jpg", "b.jpg"])
-            let ids = [try await library.item("a.jpg").versionID, try await library.item("b.jpg").versionID]
-            try await library.catalog.setRating(Rating(clamping: 4), forVersions: ids)
-            let before = try await library.files()
-            let run = Task { try await library.sync.processQueue(mountedVolumes: library.mounted) }
-            run.cancel()
-            await #expect(throws: CancellationError.self) { try await run.value }
-            #expect(try await library.files() == before)
+            let a = try await library.item("a.jpg")
+            let b = try await library.item("b.jpg")
+            try await library.catalog.setRating(Rating(clamping: 4), forVersions: [a.versionID, b.versionID])
             #expect(try await Self.count(library.catalog, "sidecarQueue") == 2)
+
+            // The pause arrives from inside the run, when the first sidecar's
+            // state is recorded: after that file is written and before the
+            // next one is looked at, as a removal's pause reaches a run in
+            // flight. No timing: the catalog's own write does it.
+            let sync = library.sync
+            try await library.catalog.database.write { db in
+                db.add(function: DatabaseFunction("pause_sidecar_queue", argumentCount: 0) { _ in
+                    sync.pauseQueue()
+                    return nil
+                })
+                for event in ["INSERT", "UPDATE"] {
+                    try db.execute(sql: """
+                        CREATE TEMP TRIGGER pause_after_\(event) AFTER \(event) ON main.metadataSync
+                        BEGIN SELECT pause_sidecar_queue(); END
+                        """)
+                }
+            }
+            let first = try await sync.processQueue(mountedVolumes: library.mounted)
+            #expect(first.written == 1 && first.failed == 0)
+
+            func written() -> [String] {
+                ["a.xmp", "b.xmp"].filter { FileManager.default.fileExists(atPath: library.folder.appending(path: $0).path) }
+            }
+            func queued() async throws -> [Int64] {
+                try await library.catalog.database.read { db in try Int64.fetchAll(db, sql: "SELECT imageId FROM sidecarQueue") }
+            }
+            let done = written()
+            #expect(done.count == 1)
+            let waiting = done == ["a.xmp"] ? b.imageID : a.imageID
+            #expect(try await queued() == [waiting])
+            // The written file is recorded, so the next run does not take it for another app's change.
+            let status = try await library.catalog.database.read { db in
+                try Int.fetchOne(db, sql: "SELECT status FROM metadataSync WHERE imageId = ? AND sidecarName IS NOT NULL",
+                                 arguments: [done == ["a.xmp"] ? a.imageID : b.imageID])
+            }
+            #expect(status == MetadataSyncRecord.Status.inStep.rawValue)
+
+            // While paused a run writes nothing; resumed, it writes the rest.
+            let paused = try await sync.processQueue(mountedVolumes: library.mounted)
+            #expect(paused == SidecarSync.Report())
+            #expect(written() == done)
+            try await library.catalog.database.write { db in
+                for event in ["INSERT", "UPDATE"] { try db.execute(sql: "DROP TRIGGER pause_after_\(event)") }
+            }
+            sync.resumeQueue()
+            let rest = try await sync.processQueue(mountedVolumes: library.mounted)
+            #expect(rest.written == 1 && rest.changedOnDisk == 0)
+            #expect(written() == ["a.xmp", "b.xmp"])
+            #expect(try await queued().isEmpty)
+            #expect(try await library.catalog.diskChangeCount() == 0)
         }
     }
 
