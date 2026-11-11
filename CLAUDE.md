@@ -562,6 +562,22 @@ pending: P7 and P8 (overflow menu and window close; VoiceOver), P9 (second
 click with a real mouse while a job runs) and P10 (macOS 15 and 26) in
 `docs/features/activity-popover/qa.md`.
 
+Library operations (`docs/features/library-ops/`, issue #61): rename a
+project in place (sidebar, File ▸ Rename, row menu; one undo step; catalog
+only, `Catalog/ProjectRename.swift`); File ▸ Remove from Library… (⌘⌫)
+removes the selected photos, either file of a RAW+JPEG pair taking both, and
+Remove Project from Library… removes a project, its photos and its own albums
+and smart albums (`Catalog/LibraryRemoval.swift`: one transaction, all or
+nothing, the sidecar queue paused around it). Both ask first, with no default
+button (Return does nothing), say how many files go and that edits are lost,
+and cannot be undone; files and sidecars are never touched, offline photos
+can be removed, and a re-import gives new photos. Both are off while a folder
+add or card import runs. File ▸ Show in Finder (⇧⌘R) reveals photos' masters
+(one window per folder) or a project's source folder (`Browser/FinderReveal.swift`).
+Cached previews of removed photos stay (#142). Shipped, checks pending: macOS
+15 and 26 (confirmation keys, look) not checked by a person, in #82 and
+`docs/features/library-ops/qa.md`.
+
 Not yet: AI masks, healing, lens corrections (distortion, lens vignetting,
 profiles), DNG export, `.dcp` profiles,
 general (hand-made or burst) stacks, hierarchical

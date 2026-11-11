@@ -39,7 +39,7 @@ Principles (drawn from `README.md` and `CLAUDE.md`):
 
 ## Now (maximum three)
 
-Empty. The owner decides what fills it. First candidate: library-ops (top of Next).
+Empty. The owner decides what fills it. First candidate: rename-albums-in-place (#141, top of Next).
 
 ## Next
 
@@ -47,7 +47,6 @@ Order set by the owner 2026-11-06 (library and project operations first, then
 virtual copies, then side-by-side comparison; the rest in the order it had).
 The small fixes and tooling items can each go as a bug fix (`docs/WORKFLOW.md`).
 
-1. [#61](https://github.com/sesser/Gus/issues/61) `library-ops`: A wrong or unwanted import can never be taken out of the library;
 1. [#141](https://github.com/sesser/Gus/issues/141) `rename-albums-in-place`: Albums rename through a sheet while projects rename in place; make both in place (follow-up to library-ops; owner, 2026-11-10)
 1. [#62](https://github.com/sesser/Gus/issues/62) `virtual-copies`: No second version of a photo with different edits
 1. [#63](https://github.com/sesser/Gus/issues/63) `side-by-side-comparison`: No way to look at photos next to each other to compare them

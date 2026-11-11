@@ -34,6 +34,10 @@ I built this with Claude. AI did the work, I did the orchestration.
 - MOV, MP4 and M4V videos, catalogued and played alongside photos
 - A film strip under the photo in the loupe, to see and click through the
   photos around it
+- Rename a project in place, show photos or a project's folder in the
+  Finder (⇧⌘R), and remove photos or a whole project from the library
+  (⌘⌫ and Remove Project from Library). Removing changes the catalog only:
+  your files and sidecars are never touched, and a removal can't be undone
 
 **Import**
 
@@ -106,7 +110,9 @@ files; it goes to XMP sidecars.
 
 ## Requirements
 
-- macOS 15 or later on Apple Silicon
+- macOS 15 or later on Apple Silicon. Development and testing happen on the
+  newest macOS. VoiceOver, macOS 15 and macOS 26 are largely untested by a
+  person, but should work in theory.
 - Xcode 26 or later to build the app (the build script checks for the
   macOS 26 SDK). `swift build` and `swift test` on their own need only a
   Swift 6 toolchain.

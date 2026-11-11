@@ -1,9 +1,9 @@
 # Library operations: rename project, remove from library, show in Finder
 
-Status: Approved
+Status: Shipped, checks pending (2026-11-11): macOS 15 and 26 not checked by a person (confirmation keys, look); see [`qa.md`](qa.md)
 Slug: library-ops
 Issue: #61
-Roadmap: Next (see the issue; `docs/roadmap.md` lists open items as links)
+Roadmap: none (shipped; the issue closes with the pull request)
 
 ## Problem
 Someone who keeps photos in their own folders has no way to tidy the library. A wrong or unwanted import can never be taken out of the catalog. Projects keep the folder or template name they were imported with. There is no way to jump from a photo or project to its file in the Finder. The catalog already has `renameProject` and `deleteProject` (no UI), and File ▸ Rename and Delete are dimmed for projects.
