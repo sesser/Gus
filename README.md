@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="docs/screenshots/gus-loupe-20261104.png"><img src="docs/screenshots/gus-loupe-20261104.png" alt="A RAW file in the loupe with the Adjust inspector open" width="100%"></a>
+  <a href="docs/screenshots/gus-loupe-20261110.png"><img src="docs/screenshots/gus-loupe-20261110.png" alt="A RAW file in the loupe with the Adjust inspector open" width="100%"></a>
 </p>
 
 Gus catalogs photos where they already are and never changes them. Edits
