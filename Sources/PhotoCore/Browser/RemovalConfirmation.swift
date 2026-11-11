@@ -70,13 +70,17 @@ public enum RemovalAvailability {
     }
 }
 
-/// The photo the browser focuses after a removal (design §6.3): the one that
-/// followed the last removed photo in the grid's order, or the nearest one
-/// before it when none followed.
+/// The photo the browser focuses after a removal (design §6.3 and §7.3).
+/// The focused photo keeps the focus when the removal did not take it (a
+/// project removed from its row's menu while another source is on screen).
+/// Otherwise it goes to the photo that followed the last removed one in the
+/// grid's order, or to the nearest one before it when none followed.
 public enum RemovalFocus {
-    /// `isRemoved`: whether the photo at an index is taken by the removal
-    /// (the targets, and with pairs ungrouped their partners).
-    public static func index(count: Int, isRemoved: (Int) -> Bool) -> Int? {
+    /// `focus`: the focused photo's index before the removal. `isRemoved`:
+    /// whether the photo at an index is taken by the removal (the targets,
+    /// and with pairs ungrouped their partners).
+    public static func index(count: Int, focus: Int?, isRemoved: (Int) -> Bool) -> Int? {
+        if let focus, (0..<count).contains(focus), !isRemoved(focus) { return focus }
         guard let last = (0..<count).last(where: isRemoved) else { return nil }
         if last + 1 < count { return last + 1 }
         return (0..<last).last { !isRemoved($0) }

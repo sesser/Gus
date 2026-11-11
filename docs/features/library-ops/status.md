@@ -5,21 +5,21 @@ Issue: #61
 Owner: swift-macos-engineer. Branch: `feature/library-ops`. State: **Done** (2026-11-10).
 Nothing is blocked. The findings of the code review and the design review are fixed
 (**Review findings**); they go back to code-reviewer and the designer for the second pass,
-then qa-tester. Three questions from the code review wait for the owner (Q1–Q3 there).
+then qa-tester. The code review's questions Q1–Q3 are ruled; Q1 is built.
 
 Spec: [`prd.md`](prd.md) (R1–R18, AC1–AC13), [`design.md`](design.md) (§12 L1–L9).
-The implementation is commit `fd00a1f`; the rulings and the review fixes are the commit
-after it.
+The implementation is commit `fd00a1f`, the first rulings and the review fixes `bef0feb`,
+the rulings on Q1–Q3 and the focus change the commit after that.
 
 ## Results
 
 | | Baseline (`87258a8`) | Now |
 |---|---|---|
 | `swift build` | clean, no warnings | clean, no warnings |
-| `swift test` | 693 tests in 116 suites passed, 1 known issue | 723 tests in 118 suites passed, the same 1 known issue |
+| `swift test` | 693 tests in 116 suites passed, 1 known issue | 724 tests in 118 suites passed, the same 1 known issue |
 | `Scripts/build-app.sh all` | not run | both bundles built |
 
-New suites: `LibraryRemovalTests` (19 tests) and `LibraryOpsRuleTests` (11). Two existing
+New suites: `LibraryRemovalTests` (19 tests) and `LibraryOpsRuleTests` (12). Two existing
 tests call `removeProject` in place of `deleteProject`, which is gone (one way to remove a
 project, and it clears the sidecar queue).
 
@@ -88,7 +88,7 @@ reaches the sidecar, as R6 says.
 | AC13 | — | H: File menu order and keys; grid, loupe, video loupe and project row menus | M5 (enabled states) |
 
 Also tested: `savingSyncForARemovedMaster`, `pausedQueueRunStopsAfterItsFile`, `focusAfterRemoval`
-(design §6.3), and for design §8 `removalAvailability`, `importIntoARemovedProjectFails`
+(design §6.3), `focusSurvivesARemovalElsewhere` (§7.3, Q1), and for design §8 `removalAvailability`, `importIntoARemovedProjectFails`
 and `batchEditAfterARemoval`.
 
 ## Design §12
@@ -280,8 +280,8 @@ Library… (⌘⌫) and Remove Project from Library…, which change the catalog
 ## Review findings
 
 From [`code-review.md`](code-review.md) (C) and [`review.md`](review.md) (F, I), 2026-11-10.
-After the fixes: `swift build` clean, `swift test` 723 tests in 118 suites passed with the
-same known issue, `Scripts/build-app.sh all` built both.
+After the fixes (`bef0feb`): `swift build` clean, `swift test` 723 tests in 118 suites
+passed with the same known issue, `Scripts/build-app.sh all` built both.
 
 | # | Finding | State |
 |---|---|---|
@@ -293,7 +293,19 @@ same known issue, `Scripts/build-app.sh all` built both.
 | I2 | "Project name" is one key for two uses | Left, as the review says: until a localization asks |
 | I3 | A rename field that never gets the keyboard would stay a field | Left: script L shows the guard works; the review's remedy is for M2 failing |
 
-Waiting for the owner, not acted on: code-review **Q1** (which photo keeps the focus when a
-removed project is not the source on screen), **Q2** (smart album rules that name a
-removed project) and **Q3** (what Show in Finder reveals for a project made by a copying
-import).
+### The code review's questions
+
+Ruled by the owner on 2026-11-11, relayed by the main session: the reviewer's
+recommendation for each. The designer and the product manager have not recorded them in
+`design.md` and `prd.md` yet.
+
+| # | Question | Ruling | State |
+|---|---|---|---|
+| Q1 | Which photo has the focus after a removal that did not take the focused one (a project removed from its row's menu while another source is on screen) | **The focused photo keeps the focus when it was not removed.** §6.3's rule applies only when it was | **Built.** `RemovalFocus.index(count:focus:isRemoved:)` returns the focus when the removal left it; `removalDidFinish` passes `focusIndex`. Test `focusSurvivesARemovalElsewhere`; `focusAfterRemoval` still covers a removed focus. Script: All Photos, the loupe on MVI_00008 of "Wrong Card" (index 7), Remove Project from Library… on "Keep" from its row: the loupe stays on MVI_00008 (now index 4); removing a photo still moves to the one after it |
+| Q2 | Smart albums of the library or another project whose rule names a removed project | Left as is: the rule stays and matches nothing ("is") or everything ("is not"), as a rule on a deleted keyword does | No change. Follow-up issue #143 (`smart-album-removed-project`) |
+| Q3 | Show in Finder for a project made by a copying import reveals the copy destination, the same folder for every such project | Accepted: R15 says "its source folder when `sourcePath` is set" | No change. Follow-up issue #144 (`project-reveal-copy-destination`) |
+
+After this change: `swift build` clean, `swift test` 724 tests in 118 suites passed with
+the same known issue, `Scripts/build-app.sh all` built both. It changes `Sources/` and
+tests after the reviews, so it takes code-reviewer's second pass with `bef0feb`; the
+designer's too, since it changes where the focus lands.

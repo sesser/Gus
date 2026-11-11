@@ -190,10 +190,11 @@ struct LibraryOpsRuleTests {
 
     // MARK: Design §6.3: focus after a removal
 
-    @Test("§6.3: after a removal the focus goes to the photo after the last removed one, or the one before")
+    @Test("§6.3: after a removal that took the focused photo, the focus goes to the photo after the last removed one, or the one before")
     func focusAfterRemoval() {
+        // The focused photo is among the removed, as when photos are removed.
         func focus(_ count: Int, _ removed: Set<Int>) -> Int? {
-            RemovalFocus.index(count: count, isRemoved: removed.contains)
+            RemovalFocus.index(count: count, focus: removed.min(), isRemoved: removed.contains)
         }
         #expect(focus(5, [1]) == 2)
         #expect(focus(5, [1, 3]) == 4)
@@ -205,6 +206,23 @@ struct LibraryOpsRuleTests {
         #expect(focus(3, [0, 1, 2]) == nil)
         #expect(focus(3, []) == nil)
         #expect(focus(0, []) == nil)
+        // The same without a focused photo.
+        #expect(RemovalFocus.index(count: 5, focus: nil, isRemoved: [1, 3].contains) == 4)
+    }
+
+    @Test("§7.3: a focused photo the removal did not take keeps the focus (a project removed while another source is shown)")
+    func focusSurvivesARemovalElsewhere() {
+        // All Photos: project B's photos are at 1, 2 and 4; the loupe is on a photo of project A.
+        let removed: Set<Int> = [1, 2, 4]
+        #expect(RemovalFocus.index(count: 6, focus: 0, isRemoved: removed.contains) == 0)
+        #expect(RemovalFocus.index(count: 6, focus: 3, isRemoved: removed.contains) == 3)
+        #expect(RemovalFocus.index(count: 6, focus: 5, isRemoved: removed.contains) == 5)
+        // On one of B's photos: the rule for a removed focus.
+        #expect(RemovalFocus.index(count: 6, focus: 2, isRemoved: removed.contains) == 5)
+        // Nothing of the source on screen was removed: the focus stays where it is.
+        #expect(RemovalFocus.index(count: 6, focus: 3, isRemoved: { _ in false }) == 3)
+        // A focus index outside the list is no focus.
+        #expect(RemovalFocus.index(count: 6, focus: 9, isRemoved: removed.contains) == 5)
     }
 
     // MARK: Design §8: beside running jobs

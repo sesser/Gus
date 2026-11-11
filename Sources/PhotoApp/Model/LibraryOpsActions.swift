@@ -300,15 +300,15 @@ extension LibraryModel {
     }
 
     /// The removal is in the catalog: the photos leave every source, the
-    /// focus goes to the photo after the last removed one, and the undo
-    /// stack is cleared, since its steps may name photos that are gone
-    /// (design §6.3, A4).
+    /// focus goes to the photo after the last removed one unless the focused
+    /// photo is still there (`RemovalFocus`), and the undo stack is cleared,
+    /// since its steps may name photos that are gone (design §6.3, A4).
     private func removalDidFinish(_ result: RemovalResult, announcement: String) async {
         let removed = Set(result.imageIDs)
         // A crop being edited on a removed photo has nothing to save.
         if let open = focusedItem, removed.contains(open.imageID) { editor.endCrop(save: false) }
         undoManager.removeAllActions()
-        let next = RemovalFocus.index(count: items.count) { removed.contains(items[$0].imageID) }
+        let next = RemovalFocus.index(count: items.count, focus: focusIndex) { removed.contains(items[$0].imageID) }
             .map { items[$0].versionID }
         reloadItems(keepFocus: true, focusVersionID: next)
         // A source that is gone (the project, a keyword left without photos)
