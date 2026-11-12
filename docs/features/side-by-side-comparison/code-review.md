@@ -297,3 +297,102 @@ Regressions looked for, as asked:
   dependency, migration, launch option or debug-script command; no rendering or cache key change.
 - `docs/USER_GUIDE.md` and the `step` comment carry D13's wording (F7). `status.md`'s counts
   match the run (777 tests).
+
+### Merge with develop (#155, #156) (2026-11-12)
+
+Reviewed: the merge `bf3f55e` (parents `ea2ac1c`, this branch, and `811d3af`, develop with
+#155 rename-albums-in-place and #156 virtual-copies; merge base `c72d48e`), by
+`git show --remerge-diff bf3f55e`, and the files both sides changed. The Ship record committed
+on top of it while this ran (`4566230`: `CLAUDE.md`, `README.md`, `docs/roadmap.md`) is docs
+only and was not reviewed. Build and tests, on `4566230`: `swift build` complete;
+`swift test --filter "LocalizationTests|BrandingTests|ComparisonTests|VirtualCopiesTests"`
+89 tests in 4 suites passed. The full run is the main session's (815 tests in 121 suites, 1
+known issue). The app was not launched: C14 and C15 are traced, not run.
+
+**Verdict.** The conflicts are resolved correctly and nothing from either side was dropped.
+The two features do not yet work together, though: Duplicate and its undo replace the list
+without telling the comparison (C14, Blocker), and the comparison names a copy by its
+original's file name (C15, Should fix). Neither is a fault of the resolution; no review of
+either branch alone could have seen them. Not ready for the pull request until C14 is fixed.
+No `CLAUDE.md` rule is broken, no rendering changed, `/security-review` is not needed.
+
+#### The resolutions
+
+- **`Sources/PhotoApp/Model/DebugScript.swift`.** Comments only: the header keeps both blocks,
+  the `compare` commands and `print compare`, then `duplicate`, `duplicate fail` and
+  `print copies`. Both dispatches are there (`case "compare"`, `"compareclick"`,
+  `"duplicate"`), merged by git.
+- **`Sources/PhotoUI/Resources/Localizable.xcstrings`.** Compared by key against the base and
+  both parents with a script: valid JSON, no duplicate key, `sourceLanguage` and `version`
+  unchanged; 1,088 keys = 1,038 in the base + this branch's 32 + develop's 18, none added by
+  both, none removed; every value equals the side that changed it, including develop's seven
+  edited comments (`Photo`, `Remove “%@” from the library?`, `Removed “%@” from the library.`,
+  `Rename Album`, `Rename “%@”`, `Rename “%@”…`, `The name can't be empty.`). Keys are in the
+  same sorted order, and the file is byte for byte what the same serializer gives for both
+  parents (two-space indent, ` : `, final newline): against develop the merge only adds lines
+  (352 added, 0 removed), against this branch it adds 265 and changes the 7 comment lines.
+- **`README.md`, `CLAUDE.md`, `docs/roadmap.md`.** Identical to develop's at the merge, as
+  intended; Ship has since been run again.
+- **Everything else in `Sources`, `Tests`, `Scripts`, `Package.swift`.** 19 files changed only
+  on this branch and 33 only on develop are each byte-identical to their side. Eight were
+  changed on both: the two above and `PhotoContextMenu`, `FilmStripCell`, `LoupeView`,
+  `LibraryModel`, `WindowTitle`, `LibraryCommands`, `LibraryMenuContext`, merged by git with no
+  conflict. Read each side's diff against the result: every hunk is there.
+
+#### New findings
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C14 | Blocker | `Sources/PhotoApp/Model/LibraryModel.swift:885-900` (`replaceItems`, from #156), against `:819-877` (`apply`); `Sources/PhotoApp/Model/DuplicateActions.swift:34-37`, `:133`, `:149`; `Sources/PhotoApp/Grid/PhotoContextMenu.swift:94-98`, `:193` | Duplicate, its undo and its redo put their list in place with `replaceItems`, which knows nothing of `comparison`: it sets the focus and, in the loupe, a selection of one photo, and never calls `ComparisonRules.reconcile` or `selectComparison` as `apply` does. Nothing keeps Duplicate off while comparing either: `canDuplicateTargets` does not read `isComparing`, so File ▸ Duplicate (⌘D) is enabled and the pane's context menu, built from the shared `addPhotoItems`, now offers it. The comparison rests on "the focus is the active photo and the selection is the pair" (`ComparisonActions.swift:5-9`); after either path that no longer holds. | (a) Comparing A (left, active) and B; ⌘D. `showCopies` calls `replaceItems(…, selecting: [A′], focusVersionID: A′)`: focus and selection are the copy A′, `comparison` is still A and B, the ring is still on A. The window title and the Info tab are A′'s, and `5` or `P` rates A′, a photo in neither pane (`actionTargets` is the focus); a click on the ringed pane does not put it right (`setComparisonActive` returns when the side is already active). (b) In the grid ⌘D on A, `S` (compares A′ with its neighbor), ⌘Z. `hideCopies` takes A′ out of the list; `comparison` still names it. Its pane goes blank (`show(nil)`) with the ring on it and no caption; the arrows and film strip clicks do nothing (`walkComparison` and `comparisonStripClick` need both photos in the list); `A` moves the ring but the focus stays on A, which is not on screen, so culling keys rate it. Only `S` or Esc gets out. Design §4 dims Remove from Album and Remove from Library because "they take a compared photo out from under the comparison", and §6 ends the comparison when a compared photo leaves the source; undo of Duplicate does the same thing unchecked. | Correctness: two sources of truth out of step; side-by-side-comparison AC2 (a rating key changes only the active photo's rating), design §4, §6 |
+| C15 | Should fix | `Sources/PhotoApp/Loupe/ComparisonCaption.swift:85`, `:99-118`; `Sources/PhotoApp/Model/ComparisonActions.swift:125`, `:187`, `:205` | #156 named a copy everywhere a photo is named (`PhotoName.display` / `inFull`: window title, grid, VoiceOver labels, removal) and gave the loupe caption a Copy badge. The comparison's own code, written before copies existed, still uses `fileName` and `baseName` and has no badge. | Compare `IMG_0412.RW2` with its copy (what Duplicate is for): both captions read `IMG_0412.RW2`, neither has a Copy badge, so only the position tells them apart, and that is the first thing a narrow caption drops. VoiceOver says "Comparing IMG_0412 and IMG_0412. Left photo active." and "Right photo active: IMG_0412", while a walk to the same copy says "IMG_0412 copy" (`PhotoAccessibility.loupeMove` was updated). The window title does name the active copy. | Correctness: one photo named two ways; virtual-copies design §6.3 |
+
+#### Questions
+
+- **For the designer (C14), blocking.** Neither design covers Duplicate while comparing. Rule
+  on it: dimmed and left out of the pane's menu, like Remove (the simplest, and what §4's
+  reasoning suggests), or allowed, and then what the comparison shows afterwards (the copy
+  takes the active side, or the pair stays and the copy is only added to the list). Whatever
+  the ruling, undo and redo of a Duplicate made earlier still reach `replaceItems` while
+  comparing, so the engineer's fix has to reconcile the comparison there too (end it on the
+  photo that remains, as §6 says for a removal).
+- **For the designer (C15).** What a copy's caption shows while comparing: its name
+  ("IMG_0412 copy"), the Copy badge, or both, and where the badge goes in the order a narrow
+  caption drops things.
+- **For the product manager.** The PRD's first non-goal, "Comparing versions of one photo
+  (depends on virtual copies, #62…)", is now possible with nothing built for it: an original
+  and its copy enter comparison like any two photos (a copy is never half of a pair, so RI-3
+  does not refuse it). Say whether that is in scope as it stands, so Ship and the user guide
+  describe it or not. The Ship record of `4566230` says nothing either way.
+
+#### Checked and fine
+
+- **Menus.** File has Duplicate (⌘D, by key, `canDuplicate`) before Show in Finder and Remove
+  from Library…, which keeps this branch's `!isComparing`; the Rename item is develop's
+  (`beginSidebarRename`, `renameTitle(for:)`); View has the three comparison items after Enter
+  / Exit Review. `LibraryMenuState` has both sides' fields and both assignments in `init`.
+- **Context menus.** Grid: Open in Loupe, Compare Side by Side, then the photo items with
+  Duplicate before Export…. Loupe: zoom, Compare, the photo items with Duplicate. Video:
+  Compare, no Duplicate (`canDuplicate` is false for a video). `addPhotoItems` has this
+  branch's `!isComparing` on Remove from Album, Paste and Apply Preset and develop's Duplicate
+  group and separator rule together.
+- **`LibraryModel`.** `apply(_:focusVersionID:keepsComparison:)` and `replaceItems` are both
+  whole; `showCopies`' fallback (`reloadItems(keepFocus: true)`) goes through `apply` and is
+  reconciled. `actionTargets` (`ActionTargets.indices`) and `replaceItems` agree that the loupe
+  acts on the focus alone. `comparisonMemory` naming a copy that an undo removed is harmless:
+  `rememberedComparison` needs the partner in the list and otherwise falls back.
+- **`WindowTitle`.** Develop's `PhotoName.inFull` title and this branch's "Comparing · …"
+  subtitle are both there; while comparing the title is the active photo's, a copy's name for
+  a copy.
+- **`FilmStripCell`.** The compared fill and accessibility value (this branch) and the copy
+  mark's layers, layout and `showsCopyMark` (develop) do not touch the same state.
+- **`LoupeView`.** The comparison canvas and caption switch, `LoupeRendition`, the `S` key and
+  `onActivate` (this branch) with the Copy badge in `LoupeCaption` (develop); `CaptionBadge` is
+  no longer private, which C15's fix can use.
+- No migration, dependency, brand value, launch option or rendering change comes from the
+  resolution; `LocalizationTests` and `BrandingTests` pass.
+
+#### Not verified
+
+- C14 and C15 in the running app. For qa-tester once fixed, and to confirm before:
+  `compare on`, `duplicate`, `print compare`, `print copies` (the focus against the active
+  side), and `duplicate` in the grid, `compare on`, an undo, `print compare`.
