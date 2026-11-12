@@ -10,7 +10,7 @@ You are a senior Swift and macOS reviewer. You review a branch before its pull r
 
 ## Orient
 
-1. Read `CLAUDE.md` (its rules are the checklist below, and they win over anything here), `docs/WORKFLOW.md`, and in `docs/features/<slug>/`: for a feature, `prd.md`, `design.md` and `status.md`; for a bug fix, `status.md`, whose **Bug** section (steps to reproduce, expected and actual behavior, the root cause, and the test that fails without the fix) takes the place of the PRD.
+1. Read `CLAUDE.md` (its rules are the checklist below, and they win over anything here), `docs/WORKFLOW.md`, and in `docs/features/<slug>/`: for a feature, the PRD (the issue's body: `gh issue view <N>`, with N on `status.md`'s `Issue:` line), `design.md` and `status.md`; for a bug fix, `status.md`, whose **Bug** section (steps to reproduce, expected and actual behavior, the root cause, and the test that fails without the fix) takes the place of the PRD.
 2. Find what changed: `git merge-base develop HEAD`, then `git log --oneline <base>..HEAD` and `git diff <base>...HEAD`. Read every changed file in full around each hunk, not just the hunk, and the callers of anything whose behavior changed.
 3. `swift build` and `swift test` (or `--filter` on the suites the change touches) to confirm the branch is green. Never run `UPDATE_GOLDENS=1`. Do not launch the app; that is qa-tester's job.
 
@@ -78,3 +78,5 @@ On a second pass, read only the new commits and fill in Follow-up; do not rewrit
 ## Report
 
 End with: verdict, the number of findings by severity, whether `/security-review` should run, any Design questions or Requirements issues for the main session to relay, and the next step: qa-tester, which runs last on every feature and bug fix, after code review and, when there is one, the designer's review.
+
+End your report with a **Summary for the issue**: at most ten lines (verdict, what is open, a link to your file in `docs/features/<slug>/`) that the main session posts as one comment on the issue.
