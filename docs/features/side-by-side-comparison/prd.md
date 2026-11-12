@@ -81,8 +81,15 @@ compares it with its partner.
 AC6c (R3): `A` makes the other pane active and marks it; `S` is a toggle:
 pressed again it leaves comparison, and `S` once more brings back the same
 pair.
-AC7 (R8): At 100% on two raws of the owner's usual size, panning stays
-responsive (a number to be proposed by the engineer, marked as assumption).
+AC7 (R8): Proposed, pending owner: on the reference Mac (Apple M4 Pro, 24 GB,
+60 Hz display), with two raws of 24 MP (assumed to be the owner's usual size)
+at 100% and both sharp, `compare panbench 6` reports 0 hitches (a hitch is a
+frame over 1.5 refresh intervals), linked and not linked. Until a picture is
+sharp each pane shows its preview enlarged and panning still works. The
+frames on which a full-resolution picture arrives (zooming in, walking a side
+at 100%) are outside this number: measured at 99 to 155 ms, two per arrival,
+input is not blocked (Proposed, pending owner; see Assumptions and Open
+questions).
 
 ## Non-goals
 - Comparing versions of one photo (depends on virtual copies, #62, not yet
@@ -133,15 +140,26 @@ proposed (`design.md` §14 and §15):
 
 ## Assumptions
 Still unconfirmed.
-- The numeric performance target (AC7) is not set; the engineer proposes it
-  and it is marked as an assumption until the owner accepts it.
+- The numeric performance target (AC7) is the engineer's measurement, not
+  yet accepted by the owner. Default: accept it as written.
+- "The owner's usual size" is taken as 24 MP, the size measured. Default
+  until the owner gives their cameras' size.
+- AC7 leaves out the 0.1 to 0.16 s of long frames when a full-resolution
+  picture arrives. Default: accepted for this slice; the single loupe does
+  the same, and a fix is its own issue.
+- AC6b: which side the arrows and strip change right after `S` from the loupe
+  depends on design question DQ-3 (designer ruling pending). Proposed,
+  pending owner: when DQ-3 is ruled, AC6b says "the active side" if the left
+  stays active on entering, or keeps "the right photo" if the right pane is
+  made active. Not decided here.
 
 ## Open questions
 Owner: none; Q1 to Q7 are answered under Decisions.
 Designer: entry points, active marker, key to switch the active photo (note
 bare keys such as C, Z and `\` are taken), film strip behavior, narrow windows.
-Engineer: memory and speed of two 100% views on large raws (and a number for
-AC7), and how a RAW+JPEG pair resolves.
+Engineer: answered in `status.md` (speed, memory, pairs); see RI-E1 to RI-E3
+and Assumptions above. Owner: accept AC7's number, give the raw size, rule on
+the arrival frames.
 
 ## Revisions
 - 2026-11-11: approved; owner intake defaults recorded as Decisions.
@@ -149,3 +167,6 @@ AC7), and how a RAW+JPEG pair resolves.
   RI-3 defaults (Decisions 8 to 12). R2 and R5 reworded; AC4 and AC6
   extended, AC6a to AC6c added. Open question to the designer on the switch
   key is closed.
+- 2026-11-11: engineer's RI-E1 and RI-E3 answered as proposals (AC7 now
+  carries the measured number and states what it excludes; both marked
+  pending owner). RI-E2 left open pending DQ-3.
