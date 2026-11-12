@@ -384,10 +384,15 @@ public enum ComparisonLink {
     /// steps instead and the active pane stays, so repeated presses still
     /// take every pane to its fit. Zoom In lands on the smallest of the
     /// panes' next steps, whichever is active (design §16 D11), so the pane
-    /// that is furthest out catches up first and Zoom In retraces Zoom Out:
-    /// from 1.000 and 0.290, 1.000 and 0.500, then 100% and 100%, then 200%
-    /// and 200%. Each pane's zoom follows its own result: at its fit it is
-    /// fitted, above it zoomed in.
+    /// that is furthest out catches up first and Zoom In retraces Zoom Out
+    /// through the loupe's steps: from 1.000 and 0.290, 1.000 and 0.500,
+    /// then 100% and 100%, then 200% and 200%. Zoom Out may stop once more,
+    /// at a pane's own fit, when that fit is not one of the steps (the
+    /// single loupe's clamp at fit, design §16 D13): with fits 0.196
+    /// (active) and 0.165, out from 0.250 and 0.250 gives 0.196 and 0.196,
+    /// then 0.196 and 0.165, while Zoom In from there goes straight to
+    /// 0.250 and 0.250. Each pane's zoom follows its own result: at its fit
+    /// it is fitted, above it zoomed in.
     public static func step(zoomIn: Bool, active: Int, panes: [PaneZoom], maximum: Double) -> [PaneZoom]? {
         guard panes.indices.contains(active) else { return nil }
         func target(_ pane: PaneZoom) -> Double? {
