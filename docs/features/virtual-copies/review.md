@@ -100,6 +100,38 @@ When F1 is done, `status.md` should say so. I'll confirm both fixes here.
   changed. The inspector shows no Changed on Disk section, and the Changed
   on Disk source lists only the original.
 
+## Second pass
+
+Date: 2026-11-11, at `18af935`. I read the code and the guide and didn't
+build. Test results are as `status.md` reports them.
+
+**Verdict: Pass.** F1 and F2 are fixed. C3 changes nothing a person sees
+against `design.md`, apart from a short window in which Remove is off, and
+that follows an existing pattern.
+
+| Finding | Result | Notes |
+|---|---|---|
+| F1 (D-V1) | **Pass** | `LibraryQuery` `.changedOnDisk` now starts its clause with `version.isDefault`, so the source lists originals and their pair partners only, and its count matches the sidebar badge (`diskChangeCount` counts masters). `Catalog.diskChanges(forVersions:)` maps `WHERE isDefault` versions to masters and collects them into a set. A copy alone gives an empty list, so the inspector shows no section, and an original with its copy shows the change once. Tests `copiesTakeNoPartInSidecarReview` and `aPairsChangeIsNotListedForACopy` cover both. M6 still stands for the on-screen check |
+| F2 | **Pass** | `USER_GUIDE.md` line 87 reads "a mark for videos, offline photos and copies". Line 177 reads "two overlapping squares at the top-right corner of its picture". In right-to-left layouts the grid mark mirrors (D-V3), but the guide is written for left to right, which is acceptable |
+
+**C3 (code review) seen from the UI.** It changes nothing in `design.md`.
+- `RemovalAvailability.canStart` now also takes `isDuplicating`. While a
+  Duplicate writes, File ▸ Remove from Library… and File ▸ Remove Project
+  from Library… are dimmed, and the grid, loupe and sidebar context menus
+  leave Remove out. That is the same treatment library-ops gives a running
+  import (LO §8: dimmed in the menu bar, left out of context menus), so the
+  behavior is consistent. Duplicate already excludes a running removal
+  (§4.1), so the two commands now exclude each other. The window is
+  normally a fraction of a second. On a long batch the Activity row shows
+  the job, which explains why Remove is off. Nothing new needs words.
+- Reading the confirmation through the write chain only orders it after the
+  queued writes. The alert's text, buttons, default (none) and placement are
+  unchanged (§7, LO §6). It may appear a moment later if writes are queued,
+  which is not a visible design change. Its counts are now right after a
+  Redo of Duplicate, which is what §7 and AC6 intend.
+
+No new fixes and no new manual checks. M1 to M6 stand as written.
+
 ## What's working
 
 - The vocabulary is held everywhere: **Duplicate** for the command and
