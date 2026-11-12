@@ -82,6 +82,8 @@ Roughly ordered by dependency, then by how often a photographer would hit the ga
 1. [#86](https://github.com/sesser/Gus/issues/86) `healing`: No spot removal or healing
 1. [#87](https://github.com/sesser/Gus/issues/87) `lens-corrections`: No correction of geometric distortion or lens vignetting, and no lens profiles
 1. [#88](https://github.com/sesser/Gus/issues/88) `ai-masks`: No subject, sky, object or people masks
+1. [#150](https://github.com/sesser/Gus/issues/150) `hdr-merge`: No way to merge several exposures of a scene into one tone-mapped HDR image, with automatic alignment and de-ghosting (owner, 2026-11-11)
+1. [#151](https://github.com/sesser/Gus/issues/151) `panorama-merge`: No way to merge overlapping photos into a panorama. Open for the PRD: approach (Core Image if it offers stitching, the Hugin libraries, or a stitcher of our own); GRDB is the only dependency (ask first) and Hugin is GPL (owner, 2026-11-11)
 1. [#89](https://github.com/sesser/Gus/issues/89) `dcp-profiles`: Adobe .dcp camera profiles not supported
 1. [#90](https://github.com/sesser/Gus/issues/90) `stacks`: No hand-made or burst stacks
 1. [#91](https://github.com/sesser/Gus/issues/91) `hierarchical-keywords`: Keywords are flat
