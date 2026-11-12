@@ -331,3 +331,35 @@ now says so. Reasons:
   while working in the grid, a layout change the person didn't ask for.
 
 No change to the code.
+
+**D-RA2. A rename whose row leaves the list ends by saving; the list takes
+the keyboard if the sidebar is still shown** (2026-11-11, from code review C1
+and `status.md` "For the designer"). Built at `53f4a51` as intended; §2.3
+and §2.5 read with this ruling.
+
+- **Every start reveals the row**, whichever route. The context menu and
+  Return start from a visible row, so for them the reveal does nothing;
+  for File ▸ Rename it is §2.5. Starting again on the row already being
+  renamed keeps what was typed and shows the field again. Right: the field
+  is the only place the rename can be finished, so a start must always
+  produce a visible field.
+- **The row hidden or folded away while its field is open** (the section
+  hidden with View ▸ Sidebar Sections or folded, the album's project
+  folded, the sidebar hidden, review mode started): the rename **saves**,
+  as one "Rename Album" (or "Rename Project") step. This is §2.3's "moving
+  the keyboard elsewhere": the person did something other than Escape, and
+  on the Mac the only gesture that discards an in-place edit is Escape
+  (Finder commits a rename on any loss of focus). Discarding typed text
+  because the row scrolled out of existence would lose work silently. An
+  empty name is still refused with the alert sound, as in §2.4.
+- **Keyboard afterwards.** If the sidebar is still shown, its list takes
+  the keyboard (R1: "the sidebar keeps the keyboard afterwards"). The field
+  that had the keyboard is gone, and the list that contained it is the
+  nearest sensible owner; leaving the window with no focused view would
+  make arrow keys and Return do nothing until a click. The selection is not
+  changed. If the sidebar is hidden (or review mode starts) the sidebar
+  cannot take it; the keyboard goes where hiding the sidebar or entering
+  review sends it on its own, as without a rename open. Checked by a person
+  (review M5).
+- **The reveal stays one-way.** Ending a rename this way never re-opens what
+  the person just folded (D-RA1's reasoning): they closed it on purpose.

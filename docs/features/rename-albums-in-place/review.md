@@ -108,3 +108,46 @@ the owner's standing instruction):
   Edit shows "Undo Rename Album", then "Redo Rename Album". With a keyword it
   reads "Rename “‹name›”…" and opens the sheet with its merge note. With a
   smart album it reads "Rename…", dimmed.
+- **M5. Row folded away during a rename** (second pass). Start renaming an
+  album and type a new name, then (a) fold the Albums section, (b) for an
+  album under a project, fold the project with its disclosure triangle,
+  (c) hide the Albums section with View ▸ Sidebar Sections. Each time the
+  name is saved, Edit shows "Undo Rename Album", and the arrow keys then
+  move the sidebar selection (the list has the keyboard). (d) Hide the
+  sidebar during a rename: the name is saved, and pressing a rating key
+  (say "3") rates the selected photo; if it does nothing, the keyboard was
+  left nowhere (see Second pass, Improvements).
+
+## Second pass
+
+Branch at `53f4a51` (code review fixes C1–C3), read against design §2.3,
+§2.5, D-RA1 and PRD R1. Code read, not built:
+`Model/SidebarRenameActions.swift` (`beginSidebarRename`,
+`sidebarListChanged`, `endSidebarRename`), `Views/SidebarView.swift`
+(`listState`, the `onChange` hand-back), and `status.md` R1–R3.
+
+**Verdict: pass, no fixes.** The changed behavior is what §2.3 already
+implies, now stated in design.md **D-RA2**.
+
+| Change | Ruling | Why |
+|---|---|---|
+| Every start reveals the sidebar, the row's section and the row | Matches §2.5 | The context menu and Return start from a visible row, so the reveal is a no-op there; File ▸ Rename already did this. A start must always end with a visible field, or the rename can't be finished. Restarting on the same row keeps the typed text: right, nothing is lost |
+| A rename whose row is hidden or folded, or whose sidebar is hidden or review mode starts, saves as one step | Matches §2.3 | Anything but Escape counts as "the keyboard moved elsewhere", which saves. Escape is the Mac's one discard gesture for an in-place edit; throwing away typed text because the row disappeared would lose work silently (user control). One "Rename Album" step, undoable (status R2) |
+| The sidebar's list takes the keyboard afterwards when still shown | Right (R1) | The field holding the keyboard is gone; the list containing it is the nearest owner, and R1 says the sidebar keeps the keyboard afterwards. Selection is untouched, consistent with D-L5. With the sidebar hidden nothing is forced, which is correct: the sidebar can't own it |
+| Folded rows are not re-opened when the rename ends | Matches D-RA1 | The person folded them on purpose |
+
+The hand-back fires only when `sidebarListChanged` actually ended a rename,
+so ordinary folding and hiding with no rename open don't move the keyboard.
+Good.
+
+**Improvements (judgment).**
+
+- **Sidebar hidden mid-rename.** Where the keyboard lands is left to what
+  hiding the sidebar does by itself (the same as with no rename, and as
+  before the branch for a project). If M5 (d) shows it lands nowhere, the
+  fix is to post `.browserShouldTakeFocus` with the model when a rename ends
+  with the sidebar hidden, so the grid or loupe takes it, as the search
+  field and History panel already do. Not a fix for this branch unless M5
+  fails.
+
+The first pass's table and M1–M4 stand. M5 is added above.
