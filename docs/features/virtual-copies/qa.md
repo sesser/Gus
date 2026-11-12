@@ -108,4 +108,13 @@ The owner doesn't check VoiceOver or macOS 15 and 26, so they aren't listed here
 
 ## Follow-up
 
-None yet.
+**Sign-off (step 5 of `docs/WORKFLOW.md`).** The owner signed off on 2026-11-12, after trying the bundled app on a playground library. Commit signed off: `91a20d0` on `feature/virtual-copies`. If the branch moves after this, the main session records the sign-off again.
+
+- **PRD decisions.** The owner accepted P1 (Duplicate skips videos), P2 (descriptive Info fields are shared between a copy and its original) and P3 (keyword suggestions are per master), each as the PRD recommends.
+- **Q1: not fixed on this branch.** The owner chose to leave it. It is filed as a follow-up bug: "Remove from Library right after undoing Duplicate asks about copies already gone and clears undo".
+- **Checks left open.** The owner named none beyond what they tried. They tried the "For a person" items informally in the playground but did not record them one by one, so the items stay open under the standing manual-checks issue #82. A list the pull request can quote:
+  - P1 (M1, M5): File ▸ Duplicate enabled and dimmed in the right places in a key window, ⌘D, and the context menus in the grid and loupe.
+  - P2 (M2): the copy mark at the smallest and largest thumbnail sizes and in the film strip, on white and rejected photos, with Increase Contrast on and off, and beside the offline mark.
+  - P3 (M3): the loupe's Copy badge tooltip, and the badge at a narrow window width.
+  - P4 (M4): Duplicate, undo and redo in a long, scrolled grid, with no jumps or flashes.
+  - P5 (M6): no Changed on Disk section for a copy, and only the original listed in the Changed on Disk source.
