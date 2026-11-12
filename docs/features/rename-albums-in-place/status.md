@@ -4,23 +4,26 @@ Issue: #141
 
 Owner: swift-macos-engineer. Branch: `feature/rename-albums-in-place`. State: **Done** (2026-11-11).
 Every criterion is built; each has a unit test, a debug-script check, or both, except what
-needs a key window or a person's eyes and ears (**For a person**). Nothing is blocked. One
-requirements issue and one note for the designer are at the end; neither holds the work.
+needs a key window or a person's eyes and ears (**For a person**). Nothing is blocked. The
+code review's findings C1–C4 are fixed (**Review findings**) and go back to code-reviewer
+for the second pass, then qa-tester. The design review passed; D-RA1 stands. One
+requirements issue is at the end; it does not hold the work.
 
 Spec: [`prd.md`](prd.md) (R1–R9, AC1–AC10), [`design.md`](design.md) (§7 A1–A11).
-The implementation is commits `ea5a84a` (PhotoCore rules and tests; builds on its own) and
-`1f14384` (the app, strings, debug script and user guide).
+The implementation is commits `5129a6e` (PhotoCore rules and tests; builds on its own) and
+`43468c6` (the app, strings, debug script and user guide); the code review's fixes are the
+commit after `227ed46` (**Review findings**).
 
 ## Results
 
-| | Baseline (`fcc9058`) | Now |
+| | Baseline (`e2eb548`) | Now |
 |---|---|---|
 | `swift build` | clean, no warnings | clean, no warnings |
-| `swift test` | 724 tests in 118 suites passed, 1 known issue | 731 tests in 119 suites passed, the same 1 known issue |
+| `swift test` | 724 tests in 118 suites passed, 1 known issue | 732 tests in 119 suites passed, the same 1 known issue |
 | `Scripts/build-app.sh all` | not run | both bundles built |
 
-New suite: `AlbumRenameTests` (7 tests). `LibraryOpsRuleTests` calls the name rule by its
-new name.
+New suite: `AlbumRenameTests` (8 tests: 7 at first, `rowLeavesTheList` with the review
+fixes). `LibraryOpsRuleTests` calls the name rule by its new name.
 
 ## What was built
 
@@ -197,7 +200,9 @@ records no empty step.
   selected; the symbol and count stay; the row keeps its height; side by side it matches a
   project rename.
 - **M2, endings.** Escape restores; a click on a photo saves; "5" and "P" typed in the field
-  change no photo; an emptied name plays the alert sound and keeps the old name.
+  change no photo; an emptied name plays the alert sound and keeps the old name. While an
+  album under a project is being renamed, folding that project with its disclosure triangle
+  saves the name.
 - **M3, moving row.** Rename an album so it sorts elsewhere: it moves, stays selected and
   visible, and the sidebar keeps the accent-colored selection.
 
@@ -205,6 +210,10 @@ VoiceOver (the field's label, the announcement) is not put to the owner (PRD A2)
 
 ## Decisions within the spec
 
+- **A row that leaves the list ends its rename by saving** (code review C1; design §2.3).
+  The rule is in PhotoCore (`SidebarListState`, `SidebarRowPlace.isListed`); the view
+  reports changes and the model ends the rename, so nothing depends on what SwiftUI does
+  with a removed field.
 - **One rename state for both rows**, as design §2.3 allows: `LibraryModel.sidebarRename`.
   The typed text lives in it rather than in the field, so that starting a rename on another
   row can save the open one first; a field that is no longer the open rename is ignored,
@@ -221,6 +230,42 @@ VoiceOver (the field's label, the announcement) is not put to the owner (PRD A2)
   date, so the row does not move.
 - **Album rows are identified by their sidebar selection**, as project rows are, so
   `scrollTo` finds them. Their identity was the album's uuid; both are stable across a rename.
+
+## Review findings
+
+Code review (`code-review.md`, `227ed46`). The design review (`review.md`) passed with no
+finding; its ruling D-RA1 is the behavior as built.
+
+| # | State | What was done |
+|---|---|---|
+| C1 | Fixed | Confirmed with the reviewer's script (Q1) on the reviewed commit: after `sidebarsection albums hide` the print still showed `renaming 1 field without the keyboard`, and a second `renamealbum` left `hidden sections ["albums"]` and no field. With `collapse` the rename also stayed open without a field (the second start did reopen it); with `sidebarpane off` it ended through the field losing the keyboard. Two changes. `beginSidebarRename` now shows the sidebar and the row's section on every start, the same row included, and keeps what was typed. And a rename whose row leaves the list ends, saved (design §2.3's "the keyboard moved elsewhere"): the sidebar reports how much of its list is open (`SidebarListState`), and `LibraryModel.sidebarListChanged` ends the rename when a change takes its row out (`SidebarRowPlace.isListed`): its section hidden or folded, its project folded, the sidebar hidden (review included). The sidebar keeps the keyboard if it is still shown (R1). Test: `rowLeavesTheList`. Script: R1–R3 below |
+| C2 | Fixed | It was real for `sidebarpane off` (the rename saved outside a group), and after C1's fix for the others too. `sidebarpane`, `sidebarsection` and `review` now open an undo group while a rename is open, as `renameproject` and `renamealbum` do; without an open rename they open none, so no empty step is left. The script's header says which commands may end a rename. Script: R2 (a typed name saved by each, no exception, one "Rename Album" step) |
+| C3 | Fixed | `renamedAlbumTakesItsPlaceInTheList` sorts three fixed orders (reversed, rotated, every other one first with the rest reversed) in place of `shuffled()` |
+| C4 | Fixed | This file names the commits on the branch: `5129a6e`, `43468c6`, baseline `e2eb548` |
+
+The reviewer's design question (what ends a rename when its row goes away) was answered by
+the main session with design §2.3: it saves. Its addition to RI-RA1 (no length limit) is
+recorded under **Requirements issues**.
+
+**After the fixes** (a scratch copy and library of their own, identifier
+`me.sesser.gus.debugtest.ra141-engineer-c1`; macOS 27.2):
+
+- **R1, the reviewer's script.** `sidebar album 1; renamealbum; sidebarsection albums hide;
+  print albums`: no `renaming`, the sidebar's list has the keyboard, no "Rename Album" step
+  (nothing was typed). `renamealbum` again: `hidden sections []`, `renaming 1 field 'Best
+  of' selected 0..<7 in view true`. The same with `sidebarsection albums collapse` and with
+  `sidebarpane off` (`sidebar shown` after the second start).
+- **R2, a typed name.** `renamealbum; text Trip;` then each of `sidebarsection albums hide`,
+  `sidebarsection albums collapse`, `sidebarpane off` and `review on`: the album is "Trip",
+  `undo 'Rename Album'`, and `undo` gives "Best of" back. A project's album ("Selects" in
+  Iceland) with `sidebarsection projects collapse`: saved, one step, undone.
+- **R3, a project** (this worked before the branch and C1 had broken it): `renameproject;
+  text Kept; sidebarsection projects hide`: saved, `undo 'Rename Project'`; `renameproject`
+  again: `hidden sections []` and the field on the row.
+
+Not scripted: folding a project's own disclosure while one of its albums is being renamed
+(the disclosure is the view's state, which the script cannot set). The rule is tested
+(`rowLeavesTheList`) and it takes the same path as folding the section; added to M2.
 
 ## Noticed, not changed
 
@@ -244,12 +289,20 @@ VoiceOver (the field's label, the announcement) is not put to the owner (PRD A2)
   project renaming. I built (a), which is what the spec says, and recommend (b) as a small
   follow-up if the difference matters.
 
-## For the designer (no ruling needed to ship)
+  The code review (`code-review.md`, Questions) adds, and I record it here: the in-place
+  rule has **no length limit**, for an album as for a project, while the removed sheet cut
+  a name at 200 characters and New Album and New Smart Album still do. So a name of any
+  length can now be saved by renaming. Behavior is not changed here; the limit is part of
+  what the product manager rules on with RI-RA1.
 
-- **§2.5, "undo and redo move the row back and forth the same way".** Built as: the row
-  moves and is scrolled into view when it is in the list, but a collapsed section or
-  project is not opened by a save, an undo or a redo. If the design wants undo to open them,
-  it is one argument (`revealSidebarRow(_:opening:)`).
+## For the designer
+
+- **§2.5, "undo and redo move the row back and forth the same way".** Ruled as built
+  (D-RA1): the row moves and is scrolled into view, and nothing folded is opened.
+- **A rename whose row is hidden or folded away** (code review C1) saves, by §2.3. One
+  thing the design does not say and I chose: afterwards the sidebar's list has the
+  keyboard when the sidebar is still shown (R1, "the sidebar keeps the keyboard
+  afterwards"), since the field that had it is gone. Say so if it should be otherwise.
 
 ## README
 
@@ -269,4 +322,4 @@ For the product manager at Ship:
   app logs AppKit's warning about a reentrant operation in an NSTableView delegate about a
   second after launch (seen with a library that has albums and keywords; not seen in one run
   on a library with neither). AppKit says it will become an assert. Present on `develop`
-  (`fcc9058`); the sidebar's SwiftUI `List` is the likely table. Not investigated further.
+  (`e2eb548`); the sidebar's SwiftUI `List` is the likely table. Not investigated further.
