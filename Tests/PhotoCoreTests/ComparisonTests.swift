@@ -247,6 +247,18 @@ struct ComparisonTests {
         #expect(click(5) == .refuse)
     }
 
+    @Test func aStripClickNeverPutsTheOtherFileOfThePairBesideIt() {
+        // 1 and 2 are the RAW and JPEG of one photo; the other side shows 1.
+        let photos = Self.source(5) {
+            $0[1].partnerVersionID = 102
+            $0[2].partnerVersionID = 101
+        }
+        #expect(ComparisonRules.stripClick(on: 2, activeIndex: 3, otherIndex: 1, active: .right) { photos[$0] } == .refuse)
+        // The active side's own other file is another photo to show there.
+        #expect(ComparisonRules.stripClick(on: 2, activeIndex: 1, otherIndex: 3, active: .left) { photos[$0] }
+            == .replaceActive(2))
+    }
+
     // MARK: When a compared photo goes away (design §6)
 
     @Test func aReloadKeepsTheComparisonWhileBothPhotosRemain() {

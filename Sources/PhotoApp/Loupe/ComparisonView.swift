@@ -147,6 +147,9 @@ final class ComparisonController: NSObject {
             }
         } else if let leaving = model.comparisonLeaving, shown != nil, !isLeaving {
             beginLeaving(leaving)
+        } else if model.comparisonLeaving != nil, shown == nil {
+            // A view made only for a comparison already left has nothing to animate.
+            model.comparisonLeaving = nil
         }
         updateRing()
         updateAccessibility()
