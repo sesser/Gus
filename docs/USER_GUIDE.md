@@ -122,7 +122,7 @@ or moving to another photo.
 
 Nothing is edited while comparing: the Adjust tab says so and offers **Stop
 Comparing**, and the Adjust menu's editing commands, Show Original, the
-History panel, Remove from Album and Remove from Library are off. S again (or
+History panel, Duplicate, Remove from Album and Remove from Library are off. S again (or
 **Stop Comparing**) goes back to the loupe on the active photo, with the two
 photos still selected in the grid. S once more brings the same two back as
 they were: each on the side it was on, with the same one active. The app

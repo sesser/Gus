@@ -369,6 +369,29 @@ struct ComparisonTests {
         #expect(ComparisonRules.reconcile(state, pairPartner: { _ in nil }) { $0 != 101 } == .ended(remaining: 104))
     }
 
+    /// Design §16 D14: Duplicate's undo and redo replace the list while two
+    /// photos are compared (version IDs 101 and 104 are originals, 301 and
+    /// 304 their copies). The comparison owns what it shows: a list that
+    /// gains copies leaves it as it is, an undo that takes a compared copy
+    /// away ends it on the photo that remains, and nothing takes the copy's
+    /// side, not even its original.
+    @Test func undoAndRedoOfDuplicateKeepOrEndTheComparison() {
+        // A redo, or an undo of copies that are not compared: both photos remain.
+        let originals = ComparisonState(left: 101, right: 104, active: .right)
+        #expect(ComparisonRules.reconcile(originals) { [101, 104, 301, 304].contains($0) } == .kept(originals))
+        #expect(ComparisonRules.reconcile(originals) { [101, 104].contains($0) } == .kept(originals))
+        // A copy beside another photo, and the undo takes the copy: ends on the other photo.
+        let copyAndNeighbor = ComparisonState(left: 301, right: 104, active: .left)
+        #expect(ComparisonRules.reconcile(copyAndNeighbor) { [101, 104].contains($0) } == .ended(remaining: 104))
+        // A copy is not a pair's other file: its original never takes its side.
+        #expect(ComparisonRules.reconcile(copyAndNeighbor, pairPartner: { _ in nil }) { [101, 104].contains($0) }
+            == .ended(remaining: 104))
+        // Two copies, and the undo takes both: ended with nothing remaining
+        // (the loupe then goes to the active copy's original).
+        let copies = ComparisonState(left: 301, right: 304, active: .right)
+        #expect(ComparisonRules.reconcile(copies) { [101, 104].contains($0) } == .ended(remaining: nil))
+    }
+
     // MARK: AC5: review
 
     @Test func escLeavesReviewFirstAndComparisonStaysOn() {

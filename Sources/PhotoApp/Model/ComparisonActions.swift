@@ -122,7 +122,7 @@ extension LibraryModel {
         selectComparison(state)
         guard announces, let item = comparisonItem(side) else { return }
         // High priority, so a fast run speaks only the latest.
-        let photo = AccessibilityText.list([item.baseName, PhotoAccessibility.value(for: item, offline: isOffline(item))])
+        let photo = AccessibilityText.list([PhotoName.display(item), PhotoAccessibility.value(for: item, offline: isOffline(item))])
         AccessibilityText.announce(ComparisonText.active(side, photo: photo))
     }
 
@@ -184,7 +184,8 @@ extension LibraryModel {
 
     private func announceComparison(_ state: ComparisonState) {
         guard let left = item(versionID: state.left), let right = item(versionID: state.right) else { return }
-        AccessibilityText.announce(ComparisonText.entered(left: left.baseName, right: right.baseName, active: state.active))
+        AccessibilityText.announce(ComparisonText.entered(left: PhotoName.display(left), right: PhotoName.display(right),
+                                                          active: state.active))
     }
 
     /// The alert of a comparison that was asked for and did not start
@@ -202,7 +203,8 @@ extension LibraryModel {
 
     /// What the refusal's alert says.
     func comparisonRefusalText(_ refusal: ComparisonRefusal) -> (title: String, message: String) {
-        func name(_ versionID: Int64) -> String { item(versionID: versionID)?.fileName ?? "" }
+        // As the removal confirmation names a photo: a copy by its own name.
+        func name(_ versionID: Int64) -> String { item(versionID: versionID).map(PhotoName.inFull) ?? "" }
         // The title names what was asked: one photo, or two (design §16 D5).
         let alertTitle = refusal.concernsOnePhoto ? ComparisonText.cantCompareThis : ComparisonText.cantCompareThese
         switch refusal {

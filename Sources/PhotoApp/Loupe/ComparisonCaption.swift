@@ -37,10 +37,12 @@ enum ComparisonCaptionMetrics {
     static let minimumNameWidth: CGFloat = 56
 }
 
-/// One pane's caption: the file name and position, the culling marks in the
-/// middle, the badges at the trailing end. Short of room, it drops the
-/// position, then middle-truncates the name, then drops the HDR badge; the
-/// marks, with the label's name, never go.
+/// One pane's caption: the photo's name (a copy's own, as in the window
+/// title) and position, the culling marks in the middle, the badges at the
+/// trailing end. Short of room, it drops the position, then middle-truncates
+/// the name, then drops the HDR badge; the marks, with the label's name, and
+/// the Copy and Offline badges never go (side-by-side-comparison design §9,
+/// §16 D15).
 private struct ComparisonPaneCaption: View {
     let model: LibraryModel
     let side: ComparisonSide
@@ -77,12 +79,12 @@ private struct ComparisonPaneCaption: View {
         }
     }
 
-    /// The file name: in the single loupe it is the window title, which
-    /// can't show two. The active pane's is primary and semibold, so the
+    /// The photo's name in full: in the single loupe it is the window
+    /// title, which can't show two. The active pane's is primary and semibold, so the
     /// active side never rests on the ring's color alone.
     @ViewBuilder
     private func name(_ item: CatalogItem, truncates: Bool) -> some View {
-        let text = Text(verbatim: item.fileName)
+        let text = Text(verbatim: PhotoName.inFull(item))
             .fontWeight(isActive ? .semibold : .regular)
             .foregroundStyle(isActive ? .primary : .secondary)
             .lineLimit(1)
@@ -106,6 +108,11 @@ private struct ComparisonPaneCaption: View {
             if showsHDR, let headroom = model.comparisonHDRHeadroom[side] {
                 CaptionBadge(title: String(localized: "HDR"),
                              help: String(localized: "Highlights up to \(headroom.formatted(.number.precision(.fractionLength(1))))× SDR white are shown with the display's extended range"))
+            }
+            // Identity badges nearest the toggle, as in the single loupe; a
+            // copy's never goes: a truncated name loses "copy" first.
+            if item.isCopy {
+                CaptionBadge(title: DuplicateText.badge, help: DuplicateText.badgeHelp(item.fileName))
             }
             if model.isOffline(item) {
                 CaptionBadge(title: String(localized: "Offline"),

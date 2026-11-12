@@ -98,8 +98,9 @@ enum DebugComparisonCommands {
             var badges: [String] = []
             if side == .right, model.isFiltered { badges.append("Filtered") }
             if model.comparisonHDRHeadroom[side] != nil { badges.append("HDR") }
+            if item.isCopy { badges.append("copy") }
             if model.isOffline(item) { badges.append("Offline") }
-            print("debug-script: compare caption \(side) '\(item.fileName)' \(state.active == side ? "active" : "inactive")"
+            print("debug-script: compare caption \(side) '\(PhotoName.inFull(item))' \(state.active == side ? "active" : "inactive")"
                   + " position '\(PhotoAccessibility.position(index, of: model.items.count))'"
                   + " marks '\(PhotoAccessibility.value(for: item, offline: false))' badges [\(badges.joined(separator: ", "))]")
         }
