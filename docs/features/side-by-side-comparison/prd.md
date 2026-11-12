@@ -2,9 +2,9 @@ Issue: #63
 
 # Side by side comparison
 
-Status: Approved (owner, 2026-11-11)
+Status: Shipped, checks pending 2026-11-12 ([`qa.md`](qa.md): AC7's hitch count, animations, real mouse and trackpad, menus with a key window and alert keys, looks and Full Keyboard Access)
 Slug: side-by-side-comparison
-Roadmap: Next
+Roadmap: none (shipped)
 
 ## Problem
 A photographer with several near-identical shots (a burst, a bracket, three
@@ -81,7 +81,8 @@ compares it with its partner.
 AC6c (R3): `A` makes the other pane active and marks it; `S` is a toggle:
 pressed again it leaves comparison, and `S` once more brings back the same
 pair.
-AC7 (R8): Proposed, pending owner: on the reference Mac (Apple M4 Pro, 24 GB,
+AC7 (R8): Accepted by the owner 2026-11-12 (the hitch count itself is not yet
+measured: the display was asleep during QA, so AC7 stays open, check P3): on the reference Mac (Apple M4 Pro, 24 GB,
 60 Hz display), with two raws of 24 MP (assumed to be the owner's usual size)
 at 100% and both sharp, `compare panbench 6` reports 0 hitches (a hitch is a
 frame over 1.5 refresh intervals), linked and not linked. Until a picture is
@@ -138,28 +139,27 @@ proposed (`design.md` §14 and §15):
     advances the active side; the link switch is remembered across launches;
     one selected photo in the grid compares with its partner.
 
+13. Owner, 2026-11-12, at sign-off (`qa.md` Follow-up): AC7's target is
+    accepted as written (zero hitches while panning two sharp raws at 100%,
+    linked and not linked, on the reference Mac); the owner's usual raw size is
+    24 MP; the long frames when a full-resolution picture arrives (99 to 155 ms)
+    stay outside AC7 for this slice.
+14. Owner, 2026-11-12: known limitation #153 accepted. The attempt to fix it
+    (design D12) was reverted because it broke linked gestures on equal
+    photos. Linked, after zooming in twice with ⌘= and dragging the zoomed
+    photo beside a photo at its fit, the fitted photo's zoom state can flip and
+    `Z` then goes to fit instead of 100%; the next step or `Z` puts both right.
+15. Design rulings D1 to D13 (`design.md` §16) are built, except D12 (reverted).
+    AC6b holds as written: from the loupe, `S` makes the partner on the right
+    active (D3).
+
 ## Assumptions
-Still unconfirmed.
-- The numeric performance target (AC7) is the engineer's measurement, not
-  yet accepted by the owner. Default: accept it as written.
-- "The owner's usual size" is taken as 24 MP, the size measured. Default
-  until the owner gives their cameras' size.
-- AC7 leaves out the 0.1 to 0.16 s of long frames when a full-resolution
-  picture arrives. Default: accepted for this slice; the single loupe does
-  the same, and a fix is its own issue.
-- AC6b: which side the arrows and strip change right after `S` from the loupe
-  depends on design question DQ-3 (designer ruling pending). Proposed,
-  pending owner: when DQ-3 is ruled, AC6b says "the active side" if the left
-  stays active on entering, or keeps "the right photo" if the right pane is
-  made active. Not decided here.
+None outstanding. The earlier ones (AC7's number, the 24 MP size, the arrival
+frames, AC6b's active side) are decided: Decisions 13 and 15.
 
 ## Open questions
-Owner: none; Q1 to Q7 are answered under Decisions.
-Designer: entry points, active marker, key to switch the active photo (note
-bare keys such as C, Z and `\` are taken), film strip behavior, narrow windows.
-Engineer: answered in `status.md` (speed, memory, pairs); see RI-E1 to RI-E3
-and Assumptions above. Owner: accept AC7's number, give the raw size, rule on
-the arrival frames.
+None for the owner. Checks only a person can do are open in `qa.md`
+("For a person") and in issue #82.
 
 ## Revisions
 - 2026-11-11: approved; owner intake defaults recorded as Decisions.
@@ -170,3 +170,6 @@ the arrival frames.
 - 2026-11-11: engineer's RI-E1 and RI-E3 answered as proposals (AC7 now
   carries the measured number and states what it excludes; both marked
   pending owner). RI-E2 left open pending DQ-3.
+- 2026-11-12: Ship. Owner signed off with checks left open; Decisions 13 to 15
+  record AC7's acceptance, the 24 MP size and #153; Assumptions closed. R9 (three
+  or four photos) was not built.

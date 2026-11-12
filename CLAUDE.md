@@ -578,6 +578,38 @@ Cached previews of removed photos stay (#142). Shipped, checks pending: macOS
 15 and 26 (confirmation keys, look) not checked by a person, in #82 and
 `docs/features/library-ops/qa.md`.
 
+Side by side comparison (`docs/features/side-by-side-comparison/`, issue #63,
+branch `feature/side-by-side-comparison`): comparison is a state of the loupe
+(`mode == .loupe` and `LibraryModel.comparison != nil`), also in review mode:
+two different photos in two panes, each with its saved renditions from the same
+`PreviewService` requests as the single loupe. `S` (View ▸ Compare Side by Side
+/ Stop Comparing) enters from two selected photos, one selected photo or the
+loupe's photo with its partner (the one last compared with, else the next
+comparable; the partner is made active); `S` again leaves, and `S` once more
+brings the same pair back (`comparisonMemory`, until the loupe closes). `A`
+switches the active pane. The focus is the active photo and the selection is
+the pair, so culling, keywords, albums, export, the menus and undo act on the
+active photo only; editing, Remove, Paste and Apply Preset are off while
+comparing. Zoom and pan are linked in unit coordinates (`ComparisonLink`; the
+switch is the `compare.linksViews` preference, linked when absent). Arrow keys
+or a film strip click replace the active side's photo; leaving selects the pair
+on screen. Refused with an alert: a video, an offline photo, the two files of
+one RAW+JPEG pair shown separately. The rules are in PhotoCore
+(`Browser/Comparison.swift`, `ActionTargets.swift`), the panes in
+`Loupe/ComparisonView.swift`, `ComparisonCaption.swift`, the model in
+`Model/ComparisonActions.swift`. Debug script: `compare on|off|toggle`,
+`compare active left|right|switch`, `compare link on|off`, `compare animate
+on|off`, `compare panbench`, `compareclick`, `print compare`. `photobench
+compare` renders two photos at full resolution and reports time and memory.
+Two full-resolution pictures are held with no cap. No migration, no
+`PreviewCacheKey` bump, no rendering changed. Three or four photos (R9) not
+built. Known limitation #153: linked, after ⌘= twice and a drag of the zoomed
+photo beside a fitted one, the fitted photo's zoom state can flip and `Z` goes
+to fit instead of 100%. Shipped, checks pending: AC7's hitch count
+(`compare panbench 6`, linked and not, with the display awake), animations,
+real mouse and trackpad, menus with a key window and the alert's keys, looks
+and Full Keyboard Access, in `docs/features/side-by-side-comparison/qa.md`.
+
 Not yet: AI masks, healing, lens corrections (distortion, lens vignetting,
 profiles), DNG export, `.dcp` profiles,
 general (hand-made or burst) stacks, hierarchical
