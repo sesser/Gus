@@ -31,15 +31,23 @@ keyboard without leaving the comparison.
 ## Requirements
 R1 (Must): Two different photos shown side by side in the loupe area, each
 with its normal rendering (saved edits applied, as in the loupe).
-R2 (Must): Entered from a selection of two photos in the grid, and from the
-loupe by choosing a second photo. Also available in review mode.
+R2 (Must): Entered from a selection of two photos in the grid, or of one
+photo (compared with its partner: the photo it was last compared with, else
+the next comparable photo in the source). From the loupe it is entered with
+the loupe's photo and its partner; the second photo is then chosen by
+walking or clicking the film strip (no new gesture on the strip). Entered
+with the new bare key `S` (View ▸ Compare Side by Side). Also available in
+review mode. The two halves of one RAW+JPEG pair (shown as two items) are
+refused with an alert, as are videos and offline photos.
 R3 (Must): Exactly one photo is active, clearly marked. Culling keys (rating,
-flag, label, reject) apply to the active photo only; a way to switch the
-active photo from the keyboard. Changes are saved and undoable as in the loupe.
+flag, label, reject) apply to the active photo only; the bare key `A`
+switches the active photo (cycling to the next pane). Changes are saved and undoable as in the loupe.
 R4 (Must): Zoom (fit and 100%) and pan are linked: moving one moves the
 other to the same image position. Must be switchable to independent.
-R5 (Must): A way to leave comparison back to the single loupe on the active
-photo, with the rest of the window (grid selection, source) as it was.
+R5 (Must): A way to leave comparison (`S` again) back to the single loupe on
+the active photo, with the rest of the window (source, view) as it was. The
+grid selection on leaving is the current pair on screen, not the pair
+selected when comparison began (owner decision, 2026-11-11).
 R6 (Should): Replace either photo with another without leaving (for
 example, advance one side through the source with the arrow keys while the
 other stays).
@@ -58,9 +66,21 @@ other is unchanged; undo reverts it.
 AC3 (R4): Zooming to 100% on one side puts the other side at 100% on the
 same relative point; turning the link off lets them differ.
 AC4 (R5): Leaving comparison returns to the single loupe on the active photo.
+After walking a side, leaving leaves the pair last on screen selected in the
+grid; the source and view are unchanged.
 AC5 (R2): Review mode can enter, use and leave comparison.
-AC6 (R1): Selecting an offline photo or a video with a second photo does not
-enter comparison and says why.
+AC6 (R2): Selecting an offline photo or a video with a second photo does not
+enter comparison and says why, in an alert.
+AC6a (R2): With Group RAW+JPEG Pairs off, selecting the RAW and the JPEG of
+one pair and choosing Compare shows an alert and does not enter comparison.
+With them grouped, a pair is one photo and compares normally.
+AC6b (R2): From the loupe, `S` shows the loupe's photo and its partner;
+walking the right side with the arrow keys or clicking a film strip
+thumbnail replaces the right photo. With one photo selected in the grid, `S`
+compares it with its partner.
+AC6c (R3): `A` makes the other pane active and marks it; `S` is a toggle:
+pressed again it leaves comparison, and `S` once more brings back the same
+pair.
 AC7 (R8): At 100% on two raws of the owner's usual size, panning stays
 responsive (a number to be proposed by the engineer, marked as assumption).
 
@@ -96,6 +116,21 @@ Approved by the owner on 2026-11-11, accepting the proposed defaults.
 7. Picking: select two in the grid; walking one side against the other is a
    Should (R6).
 
+Approved by the owner on 2026-11-11, accepting everything the designer
+proposed (`design.md` §14 and §15):
+8. New bare keys: `S` (Compare Side by Side / Stop Comparing) and `A`
+   (switch the active side).
+9. RI-1: leaving comparison keeps the current pair selected in the grid.
+10. RI-2: the second photo is chosen by entering with a partner, then walking
+    or clicking the film strip; no new gesture on the strip.
+11. RI-3: comparing the two halves of one RAW+JPEG pair is refused with an
+    alert.
+12. Design assumptions accepted: other photo commands (keywords, albums,
+    export, Show in Finder) act on the active photo; Remove from Album and
+    Remove from Library are off while comparing; Advance After Rating
+    advances the active side; the link switch is remembered across launches;
+    one selected photo in the grid compares with its partner.
+
 ## Assumptions
 Still unconfirmed.
 - The numeric performance target (AC7) is not set; the engineer proposes it
@@ -110,3 +145,7 @@ AC7), and how a RAW+JPEG pair resolves.
 
 ## Revisions
 - 2026-11-11: approved; owner intake defaults recorded as Decisions.
+- 2026-11-11: owner approved the designer's keys `S` and `A` and RI-1 to
+  RI-3 defaults (Decisions 8 to 12). R2 and R5 reworded; AC4 and AC6
+  extended, AC6a to AC6c added. Open question to the designer on the switch
+  key is closed.
