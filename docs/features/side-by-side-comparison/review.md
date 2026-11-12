@@ -238,6 +238,71 @@ correctly, in the UI's terms (View ▸ Link Zoom and Position, Zoom to Fit). No 
 
 **Third pass verdict: Approved.** No open design findings. Manual checks M1 to M9 stand.
 
+## Fourth pass: C11 / Q1 and DQ-QA1 (rulings D12, D13)
+
+Reviewer: apple-ui-designer, 2026-11-12. The owner chose to fix C11 on the branch. Read
+against `code-review.md` (third pass, C11), `qa.md` (Q1, DQ-QA1), `ComparisonView.follow`,
+`relink`, `animate`, `ComparisonPane.show(magnification:unitCenter:zoom:)` and
+`ComparisonLink`.
+
+**Verdict: Changes needed (F6, plus a wording fix F7).**
+
+**C11 / Q1, ruled D12 (`design.md` §16): change.** For following, each pane's own result
+replaces C2's shared zoom. A follow changes a pane's zoom state only when it changes that
+pane's magnification. A fitted leader never moves a zoomed-in follower. `Z` and the View menu
+title still follow the active pane's state; I did not adopt "100% while any pane is zoomed
+in", because it would make `Z` on a zoomed photo behave differently from the single loupe.
+
+- **F6 (D12).**
+  1. **PhotoCore.** Add a pure function to `ComparisonLink`, for example
+     `follow(leader: PaneZoom, follower: PaneZoom, maximum: Double) -> PaneZoom?`, where `nil`
+     means "leave the follower as it is: magnification, position and zoom". `leader.isZoomedIn`
+     is the one rule's answer (`isZoomedIn(wasZoomedIn:magnification:fit:)`).
+     - Leader zoomed in: `m = min(max(leader.magnification, follower.fit), max(maximum,
+       follower.fit))`. If `|m − follower.magnification| ≤ tolerance × follower.fit`, return
+       the follower with `m` and its **old** `isZoomedIn`. Otherwise return
+       `isZoomedIn = m > follower.fit × (1 + tolerance)` (tolerance `LoupeZoomSteps.tolerance`,
+       as in `step`).
+     - Leader fitted: a follower with `isZoomedIn` true gives `nil`. A fitted follower gives
+       `follower.fit × max(leader.magnification / leader.fit, 1)`, `isZoomedIn` false (the
+       current C9 formula).
+  2. **`ComparisonView.follow`.** Call it. On `nil`, do nothing to the follower (no `show`, no
+     recentering). Otherwise `show(magnification:unitCenter:zoom:)` with the leader's unit
+     center and `.actualSize` / `.fit` from the result. Its `setZoom` is then the only thing
+     that starts a full-resolution render, so a pane that stays fitted renders nothing new.
+  3. **Walk** (`apply`, the `follow(leader, pane)` for a new photo): pass the new pane as
+     `PaneZoom(magnification: fit, fit: fit, isZoomedIn: false)`, whatever zoom its previous
+     photo had.
+  4. **`relink`.** With a zoomed-in leader, use the same function for the follower instead of
+     an unconditional `setZoom(.actualSize)` (animated as now). Fitted leader: unchanged.
+  5. **Tests** (PhotoCore, `ComparisonTests`):
+     - Q1's case: leader 0.500 zoomed (fit 0.165), follower 1.000 fitted (fit 1.000) gives 1.000
+       **fitted**.
+     - C2's case: leader 1.000 zoomed (fit 0.165), follower 1.000 zoomed (fit 1.000) gives 1.000
+       **zoomed**.
+     - The reverse case: leader 1.03 fitted (fit 1.000), follower 0.500 zoomed (fit 0.165) gives
+       `nil`. The same leader at 1.06, now zoomed, gives the follower 1.06 zoomed.
+     - A zoomed follower brought down to its fit: leader 0.25 zoomed (fit 0.22), follower 0.5
+       zoomed (fit 0.329) gives 0.329 fitted.
+     - Equal fits, both zoomed: unchanged from today.
+  6. **Scripted.** Rerun QA's C11 script. After `pan 300 200`, IMG_00006 should read `1.000
+     zoom fit rendition preview` with menustate `isZoomed: false`, and `Z` should give 1.000 /
+     1.000. Also run `Z`, `pan` and `Z` with equal-size raws (C2), and a walk at 100% (§5 row 4).
+
+**DQ-QA1, ruled D13: accept as built.** Zoom Out's extra stop at the active photo's fit is the
+single loupe's own clamp. It shows the whole active photo, never skips 100%, and every press
+changes something. D11's wording is amended to "retraces through the loupe's steps".
+
+- **F7 (D13, wording).**
+  - In the `ComparisonLink.step` doc comment, say Zoom Out may stop once more at a pane's own
+    fit when that fit is not a step.
+  - In `docs/USER_GUIDE.md` (Comparing two photos), "and ⌘= goes back up through the same
+    sizes" is no longer exact. Change it to "and ⌘= takes them back up". No other term changes.
+
+Manual checks: M2 gains one item for a person. With a raw beside a small JPEG, linked, press
+⌘= twice, then drag the raw. The JPEG must not change, View must still say Zoom to 100%, and
+`Z` must give 100% on both.
+
 ## Follow-ups
 
 None new from this review; the engineer's proposed issues in `status.md` stand, including the

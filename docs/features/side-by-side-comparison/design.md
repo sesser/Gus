@@ -605,6 +605,60 @@ text disagrees, the ruling wins.
   Zoom Out stays as D10 built it (the active pane steps; at its floor, the
   other). `Z`, Fit and clicks are unaffected: `Z` still takes both to 100%
   in one press, which is the fast path to compare sharpness.
+- **D12 (code review C11, QA Q1, 2026-11-12): change. Following never
+  touches a pane that the follow doesn't move.** D10 and D11 leave
+  "mixed" states, with one pane at its own fit and the other zoomed in.
+  C2's "linked panes share the zoom" was written before those states
+  existed and is replaced for following by **each pane's own result**
+  (D10's fifth bullet). A pane's zoom state changes only when something
+  changes that pane. A pan or a small pinch on one photo must not mark the
+  other as zoomed, start its full-resolution render or change what `Z`
+  and the View menu do, when nothing on that photo moved. The rule for a
+  linked follow (pan, scroll, pinch, Option-scroll, the follow at the end
+  of a `Z` / Fit / click animation, a walked photo opening, relinking):
+  1. **Leader zoomed in** (by `ComparisonLink.isZoomedIn`): the follower
+     takes magnification `min(max(leader, followerFit), max(maximum,
+     followerFit))` and the leader's unit center, as now. Its zoom state:
+     **unchanged if its magnification did not change** (within
+     `LoupeZoomSteps.tolerance`). Otherwise it is zoomed in exactly when the
+     new magnification is above its fit by more than that tolerance, and
+     fitted when it is at its fit. Unchanged-stays-unchanged keeps C2: after
+     `Z` both are at 100%, zoomed in, and a pan on the raw leaves the
+     800 × 600 photo at 1.000 still zoomed in, so the next `Z` fits both.
+     It also fixes Q1: the fitted photo stays at 1.000, still fitted.
+  2. **Leader fitted** (including a gesture still under the 5% threshold):
+     a follower that is **zoomed in is left exactly as it is**
+     (magnification, position, zoom state). A fitted follower takes its own
+     fit enlarged by the leader's share over its fit and stays fitted, as
+     C9 has it. A pinch on the fitted photo therefore never zooms the other
+     one out. Once the pinch passes the threshold, rule 1 applies. In a
+     mixed state the zoomed pane's magnification is never above the fitted
+     pane's fit (D10), so it can only go in from there.
+  3. **A newly shown photo** (a walk) counts as at its fit and fitted
+     before rule 1 or 2 applies to it.
+  4. **Relinking** with a zoomed-in active pane uses rule 1 for the
+     inactive one, not an unconditional "zoomed in". With a fitted active
+     pane it sends the other to fit, as §5 says.
+
+  **`Z` and the menu title follow the active pane's state** (§5's first
+  row, D10's fifth bullet, the single loupe's toggle). This is not "100%
+  while any pane is zoomed in". Mixed, with the fitted photo active, `Z`
+  takes both to 100%. With the zoomed photo active, `Z` takes both to fit,
+  just as `Z` on a zoomed photo in the single loupe does. The title always
+  describes what pressing `Z` on the photo the person is working on will
+  do.
+- **D13 (QA DQ-QA1, D11 retracing, 2026-11-12): accept as built; D11's
+  wording is amended.** When the active photo's fit is not one of the
+  loupe's zoom steps, Zoom Out stops once more, at that photo's fit (for
+  example, fits 0.196 active and 0.165: out from 0.250 / 0.250 gives
+  0.196 / 0.196, then 0.196 / 0.165). Zoom In from fit goes straight to the
+  next step (0.250 / 0.250). The extra stop is the single loupe's own
+  behavior: Zoom Out clamps at fit. It shows the whole active photo, never
+  skips 100%, and every press changes something on screen. Removing it
+  would make Zoom Out skip the active photo's fit. Adding it to Zoom In
+  would invent non-step magnifications. Neither is worth the complexity.
+  D11 now reads: Zoom In retraces Zoom Out **through the loupe's steps**;
+  Zoom Out may stop once more at a pane's own fit.
 
 ## References
 
