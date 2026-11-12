@@ -565,7 +565,9 @@ click with a real mouse while a job runs) and P10 (macOS 15 and 26) in
 Library operations (`docs/features/library-ops/`, issue #61): rename a
 project in place (sidebar, File ▸ Rename, row menu; one undo step; catalog
 only, `Catalog/ProjectRename.swift`); File ▸ Remove from Library… (⌘⌫)
-removes the selected photos, either file of a RAW+JPEG pair taking both, and
+removes the selected photos, either file of a RAW+JPEG pair taking both and
+an original taking its virtual copies (a copy removed alone leaves its
+original and the master), and
 Remove Project from Library… removes a project, its photos and its own albums
 and smart albums (`Catalog/LibraryRemoval.swift`: one transaction, all or
 nothing, the sidecar queue paused around it). Both ask first, with no default
@@ -577,6 +579,32 @@ add or card import runs. File ▸ Show in Finder (⇧⌘R) reveals photos' maste
 Cached previews of removed photos stay (#142). Shipped, checks pending: macOS
 15 and 26 (confirmation keys, look) not checked by a person, in #82 and
 `docs/features/library-ops/qa.md`.
+
+Virtual copies (`docs/features/virtual-copies/`, issue #62): File ▸
+Duplicate (⌘D, grid and loupe context menus) makes a copy of each selected
+photo, one undo step: a new `version` of the same master with the original's
+edit stack, rating, flag, label, keywords and albums, then independent
+(`Catalog.duplicateVersion`; the edit history starts empty). The copy is its
+own item in the grid, loupe, film strip and review mode, marked as a copy,
+placed right after its original when made and afterwards sorted by its own
+values, counted wherever photos are, unpaired (a RAW+JPEG pair's copy is of
+one file) and stackless. Catalog only: a copy's changes queue no sidecar and
+no `.xmp` is written for it, because the triggers fire for a master's default
+version only; the descriptive Info fields live on `image` and so are shared
+with the original (and queue its sidecar), and keyword suggestions are per
+master. Removing a copy removes only that version (the confirmation says the
+original is not affected); removing an original takes its copies, and the
+confirmation counts them. Export renders the copy's edits and names it with a
+"copy" suffix ("IMG_0412 copy.jpg", "copy 2"…) so it never collides with its
+original. Videos are not duplicated (a mixed selection skips them and
+Activity counts them). No migration and no pipeline bump; no rendering
+changed. Not built: naming a copy, making it the default version
+(`copy-name-and-default`), `photocli duplicate`. Shipped, checks pending: P1
+to P5 (menu enablement in a key window, the copy mark at its sizes, the loupe
+badge tooltip, scroll position on Duplicate, undo and redo, Changed on Disk
+for a copy) in #82 and `docs/features/virtual-copies/qa.md`. Known: Remove
+from Library right after undoing a large Duplicate asks about copies already
+gone and clears the undo stack (QA Q1).
 
 Not yet: AI masks, healing, lens corrections (distortion, lens vignetting,
 profiles), DNG export, `.dcp` profiles,

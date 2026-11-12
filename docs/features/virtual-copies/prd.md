@@ -2,7 +2,7 @@ Issue: #62
 
 # Virtual copies
 
-Status: Approved (owner, 2026-11-11)
+Status: Shipped, checks pending, 2026-11-12 (owner sign-off 2026-11-12; open checks P1 to P5 in [qa.md](qa.md))
 Slug: virtual-copies
 Roadmap: Next
 
@@ -62,17 +62,20 @@ D10 (RI-E2, product manager, 2026-11-11): the narrowing of library-ops R6 follow
 D11 (RI-E4, product manager, 2026-11-11): a copy made in a list whose rule it fails stays visible until the next read, the same as a photo culled out of a filter today. Consistent with existing behavior; R11 is a Could.
 D12 (RI-E3, product manager, 2026-11-11): `photocli duplicate` and `photobench` copies stay out (R1 to R11 do not need them; the PRD called the command a Could). `photocli export` naming a copy's file in plain English ("IMG_0412 copy.jpg") is accepted: the CLI has no String Catalog. Follow-up issues `copy-name-and-default` and `photocli-duplicate` proposed.
 
-## Proposed, pending owner
-P2 (RI-C1, pending owner): Descriptive Info fields (title, description, copyright, usage terms, creator details) belong to the photo, not the copy: they live on the image and are shared by the original and its copies. Editing one with only a copy selected changes what the original shows, and, because those fields sync to the original's sidecar, queues the original's sidecar. This is the one exception to R7 ("a copy's changes queue nothing"); R7 and AC7 cover adjustments, rating, flag, label, keywords and albums. The user guide and the copy's mark say which values are shared. Recommended default: accept (a); making them per copy needs a migration and a rule for which copy's values reach the sidecar and export, which is a feature of its own. Not confirmed by the owner.
-P3 (RI-C2, pending owner): Keyword suggestions are per master. Accepting or dismissing a suggestion on a copy marks it accepted or dismissed for the master, so the original is no longer offered it; the keyword itself goes to the copy only (R4 holds). Recommended default: accept for this feature; suggestions are a hint, and the user can still type the keyword on the original. Not confirmed by the owner.
-P1 (RI-V1, pending owner): Videos are not duplicated. A video has no adjustments, so its copy could differ only in culling, keywords and albums. Duplicate is unavailable when no target is a photo; videos in a mixed selection are skipped and counted in Activity. Not confirmed by the owner; if the answer is yes, only the designer's photo rule, the video loupe line and the Activity row change. This reads R1's "each selected photo" as photos only.
+## Decisions from the owner at sign-off (2026-11-12)
+All three proposals below were accepted as recommended. They are decisions now: D13 = P1, D14 = P2, D15 = P3.
+
+P2 (RI-C1, D14, accepted): Descriptive Info fields (title, description, copyright, usage terms, creator details) belong to the photo, not the copy: they live on the image and are shared by the original and its copies. Editing one with only a copy selected changes what the original shows, and, because those fields sync to the original's sidecar, queues the original's sidecar. This is the one exception to R7 ("a copy's changes queue nothing"); R7 and AC7 cover adjustments, rating, flag, label, keywords and albums. The user guide and the copy's mark say which values are shared. Recommended default: accept (a); making them per copy needs a migration and a rule for which copy's values reach the sidecar and export, which is a feature of its own. Confirmed by the owner 2026-11-12.
+P3 (RI-C2, D15, accepted): Keyword suggestions are per master. Accepting or dismissing a suggestion on a copy marks it accepted or dismissed for the master, so the original is no longer offered it; the keyword itself goes to the copy only (R4 holds). Recommended default: accept for this feature; suggestions are a hint, and the user can still type the keyword on the original. Confirmed by the owner 2026-11-12.
+P1 (RI-V1, D13, accepted): Videos are not duplicated. A video has no adjustments, so its copy could differ only in culling, keywords and albums. Duplicate is unavailable when no target is a photo; videos in a mixed selection are skipped and counted in Activity. Confirmed by the owner 2026-11-12. This reads R1's "each selected photo" as photos only.
 
 ## Open questions
-Owner: P1 (videos), P2 (descriptive fields), P3 (suggestions). R10's deferral (D9) is for the owner to know about; it is filed as a follow-up.
+None for the owner. R10's deferral (D9) is filed as a follow-up. Open manual checks P1 to P5 are in [qa.md](qa.md) and the standing issue #82. Known and left unfixed by the owner: QA Q1 (Remove from Library right after undoing Duplicate asks about copies already gone and clears undo), filed as a follow-up bug.
 
 ## Revisions
 - 2026-11-11, from design.md section 13: R5 sort wording (RI-V2); AC5 counts wording (RI-V3); R10 marked deferred (D9); videos recorded as proposed default P1, pending owner (RI-V1).
 - 2026-11-11, from the code review and status.md: R6 states the narrowing of library-ops R6 (RI-E2, D10); R11 notes stickiness (RI-E4, D11); D12 records RI-E3; P2 and P3 added, pending owner (RI-C1, RI-C2). C1 (crash on duplicate ids) is a bug in the branch, not a requirements matter.
+- 2026-11-12, Ship: owner accepted P1, P2, P3 as D13, D14, D15; status set to Shipped, checks pending.
 
 Designer: where Duplicate lives, how a copy is marked, how it is named in the grid and in file names.
 Engineer: does the grid query list non-default versions today; how Remove from Library finds a copy's pair partner (`LibraryRemovalTests` already duplicate a version); what duplicate does to an unreadable stack; whether an offline photo can be duplicated (proposed: yes, catalog only).

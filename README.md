@@ -34,6 +34,10 @@ I built this with Claude. AI did the work, I did the orchestration.
 - MOV, MP4 and M4V videos, catalogued and played alongside photos
 - A film strip under the photo in the loupe, to see and click through the
   photos around it
+- Make a copy of a photo (File ▸ Duplicate, ⌘D) and edit it on its own: the
+  copy has its own edits, rating, flag, label, keywords and albums, starting
+  from the original's, and the original never changes. Copies are kept in the
+  library only, never in sidecars
 - Rename a project in place, show photos or a project's folder in the
   Finder (⇧⌘R), and remove photos or a whole project from the library
   (⌘⌫ and Remove Project from Library). Removing changes the catalog only:
