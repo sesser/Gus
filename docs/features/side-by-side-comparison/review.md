@@ -181,6 +181,45 @@ the comparison on the remaining photo, as any other departure from the source do
 Manual checks: unchanged (M1 to M9); M3's last sentence now also covers the animation into
 the right pane, which nobody has seen yet.
 
+## Third pass
+
+Reviewer: apple-ui-designer, 2026-11-12. Branch at `222e274` ("second-pass fixes"), read
+against `design.md` §5 and §16 (D10, and D11 below), `status.md` "Second pass". Code read
+(`ComparisonLink.step` in `Sources/PhotoCore/Browser/Comparison.swift`,
+`ComparisonView.stepZoom`, `publishZoom`, `setZoom`, `PhotoContextMenu`, `LibraryCommands`)
+and the tests in `ComparisonTests`; not built or run.
+
+**Verdict: Changes needed (one, small).** F4 matches D10. The engineer's note on Zoom In is
+ruled D11, a change (F5).
+
+| Check | Where | Result |
+|---|---|---|
+| F4 / D10: a step is a magnification; fits 1.000 and 0.290 from 2.000 give 1.000 / 1.000, 1.000 / 0.500, 1.000 / 0.290, then Zoom Out dimmed; the same with the other photo active | `ComparisonLink.step` (active pane first, then the other when the active can't; each pane at its fit only below it); test `aLinkedZoomOutStepNeverSkips100PercentOnOneSide`; engineer's scripted run (fits 1.000 / 0.489) | Pass |
+| Each pane's zoom state is its own result (fit at its fit, zoomed above) | `step` returns `isZoomedIn` per pane; `stepZoom` sets `.fit` / `.actualSize` per pane | Pass |
+| Menu bar Zoom In / Zoom Out enabled from the same rule | `publishZoom` computes `canZoomIn` / `canZoomOut` with `ComparisonLink.step`; `LibraryCommands` reads `loupeZoom` | Pass |
+| Pane context menu follows it (items left out when they can't act, as §4 asks of context menus) | `PhotoContextMenu` lists Zoom In / Out from `loupeZoom` | Pass; scripted: no Zoom Out at 1.000 / 0.489 |
+| `Z`, Fit, click keep both panes at their own fit | `setZoom` applies `.fit` to every reached pane (`applyZoom`), `follow` for fit sends the follower to `.fit`; steps no longer pass a leader, so C2's rule is used only by fit commands | Pass |
+| Unlinked: a step reaches the active pane alone, as the single loupe | `reached(by:)`; test `anUnlinkedStepIsTheLoupes` | Pass |
+
+**The engineer's note (linked ⌘= from 1.000 / 0.290 lands on 2.000 for both): not
+acceptable; ruled D11 (`design.md` §16), change.** It meets §5's letter (both take the same
+magnification) but breaks the reason D10 gave: 100% is where people compare sharpness, and a
+step must never skip it on one side. Here the other photo goes from fit to 200% in one press
+(about 7×), passing 100%, and ⌘= then ⌘− doesn't return where it started (2/2 → 1/1, not
+1/0.29), so the two commands stop being inverses, which keyboard users rely on. The single
+loupe from fit 0.290 would step to 0.500.
+
+- **F5 (D11).** In `ComparisonLink.step`, for Zoom In while linked, land on the smallest of the
+  panes' next `LoupeZoomSteps.zoomIn` targets rather than the active pane's; the rest is
+  unchanged (each pane takes it, at its own fit when below). Zoom Out unchanged. `canZoomIn`
+  follows automatically. Tests: from 1.000 / 0.290 (either side active) ⌘= gives 1.000 / 0.500,
+  1.000 / 1.000, 2.000 / 2.000; update `aLinkedZoomInStepTakesBothToTheSameMagnification`
+  (its first case, both at 1.000, still gives 2.000 / 2.000; its `mixed` case already gives
+  1.000 / 0.500). A scripted check like the second pass's: `Z` to fit, `zoomstep in` three
+  times reads 1.000 / 0.500 (0.489 fit: 1.000 / 0.500), 1.000 / 1.000, 2.000 / 2.000.
+
+Manual checks: unchanged (M1 to M9). No USER_GUIDE term changes.
+
 ## Follow-ups
 
 None new from this review; the engineer's proposed issues in `status.md` stand, including the

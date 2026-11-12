@@ -589,6 +589,22 @@ text disagrees, the ruling wins.
   ⌘− gives 1.000 / 1.000; each further ⌘− leaves the active pane at 1.000
   and takes the other through the loupe's zoom steps below 1.000
   (`LoupeZoomSteps`) down to 0.290; then Zoom Out is dimmed.
+- **D11 (engineer's note on linked ⌘= after D10, 2026-11-12): change.**
+  D10's reason applies to Zoom In as well: a step must never skip 100% on
+  one side. As built, ⌘= takes its step from the active pane, so with the
+  active photo at fit 1.000 and the other at fit 0.290, ⌘= takes the other
+  from 0.290 to 2.000 in one press (about 7×), passing 100% on that side.
+  §5's "both take the same magnification" holds for the result of a step,
+  not for which pane chooses it. Rule: **while linked, Zoom In lands on the
+  nearest next step of any pane** (the smallest of the panes' next
+  `LoupeZoomSteps` above their current magnification); every pane takes
+  that magnification and stays at its own fit when it is below its fit,
+  exactly as D10. So Zoom In retraces Zoom Out: from 1.000 / 0.290, ⌘=
+  gives 1.000 / 0.500, then 1.000 / 1.000, then 2.000 / 2.000. When the
+  panes are at the same magnification (the usual case) nothing changes.
+  Zoom Out stays as D10 built it (the active pane steps; at its floor, the
+  other). `Z`, Fit and clicks are unaffected: `Z` still takes both to 100%
+  in one press, which is the fast path to compare sharpness.
 
 ## References
 
