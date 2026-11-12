@@ -5,7 +5,9 @@ import SwiftUI
 
 /// Single-photo view: the AppKit canvas (or the video loupe), the film strip
 /// (section 11 of docs/UI_REDESIGN.md), which review mode never shows, and
-/// the caption at the bottom edge.
+/// the caption at the bottom edge. While comparing
+/// (docs/features/side-by-side-comparison) two panes take the canvas's
+/// place and the caption is split at their seam.
 struct LoupeView: View {
     let model: LibraryModel
     /// The loupe's whole height, for the strip's height cap.
@@ -16,17 +18,31 @@ struct LoupeView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // A video whose original is offline shows its cached poster frame instead.
-            if let item = model.focusedItem, item.isVideo, let url = model.sourceURL(for: item) {
-                VideoLoupe(model: model, url: url)
-                    .id(item.versionID)
-            } else {
-                LoupeCanvas(model: model)
+            ZStack {
+                if !model.isComparing {
+                    // A video whose original is offline shows its cached poster frame instead.
+                    if let item = model.focusedItem, item.isVideo, let url = model.sourceURL(for: item) {
+                        VideoLoupe(model: model, url: url)
+                            .id(item.versionID)
+                    } else {
+                        LoupeCanvas(model: model)
+                    }
+                }
+                // Over the single loupe for the moment its active photo
+                // refits to the whole loupe (design §2 "Leaving").
+                if model.isComparing || model.comparisonLeaving != nil {
+                    ComparisonCanvas(model: model)
+                        .allowsHitTesting(model.isComparing)
+                }
             }
             if stripPresence.isPresent {
                 filmStrip
             }
-            LoupeCaption(model: model)
+            if model.isComparing {
+                ComparisonCaption(model: model)
+            } else {
+                LoupeCaption(model: model)
+            }
         }
         .background(Color(nsColor: Palette.loupeBackground))
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
@@ -99,15 +115,9 @@ struct LoupeCanvas: NSViewRepresentable {
 final class LoupeController: NSObject {
     enum Zoom { case fit, actualSize }
 
-    /// What the image view shows, from least to most detailed. A load only
-    /// replaces a lesser rendition, so a slow SDR preview never hides an HDR one.
-    /// Live frames of an edit in progress outrank them all.
-    private enum Rendition: Int, Comparable {
-        case placeholder, preview, hdrPreview, full, hdrFull, live
-
-        static func < (lhs: Rendition, rhs: Rendition) -> Bool { lhs.rawValue < rhs.rawValue }
-        var isHDR: Bool { self == .hdrPreview || self == .hdrFull }
-    }
+    /// What the image view shows (`LoupeRendition`, shared with the
+    /// comparison's panes).
+    private typealias Rendition = LoupeRendition
 
     let model: LibraryModel
     let hostView = LoupeHostView()
@@ -1035,6 +1045,11 @@ final class LoupeController: NSObject {
             model.crop()
             return true
         }
+        // S: the loupe's photo beside its partner (side-by-side-comparison design §3).
+        if ComparisonKey.isCompare(event) {
+            model.toggleComparison()
+            return true
+        }
         switch NavigationKey.from(event) {
         case .left, .up: model.moveFocus(by: -1)
         case .right, .down: model.moveFocus(by: 1)
@@ -1239,6 +1254,12 @@ final class LoupeScrollView: NSScrollView {
     private var lastPick: TimeInterval?
     /// Called with the zoom factor of an Option-scroll and the pointer in window coordinates.
     var onZoomScroll: ((CGFloat, NSPoint) -> Void)?
+    /// A mouse-down arrived: a comparison pane that was not the active one
+    /// becomes it and answers true, and that click then does nothing more
+    /// (side-by-side-comparison design §5); a drag from it still pans.
+    var onActivate: (() -> Bool)?
+    /// The click in progress only made its pane active.
+    private var clickOnlyActivated = false
     /// How far the mouse moves before a click becomes a drag, in points.
     private static let dragThreshold: CGFloat = 3
     private var downLocation: NSPoint?
@@ -1265,6 +1286,7 @@ final class LoupeScrollView: NSScrollView {
         downLocation = nil
         switch event.clickCount {
         case 1:
+            clickOnlyActivated = onActivate?() ?? false
             downLocation = event.locationInWindow
             // The outline shows the pixel a click from here would take (R22).
             if isPicking?() == true { onPointerMoved?(event.locationInWindow) }
@@ -1311,6 +1333,7 @@ final class LoupeScrollView: NSScrollView {
             return
         }
         guard let down = downLocation, let point = documentView?.convert(down, from: nil) else { return }
+        if clickOnlyActivated { return }
         if isPicking?() == true {
             lastPick = event.timestamp
             onPick?(point)
@@ -1429,7 +1452,7 @@ extension LoupeCaption {
 }
 
 /// A small outlined text badge.
-private struct CaptionBadge: View {
+struct CaptionBadge: View {
     let title: String
     let help: String
 

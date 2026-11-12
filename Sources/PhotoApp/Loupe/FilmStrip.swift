@@ -148,6 +148,8 @@ final class FilmStripController: NSObject, NSCollectionViewDataSource, LibraryIt
     let handle = FilmStripHandleView()
     /// The index drawn as focused.
     private var shownFocus: Int?
+    /// The cells drawn as compared (side-by-side-comparison design §7).
+    private var shownCompared: [Int: ComparisonSide] = [:]
     private var shownWidth: CGFloat = 0
     private var clipObserver: (any NSObjectProtocol)?
 
@@ -207,6 +209,7 @@ final class FilmStripController: NSObject, NSCollectionViewDataSource, LibraryIt
             MainActor.assumeIsolated { self?.widthDidChange() }
         }
         shownFocus = model.focusIndex
+        shownCompared = comparedCells
         slidesIn = presence.takeSlideIn()
         presence.controller = self
         model.addObserver(self)
@@ -288,7 +291,18 @@ final class FilmStripController: NSObject, NSCollectionViewDataSource, LibraryIt
 
     private func configure(_ cell: FilmStripCell, at index: Int) {
         let item = model.items[index]
-        cell.configure(with: item, model: model, isFocused: index == model.focusIndex, pixelSize: pixelSize)
+        cell.configure(with: item, model: model, isFocused: index == model.focusIndex,
+                       comparedSide: model.comparison?.side(of: item.versionID), pixelSize: pixelSize)
+    }
+
+    /// The compared photos' cells and their sides; empty while not comparing.
+    private var comparedCells: [Int: ComparisonSide] {
+        guard let comparison = model.comparison else { return [:] }
+        var cells: [Int: ComparisonSide] = [:]
+        for side in ComparisonSide.allCases {
+            if let index = model.indexOfVersion(comparison[side]) { cells[index] = side }
+        }
+        return cells
     }
 
     private func refreshVisibleCells(where test: (Int) -> Bool = { _ in true }) {
@@ -311,6 +325,12 @@ final class FilmStripController: NSObject, NSCollectionViewDataSource, LibraryIt
 
     func focus(_ index: Int) {
         guard model.items.indices.contains(index), index != model.focusIndex else { return }
+        // While comparing: the photo goes into the active side, or its side
+        // becomes active (design §7).
+        if model.isComparing {
+            model.comparisonStripClick(index)
+            return
+        }
         model.setFocus(index)
         model.announceLoupePhoto()
     }
@@ -320,6 +340,7 @@ final class FilmStripController: NSObject, NSCollectionViewDataSource, LibraryIt
     func libraryItemsReloaded() {
         collectionView.reloadData()
         shownFocus = model.focusIndex
+        shownCompared = comparedCells
         recenter(animated: false)
     }
 
@@ -329,9 +350,14 @@ final class FilmStripController: NSObject, NSCollectionViewDataSource, LibraryIt
 
     func libraryFocusChanged() {
         let previous = shownFocus
+        let previousCompared = shownCompared
         shownFocus = model.focusIndex
+        shownCompared = comparedCells
+        if previous != shownFocus || previousCompared != shownCompared {
+            let changed = Set(previousCompared.keys).union(shownCompared.keys)
+            refreshVisibleCells { $0 == previous || $0 == self.shownFocus || changed.contains($0) }
+        }
         if previous != shownFocus {
-            refreshVisibleCells { $0 == previous || $0 == self.shownFocus }
             NSAccessibility.post(element: collectionView, notification: .selectedChildrenChanged)
         }
         // A held arrow key jumps, so the strip keeps up with it.

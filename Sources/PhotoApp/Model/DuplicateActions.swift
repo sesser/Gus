@@ -30,9 +30,11 @@ extension LibraryModel {
     /// Duplicate has photos to act on and may start (design §4.1): not while
     /// a crop is being edited (unsaved state, as with Rotate), and one at a
     /// time. Imports and exports do not block it; a removal does, since it
-    /// may take the targets.
+    /// may take the targets. Not while two photos are compared
+    /// (side-by-side-comparison design §16 D14): Duplicate moves the focus
+    /// to the copy, and the comparison's focus is its active photo.
     var canDuplicateTargets: Bool {
-        !isDuplicating && !isRemoving && editor.cropSession == nil
+        !isDuplicating && !isRemoving && editor.cropSession == nil && !isComparing
             && DuplicateTargets.canDuplicate(actionTargets.lazy.map { self.items[$0] })
     }
 

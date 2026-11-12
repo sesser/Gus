@@ -1,3 +1,4 @@
+import AppKit
 import Testing
 @testable import PhotoCore
 
@@ -83,6 +84,41 @@ struct PaletteContrastTests {
     @Test func theLoupeSurroundIsTheSameDarkGrayEverywhere() {
         for appearance in PaletteAppearance.allCases {
             #expect(color(.loupeBackground, appearance) == .gray(0.09))
+        }
+    }
+
+    /// The comparison's active ring against the loupe's surround
+    /// (side-by-side-comparison design §16 D2): 3:1 in every appearance, the
+    /// figure for a non-text element; Increase Contrast's answer is the
+    /// ring's 3 pt width. The ring's colors are the system's, so they are
+    /// resolved here: the neutral one it takes while the window is not key,
+    /// and the accent color. A test can't choose the accent setting (the
+    /// system reads it once per process), so it checks the accent as this
+    /// Mac has it set, and the system's eight named colors as the nearest
+    /// stand-ins for the other settings; the lowest of them all measured
+    /// 4.47:1. Dark appearances only: the library window is always dark.
+    @Test(arguments: [PaletteAppearance.dark, .darkContrast])
+    @MainActor func theComparisonRingStandsOutOnTheSurround(_ appearance: PaletteAppearance) throws {
+        let needed = 3.0
+        let surround = color(.loupeBackground, appearance)
+        let system = try #require(NSAppearance(named: appearance.increasesContrast ? .accessibilityHighContrastDarkAqua
+                                                                                   : .darkAqua))
+        let colors: [(String, NSColor)] = [
+            ("accent", .controlAccentColor), ("neutral", .secondaryLabelColor), ("blue", .systemBlue),
+            ("purple", .systemPurple), ("pink", .systemPink), ("red", .systemRed), ("orange", .systemOrange),
+            ("yellow", .systemYellow), ("green", .systemGreen), ("graphite", .systemGray),
+        ]
+        for (name, dynamic) in colors {
+            var resolved: NSColor?
+            system.performAsCurrentDrawingAppearance { resolved = dynamic.usingColorSpace(.sRGB) }
+            let value = try #require(resolved)
+            let ring = PaletteColor(Double(value.redComponent), Double(value.greenComponent), Double(value.blueComponent),
+                                    alpha: Double(value.alphaComponent)).over(surround)
+            let ratio = ring.contrast(with: surround)
+            #expect(ratio >= needed, "\(name) ring on the surround in \(appearance): \(ratio)")
+            if ProcessInfo.processInfo.environment["PALETTE_REPORT"] != nil {
+                print(String(format: "ring %@ in %@: %.2f:1", name, "\(appearance)", ratio))
+            }
         }
     }
 

@@ -78,6 +78,15 @@ struct LibraryMenuState: Equatable {
     var loupeZoom: LoupeZoomState
     var showsInspector: Bool
     var isReviewing: Bool
+    /// The loupe shows two photos side by side
+    /// (docs/features/side-by-side-comparison): nothing edits a photo then,
+    /// and nothing takes one out from under the comparison.
+    var isComparing: Bool
+    /// The comparison's active pane; nil while not comparing.
+    var comparisonActive: ComparisonSide?
+    var linksComparison: Bool
+    /// View ▸ Compare Side by Side / Stop Comparing (`ComparisonRules.canToggle`).
+    var canCompare: Bool
     /// The loupe's film strip is on (review hides it without changing this).
     var showsFilmStrip: Bool
     var inspectorTab: InspectorTab
@@ -195,6 +204,10 @@ struct LibraryMenuState: Equatable {
         loupeZoom = model.loupeZoom
         showsInspector = model.showsInspector
         isReviewing = model.isReviewing
+        isComparing = model.isComparing
+        comparisonActive = model.comparison?.active
+        linksComparison = model.linksComparison
+        canCompare = model.canToggleComparison
         showsFilmStrip = model.showsFilmStrip
         inspectorTab = model.inspectorTab
         historyIsOpen = model.historyIsOpen

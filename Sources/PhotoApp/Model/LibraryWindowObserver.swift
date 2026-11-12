@@ -84,12 +84,13 @@ final class LibraryWindowObserver {
         return find(pane)
     }
 
-    /// The grid, the loupe canvas, or a view inside the video loupe (AVKit
-    /// gives the keyboard to a view of its own).
+    /// The grid, the loupe canvas, the comparison's panes, or a view inside
+    /// the video loupe (AVKit gives the keyboard to a view of its own).
     static func isBrowser(_ responder: NSResponder?) -> Bool {
         var view = responder as? NSView
         while let current = view {
-            if current is PhotoCollectionView || current is LoupeHostView || current is VideoLoupeHostView { return true }
+            if current is PhotoCollectionView || current is LoupeHostView || current is VideoLoupeHostView
+                || current is ComparisonHostView { return true }
             view = current.superview
         }
         return false

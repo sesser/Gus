@@ -2320,6 +2320,28 @@
         }
       }
     },
+    "Can’t Compare These Photos" : {
+      "comment" : "Alert title: Compare Side by Side was refused",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can’t Compare These Photos"
+          }
+        }
+      }
+    },
+    "Can’t Compare This Photo" : {
+      "comment" : "Alert title: there is nothing to compare the photo with",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can’t Compare This Photo"
+          }
+        }
+      }
+    },
     "Capture Date" : {
       "comment" : "Smart album rule field and template token",
       "localizations" : {
@@ -3021,6 +3043,39 @@
         }
       }
     },
+    "Compare" : {
+      "comment" : "Toolbar item: compare two photos side by side",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compare"
+          }
+        }
+      }
+    },
+    "Compare Side by Side" : {
+      "comment" : "View menu and context menus (S): show two photos side by side in the loupe",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compare Side by Side"
+          }
+        }
+      }
+    },
+    "Compare two photos side by side" : {
+      "comment" : "Tooltip of the toolbar's Compare item",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compare two photos side by side"
+          }
+        }
+      }
+    },
     "Compare with the original (\\)" : {
       "comment" : "Adjust tab button tooltip; the key in parentheses toggles it",
       "localizations" : {
@@ -3028,6 +3083,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Compare with the original (\\)"
+          }
+        }
+      }
+    },
+    "Comparing %@ and %@. Left photo active." : {
+      "comment" : "VoiceOver, on entering comparison: the two photos' names",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comparing %1$@ and %2$@. Left photo active."
+          }
+        }
+      }
+    },
+    "Comparing %@ and %@. Right photo active." : {
+      "comment" : "VoiceOver, on entering comparison with the right photo active: the two photos' names",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comparing %1$@ and %2$@. Right photo active."
+          }
+        }
+      }
+    },
+    "Comparing · %@" : {
+      "comment" : "Window subtitle while comparing two photos; the source's name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comparing · %@"
           }
         }
       }
@@ -6173,6 +6261,50 @@
         }
       }
     },
+    "Left photo" : {
+      "comment" : "VoiceOver: the comparison's left pane, or its photo's film strip cell",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Left photo"
+          }
+        }
+      }
+    },
+    "Left photo active: %@" : {
+      "comment" : "VoiceOver, after switching sides: the photo's name and culling values",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Left photo active: %@"
+          }
+        }
+      }
+    },
+    "Left photo, active" : {
+      "comment" : "VoiceOver: the comparison's left pane while it is the active one",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Left photo, active"
+          }
+        }
+      }
+    },
+    "Left photo: %@" : {
+      "comment" : "VoiceOver, after the left side moved to another photo: the loupe's announcement of it",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Left photo: %@"
+          }
+        }
+      }
+    },
     "Length" : {
       "comment" : "Export window: edge length field",
       "localizations" : {
@@ -6235,6 +6367,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Linear Gradient"
+          }
+        }
+      }
+    },
+    "Link Zoom and Position" : {
+      "comment" : "View menu, pane context menu and the caption toggle's label: both compared photos zoom and scroll together",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Link Zoom and Position"
           }
         }
       }
@@ -6532,6 +6675,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Magentas"
+          }
+        }
+      }
+    },
+    "Make Active" : {
+      "comment" : "VoiceOver action on the comparison's inactive pane",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Make Active"
           }
         }
       }
@@ -7377,6 +7531,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "None"
+          }
+        }
+      }
+    },
+    "Not Available While Comparing" : {
+      "comment" : "Adjust tab while two photos are compared: title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not Available While Comparing"
           }
         }
       }
@@ -9248,6 +9413,50 @@
         }
       }
     },
+    "Right photo" : {
+      "comment" : "VoiceOver: the comparison's right pane, or its photo's film strip cell",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Right photo"
+          }
+        }
+      }
+    },
+    "Right photo active: %@" : {
+      "comment" : "VoiceOver, after switching sides: the photo's name and culling values",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Right photo active: %@"
+          }
+        }
+      }
+    },
+    "Right photo, active" : {
+      "comment" : "VoiceOver: the comparison's right pane while it is the active one",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Right photo, active"
+          }
+        }
+      }
+    },
+    "Right photo: %@" : {
+      "comment" : "VoiceOver, after the right side moved to another photo: the loupe's announcement of it",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Right photo: %@"
+          }
+        }
+      }
+    },
     "Rotate" : {
       "comment" : "Undo action name: a quarter turn",
       "localizations" : {
@@ -10357,6 +10566,17 @@
         }
       }
     },
+    "Stop Comparing" : {
+      "comment" : "View menu, context menu, VoiceOver action and Adjust tab button (S): back to the single loupe",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop Comparing"
+          }
+        }
+      }
+    },
     "Stop Export" : {
       "comment" : "File menu (⌘.): stops the running export",
       "localizations" : {
@@ -10397,6 +10617,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Stop and Quit"
+          }
+        }
+      }
+    },
+    "Stop comparing to adjust the active photo." : {
+      "comment" : "Adjust tab while two photos are compared",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop comparing to adjust the active photo."
           }
         }
       }
@@ -10529,6 +10760,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Switch between the grid and a single photo"
+          }
+        }
+      }
+    },
+    "Switch to Left Photo" : {
+      "comment" : "View menu (A): makes the left photo of the comparison the active one",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Switch to Left Photo"
+          }
+        }
+      }
+    },
+    "Switch to Right Photo" : {
+      "comment" : "View menu (A): makes the right photo of the comparison the active one",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Switch to Right Photo"
           }
         }
       }
@@ -10786,6 +11039,17 @@
         }
       }
     },
+    "The original of “%@” is offline. Connect “%@” to compare it." : {
+      "comment" : "Alert: Compare Side by Side on an offline photo; its file name, then its volume's name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The original of “%1$@” is offline. Connect “%2$@” to compare it."
+          }
+        }
+      }
+    },
     "The originals and their files are not affected. The copies' edits are lost, along with their ratings, keywords and albums. You can't undo this action." : {
       "comment" : "Photo removal confirmation: every photo is a copy made with Duplicate",
       "localizations" : {
@@ -10902,6 +11166,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "There is nothing to export."
+          }
+        }
+      }
+    },
+    "There’s no other photo in “%@” that can be compared with it." : {
+      "comment" : "Alert: Compare Side by Side with no second photo; the source's name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There’s no other photo in “%@” that can be compared with it."
           }
         }
       }
@@ -11317,6 +11592,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Unflagged"
+          }
+        }
+      }
+    },
+    "Unlink Zoom and Position" : {
+      "comment" : "VoiceOver action on a comparison pane",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlink Zoom and Position"
           }
         }
       }
@@ -11766,6 +12052,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Zoom Out"
+          }
+        }
+      }
+    },
+    "Zoom and position linked" : {
+      "comment" : "VoiceOver: the comparison's link was turned on",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zoom and position linked"
+          }
+        }
+      }
+    },
+    "Zoom and position not linked" : {
+      "comment" : "VoiceOver: the comparison's link was turned off",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zoom and position not linked"
+          }
+        }
+      }
+    },
+    "Zoom and scroll both photos together" : {
+      "comment" : "Tooltip of the comparison's link toggle while not linked: what a click will do",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zoom and scroll both photos together"
+          }
+        }
+      }
+    },
+    "Zoom and scroll each photo on its own" : {
+      "comment" : "Tooltip of the comparison's link toggle while linked: what a click will do",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zoom and scroll each photo on its own"
           }
         }
       }
@@ -12261,6 +12591,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ƒ/%@"
+          }
+        }
+      }
+    },
+    "“%@” and “%@” are the RAW and JPEG files of one photo." : {
+      "comment" : "Alert: Compare Side by Side on the two files of a RAW+JPEG pair; the RAW's file name, then the JPEG's",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%1$@” and “%2$@” are the RAW and JPEG files of one photo."
+          }
+        }
+      }
+    },
+    "“%@” is a video. Only photos can be compared." : {
+      "comment" : "Alert: Compare Side by Side on a video; its file name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” is a video. Only photos can be compared."
           }
         }
       }

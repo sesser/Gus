@@ -456,6 +456,30 @@ final class LibraryModel {
     var showsSidebar = true
     /// Review mode (View ▸ Enter Review, F) and the layout it goes back to.
     var review = ReviewSession()
+    /// Side by side comparison (docs/features/side-by-side-comparison): a
+    /// state of the loupe, nil while it shows one photo. The focus follows
+    /// its active photo and the selection is its two photos. Changed only by
+    /// `ComparisonActions` and by a reload (`apply`).
+    var comparison: ComparisonState?
+    /// The comparison just left, while its active photo refits to the whole
+    /// loupe (design §2 "Leaving"): the comparison's view stays for that
+    /// animation and clears this. View state only; no command reads it.
+    var comparisonLeaving: ComparisonState?
+    /// The pane the loupe's photo refits into when the next comparison is
+    /// shown (entered from the loupe); nil when both panes appear at once.
+    /// Read once by the comparison's view.
+    @ObservationIgnored var comparisonEntersFrom: ComparisonSide?
+    /// Zoom and position of the two panes are linked (View ▸ Link Zoom and
+    /// Position), remembered across launches.
+    var linksComparison = ComparisonLink.isLinked(stored: UserDefaults.standard.object(forKey: ComparisonLink.defaultsKey)) {
+        didSet { UserDefaults.standard.set(linksComparison, forKey: ComparisonLink.defaultsKey) }
+    }
+    /// The comparison each photo was last in during this loupe session, as
+    /// it was left: its partner, the sides and the active side (design §3
+    /// "Partner", §16 D3). Forgotten when the loupe closes.
+    @ObservationIgnored var comparisonMemory: [Int64: ComparisonState] = [:]
+    /// Headroom of the HDR image each pane shows, for its caption's badge.
+    var comparisonHDRHeadroom: [ComparisonSide: Float] = [:]
     /// The inspector's tab, remembered separately for the grid and the loupe.
     var inspectorTab: InspectorTab {
         get { mode == .loupe ? loupeInspectorTab : gridInspectorTab }
@@ -758,6 +782,9 @@ final class LibraryModel {
         let filter = self.filter
         let catalog = self.catalog
         let focusID = focusVersionID ?? (keepFocus ? focusedItem?.versionID : nil)
+        // Another source ends a comparison; a reload of this one keeps it
+        // while both photos remain (`apply`).
+        let keepsComparison = keepFocus || focusVersionID != nil
         reloadTask = Task {
             do {
                 // Through the write chain: a row read before a queued write
@@ -766,7 +793,7 @@ final class LibraryModel {
                 let items = try await writes.read {
                     try await catalog.libraryItems(matching: filter)
                 } apply: { items in
-                    apply(items, focusVersionID: focusID)
+                    apply(items, focusVersionID: focusID, keepsComparison: keepsComparison)
                 }
                 // For "87 of 4,623 · Filtered".
                 if isFiltered {
@@ -789,19 +816,95 @@ final class LibraryModel {
         }
     }
 
-    private func apply(_ newItems: [CatalogItem], focusVersionID: Int64?) {
+    private func apply(_ newItems: [CatalogItem], focusVersionID: Int64?, keepsComparison: Bool) {
+        let pairPartners = comparedPairPartners()
         items = newItems
         indexByVersionID = Dictionary(newItems.enumerated().map { ($1.versionID, $0) }, uniquingKeysWith: { first, _ in first })
+        var focusVersionID = focusVersionID
+        // Another source ends a comparison without a photo to go to.
+        var comparisonEnded = false
+        if case .ended(let remaining) = reconcileComparison(pairPartners: pairPartners, keeps: keepsComparison) {
+            if keepsComparison {
+                focusVersionID = remaining ?? focusVersionID
+                comparisonEnded = true
+            }
+        }
         if let focusVersionID, let index = indexByVersionID[focusVersionID] {
             focusIndex = index
         } else {
             focusIndex = newItems.isEmpty ? nil : 0
         }
-        selection = focusIndex.map { IndexSet(integer: $0) } ?? []
+        if let comparison, let compared = ComparisonRules.selection(of: comparison, indexOf: { indexByVersionID[$0] }) {
+            // While comparing: the two photos on screen, focus on the active one.
+            focusIndex = compared.focus
+            selection = compared.selection
+        } else {
+            selection = focusIndex.map { IndexSet(integer: $0) } ?? []
+        }
         selectionRevision += 1
-        if items.isEmpty { mode = .grid }
+        if items.isEmpty {
+            // An emptied source closes the loupe: its session's remembered pairs go with it.
+            mode = .grid
+            comparisonMemory = [:]
+        }
         itemsRevision += 1
         notifyObservers { $0.libraryItemsReloaded() }
+        // The photo now shown alone (side-by-side-comparison design §10, Leaving).
+        if comparisonEnded { announceLoupePhoto() }
+    }
+
+    /// For each compared photo that stands for a grouped RAW+JPEG pair, the
+    /// pair's other file. Read before the list is replaced.
+    private func comparedPairPartners() -> [Int64: Int64] {
+        var pairPartners: [Int64: Int64] = [:]
+        for versionID in comparison?.versionIDs ?? [] {
+            if let index = indexByVersionID[versionID], items[index].representsPair {
+                pairPartners[versionID] = items[index].partnerVersionID
+            }
+        }
+        return pairPartners
+    }
+
+    /// What a new list did to the comparison.
+    private enum ComparisonAfterReplacement {
+        /// Nothing was compared.
+        case none
+        /// Both photos are still there: the focus and the selection are the comparison's.
+        case kept
+        /// A compared photo left: the loupe shows the one that remains, when one does.
+        case ended(remaining: Int64?)
+    }
+
+    /// Keeps the comparison in step with a list that has just been put in
+    /// place, whoever replaced it (`apply`, `replaceItems`): one rule, so the
+    /// two can't drift apart. A compared photo that left the source ends the
+    /// comparison on the one that remains (side-by-side-comparison design
+    /// §6). Only a pair switching the file it shows keeps its side; no other
+    /// photo ever takes one (not the photo a removal focuses next, not a
+    /// copy's original). `keeps` false: another source, which always ends it.
+    private func reconcileComparison(pairPartners: [Int64: Int64], keeps: Bool) -> ComparisonAfterReplacement {
+        comparisonLeaving = nil
+        guard let state = comparison else { return .none }
+        let outcome = keeps
+            ? ComparisonRules.reconcile(state, pairPartner: { pairPartners[$0] }) { indexByVersionID[$0] != nil }
+            : .ended(remaining: nil)
+        switch outcome {
+        case .kept(let kept):
+            if comparison != kept {
+                // A side shows its pair's other file now: the remembered
+                // pair names that file, so `S`, `S` still finds it.
+                comparison = kept
+                for versionID in state.versionIDs where kept.side(of: versionID) == nil {
+                    comparisonMemory[versionID] = nil
+                }
+                rememberComparison(kept)
+            }
+            return .kept
+        case .ended(let remaining):
+            comparison = nil
+            comparisonHDRHeadroom = [:]
+            return .ended(remaining: remaining)
+        }
     }
 
     /// Puts a list in place that differs from the one shown by a few items
@@ -810,11 +913,45 @@ final class LibraryModel {
     /// screen until it changes stay. `selected` become the selection and
     /// `focusVersionID` the focus; with neither on screen the focused photo
     /// keeps the focus.
+    ///
+    /// While two photos are compared the comparison owns the focus and the
+    /// selection, as for any other change to the list
+    /// (side-by-side-comparison design §16 D14): with both still there it is
+    /// unchanged and `selected` and `focusVersionID` are not applied; when
+    /// the undo took a compared copy away it ends on the photo that remains,
+    /// or, when both went, on the active copy's original.
     func replaceItems(_ newItems: [CatalogItem], selecting selected: [Int64], focusVersionID: Int64?) {
         let previousFocus = focusedItem?.versionID
+        let pairPartners = comparedPairPartners()
+        // The active photo's original, when it is a copy: where the single
+        // loupe goes when an undo takes that copy away.
+        let activeOriginal = comparison.flatMap { item(versionID: $0.activeVersionID) }.flatMap { active in
+            active.isCopy ? newItems.first { $0.imageID == active.imageID && !$0.isCopy }?.versionID : nil
+        }
         if let total = sourceTotal { sourceTotal = total + newItems.count - items.count }
         items = newItems
         indexByVersionID = Dictionary(newItems.enumerated().map { ($1.versionID, $0) }, uniquingKeysWith: { first, _ in first })
+        var selected = selected
+        var focusVersionID = focusVersionID
+        var comparisonEnded = false
+        switch reconcileComparison(pairPartners: pairPartners, keeps: true) {
+        case .none:
+            break
+        case .kept:
+            if let comparison, let compared = ComparisonRules.selection(of: comparison, indexOf: { indexByVersionID[$0] }) {
+                focusIndex = compared.focus
+                selection = compared.selection
+                selectionRevision += 1
+                itemsRevision += 1
+                notifyObservers { $0.libraryItemsReloaded() }
+                return
+            }
+        case .ended(let remaining):
+            // The loupe shows one photo alone: the one that remains.
+            focusVersionID = remaining ?? activeOriginal ?? focusVersionID
+            selected = []
+            comparisonEnded = true
+        }
         var chosen = IndexSet(selected.compactMap { indexByVersionID[$0] })
         focusIndex = focusVersionID.flatMap { indexByVersionID[$0] } ?? chosen.first
             ?? previousFocus.flatMap { indexByVersionID[$0] } ?? (newItems.isEmpty ? nil : 0)
@@ -822,9 +959,13 @@ final class LibraryModel {
         if mode == .loupe || chosen.isEmpty { chosen = focusIndex.map { IndexSet(integer: $0) } ?? [] }
         selection = chosen
         selectionRevision += 1
-        if items.isEmpty { mode = .grid }
+        if items.isEmpty {
+            mode = .grid
+            comparisonMemory = [:]
+        }
         itemsRevision += 1
         notifyObservers { $0.libraryItemsReloaded() }
+        if comparisonEnded { announceLoupePhoto() }
     }
 
     func refreshProjects() async {
@@ -1071,6 +1212,15 @@ final class LibraryModel {
     /// Moves focus and selection; `extend` grows the selection instead (shift).
     func setFocus(_ index: Int, extend: Bool = false, notify: Bool = true) {
         guard items.indices.contains(index) else { return }
+        if let comparison {
+            // Focus on a compared photo makes its side active; anywhere else
+            // shows that photo alone, as the loupe does.
+            if let side = comparison.side(of: items[index].versionID) {
+                setComparisonActive(side, announces: false)
+                return
+            }
+            endComparison()
+        }
         if extend, let anchor = focusIndex {
             selection.insert(integersIn: min(anchor, index)...max(anchor, index))
         } else {
@@ -1094,9 +1244,29 @@ final class LibraryModel {
     }
 
     func closeLoupe() {
-        // Leaving the loupe (Return, Space, ⌘↩) leaves review too.
+        // Leaving the loupe (Return, Space, ⌘↩) leaves review too, and a
+        // comparison, whose two photos stay selected.
         exitReview()
+        endComparison()
+        comparisonMemory = [:]
         mode = .grid
+        notifyObservers { $0.libraryFocusChanged() }
+    }
+
+    /// The comparison's selection: its two photos, focus on the active one
+    /// (side-by-side-comparison design §1). The film strip and the grid are told.
+    func selectComparison(_ state: ComparisonState) {
+        guard let compared = ComparisonRules.selection(of: state, indexOf: { indexByVersionID[$0] }) else { return }
+        selection = compared.selection
+        focusIndex = compared.focus
+        selectionRevision += 1
+        notifyObservers { $0.libraryFocusChanged() }
+    }
+
+    /// Tells the film strip and the grid that the comparison ended: its
+    /// photos keep the selection, the cells lose the compared look.
+    func comparisonDidEnd() {
+        selectionRevision += 1
         notifyObservers { $0.libraryFocusChanged() }
     }
 
@@ -1172,7 +1342,13 @@ final class LibraryModel {
         var announcement = CullingDescription.announcement(of: action.change, step: action.ratingStep, results: results)
             .map(PhotoAccessibility.text) ?? ""
 
-        if autoAdvance, targets.count == 1, let focusIndex, focusIndex + 1 < items.count {
+        if autoAdvance, targets.count == 1, comparison != nil {
+            // The active side moves on to the next photo it can show
+            // (side-by-side-comparison design §6); the other side stays.
+            if let next = walkComparison(.next, announces: false) {
+                announcement = PhotoAccessibility.advanced(announcement, to: next, offline: isOffline(next))
+            }
+        } else if autoAdvance, targets.count == 1, let focusIndex, focusIndex + 1 < items.count {
             setFocus(focusIndex + 1)
             // One announcement: two would cut each other off.
             let next = items[focusIndex + 1]
@@ -1241,10 +1417,7 @@ final class LibraryModel {
         // `selection` is not observed: menus and toolbar items that depend on
         // the targets refresh through its revision.
         _ = selectionRevision
-        if mode == .loupe || selection.isEmpty {
-            return focusIndex.map { IndexSet(integer: $0) } ?? []
-        }
-        return selection
+        return ActionTargets.indices(isLoupe: mode == .loupe, selection: selection, focus: focusIndex)
     }
 
     var actionTargetVersionIDs: [Int64] {

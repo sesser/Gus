@@ -142,7 +142,8 @@ struct LibraryCommands: Commands {
             // where it deletes to the start of the line.
             Button(LibraryOpsText.removeFromLibraryMenu) { model?.removeTargetsFromLibrary() }
                 .keyboardShortcut(.delete, modifiers: .command)
-                .disabled(!canByKey { $0.hasTargets && $0.canRemoveFromLibrary })
+                // Dimmed while comparing: it would take a photo out from under the comparison.
+                .disabled(!canByKey { $0.hasTargets && $0.canRemoveFromLibrary && !$0.isComparing })
             Divider()
             Button("Check for Changes on Disk") { model?.checkForDiskChanges() }
                 .disabled(!can { !$0.isCheckingDisk })
@@ -235,6 +236,7 @@ struct LibraryCommands: Commands {
             }
             .keyboardShortcut("f", modifiers: [])
             .disabled(!canByKey { $0.hasFocusedItem })
+            comparisonItems
             Divider()
             Button(menu?.state.loupeZoom.isZoomed == true ? String(localized: "Zoom to Fit")
                                                            : String(localized: "Zoom to 100%")) {
@@ -344,6 +346,29 @@ struct LibraryCommands: Commands {
 
     private var isLoupe: Bool { menu?.state.mode == .loupe }
 
+    /// Side by side comparison (docs/features/side-by-side-comparison design
+    /// §4), after Enter / Exit Review. `S` and `A` are bare keys: the grid,
+    /// the loupe and the comparison handle them.
+    @ViewBuilder
+    private var comparisonItems: some View {
+        Button(menu?.state.isComparing == true ? ComparisonText.stop : ComparisonText.compare) {
+            model?.toggleComparison()
+        }
+        .keyboardShortcut(KeyEquivalent(Character(ComparisonKey.compare)), modifiers: [])
+        .disabled(!canByKey { $0.canCompare })
+        Button(ComparisonText.switchTitle(active: menu?.state.comparisonActive)) {
+            model?.switchComparisonSide()
+        }
+        .keyboardShortcut(KeyEquivalent(Character(ComparisonKey.switchSide)), modifiers: [])
+        .disabled(!canByKey { $0.isComparing })
+        // No shortcut: rarely changed.
+        Toggle(ComparisonText.link, isOn: Binding(
+            get: { menu?.state.linksComparison ?? true },
+            set: { model?.setComparisonLinked($0) }
+        ))
+        .disabled(!can { $0.isComparing })
+    }
+
     /// ⌘= / ⌘−: thumbnails in the grid, zoom steps in the loupe.
     private func resize(larger: Bool) {
         guard let model else { return }
@@ -415,7 +440,7 @@ struct LibraryCommands: Commands {
             .disabled(!can { $0.hasTargets && !$0.albums.isEmpty })
             Button("Remove from Album") { model?.removeFromCurrentAlbum() }
                 .keyboardShortcut(.delete, modifiers: [])
-                .disabled(!canByKey { $0.hasTargets && $0.isInAlbum })
+                .disabled(!canByKey { $0.hasTargets && $0.isInAlbum && !$0.isComparing })
             Divider()
             // Checkmarks for the file the pairs show, mixed when they differ (design.md I14).
             Menu("RAW+JPEG Pair") {
@@ -467,7 +492,7 @@ struct LibraryCommands: Commands {
                 .disabled(!can { $0.focusedIsPhoto })
             Button("Paste Adjustments") { model?.pasteAdjustments() }
                 .keyboardShortcut("v", modifiers: [.command, .shift])
-                .disabled(!can { $0.hasCopiedAdjustments && $0.targetsIncludePhoto })
+                .disabled(!can { $0.hasCopiedAdjustments && $0.targetsIncludePhoto && !$0.isComparing })
             Menu("Apply Preset") {
                 ForEach(menu?.state.presetCollections ?? []) { collection in
                     if collection.name.isEmpty {
@@ -483,7 +508,8 @@ struct LibraryCommands: Commands {
                     }
                 }
             }
-            .disabled(!can { !$0.presetCollections.isEmpty && $0.targetsIncludePhoto })
+            // No editing while comparing: the other adjust items are off with the editor.
+            .disabled(!can { !$0.presetCollections.isEmpty && $0.targetsIncludePhoto && !$0.isComparing })
             Divider()
             Button("Auto Exposure") { model?.autoExposure() }
                 .disabled(!can(adjustsTargets))

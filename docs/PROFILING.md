@@ -355,6 +355,44 @@ took 2.2 s on the first launch after a build, so the editor compiles them in
 the background when the first photo opens. `photobench scenes --output DIR`
 writes the test scenes as files for checks in the app.
 
+## Side by side comparison at 100% (side-by-side-comparison)
+
+Measured on 2026-11-11, release builds, Apple M4 Pro (14 cores), 24 GB, macOS
+27.2, external display at 60 Hz, 2×. The record is
+docs/features/side-by-side-comparison/status.md.
+
+`photobench compare`: the full-resolution renders the two panes show at 100%,
+one after the other, as the preview service makes them (two synthetic 24 MP
+DNGs; real camera raws decode slower and were not measured):
+
+| stack | first photo sharp | both sharp | the two images hold |
+|---|---|---|---|
+| no adjustments | 92 ms (p50) | 183 ms (p50), 320 ms (max) | 96 MB + 96 MB |
+| typical stack | 600 ms (p50) | 1.19 s (p50), 1.21 s (max) | 96 MB + 96 MB |
+
+The process's footprint in that benchmark is the renderer's working memory,
+not the two images: 1.18 GB after the first unadjusted render and 4.3 to 5.0 GB
+with the typical stack, and the second photo adds about 0.1 GB to either.
+
+`compare panbench` in the app's debug script (two 24 MP DNGs without
+adjustments, a 1400 × 900 pt window, each pane 382 × 676 pt, linked): both
+panes to 100%, then the active pane panned on the display link at 1,500 pt/s
+for 6 s, the other pane following through the link. A hitch is a frame longer
+than 1.5 refresh intervals, as for the grid.
+
+| run | frames | hitches | longest frame | main thread per pan step |
+|---|---|---|---|---|
+| linked, both sharp (4 runs) | 360 each | 0 | 16.7 ms | mean 0.06 to 0.27 ms, max 0.85 ms |
+| not linked, both sharp | 360 | 0 | 16.7 ms | mean 0.24 ms, max 0.60 ms |
+| linked, the active side walking to the next photo once a second (4 runs of 8 s) | 422 to 431 | 14 each | 99 to 155 ms | mean 0.05 to 0.26 ms, max 0.71 ms |
+
+In the two walking runs that counted them, 7 of the 14 long frames were the
+frame on which a full-resolution render arrived (the picture going onto its
+layer) and 7 were frames with neither an arrival nor a walk; none was the
+frame of a walk itself. Both panes were sharp 0.29 to 0.42 s after
+zooming in. The app's footprint was 115 MB before, 1.05 GB the moment both
+were sharp, and 354 MB a few seconds later.
+
 ## Reproducing
 
 Build the tools:
@@ -429,6 +467,16 @@ Phase 5 (runtime kernels; no library needed):
 
 ```bash
 .build/out/Products/Release/photobench kernels --size 6000x4000 --sigma 4 --runs 7
+```
+
+Side by side comparison (the renders two panes wait for; then, in the app, a pan at 100%):
+
+```bash
+.build/out/Products/Release/photobench compare --size 6000x4000 --runs 5
+```
+
+```bash
+build/*.app/Contents/MacOS/* --library-root $LIB --debug-script "windowsize 1400 900; wait 2; focus 9; key shift+right; compare on; wait 2; compare panbench 6; compare panbench 8 walking; quit"
 ```
 
 Scroll benchmark (opens the window for about 40 s, then quits):

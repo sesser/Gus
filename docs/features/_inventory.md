@@ -32,6 +32,11 @@ Updated 2026-11-09 (Ship pass) for PR #49 (viewport-render-1to1: Sharp live
 frames at 100% under Loupe, the Live rendering row) and the bug fix
 viewport-render-qa-findings, from their `status.md` and `prd.md`.
 
+Updated 2026-11-12 (Ship pass) for side-by-side-comparison (#63: Side by side
+comparison under Loupe, the `photobench` row), from its `status.md`, `qa.md` and
+`docs/USER_GUIDE.md`; the comparison row again the same day after the merge
+with develop (Duplicate off while comparing, copies compare as photos).
+
 Markers:
 
 - **[inferred from code]**: no document states it; the claim rests on code alone.
@@ -112,6 +117,7 @@ Abbreviations: P1–P6 = `docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR
 | Show Original (`\`) | Before/after while editing | P3 sidebar; UIR §4 |
 | HDR display | HDR sources (float DNG, gain maps, HLG/PQ) render HDR on EDR screens; View ▸ Hide HDR Highlights | CL Rendering; UG |
 | Film strip | The source's photos in a strip between the loupe (or video loupe) and the caption. Clicking a photo focuses it, and the focused photo stays centered. A drag handle resizes it in steps (48–120 pt, capped at 25% of the loupe height). Caption toggle and ⌥⌘B show or hide it with a slide. VoiceOver list and splitter. Never shown in review mode | Issue #25 (closed); UIR §11; `Loupe/FilmStrip*.swift`, `Browser/FilmStripGeometry.swift`. Not yet checked on screen. §11's checklist leaves 7 build items unticked that the code appears to implement |
+| Side by side comparison | A state of the loupe (and review mode): two different photos side by side, each with its saved edits. `S` (View ▸ Compare Side by Side / Stop Comparing) enters from two selected photos, from one selected photo (with its partner: the one last compared with, else the next comparable) or from the loupe's photo; `S` again leaves and `S` once more brings the same pair back. Exactly one photo is active, marked by a ring; `A` switches; culling, keywords, albums, export and Show in Finder act on the active photo, with undo. Zoom and pan are linked by default (View ▸ Link Zoom and Position, remembered across launches). Arrow keys or a film strip click replace the active side's photo. Leaving selects the pair on screen. Refused with an alert: a video, an offline photo, the two files of one RAW+JPEG pair shown separately. No editing while comparing; Remove, Paste, Apply Preset and Duplicate are off (Duplicate is dimmed and absent from the pane menu). A photo and its copy (virtual copies) compare as two photos, with no shortcut to compare with a copy; a copy shows its own name and the Copy badge in the caption and in VoiceOver. Undo or redo of a Duplicate never moves the focus off the panes: an undo that removes a compared copy ends the comparison on the remaining photo (or on the active copy's original if both go); redo never changes a comparison. Two photos only (R9 not built). Known limitation #153 (linked zoom state can flip after ⌘= twice and a drag). No migration, no pipeline bump. Checks pending: AC7 hitch count, animations, real mouse and trackpad, menus, looks, a copy beside its photo in a narrow window (P7), Duplicate while comparing (P8) | `side-by-side-comparison/`; UG; `Browser/Comparison.swift`, `Loupe/ComparisonView.swift`, `Model/ComparisonActions.swift` |
 | Pixel Magnifier | While a fringe slot picks, a round view beside the pointer shows the photo's own full-resolution pixels before edits, outlines the pixel a click takes and gives its R, G, B and L (0–255, Display P3). Levels 100–1600%, remembered as a preference. A view only. Built for other tools; only the fringe eyedropper uses it so far | `chromatic-aberration/prd.md` R19–R36; UG; `Edits/PixelMagnifier.swift` |
 
 ## Metadata, keywords and sidecars
@@ -240,8 +246,8 @@ Abbreviations: P1–P6 = `docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR
 |---|---|---|
 | Goldens and CPU references | 16-bit PNG goldens per module; RAW goldens fingerprinted per macOS build | P5; P6 finding 7; CL Checking image code |
 | CI | Build and test on `macos-26` and `macos-15`; CodeQL; golden failure images uploaded; when the test process crashes, a backtrace of every thread goes to the log and the system crash reports are uploaded | P5 Notes; P6 question D; `.github/workflows/` (crash capture: PR #42) |
-| `photobench` | Synthetic libraries; import, preview, query, edits, masks, kernels, blend-error benchmarks; `denoise` times machine learning noise reduction; `scenes` writes the chromatic aberration test scenes (fringes, fringe subjects, pixel grid, lateral color) as TIFFs and a DNG | `docs/PROFILING.md`; P6; `ml-denoise/status.md` R14 |
-| Debug script | Drives the app for snapshots and checks | CL Commands; `Model/DebugScript.swift` |
+| `photobench` | Synthetic libraries; import, preview, query, edits, masks, kernels, blend-error benchmarks; `denoise` times machine learning noise reduction; `compare` times and measures two full-resolution renders; `scenes` writes the chromatic aberration test scenes (fringes, fringe subjects, pixel grid, lateral color) as TIFFs and a DNG | `docs/PROFILING.md`; P6; `ml-denoise/status.md` R14 |
+| Debug script | Drives the app for snapshots and checks; `compare` and `compareclick` drive comparison, `compare panbench` counts hitches while panning | CL Commands; `Model/DebugScript.swift` |
 | Launch guard | A test launch without `--library-root` is refused before anything in the standard data or cache folders is opened or created: a bundle identifier other than the release one (or none, as with `swift run`), or `--debug-script` / `--benchmark-scroll`. The reason goes to standard error; a launch a person started then shows an alert; either way the app quits with status 64. `photocli`, `photobench` and the standalone importer are not guarded | `library-launch-guard/status.md` (PR #47); UG Development options; `Launch/LibraryLaunchGuard.swift`, `AppLauncher.swift` |
 | Branding isolation | Brand values only in `AppBranding.swift` / `Branding.xcconfig`; enforced by tests | CL Naming rules |
 

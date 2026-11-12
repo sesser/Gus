@@ -54,6 +54,11 @@ let usage = """
                  3024x1800 and 3872x2592): typical stack and three masks, first frame, footprint and raw
                  decode cost.
 
+      compare    [--size WxH] [--runs N] [--sources FILE:FILE]
+                 Side by side comparison at 100%: the full-resolution renders of two raws (default two
+                 synthetic 6000x4000 DNGs) one after the other, as the two panes get them, without
+                 adjustments and with a typical stack: time until each is sharp, and the memory two hold.
+
       denoise    [--size WxH] [--source FILE] [--runs N]
                  A raw (default a synthetic 6000x4000 DNG with noise) with machine learning noise
                  reduction off and on: thumbnail, 2560 px preview and full-resolution export times.
@@ -135,6 +140,7 @@ do {
     case "masks": report = try await MaskBenchmark.run(arguments)
     case "blend-error": report = try await BlendErrorReport.run(arguments)
     case "viewport": report = try await ViewportBenchmark.run(arguments)
+    case "compare": report = try await ComparisonBenchmark.run(arguments)
     case "denoise": report = try await DenoiseBenchmark.run(arguments)
     case "scenes": report = try await SceneFiles.run(arguments)
     default:

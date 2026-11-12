@@ -86,6 +86,16 @@ struct LibraryToolbar: CustomizableToolbarContent {
             }
             .disabled(!state.hasFocusedItem)
         }
+        // A mode, like Crop and Original: the bezel is on while comparing
+        // (side-by-side-comparison design §4).
+        ToolbarItem(id: "compare", showsByDefault: false) {
+            Toggle(isOn: Binding(get: { state.isComparing }, set: { _ in model.toggleComparison() })) {
+                Label("Compare", systemImage: ComparisonRules.toolbarSymbolName)
+            }
+            .toggleStyle(.button)
+            .help("Compare two photos side by side")
+            .disabled(!state.canCompare)
+        }
         ToolbarItem(id: "newAlbum", showsByDefault: false) {
             Button {
                 model.sidebarSheet = .newAlbum(projectID: model.selectedProjectID)
@@ -133,7 +143,7 @@ struct LibraryToolbar: CustomizableToolbarContent {
         }
         ToolbarItem(id: "pasteAdjustments", showsByDefault: false) {
             Button { model.pasteAdjustments() } label: { Label("Paste Adjustments", systemImage: "doc.on.clipboard") }
-                .disabled(!state.hasCopiedAdjustments || !state.targetsIncludePhoto)
+                .disabled(!state.hasCopiedAdjustments || !state.targetsIncludePhoto || state.isComparing)
         }
         ToolbarItem(id: "addKeywords", showsByDefault: false) {
             Button { model.beginKeywordEntry() } label: { Label("Add Keywords", systemImage: "tag") }

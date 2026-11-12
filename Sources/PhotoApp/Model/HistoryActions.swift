@@ -36,12 +36,13 @@ extension LibraryModel {
         }
         let loaded = focus != nil && history.versionID == focus ? history.entries.count : nil
         let failed = focus != nil && history.versionID == focus && history.failed
-        return .make(isLoupe: mode == .loupe, isReviewing: isReviewing, source: source, entryCount: loaded,
+        // Hidden while comparing: it reverts edits, and comparison never edits.
+        return .make(isLoupe: mode == .loupe && !isComparing, isReviewing: isReviewing, source: source, entryCount: loaded,
                      listFailed: failed)
     }
 
-    /// View ▸ Show / Hide History applies: the loupe, not reviewing.
-    var canShowHistory: Bool { mode == .loupe && !isReviewing }
+    /// View ▸ Show / Hide History applies: the loupe, not reviewing or comparing.
+    var canShowHistory: Bool { mode == .loupe && !isReviewing && !isComparing }
 
     /// The panel is shown and expanded (the menu item's title).
     var historyIsOpen: Bool { showsHistory && showsInspector }
