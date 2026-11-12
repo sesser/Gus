@@ -316,9 +316,6 @@ public enum ComparisonLink {
         stored as? Bool ?? true
     }
 
-    /// A magnification within this factor of fit counts as fit.
-    static let fitTolerance = 1.001
-
     /// The center of `visible` (the part of the document on screen) as
     /// fractions of the document, in the document's own coordinates.
     public static func unitCenter(visible: CGRect, document: CGSize) -> CGPoint {
@@ -326,21 +323,81 @@ public enum ComparisonLink {
         return CGPoint(x: min(max(visible.midX / document.width, 0), 1), y: min(max(visible.midY / document.height, 0), 1))
     }
 
-    /// Whether a pane counts as fitted for the pane that follows it. A
-    /// pane a command zoomed in is not, even when its photo is so small
-    /// that 100% is its fit (`isZoomedIn`); a pane at fit that a pinch is
-    /// enlarging is not either, before the gesture has ended.
-    public static func isFitted(isZoomedIn: Bool, magnification: Double, fit: Double) -> Bool {
-        !isZoomedIn && magnification <= fit * fitTolerance
+    /// A magnification over fit by more than this factor is zoomed in; up
+    /// to it the photo still counts as fitted (the single loupe's figure).
+    public static let zoomedInThreshold = 1.05
+
+    /// The one rule for whether a pane is zoomed in or at fit. Everything
+    /// that depends on it asks here: the zoom a pane takes when a pinch or
+    /// an Option-scroll ends (`wasZoomedIn` false: the magnification
+    /// decides), the zoom of the pane that follows it, the magnification
+    /// that pane takes, and so which panes refit when the window changes.
+    ///
+    /// A pane a command zoomed in stays zoomed in whatever its
+    /// magnification (`wasZoomedIn`): a photo about the size of its pane is
+    /// at 100% and at fit at once, and only the command says which was
+    /// asked for. A pane at fit is zoomed in once a gesture has taken it
+    /// past fit by more than `zoomedInThreshold`.
+    public static func isZoomedIn(wasZoomedIn: Bool, magnification: Double, fit: Double) -> Bool {
+        wasZoomedIn || magnification > fit * zoomedInThreshold
     }
 
-    /// The magnification a pane takes to follow another at `leader`: its
-    /// own fit when the leader is fitted, otherwise the same magnification,
-    /// and at the low end each stops at its own fit.
-    public static func magnification(following leader: Double, leaderIsFitted: Bool, followerFit: Double,
-                                     maximum: Double = .infinity) -> Double {
-        if leaderIsFitted { return followerFit }
+    /// The magnification a pane takes to follow another at `leader`. A
+    /// leader that is zoomed in: the same magnification, and at the low end
+    /// each stops at its own fit. A leader at fit: the follower's own fit,
+    /// enlarged as far as the leader is over its fit (a small pinch that
+    /// leaves the leader fitted), so both keep the same size on screen.
+    public static func magnification(following leader: Double, leaderFit: Double, leaderIsZoomedIn: Bool,
+                                     followerFit: Double, maximum: Double = .infinity) -> Double {
+        guard leaderIsZoomedIn else {
+            return followerFit * (leaderFit > 0 ? max(leader / leaderFit, 1) : 1)
+        }
         return min(max(leader, followerFit), max(maximum, followerFit))
+    }
+
+    /// A pane as a zoom step sees it.
+    public struct PaneZoom: Equatable, Sendable {
+        public var magnification: Double
+        public var fit: Double
+        /// Zoomed in rather than at fit (`isZoomedIn`).
+        public var isZoomedIn: Bool
+
+        public init(magnification: Double, fit: Double, isZoomedIn: Bool) {
+            self.magnification = magnification
+            self.fit = fit
+            self.isZoomedIn = isZoomedIn
+        }
+    }
+
+    /// What ⌘= / ⌘− (and the menus' Zoom In / Zoom Out) do to the panes a
+    /// step reaches: both while linked, the active one alone otherwise
+    /// (design §16 D10). Nil when the command is dimmed.
+    ///
+    /// A step is a magnification, not a fit command: every pane takes the
+    /// magnification the step lands on, and stops at its own fit only when
+    /// that is below its fit. So a step never skips 100% on one side: with
+    /// fits 1.000 and 0.290 at 200%, Zoom Out gives 100% and 100%, not 100%
+    /// and fit. The active pane steps (`LoupeZoomSteps`, as in the single
+    /// loupe); when it can't (it is at its fit, or at the top), the next
+    /// pane that can steps instead and the active pane stays, so repeated
+    /// presses still take every pane to its fit. Each pane's zoom follows
+    /// its own result: at its fit it is fitted, above it zoomed in.
+    public static func step(zoomIn: Bool, active: Int, panes: [PaneZoom], maximum: Double) -> [PaneZoom]? {
+        guard panes.indices.contains(active) else { return nil }
+        func target(_ pane: PaneZoom) -> Double? {
+            let current = CGFloat(pane.magnification), fit = CGFloat(pane.fit)
+            if zoomIn { return LoupeZoomSteps.zoomIn(from: current, fit: fit).map(Double.init) }
+            // As in the single loupe: a fitted pane has nothing to zoom out of.
+            return pane.isZoomedIn ? LoupeZoomSteps.zoomOut(from: current, fit: fit).map(Double.init) : nil
+        }
+        let order = [active] + panes.indices.filter { $0 != active }
+        guard let landed = order.lazy.compactMap({ target(panes[$0]) }).first else { return nil }
+        return panes.map { pane in
+            // Within the steps' tolerance of its fit is its fit.
+            let above = landed > pane.fit * (1 + Double(LoupeZoomSteps.tolerance))
+            let magnification = above ? min(landed, max(maximum, pane.fit)) : pane.fit
+            return PaneZoom(magnification: magnification, fit: pane.fit, isZoomedIn: above)
+        }
     }
 
     /// The origin of the visible rect that puts `unit` in the middle of a

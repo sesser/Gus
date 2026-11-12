@@ -90,8 +90,9 @@ extension LibraryModel {
     }
 
     /// Each photo's last comparison, as it stands now, so `S` brings the
-    /// same two back on the same sides with the same one active.
-    private func rememberComparison(_ state: ComparisonState) {
+    /// same two back on the same sides with the same one active. Also
+    /// called when a reload changes a side's file (`apply`).
+    func rememberComparison(_ state: ComparisonState) {
         comparisonMemory[state.left] = state
         comparisonMemory[state.right] = state
     }

@@ -109,7 +109,10 @@ reject the weaker photo and get the next one in its place.
 
 Zoom and position are linked: Z, a click, ⌘= and ⌘−, pinching, scrolling and
 dragging on either photo move both to the same place at the same size, so two
-frames of a burst line up at 100%. **View ▸ Link Zoom and Position**, or the
+frames of a burst line up at 100%. Zoom to Fit fits each photo to its own
+side. ⌘= and ⌘− take both photos to the same size; a photo stops at its own
+fit when the step would make it smaller than that, and ⌘− goes on working
+until both are fitted. **View ▸ Link Zoom and Position**, or the
 link button in the middle of the caption line, turns that off so each photo
 zooms and scrolls on its own; the app remembers your choice. Turning it back
 on puts the other photo where the active one is. At 100% each photo is sharp

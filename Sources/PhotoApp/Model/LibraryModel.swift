@@ -833,7 +833,15 @@ final class LibraryModel {
                 : .ended(remaining: nil)
             switch outcome {
             case .kept(let kept):
-                if comparison != kept { comparison = kept }
+                if comparison != kept {
+                    // A side shows its pair's other file now: the remembered
+                    // pair names that file, so `S`, `S` still finds it.
+                    comparison = kept
+                    for versionID in state.versionIDs where kept.side(of: versionID) == nil {
+                        comparisonMemory[versionID] = nil
+                    }
+                    rememberComparison(kept)
+                }
             case .ended(let remaining):
                 comparison = nil
                 comparisonHDRHeadroom = [:]
@@ -854,7 +862,11 @@ final class LibraryModel {
             selection = focusIndex.map { IndexSet(integer: $0) } ?? []
         }
         selectionRevision += 1
-        if items.isEmpty { mode = .grid }
+        if items.isEmpty {
+            // An emptied source closes the loupe: its session's remembered pairs go with it.
+            mode = .grid
+            comparisonMemory = [:]
+        }
         itemsRevision += 1
         notifyObservers { $0.libraryItemsReloaded() }
     }

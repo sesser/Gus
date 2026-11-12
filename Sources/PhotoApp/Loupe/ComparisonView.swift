@@ -362,13 +362,15 @@ final class ComparisonController: NSObject {
 
     private func follow(_ leader: ComparisonPane, _ follower: ComparisonPane) {
         performWithoutFollowing {
-            let fitted = leader.isFitted
+            // Linked panes share the zoom: fitted or zoomed in, as the leader
+            // is by the one rule (`ComparisonLink.isZoomedIn`).
+            let zoomedIn = leader.isZoomedIn
             let magnification = ComparisonLink.magnification(
-                following: Double(leader.magnification), leaderIsFitted: fitted,
-                followerFit: Double(follower.fitMagnification), maximum: Double(follower.scrollView.maxMagnification))
-            // Linked panes share the zoom: fitted or zoomed in, as the leader is.
+                following: Double(leader.magnification), leaderFit: Double(leader.fitMagnification),
+                leaderIsZoomedIn: zoomedIn, followerFit: Double(follower.fitMagnification),
+                maximum: Double(follower.scrollView.maxMagnification))
             follower.show(magnification: CGFloat(magnification), unitCenter: leader.unitCenter,
-                          zoom: fitted ? .fit : .actualSize)
+                          zoom: zoomedIn ? .actualSize : .fit)
         }
     }
 
@@ -385,8 +387,9 @@ final class ComparisonController: NSObject {
                     follower.applyZoom(.fit, unit: nil, animated: animated)
                 } else {
                     let magnification = ComparisonLink.magnification(
-                        following: Double(leader.magnification), leaderIsFitted: false,
-                        followerFit: Double(follower.fitMagnification), maximum: Double(follower.scrollView.maxMagnification))
+                        following: Double(leader.magnification), leaderFit: Double(leader.fitMagnification),
+                        leaderIsZoomedIn: true, followerFit: Double(follower.fitMagnification),
+                        maximum: Double(follower.scrollView.maxMagnification))
                     follower.setZoom(.actualSize)
                     follower.setMagnification(CGFloat(magnification), unit: unit, animated: animated)
                 }
@@ -400,8 +403,10 @@ final class ComparisonController: NSObject {
     /// about the size of its pane is at 100% and at fit at once, so the
     /// magnification can't say which was asked for). Then linked panes are
     /// put exactly where `leader` ended (photos of different sizes can end
-    /// a little apart, since each zooms about its own point on screen).
-    private func animate(_ animated: Bool, leader: ComparisonPane, _ changes: @escaping @MainActor () -> Void) {
+    /// a little apart, since each zooms about its own point on screen);
+    /// a zoom step passes no leader, since each pane then has the
+    /// magnification the step gave it, which is not always the leader's.
+    private func animate(_ animated: Bool, leader: ComparisonPane?, _ changes: @escaping @MainActor () -> Void) {
         followSuspensions += 1
         let finish: @MainActor () -> Void = { [weak self, weak leader] in
             guard let self else { return }
@@ -446,37 +451,59 @@ final class ComparisonController: NSObject {
         publishZoom(magnification: zoom == .fit ? pane.fitMagnification : 1, zoom: zoom)
     }
 
-    /// ⌘= / ⌘−: the next step, keeping each pane's visible center; at the
-    /// low end each pane stops at its own fit.
-    func stepZoom(in zoomIn: Bool) {
-        guard let pane = activePane else { return }
-        let fit = pane.fitMagnification
-        guard let target = zoomIn ? LoupeZoomSteps.zoomIn(from: pane.magnification, fit: fit)
-                                  : LoupeZoomSteps.zoomOut(from: pane.magnification, fit: fit) else { return }
-        let targets = reached(by: pane)
-        let zoom: LoupeController.Zoom = target > fit * 1.001 ? .actualSize : .fit
-        let animated = Self.debugAnimates
-        animate(animated, leader: pane) {
-            for other in targets {
-                let magnification = other === pane ? target : CGFloat(ComparisonLink.magnification(
-                    following: Double(target), leaderIsFitted: zoom == .fit, followerFit: Double(other.fitMagnification),
-                    maximum: Double(other.scrollView.maxMagnification)))
-                other.setZoom(zoom)
-                other.setMagnification(magnification, unit: other.unitCenter, animated: animated)
-            }
-        }
-        publishZoom(magnification: target, zoom: zoom)
+    /// What a zoom step sees of `pane`; `magnification` when an animation
+    /// toward it has just started.
+    private func stepState(of pane: ComparisonPane, magnification: CGFloat? = nil) -> ComparisonLink.PaneZoom {
+        ComparisonLink.PaneZoom(magnification: Double(magnification ?? pane.magnification),
+                                fit: Double(pane.fitMagnification), isZoomedIn: pane.zoom == .actualSize)
     }
 
-    /// Tells the menus and the toolbar the active pane's zoom.
-    func publishZoom(magnification: CGFloat? = nil, zoom: LoupeController.Zoom? = nil) {
+    /// ⌘= / ⌘− and the menus' Zoom In / Zoom Out: a step is a
+    /// magnification (design §16 D10). Every pane it reaches takes the
+    /// magnification it lands on, stopping at its own fit only below it,
+    /// and keeps its visible center (`ComparisonLink.step`).
+    func stepZoom(in zoomIn: Bool) {
         guard let pane = activePane else { return }
-        let current = magnification ?? pane.magnification
+        let targets = reached(by: pane)
+        guard let active = targets.firstIndex(where: { $0 === pane }),
+              let steps = ComparisonLink.step(zoomIn: zoomIn, active: active, panes: targets.map { stepState(of: $0) },
+                                              maximum: Double(pane.scrollView.maxMagnification)) else { return }
+        let animated = Self.debugAnimates
+        animate(animated, leader: nil) {
+            for (other, step) in zip(targets, steps) {
+                other.setZoom(step.isZoomedIn ? .actualSize : .fit)
+                other.setMagnification(CGFloat(step.magnification), unit: other.unitCenter, animated: animated)
+            }
+        }
+        publishZoom(magnifications: Dictionary(uniqueKeysWithValues: zip(targets, steps).map {
+            (ObjectIdentifier($0), CGFloat($1.magnification))
+        }))
+    }
+
+    /// Tells the menus and the toolbar the zoom: the active pane's, and
+    /// whether a step can still go in or out for any pane it reaches (while
+    /// linked, Zoom Out stays on as long as either pane is above its fit).
+    /// `magnification` and `zoom`: the active pane's, and `magnifications`
+    /// each pane's, when an animation toward them has just started.
+    func publishZoom(magnification: CGFloat? = nil, zoom: LoupeController.Zoom? = nil,
+                     magnifications: [ObjectIdentifier: CGFloat] = [:]) {
+        guard let pane = activePane else { return }
+        let current = magnification ?? magnifications[ObjectIdentifier(pane)] ?? pane.magnification
         let zoom = zoom ?? pane.zoom
-        let fit = pane.fitMagnification
+        let targets = reached(by: pane)
+        let states = targets.map { other -> ComparisonLink.PaneZoom in
+            var state = stepState(of: other, magnification: magnifications[ObjectIdentifier(other)])
+            if other === pane {
+                state.magnification = Double(current)
+                state.isZoomedIn = zoom != .fit
+            }
+            return state
+        }
+        let active = targets.firstIndex { $0 === pane } ?? 0
+        let maximum = Double(pane.scrollView.maxMagnification)
         let state = LoupeZoomState(isZoomed: zoom != .fit,
-                                   canZoomIn: LoupeZoomSteps.zoomIn(from: current, fit: fit) != nil,
-                                   canZoomOut: zoom != .fit && LoupeZoomSteps.zoomOut(from: current, fit: fit) != nil,
+                                   canZoomIn: ComparisonLink.step(zoomIn: true, active: active, panes: states, maximum: maximum) != nil,
+                                   canZoomOut: ComparisonLink.step(zoomIn: false, active: active, panes: states, maximum: maximum) != nil,
                                    isActualSize: zoom != .fit && abs(current - 1) < 0.01)
         if model.loupeZoom != state { model.loupeZoom = state }
     }
@@ -955,11 +982,12 @@ final class ComparisonPane: NSObject {
         applyZoom(.fit, unit: nil, animated: animatesFit)
     }
 
-    /// Whether the pane that follows this one should be at its own fit
-    /// (`ComparisonLink.isFitted`).
-    var isFitted: Bool {
-        ComparisonLink.isFitted(isZoomedIn: zoom == .actualSize, magnification: Double(scrollView.magnification),
-                                fit: Double(fitMagnification))
+    /// Zoomed in rather than at fit, by the one rule
+    /// (`ComparisonLink.isZoomedIn`): what a command or an ended gesture
+    /// left, or a gesture still under way that has taken a fitted pane past fit.
+    var isZoomedIn: Bool {
+        ComparisonLink.isZoomedIn(wasZoomedIn: zoom == .actualSize, magnification: Double(scrollView.magnification),
+                                  fit: Double(fitMagnification))
     }
 
     /// The zoom a command or the linked pane gives this one; zoomed in
@@ -1007,14 +1035,9 @@ final class ComparisonPane: NSObject {
     /// the full resolution render.
     func adoptMagnification() {
         updateFiltering()
-        if scrollView.magnification > fitMagnification * 1.05 {
-            if zoom != .actualSize {
-                zoom = .actualSize
-                loadFullResolution()
-            }
-        } else {
-            zoom = .fit
-        }
+        // The gesture's magnification decides, whatever the zoom was before.
+        setZoom(ComparisonLink.isZoomedIn(wasZoomedIn: false, magnification: Double(scrollView.magnification),
+                                          fit: Double(fitMagnification)) ? .actualSize : .fit)
     }
 
     /// Option-scroll zooms between fit and the largest magnification,
