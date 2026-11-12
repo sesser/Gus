@@ -152,3 +152,69 @@ and after a walk); F2 (`concernsOnePhoto`) and F3 (3:1) pass their tests.
   2 s.
 - No new string without a catalog entry (`LocalizationTests`), no brand value, no new dependency,
   no migration, no rendering or cache key change.
+
+### Third pass (2026-11-12)
+
+Reviewed: the two commits that changed source or tests since the second pass, by subject (the
+branch's hashes were rewritten during this pass): "Side by side comparison: second-pass fixes"
+(`222e274`) and "Side by side comparison: linked Zoom In (D11)" (`b7a0024`); head `ce59380`.
+Build and tests: `swift build` complete; `swift test` 773 tests in 119 suites passed with 1
+known issue (the Live render session's existing one), once on the first commit's sources and
+again at the head with a clean tree. The app was not launched in this pass. The step rule was
+also run outside the app: `LoupeZoomSteps` and `ComparisonLink` as committed, copied into a
+scratch script and stepped through several pairs of fits (the sequences quoted below). The
+engineer's scripted runs in `status.md` were not repeated: everything in the app target
+(`follow`, `stepZoom`, `publishZoom`, `apply`) is confirmed by reading, and the animated paths
+are still unrun (display asleep).
+
+**Verdict.** C9, C10, D10 / F4 and D11 / F5 are confirmed. One new nit, C11, and one question
+for the designer; neither blocks QA. No `CLAUDE.md` rule is broken, no rendering changed,
+`/security-review` is still not needed. Ready for qa-tester.
+
+| # | Result | How it was confirmed |
+|---|---|---|
+| C9 | Fixed, "second-pass fixes" | One rule and one figure: `ComparisonLink.isZoomedIn` with `zoomedInThreshold` 1.05 (`Comparison.swift:328-343`); `isFitted` and the 1.001 tolerance are gone. `adoptMagnification` (`ComparisonView.swift:1036-1041`), `ComparisonPane.isZoomedIn` (`:988`) and `follow` (`:363-375`) all ask it, and the follower takes the leader's answer. The second pass's run, traced: fit 0.329, a 3% Option-scroll gives the leader 0.339 `.fit` and the follower 0.329 × 1.03 = 0.339 `.fit`, so nothing renders at full resolution, a resize refits both (`setFrame` refits a `.fit` pane) and `Z` goes to 100%. C2 still holds: a pane a command zoomed in stays zoomed in at any magnification. Tests `aSmallGestureLeavesBothLinkedPanesFitted`, `aResizeAfterASmallGestureRefitsBothLinkedPanes` (the rule only; the resize itself is the app's and is covered by the engineer's script). |
+| C10 | Fixed, "second-pass fixes" | `apply` (`LibraryModel.swift:836-844`): when a reload gives a side its pair's other file, the old version's entry is dropped and both sides' entries become the new state, so `rememberedComparison` finds the pair under the file now shown; the same on undo. An emptied source clears the memory with the loupe (`:865-869`), as `closeLoupe` does. Entries other photos hold for the old file find no partner and fall back to the next photo, as before. No unit test (app target); the engineer's script covers it. |
+| D10 / F4 | Confirmed, "second-pass fixes" | `ComparisonLink.step` (`Comparison.swift:391`); `stepZoom` passes no leader to `animate`, so nothing overrides each pane's own result at the end; `publishZoom` takes `canZoomIn` / `canZoomOut` from the same function, and the View menu and both context menus read only those two flags (`LibraryCommands.swift:238-241`, `PhotoContextMenu.swift:34-35`, `:100-101`). Run: fits 1.000 and 0.290 from 2.000, either side active: 1.000 / 1.000, 1.000 / 0.500, 1.000 / 0.290, then dimmed. Test `aLinkedZoomOutStepNeverSkips100PercentOnOneSide`. |
+| D11 / F5 | Confirmed, "linked Zoom In (D11)" | Zoom In lands on the smallest of the panes' next steps (`targets.min()`), Zoom Out still on the active pane's first. Run, either side active: fits 1.000 / 0.290 from fit give 1.000 / 0.500, 1.000 / 1.000, 2.000 / 2.000 and ⌘− goes back the same way; equal fits step exactly as the single loupe (0.5, 1, 2, 4, 8, dimmed); panes at 2.000 and 0.500 give 2.000 / 1.000, 2.000 / 2.000, 4.000 / 4.000, so the guard at `:406` never takes a pane back out. No pane under 100% can pass it: its own next step is at most 1 and the landing is the smallest. The pane whose step is the smallest always moves, so an enabled Zoom In always does something, and it is dimmed only when every pane is at the top. Test `aLinkedZoomInStepTakesBothToTheSameMagnification`. |
+
+Also checked, as asked:
+
+- **Not linked: unchanged.** `reached(by:)` gives the one pane, so `step` is `LoupeZoomSteps` on
+  it (run: 0.290, 0.5, 1, 2, 4, 8, dimmed, and back; the guard can't fire for one pane). Zoom Out
+  on a fitted pane is nil, which the menu already required (`zoom != .fit`). Test
+  `anUnlinkedStepIsTheLoupes`.
+- **`Z`, Fit and clicks: unchanged.** `toggleZoom` and `setZoom(_:on:unit:)` are not in either
+  diff; they still pass a leader, and `follow` at the end gives 100% / 100% (leader zoomed in) or
+  each pane's own fit (ratio 1).
+- **Menu state during an animated step.** `publishZoom(magnifications:)` uses the magnifications
+  the step is heading for and the zooms already set, then publishes again when the animation ends.
+- **Docs.** `docs/USER_GUIDE.md` says what D10 and D11 do. `status.md`'s counts match the run.
+
+#### New finding
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C11 | Nit | `Sources/PhotoApp/Loupe/ComparisonView.swift:363-375` (`follow`) against `Sources/PhotoCore/Browser/Comparison.swift:391-409` (`step`) | Two rules now set a linked pane's zoom state. A step gives each pane its own (D10: "a pane at its fit reports fit"); `follow` gives the follower the leader's. D10 and D11 leave one pane at its fit and the other zoomed in (any two photos with different fits, on the way in and out), and the first pan there replaces the step's answer. | Traced, not run. Fits 1.000 (active) and 0.290, linked, both at fit; ⌘=: 1.000 `fit` / 0.500 `actualSize`, menu "Zoom to 100%". Scroll the other photo: `follow` gives the active pane `magnification(following: 0.5, …, followerFit: 1)` = 1.000 with zoom `.actualSize`. It now reports zoomed at its fit: the menu says "Zoom to Fit", `Z` takes both to fit instead of 100%, the pane starts its full-resolution render (for a landscape raw beside a portrait one, fits 0.329 / 0.220 at 0.329 / 0.250, a 24 MP render of a fitted photo), and a larger window does not refit it until the next scroll. The reverse: a 3% Option-scroll or the start of a pinch on the fitted pane sends the other from 0.500 to 0.29 × 1.03 = 0.299 `.fit`, and past 5% up to the leader's magnification, so a zoom in on one photo first zooms the other out. The next step or `Z` puts both right again. | Correctness, minor: state set by two rules; design §16 D10, fifth bullet |
+
+#### Questions
+
+- **For the designer, not blocking (with C11).** In the state a step leaves with one pane at its
+  fit and the other zoomed in, say what a pan or a small pinch on either pane does to the other
+  pane's zoom state: D10's "each pane's zoom state follows its result" or C2's "linked panes share
+  the zoom". The engineer needs that to fix C11.
+- **For the designer, not blocking.** D11 says Zoom In retraces Zoom Out. It does when the fitted
+  pane's fit is itself a step (1.000). When it is not, Zoom Out with that pane active stops once
+  more, at its fit, and Zoom In has no such stop. Run, fits 0.329 (active) and 0.220: ⌘= from fit
+  gives 0.329 / 0.250, then 0.500 / 0.500; ⌘− from there gives 0.329 / 0.329, then 0.329 / 0.250,
+  then 0.329 / 0.220. With the other photo active ⌘− retraces exactly. 100% is never skipped
+  either way. Accept, or say which side changes.
+
+#### Not verified (for qa-tester or a person)
+
+- The engineer's scripted runs for C9, C10, D10 and D11, which this pass did not repeat, and
+  C11's state: after `zoomstep in` from fit with two photos of different fits, `pan` the zoomed
+  photo, then `print compare` and `print menustate` (the fitted pane's `zoom` and `isZoomed`).
+- Everything animated, as listed under the second pass, now including ⌘= / ⌘−: whether a bounds
+  change arriving after an animated step's completion makes a pane follow (C11's state without a
+  pan), and C9 with a real pinch.
