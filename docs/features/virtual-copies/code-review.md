@@ -45,4 +45,35 @@ The engineer's own questions stand as written in `status.md` (DQ-V1 to DQ-V6, RI
 
 ## Follow-up
 
-None yet.
+### Second pass
+
+Date: 2026-11-11. Reviewed: `c82e88f`..`18af935`; the only commit that changes source or tests is `18af935` (the others are the reviews, the PRD and the design rulings). Build and tests: `swift build` clean, no warnings; `swift test` 758 tests in 119 suites passed, the same 1 known issue. `VirtualCopiesTests`, `SidecarSyncTests`, `LibraryRemovalTests` and `WriteChainTests` were also run on their own and pass.
+
+**Verdict.** Ready for QA. C1, C2 and C3 are fixed, and the designer's F1 is correct in the catalog (its confirmation is the designer's, in `review.md`). One new nit (C4), which does not block QA.
+
+| # | Result | Commit | How it was checked |
+|---|---|---|---|
+| C1 | Fixed | `18af935` | `sidecarOwners` builds its dictionary with `uniquingKeysWith`, and `diskChanges(forVersions:)` collects masters in a set, from default versions only (F1). `twoVersionsOfOneMasterListItsChangeOnce` passes an original with its copy, three versions in any order, an id named twice, two copies alone, and a repeated id to `sidecarOwners` directly; each of the first and the last trapped before. The other two callers of `sidecarOwners` (`queuedSidecarOwners`, `SidecarSync.writeSidecars`) are covered by the same change. No other `Dictionary(uniqueKeysWithValues:)` in `Sources/` is keyed by masters taken from versions. |
+| C2 | Fixed | `18af935` | `DuplicatePlacement.inserting` is one pass over the list and one over the copies. Read against `insertionIndex` case by case (anchor with the copy's rating, anchor without it, master not on screen, later copies of the same master in each), and run from a scratch executable outside the repository against one-at-a-time insertion: 180,000 seeded random lists over the three sort keys in both directions (up to 40 items of 6 masters, up to 30 copies of 8 masters, ratings 0 to 5), no difference. Measured in a release build: every photo duplicated, 50,000 photos, 0.014 s by capture date and 0.019 s by rating (3.57 s before); 200,000 photos, 0.085 s and 0.105 s. The committed test (`onePassPlacementMatchesOneAtATime`, 200 lists for each of three sorts) is deterministic and would fail on a wrong order. |
+| C3 | Fixed | `18af935` | `RemovalAvailability.canStart` takes `isDuplicating`, which `duplicateTargets` sets before it queues its write and clears after the copies are on screen; the File menu items, both context menus and the sidebar row read the one `canRemoveFromLibrary`. The confirmation is read with `WriteChain.read`, which covers what the flag does not: a Redo of Duplicate (through `persist`, no flag) still putting copies back when ⌘⌫ is pressed on the originals. The rule is tested (`removalWaitsForARunningDuplicate`); the read is app-target code with no unit test, as nothing in PhotoApp has. |
+
+**The confirmation read through the write chain** (`LibraryOpsActions.swift:224`). Correct, and the right tool: it is the same rule the list reload and the editor's load already follow. Checked: nothing on the chain waits for the confirmation, so the read cannot deadlock (the removal's own write is queued only after Remove is chosen); `isRemoving` is set before the wait, so a second ⌘⌫ and ⌘D stay off meanwhile; a write queued while the plan is read makes it read again, and it settles as soon as the person stops; `apply` sets `pendingRemoval` with no suspension after the check; an error still clears `isRemoving` and reports. The cost is that ⌘⌫ pressed behind a long write (an undo or redo of a very large Duplicate) shows its confirmation only when that write has landed, which is the intent. Its other edge is C4.
+
+**Placement left on the main actor** (`DuplicateActions.swift:133`). Accepted. With the one-pass placement the main-actor work after the write is linear and small (the figures above, plus the index `replaceItems` builds, which every reload builds too). The engineer's reason holds: `showCopies` reads `items` and replaces them with no suspension in between, so a rating shown at once cannot be lost; a detached placement would have to detect a list that changed under it and start again, for no gain a person could see.
+
+**F1 (D-V1), catalog side.** `whereClause` is used by two queries, both over `version JOIN image`, so `version.isDefault` resolves in each; the source's count equals the sidebar badge for unpaired photos (`copiesTakeNoPartInSidecarReview`), and a pair's change still reaches its RAW through the JPEG's original (`aPairsChangeIsNotListedForACopy`).
+
+**New finding**
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C4 | Nit | `Sources/PhotoApp/Model/LibraryOpsActions.swift:171`–`188`, `:319`; `Sources/PhotoCore/Catalog/LibraryRemoval.swift:124` | A removal asked for copies that an Undo of Duplicate is still taking away is confirmed and run as if they were there. `removalPlan` returns an empty plan for version ids that no longer exist, `RemovalConfirmation.photos` reads zero originals as "every target is a copy", and `removalDidFinish` clears the undo stack whatever was removed. Not new in `18af935` (before it the plan was read beside the chain, with the same end); reading through the chain makes it certain rather than a race. From reading the code, not run. | ⌘D on many photos, ⌘Z, then ⌘⌫ before the copies leave the grid (milliseconds for a few photos, about a second at 20,000): after the copies are gone, "Remove 20,000 photos from the library? The originals and their files are not affected…" appears; Remove deletes nothing, announces "Removed 20,000 photos from the library." and empties the undo stack, so Redo Duplicate and every earlier step are lost. Nothing in the catalog is wrong: the copies were already undone. A plan that finds none of its versions could end the request without asking. | Undo: a step is dropped only when what it names is gone. |
+
+**RI-C1 and RI-C2** (PRD P2 and P3, pending the owner). Neither blocks QA or changes any finding above: the code is consistent with the recommended default of each, and nothing in `18af935` touches either. They are for the owner at sign-off. Two things follow from them:
+
+- If P2 is accepted, `docs/USER_GUIDE.md` still needs its sentence: the Copies section says "changing the copy never changes the original" and lists what is the copy's own, but does not say that the Info tab's title, description, copyright and creator fields are the photo's, shared with the original and written to its sidecar. Until then QA should read AC7 as P2 scopes it (adjustments, rating, flag, label, keywords, albums) and record the descriptive fields as known and pending.
+- If the owner instead wants either per copy, that is a migration and new scope, which goes to the product manager and not onto this branch.
+
+**For QA.** The debug script's `removephotos` waits a fixed 700 ms before `alert` can read the sheet, and the confirmation now waits for queued writes: straight after an `undo` or `redo` of a large Duplicate, `alert` may print `alert none` until that write has landed.
+
+**Security.** `18af935` adds no parser, subprocess, file writing outside the library or network code. `/security-review` is still not needed.
