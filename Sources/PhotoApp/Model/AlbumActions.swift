@@ -79,11 +79,20 @@ extension LibraryModel {
         undoManager.setActionName(actionName)
     }
 
+    /// Saves an album's name in the catalog as one undo step: the name only,
+    /// its photos and their sidecars stay as they are. `name` is what
+    /// `InPlaceRename` made of the typed text, or the name an undo puts back.
+    /// The sidebar shows it at once, at its place in the list and in view;
+    /// the write follows in order.
     func renameAlbum(_ id: Int64, to name: String) {
-        guard let name = Catalog.normalizedKeywordName(name),
-              let previous = albums.first(where: { $0.id == id })?.album.name, previous != name else { return }
+        guard let index = albums.firstIndex(where: { $0.id == id }), albums[index].album.name != name else { return }
+        let previous = albums[index].album.name
+        albums[index].album.name = name
+        albums.sort(by: AlbumSummary.isListedBefore)
+        revealSidebarRow(.album(id), opening: false)
         let catalog = self.catalog
         persist { try await catalog.renameAlbum(id: id, to: name) }
+        // What the catalog holds, should the write have failed.
         afterPendingWrites { await $0.refreshSidebar() }
         undoManager.registerUndo(withTarget: self) { $0.renameAlbum(id, to: previous) }
         undoManager.setActionName(String(localized: "Rename Album", comment: "Undo action name"))

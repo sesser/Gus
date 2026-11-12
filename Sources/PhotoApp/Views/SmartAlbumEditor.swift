@@ -15,11 +15,6 @@ struct SidebarSheetView: View {
                       action: String(localized: "Rename")) { name, _, _ in
                 model.renameKeyword(keyword.id, to: name)
             }
-        case .renameAlbum(let album):
-            NameSheet(title: String(localized: "Rename Album"), initialName: album.album.name,
-                      action: String(localized: "Rename")) { name, _, _ in
-                model.renameAlbum(album.id, to: name)
-            }
         case .newAlbum(let projectID):
             NameSheet(title: String(localized: "New Album"), initialName: String(localized: "Untitled Album"),
                       action: String(localized: "Create"), model: model, projectID: projectID,

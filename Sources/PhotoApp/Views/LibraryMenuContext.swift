@@ -126,10 +126,19 @@ struct LibraryMenuState: Equatable {
         case smartAlbum(SmartAlbum)
         case keyword(KeywordSummary)
 
-        /// Smart albums are renamed in their editor (Edit Smart Album…).
-        var isRenamable: Bool {
-            if case .smartAlbum = self { false } else { true }
+        /// How File ▸ Rename renames it (`SidebarRenameRoute`): a project or
+        /// an album in its row, a keyword in a sheet. Nil for a smart album,
+        /// which is renamed in its editor (Edit Smart Album…).
+        var renameRoute: SidebarRenameRoute? {
+            switch self {
+            case .project: SidebarRenameRoute.route(for: .project)
+            case .album: SidebarRenameRoute.route(for: .album)
+            case .smartAlbum: SidebarRenameRoute.route(for: .smartAlbum)
+            case .keyword: SidebarRenameRoute.route(for: .keyword)
+            }
         }
+
+        var isRenamable: Bool { renameRoute != nil }
 
         /// A project is removed from the library, not deleted: its files stay.
         var isDeletable: Bool {

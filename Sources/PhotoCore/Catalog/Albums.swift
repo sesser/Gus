@@ -8,6 +8,23 @@ public struct AlbumSummary: Hashable, Sendable, Identifiable {
     public var id: Int64 { album.id ?? 0 }
 }
 
+extension AlbumSummary {
+    /// The order `albumSummaries` lists albums in, for an album renamed in
+    /// memory before its write has landed: by name as SQLite's `NOCASE`
+    /// compares it (ASCII letters without their case, everything else byte by
+    /// byte, a shorter name before a longer one it begins), then by id.
+    public static func isListedBefore(_ first: AlbumSummary, _ second: AlbumSummary) -> Bool {
+        let firstName = first.album.name.utf8.lazy.map(Self.withoutASCIICase)
+        let secondName = second.album.name.utf8.lazy.map(Self.withoutASCIICase)
+        if firstName.elementsEqual(secondName) { return first.id < second.id }
+        return firstName.lexicographicallyPrecedes(secondName)
+    }
+
+    private static func withoutASCIICase(_ byte: UInt8) -> UInt8 {
+        (UInt8(ascii: "A")...UInt8(ascii: "Z")).contains(byte) ? byte | 0x20 : byte
+    }
+}
+
 /// A smart album, with its rules decoded.
 public struct SmartAlbum: Hashable, Sendable, Identifiable {
     public var id: Int64
@@ -91,6 +108,9 @@ extension Catalog {
         }
     }
 
+    /// Changes the album's name in the catalog and nothing else: its photos,
+    /// its project and every sidecar stay as they are (`InPlaceRename` is the
+    /// rule for what a typed name becomes). Two albums may share a name.
     public func renameAlbum(id: Int64, to name: String) async throws {
         try await database.write { db in
             try db.execute(sql: "UPDATE album SET name = ? WHERE id = ?", arguments: [name, id])

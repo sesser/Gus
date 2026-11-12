@@ -1515,6 +1515,17 @@
         }
       }
     },
+    "Album name" : {
+      "comment" : "VoiceOver's label for an album's name field in the sidebar",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Album name"
+          }
+        }
+      }
+    },
     "Albums" : {
       "comment" : "Sidebar section",
       "localizations" : {
@@ -8942,7 +8953,7 @@
       }
     },
     "Rename Album" : {
-      "comment" : "Undo action name and sheet title",
+      "comment" : "Undo action name",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8997,7 +9008,7 @@
       }
     },
     "Rename “%@”" : {
-      "comment" : "File menu; the project selected in the sidebar, renamed in place (no sheet follows)",
+      "comment" : "File menu; the project or album selected in the sidebar, renamed in place (no sheet follows)",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -9008,7 +9019,7 @@
       }
     },
     "Rename “%@”…" : {
-      "comment" : "File menu; the album or keyword selected in the sidebar",
+      "comment" : "File menu; the keyword selected in the sidebar, renamed in a sheet",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -10743,7 +10754,7 @@
       }
     },
     "The name can't be empty." : {
-      "comment" : "VoiceOver, after an empty project name was refused",
+      "comment" : "VoiceOver, after an empty project or album name was refused",
       "localizations" : {
         "en" : {
           "stringUnit" : {
