@@ -3,11 +3,10 @@ Issue: #63
 # Side by side comparison: status
 
 Owner: swift-macos-engineer. Branch: `feature/side-by-side-comparison`. State: **Done**
-(2026-11-12, after the second review pass). Every acceptance criterion is built and has a
-test or a scripted check. The designer's rulings D1 to D10 (design §16) and fixes F1 to F4,
+(2026-11-12, after the third design pass). Every acceptance criterion is built and has a
+test or a scripted check. The designer's rulings D1 to D11 (design §16) and fixes F1 to F5,
 and the code review's findings C1 to C10, are answered under **Review findings**. No design
-question is open. Next: code-reviewer confirms C9 and C10 and the designer F4, then
-qa-tester.
+question is open. Next: code-reviewer and the designer confirm F5, then qa-tester.
 
 Spec: [`prd.md`](prd.md) (R1 to R9, AC1 to AC7, AC6a to AC6c, Decisions 1 to 12),
 [`design.md`](design.md) (§1 to §16). R9 (three or four photos) is a Could and is not built;
@@ -260,11 +259,11 @@ a scratch library with 800 × 600 JPEGs, 3000 × 2000 raws and two grouped pairs
 | C10 | `S`, `S` after RAW+JPEG Pair ▸ Show … lost the pair; the memory survived an emptied source | **Fixed.** When a reload gives a side its pair's other file, `apply` records the comparison again under the new version and drops the old one; an emptied source that closes the loupe clears the memory, as `closeLoupe` does. Scripted: a grouped pair (active) beside RAW_00004, `pairfile jpeg; key s; key s`: PAIR_00009.JPG and RAW_00004 again, the pair active. And: left with the left photo active, `search zzzz` (the grid), back in the loupe `S` gives the partner active, so nothing was remembered |
 | D9 (DQ-4) | Remove Project from Library… stays enabled while comparing | As built; no change |
 
-One thing D10's rule gives that a person may not expect, for the designer to know, not a
-question: Zoom In takes its step from the active pane too. With the active photo at its fit
-of 1.000 and the other at its fit of 0.290, ⌘= lands on 2.000 for both, so the other photo
-goes from fit to 200% in one step. That is "both take the magnification the step lands on";
-`Z` gives 100% on both.
+### Third pass (`review.md` "Third pass" F5; `design.md` §16 D11)
+
+| | Ruling | Done |
+|---|---|---|
+| D11, F5 | Linked Zoom In lands on the smallest of the panes' next steps, not the active pane's, so it never skips 100% on one side and retraces Zoom Out | **Built.** `ComparisonLink.step`: for Zoom In the landing is the smallest `LoupeZoomSteps.zoomIn` target among the panes the step reaches, whichever is active; each pane takes it or stays at its own fit as in D10, and is never taken back out. Zoom Out, `Z`, Fit and clicks are unchanged; with both panes at one magnification nothing changes. Test `aLinkedZoomInStepTakesBothToTheSameMagnification` (fits 1.000 and 0.290 from fit, either pane active: 1.000 / 0.500, 1.000 / 1.000, 2.000 / 2.000, and ⌘− back through the same three). Scripted with `compare animate off` (an 800 × 600 JPEG at fit 1.000 beside a raw at fit 0.489, both fitted, each side active in turn): `zoomstep in` three times gives 1.000 / 0.500, 1.000 / 1.000, 2.000 / 2.000; `zoomstep out` three times gives 1.000 / 1.000, 1.000 / 0.500, 1.000 / 0.489; a fourth changes nothing |
 
 ## Design questions (for apple-ui-designer)
 
@@ -317,4 +316,4 @@ benchmark commands.
 
 By subject (`git log --oneline c72d48e..`): "Side by side comparison: rules in PhotoCore",
 "… two panes in the loupe", "… benchmarks and user guide", "… status, Done", then, after the
-reviews, "… review fixes" and "… second-pass fixes".
+reviews, "… review fixes", "… second-pass fixes" and "… linked Zoom In (D11)".

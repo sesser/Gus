@@ -529,18 +529,36 @@ struct ComparisonTests {
         #expect(seen == [[1, 1], [1, 0.5], [1, 0.29]])
     }
 
+    /// Design §16 D11: Zoom In lands on the smallest of the panes' next
+    /// steps, so it never skips 100% on one side either and retraces Zoom Out.
     @Test func aLinkedZoomInStepTakesBothToTheSameMagnification() throws {
-        // From 100% and 100%: 200% and 200%.
-        var panes = [Self.pane(1, fit: 1), Self.pane(1, fit: 0.29)]
-        panes = try #require(ComparisonLink.step(zoomIn: true, active: 0, panes: panes, maximum: 8))
-        #expect(panes.map(\.magnification) == [2, 2])
-        #expect(panes.map(\.isZoomedIn) == [true, true])
-        // A step that lands under a pane's fit leaves that pane at its fit.
-        let mixed = try #require(ComparisonLink.step(zoomIn: true, active: 1, panes: [Self.pane(1, fit: 1), Self.pane(0.29, fit: 0.29)],
+        // Both fitted, fits 1.000 and 0.290: the pane that is furthest out catches up first.
+        for active in [0, 1] {
+            var panes = [Self.pane(1, fit: 1), Self.pane(0.29, fit: 0.29)]
+            var seen: [[Double]] = []
+            for _ in 0..<3 {
+                panes = try #require(ComparisonLink.step(zoomIn: true, active: active, panes: panes, maximum: 8))
+                seen.append(panes.map(\.magnification))
+            }
+            #expect(seen == [[1, 0.5], [1, 1], [2, 2]], "active \(active)")
+            #expect(panes.map(\.isZoomedIn) == [true, true])
+            // ⌘− then goes back the way ⌘= came.
+            var back: [[Double]] = []
+            while let next = ComparisonLink.step(zoomIn: false, active: active, panes: panes, maximum: 8) {
+                panes = next
+                back.append(next.map(\.magnification))
+            }
+            #expect(back == [[1, 1], [1, 0.5], [1, 0.29]], "active \(active)")
+        }
+        // The first step leaves the small photo at its fit, fitted, and zooms the other in.
+        let first = try #require(ComparisonLink.step(zoomIn: true, active: 0, panes: [Self.pane(1, fit: 1), Self.pane(0.29, fit: 0.29)],
                                                      maximum: 8))
-        #expect(mixed.map(\.magnification) == [1, 0.5])
-        #expect(mixed.map(\.isZoomedIn) == [false, true])
-        // At the top Zoom In is dimmed; below it, enabled while either pane can go on.
+        #expect(first.map(\.isZoomedIn) == [false, true])
+        // Both at the same magnification: the same step for both, as before.
+        let same = try #require(ComparisonLink.step(zoomIn: true, active: 0, panes: [Self.pane(1, fit: 0.29), Self.pane(1, fit: 0.29)],
+                                                    maximum: 8))
+        #expect(same.map(\.magnification) == [2, 2])
+        // At the top Zoom In is dimmed.
         #expect(ComparisonLink.step(zoomIn: true, active: 0, panes: [Self.pane(8, fit: 1), Self.pane(8, fit: 0.29)], maximum: 8) == nil)
     }
 

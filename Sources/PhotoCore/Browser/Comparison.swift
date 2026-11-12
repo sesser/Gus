@@ -377,11 +377,17 @@ public enum ComparisonLink {
     /// magnification the step lands on, and stops at its own fit only when
     /// that is below its fit. So a step never skips 100% on one side: with
     /// fits 1.000 and 0.290 at 200%, Zoom Out gives 100% and 100%, not 100%
-    /// and fit. The active pane steps (`LoupeZoomSteps`, as in the single
-    /// loupe); when it can't (it is at its fit, or at the top), the next
-    /// pane that can steps instead and the active pane stays, so repeated
-    /// presses still take every pane to its fit. Each pane's zoom follows
-    /// its own result: at its fit it is fitted, above it zoomed in.
+    /// and fit.
+    ///
+    /// Zoom Out: the active pane steps (`LoupeZoomSteps`, as in the single
+    /// loupe); when it can't (it is at its fit), the next pane that can
+    /// steps instead and the active pane stays, so repeated presses still
+    /// take every pane to its fit. Zoom In lands on the smallest of the
+    /// panes' next steps, whichever is active (design §16 D11), so the pane
+    /// that is furthest out catches up first and Zoom In retraces Zoom Out:
+    /// from 1.000 and 0.290, 1.000 and 0.500, then 100% and 100%, then 200%
+    /// and 200%. Each pane's zoom follows its own result: at its fit it is
+    /// fitted, above it zoomed in.
     public static func step(zoomIn: Bool, active: Int, panes: [PaneZoom], maximum: Double) -> [PaneZoom]? {
         guard panes.indices.contains(active) else { return nil }
         func target(_ pane: PaneZoom) -> Double? {
@@ -391,11 +397,14 @@ public enum ComparisonLink {
             return pane.isZoomedIn ? LoupeZoomSteps.zoomOut(from: current, fit: fit).map(Double.init) : nil
         }
         let order = [active] + panes.indices.filter { $0 != active }
-        guard let landed = order.lazy.compactMap({ target(panes[$0]) }).first else { return nil }
+        let targets = order.compactMap { target(panes[$0]) }
+        guard let landed = zoomIn ? targets.min() : targets.first else { return nil }
         return panes.map { pane in
             // Within the steps' tolerance of its fit is its fit.
             let above = landed > pane.fit * (1 + Double(LoupeZoomSteps.tolerance))
             let magnification = above ? min(landed, max(maximum, pane.fit)) : pane.fit
+            // Zoom In never takes a pane back out.
+            if zoomIn, magnification < pane.magnification { return pane }
             return PaneZoom(magnification: magnification, fit: pane.fit, isZoomedIn: above)
         }
     }
