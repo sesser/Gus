@@ -13,6 +13,8 @@ enum PhotoContextMenu {
         let state = LibraryMenuState(model)
         let menu = NSMenu()
         menu.addItem(ActionMenuItem(String(localized: "Open in Loupe")) { model.openLoupe() })
+        // With one or two photos selected (side-by-side-comparison design §4).
+        if state.canCompare { menu.addItem(ActionMenuItem(ComparisonText.compare) { model.toggleComparison() }) }
         menu.addItem(.separator())
         addPhotoItems(to: menu, model: model, state: state)
         addRemoveItem(to: menu, model: model, state: state)
@@ -34,6 +36,7 @@ enum PhotoContextMenu {
         menu.addItem(ActionMenuItem(zoom.isZoomed ? String(localized: "Zoom to Fit") : String(localized: "Zoom to 100%")) {
             NotificationCenter.default.post(name: .loupeShouldToggleZoom, object: model)
         })
+        if state.canCompare { menu.addItem(ActionMenuItem(ComparisonText.compare) { model.toggleComparison() }) }
         if state.canEditLoupePhoto && !state.isCropping {
             menu.addItem(ActionMenuItem(state.showsOriginal ? String(localized: "Show Adjustments")
                                                             : String(localized: "Show Original")) {
@@ -77,8 +80,32 @@ enum PhotoContextMenu {
         menu.addItem(ActionMenuItem(state.isVideoPlaying ? String(localized: "Pause") : String(localized: "Play")) {
             model.playback.toggle()
         })
+        // Choosing it says why a video can't be compared.
+        if state.canCompare { menu.addItem(ActionMenuItem(ComparisonText.compare) { model.toggleComparison() }) }
         menu.addItem(ActionMenuItem(String(localized: "Show Grid")) { model.closeLoupe() })
         addRemoveItem(to: menu, model: model, state: state)
+        return menu
+    }
+
+    /// For a comparison pane, after the right-click made it active
+    /// (side-by-side-comparison design §4): the loupe menu's photo items for
+    /// the active photo, zoom, the link and Stop Comparing. No adjust items
+    /// and no Remove items.
+    static func comparison(model: LibraryModel) -> NSMenu {
+        let state = LibraryMenuState(model)
+        let menu = NSMenu()
+        addPhotoItems(to: menu, model: model, state: state)
+        if !menu.items.isEmpty { menu.addItem(.separator()) }
+        let zoom = state.loupeZoom
+        if zoom.canZoomIn { menu.addItem(ActionMenuItem(String(localized: "Zoom In")) { stepZoom(model, in: true) }) }
+        if zoom.canZoomOut { menu.addItem(ActionMenuItem(String(localized: "Zoom Out")) { stepZoom(model, in: false) }) }
+        menu.addItem(ActionMenuItem(zoom.isZoomed ? String(localized: "Zoom to Fit") : String(localized: "Zoom to 100%")) {
+            NotificationCenter.default.post(name: .loupeShouldToggleZoom, object: model)
+        })
+        let link = ActionMenuItem(ComparisonText.link) { model.setComparisonLinked(!model.linksComparison) }
+        link.state = state.linksComparison ? .on : .off
+        menu.addItem(link)
+        menu.addItem(ActionMenuItem(ComparisonText.stop) { model.stopComparing() })
         return menu
     }
 
@@ -124,7 +151,8 @@ enum PhotoContextMenu {
                 ActionMenuItem(album.album.name) { model.addToAlbum(album.id) }
             }))
         }
-        if state.isInAlbum {
+        // Not while comparing: it takes a compared photo out from under the comparison.
+        if state.isInAlbum, !state.isComparing {
             menu.addItem(ActionMenuItem(String(localized: "Remove from Album")) { model.removeFromCurrentAlbum() })
         }
         let adjusts = state.mode == .grid ? state.targetsIncludePhoto : state.canEditLoupePhoto && !state.isCropping
@@ -135,10 +163,11 @@ enum PhotoContextMenu {
         if state.focusedIsPhoto {
             menu.addItem(ActionMenuItem(String(localized: "Copy Adjustments")) { model.copyAdjustments() })
         }
-        if state.hasCopiedAdjustments && state.targetsIncludePhoto {
+        // Nothing edits a photo while comparing; Copy Adjustments does not.
+        if state.hasCopiedAdjustments && state.targetsIncludePhoto && !state.isComparing {
             menu.addItem(ActionMenuItem(String(localized: "Paste Adjustments")) { model.pasteAdjustments() })
         }
-        if !state.presetCollections.isEmpty && state.targetsIncludePhoto {
+        if !state.presetCollections.isEmpty && state.targetsIncludePhoto && !state.isComparing {
             menu.addItem(submenu(String(localized: "Apply Preset"), state.presetCollections.flatMap { collection in
                 let items = collection.presets.map { preset in
                     ActionMenuItem(preset.name) { model.applyAdjustmentPreset(preset) } as NSMenuItem

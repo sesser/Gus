@@ -38,12 +38,14 @@ final class FilmStripCell: NSCollectionViewItem {
         loadTask = nil
     }
 
-    func configure(with item: CatalogItem, model: LibraryModel, isFocused: Bool, pixelSize: Int) {
+    /// `comparedSide`: the comparison pane showing this photo, if one does.
+    func configure(with item: CatalogItem, model: LibraryModel, isFocused: Bool, comparedSide: ComparisonSide? = nil,
+                   pixelSize: Int) {
         let isNewItem = versionID != item.versionID
         let isNewRendition = isNewItem || editStackHash != item.editStackHash
         versionID = item.versionID
         editStackHash = item.editStackHash
-        cellView.apply(item, offline: model.isOffline(item), isFocused: isFocused)
+        cellView.apply(item, offline: model.isOffline(item), isFocused: isFocused, comparedSide: comparedSide)
         guard isNewRendition || cellView.image == nil || pixelSize > loadedPixelSize else { return }
 
         cancelLoad()
@@ -87,6 +89,9 @@ final class FilmStripCellView: NSView {
     private var item: CatalogItem?
     private var offline = false
     private var isFocused = false
+    /// The comparison pane showing this photo: "on screen", and active when
+    /// also focused (side-by-side-comparison design §7).
+    private var comparedSide: ComparisonSide?
     private var glyphSizes: [ObjectIdentifier: CGSize] = [:]
 
     override init(frame: NSRect) {
@@ -135,13 +140,15 @@ final class FilmStripCellView: NSView {
         }
     }
 
-    func apply(_ item: CatalogItem, offline: Bool, isFocused: Bool) {
+    func apply(_ item: CatalogItem, offline: Bool, isFocused: Bool, comparedSide: ComparisonSide? = nil) {
         let previous = self.item
         let wasOffline = self.offline
         let wasFocused = self.isFocused
+        let wasCompared = self.comparedSide
         self.item = item
         self.offline = offline
         self.isFocused = isFocused
+        self.comparedSide = comparedSide
         // The same photo culled: VoiceOver reads the new value.
         if let previous, previous.versionID == item.versionID,
            previous.flag != item.flag || previous.colorLabel != item.colorLabel || previous.rating != item.rating
@@ -151,7 +158,7 @@ final class FilmStripCellView: NSView {
         let value = PhotoAccessibility.value(for: item, offline: offline)
         let label = PhotoAccessibility.label(for: item)
         toolTip = value.isEmpty ? label : label + " · " + value
-        if wasFocused != isFocused { updateChrome() }
+        if wasFocused != isFocused || wasCompared != comparedSide { updateChrome() }
         updateMarks()
         needsLayout = true
     }
@@ -273,7 +280,9 @@ final class FilmStripCellView: NSView {
         guard let layer else { return }
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        layer.backgroundColor = color(isFocused ? Palette.cellSelected : Palette.cell).cgColor
+        // The other compared photo: the selected fill with no border. The
+        // fill is a luminance step, not a hue; the border is the distinction.
+        layer.backgroundColor = color(isFocused || comparedSide != nil ? Palette.cellSelected : Palette.cell).cgColor
         layer.borderWidth = isFocused ? PaletteSpec.selectedBorderWidth(in: PaletteAppearance(effectiveAppearance)) : 0
         layer.borderColor = NSColor.controlAccentColor.cgColor
         CATransaction.commit()
@@ -306,7 +315,13 @@ final class FilmStripCellView: NSView {
     override func isAccessibilityElement() -> Bool { item != nil }
     override func accessibilityRole() -> NSAccessibility.Role? { .image }
     override func accessibilityLabel() -> String? { item.map(PhotoAccessibility.label) }
-    override func accessibilityValue() -> Any? { item.map { PhotoAccessibility.value(for: $0, offline: offline) } }
+    /// The photo's value; a compared photo's ends with its side ("Picked, Left photo").
+    override func accessibilityValue() -> Any? {
+        item.map { item in
+            AccessibilityText.list([PhotoAccessibility.value(for: item, offline: offline),
+                                    comparedSide.map(ComparisonText.side) ?? ""])
+        }
+    }
     override func isAccessibilitySelected() -> Bool { isFocused }
 
     override func accessibilityPerformPress() -> Bool {

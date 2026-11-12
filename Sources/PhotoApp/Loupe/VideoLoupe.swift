@@ -92,6 +92,11 @@ struct VideoLoupe: NSViewRepresentable {
             model.perform(action)
             return true
         }
+        // S on a video says why it can't be compared (side-by-side-comparison design §3).
+        if ComparisonKey.isCompare(event) {
+            model.toggleComparison()
+            return true
+        }
         switch NavigationKey.from(event) {
         case .left, .up: model.moveFocus(by: -1)
         case .right, .down: model.moveFocus(by: 1)

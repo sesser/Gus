@@ -367,6 +367,11 @@ final class PhotoCollectionView: NSCollectionView {
            controller?.navigate(key, extend: event.modifierFlags.contains(.shift)) == true {
             return
         }
+        // S compares the one or two selected photos (side-by-side-comparison design §3).
+        if ComparisonKey.isCompare(event) {
+            controller?.model.toggleComparison()
+            return
+        }
         // C opens the focused photo in the loupe, cropping.
         if event.charactersIgnoringModifiers?.lowercased() == "c",
            event.modifierFlags.intersection([.command, .option, .control, .shift]).isEmpty {

@@ -36,6 +36,18 @@ struct AdjustView: View {
                 .padding(InspectorMetrics.padding)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+        } else if model.isComparing {
+            // Nothing is edited while comparing (side-by-side-comparison
+            // design §11); the tab stays selectable.
+            ContentUnavailableView {
+                Label("Not Available While Comparing", systemImage: ComparisonRules.toolbarSymbolName)
+            } description: {
+                Text("Stop comparing to adjust the active photo.", comment: "Adjust tab while two photos are compared")
+            } actions: {
+                AppKitButton(title: ComparisonText.stop, style: .push) {
+                    model.stopComparing()
+                }
+            }
         } else {
             switch model.loupeAdjustState {
             case .idle:

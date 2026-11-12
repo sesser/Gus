@@ -116,6 +116,15 @@ import PhotoUI
 ///     print reveal          (the files Show in Finder would select for the targets, the folders, what it leaves out;
 ///                           the Finder is not opened)
 ///     print removal         (whether a removal may start, is asked for or runs, and its Activity job)
+///     compare on|off|toggle (View ▸ Compare Side by Side / Stop Comparing's action; a refusal's alert shows
+///                           with `alert`, and `alert press OK` closes it)
+///     compare active left|right|switch   compare link on|off   (the active pane; Link Zoom and Position)
+///     compareclick left|right [<x> <y>]  (a click on a pane through its own mouse methods, at unit coordinates
+///                           of its photo from the top left; waits out the double-click interval)
+///     compare panbench [<seconds>]   (both panes to 100%, then a pan on the display link: time until both are
+///                           sharp, frame intervals, hitches, main-thread time per step, memory)
+///     print compare         (the two versions, active side, link, each pane's magnification and visible unit
+///                           rect, the ring and its color, the selection, title and each caption's content)
 ///
 /// End a scripted rename with a key or `sidebarfocus`: taking the keyboard away another way saves outside any undo group.
 ///
@@ -643,6 +652,13 @@ enum DebugScript {
             // File ▸ Remove Project from Library…'s action for the selected project: asks first.
             if let project = model.selectedProject { model.removeProjectFromLibrary(project.id) }
             try? await Task.sleep(for: .milliseconds(700))
+        case "compare":
+            // The menu's path; it changes no photo, so it gets no undo group.
+            await DebugComparisonCommands.run(rest, model: model, window: window)
+        case "compareclick":
+            await DebugComparisonCommands.click(rest, model: model, window: window)
+        case "print" where rest.first == "compare":
+            DebugComparisonCommands.printState(model: model, window: window)
         case "sidebarfocus":
             DebugLibraryOpsCommands.focusSidebar(model)
             try? await Task.sleep(for: .milliseconds(200))
@@ -1185,6 +1201,8 @@ enum DebugScript {
                   + " bareKeys \(state.bareKeysActive) editLoupePhoto \(state.canEditLoupePhoto) cropping \(state.isCropping)"
                   + " sharpenMap \(state.showsSharpeningMap) canShowSharpenMap \(state.canShowSharpeningMap)"
                   + " sharpenMapNotApplied \(state.sharpeningMapNotApplied)"
+                  + " comparing \(state.isComparing) canCompare \(state.canCompare) linked \(state.linksComparison)"
+                  + " history \(state.canShowHistory)"
                   + " sidebarKeys \(state.sidebarHasKeyboard) showInFinder \(state.canShowInFinder)"
                   + " showTargetsInFinder \(state.canShowTargetsInFinder) canRemove \(state.canRemoveFromLibrary)"
                   + " sidebarItem \(state.sidebarItem.map { ($0.isProject ? "project " : "") + $0.name } ?? "none")")
@@ -1249,7 +1267,8 @@ enum DebugScript {
             "home": (115, "\u{F729}"), "end": (119, "\u{F72B}"), "pageup": (116, "\u{F72C}"), "pagedown": (121, "\u{F72D}"),
         ]
         let digits: [String: UInt16] = ["0": 29, "1": 18, "2": 19, "3": 20, "4": 21, "5": 23, "6": 22, "7": 26]
-        let letters: [String: UInt16] = ["p": 35, "x": 7, "u": 32, "z": 6, "[": 33, "]": 30, "r": 15, ".": 47]
+        let letters: [String: UInt16] = ["p": 35, "x": 7, "u": 32, "z": 6, "[": 33, "]": 30, "r": 15, ".": 47, "s": 1,
+                                         "a": 0, "f": 3, "c": 8]
         let (code, characters) = named[key] ?? (digits[key] ?? letters[key] ?? 0, key)
         for type in [NSEvent.EventType.keyDown, .keyUp] {
             guard let event = NSEvent.keyEvent(with: type, location: .zero, modifierFlags: flags,
