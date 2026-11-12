@@ -1,6 +1,6 @@
 # Rename albums in place in the sidebar
 
-Status: Approved (owner, 2026-11-11)
+Status: Shipped, checks pending, 2026-11-12 (manual checks P1-P6 open: see [`qa.md`](qa.md))
 Issue: #141
 Slug: rename-albums-in-place
 Roadmap: Next

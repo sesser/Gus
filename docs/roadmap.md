@@ -39,7 +39,7 @@ Principles (drawn from `README.md` and `CLAUDE.md`):
 
 ## Now (maximum three)
 
-Empty. The owner decides what fills it. First candidate: rename-albums-in-place (#141, top of Next).
+Empty. The owner decides what fills it. First candidate: the top of Next.
 
 ## Next
 
@@ -48,7 +48,6 @@ virtual copies, then side-by-side comparison; the rest in the order it had). HDR
 side-by-side comparison on 2026-11-11, ahead of the rest.
 The small fixes and tooling items can each go as a bug fix (`docs/WORKFLOW.md`).
 
-1. [#141](https://github.com/sesser/Gus/issues/141) `rename-albums-in-place`: Albums rename through a sheet while projects rename in place; make both in place (follow-up to library-ops; owner, 2026-11-10)
 1. [#62](https://github.com/sesser/Gus/issues/62) `virtual-copies`: No second version of a photo with different edits
 1. [#63](https://github.com/sesser/Gus/issues/63) `side-by-side-comparison`: No way to look at photos next to each other to compare them
 1. [#150](https://github.com/sesser/Gus/issues/150) `hdr-merge`: No way to merge several exposures of a scene into one tone-mapped HDR image, with automatic alignment and de-ghosting (owner, 2026-11-11)
