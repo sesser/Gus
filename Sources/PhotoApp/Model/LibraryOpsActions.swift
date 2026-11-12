@@ -25,33 +25,8 @@ extension LibraryModel {
 
     // MARK: Renaming a project
 
-    /// Puts the project's sidebar row into editing (design §4), making the
-    /// row visible first: the sidebar, the Projects section, the row.
-    func beginProjectRename(_ id: Int64) {
-        guard projects.contains(where: { $0.id == id }) else { return }
-        showsSidebar = true
-        setSidebarSection(.projects, shown: true)
-        renamingProjectID = id
-        revealProjectRow()
-    }
-
-    /// The row's field ended: saves what was typed (`typed` nil: Escape, the
-    /// old name stays). An empty name is refused with the alert sound, and
-    /// VoiceOver is told why.
-    func endProjectRename(_ id: Int64, typed: String?) {
-        guard renamingProjectID == id else { return }
-        renamingProjectID = nil
-        guard let typed, let current = projects.first(where: { $0.id == id })?.project.name else { return }
-        switch InPlaceRename.resolve(typed: typed, current: current) {
-        case .rename(let name):
-            renameProject(id, to: name)
-        case .unchanged:
-            break
-        case .refused:
-            NSSound.beep()
-            AccessibilityText.announce(LibraryOpsText.emptyName)
-        }
-    }
+    // The row's field and the three routes into it are shared with albums:
+    // `beginSidebarRename` and `endSidebarRename` (`SidebarRenameActions.swift`).
 
     /// Saves a project's name in the catalog as one undo step. The sidebar
     /// shows it at once; the write follows in order.
@@ -345,11 +320,11 @@ enum LibraryOpsText {
         String(localized: "Project name", comment: "Import options row: the new project's name template. Also VoiceOver's label for a project's name field in the sidebar")
     }
     static var emptyName: String {
-        String(localized: "The name can't be empty.", comment: "VoiceOver, after an empty project name was refused")
+        String(localized: "The name can't be empty.", comment: "VoiceOver, after an empty project or album name was refused")
     }
 
     static func rename(_ name: String) -> String {
-        String(localized: "Rename “\(name)”", comment: "File menu; the project selected in the sidebar, renamed in place")
+        String(localized: "Rename “\(name)”", comment: "File menu; the project or album selected in the sidebar, renamed in place")
     }
 
     static func removing(_ count: Int) -> String {

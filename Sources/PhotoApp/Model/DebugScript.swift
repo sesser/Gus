@@ -23,6 +23,7 @@ import PhotoUI
 ///                           loupe [<x> <y>]: mode, magnification, visible rect, image point under x y)
 ///     suggest               (analyzes the selection and waits)      accept <keyword>
 ///     album <name>          (from the selection)    smartalbum <name>  (rating ≥ 3)     remove
+///     projectalbum <name>   (an empty album in the project the sidebar points at)
 ///     sidebar album|smart|month <n> | builtin <name> | changed | all  sheet smart|album|none
 ///     checkdisk             (looks for outside changes and waits)   resolvedisk library|file
 ///     click <x> <y>         (mouse down and up through the event queue, in window points
@@ -47,7 +48,9 @@ import PhotoUI
 ///                           open popover; a click in it, in its window's points from the top left. print activity
 ///                           shows `popover`, what the model holds, and whether a popover is `on screen`)
 ///     windowshot <title text> <file.png>   (snapshots another visible window, e.g. Settings)
-///     sidebarsection [albums|dates|keywords|projects show|hide]   (prints the hidden sidebar sections)
+///     sidebarsection [albums|dates|keywords|projects show|hide|expand|collapse]   (prints the hidden sidebar
+///                           sections; expand and collapse fold a section as its header does)
+///     sidebarpane on|off    (shows or hides the sidebar, as View ▸ Show / Hide Sidebar does)
 ///     contextmenu cell <n>|loupe|at <x> <y>|video [controls]|slider <title> [<item>[/<sub>]]   (prints a right-click's menu there,
 ///                           or runs an item; video controls aims at AVKit's control bar)
 ///     editvalue <title>     (puts the keyboard in the value field of the inspector slider with that title)
@@ -108,11 +111,16 @@ import PhotoUI
 ///     sidebarfocus          (hands the keyboard to the sidebar's list, as a click on a row does)
 ///     renameproject         (File ▸ Rename's action for the selected project: its row becomes a text field;
 ///                           then `text <name>` and `key return`, or `key escape`)
+///     renamealbum [<n>]     (the same for the selected album; with a number, the row menu's Rename on album n
+///                           of `print albums`, which need not be selected)
 ///     removephotos | removeproject   (File ▸ Remove from Library… and Remove Project from Library…'s actions:
 ///                           each asks first; answer with `alert press Remove` or `alert press Cancel`)
 ///     removal fail on|off   (removals fail in the catalog until turned off; touches no file)
 ///     print projects        (each project's name, count and whether Show in Finder has its folder; the row being
 ///                           renamed, its field's text and selection)
+///     print albums          (each album's name and count in sidebar order, a project's album with its project;
+///                           the selected one and whether its row is in view; the row being renamed, its field's
+///                           text and selection and whether it is in view; File ▸ Rename's title)
 ///     print reveal          (the files Show in Finder would select for the targets, the folders, what it leaves out;
 ///                           the Finder is not opened)
 ///     print removal         (whether a removal may start, is asked for or runs, and its Activity job)
@@ -142,16 +150,18 @@ enum DebugScript {
             // Only commands that can change photos get a group; empty groups
             // would otherwise become undo steps that do nothing. A film strip
             // click moves focus, which saves a crop being edited; taking the
-            // keyboard from a project's name field saves the rename.
-            let changing: Set<String> = ["key", "addkeywords", "text", "pairfile", "accept", "album", "smartalbum", "remove",
+            // keyboard from a project's or an album's name field saves the rename.
+            let changing: Set<String> = ["key", "addkeywords", "text", "pairfile", "accept", "album", "projectalbum", "smartalbum", "remove",
                                          "adjust", "lut", "pasteadjust", "preset", "menupick", "lutwindow", "metadata",
                                          "menupress", "contextmenu", "filmstripclick", "ml", "sidebarfocus"]
             for command in commands where !command.isEmpty {
                 let words = command.split(separator: " ")
                 // "accessibility <role> <n> <action>" runs an action; listing changes nothing.
                 // "contextmenu fringe <n>" lists, and its Pick from Photo only arms.
+                // Starting a rename while another row's is open saves the open one.
                 let grouped = (changing.contains(String(words.first ?? ""))
                     && !DebugLensCommands.contextMenuChangesNothing(words.map(String.init)))
+                    || (["renameproject", "renamealbum"].contains(words.first) && model.sidebarRename != nil)
                     || (words.first == "accessibility" && words.count >= 4)
                     || (words.first == "history" && words.dropFirst().first == "revert")
                 if grouped { undoManager.beginUndoGrouping() }
@@ -287,6 +297,12 @@ enum DebugScript {
             model.acceptSuggestion(rest.joined(separator: " "))
         case "album":
             model.createAlbum(named: rest.joined(separator: " "), projectID: nil, adding: model.actionTargetVersionIDs)
+        case "projectalbum":
+            if let project = model.selectedProjectID {
+                model.createAlbum(named: rest.joined(separator: " "), projectID: project, adding: [])
+            } else {
+                print("debug-script: the sidebar points at no project")
+            }
         case "smartalbum":
             // A test album: rating at least 3, picks, or the given name's rule set.
             let rules = SmartAlbumRules(match: .all, rules: [SmartRule(field: .rating, comparison: .atLeast,
@@ -543,9 +559,18 @@ enum DebugScript {
             }
         case "sidebarsection":
             if let section = rest.first.flatMap(SidebarSection.init(rawValue:)) {
-                model.setSidebarSection(section, shown: rest.dropFirst().first != "hide")
+                switch rest.dropFirst().first {
+                // The key the sidebar's section stores its disclosure under (`SidebarView`).
+                case "expand": UserDefaults.standard.set(true, forKey: "sidebar.section.\(section.rawValue).expanded")
+                case "collapse": UserDefaults.standard.set(false, forKey: "sidebar.section.\(section.rawValue).expanded")
+                case let word: model.setSidebarSection(section, shown: word != "hide")
+                }
+                try? await Task.sleep(for: .milliseconds(300))
             }
             print("debug-script: hidden sections \(model.hiddenSidebarSections.map(\.rawValue).sorted())")
+        case "sidebarpane":
+            model.showsSidebar = rest.first != "off"
+            try? await Task.sleep(for: .milliseconds(500))
         case "menuitems":
             printMenuItems(containing: rest.joined(separator: " "))
         case "helpmenu":
@@ -633,7 +658,10 @@ enum DebugScript {
             await DebugLibraryOpsCommands.alert(rest, window: window, model: model)
         case "renameproject":
             // File ▸ Rename's action for the project selected in the sidebar: its row becomes a field.
-            if let project = model.selectedProject { model.beginProjectRename(project.id) }
+            if let project = model.selectedProject { model.beginSidebarRename(.project(project.id)) }
+            try? await Task.sleep(for: .milliseconds(500))
+        case "renamealbum":
+            DebugLibraryOpsCommands.renameAlbum(rest, model: model)
             try? await Task.sleep(for: .milliseconds(500))
         case "removephotos":
             // File ▸ Remove from Library…'s action: asks first (see `alert`).
@@ -650,6 +678,8 @@ enum DebugScript {
             await DebugLibraryOpsCommands.removal(rest, model: model)
         case "print" where rest.first == "projects":
             DebugLibraryOpsCommands.printProjects(model, window: window)
+        case "print" where rest.first == "albums":
+            DebugLibraryOpsCommands.printAlbums(model, window: window)
         case "print" where rest.first == "reveal":
             await DebugLibraryOpsCommands.printReveal(model)
         case "print" where rest.first == "removal":
@@ -1187,7 +1217,8 @@ enum DebugScript {
                   + " sharpenMapNotApplied \(state.sharpeningMapNotApplied)"
                   + " sidebarKeys \(state.sidebarHasKeyboard) showInFinder \(state.canShowInFinder)"
                   + " showTargetsInFinder \(state.canShowTargetsInFinder) canRemove \(state.canRemoveFromLibrary)"
-                  + " sidebarItem \(state.sidebarItem.map { ($0.isProject ? "project " : "") + $0.name } ?? "none")")
+                  + " sidebarItem \(state.sidebarItem.map { ($0.isProject ? "project " : "") + $0.name } ?? "none")"
+                  + " rename \(state.sidebarItem?.renameRoute.map { "\($0)" } ?? "none")")
         case "empty":
             // The browser's empty state (design.md N3), as the view chooses it.
             print("debug-script: empty \(model.emptyState.map { "\($0)" } ?? "none") source '\(model.title(for: model.sidebarSelection))'"
