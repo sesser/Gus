@@ -144,7 +144,7 @@ final class ComparisonController: NSObject {
                 // A side walked to another photo: it opens where the other
                 // pane is, so walking a burst at 100% stays on the face (§5).
                 if isNewPhoto, previous != nil, linked, let leader = panes.first(where: { $0 !== pane }) {
-                    follow(leader, pane, followerIsNew: true)
+                    follow(leader, pane)
                 }
             }
             if !wasLinked, linked { relink() }
@@ -360,28 +360,17 @@ final class ComparisonController: NSObject {
         if leader === activePane || linked { publishZoom() }
     }
 
-    /// What `ComparisonLink.follow` sees of a leader: zoomed in by the one
-    /// rule, a gesture still under way included.
-    private func followState(ofLeader pane: ComparisonPane) -> ComparisonLink.PaneZoom {
-        ComparisonLink.PaneZoom(magnification: Double(pane.magnification), fit: Double(pane.fitMagnification),
-                                isZoomedIn: pane.isZoomedIn)
-    }
-
-    /// `follower` does what `ComparisonLink.follow` says for where `leader`
-    /// is now: nothing at all, or the magnification and zoom that are its
-    /// own result, at the leader's unit center (design §16 D12). Its zoom is
-    /// the only thing that starts a full-resolution render, so a pane that
-    /// stays fitted renders nothing new. `followerIsNew`: a photo a walk
-    /// just put there counts as at its fit and fitted.
-    private func follow(_ leader: ComparisonPane, _ follower: ComparisonPane, followerIsNew: Bool = false) {
-        let fit = Double(follower.fitMagnification)
-        let state = followerIsNew ? ComparisonLink.PaneZoom(magnification: fit, fit: fit, isZoomedIn: false)
-                                  : stepState(of: follower)
-        guard let result = ComparisonLink.follow(leader: followState(ofLeader: leader), follower: state,
-                                                 maximum: Double(follower.scrollView.maxMagnification)) else { return }
+    private func follow(_ leader: ComparisonPane, _ follower: ComparisonPane) {
         performWithoutFollowing {
-            follower.show(magnification: CGFloat(result.magnification), unitCenter: leader.unitCenter,
-                          zoom: result.isZoomedIn ? .actualSize : .fit)
+            // Linked panes share the zoom: fitted or zoomed in, as the leader
+            // is by the one rule (`ComparisonLink.isZoomedIn`).
+            let zoomedIn = leader.isZoomedIn
+            let magnification = ComparisonLink.magnification(
+                following: Double(leader.magnification), leaderFit: Double(leader.fitMagnification),
+                leaderIsZoomedIn: zoomedIn, followerFit: Double(follower.fitMagnification),
+                maximum: Double(follower.scrollView.maxMagnification))
+            follower.show(magnification: CGFloat(magnification), unitCenter: leader.unitCenter,
+                          zoom: zoomedIn ? .actualSize : .fit)
         }
     }
 
@@ -396,12 +385,13 @@ final class ComparisonController: NSObject {
             for follower in self.panes where follower !== leader {
                 if zoom == .fit {
                     follower.applyZoom(.fit, unit: nil, animated: animated)
-                } else if let result = ComparisonLink.follow(
-                    leader: self.followState(ofLeader: leader), follower: self.stepState(of: follower),
-                    maximum: Double(follower.scrollView.maxMagnification)) {
-                    // The inactive pane's own result, as for any follow (D12).
-                    follower.setZoom(result.isZoomedIn ? .actualSize : .fit)
-                    follower.setMagnification(CGFloat(result.magnification), unit: unit, animated: animated)
+                } else {
+                    let magnification = ComparisonLink.magnification(
+                        following: Double(leader.magnification), leaderFit: Double(leader.fitMagnification),
+                        leaderIsZoomedIn: true, followerFit: Double(follower.fitMagnification),
+                        maximum: Double(follower.scrollView.maxMagnification))
+                    follower.setZoom(.actualSize)
+                    follower.setMagnification(CGFloat(magnification), unit: unit, animated: animated)
                 }
             }
         }
