@@ -113,6 +113,9 @@ struct LibraryMenuState: Equatable {
     /// A removal from the library may start: no import and no other removal
     /// runs (library-ops design §8).
     var canRemoveFromLibrary: Bool
+    /// File ▸ Duplicate and the context menus': the targets include a photo,
+    /// no crop is being edited and no Duplicate runs (virtual-copies design §4.1).
+    var canDuplicate: Bool
 
     /// The project, album, smart album or keyword selected in the sidebar,
     /// for File ▸ Rename, Delete, Edit Smart Album and Remove Project from
@@ -216,6 +219,7 @@ struct LibraryMenuState: Equatable {
             ? model.selectedProject.map { model.canShowProjectInFinder($0.id) } ?? false
             : canShowTargetsInFinder
         canRemoveFromLibrary = model.canRemoveFromLibrary
+        canDuplicate = model.canDuplicateTargets
     }
 
     /// Items with a bare key: only while the grid, loupe or video loupe has

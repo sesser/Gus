@@ -21,10 +21,18 @@ public struct TemplateContext: Sendable {
     public var jobCode: String
     /// When exporting: the export's date, for `{export:<pattern>}`.
     public var exportDate: Date?
+    /// When exporting a copy: its name in the library ("IMG_0412 copy 2",
+    /// `CopyNaming`), which `{name}` then gives in place of the original
+    /// name. Nil for an original and for imports, which never see a copy.
+    public var displayName: String?
+
+    /// What `{name}` expands to: the copy's name, or the original name
+    /// without its extension.
+    public var name: String { displayName ?? (originalName as NSString).deletingPathExtension }
 
     public init(captureDate: Date?, captureOffsetSeconds: Int?, fileDate: Date, importDate: Date, make: String?,
                 model: String?, serial: String?, lens: String?, originalName: String, sequence: Int, counter: Int,
-                jobCode: String, exportDate: Date? = nil) {
+                jobCode: String, exportDate: Date? = nil, displayName: String? = nil) {
         self.captureDate = captureDate
         self.captureOffsetSeconds = captureOffsetSeconds
         self.fileDate = fileDate
@@ -38,6 +46,7 @@ public struct TemplateContext: Sendable {
         self.counter = counter
         self.jobCode = jobCode
         self.exportDate = exportDate
+        self.displayName = displayName
     }
 }
 
@@ -47,7 +56,7 @@ public struct TemplateContext: Sendable {
 ///     {capture:<date pattern>}   capture date, e.g. {capture:yyyy}/{capture:yyyy-MM-dd}
 ///     {import:<date pattern>}    today, e.g. {import:yyyy-MM-dd}
 ///     {make} {model} {serial} {lens}
-///     {name}                     original name without extension
+///     {name}                     original name without extension (a copy's name when exporting one)
 ///     {number}                   the digits in the original name (IMG_0412 → 0412)
 ///     {ext} {ext:lower} {ext:upper}
 ///     {seq:4}                    this import's shot number, zero-padded
@@ -125,7 +134,7 @@ public struct ImportTemplate: Codable, Hashable, Sendable {
         case "model": return context.model ?? ""
         case "serial": return context.serial ?? ""
         case "lens": return context.lens ?? ""
-        case "name": return original.deletingPathExtension
+        case "name": return context.name
         case "number":
             return String(original.deletingPathExtension.reversed().drop { !$0.isNumber }.prefix { $0.isNumber }.reversed())
         case "ext":

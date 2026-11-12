@@ -84,6 +84,8 @@ final class PhotoCellView: NSView {
     private let flagLayer = CALayer()
     private let labelLayer = CALayer()
     private let offlineLayer = CALayer()
+    /// The photo is a copy made with Duplicate (virtual-copies design §6.1).
+    private let copyLayer = CALayer()
     private let placeholderLayer = CALayer()
 
     private var item: CatalogItem?
@@ -107,6 +109,14 @@ final class PhotoCellView: NSView {
     /// Narrower cells show the image and culling marks only.
     static let minimumStripWidth: CGFloat = 96
     static let minimumInfoWidth: CGFloat = 120
+    /// The offline and copy marks on the image's top corners: a white glyph
+    /// on a dark backing, at every cell size.
+    static let markSize = CGSize(width: 22, height: 18)
+    static let markInset: CGFloat = 4
+    static let markGlyphSize: CGFloat = 12
+    static let markCornerRadius: CGFloat = 4
+    static let markBacking = NSColor(white: 0, alpha: 0.55)
+    static let copySymbol = "square.on.square"
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -129,13 +139,17 @@ final class PhotoCellView: NSView {
         kindLayer.contentsGravity = .resizeAspect
         labelLayer.cornerRadius = 5
         flagLayer.contentsGravity = .resizeAspect
-        offlineLayer.contentsGravity = .resizeAspect
-        offlineLayer.contents = Symbols.image("externaldrive.badge.xmark", color: .white, pointSize: 12)
-        offlineLayer.backgroundColor = NSColor(white: 0, alpha: 0.55).cgColor
-        offlineLayer.cornerRadius = 4
+        offlineLayer.contents = Symbols.image("externaldrive.badge.xmark", color: .white, pointSize: Self.markGlyphSize)
+        copyLayer.contents = Symbols.image(Self.copySymbol, color: .white, pointSize: Self.markGlyphSize)
+        for mark in [offlineLayer, copyLayer] {
+            mark.contentsGravity = .resizeAspect
+            mark.backgroundColor = Self.markBacking.cgColor
+            mark.cornerRadius = Self.markCornerRadius
+        }
+        copyLayer.isHidden = true
 
         for sublayer in [placeholderLayer, imageLayer, ratingLayer, nameLayer, kindLayer, flagLayer, labelLayer,
-                         offlineLayer] {
+                         offlineLayer, copyLayer] {
             sublayer.actions = Self.noActions
             layer.addSublayer(sublayer)
         }
@@ -156,7 +170,7 @@ final class PhotoCellView: NSView {
     override func viewDidChangeBackingProperties() {
         super.viewDidChangeBackingProperties()
         let scale = window?.backingScaleFactor ?? 2
-        for sublayer in [imageLayer, ratingLayer, nameLayer, kindLayer, flagLayer, offlineLayer] {
+        for sublayer in [imageLayer, ratingLayer, nameLayer, kindLayer, flagLayer, offlineLayer, copyLayer] {
             sublayer.contentsScale = scale
         }
     }
@@ -181,7 +195,15 @@ final class PhotoCellView: NSView {
         positionInfo()
         flagLayer.frame = NSRect(x: bounds.width - padding - 16, y: padding + 1, width: 15, height: 15)
         positionLabel()
-        offlineLayer.frame = NSRect(x: imageFrame.minX + 4, y: imageFrame.maxY - 22, width: 22, height: 18)
+        // Offline at the image's top-leading corner, the copy mark mirrored
+        // at top-trailing; both follow the layout direction.
+        let mark = Self.markSize
+        let markY = imageFrame.maxY - Self.markInset - mark.height
+        let leadingX = imageFrame.minX + Self.markInset
+        let trailingX = imageFrame.maxX - Self.markInset - mark.width
+        let rightToLeft = userInterfaceLayoutDirection == .rightToLeft
+        offlineLayer.frame = NSRect(x: rightToLeft ? trailingX : leadingX, y: markY, width: mark.width, height: mark.height)
+        copyLayer.frame = NSRect(x: rightToLeft ? leadingX : trailingX, y: markY, width: mark.width, height: mark.height)
         CATransaction.commit()
     }
 
@@ -219,8 +241,10 @@ final class PhotoCellView: NSView {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         ratingLayer.contents = Symbols.stars(item.rating.rawValue, color: color(Palette.rating), pointSize: 10)
-        if nameLayer.string as? String != item.baseName {
-            nameLayer.string = item.baseName
+        // An original's name is its file's; a copy's says which copy it is.
+        let name = PhotoName.display(item)
+        if nameLayer.string as? String != name {
+            nameLayer.string = name
         }
         let badgeText = FileKindText.badge(for: item)
         if badgeText != shownBadgeText {
@@ -250,12 +274,17 @@ final class PhotoCellView: NSView {
             labelLayer.isHidden = true
         }
         offlineLayer.isHidden = !offline
+        copyLayer.isHidden = !item.isCopy
         imageLayer.opacity = item.flag == .rejected ? 0.35 : 1
         // Only the label moves with the flag; a full layout pass per configured
         // cell showed up in fast-scroll profiles.
         positionLabel()
         CATransaction.commit()
     }
+
+    /// The copy mark is drawn, and where in the cell (debug scripts).
+    var showsCopyMark: Bool { !copyLayer.isHidden }
+    var copyMarkFrame: CGRect { copyLayer.frame }
 
     func setImage(_ image: CGImage?, animated: Bool) {
         self.image = image

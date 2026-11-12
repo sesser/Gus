@@ -53,13 +53,16 @@ public struct SmartRule: Codable, Hashable, Sendable, Identifiable {
         case iso, aperture, shutterSpeed, focalLength, exposureCompensation
         case flash, whiteBalance, hasLocation
         case artist, copyright, caption
+        /// "Photo is a copy": a copy made with Duplicate (virtual-copies R11).
+        /// Last, as the editor lists the fields in this order.
+        case isCopy
 
         public var kind: Kind {
             switch self {
             case .rating, .iso, .aperture, .shutterSpeed, .focalLength, .exposureCompensation: .number
             case .flag, .colorLabel, .fileType, .whiteBalance, .project: .choice
             case .keyword: .keyword
-            case .hasKeywords, .flash, .hasLocation: .flag
+            case .hasKeywords, .flash, .hasLocation, .isCopy: .flag
             case .fileName, .camera, .lens, .cameraSerial, .artist, .copyright, .caption: .text
             case .captureDate, .importDate: .date
             }
@@ -175,7 +178,7 @@ extension SmartRule {
         case .whiteBalance: "image.whiteBalance"
         case .project: "image.projectId"
         case .fileType: "image.format"
-        case .keyword, .hasKeywords, .flash, .hasLocation: ""
+        case .keyword, .hasKeywords, .flash, .hasLocation, .isCopy: ""
         }
     }
 
@@ -308,6 +311,9 @@ extension SmartRule {
             return (yes ? "image.flashFired = 1" : "ifnull(image.flashFired, 0) = 0", [])
         case .hasLocation:
             return (yes ? "image.latitude IS NOT NULL" : "image.latitude IS NULL", [])
+        case .isCopy:
+            // A copy is any version that is not its master's default one.
+            return (yes ? "NOT version.isDefault" : "version.isDefault", [])
         default:
             return nil
         }

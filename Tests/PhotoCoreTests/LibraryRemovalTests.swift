@@ -159,16 +159,17 @@ struct LibraryRemovalTests {
         }
     }
 
-    @Test("R6: removing a version removes its master and every version of it")
+    // Removing a copy alone is docs/features/virtual-copies R6 (`VirtualCopiesTests`).
+    @Test("R6: removing a photo removes its master and every version of it")
     func everyVersionOfTheMasterGoes() async throws {
         let fixture = try await CatalogFixture.make()
         let ids = try await fixture.addMasters([CatalogFixture.master(1), CatalogFixture.master(2)])
         let copy = try #require(try await fixture.catalog.duplicateVersion(id: ids[0]).id)
-        let plan = try await fixture.catalog.photoRemovalPlan(forVersions: [copy])
+        let plan = try await fixture.catalog.photoRemovalPlan(forVersions: [ids[0]])
         #expect(plan.fileCount == 1)
-        let result = try await fixture.catalog.removePhotos(versionIDs: [copy])
+        let result = try await fixture.catalog.removePhotos(versionIDs: [ids[0]])
         #expect(result.versionCount == 2)
-        #expect(try await fixture.catalog.version(id: ids[0]) == nil)
+        #expect(try await fixture.catalog.version(id: copy) == nil)
         #expect(try await fixture.catalog.versionCount() == 1)
     }
 

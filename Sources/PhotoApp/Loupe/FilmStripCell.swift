@@ -83,6 +83,9 @@ final class FilmStripCellView: NSView {
     /// Top-leading: the master's volume is offline.
     private let offlineBacking = CALayer()
     private let offlineLayer = CALayer()
+    /// Top-trailing, the one corner left: a copy made with Duplicate.
+    private let copyBacking = CALayer()
+    private let copyLayer = CALayer()
 
     private var item: CatalogItem?
     private var offline = false
@@ -101,22 +104,23 @@ final class FilmStripCellView: NSView {
         imageLayer.contentsGravity = .resizeAspect
         imageLayer.minificationFilter = .trilinear
         labelLayer.cornerRadius = FilmStripMetrics.labelDotSize / 2
-        for backing in [cullingBacking, videoBacking, offlineBacking] {
+        for backing in [cullingBacking, videoBacking, offlineBacking, copyBacking] {
             backing.backgroundColor = Palette.filmStripMarkBacking.cgColor
             backing.cornerRadius = FilmStripMetrics.markCornerRadius
         }
-        for glyph in [flagLayer, videoLayer, offlineLayer] {
+        for glyph in [flagLayer, videoLayer, offlineLayer, copyLayer] {
             glyph.contentsGravity = .resizeAspect
         }
         cullingBacking.addSublayer(flagLayer)
         cullingBacking.addSublayer(labelLayer)
         videoBacking.addSublayer(videoLayer)
         offlineBacking.addSublayer(offlineLayer)
+        copyBacking.addSublayer(copyLayer)
         for sublayer in [imageLayer, cullingBacking, flagLayer, labelLayer, videoBacking, videoLayer, offlineBacking,
-                         offlineLayer] {
+                         offlineLayer, copyBacking, copyLayer] {
             sublayer.actions = PhotoCellView.noActions
         }
-        for sublayer in [imageLayer, cullingBacking, videoBacking, offlineBacking] {
+        for sublayer in [imageLayer, cullingBacking, videoBacking, offlineBacking, copyBacking] {
             layer.addSublayer(sublayer)
         }
         updateChrome()
@@ -130,7 +134,7 @@ final class FilmStripCellView: NSView {
     override func viewDidChangeBackingProperties() {
         super.viewDidChangeBackingProperties()
         let scale = window?.backingScaleFactor ?? 2
-        for sublayer in [imageLayer, flagLayer, videoLayer, offlineLayer] {
+        for sublayer in [imageLayer, flagLayer, videoLayer, offlineLayer, copyLayer] {
             sublayer.contentsScale = scale
         }
     }
@@ -182,9 +186,14 @@ final class FilmStripCellView: NSView {
         setGlyph(offline ? Symbols.image("externaldrive.badge.xmark", color: .white, pointSize: glyph) : nil,
                  on: offlineLayer)
         offlineBacking.isHidden = !offline
+        setGlyph(item.isCopy ? Symbols.image(PhotoCellView.copySymbol, color: .white, pointSize: glyph) : nil, on: copyLayer)
+        copyBacking.isHidden = !item.isCopy
         imageLayer.opacity = item.flag == .rejected ? FilmStripMetrics.rejectedOpacity : 1
         CATransaction.commit()
     }
+
+    /// The copy mark is drawn (debug scripts).
+    var showsCopyMark: Bool { !copyBacking.isHidden }
 
     func setImage(_ image: CGImage?, animated: Bool) {
         self.image = image
@@ -238,6 +247,13 @@ final class FilmStripCellView: NSView {
         offlineBacking.frame = NSRect(x: picture.minX + inset, y: picture.maxY - inset - offlineHeight,
                                       width: offlineSize.width + pad * 2, height: offlineHeight)
         offlineLayer.frame = NSRect(x: pad, y: pad, width: offlineSize.width, height: offlineSize.height)
+
+        let copySize = glyphSize(copyLayer)
+        let copyWidth = copySize.width + pad * 2
+        let copyHeight = copySize.height + pad * 2
+        copyBacking.frame = NSRect(x: picture.maxX - inset - copyWidth, y: picture.maxY - inset - copyHeight,
+                                   width: copyWidth, height: copyHeight)
+        copyLayer.frame = NSRect(x: pad, y: pad, width: copySize.width, height: copySize.height)
         CATransaction.commit()
     }
 

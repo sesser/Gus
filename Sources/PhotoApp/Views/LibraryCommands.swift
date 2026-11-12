@@ -115,6 +115,12 @@ struct LibraryCommands: Commands {
             }
             .disabled(!can { $0.sidebarItem?.isProject == true && $0.canRemoveFromLibrary })
             Divider()
+            // On only while the grid or loupe has the keyboard, like Remove
+            // from Library… below: ⌘D acts on the selection of the view
+            // that has the focus (virtual-copies design §3).
+            Button(DuplicateText.title) { model?.duplicateTargets() }
+                .keyboardShortcut("d", modifiers: .command)
+                .disabled(!canByKey { $0.canDuplicate })
             // The photo targets' files (library-ops design §2.1). Show in
             // Finder means the sidebar's project while the sidebar has the keyboard.
             Button(LibraryOpsText.showInFinder) {
