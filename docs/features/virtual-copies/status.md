@@ -4,8 +4,9 @@ Issue: #62
 
 Owner: swift-macos-engineer. Branch: `feature/virtual-copies`. State: **Done** (2026-11-11).
 Every acceptance criterion (AC1–AC9) is built and tested, and nothing is blocked. R11 (Could)
-is built. R10 is deferred at design (D9) and not built. Next: code-reviewer and the designer's
-review, then qa-tester.
+is built. R10 is deferred at design (D9) and not built. The findings of the code review (C1–C3)
+and the design review (F1, F2) are fixed (**Review findings**); they go back to code-reviewer
+and the designer for the second pass, then qa-tester.
 
 Spec: [`prd.md`](prd.md) (R1–R11, AC1–AC9, D1–D9, P1), [`design.md`](design.md) (§12, V1–V11).
 In the UI and the user guide the command is **Duplicate** and its result a **copy**; "version"
@@ -16,13 +17,14 @@ is the catalog's word and appears only in code.
 | | Baseline (`479940f`) | Now |
 |---|---|---|
 | `swift build` | clean, no warnings | clean, no warnings |
-| `swift test` | 724 tests in 118 suites passed, 1 known issue | 753 tests in 119 suites passed, the same 1 known issue |
+| `swift test` | 724 tests in 118 suites passed, 1 known issue | 758 tests in 119 suites passed, the same 1 known issue |
 | `Scripts/build-app.sh all` | not run | both bundles built |
 
 The one warning `swift build --build-tests` prints (`SmartAlbumTests.swift:165`, an unused
 result) was there before and is not touched.
 
-New suite: `VirtualCopiesTests` (29 tests, the sort test run for six sorts). One existing test
+New suite: `VirtualCopiesTests` (31 tests, the sort test run for six sorts), and three tests
+in `SidecarSyncTests` for the review findings. One existing test
 changed: `LibraryRemovalTests` "R6: removing a photo removes its master and every version of
 it" removed the master through its copy; it now removes it through the original, since a copy
 removed alone leaves its original (this feature's R6).
@@ -118,6 +120,35 @@ preview; once edited it has a key of its own (tested).
 - **Undo or Redo while another source is on screen** changes the catalog and the sidebar's
   counts, and leaves that source's list and selection alone.
 
+## Review findings
+
+From [`code-review.md`](code-review.md) (C1–C3) and [`review.md`](review.md) (F1, F2), fixed
+on 2026-11-11. Each goes back to the reviewer that raised it.
+
+| | Finding | Fix | Test |
+|---|---|---|---|
+| C1 (blocker) | `diskChanges(forVersions:)` handed repeated master ids to `sidecarOwners`, whose `Dictionary(uniqueKeysWithValues:)` trapped when a selection held two versions of one master | `sidecarOwners` takes a master named more than once (`uniquingKeysWith`), and `diskChanges` collects masters into a set. The second caller of `sidecarOwners` with ids from versions (`SidecarSync`) is covered by the same change | `SidecarSyncTests.twoVersionsOfOneMasterListItsChangeOnce`: original and copy, three versions in any order, an id named twice, two copies without their original, and `sidecarOwners` with a repeated id |
+| F1 (D-V1) | Copies took part in sidecar review | `.changedOnDisk` lists default versions only (`version.isDefault` in `whereClause`), so the source's count matches the sidebar badge. `diskChanges(forVersions:)` maps only default versions to masters: a copy alone shows no Changed on Disk section, a selection with the original shows it once | `SidecarSyncTests.copiesTakeNoPartInSidecarReview`, `aPairsChangeIsNotListedForACopy` (a pair's change lists its two files, not a copy of either) |
+| C2 | `DuplicatePlacement.inserting` was O(copies × items) on the main actor | One pass over the list and one over the copies (the last item of each master, and by rating of each master and rating, then the copies that follow each item), O(items + copies). `insertionIndex` stays the definition of one copy's place | `onePassPlacementMatchesOneAtATime`: 200 seeded random lists per sort against one-at-a-time insertion, with several copies of one master, masters not on screen and ratings a master's items lack. `theCopyIsPlacedAfterItsOriginal` and `placementEdges` are unchanged and pass |
+| C3 | A removal could be asked for while a Duplicate was writing, and its confirmation left the new copies out | `RemovalAvailability.canStart` takes `isDuplicating`: both Remove commands are off (and left out of the context menus) until the copies are written. The confirmation is also read through the write chain (`WriteChain.read`), so it agrees with every write queued before it, a Redo of Duplicate included | `removalWaitsForARunningDuplicate` (the rule). The write-chain read is app-target code with no unit test |
+| F2 | User guide wording | "a mark for videos, offline photos and copies"; "at the top-right corner of its picture" | Read at the design review |
+
+**C2, measured.** With a throwaway test (not committed), a debug build placed 20,000 copies in
+a list of 20,000 in 0.04 s and 50,000 in 50,000 in 0.07 s by capture date, 0.09 s by rating; the
+review measured 0.57 s and 3.57 s in a release build before. On a 50,000-photo scratch library
+(`photobench synthesize`) ⌘A and `duplicate` ran 3.7 s in all, most of it the catalog write off
+the main actor, with the Activity job shown; Undo and Redo behaved as before.
+
+**What stays on the main actor.** After the write, `showCopies` and `replaceItems` do work
+linear in the list: the placement above and the index of items by version, which every reload
+of the list builds too (`apply`). Reading the copies' rows is the catalog's, off the main
+actor. I did not move the placement to a detached task: the list can change under it (a
+rating shown at once), and merging into a stale list would undo that on screen.
+
+**Not changed, as told:** RI-C1 (a copy's descriptive fields are its master's, and writing
+one queues the original's sidecar) and RI-C2 (keyword suggestions are per master) are with the
+product manager and the owner.
+
 ## Acceptance criteria
 
 All tests are in `Tests/PhotoCoreTests/VirtualCopiesTests.swift` unless another file is named.
@@ -184,6 +215,9 @@ registers nothing on a failure.
 ## Design questions
 
 Each is built one way so the feature is whole; a different ruling is a small change.
+
+All six are ruled in `design.md` §15 (D-V1…D-V6): D-V1 chose (b) and is built (finding F1);
+D-V2…D-V6 are "as built".
 
 - **DQ-V1. The Changed on Disk source lists copies.** Its scope is by master, so a copy of
   a photo whose sidecar another app changed appears there too, and resolving the change

@@ -100,13 +100,82 @@ public enum DuplicatePlacement {
     }
 
     /// `items` with `copies` inserted, each at its place, in the order given
-    /// (the order they were made in).
+    /// (the order they were made in): the list that inserting them one at a
+    /// time at `insertionIndex` gives, built in one pass over `items` and
+    /// one over `copies`, so that duplicating a whole source of tens of
+    /// thousands of photos does not hold the main actor (it did, for
+    /// seconds, when each copy scanned and shifted the list).
     public static func inserting(_ copies: [CatalogItem], into items: [CatalogItem], sort: LibrarySort) -> [CatalogItem] {
-        var result = items
-        for copy in copies {
-            result.insert(copy, at: insertionIndex(for: copy, in: result, sort: sort))
+        guard !copies.isEmpty else { return items }
+        let byRating = sort.key == .rating
+        // The last item on screen of each master that gets a copy and, by
+        // rating, the last with each rating.
+        let masters = Set(copies.map(\.imageID))
+        var lastOfMaster: [Int64: Int] = [:]
+        var lastWithRating: [RatedMaster: Int] = [:]
+        for (index, item) in items.enumerated() where masters.contains(item.imageID) {
+            lastOfMaster[item.imageID] = index
+            if byRating { lastWithRating[RatedMaster(imageID: item.imageID, rating: item.rating)] = index }
         }
+        // The copies that follow each item, and those of masters not on screen.
+        var following: [Int: Followers] = [:]
+        var trailing: [Followers] = []
+        var trailingSlot: [Int64: Int] = [:]
+        for copy in copies {
+            if byRating, let anchor = lastWithRating[RatedMaster(imageID: copy.imageID, rating: copy.rating)] {
+                following[anchor, default: Followers()].matching.append(copy)
+            } else if let anchor = lastOfMaster[copy.imageID] {
+                following[anchor, default: Followers()].add(copy, matchesAnchor: !byRating)
+            } else {
+                let slot: Int
+                if let known = trailingSlot[copy.imageID] {
+                    slot = known
+                } else {
+                    slot = trailing.count
+                    trailing.append(Followers())
+                    trailingSlot[copy.imageID] = slot
+                }
+                trailing[slot].add(copy, matchesAnchor: !byRating)
+            }
+        }
+        var result: [CatalogItem] = []
+        result.reserveCapacity(items.count + copies.count)
+        for (index, item) in items.enumerated() {
+            result.append(item)
+            following[index]?.append(to: &result)
+        }
+        for followers in trailing { followers.append(to: &result) }
         return result
+    }
+
+    private struct RatedMaster: Hashable {
+        var imageID: Int64
+        var rating: Rating
+    }
+
+    /// The copies placed after one item (or, for a master not on screen, at
+    /// the end), in the order one-at-a-time insertion leaves them in: first
+    /// those the item sorts with, each after the one before; then, under a
+    /// rating sort, copies whose rating no item of the master on screen has,
+    /// in runs by rating, a run where its first copy came.
+    private struct Followers {
+        var matching: [CatalogItem] = []
+        var others: [(rating: Rating, copies: [CatalogItem])] = []
+
+        mutating func add(_ copy: CatalogItem, matchesAnchor: Bool) {
+            if matchesAnchor {
+                matching.append(copy)
+            } else if let run = others.firstIndex(where: { $0.rating == copy.rating }) {
+                others[run].copies.append(copy)
+            } else {
+                others.append((copy.rating, [copy]))
+            }
+        }
+
+        func append(to list: inout [CatalogItem]) {
+            list.append(contentsOf: matching)
+            for run in others { list.append(contentsOf: run.copies) }
+        }
     }
 }
 

@@ -84,7 +84,7 @@ in the loupe; Return or Space goes back to the grid.
 **Film strip**: the loupe shows the current source's photos, filtered and
 sorted as in the grid, in a row between the photo and the caption line, with
 the photo on screen in the middle and outlined. Each thumbnail shows the
-photo's flag and color label, and a mark for videos and offline photos;
+photo's flag and color label, and a mark for videos, offline photos and copies;
 rejected photos are dimmed. Pointing at one shows its name, rating, flag and
 label. Click a thumbnail to move to that photo, as the arrow keys do; the
 strip centers on whatever photo the loupe moves to. Scrolling the strip
@@ -174,7 +174,7 @@ as photos in the window's subtitle and in the sidebar.
 
 A copy is named after its original, the way the Finder names duplicates:
 `IMG_0412 copy`, then `IMG_0412 copy 2`, `IMG_0412 copy 3`. The grid and the
-film strip mark a copy with two overlapping squares at the top corner of its
+film strip mark a copy with two overlapping squares at the top-right corner of its
 picture, the loupe's caption shows a **Copy** badge, and the window title
 shows the copy's name. The Info tab still describes the file, which is the
 original's, and **Show in Finder** reveals that file. A copy can be duplicated

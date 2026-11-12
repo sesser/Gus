@@ -100,6 +100,77 @@ struct SidecarSyncTests {
         }
     }
 
+    /// A photo with one copy whose sidecar another app changed, waiting for review.
+    private func libraryWithAChangedSidecarAndACopy(_ root: URL, files: [String] = ["a.jpg"], sidecar: String = "a.xmp")
+        async throws -> (library: Library, original: CatalogItem, copyID: Int64) {
+        let library = try await makeLibrary(root, files: files, sidecars: [sidecar: SidecarValues(rating: Rating(clamping: 1))])
+        _ = try await library.sync.processQueue(mountedVolumes: library.mounted)
+        let original = try await library.version(named: files[0])
+        let copyID = try await library.catalog.duplicateVersions(ids: [original.versionID])[0].copyVersionID
+        try library.editSidecar(sidecar) { $0.setSimple(XMPDocument.Namespace.xmp, "Rating", "5") }
+        let report = try await library.sync.checkForChanges(mountedVolumes: library.mounted)
+        #expect(report.changedOnDisk == 1)
+        return (library, original, copyID)
+    }
+
+    @Test("virtual-copies D-V1: the Changed on Disk source lists originals only, and a copy alone has no change to review")
+    func copiesTakeNoPartInSidecarReview() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let (library, original, copyID) = try await libraryWithAChangedSidecarAndACopy(root)
+            let catalog = library.catalog
+            // The source: one item for the master, its original, and a count that matches the sidebar's.
+            let listed = try await catalog.libraryItems(matching: LibraryFilter(scope: .changedOnDisk))
+            #expect(listed.map(\.versionID) == [original.versionID])
+            #expect(try await catalog.itemCount(matching: LibraryFilter(scope: .changedOnDisk)) == 1)
+            #expect(try await catalog.diskChangeCount() == 1)
+            // The inspector: nothing for the copy alone, the change for the original.
+            #expect(try await catalog.diskChanges(forVersions: [copyID]).isEmpty)
+            #expect(try await catalog.diskChanges(forVersions: [original.versionID]).map(\.imageID) == [original.imageID])
+            // The copy is still in the library, beside its original.
+            #expect(try await catalog.libraryItems(matching: LibraryFilter()).map(\.versionID) == [original.versionID, copyID])
+        }
+    }
+
+    @Test("virtual-copies C1: two versions of one master in a selection list its change once (this trapped)")
+    func twoVersionsOfOneMasterListItsChangeOnce() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let (library, original, copyID) = try await libraryWithAChangedSidecarAndACopy(root)
+            let catalog = library.catalog
+            let second = try await catalog.duplicateVersions(ids: [copyID])[0].copyVersionID
+            // The original with its copies, in any order and named twice.
+            for selection in [[original.versionID, copyID], [copyID, second, original.versionID],
+                              [original.versionID, original.versionID, copyID]] {
+                let changes = try await catalog.diskChanges(forVersions: selection)
+                #expect(changes.map(\.imageID) == [original.imageID])
+                #expect(changes.first?.disk.rating == Rating(clamping: 5))
+            }
+            // Two copies of one master, without their original: nothing to review.
+            #expect(try await catalog.diskChanges(forVersions: [copyID, second]).isEmpty)
+            // The owner lookup itself takes a master named more than once.
+            let owners = try await catalog.database.read { db in
+                try Catalog.sidecarOwners(db, images: [original.imageID, original.imageID])
+            }
+            #expect(owners == [original.imageID: original.imageID])
+        }
+    }
+
+    @Test("virtual-copies D-V1: a pair's change is listed for its two files, not for a copy of either")
+    func aPairsChangeIsNotListedForACopy() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let (library, raw, rawCopy) = try await libraryWithAChangedSidecarAndACopy(root, files: ["IMG_1.dng", "IMG_1.jpg"],
+                                                                                        sidecar: "IMG_1.xmp")
+            let catalog = library.catalog
+            let jpeg = try await library.version(named: "IMG_1.jpg")
+            let jpegCopy = try await catalog.duplicateVersions(ids: [jpeg.versionID])[0].copyVersionID
+            let separate = try await catalog.libraryItems(matching: LibraryFilter(scope: .changedOnDisk, groupsPairs: false))
+            #expect(Set(separate.map(\.versionID)) == [raw.versionID, jpeg.versionID])
+            #expect(try await catalog.libraryItems(matching: LibraryFilter(scope: .changedOnDisk)).count == 1)
+            #expect(try await catalog.diskChanges(forVersions: [rawCopy, jpegCopy]).isEmpty)
+            // The JPEG's original still leads to the RAW's sidecar.
+            #expect(try await catalog.diskChanges(forVersions: [jpeg.versionID, jpegCopy]).map(\.imageID) == [raw.imageID])
+        }
+    }
+
     @Test func outsideChangesAreFlaggedNotOverwritten() async throws {
         try await RepositoryFiles.withTemporaryDirectory { root in
             let library = try await makeLibrary(root, files: ["a.jpg"],

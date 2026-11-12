@@ -159,10 +159,11 @@ extension LibraryModel {
 
     /// Whether a removal may start now (design §8): not beside a folder add
     /// or a copying import, which fail if their project is removed under
-    /// them, and not beside another removal (`RemovalAvailability`).
+    /// them, not beside another removal, and not while a Duplicate is
+    /// writing copies the confirmation would have to count (`RemovalAvailability`).
     var canRemoveFromLibrary: Bool {
         RemovalAvailability.canStart(isRemoving: isRemoving, isAddingFolders: isImporting,
-                                     isCopying: cardImport.progress != nil)
+                                     isCopying: cardImport.progress != nil, isDuplicating: isDuplicating)
     }
 
     /// File ▸ Remove from Library… (⌘⌫) and the context menus': asks, then
@@ -216,7 +217,11 @@ extension LibraryModel {
         if keywordEntry != nil { endKeywordEntry(adding: []) }
         Task {
             do {
-                pendingRemoval = try await prepare()
+                // Through the write chain: what the confirmation says agrees
+                // with every change queued before it (a Redo of Duplicate
+                // still putting copies back, for one), and is read again if
+                // another write is queued meanwhile.
+                try await writes.read({ try await prepare() }, apply: { pendingRemoval = $0 })
             } catch {
                 isRemoving = false
                 reportRemovalFailure(error, text: failure, title: title)

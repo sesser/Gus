@@ -95,8 +95,13 @@ public struct RemovalConfirmation: Hashable, Sendable {
 /// are no obstacle: an export works from what it read when it started, and
 /// a measurement writes only to the photos still there when it ends.
 public enum RemovalAvailability {
-    public static func canStart(isRemoving: Bool, isAddingFolders: Bool, isCopying: Bool) -> Bool {
-        !(isRemoving || isAddingFolders || isCopying)
+    /// `isDuplicating`: File ▸ Duplicate is still writing its copies. A
+    /// removal asked for then would read what it takes before the copies are
+    /// in the catalog, and its confirmation would not count them
+    /// (virtual-copies AC6).
+    public static func canStart(isRemoving: Bool, isAddingFolders: Bool, isCopying: Bool,
+                                isDuplicating: Bool = false) -> Bool {
+        !(isRemoving || isAddingFolders || isCopying || isDuplicating)
     }
 }
 

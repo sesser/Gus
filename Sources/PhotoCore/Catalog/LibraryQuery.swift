@@ -215,8 +215,10 @@ extension Catalog {
             clauses.append("image.localDate >= ? AND image.localDate < ?")
             arguments += [start, end]
         case .changedOnDisk:
+            // Originals only: the sidecar is the default version's, and a
+            // copy has no part in its review (virtual-copies design D-V1).
             let owners = "SELECT imageId FROM metadataSync WHERE status = \(MetadataSyncRecord.Status.changedOnDisk.rawValue)"
-            clauses.append("(image.id IN (\(owners)) OR image.id IN (SELECT companionImageId FROM imagePair WHERE rawImageId IN (\(owners))))")
+            clauses.append("version.isDefault AND (image.id IN (\(owners)) OR image.id IN (SELECT companionImageId FROM imagePair WHERE rawImageId IN (\(owners))))")
         }
         switch filter.rating {
         case .any:

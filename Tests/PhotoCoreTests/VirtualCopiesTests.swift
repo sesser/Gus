@@ -341,6 +341,66 @@ struct VirtualCopiesTests {
                                                   sort: LibrarySort(key: .rating)) == 3)
     }
 
+    /// A small seeded generator, so the random lists below are the same on every run.
+    private struct SeededGenerator: RandomNumberGenerator {
+        var state: UInt64
+
+        mutating func next() -> UInt64 {
+            state &+= 0x9E37_79B9_7F4A_7C15
+            var z = state
+            z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
+            z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
+            return z ^ (z >> 31)
+        }
+    }
+
+    @Test("C2: placing many copies in one pass gives the list that inserting them one at a time gives",
+          arguments: [LibrarySort(key: .captureDate), LibrarySort(key: .fileName, ascending: false), LibrarySort(key: .rating)])
+    func onePassPlacementMatchesOneAtATime(sort: LibrarySort) {
+        func item(_ version: Int64, image: Int64, rating: Int, number: Int) -> CatalogItem {
+            var item = CatalogItem(versionID: version, imageID: image, volumeID: 1, rating: Rating(clamping: rating), flag: .none,
+                                   colorLabel: .none, contentHash: "", editStackHash: "", relativePath: "a/\(image).jpg",
+                                   pixelWidth: 10, pixelHeight: 10, orientation: 1)
+            item.versionNumber = number
+            item.isCopy = number > 1
+            return item
+        }
+        var generator = SeededGenerator(state: 62)
+        for round in 0..<200 {
+            // A list in any order (photos stay where they were when culled), several items of
+            // some masters, a few ratings; copies of masters on screen and of masters that are not,
+            // several of one master, with ratings the master's items have and ratings they lack.
+            var next: Int64 = 1
+            var shown: [CatalogItem] = []
+            for _ in 0..<Int.random(in: 0...12, using: &generator) {
+                shown.append(item(next, image: Int64.random(in: 1...5, using: &generator),
+                                  rating: Int.random(in: 0...2, using: &generator), number: Int.random(in: 1...3, using: &generator)))
+                next += 1
+            }
+            var copies: [CatalogItem] = []
+            for _ in 0..<Int.random(in: 0...10, using: &generator) {
+                copies.append(item(next, image: Int64.random(in: 1...7, using: &generator),
+                                   rating: Int.random(in: 0...3, using: &generator), number: 9))
+                next += 1
+            }
+            var oneAtATime = shown
+            for copy in copies {
+                oneAtATime.insert(copy, at: DuplicatePlacement.insertionIndex(for: copy, in: oneAtATime, sort: sort))
+            }
+            let onePass = DuplicatePlacement.inserting(copies, into: shown, sort: sort)
+            #expect(onePass.map(\.versionID) == oneAtATime.map(\.versionID), "round \(round)")
+        }
+        // Nothing to place: the list as it was.
+        let list = [item(1, image: 1, rating: 0, number: 1)]
+        #expect(DuplicatePlacement.inserting([], into: list, sort: sort) == list)
+    }
+
+    @Test("C3: no removal is asked for while a Duplicate is writing its copies")
+    func removalWaitsForARunningDuplicate() {
+        #expect(RemovalAvailability.canStart(isRemoving: false, isAddingFolders: false, isCopying: false, isDuplicating: false))
+        #expect(!RemovalAvailability.canStart(isRemoving: false, isAddingFolders: false, isCopying: false, isDuplicating: true))
+    }
+
     // MARK: Names (design §5, V4)
 
     @Test("V4: version 1 is the base name, then copy, copy 2…; removing a middle copy renames nothing; the newest number is reused")
