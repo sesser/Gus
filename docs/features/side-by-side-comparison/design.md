@@ -674,3 +674,11 @@ text disagrees, the ruling wins.
   [Pointing devices](https://developer.apple.com/design/human-interface-guidelines/pointing-devices),
   [Accessibility](https://developer.apple.com/design/human-interface-guidelines/accessibility).
 - `docs/UI_REDESIGN.md` §1, §2, §6, §7, §10, §11.
+
+**D12 reverted (owner, 2026-11-12).** The rule ruled as D12 was not shipped:
+it broke gestures on equal photos (code review C12, C13). Zoom following
+keeps the D10/D11 behavior. Any new rule must keep, at once: the mixed state
+(one pane at its fit, one zoomed in) after a pan or small pinch (C11), both
+panes taking the same magnification for Option-scroll and pinch on equal
+photos including when the gesture ends at the leader's fit (C12), and
+slow gestures made of many small events (C13). D13 stands.

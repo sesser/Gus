@@ -329,3 +329,16 @@ By subject (`git log --oneline c72d48e..`): "Side by side comparison: rules in P
 "… two panes in the loupe", "… benchmarks and user guide", "… status, Done", then, after the
 reviews, "… review fixes", "… second-pass fixes", "… linked Zoom In (D11)" and "… following keeps
 each pane's own zoom (D12)".
+
+## D12 reverted (owner, 2026-11-12)
+
+The D12 follow rule (`553fc23`, "following keeps each pane's own zoom") fixed
+QA's Q1 / code review C11 but broke linked gestures on equal photos (fourth
+code review C12 and C13: an Option-scroll that brings the leader down to its
+fit left the follower zoomed in; many small events never changed the
+follower's zoom state). The owner chose to revert it. Behavior is the D11/D13
+behavior that passed the third code review pass and QA. C11 stays a known
+limitation: after ⌘= twice and a drag of the zoomed photo, the fitted photo's
+zoom state can flip and `Z` then goes to fit instead of 100%; the next step or
+`Z` puts both right. It goes to a follow-up issue with D12's findings C12 and
+C13 as constraints on any new rule. D13 (wording only) stays.
