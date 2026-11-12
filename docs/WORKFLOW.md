@@ -1,10 +1,12 @@
 ## Issues
 
-Every feature and every bug is a GitHub issue before any work on it starts. The issue is the one record of what the work is and whether it is done; `docs/roadmap.md` only orders the open ones (see the **Roadmap** bullet below). Specs, designs, status and reviews stay in `docs/features/<slug>/`.
+Every feature and every bug is a GitHub issue before any work on it starts. The issue is the one record of what the work is and whether it is done; `docs/roadmap.md` only orders the open ones (see the **Roadmap** bullet below). For a feature the issue body is the PRD; designs, status and reviews stay in `docs/features/<slug>/`, and a short summary of each stage is posted on the issue as a comment.
 
 - **Who creates it.** The main session, with `gh issue create`, as soon as the owner names a feature or a bug. Agents without a shell (product-manager, apple-ui-designer) return the title, labels and body they propose, and the main session files them. Look for an existing issue first (`gh issue list --search`); never open a second one for the same thing.
 - **Labels.** Exactly one of `enhancement` (feature) or `bug`. `on-roadmap` while the item is in Now, Next or Later in `docs/roadmap.md`. `needs-prd` on a feature until its PRD is approved; the main session removes it then. Bugs never carry `needs-prd`: a bug fix has no PRD (see **Bug fixes**).
-- **Body.** The problem in a few sentences, where it came from, and the slug. The slug is the kebab-case name of its folder `docs/features/<slug>/`; the issue links the folder once it exists, and `prd.md` and `status.md` name the issue number on their first lines (`Issue: #N`).
+- **Body.** The problem in a few sentences, where it came from, and the slug. The slug is the kebab-case name of its folder `docs/features/<slug>/`; the issue links the folder once it exists, and `status.md` names the issue number on its first line (`Issue: #N`). When the product manager finishes a feature's PRD, the body is replaced by the PRD (see **PRD**), keeping the slug line at the top.
+- **PRD.** For a feature, the issue body is the PRD and there is no `prd.md`; features specified before 2026-11-12 keep theirs. The product manager has no shell: it writes the PRD to a scratch file the main session names, and the main session sets it as the body (`gh issue edit N --body-file FILE`). A revision (a ruling, a Requirements issue) is made the same way, and the PRD's Revisions list says what changed. Agents without a shell (product-manager, apple-ui-designer) are given the current body as a scratch file (`gh issue view N --json body -q .body > FILE`); the others read it with `gh issue view N` (the number is on `status.md`'s `Issue:` line).
+- **Stage comments.** Each agent ends its report with a **Summary for the issue** (at most ten lines: verdict, what is open, a link to its file in `docs/features/<slug>/`). The main session posts it as one comment on the issue (`gh issue comment N --body-file FILE`), headed with the stage: design, code review, design review, QA, sign-off, Ship. The files stay the full record; the comments make the issue readable on its own.
 - **Closing.** The pull request description says `Closes #N`, so the merge closes the issue. After the merge the main session removes `on-roadmap` if it is still there. Dropped work is closed as not planned with the `wontfix` label and a comment giving the reason.
 - **Roadmap.** `docs/roadmap.md` is the vision, principles and three lists, Now, Next and Later, each item a line linking its issue, in priority order, plus the Dropped table. It carries no per-item narrative and no Shipped list: the closed issues are that record. A change in order or in what is on it is a roadmap change by the product manager, and the issue's `on-roadmap` label follows it. The roadmap as it stood before issues is kept in `docs/archive/ROADMAP_2026-11-10.md`.
 - **Follow-ups.** A follow-up named by a review, QA or Ship is a new issue (a bug or an enhancement, `on-roadmap` if it is going on the roadmap), not a row in a file. The agent that names it gives the main session its title and body.
@@ -14,7 +16,7 @@ Every feature and every bug is a GitHub issue before any work on it starts. The 
 
 Features move through the agents in order. Do not skip steps other than those a bug fix or a docs and process change skips (see **Bug fixes** and **Docs and process changes** below), and do not do one agent's job from another.
 
-1. **product-manager** turns an idea into requirements. It writes `docs/features/<slug>/prd.md` and maintains `docs/roadmap.md`. For a thin idea it returns questions first. The GitHub issue exists before it starts (see **Issues**); the PRD names it.
+1. **product-manager** turns an idea into requirements. It writes the PRD, which becomes the issue's body (see **Issues**), and maintains `docs/roadmap.md`. For a thin idea it returns questions first. The GitHub issue exists before it starts (see **Issues**); the PRD names it.
 2. **apple-ui-designer** designs against the PRD, following Apple's Human Interface Guidelines. It writes `docs/features/<slug>/design.md`.
 3. **swift-macos-engineer** implements against the PRD and design, writes tests for the acceptance criteria, and keeps `docs/features/<slug>/status.md` current. Its last state is **Done**: every criterion built and tested, nothing blocked.
 4. **Review**, on the feature branch, on this Mac. There is no pull request yet: pushing the branch is fine (it runs no CI), and the reviewers build, test and read the diff against `develop` locally. Code review and design review can run together; QA runs last, after both, so that `qa.md` is the one list of what a person still has to check.
@@ -48,7 +50,7 @@ Features move through the agents in order. Do not skip steps other than those a 
 | `README.md` | product-manager, updated at Ship | the engineer notes changes to requirements, build commands or repository layout in `status.md` under **README**; others read-only |
 | `CLAUDE.md` "Scope so far" and "Not yet" | product-manager, updated at Ship | the rest of `CLAUDE.md` belongs to the owner; agents propose changes in their report |
 | `docs/features/_inventory.md` | product-manager | read-only |
-| `docs/features/<slug>/prd.md` | product-manager | read-only |
+| The PRD (a feature issue's body) | product-manager writes it; the main session sets it on the issue | read-only |
 | `docs/features/<slug>/design.md` | apple-ui-designer | read-only |
 | `docs/features/<slug>/review.md` | apple-ui-designer | read-only |
 | `docs/features/<slug>/status.md` | swift-macos-engineer | read-only |
@@ -81,7 +83,7 @@ Agents cannot call each other, so the main session relays.
 
 ### Rules
 
-- Requirements live in `prd.md` (for a bug fix, the **Bug** section of `status.md`), UI decisions in `design.md`, progress in `status.md`. Not in code comments or chat.
+- Requirements live in the PRD, the issue's body (for a bug fix, the **Bug** section of `status.md`), UI decisions in `design.md`, progress in `status.md`. Not in code comments or chat.
 - Every acceptance criterion, and a bug fix's Bug section, maps to a test or an explicit manual check, and `qa.md` says which.
 - Prefer system components. Custom chrome needs a written justification in `design.md`.
 - Keep the roadmap's Now list to three items or fewer. A feature In progress is in Now: to start one, move something out.
@@ -89,6 +91,6 @@ Agents cannot call each other, so the main session relays.
 
 ### Typical session
 
-Start a feature by filing its GitHub issue (`enhancement`, `needs-prd`), then asking the product-manager agent to take the idea. After the PRD exists, ask apple-ui-designer to design it. When `design.md` is done, ask swift-macos-engineer to implement. When `status.md` says Done, run code-reviewer and the designer review, then qa-tester, and send their findings back to the engineer. When the reviews are closed, give the owner the list of checks and wait for their sign-off. Then merge `develop` into the branch, run the full tests and the bundle build, run product-manager in Ship mode and commit its changes to the branch. Only then push and open the pull request; the owner merges when CI is green.
+Start a feature by filing its GitHub issue (`enhancement`, `needs-prd`), then asking the product-manager agent to take the idea. When the PRD is approved, set it as the issue's body, then ask apple-ui-designer to design it. Post each agent's summary on the issue as it finishes. When `design.md` is done, ask swift-macos-engineer to implement. When `status.md` says Done, run code-reviewer and the designer review, then qa-tester, and send their findings back to the engineer. When the reviews are closed, give the owner the list of checks and wait for their sign-off. Then merge `develop` into the branch, run the full tests and the bundle build, run product-manager in Ship mode and commit its changes to the branch. Only then push and open the pull request; the owner merges when CI is green.
 
 For a bug fix, file the issue (`bug`), then ask swift-macos-engineer to fix it. When `status.md` says Done, run code-reviewer (and the designer review if the UI changed), then qa-tester, and get the owner's sign-off. Then merge `develop` into the branch and run the full tests and the bundle build, whether or not Ship applies. Run Ship if the fix is on the roadmap or changes what the README or `CLAUDE.md` says. Then push and open the pull request; the owner merges when CI is green.

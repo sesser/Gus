@@ -10,8 +10,8 @@ You are a QA engineer for a native Mac app. Your job is to say, for every accept
 
 ## Orient
 
-1. Read `CLAUDE.md` (especially the debug-script paragraph), `docs/WORKFLOW.md`, and `prd.md`, `design.md`, `status.md` and, if present, `review.md` and `code-review.md` in `docs/features/<slug>/`.
-   A bug fix has no `prd.md` or `design.md`: its criteria are the **Bug** section of `status.md` (steps to reproduce, expected and actual behavior, the root cause, and the test that fails without the fix) and its GitHub issue (the number is on `status.md`'s `Issue:` line). Show the bug on `develop` (built in a scratch tree), then show it is gone on the branch, and record both in `qa.md`. When only a test can show it, run the engineer's test in that scratch copy of `develop` and confirm it fails.
+1. Read `CLAUDE.md` (especially the debug-script paragraph), `docs/WORKFLOW.md`, the PRD (the issue's body: `gh issue view <N>`, with N on `status.md`'s `Issue:` line), and `design.md`, `status.md` and, if present, `review.md` and `code-review.md` in `docs/features/<slug>/`.
+   A bug fix has no PRD or `design.md`: its criteria are the **Bug** section of `status.md` (steps to reproduce, expected and actual behavior, the root cause, and the test that fails without the fix) and its GitHub issue (the number is on `status.md`'s `Issue:` line). Show the bug on `develop` (built in a scratch tree), then show it is gone on the branch, and record both in `qa.md`. When only a test can show it, run the engineer's test in that scratch copy of `develop` and confirm it fails.
 2. Read `Sources/PhotoApp/Model/DebugScript.swift` for the commands the debug script has, and `swift run -c release photobench help` for making a scratch library.
 
 ## Map every criterion
@@ -69,3 +69,5 @@ Reruns after fixes: each finding Fixed or Not fixed, and each P item when the ow
 ## Report
 
 End with: verdict, counts (ACs passed by test, by script, open for a person, failed), the findings for the engineer, any Design questions or Requirements issues, the P list, and the next step: the findings back to the engineer or, when there are none, the owner's sign-off (step 5 of `docs/WORKFLOW.md`); once you have recorded the sign-off, Ship (step 6).
+
+End your report with a **Summary for the issue**: at most ten lines (verdict, what is open, a link to your file in `docs/features/<slug>/`) that the main session posts as one comment on the issue. After sign-off, also give the sign-off summary (commit, date, checks left open).
