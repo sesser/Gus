@@ -2,9 +2,10 @@ import PhotoCore
 
 /// The library window's title and subtitle (section 1 of docs/UI_REDESIGN.md).
 extension LibraryModel {
-    /// The source in the grid, the file name in the loupe.
+    /// The source in the grid, the file name in the loupe (a copy's name for
+    /// a copy, which has no file of its own).
     var windowTitle: String {
-        if mode == .loupe, let item = focusedItem { return item.fileName }
+        if mode == .loupe, let item = focusedItem { return PhotoName.inFull(item) }
         return title(for: sidebarSelection)
     }
 

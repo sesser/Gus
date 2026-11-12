@@ -124,6 +124,11 @@ import PhotoUI
 ///     print reveal          (the files Show in Finder would select for the targets, the folders, what it leaves out;
 ///                           the Finder is not opened)
 ///     print removal         (whether a removal may start, is asked for or runs, and its Activity job)
+///     duplicate             (File ▸ Duplicate's action on the targets; waits until the copies are written and shown)
+///     duplicate fail on|off (Duplicate fails in the catalog until turned off; touches no file)
+///     print copies          (the list by the names the grid shows, copies marked *; focus, targets and whether
+///                           Duplicate can run; the copy marks drawn by the grid's and the film strip's cells on
+///                           screen; in the loupe the window title and the caption's Copy badge. See DebugCopyCommands)
 ///
 /// End a scripted rename with a key, `sidebarfocus`, another `renamealbum` or `renameproject`, or by taking its row
 /// out of the list (`sidebarpane off`, `sidebarsection … hide|collapse`, `review on`): taking the keyboard away
@@ -155,7 +160,7 @@ enum DebugScript {
             // keyboard from a project's or an album's name field saves the rename.
             let changing: Set<String> = ["key", "addkeywords", "text", "pairfile", "accept", "album", "projectalbum", "smartalbum", "remove",
                                          "adjust", "lut", "pasteadjust", "preset", "menupick", "lutwindow", "metadata",
-                                         "menupress", "contextmenu", "filmstripclick", "ml", "sidebarfocus"]
+                                         "menupress", "contextmenu", "filmstripclick", "ml", "sidebarfocus", "duplicate"]
             for command in commands where !command.isEmpty {
                 let words = command.split(separator: " ")
                 // "accessibility <role> <n> <action>" runs an action; listing changes nothing.
@@ -171,6 +176,9 @@ enum DebugScript {
                     || (words.first == "history" && words.dropFirst().first == "revert")
                 if grouped { undoManager.beginUndoGrouping() }
                 await run(command, model: model)
+                // A Duplicate started by a key or a menu item registers its
+                // undo step when its copies are written.
+                await DebugCopyCommands.waitForDuplicate(model)
                 if grouped { undoManager.endUndoGrouping() }
             }
         }
@@ -218,7 +226,7 @@ enum DebugScript {
         case "focus":
             if let index = Int(rest.first ?? "") {
                 model.setFocus(index)
-            } else if let index = model.items.firstIndex(where: { $0.baseName == rest.joined(separator: " ") }) {
+            } else if let index = model.items.firstIndex(where: { PhotoName.display($0) == rest.joined(separator: " ") }) {
                 model.setFocus(index)
             }
         case "zoom":
@@ -449,6 +457,8 @@ enum DebugScript {
                 send(key, posted: true)
                 try? await Task.sleep(for: .milliseconds(150))
             }
+            // A posted ⌘D registers its undo step once its copies are written.
+            await DebugCopyCommands.waitForDuplicate(model)
             model.undoManager.groupsByEvent = false
         case "review":
             // As F; "print review" shows the layout.
@@ -689,6 +699,10 @@ enum DebugScript {
             await DebugLibraryOpsCommands.printReveal(model)
         case "print" where rest.first == "removal":
             DebugLibraryOpsCommands.printRemoval(model)
+        case "duplicate":
+            await DebugCopyCommands.duplicate(rest, model: model)
+        case "print" where rest.first == "copies":
+            DebugCopyCommands.printCopies(model, window: window)
         case "print":
             if rest.first == "review" {
                 let window = model.windowObserver.window
@@ -1222,6 +1236,7 @@ enum DebugScript {
                   + " sharpenMapNotApplied \(state.sharpeningMapNotApplied)"
                   + " sidebarKeys \(state.sidebarHasKeyboard) showInFinder \(state.canShowInFinder)"
                   + " showTargetsInFinder \(state.canShowTargetsInFinder) canRemove \(state.canRemoveFromLibrary)"
+                  + " canDuplicate \(state.canDuplicate)"
                   + " sidebarItem \(state.sidebarItem.map { ($0.isProject ? "project " : "") + $0.name } ?? "none")"
                   + " rename \(state.sidebarItem?.renameRoute.map { "\($0)" } ?? "none")")
         case "empty":
@@ -1260,6 +1275,7 @@ enum DebugScript {
             DebugAdjustCommands.printState(model.editor)
             print("debug-script: adjust tab \(model.mode == .loupe ? "\(model.loupeAdjustState)" : "grid")")
         case "items":
+            // By file name; `print copies` lists the names the grid shows.
             print("debug-script: items " + model.items.prefix(12).map { "\($0.baseName):\($0.rating.rawValue)" }.joined(separator: " "))
         default:
             print("debug-script: nothing to print for \(what)")

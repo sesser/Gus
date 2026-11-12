@@ -96,7 +96,7 @@ enum PhotoContextMenu {
                                         userInfo: [LoupeZoomStep.zoomInKey: zoomIn])
     }
 
-    /// Culling, keywords, albums, adjustments, export, Show in Finder and the RAW+JPEG pair.
+    /// Culling, keywords, albums, adjustments, Duplicate, export, Show in Finder and the RAW+JPEG pair.
     private static func addPhotoItems(to menu: NSMenu, model: LibraryModel, state: LibraryMenuState) {
         guard state.hasTargets else { return }
         menu.addItem(submenu(String(localized: "Rating"), [
@@ -157,8 +157,12 @@ enum PhotoContextMenu {
             menu.addItem(ActionMenuItem(String(localized: "Rotate Right")) { model.rotate(clockwise: true) })
         }
         let showsPair = state.pairDisplay != nil
-        if state.canExport || state.canShowTargetsInFinder || showsPair {
+        if state.canDuplicate || state.canExport || state.canShowTargetsInFinder || showsPair {
             menu.addItem(.separator())
+        }
+        // Left out for videos, which are not duplicated (virtual-copies design §2.2).
+        if state.canDuplicate {
+            menu.addItem(ActionMenuItem(DuplicateText.title) { model.duplicateTargets() })
         }
         if state.canExport {
             menu.addItem(ActionMenuItem(String(localized: "Export…")) { model.export.begin() })

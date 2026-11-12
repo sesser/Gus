@@ -134,10 +134,11 @@ extension LibraryModel {
 
     /// Whether a removal may start now (design §8): not beside a folder add
     /// or a copying import, which fail if their project is removed under
-    /// them, and not beside another removal (`RemovalAvailability`).
+    /// them, not beside another removal, and not while a Duplicate is
+    /// writing copies the confirmation would have to count (`RemovalAvailability`).
     var canRemoveFromLibrary: Bool {
         RemovalAvailability.canStart(isRemoving: isRemoving, isAddingFolders: isImporting,
-                                     isCopying: cardImport.progress != nil)
+                                     isCopying: cardImport.progress != nil, isDuplicating: isDuplicating)
     }
 
     /// File ▸ Remove from Library… (⌘⌫) and the context menus': asks, then
@@ -147,12 +148,13 @@ extension LibraryModel {
         guard canRemoveFromLibrary, !targets.isEmpty else { return }
         let versionIDs = targets.map(\.versionID)
         let count = targets.count
-        let fileName = count == 1 ? targets[0].fileName : nil
+        // A copy has no file of its own: it goes by its name in the grid.
+        let fileName = count == 1 ? PhotoName.inFull(targets[0]) : nil
         let catalog = self.catalog
         askToRemove(title: LibraryOpsText.removeFromLibrary, failure: LibraryOpsText.photosNotRemoved) {
-            // From the catalog: a pair's other file may not be in the grid.
+            // From the catalog: a pair's other file, or an original's copies, may not be in the grid.
             let plan = try await catalog.photoRemovalPlan(forVersions: versionIDs)
-            let confirmation = RemovalConfirmation.photos(shown: count, fileName: fileName, fileCount: plan.fileCount)
+            let confirmation = RemovalConfirmation.photos(plan, shown: count, fileName: fileName)
             return PendingRemoval(text: LibraryOpsText.alert(confirmation), title: LibraryOpsText.removeFromLibrary,
                                   job: RemovalJob(title: LibraryOpsText.removeFromLibrary, detail: LibraryOpsText.removing(count)),
                                   failure: LibraryOpsText.photosNotRemoved,
@@ -190,7 +192,11 @@ extension LibraryModel {
         if keywordEntry != nil { endKeywordEntry(adding: []) }
         Task {
             do {
-                pendingRemoval = try await prepare()
+                // Through the write chain: what the confirmation says agrees
+                // with every change queued before it (a Redo of Duplicate
+                // still putting copies back, for one), and is read again if
+                // another write is queued meanwhile.
+                try await writes.read({ try await prepare() }, apply: { pendingRemoval = $0 })
             } catch {
                 isRemoving = false
                 reportRemovalFailure(error, text: failure, title: title)
@@ -279,11 +285,14 @@ extension LibraryModel {
     /// photo is still there (`RemovalFocus`), and the undo stack is cleared,
     /// since its steps may name photos that are gone (design §6.3, A4).
     private func removalDidFinish(_ result: RemovalResult, announcement: String) async {
-        let removed = Set(result.imageIDs)
+        let removedImages = Set(result.imageIDs)
+        let removedCopies = Set(result.copyVersionIDs)
+        // A master takes every version of it; a copy removed alone only itself.
+        let isRemoved: (CatalogItem) -> Bool = { removedImages.contains($0.imageID) || removedCopies.contains($0.versionID) }
         // A crop being edited on a removed photo has nothing to save.
-        if let open = focusedItem, removed.contains(open.imageID) { editor.endCrop(save: false) }
+        if let open = focusedItem, isRemoved(open) { editor.endCrop(save: false) }
         undoManager.removeAllActions()
-        let next = RemovalFocus.index(count: items.count, focus: focusIndex) { removed.contains(items[$0].imageID) }
+        let next = RemovalFocus.index(count: items.count, focus: focusIndex) { isRemoved(items[$0]) }
             .map { items[$0].versionID }
         reloadItems(keepFocus: true, focusVersionID: next)
         // A source that is gone (the project, a keyword left without photos)
@@ -342,7 +351,7 @@ enum LibraryOpsText {
         String(localized: "Removed \(count) photos from the library.", comment: "VoiceOver, after a removal")
     }
     static func removedPhoto(_ fileName: String) -> String {
-        String(localized: "Removed “\(fileName)” from the library.", comment: "VoiceOver, after one photo was removed; its file name")
+        String(localized: "Removed “\(fileName)” from the library.", comment: "VoiceOver, after one photo was removed; its file name, or a copy's name")
     }
     static func removedProject(_ name: String) -> String {
         String(localized: "Removed the project “\(name)” from the library.", comment: "VoiceOver, after a project was removed")
@@ -368,7 +377,7 @@ enum LibraryOpsText {
     static func alert(_ confirmation: RemovalConfirmation) -> Alert {
         let title = switch confirmation.title {
         case .photo(let fileName):
-            String(localized: "Remove “\(fileName)” from the library?", comment: "Removal confirmation title: one photo's file name")
+            String(localized: "Remove “\(fileName)” from the library?", comment: "Removal confirmation title: one photo's file name, or a copy's name")
         case .photos(let count):
             String(localized: "Remove \(count) photos from the library?", comment: "Removal confirmation title")
         case .project(let name):
@@ -388,9 +397,24 @@ enum LibraryOpsText {
                    comment: "Removal confirmation: pairs add files beyond the photos selected")
         case .projectAlbums(let count):
             String(localized: "Its \(count) albums are deleted.", comment: "Project removal confirmation: its albums and smart albums")
+        case .copiesOfPhoto(1):
+            String(localized: "Its copy is removed with it.",
+                   comment: "Photo removal confirmation: one original with one copy (made with Duplicate), which goes too")
+        case .copiesOfPhoto(let count):
+            String(localized: "Its \(count) copies are removed with it.",
+                   comment: "Photo removal confirmation: one original whose copies (made with Duplicate) go too; two or more")
+        case .copiesOfPhotos(let count):
+            String(localized: "\(count) copies of these photos are removed with them.",
+                   comment: "Photo removal confirmation: several photos, some with copies (made with Duplicate) that were not selected")
         case .photosConsequences:
             String(localized: "The files and their sidecar files stay on disk, unchanged. Their edits are lost, along with their ratings, keywords and albums in the library. You can't undo this action.",
                    comment: "Photo removal confirmation")
+        case .copyConsequences:
+            String(localized: "The original and its file are not affected. The copy's edits are lost, along with its rating, keywords and albums. You can't undo this action.",
+                   comment: "Photo removal confirmation: the one photo is a copy made with Duplicate")
+        case .copiesConsequences:
+            String(localized: "The originals and their files are not affected. The copies' edits are lost, along with their ratings, keywords and albums. You can't undo this action.",
+                   comment: "Photo removal confirmation: every photo is a copy made with Duplicate")
         case .projectConsequences:
             String(localized: "The folder, its files and their sidecar files stay on disk, unchanged. The photos' edits are lost, along with their ratings, keywords and albums in the library. You can't undo this action.",
                    comment: "Project removal confirmation")

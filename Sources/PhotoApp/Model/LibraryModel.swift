@@ -414,6 +414,10 @@ final class LibraryModel {
     var pendingRemoval: PendingRemoval?
     /// The running removal as Activity shows it, once it has run a moment.
     var removalJob: RemovalJob?
+    /// File ▸ Duplicate is writing its copies: one at a time.
+    var isDuplicating = false
+    /// The running Duplicate as Activity shows it, once it has run a moment.
+    var duplicateJob: RemovalJob?
     /// The sidecar task is inside a queue run, not waiting to start one: a
     /// removal lets it finish its file instead of cancelling it (`pauseSidecarSync`).
     @ObservationIgnored var sidecarSyncIsWriting = false
@@ -794,6 +798,29 @@ final class LibraryModel {
             focusIndex = newItems.isEmpty ? nil : 0
         }
         selection = focusIndex.map { IndexSet(integer: $0) } ?? []
+        selectionRevision += 1
+        if items.isEmpty { mode = .grid }
+        itemsRevision += 1
+        notifyObservers { $0.libraryItemsReloaded() }
+    }
+
+    /// Puts a list in place that differs from the one shown by a few items
+    /// (copies made by Duplicate, or taken back by its undo), without reading
+    /// the catalog again: photos that no longer match the filter but stay on
+    /// screen until it changes stay. `selected` become the selection and
+    /// `focusVersionID` the focus; with neither on screen the focused photo
+    /// keeps the focus.
+    func replaceItems(_ newItems: [CatalogItem], selecting selected: [Int64], focusVersionID: Int64?) {
+        let previousFocus = focusedItem?.versionID
+        if let total = sourceTotal { sourceTotal = total + newItems.count - items.count }
+        items = newItems
+        indexByVersionID = Dictionary(newItems.enumerated().map { ($1.versionID, $0) }, uniquingKeysWith: { first, _ in first })
+        var chosen = IndexSet(selected.compactMap { indexByVersionID[$0] })
+        focusIndex = focusVersionID.flatMap { indexByVersionID[$0] } ?? chosen.first
+            ?? previousFocus.flatMap { indexByVersionID[$0] } ?? (newItems.isEmpty ? nil : 0)
+        // The loupe shows one photo, and commands there act on it alone.
+        if mode == .loupe || chosen.isEmpty { chosen = focusIndex.map { IndexSet(integer: $0) } ?? [] }
+        selection = chosen
         selectionRevision += 1
         if items.isEmpty { mode = .grid }
         itemsRevision += 1

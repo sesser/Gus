@@ -40,8 +40,9 @@ extension Catalog {
     // MARK: Owners
 
     /// The master that owns each image's sidecar: a pair's RAW, otherwise itself.
+    /// `images` may name a master more than once (two versions of it).
     static func sidecarOwners(_ db: Database, images: [Int64]) throws -> [Int64: Int64] {
-        var owners = Dictionary(uniqueKeysWithValues: images.map { ($0, $0) })
+        var owners = Dictionary(images.map { ($0, $0) }, uniquingKeysWith: { first, _ in first })
         for chunk in images.chunked(into: 10_000) {
             let rows = try Row.fetchCursor(db, sql: """
                 SELECT companionImageId, rawImageId FROM imagePair
@@ -220,17 +221,22 @@ extension Catalog {
         }
     }
 
-    /// Outside changes waiting for review among the masters of `versionIDs`.
+    /// Outside changes waiting for review among the masters of the originals
+    /// in `versionIDs`. A sidecar belongs to its master's default version, so
+    /// a copy (File ▸ Duplicate) takes no part: alone it has no change to
+    /// review, and beside its original the change is listed once
+    /// (virtual-copies design D-V1).
     public func diskChanges(forVersions versionIDs: [Int64]) async throws -> [DiskChange] {
         guard !versionIDs.isEmpty else { return [] }
         return try await database.read { db in
-            var images: [Int64] = []
+            var images: Set<Int64> = []
             for chunk in versionIDs.chunked(into: 10_000) {
-                images += try Int64.fetchAll(db, sql: """
-                    SELECT imageId FROM version WHERE id IN (\(databaseQuestionMarks(count: chunk.count)))
-                    """, arguments: StatementArguments(Array(chunk)))
+                images.formUnion(try Int64.fetchAll(db, sql: """
+                    SELECT imageId FROM version WHERE isDefault AND id IN (\(databaseQuestionMarks(count: chunk.count)))
+                    """, arguments: StatementArguments(Array(chunk))))
             }
-            let owners = Array(Set(try Self.sidecarOwners(db, images: images).values)).sorted()
+            guard !images.isEmpty else { return [] }
+            let owners = Array(Set(try Self.sidecarOwners(db, images: images.sorted()).values)).sorted()
             var changes: [DiskChange] = []
             for chunk in owners.chunked(into: 2_000) {
                 let records = try MetadataSyncRecord.fetchAll(db, keys: Array(chunk))

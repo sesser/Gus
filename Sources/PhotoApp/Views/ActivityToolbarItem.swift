@@ -73,6 +73,11 @@ struct ActivityToolbarItem: View {
         if let removal = model.removalJob {
             jobs.append(ActivityJob(id: "removal", title: removal.title, detail: removal.detail, progress: nil, stop: nil))
         }
+        // A Duplicate of many photos: the same, its copies being one
+        // transaction (virtual-copies design §4.4).
+        if let duplicate = model.duplicateJob {
+            jobs.append(ActivityJob(id: "duplicate", title: duplicate.title, detail: duplicate.detail, progress: nil, stop: nil))
+        }
         if let progress = model.importProgress {
             // Add Folder “Trip” or Add 3 Folders; "Folder 1 of 3 · 12 of 412", no
             // plural on a second number (the strings cannot inflect it).

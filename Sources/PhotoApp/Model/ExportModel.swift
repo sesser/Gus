@@ -100,7 +100,8 @@ final class ExportModel {
     private var job: ExportJob? {
         guard let library else { return nil }
         return ExportJob(catalog: library.catalog,
-                         renderer: ExportRenderer(generator: library.previews.generator, watermarks: watermarks))
+                         renderer: ExportRenderer(generator: library.previews.generator, watermarks: watermarks),
+                         copyNaming: PhotoName.naming)
     }
 
     // MARK: Opening

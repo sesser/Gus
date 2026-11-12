@@ -476,29 +476,6 @@ extension Catalog {
                              at date: Date = Date()) async throws {
         try await setEditStacks([id: stack], historyLabel: historyLabel, at: date)
     }
-
-    /// Creates a new version of the same master with a copy of `id`'s edit stack
-    /// and culling state.
-    public func duplicateVersion(id: Int64, at date: Date = Date()) async throws -> VersionRecord {
-        try await database.write { db in
-            guard var copy = try VersionRecord.fetchOne(db, key: id) else {
-                throw RecordError.recordNotFound(databaseTableName: VersionRecord.databaseTableName,
-                                                 key: ["id": id.databaseValue])
-            }
-            let highest = try Int.fetchOne(db, VersionRecord
-                .select(max(VersionRecord.Columns.versionNumber))
-                .filter(VersionRecord.Columns.imageId == copy.imageId)) ?? 0
-            copy.id = nil
-            copy.uuid = UUID().uuidString
-            copy.versionNumber = highest + 1
-            copy.name = nil
-            copy.isDefault = false
-            copy.createdAt = date
-            copy.modifiedAt = date
-            try copy.insert(db)
-            return copy
-        }
-    }
 }
 
 // MARK: - Albums, stacks, keywords

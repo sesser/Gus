@@ -11,6 +11,11 @@ public struct ExportItem: Sendable {
     public var sourceURL: URL
     /// The master is reachable (its volume is mounted and the file is there).
     public var isOnline: Bool
+    /// A copy's name in the library ("IMG_0412 copy 2"); nil for an original.
+    public var copyName: String? = nil
+
+    /// What reports call the photo: a copy's name, or the file name.
+    public var reportName: String { copyName ?? details.image.fileName }
 
     public var isVideo: Bool { FileKind(pathExtension: (details.image.fileName as NSString).pathExtension) == .video }
 
@@ -21,7 +26,7 @@ public struct ExportItem: Sendable {
                                fileDate: image.modifiedAt, importDate: image.importedAt, make: image.cameraMake,
                                model: image.cameraModel, serial: image.cameraSerial, lens: image.lensModel,
                                originalName: image.fileName, sequence: sequence, counter: sequence, jobCode: "",
-                               exportDate: exportDate)
+                               exportDate: exportDate, displayName: copyName)
     }
 }
 
@@ -54,6 +59,7 @@ public struct ExportSummary: Sendable, Hashable {
             case writeFailed(String)
         }
 
+        /// The file name, or a copy's name in the library.
         public var fileName: String
         public var reason: Reason
     }
@@ -88,13 +94,18 @@ public struct ExportJob: Sendable {
     /// Full-resolution renders are large (a 60 MP RAW is about 1 GB in the
     /// working format), so only a few run at once.
     public var maxConcurrentRenders: Int
+    /// The words of a copy's name, for file names and reports. Plain English
+    /// unless the caller has localized ones.
+    public var copyNaming: CopyNaming
 
     private static let log = Logger(subsystem: AppBranding.bundleIdentifier, category: "export")
 
-    public init(catalog: Catalog, renderer: ExportRenderer, maxConcurrentRenders: Int = 2) {
+    public init(catalog: Catalog, renderer: ExportRenderer, maxConcurrentRenders: Int = 2,
+                copyNaming: CopyNaming = .plain) {
         self.catalog = catalog
         self.renderer = renderer
         self.maxConcurrentRenders = max(1, maxConcurrentRenders)
+        self.copyNaming = copyNaming
     }
 
     /// The versions with what export needs to know about them, in order.
@@ -108,7 +119,8 @@ public struct ExportJob: Sendable {
             values.keywords = try await catalog.keywords(forVersion: id).map(\.name)
             let url = details.volume.url(forRelativePath: image.relativePath)
             items.append(ExportItem(versionID: id, details: details, values: values, sourceURL: url,
-                                    isOnline: FileManager.default.fileExists(atPath: url.path)))
+                                    isOnline: FileManager.default.fileExists(atPath: url.path),
+                                    copyName: copyNaming.copyName(of: details.version, fileName: image.fileName)))
         }
         return items
     }
@@ -136,7 +148,7 @@ public struct ExportJob: Sendable {
             try FileManager.default.createDirectory(at: request.destination, withIntermediateDirectories: true)
         } catch {
             summary.failures = exportable.map {
-                .init(fileName: $0.details.image.fileName, reason: .writeFailed(error.localizedDescription))
+                .init(fileName: $0.reportName, reason: .writeFailed(error.localizedDescription))
             }
             return summary
         }
@@ -185,7 +197,7 @@ public struct ExportJob: Sendable {
 
     private static func export(_ item: ExportItem, to destination: ExportDestination, settings: ExportSettings,
                                renderer: ExportRenderer) -> Outcome {
-        let name = item.details.image.fileName
+        let name = item.reportName
         guard case .write(let url, let replacing) = destination else { return .skipped }
         guard item.isOnline else { return .failed(.init(fileName: name, reason: .offline(volumeName: item.details.volume.name))) }
         do {

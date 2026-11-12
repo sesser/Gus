@@ -373,6 +373,7 @@ enum RuleText {
         case .artist: String(localized: "Artist", comment: "Smart album rule field")
         case .copyright: String(localized: "Copyright", comment: "Smart album rule field")
         case .caption: String(localized: "Description", comment: "Metadata field: the photo's description (caption)")
+        case .isCopy: String(localized: "Photo", comment: "Menu title. Also a smart album rule field: Photo is a copy")
         }
     }
 
@@ -400,12 +401,14 @@ enum RuleText {
             switch field {
             case .hasKeywords: String(localized: "are assigned", comment: "Smart album rule: Keywords are assigned")
             case .flash: String(localized: "fired", comment: "Smart album rule: Flash fired")
+            case .isCopy: String(localized: "is a copy", comment: "Smart album rule: Photo is a copy (made with Duplicate)")
             default: String(localized: "is known", comment: "Smart album rule: Location is known")
             }
         case .isFalse:
             switch field {
             case .hasKeywords: String(localized: "are not assigned", comment: "Smart album rule: Keywords are not assigned")
             case .flash: String(localized: "did not fire", comment: "Smart album rule: Flash did not fire")
+            case .isCopy: String(localized: "is not a copy", comment: "Smart album rule: Photo is not a copy")
             default: String(localized: "is unknown", comment: "Smart album rule: Location is unknown")
             }
         }
