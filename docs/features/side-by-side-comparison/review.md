@@ -89,8 +89,8 @@ With D3, RI-E2 needs no PRD change: AC6b holds as written.
 | Info tab on the active photo; Adjust tab content-unavailable with Stop Comparing; History hidden; title the active file name, subtitle "Comparing · ‹source›" | `AdjustView`, `HistoryActions`, `WindowTitle` | Pass |
 | Narrow windows: side by side at every width; no automatic hiding of sidebar or inspector | `ComparisonGeometry.canvases` | Pass. 13" look: M8 |
 | Strings (§12) in the catalog | `LocalizationTests` | Pass. "Comparison" shares a key with the smart album editor: follow-up (status.md) |
-| D14: Duplicate dimmed while comparing, left out of the pane menu; undo / redo of a Duplicate keep the comparison (focus on the active side) or end it on the photo that remains | `canDuplicateTargets`, `replaceItems` | **Fail, F8** (fifth pass) |
-| D15: a copy's caption shows its name and the Copy badge (never shed); VoiceOver and alerts use the copy's name | `ComparisonCaption`, `ComparisonActions` | **Fail, F9** (fifth pass) |
+| D14: Duplicate dimmed while comparing, left out of the pane menu; undo / redo of a Duplicate keep the comparison (focus on the active side) or end it on the photo that remains | `canDuplicateTargets`, `replaceItems` | **Pass** (F8 confirmed, sixth pass; M11 for a person) |
+| D15: a copy's caption shows its name and the Copy badge (never shed); VoiceOver and alerts use the copy's name | `ComparisonCaption`, `ComparisonActions` | **Pass** (F9 confirmed, sixth pass; narrow caption is M10) |
 
 ## USER_GUIDE terms
 
@@ -378,6 +378,72 @@ Manual checks: **M10** (new). In a comparison of a photo and its copy at a narro
 (sidebar and inspector shown on a 13" display, or the window made narrow), the copy's caption
 keeps its Copy badge and its marks while the name truncates. **M11** (new). While comparing, ⌘D beeps and File ▸
 Duplicate is dimmed; right-click on a pane shows no Duplicate.
+
+## Sixth pass: D14 and D15 confirmed (F8, F9)
+
+Reviewer: apple-ui-designer, 2026-11-12. Commit "Duplicate while comparing and a copy's name
+(D14, D15)", read against `design.md` §16 D14 and D15, this file's fifth pass and `status.md`
+"Fifth pass": `DuplicateActions.canDuplicateTargets`, `PhotoContextMenu.comparison` /
+`addPhotoItems`, `LibraryCommands` (File ▸ Duplicate), `LibraryModel.apply`,
+`reconcileComparison`, `replaceItems`, `ComparisonCaption`, `ComparisonActions` and
+`docs/USER_GUIDE.md`. Code read, not built or run; the engineer's scripted runs (a) to (d) in
+`status.md` are taken as the evidence for behavior.
+
+**Verdict: Pass. F8 and F9 are closed; no change needed.**
+
+- **F8 (D14).**
+  1. *Dimmed while comparing.* `canDuplicateTargets` requires `!isComparing`; `isComparing` is
+     `comparison != nil`, which review keeps, so review is covered. File ▸ Duplicate disables on
+     `canDuplicate`, which reads it, and ⌘D goes through that item. Pass.
+  2. *Pane menu.* `PhotoContextMenu.comparison` builds through `addPhotoItems`, which adds
+     Duplicate only when `state.canDuplicate`; the separator before the group appears only when
+     Export…, Show in Finder or RAW+JPEG Pair follow. Pass.
+  3. *Undo / redo.* One helper, `reconcileComparison`, serves `apply` and `replaceItems`, as
+     asked. In `replaceItems`: `.kept` takes focus and selection from
+     `ComparisonRules.selection` and returns before `selecting` / `focusVersionID` apply; the
+     panes are not told anything beyond `libraryItemsReloaded` (grid and strip only), so each
+     pane's zoom and position stay. `.ended(remaining)` focuses the remaining photo alone;
+     with nothing remaining it focuses the active copy's original (`activeOriginal`, found
+     before the list is replaced), falling back to the undo's own focus only if that original
+     is not in the list. The copy's side is never refilled (`ComparisonRules.reconcile` keeps a
+     side only for a pair's other file). A redo only adds items, so it always reconciles to
+     `.kept` and never starts or restores a comparison. All four D14 cases pass.
+  4. *Announcements.* `.ended` calls `announceLoupePhoto` (§10 Leaving); `.kept` announces
+     nothing, as D14 asks. Pass.
+- **F9 (D15).**
+  1. *Caption name:* `PhotoName.inFull`, weight and color by active side as before. Pass.
+  2. *Copy badge order:* Filtered (right only), HDR, Copy, Offline, the film strip toggle, with
+     the single loupe's title and tooltip (`DuplicateText.badgeHelp(item.fileName)`, the master's
+     file name). Pass.
+  3. *Narrow captions:* the four `ViewThatFits` rows drop the position, then middle-truncate
+     the name, then drop HDR; the Copy badge is in all four, and the doc comment says so. Pass
+     in code; seeing it truncate stays **M10**.
+  4. *VoiceOver:* entering and switching use `PhotoName.display`; walking uses
+     `PhotoAccessibility.loupeMove`, and the panes `PhotoAccessibility.label`, both copy-aware.
+     No separate "Copy" word. Pass.
+  5. *Refusal alerts:* every case names photos through `PhotoName.inFull`. Pass.
+  6. No new strings. Pass.
+- **User guide.** "Comparing two photos" lists Duplicate with the commands that are off while
+  comparing, in the menu's own word. The Copies section's terms (Duplicate, Copy badge, Undo
+  Duplicate) match the UI. Pass.
+
+**The engineer's extra change: `apply` now announces the remaining photo when a compared photo
+leaves the source. Accepted.** §10's Leaving row is "the loupe's photo announcement for the
+photo now shown alone", and it is not limited to `S`: §6 and D9 make a removal end the
+comparison on the remaining photo, so that is a leaving, and before this change VoiceOver heard
+nothing while the screen went from two photos to one. It is limited correctly: only when the
+source stays the same (`keepsComparison`; a source change has its own feedback), and
+`announceLoupePhoto` speaks only in the loupe, so a list that empties and closes the loupe says
+nothing extra. `apply` and `replaceItems` now behave the same, which is what D14 asked for.
+This is what §10 already says, so `design.md` needs no change.
+
+Optional, not required (judgment, not a finding): the Copies section of the user guide says
+Duplicate is "dimmed while a crop is being edited"; it could add "or while comparing" so a
+reader of that section alone finds it. Engineer's call.
+
+Manual checks M10 and M11 stand as written in the fifth pass. Add to M11: after a Duplicate of
+another photo, `S` on a pair zoomed to 100%, then Edit ▸ Undo Duplicate; both panes keep their
+zoom and position.
 
 ## Follow-ups
 
