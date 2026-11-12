@@ -6,7 +6,8 @@ Status: Complete (apple-ui-designer, 2026-11-11). Requirements issues RI-1 to
 RI-3 are open with the product manager; the design works with the default
 recommended for each, so implementation need not wait on them. The new
 bare keys (§4) need the owner's OK, as earlier new keys had (UI_REDESIGN
-decision 13).
+decision 13). Rulings D1 to D8 on the engineer's Design questions are in
+§16 (2026-11-11).
 
 Against `prd.md` (approved 2026-11-11). Builds on `docs/UI_REDESIGN.md`:
 §1 (loupe surround, caption), §2 (review), §6 (menu bar and bare keys),
@@ -84,19 +85,22 @@ sidebar and inspector only (UI_REDESIGN decision 2; HIG Materials).
 | Where | What is compared | Left / right | Active |
 |---|---|---|---|
 | Grid, two items selected | Those two | Source order: the earlier one left, so the panes match the grid | The grid's focused photo if it is one of the two, else the left |
-| Grid, one item selected | The focused photo and its **partner** (below) | Focused left, partner right | Left |
-| Loupe (photo or video loupe) | The loupe's photo and its partner | Loupe photo left, partner right | Left |
+| Grid, one item selected | The focused photo and its **partner** (below) | Focused left, partner right | **Right** (ruling D3) |
+| Loupe (photo or video loupe) | The loupe's photo and its partner | Loupe photo left, partner right | **Right** (ruling D3) |
+| Either, with a remembered partner | The same pair as last time | As they were when that comparison was left | As it was (ruling D3) |
 | Grid, 0 or 3+ selected | Nothing: the command is dimmed | | |
 
-Active starts on the photo the keys acted on a moment ago, so entering
-comparison never changes what the next culling key hits (HIG: user
-control; predictability).
+With two photos chosen, active starts on the photo the keys acted on a
+moment ago. With one photo and its partner, the partner is active: the
+photo the person came with stays put on the left as the reference, and the
+arrows and the strip choose its challenger on the right (ruling D3).
 
 **Partner:** the photo this one was last compared with, if that happened
 in this loupe session and it is still in the source and can be compared;
 otherwise the next photo in the source that can be compared; at the end of
 the source, the previous one. So `S` (§4) toggles between the single
-loupe and the same pair, and an accidental `S` costs one more `S`.
+loupe and the same pair, laid out as it was, and an accidental `S` costs
+one more `S`.
 
 "Choosing a second photo" from the loupe (R2) is: enter comparison (the
 partner appears), then walk the right side with the arrows or click any
@@ -120,8 +124,8 @@ the toolbar, and the Activity item appears only as an icon.
 
 | Case | Alert title | Informative text |
 |---|---|---|
-| One of them is a video | Can’t Compare These Photos | “‹name›” is a video. Only photos can be compared. |
-| One of them is offline | Can’t Compare These Photos | The original of “‹name›” is offline. Connect “‹volume›” to compare it. |
+| One of them is a video | Can’t Compare These Photos (Can’t Compare This Photo when entered with one photo, ruling D5) | “‹name›” is a video. Only photos can be compared. |
+| One of them is offline | Can’t Compare These Photos (Can’t Compare This Photo when entered with one photo, ruling D5) | The original of “‹name›” is offline. Connect “‹volume›” to compare it. |
 | Both fail | Can’t Compare These Photos | the first reason that applies, for the first photo |
 | Loupe or one selected, no partner can be compared | Can’t Compare This Photo | There’s no other photo in “‹source›” that can be compared with it. |
 | Halves of one RAW+JPEG pair (RI-3, recommended) | Can’t Compare These Photos | “‹raw›” and “‹jpeg›” are the RAW and JPEG files of one photo. |
@@ -374,7 +378,7 @@ fits (about 470 pt per caption against about 330 pt needed).
 
 | Element | Spec |
 |---|---|
-| Comparison | A group, label "Comparison", containing the two panes in reading order (left, right), then the strip and the caption row (order otherwise as UI_REDESIGN §11) |
+| Comparison | A group, label "Comparison", containing the two panes in reading order (left, right); the strip and the caption row follow it as siblings (ruling D4; order otherwise as UI_REDESIGN §11) |
 | Each pane | An image element as the loupe canvas is: label `PhotoAccessibility.label`; value starts "Left photo, active" / "Right photo" then the loupe value ("3 stars, Picked, 12 of 87"); `isAccessibilitySelected` on the active one |
 | Pane actions | The canvas's culling actions (performing one makes that pane active first, as `performAccessibilityAction` selects first now), Make Active (inactive pane only), Zoom to 100% / Zoom to Fit, Link / Unlink Zoom and Position, Stop Comparing, Show Grid |
 | Entering | Announces "Comparing DSC00231 and DSC00232. Left photo active." |
@@ -384,7 +388,7 @@ fits (about 470 pt per caption against about 330 pt needed).
 | Link toggle | Label "Link Zoom and Position", a toggle with value on or off; toggling announces "Zoom and position linked" / "Zoom and position not linked" |
 | Leaving | The loupe's photo announcement for the photo now shown alone |
 | Keyboard focus | The comparison host is one key view in the Tab loop where the canvas is now; Tab and ⇧Tab move past it unchanged (§4) |
-| Contrast | The ring against the 0.09 surround at 3:1, 4.5:1 with Increase Contrast (non-text element); add both ring colors (accent and neutral) to `PaletteContrastTests` |
+| Contrast | The ring against the surround at 3:1 or more (WCAG 1.4.11, non-text), in every appearance including Increase Contrast, for the neutral color and every system accent color; Increase Contrast's answer is the 3 pt width, not a different color (ruling D2). Both ring colors in `PaletteContrastTests` |
 | Reduce Motion | Entering, leaving and relinking happen at once |
 
 ## 11. Inspector, title and other surfaces
@@ -476,6 +480,69 @@ are content, not glass, so `snapshot` draws them.
   on it, except that linked panning must follow per frame (§5). If two
   100% views can't keep up, the engineer says so as a Design question
   rather than dropping the link.
+
+## 16. Rulings (on the engineer's Design questions, 2026-11-11)
+
+Cite these by number. Each amends the section it names; where the earlier
+text disagrees, the ruling wins.
+
+- **D1 (DQ-1, Esc outside review): as built.** Esc leaves review first,
+  otherwise goes to the grid with the two photos selected, exactly as in the
+  single loupe. Comparison is a state of the loupe, not a level (§1); `S`
+  is the way back to the single loupe and is shown in the menu. Entered
+  from the grid (the primary scenario), Esc goes straight back where the
+  person came from; entered from the loupe, the grid keeps the pair
+  selected and Return reopens the loupe on the active photo, so nothing is
+  lost. A third Esc level would make Esc's count depend on how comparison
+  was entered. No change.
+- **D2 (DQ-2, ring contrast): option (a).** The rule for the ring is 3:1
+  against the surround in every appearance (WCAG 1.4.11 for non-text
+  elements). 4.5:1 is the text figure and was over-specified in §10. The
+  ring follows the system accent color, which Increase Contrast does not
+  change, and so do the grid's and the strip's borders; replacing it with a
+  lighter color of our own would break "one look, one meaning" (Harmony)
+  and ignore the person's accent choice. Increase Contrast's answer is the
+  3 pt width, and the active side is never color alone (§6: the ring's
+  presence and the semibold name). `PaletteContrastTests` asserts 3:1 for
+  the neutral color and every accent, with and without Increase Contrast,
+  and drops the known issue.
+- **D3 (DQ-3, which side is active on entering with one photo): option
+  (b), plus restoring a remembered pair.** Entering from the loupe or with
+  one photo selected in the grid makes the **partner (right)** active, so
+  the arrows and the strip choose the second photo at once, as R2 and AC6b
+  say. This is the reference-and-challenger model: the photo the person
+  came with stays on the left, unchanged, while the right side walks. §3's
+  table and the "active starts on the photo the keys acted on" rule
+  conflicted with the approved AC6b; the criterion wins, and the cost (the
+  next culling key hits the partner) is visible, since the ring, the
+  semibold name, the window title and the announcement ("… Right photo
+  active.") all move to it. Two photos selected in the grid: unchanged.
+  **Re-entering the same pair** (`S` with a remembered partner) restores
+  that comparison as it was when it was left: the same photo on each side
+  and the same active side, whichever side the loupe's photo is on. The
+  entering animation then refits the loupe's photo into the pane it goes
+  to, left or right. Without this, `S S` after (b) would swap the photos'
+  sides and the active photo, which breaks AC6c's "the same pair" and §3's
+  promise that an accidental `S` costs one more `S`.
+- **D4 (VoiceOver group): accepted as built.** The group holds the two
+  panes; the strip and the caption row follow it as siblings, in reading
+  order. Moving them inside would change the single loupe's tree for no
+  gain in what VoiceOver users can reach. §10 amended.
+- **D5 (one photo that is itself a video or offline): change.** When
+  comparison is entered with one photo (the loupe, the video loupe, one
+  selected), the alert's title is **Can’t Compare This Photo**: the title
+  must describe what was asked (HIG Alerts). The partner rule never picks a
+  video or offline photo, so in that case the refusal is always about the
+  photo itself. The informative text is unchanged. With two selected it
+  stays "These Photos".
+- **D6 (sides after `S S`):** superseded by D3: a remembered pair comes
+  back as it was.
+- **D7 (link toggle between two equal captions): accepted.** It is on the
+  seam and no name runs under it, which is what §9 asks.
+- **D8 (a click zooms keeping the clicked point under the pointer):
+  accepted.** It matches the single loupe (Consistency); after the
+  animation the linked pane is put on the leader's unit point, which is
+  what §5 asks.
 
 ## References
 
