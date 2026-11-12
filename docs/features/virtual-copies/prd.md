@@ -2,7 +2,7 @@ Issue: #62
 
 # Virtual copies
 
-Status: Draft (defaults below are assumptions pending the owner)
+Status: Approved (owner, 2026-11-11)
 Slug: virtual-copies
 Roadmap: Next
 
@@ -46,16 +46,17 @@ Copies that share one edit stack (a copy is a snapshot, not a live link); stacks
 ## Dependencies and impact
 Touches `Catalog.duplicateVersion` (needs keywords, albums and history decisions; today it copies the row only, so culling and stack but not keyword or album links), `ImagePairing` (writes reach the partner via the default version; a copy must be excluded), grid queries (`LibraryQuery` currently reads `version.isDefault`; whether it lists non-default versions must be checked), `LibraryRemoval`, export naming, `PhotoBench`, `photocli` (a duplicate command in the registry is a Could), Edit History, smart albums, USER_GUIDE. No migration is expected: `version` already holds `versionNumber` and `name` with a unique key on image and number.
 
-## Assumptions (all pending the owner)
-A1: A copy keeps its own culling, keywords and albums, seeded from the original (R3, R4). Reason: a copy exists to be treated differently, and the catalog stores these per version.
-A2: A copy is a snapshot of the stack, not a live link.
-A3: Sidecars belong to the master's default version only; copies are catalog-only (R7). Reason: one `.xmp` per file, and the triggers already behave this way. A copy's rating or keywords are therefore not in any sidecar.
-A4: Removing the original removes its copies; removing a copy leaves the original (R6).
-A5: RAW+JPEG: copy is per file and unpaired (R9).
-A6: Copies count as items everywhere photos are counted.
-A7: Roadmap position (Next, after library-ops) is as the owner set on 2026-11-06.
+## Decisions (owner, 2026-11-11: all proposed defaults accepted)
+D1 (was A1): A copy keeps its own culling, keywords and albums, seeded from the original (R3, R4). Reason: a copy exists to be treated differently, and the catalog stores these per version.
+D2 (was A2): A copy is a snapshot of the stack, not a live link.
+D3 (was A3): Sidecars belong to the master's default version only; copies are catalog-only (R7). Reason: one `.xmp` per file, and the triggers already behave this way. A copy's rating or keywords are therefore not in any sidecar.
+D4 (was A4): Removing the original removes its copies; removing a copy leaves the original (R6).
+D5 (was A5): RAW+JPEG: copy is per file and unpaired (R9).
+D6 (was A6): Copies count as items everywhere photos are counted.
+D7 (was A7): Roadmap position (Next, after library-ops) is as the owner set on 2026-11-06.
+D8: The seven intake questions were answered with their defaults: own culling, keywords and albums (D1); sidecar and export content (D3, R8); removal rules (D4); pair behavior (D5). Question 5, whether a copy can become the default version and take over sidecar ownership, stays with R10 (Should, deferrable): the engineer or designer may defer it if it widens scope, and the owner is told if so.
 
 ## Open questions
-Owner (intake, defaults above): 1 culling/keywords/albums own vs shared (A1); 2 sidecar and export content for a copy (A3, R8); 3 removal rules (A4); 4 pair behavior (A9); 5 whether a copy can become the default version (R10) and then take over sidecar ownership.
+Owner: none open. Only R10's deferral, if it happens, comes back to the owner.
 Designer: where Duplicate lives, how a copy is marked, how it is named in the grid and in file names.
 Engineer: does the grid query list non-default versions today; how Remove from Library finds a copy's pair partner (`LibraryRemovalTests` already duplicate a version); what duplicate does to an unreadable stack; whether an offline photo can be duplicated (proposed: yes, catalog only).
