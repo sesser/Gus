@@ -1361,8 +1361,8 @@ final class CenteringClipView: NSClipView {
 
 /// One line under the photo, on the surround (section 1 of
 /// docs/UI_REDESIGN.md): the position on the left; the stars, flag and color
-/// label with its name in the middle; Filtered, Original, HDR and Offline on
-/// the right. The file name is the window title; capture details are in the
+/// label with its name in the middle; Filtered, Original, HDR, Copy and
+/// Offline on the right. The file name is the window title; capture details are in the
 /// Info tab.
 struct LoupeCaption: View {
     let model: LibraryModel
@@ -1416,6 +1416,11 @@ struct LoupeCaption: View {
             }
             if let reason = model.editor.machineLearningNotApplied {
                 CaptionBadge(title: MachineLearningText.badge, help: MachineLearningText.badgeHelp(reason))
+            }
+            // Identity badges last, where the transient ones before them
+            // come and go without moving them (virtual-copies design §6.3).
+            if item.isCopy {
+                CaptionBadge(title: DuplicateText.badge, help: DuplicateText.badgeHelp(item.fileName))
             }
             if model.isOffline(item) {
                 CaptionBadge(title: String(localized: "Offline"),

@@ -26,9 +26,12 @@ public enum ExportDestination: Hashable, Sendable {
 /// export window can say how many already exist before anything is written.
 public enum ExportNaming {
     /// The file name, extension included, for one image before conflicts are
-    /// resolved.
+    /// resolved. A copy is named as the library shows it ("IMG_0412 copy"),
+    /// under Original Name and through `{name}`, so an original and its
+    /// copies exported together get different names; a template without
+    /// `{name}` leaves that to `plan`'s numbering.
     public static func fileName(for context: TemplateContext, settings: ExportSettings) -> String {
-        let original = (context.originalName as NSString).deletingPathExtension
+        let original = context.name
         var stem = settings.naming == .template
             ? ImportTemplate.sanitize(ImportTemplate.expand(settings.fileNameTemplate, context))
             : ImportTemplate.sanitize(original)

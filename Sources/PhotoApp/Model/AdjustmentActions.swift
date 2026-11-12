@@ -50,7 +50,7 @@ extension LibraryModel {
         let selection = batchSelection(action: actionName, needsMaster: { _ in true })
         let sources = selection.versionIDs.compactMap { id -> (Int64, URL, String)? in
             guard let item = item(versionID: id), let url = sourceURL(for: item) else { return nil }
-            return (id, url, item.fileName)
+            return (id, url, PhotoName.inFull(item))
         }
         guard !sources.isEmpty else { return }
         let catalog = self.catalog

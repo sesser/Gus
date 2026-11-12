@@ -6,15 +6,15 @@ import PhotoUI
 /// can do to it (section 10 of docs/UI_REDESIGN.md).
 @MainActor
 enum PhotoAccessibility {
-    /// "DSC00231, RAW plus JPEG"; "DSC00400, video, 0:42".
+    /// "DSC00231, RAW plus JPEG"; "DSC00231 copy 2, RAW"; "DSC00400, video, 0:42".
     static func label(for item: CatalogItem) -> String {
         if item.isVideo {
-            return AccessibilityText.list([item.baseName, String(localized: "video", comment: "VoiceOver: a video's type, as in “DSC00400, video, 0:42”"),
+            return AccessibilityText.list([PhotoName.display(item), String(localized: "video", comment: "VoiceOver: a video's type, as in “DSC00400, video, 0:42”"),
                                            item.duration.map(FileKindText.duration) ?? ""])
         }
         var kinds = item.fileKind.map { [$0] } ?? []
         if item.representsPair, let partner = item.partnerKind { kinds.append(partner) }
-        return AccessibilityText.list([item.baseName, AccessibilityText.fileType(kinds)])
+        return AccessibilityText.list([PhotoName.display(item), AccessibilityText.fileType(kinds)])
     }
 
     /// "3 stars, Picked, Red label, Offline"; empty for a photo nobody culled.
@@ -78,7 +78,7 @@ enum PhotoAccessibility {
     static func advanced(_ result: String, to item: CatalogItem, offline: Bool) -> String {
         let parts = CullingDescription.advancedTo(rating: item.rating, flag: item.flag, colorLabel: item.colorLabel,
                                                   offline: offline)
-        let next = AccessibilityText.list([item.baseName] + parts.map { text($0, midSentence: true) })
+        let next = AccessibilityText.list([PhotoName.display(item)] + parts.map { text($0, midSentence: true) })
         return String(localized: "\(result). \(next)", comment: "VoiceOver: a culling result, then the photo shown next (“3 stars. DSC00232, no rating”)")
     }
 

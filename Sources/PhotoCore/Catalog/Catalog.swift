@@ -150,7 +150,7 @@ extension Catalog {
     }
 
     /// Changes the project's name in the catalog. Its folder on disk keeps
-    /// its name, and no sidecar changes (`ProjectRename` is the rule for
+    /// its name, and no sidecar changes (`InPlaceRename` is the rule for
     /// what a typed name becomes). Removing a project is `removeProject`.
     public func renameProject(id: Int64, to name: String) async throws {
         try await database.write { db in
@@ -475,29 +475,6 @@ extension Catalog {
     public func setEditStack(_ stack: EditStack, forVersion id: Int64, historyLabel: String,
                              at date: Date = Date()) async throws {
         try await setEditStacks([id: stack], historyLabel: historyLabel, at: date)
-    }
-
-    /// Creates a new version of the same master with a copy of `id`'s edit stack
-    /// and culling state.
-    public func duplicateVersion(id: Int64, at date: Date = Date()) async throws -> VersionRecord {
-        try await database.write { db in
-            guard var copy = try VersionRecord.fetchOne(db, key: id) else {
-                throw RecordError.recordNotFound(databaseTableName: VersionRecord.databaseTableName,
-                                                 key: ["id": id.databaseValue])
-            }
-            let highest = try Int.fetchOne(db, VersionRecord
-                .select(max(VersionRecord.Columns.versionNumber))
-                .filter(VersionRecord.Columns.imageId == copy.imageId)) ?? 0
-            copy.id = nil
-            copy.uuid = UUID().uuidString
-            copy.versionNumber = highest + 1
-            copy.name = nil
-            copy.isDefault = false
-            copy.createdAt = date
-            copy.modifiedAt = date
-            try copy.insert(db)
-            return copy
-        }
     }
 }
 

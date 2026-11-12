@@ -144,6 +144,15 @@ public struct CatalogItem: Hashable, Sendable, Identifiable {
     public var representsPair = false
     /// Seconds, for videos.
     public var duration: Double? = nil
+    /// 1 for the version made at import, then counting up per master.
+    public var versionNumber = 1
+    /// A copy made with Duplicate: a version that is not its master's default
+    /// one. It is never half of a pair, and no sidecar holds its values.
+    public var isCopy = false
+
+    /// Which of its master's copies this is, from 1 ("copy", "copy 2"…); nil
+    /// for an original (`CopyNaming`).
+    public var copyNumber: Int? { CopyNaming.copyNumber(versionNumber: versionNumber, isCopy: isCopy) }
 
     public var isVideo: Bool { fileKind == .video }
 
@@ -206,8 +215,10 @@ extension Catalog {
             clauses.append("image.localDate >= ? AND image.localDate < ?")
             arguments += [start, end]
         case .changedOnDisk:
+            // Originals only: the sidecar is the default version's, and a
+            // copy has no part in its review (virtual-copies design D-V1).
             let owners = "SELECT imageId FROM metadataSync WHERE status = \(MetadataSyncRecord.Status.changedOnDisk.rawValue)"
-            clauses.append("(image.id IN (\(owners)) OR image.id IN (SELECT companionImageId FROM imagePair WHERE rawImageId IN (\(owners))))")
+            clauses.append("version.isDefault AND (image.id IN (\(owners)) OR image.id IN (SELECT companionImageId FROM imagePair WHERE rawImageId IN (\(owners))))")
         }
         switch filter.rating {
         case .any:
@@ -265,7 +276,8 @@ extension Catalog {
         let sql = """
             SELECT version.id, version.imageId, image.volumeId, version.rating, version.flag,
                    version.colorLabel, image.contentHash, version.editStackHash, image.relativePath,
-                   image.pixelWidth, image.pixelHeight, image.orientation, image.duration, version.isDefault
+                   image.pixelWidth, image.pixelHeight, image.orientation, image.duration,
+                   version.versionNumber, version.isDefault
             FROM version
             JOIN image ON image.id = version.imageId
             \(whereClause)
@@ -280,7 +292,7 @@ extension Catalog {
             let rows = try Row.fetchCursor(db, sql: sql, arguments: finalArguments)
             while let row = try rows.next() {
                 let item = Self.item(from: row)
-                if hasPairs, row[13] as Bool { defaultIndexByImage[item.imageID] = items.count }
+                if hasPairs, !item.isCopy { defaultIndexByImage[item.imageID] = items.count }
                 items.append(item)
             }
             guard hasPairs else { return items }
@@ -333,7 +345,8 @@ extension Catalog {
                 let rows = try Row.fetchCursor(db, sql: """
                     SELECT version.id, version.imageId, image.volumeId, version.rating, version.flag,
                            version.colorLabel, image.contentHash, version.editStackHash, image.relativePath,
-                           image.pixelWidth, image.pixelHeight, image.orientation, image.duration
+                           image.pixelWidth, image.pixelHeight, image.orientation, image.duration,
+                           version.versionNumber, version.isDefault
                     FROM version
                     JOIN image ON image.id = version.imageId
                     WHERE version.id IN (\(databaseQuestionMarks(count: chunk.count)))
@@ -344,7 +357,7 @@ extension Catalog {
         }
     }
 
-    /// Decodes the first thirteen columns of the item queries.
+    /// Decodes the fifteen columns of the item queries.
     static func item(from row: Row) -> CatalogItem {
         var item = CatalogItem(
             versionID: row[0], imageID: row[1], volumeID: row[2],
@@ -355,6 +368,8 @@ extension Catalog {
             pixelWidth: (row[9] as Int?) ?? 0, pixelHeight: (row[10] as Int?) ?? 0,
             orientation: row[11])
         item.duration = row[12]
+        item.versionNumber = row[13]
+        item.isCopy = !(row[14] as Bool)
         return item
     }
 

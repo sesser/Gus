@@ -92,9 +92,10 @@ struct LibraryCommands: Commands {
             .disabled(!can { if case .smartAlbum = $0.sidebarItem { true } else { false } })
             Button(renameTitle) {
                 switch menu?.state.sidebarItem {
-                // A project is renamed in place in the sidebar (library-ops design §4).
-                case .project(let project): model?.beginProjectRename(project.id)
-                case .album(let album): model?.sidebarSheet = .renameAlbum(album)
+                // A project or an album is renamed in place in the sidebar
+                // (library-ops design §4, rename-albums-in-place design §2.2).
+                case .project(let project): model?.beginSidebarRename(.project(project.id))
+                case .album(let album): model?.beginSidebarRename(.album(album.id))
                 case .keyword(let keyword): model?.sidebarSheet = .renameKeyword(keyword)
                 case .smartAlbum, nil: break
                 }
@@ -115,6 +116,12 @@ struct LibraryCommands: Commands {
             }
             .disabled(!can { $0.sidebarItem?.isProject == true && $0.canRemoveFromLibrary })
             Divider()
+            // On only while the grid or loupe has the keyboard, like Remove
+            // from Library… below: ⌘D acts on the selection of the view
+            // that has the focus (virtual-copies design §3).
+            Button(DuplicateText.title) { model?.duplicateTargets() }
+                .keyboardShortcut("d", modifiers: .command)
+                .disabled(!canByKey { $0.canDuplicate })
             // The photo targets' files (library-ops design §2.1). Show in
             // Finder means the sidebar's project while the sidebar has the keyboard.
             Button(LibraryOpsText.showInFinder) {
@@ -168,12 +175,17 @@ struct LibraryCommands: Commands {
         }
     }
 
-    /// "Rename “Holiday”…" for an album or keyword selected in the sidebar,
-    /// which opens a sheet; "Rename “Iceland”" for a project, renamed in place.
     private var renameTitle: String {
-        guard can(), let item = menu?.state.sidebarItem, item.isRenamable else { return String(localized: "Rename…") }
-        if item.isProject { return LibraryOpsText.rename(item.name) }
-        return String(localized: "Rename “\(item.name)”…", comment: "File menu; the album or keyword selected in the sidebar")
+        Self.renameTitle(for: can() ? menu?.state.sidebarItem : nil)
+    }
+
+    /// "Rename “Iceland”" for a project or an album selected in the sidebar,
+    /// renamed in place; "Rename “dog”…" for a keyword, which opens a sheet;
+    /// "Rename…", dimmed, for anything else (rename-albums-in-place design §3).
+    static func renameTitle(for item: LibraryMenuState.SidebarItem?) -> String {
+        guard let item, let route = item.renameRoute else { return String(localized: "Rename…") }
+        if !route.titleHasEllipsis { return LibraryOpsText.rename(item.name) }
+        return String(localized: "Rename “\(item.name)”…", comment: "File menu; the keyword selected in the sidebar")
     }
 
     private var deleteTitle: String {

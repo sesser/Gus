@@ -564,9 +564,10 @@ click with a real mouse while a job runs) and P10 (macOS 15 and 26) in
 
 Library operations (`docs/features/library-ops/`, issue #61): rename a
 project in place (sidebar, File ▸ Rename, row menu; one undo step; catalog
-only, `Catalog/ProjectRename.swift`); File ▸ Remove from Library… (⌘⌫)
-removes the selected photos, either file of a RAW+JPEG pair taking both, and
-Remove Project from Library… removes a project, its photos and its own albums
+only, `Catalog/InPlaceRename.swift`); File ▸ Remove from Library… (⌘⌫)
+removes the selected photos, either file of a RAW+JPEG pair taking both, an
+original taking its copies and a copy removed alone leaving its original and
+the master, and Remove Project from Library… removes a project, its photos and its own albums
 and smart albums (`Catalog/LibraryRemoval.swift`: one transaction, all or
 nothing, the sidecar queue paused around it). Both ask first, with no default
 button (Return does nothing), say how many files go and that edits are lost,
@@ -578,37 +579,41 @@ Cached previews of removed photos stay (#142). Shipped, checks pending: macOS
 15 and 26 (confirmation keys, look) not checked by a person, in #82 and
 `docs/features/library-ops/qa.md`.
 
-Side by side comparison (`docs/features/side-by-side-comparison/`, issue #63,
-branch `feature/side-by-side-comparison`): comparison is a state of the loupe
-(`mode == .loupe` and `LibraryModel.comparison != nil`), also in review mode:
-two different photos in two panes, each with its saved renditions from the same
-`PreviewService` requests as the single loupe. `S` (View ▸ Compare Side by Side
-/ Stop Comparing) enters from two selected photos, one selected photo or the
-loupe's photo with its partner (the one last compared with, else the next
-comparable; the partner is made active); `S` again leaves, and `S` once more
-brings the same pair back (`comparisonMemory`, until the loupe closes). `A`
-switches the active pane. The focus is the active photo and the selection is
-the pair, so culling, keywords, albums, export, the menus and undo act on the
-active photo only; editing, Remove, Paste and Apply Preset are off while
-comparing. Zoom and pan are linked in unit coordinates (`ComparisonLink`; the
-switch is the `compare.linksViews` preference, linked when absent). Arrow keys
-or a film strip click replace the active side's photo; leaving selects the pair
-on screen. Refused with an alert: a video, an offline photo, the two files of
-one RAW+JPEG pair shown separately. The rules are in PhotoCore
-(`Browser/Comparison.swift`, `ActionTargets.swift`), the panes in
-`Loupe/ComparisonView.swift`, `ComparisonCaption.swift`, the model in
-`Model/ComparisonActions.swift`. Debug script: `compare on|off|toggle`,
-`compare active left|right|switch`, `compare link on|off`, `compare animate
-on|off`, `compare panbench`, `compareclick`, `print compare`. `photobench
-compare` renders two photos at full resolution and reports time and memory.
-Two full-resolution pictures are held with no cap. No migration, no
-`PreviewCacheKey` bump, no rendering changed. Three or four photos (R9) not
-built. Known limitation #153: linked, after ⌘= twice and a drag of the zoomed
-photo beside a fitted one, the fitted photo's zoom state can flip and `Z` goes
-to fit instead of 100%. Shipped, checks pending: AC7's hitch count
-(`compare panbench 6`, linked and not, with the display awake), animations,
-real mouse and trackpad, menus with a key window and the alert's keys, looks
-and Full Keyboard Access, in `docs/features/side-by-side-comparison/qa.md`.
+Rename albums in place (`docs/features/rename-albums-in-place/`, issue #141):
+albums rename in the sidebar row the way projects do (File ▸ Rename, the row's
+context menu, Return; Return saves, Esc cancels, leaving the field saves; one
+undo step, "Rename Album"). Projects and albums share one rename state and one
+name rule (`Catalog/InPlaceRename.swift`: trims only, empty refused, no
+length limit). A row that leaves the list during a rename (section hidden or
+folded, sidebar hidden, review on) saves the typed name as one step. A renamed
+row that moves stays selected and in view. The album Rename sheet is removed;
+keywords keep their sheet (with the merge note) and smart albums keep Edit
+Smart Album…. Catalog only: no migration, no pipeline bump. Known difference:
+New Album still collapses inner spaces and cuts names at 200 characters, a
+rename in place does not. Shipped, checks pending: P1–P6 (look, endings,
+moving row, menu bar, row folded away during a rename including hiding the
+sidebar, scrolling the field out of view) in #82 and
+`docs/features/rename-albums-in-place/qa.md`.
+
+Virtual copies (`docs/features/virtual-copies/`, issue #62): Duplicate makes a
+copy of each selected photo (videos skipped and counted in Activity): another
+version of the same master (not its default) with the original's edit stack as
+a snapshot, one undo step, no migration, no pipeline bump. A copy has its own
+edits, history, rating, flag, label, keywords and albums (seeded from the
+original, then independent), is its own marked item in the grid, loupe, film
+strip and review, is placed after its original when made, then sorts by its
+own values, and counts everywhere photos are counted. A copy is stackless,
+never joins a RAW+JPEG pair (copies are per file) and never touches a sidecar
+or the sidecar review; export names it apart from its original; the smart
+album rule "is a copy" finds them. Removing an original takes its copies (the
+confirmation says how many); removing a copy leaves the original and the
+master. Descriptive Info fields live on the image, so they are shared with the
+original (editing one on a copy queues the original's sidecar), and keyword
+suggestions are per master. Naming a copy, making it the default version and
+`photocli duplicate` are not built. Shipped, checks pending: P1 to P5 in #82
+and `docs/features/virtual-copies/qa.md`. Known and left: removing from the
+library right after undoing Duplicate asks about copies already gone and
+clears undo.
 
 Not yet: AI masks, healing, lens corrections (distortion, lens vignetting,
 profiles), DNG export, `.dcp` profiles,

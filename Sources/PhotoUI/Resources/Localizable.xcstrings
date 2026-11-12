@@ -78,6 +78,28 @@
         }
       }
     },
+    "%@ copy" : {
+      "comment" : "A copy's name (File ▸ Duplicate): the original's file name without its extension, then “copy”. Also its exported file's name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ copy"
+          }
+        }
+      }
+    },
+    "%@ copy %lld" : {
+      "comment" : "The name of a photo's second and later copies: the original's file name without its extension, “copy”, and a number from 2. Also its exported file's name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ copy %2$lld"
+          }
+        }
+      }
+    },
     "%@ could not be ejected. It may still be in use." : {
       "comment" : "Import window; the argument is a card name",
       "localizations" : {
@@ -281,6 +303,29 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "%lld colors"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld copies of these photos are removed with them." : {
+      "comment" : "Photo removal confirmation: several photos, some with copies (made with Duplicate) that were not selected",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld copy of these photos is removed with them."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld copies of these photos are removed with them."
                 }
               }
             }
@@ -861,6 +906,29 @@
         }
       }
     },
+    "%lld videos weren't duplicated." : {
+      "comment" : "Activity, after Duplicate on a selection with videos",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld video wasn't duplicated."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld videos weren't duplicated."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "100%" : {
       "comment" : "Toolbar, loupe: show the photo at actual size; also a zoom level of the pixel magnifier",
       "localizations" : {
@@ -989,6 +1057,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "800%"
+          }
+        }
+      }
+    },
+    "A copy of “%@”. Its adjustments, rating, flag, label, keywords and albums are its own." : {
+      "comment" : "Tooltip of the loupe caption's Copy badge; the original's file name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A copy of “%@”. Its adjustments, rating, flag, label, keywords and albums are its own."
           }
         }
       }
@@ -1432,6 +1511,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "After Import"
+          }
+        }
+      }
+    },
+    "Album name" : {
+      "comment" : "VoiceOver's label for an album's name field in the sidebar",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Album name"
           }
         }
       }
@@ -3107,6 +3197,17 @@
         }
       }
     },
+    "Copy" : {
+      "comment" : "Loupe caption badge: the photo is a copy made with Duplicate",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy"
+          }
+        }
+      }
+    },
     "Copy Adjustments" : {
       "comment" : "Photo menu and Presets menu item",
       "localizations" : {
@@ -3818,6 +3919,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Drop folders to import each one as a project"
+          }
+        }
+      }
+    },
+    "Duplicate" : {
+      "comment" : "File menu and photo context menus: makes a copy of each selected photo in the library (no file is copied). Also its undo action name and its Activity row title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Duplicate"
+          }
+        }
+      }
+    },
+    "Duplicating %lld photos…" : {
+      "comment" : "Activity: under the title of a Duplicate that takes a while",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Duplicating %lld photo…"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Duplicating %lld photos…"
+                }
+              }
+            }
           }
         }
       }
@@ -5761,6 +5896,29 @@
         }
       }
     },
+    "Its %lld copies are removed with it." : {
+      "comment" : "Photo removal confirmation: one original whose copies (made with Duplicate) go too; two or more",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Its %lld copy is removed with it."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Its %lld copies are removed with it."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "Its %lld photos are removed with it." : {
       "comment" : "Project removal confirmation",
       "localizations" : {
@@ -5803,6 +5961,17 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "Its copy is removed with it." : {
+      "comment" : "Photo removal confirmation: one original with one copy (made with Duplicate), which goes too",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Its copy is removed with it."
           }
         }
       }
@@ -6450,6 +6619,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Machine learning not applied"
+          }
+        }
+      }
+    },
+    "Made %lld copies." : {
+      "comment" : "VoiceOver, after Duplicate on several photos",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Made %lld copy."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Made %lld copies."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Made a copy of “%@”." : {
+      "comment" : "VoiceOver, after Duplicate on one photo; its name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Made a copy of “%@”."
           }
         }
       }
@@ -7794,7 +7997,7 @@
       }
     },
     "Photo" : {
-      "comment" : "Menu title",
+      "comment" : "Menu title. Also a smart album rule field: Photo is a copy",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8814,7 +9017,7 @@
       }
     },
     "Remove “%@” from the library?" : {
-      "comment" : "Removal confirmation title: one photo's file name",
+      "comment" : "Removal confirmation title: one photo's file name, or a copy's name",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8859,7 +9062,7 @@
       }
     },
     "Removed “%@” from the library." : {
-      "comment" : "VoiceOver, after one photo was removed; its file name",
+      "comment" : "VoiceOver, after one photo was removed; its file name, or a copy's name",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8915,7 +9118,7 @@
       }
     },
     "Rename Album" : {
-      "comment" : "Undo action name and sheet title",
+      "comment" : "Undo action name",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8970,7 +9173,7 @@
       }
     },
     "Rename “%@”" : {
-      "comment" : "File menu; the project selected in the sidebar, renamed in place (no sheet follows)",
+      "comment" : "File menu; the project or album selected in the sidebar, renamed in place (no sheet follows)",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8981,7 +9184,7 @@
       }
     },
     "Rename “%@”…" : {
-      "comment" : "File menu; the album or keyword selected in the sidebar",
+      "comment" : "File menu; the keyword selected in the sidebar, renamed in a sheet",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -10804,12 +11007,23 @@
       }
     },
     "The name can't be empty." : {
-      "comment" : "VoiceOver, after an empty project name was refused",
+      "comment" : "VoiceOver, after an empty project or album name was refused",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "The name can't be empty."
+          }
+        }
+      }
+    },
+    "The original and its file are not affected. The copy's edits are lost, along with its rating, keywords and albums. You can't undo this action." : {
+      "comment" : "Photo removal confirmation: the one photo is a copy made with Duplicate",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The original and its file are not affected. The copy's edits are lost, along with its rating, keywords and albums. You can't undo this action."
           }
         }
       }
@@ -10832,6 +11046,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The original of “%1$@” is offline. Connect “%2$@” to compare it."
+          }
+        }
+      }
+    },
+    "The originals and their files are not affected. The copies' edits are lost, along with their ratings, keywords and albums. You can't undo this action." : {
+      "comment" : "Photo removal confirmation: every photo is a copy made with Duplicate",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The originals and their files are not affected. The copies' edits are lost, along with their ratings, keywords and albums. You can't undo this action."
+          }
+        }
+      }
+    },
+    "The photos couldn't be duplicated. The library is unchanged." : {
+      "comment" : "Activity warning",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The photos couldn't be duplicated. The library is unchanged."
           }
         }
       }
@@ -12084,6 +12320,17 @@
         }
       }
     },
+    "is a copy" : {
+      "comment" : "Smart album rule: Photo is a copy (made with Duplicate)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "is a copy"
+          }
+        }
+      }
+    },
     "is after" : {
       "comment" : "Smart album rule comparison (date)",
       "localizations" : {
@@ -12179,6 +12426,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "is not"
+          }
+        }
+      }
+    },
+    "is not a copy" : {
+      "comment" : "Smart album rule: Photo is not a copy",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "is not a copy"
           }
         }
       }

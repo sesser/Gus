@@ -27,6 +27,7 @@ R3 (Must): Rename is one undo step.
 R4 (Must): Rename never renames a folder on disk or changes any sidecar.
 R5 (Must): "Remove from Library" removes the selected photos from the catalog. Never moves, deletes or modifies a master or a sidecar file.
 R6 (Must): Removing photos deletes everything the catalog holds for the photo: versions, edits, edit history, rating, flag, label, keyword links, album and smart-album membership, stack and pair links, and its pending sidecar queue entries. Keywords and albums themselves stay, even if empty (removing a project is different: R8).
+R6 note (virtual-copies, #62, D10): a copy (a second version of a master, made by File ▸ Duplicate) removed on its own removes only that version; its original and the master stay. Removing an original takes its copies with it.
 R7 (Must): Removing either file of a RAW+JPEG pair removes both. The confirmation states the file count (for example "2 files").
 R8 (Must): "Remove Project from Library" removes the project and all its photos by the same rule as R5-R7, and also deletes the project's own albums and smart albums. The confirmation says how many albums and smart albums go with it (shown only when there are some).
 R9 (Must): Both removals ask for confirmation first, stating the number of photos (files), that files on disk are not touched, and that edits are lost. The confirmation has no default button: Return does nothing, and Escape or ⌘. cancels.
