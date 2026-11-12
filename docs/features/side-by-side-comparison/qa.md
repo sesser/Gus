@@ -7,12 +7,15 @@ Tested: `feature/side-by-side-comparison` at `179f705`, on an Apple M4 Pro (24 G
 (26B131), macOS SDK 27.2 (the bundle records `sdk 27.2`). The Mac's display was asleep: every
 scripted run used `compare animate off`, and display-link work (`compare panbench`) could not run.
 
+Re-run after D12: `feature/side-by-side-comparison` at `553fc23`, same Mac and SDK (see
+[Re-run after D12](#re-run-after-d12)).
+
 ## Verdict
 
 Passes for everything that can be checked here: AC1 to AC6c pass by test and debug script, and
-no finding blocks. AC7 stays open: its number is still pending the owner, and the hitch count
-needs the display awake. C11, the code reviewer's traced nit, reproduces and is user-visible
-(Q1, minor).
+no finding is open. Q1 (code review C11) is fixed at `553fc23` (D12) and no longer reproduces.
+AC7 stays open: its number is still pending the owner, and the hitch count needs the display
+awake.
 
 ## Acceptance criteria
 
@@ -26,7 +29,7 @@ scripts check the wiring.
 |---|---|---|---|
 | AC1 | Test, Script | `twoSelectedPhotosAreComparedInSourceOrder`, `activeIsTheLeftPhotoWhenFocusIsNeither`, `aLoadOnlyReplacesALesserRendition`, `panesAreEqualColumnsWithAGutterRoundEach`; scripts [orient](#orient-ac1) and [G](#g-ac1-at-100-and-c4): both photos shown, each at its own fit with its preview, and `rendition full` at 100%. A pane at 100% shows the same render as the single loupe (by eye, the snapshots). That the pictures are identical follows from the code: the panes make the same `PreviewService` requests (code review C5) | Pass |
 | AC2 | Test, Script | `commandsActOnTheActivePhotoOnly`, `theGridActsOnItsSelection`; [script A](#a-ac2-ac4-ac6c): `key 3` rates only the active RAW_00008 (`RAW_00008:3`, RAW_00007 stays 0); `undo` gives back 0; after `A`, `key 2` rates only RAW_00007. Undo is covered only by the script (code review C3, accepted) | Pass |
-| AC3 | Test, Script | `sameSizeFramesLineUpPixelForPixel`, `differentlySizedPhotosStayOnTheSameRelativePoint`, `theFollowerIsClampedToItsOwnBounds`, `linkedPanesTakeTheSameMagnification`, `aPhotoAsSmallAsItsPaneStillTakesTheOtherTo100Percent`, the step and gesture tests, `theLinkIsOnUntilTurnedOff`; [script C](#c-ac3): `Z` puts both at 1.000 with the same visible unit rect; `pan` keeps them equal (0.5430,0.4665 on both); unlinked, `Z` leaves one at fit and one at 1.000; relinking brings the inactive pane to the active one. [Script D11](#d11-retracing-design-question-2) also covers linked steps with different fits. See Q1 for one state where the two panes' zoom states drift apart | Pass |
+| AC3 | Test, Script | `sameSizeFramesLineUpPixelForPixel`, `differentlySizedPhotosStayOnTheSameRelativePoint`, `theFollowerIsClampedToItsOwnBounds`, `linkedPanesTakeTheSameMagnification`, `aPhotoAsSmallAsItsPaneStillTakesTheOtherTo100Percent`, the step and gesture tests, `theLinkIsOnUntilTurnedOff`; [script C](#c-ac3): `Z` puts both at 1.000 with the same visible unit rect; `pan` keeps them equal (0.5430,0.4665 on both); unlinked, `Z` leaves one at fit and one at 1.000; relinking brings the inactive pane to the active one. [Script D11](#d11-retracing-design-question-2) also covers linked steps with different fits. Mixed states (one pane fitted, one zoomed in) after D12: `aPanOnTheZoomedPhotoLeavesTheFittedOneFitted`, `aSmallGestureOnTheFittedPhotoLeavesTheZoomedOneAlone`, `aFollowerBroughtDownToItsFitIsFitted`, `aWalkedPhotoOpensWhereTheOtherPaneIs` and the [re-run](#re-run-after-d12) scripts (Q1, fixed) | Pass |
 | AC4 | Test, Script | `leavingKeepsTheCurrentPairSelectedAndTheActivePhotoFocused`; [script A](#a-ac2-ac4-ac6c): after walking the active left side to RAW_00009, `S` gives `compare off`, `mode loupe`, focus 8 (RAW_00009, the active photo) and selection 7,8, the pair last on screen. The source stays All Photos. The single loupe coming back is covered only by the script | Pass |
 | AC5 | Test, Script | `escLeavesReviewFirstAndComparisonStaysOn`; [script E](#e-ac5): `S` in review enters comparison (`review true`); culling and `A` work; Esc leaves review with comparison still on; `F` returns to review; `S` leaves comparison and stays in review (snapshot: single loupe, no sidebar, no strip) | Pass |
 | AC6 | Test, Script | `aVideoIsRefusedAndNamed`, `anOfflinePhotoIsRefusedAndNamed`, `whenBothFailTheFirstPhotosFirstReasonIsGiven`, `theRefusalSaysWhetherOnePhotoOrTwoWereAsked`, `theWrongCountEntersNothing`; [scripts F and F2](#f-f2-ac6-ac6a): a photo and a video give "Can’t Compare These Photos" / "“MVI_00015.MOV” is a video. Only photos can be compared.", one OK button, comparison not entered. From the video loupe: "Can’t Compare This Photo". Offline is covered by the unit test only: creating a disk image is not permitted in this environment | Pass |
@@ -37,7 +40,8 @@ scripts check the wiring.
 
 ## Findings
 
-**Q1 (code review C11, confirmed; minor, user-visible).** After a linked zoom step leaves one
+**Q1 (code review C11, confirmed; minor, user-visible). Fixed at `553fc23` (design §16 D12);
+see [Re-run after D12](#re-run-after-d12).** After a linked zoom step leaves one
 pane at its fit and the other zoomed in, a pan of the zoomed pane flips the fitted pane to
 "zoomed".
 - Steps ([script C11](#c11)): RAW_00007 (6000 × 4000, fit 0.165) on the left, IMG_00006
@@ -53,10 +57,11 @@ pane at its fit and the other zoomed in, a pan of the zoomed pane flips the fitt
   menu title changes, though nothing moved on the fitted photo. It also starts a full-resolution
   render of the fitted photo (cheap for this JPEG; for a raw beside a raw it is a 24 MP render of
   a photo shown at fit). The next step or `Z` puts both right, so it does no harm beyond one
-  surprising keypress. The fix waits on the designer's answer to the code review's first
-  question (whether a pan follows D10's per-pane state or C2's shared state). Not run: the
-  reverse case (a small Option-scroll or pinch on the fitted pane zooming the other one out),
-  which `optionscroll` can't aim at the right pane.
+  surprising keypress. Ruled D12 (each pane's own result). The reverse case (a small
+  Option-scroll on the fitted pane) was run in the re-run, with the fitted photo on the left,
+  where `optionscroll` and `pan` act.
+
+**DQ-QA1** is ruled D13 (accepted as built); the re-run's D11 script shows the same stops.
 
 No missing tests beyond what code review C3 accepted (undo and the single loupe coming back
 on leaving are covered by script only, in the app target).
@@ -191,6 +196,90 @@ wait 3; focus RAW_00007; key shift+right; compare on; wait 2; compare panbench 6
 at 100%", then "the display link does not fire (display asleep …); nothing measured", linked
 and not linked.
 
+### Re-run after D12
+
+At `553fc23` (D12, D13), 2026-11-12, display asleep. `swift test`: 777 tests in 119 suites
+passed, 1 known issue (the Live render session's). `swift test --filter Comparison`: 53 tests in
+2 suites passed. The new `ComparisonLink.follow` tests are read: Q1's case expects the fitted
+photo returned unchanged (the old wiring set it to the leader's zoom, so the case could not have
+passed before), the reverse case expects nil at 1.03 and 1.06 zoomed past the threshold.
+
+A fresh bundle (`Scripts/build-app.sh`, `sdk 27.2`) copied to `<scratch>/GusQA.app` with bundle
+identifier `me.sesser.gus.debugtest.compare-qa-d12`, re-signed ad hoc, on a fresh scratch library
+made as above. Every run starts `wait 3; compare animate off; compare link on` (the link is a
+preference; one early D10/D11 attempt ran unlinked after an unlinking script and was rerun).
+Order: IMG_00006, RAW_00007, RAW_00008, … RAW_00001 and RAW_00002 among the JPEGs. `pan` and
+`optionscroll` act on the left pane.
+
+**C11 (Q1): no longer reproduces.**
+```
+focus RAW_00007; loupe; wait 1; key s; wait 1; key left; wait 1; print compare; zoomstep in; wait 2; print compare; zoomstep in; wait 2; print compare; pan 300 200; wait 2; print compare; print menustate; key z; wait 2; print compare; pan 200 100; wait 2; print compare; key z; wait 2; print compare; quit
+```
+RAW_00007 left (fit 0.165), IMG_00006 right (fit 1.000) active. ⌘=: 0.250 / 1.000 fit; ⌘=:
+0.500 / 1.000 fit. After `pan 300 200` the raw moved (0.3193,0.1820 to 0.4193,0.0820) and
+IMG_00006 is still `1.000 fit 1.000 zoom fit rendition preview`, `isZoomed: false`. `Z`: both
+1.000, zoomed in, `isActualSize: true`. A pan there leaves both zoomed in (C2). `Z`: 0.165 /
+1.000, both fitted. Snapshot after the pan looked at: the raw zoomed in on the left, the whole
+JPEG in the right pane, ring on the right.
+
+**Reverse case** (fitted JPEG on the left, raw active on the right at 0.500 after ⌘= ⌘=), run
+once with 0.2 lines (3%) and once with 0.6 lines (9.4%):
+```
+focus IMG_00006; key shift+right; compare on; wait 1; compare active right; zoomstep in; wait 2; zoomstep in; wait 2; print compare; hit 275 350; optionscroll 275 350 <lines>; wait 2; print compare; quit
+```
+3%: IMG_00006 1.030, `zoom fit`, preview; RAW_00007 left exactly as it was (0.500, same visible
+rect, zoomed in). 9.4%: both 1.094, zoomed in, `rendition full`. The ring stays on the right.
+
+**C2, equal raws, and walks**:
+```
+focus RAW_00007; key shift+right; compare on; wait 1; key z; wait 3; print compare; pan 300 200; wait 2; print compare; key right; wait 3; print compare; key z; wait 2; print compare; key right; wait 3; print compare; quit
+```
+`Z`: both 1.000 zoomed in, same unit rect; `pan`: both still zoomed in at 0.5097,0.2415. A walk
+at 100% (right side to RAW_00009): it opens at 1.000, zoomed in, `rendition full`, on the same
+rect. `Z`: both fitted. A walk at fit (to RAW_00010): fit, `rendition preview`.
+
+**A walk in a mixed state** (C11's setup, then walking the fitted right side):
+```
+focus RAW_00007; loupe; wait 1; key s; wait 1; key left; wait 1; zoomstep in; wait 2; zoomstep in; wait 2; print compare; key left; wait 3; print compare; key right; wait 1; key right; wait 3; print compare; quit
+```
+To IMG_00005 (fit 1.000): it opens at its fit, fitted, preview; the raw untouched at 0.500. To
+RAW_00008: it opens at 0.500, zoomed in, on the raw's rect.
+
+**Relinking** (D12 rule 4):
+```
+focus RAW_00007; key shift+right; compare on; wait 1; compare link off; key z; wait 2; print compare; compare link on; wait 2; print compare; quit
+```
+```
+focus IMG_00006; key shift+right; compare on; wait 1; compare link off; zoomstep in; wait 2; zoomstep in; wait 2; print compare; compare link on; wait 2; print compare; quit
+```
+Equal raws, the active one at 1.000: relinking brings the other to 1.000, zoomed in. Raw active
+at 0.500 beside the fitted JPEG: relinking leaves the JPEG at 1.000, fitted, preview.
+
+**AC3** (script C, rerun as written above, with names): same results as the first pass,
+`0.5430,0.4665` on both after the pan.
+
+**D10**:
+```
+focus IMG_00006; key shift+right; compare on; wait 1; compare active left; key z; wait 2; zoomstep in; wait 2; print compare; zoomstep out (five times, printing each)
+```
+2.000 / 2.000; ⌘−: 1.000 (fit) / 1.000 zoomed in, Zoom Out still enabled; then the raw alone
+0.500, 0.250, 0.165 (fitted, Zoom Out dimmed); the last press changes nothing.
+
+**D11 / D13** (script D11 above, link on, RAW_00001 active with RAW_00008): in 0.250 / 0.250,
+0.500 / 0.500; out 0.250 / 0.250, 0.196 / 0.196, 0.196 / 0.165 (both fitted); in 0.250 / 0.250.
+As D13 accepts.
+
+**C9** (both fitted, a 3% Option-scroll on the left):
+```
+focus IMG_00006; key shift+right; compare on; wait 1; print compare; optionscroll 275 350 0.2; wait 2; print compare; quit
+```
+IMG_00006 1.030 and RAW_00007 0.170, both `zoom fit`, `rendition preview`.
+
+**AC2, AC4, AC6c** (script A, with names): the same results as the first pass.
+
+After the runs no instance was running and the owner's library folder had no file newer than the
+start. The scratch library, bundle copy and its preferences were removed.
+
 ## For a person
 
 The owner does not check VoiceOver or macOS 15 and 26 (README). P1 and P3 need the display
@@ -208,7 +297,11 @@ awake; they are commands, so qa-tester can also run them when the Mac is awake.
 - **P2. Real mouse and trackpad** (M2, C9). A click on the inactive photo only moves the ring;
   the next click zooms. A drag starting on it activates and pans both. A small pinch (a few
   percent) leaves both at fit, and a bigger pinch zooms both together. Scrolling or pinching over
-  the inactive photo does not move the ring. A double-click shows the grid.
+  the inactive photo does not move the ring. A double-click shows the grid. Added with D12
+  (`review.md` fourth pass, M2): with a raw beside a small JPEG (about the pane's size), linked,
+  the JPEG active, press ⌘= twice, then drag the raw with the mouse. The JPEG must not change,
+  View must still say Zoom to 100%, and `Z` must take both to 100%. (Scripted with `pan` in the
+  re-run; this is the real drag.)
 - **P3. AC7's number** (pending the owner). With the display awake and nothing else busy, on a
   scratch library with two 24 MP raws (or copies of the owner's own raws), compare them and run
   `compare panbench 6`, then `compare link off; compare panbench 6`. Each should report
@@ -229,4 +322,6 @@ awake; they are commands, so qa-tester can also run them when the Mac is awake.
 
 ## Follow-up
 
-None yet.
+- 2026-11-12, `553fc23` (D12, D13): **Q1 Fixed** ([Re-run after D12](#re-run-after-d12)).
+  DQ-QA1 ruled D13, accepted as built. No new findings. P1 to P6 still open; P2 gained the M2
+  drag item from `review.md`'s fourth pass.
