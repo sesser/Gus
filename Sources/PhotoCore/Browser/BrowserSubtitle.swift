@@ -10,6 +10,9 @@ public enum BrowserSubtitle: Hashable, Sendable {
     /// The loupe: "All Photos", or "All Photos · Filtered" (the position is
     /// in the caption).
     case source(filtered: Bool)
+    /// The loupe while comparing: "Comparing · All Photos", or "Comparing ·
+    /// All Photos · Filtered" (side-by-side-comparison design §11).
+    case comparing(filtered: Bool)
 
     /// The grid's subtitle: `shown` photos pass the filter out of `total` in
     /// the source (nil until counted), `selected` are selected.
@@ -20,7 +23,7 @@ public enum BrowserSubtitle: Hashable, Sendable {
     }
 
     /// The loupe's: the source's name, and whether a filter is on.
-    public static func loupe(isFiltered: Bool) -> BrowserSubtitle {
-        .source(filtered: isFiltered)
+    public static func loupe(isFiltered: Bool, isComparing: Bool = false) -> BrowserSubtitle {
+        isComparing ? .comparing(filtered: isFiltered) : .source(filtered: isFiltered)
     }
 }

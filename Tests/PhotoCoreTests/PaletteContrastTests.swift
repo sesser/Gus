@@ -1,3 +1,4 @@
+import AppKit
 import Testing
 @testable import PhotoCore
 
@@ -83,6 +84,48 @@ struct PaletteContrastTests {
     @Test func theLoupeSurroundIsTheSameDarkGrayEverywhere() {
         for appearance in PaletteAppearance.allCases {
             #expect(color(.loupeBackground, appearance) == .gray(0.09))
+        }
+    }
+
+    /// The comparison's active ring (side-by-side-comparison design §10)
+    /// against the loupe's surround: 3:1, 4.5:1 with Increase Contrast. Its
+    /// colors are the system's, so they are resolved here: the accent color
+    /// as this Mac has it set and each color the setting offers, and the
+    /// neutral one the ring takes while the window is not key. Dark
+    /// appearances only: the library window is always dark.
+    @Test(arguments: [PaletteAppearance.dark, .darkContrast])
+    @MainActor func theComparisonRingStandsOutOnTheSurround(_ appearance: PaletteAppearance) throws {
+        let needed = appearance.increasesContrast ? 4.5 : 3.0
+        let surround = color(.loupeBackground, appearance)
+        let system = try #require(NSAppearance(named: appearance.increasesContrast ? .accessibilityHighContrastDarkAqua
+                                                                                   : .darkAqua))
+        let colors: [(String, NSColor)] = [
+            ("accent", .controlAccentColor), ("neutral", .secondaryLabelColor), ("blue", .systemBlue),
+            ("purple", .systemPurple), ("pink", .systemPink), ("red", .systemRed), ("orange", .systemOrange),
+            ("yellow", .systemYellow), ("green", .systemGreen), ("graphite", .systemGray),
+        ]
+        for (name, dynamic) in colors {
+            var resolved: NSColor?
+            system.performAsCurrentDrawingAppearance { resolved = dynamic.usingColorSpace(.sRGB) }
+            let value = try #require(resolved)
+            let ring = PaletteColor(Double(value.redComponent), Double(value.greenComponent), Double(value.blueComponent),
+                                    alpha: Double(value.alphaComponent)).over(surround)
+            let ratio = ring.contrast(with: surround)
+            if name == "accent", appearance.increasesContrast {
+                // Open design question (side-by-side-comparison status.md,
+                // DQ-2): `controlAccentColor` does not change with Increase
+                // Contrast, and the default blue reaches 4.47:1 on the
+                // surround, short of the 4.5:1 asked for. Intermittent: it
+                // depends on the accent color this Mac has set.
+                withKnownIssue("The default accent color is 4.47:1 on the surround with Increase Contrast", isIntermittent: true) {
+                    #expect(ratio >= needed, "\(name) ring on the surround in \(appearance): \(ratio)")
+                }
+            } else {
+                #expect(ratio >= needed, "\(name) ring on the surround in \(appearance): \(ratio)")
+            }
+            if ProcessInfo.processInfo.environment["PALETTE_REPORT"] != nil {
+                print(String(format: "ring %@ in %@: %.2f:1", name, "\(appearance)", ratio))
+            }
         }
     }
 
