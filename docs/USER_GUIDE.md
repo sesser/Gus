@@ -33,9 +33,9 @@ Choose **File ▸ Add Folder Without Copying…** (⇧⌘I) to add photos where 
 copying: pick a folder. Photos in it and its
 subfolders (CR3, CR2, NEF, ARW, DNG, RAF, ORF, RW2, HEIC, JPEG, TIFF, PNG) and
 videos (MOV, MP4, M4V) are
-added to a new project named after the folder. Duplicates (same content
-anywhere in the library) are skipped, and so are files already imported from
-the same place. Originals are never moved, copied or modified.
+added to a new project named after the folder. Files already in the library
+(same content anywhere in it) are skipped, and so are files already imported
+from the same place. Originals are never moved, copied or modified.
 
 You can also drag one or more folders from Finder onto the browser (grid or
 loupe) or the sidebar's Projects list. Each folder is imported the same way, in
@@ -70,6 +70,7 @@ photos the library does not have yet, and a folder with nothing new makes none.
 | ⌘I | import from a card or folder | |
 | ⌘N, ⌥⌘N | new album, new smart album | |
 | ⌫ | remove from the album on screen | |
+| ⌘D | make a copy of each selected photo (**File ▸ Duplicate**) | make a copy of the photo |
 | ⇧⌘R | show the originals in the Finder (**File ▸ Show in Finder**) | same |
 | ⌘⌫ | remove from the library, after a confirmation (**File ▸ Remove from Library…**) | same |
 | ⌘Z, ⇧⌘Z | undo, redo | undo, redo |
@@ -143,7 +144,7 @@ library). **File ▸ New Smart Album…** (⌥⌘N) opens the rule editor: match
 or any of rules on rating, flag, label, keywords, file type and name, capture
 and import dates, project, camera, lens, serial number, ISO, aperture, shutter
 speed, focal length, exposure compensation, flash, white balance, location,
-artist, copyright and description, with a live count. Right-click albums to rename,
+artist, copyright and description, and whether the photo is a copy, with a live count. Right-click albums to rename,
 edit or delete them.
 
 **Renaming a project**: select the project in the sidebar and choose **File ▸
@@ -155,6 +156,41 @@ empty name is refused (the old one stays), and two projects may have the same
 name. The name is the library's only: the folder on disk keeps its name (the
 row's tooltip still shows its path), and no sidecar changes. Renaming is one
 undo step.
+
+**Copies**: **File ▸ Duplicate** (⌘D, and **Duplicate** in the grid's and the
+loupe's context menus) makes a copy of each selected photo, or of the photo in
+the loupe, so that one photo can have two or more treatments (color and black
+and white, two crops) without importing its file twice. No file is copied: a
+copy is another item in the library for the same original. It starts with the
+original's adjustments, rating, flag, color label, keywords and albums as they
+are at that moment, and from then on these are its own, as is its edit
+history, which starts empty: changing the copy never changes the original, and
+changing the original never changes the copy. A copy appears right after its
+original (and after that photo's earlier copies) and becomes the selection; in
+the loupe, the loupe moves to it. Afterwards it sorts by its own values, so
+under **Sort By ▸ Rating** a copy rated differently moves away from its
+original; by capture date and by file name the two stay together. Copies count
+as photos in the window's subtitle and in the sidebar.
+
+A copy is named after its original, the way the Finder names duplicates:
+`IMG_0412 copy`, then `IMG_0412 copy 2`, `IMG_0412 copy 3`. The grid and the
+film strip mark a copy with two overlapping squares at the top corner of its
+picture, the loupe's caption shows a **Copy** badge, and the window title
+shows the copy's name. The Info tab still describes the file, which is the
+original's, and **Show in Finder** reveals that file. A copy can be duplicated
+too; the result is one more copy of the same original. Videos are not
+duplicated: with only videos selected the command is dimmed, and videos in a
+mixed selection are left out, which the toolbar's Activity item reports. For a
+RAW+JPEG pair, Duplicate copies the one file the cell shows (the RAW, unless
+**Photo ▸ RAW+JPEG Pair** says otherwise); the copy is not part of the pair, so
+its rating, flag, label, keywords and albums are not shared with the other
+file. Photos on a volume that is not connected can be duplicated. Duplicate is
+dimmed while a crop is being edited (finish or cancel it first), and ⌘D acts
+only while the grid or the loupe has the keyboard. All the copies of one
+Duplicate are one undo step: **Edit ▸ Undo Duplicate** takes them away and
+goes back to the originals, and Redo brings the same copies back. A copy's
+values are kept in the library only: its rating, flag, label and keywords are
+never written to a sidecar file, which holds the original's.
 
 **Show in Finder** (**File ▸ Show in Finder**, ⇧⌘R, and the context menus of
 the grid, the loupe and a video) reveals the originals of the selected photos,
@@ -179,7 +215,10 @@ sidecar files stay on disk, unchanged; what goes is what only the library
 holds: the photos' edits and edit history, and their ratings, flags, labels,
 keywords and album memberships in the library. Keywords and albums themselves
 stay, empty if need be. Removing either file of a RAW+JPEG pair removes both,
-and the confirmation says how many files that makes. Photos on a volume that
+and the confirmation says how many files that makes. Removing a photo also
+removes its copies (**File ▸ Duplicate**), and the confirmation says how many
+go with it. Removing a copy removes only the copy: the original, its edits and
+its file are not affected. Photos on a volume that
 is not connected can be removed like any other. A removal cannot be undone,
 and it empties Edit ▸ Undo, since earlier steps may be about photos that are
 gone. The same files can be imported again later; they come in as new photos,
@@ -405,6 +444,9 @@ from its RAW; videos are not exported. A sheet on the library window sets:
 
 - **File names**: the original name, or a template with the import tokens, plus
   `{export:yyyy-MM-dd}` for today and `{seq:4}` for the position in the export.
+  A copy (**File ▸ Duplicate**) is exported under its name in the library, with
+  the original name and through `{name}`: `IMG_0412 copy.jpg`, so an original
+  and its copies exported together get different names.
 - **File type**: JPEG with a quality setting, or TIFF at 8 or 16 bits per
   channel with no compression, LZW or ZIP. Color space: sRGB (the default),
   Display P3, Adobe RGB (1998) or ProPhoto RGB.
@@ -448,7 +490,7 @@ photo that already had those values). Each photo, and each file of a RAW+JPEG
 pair, has its own list. A list keeps the latest 100 entries, dropping the
 oldest (fewer when the edits are very large, such as long brush work: the list
 also has a size limit, and the newest entry is always kept), and cannot be
-cleared. A version made as a copy of another starts with an empty list. History is kept in the library and is there
+cleared. A copy (**File ▸ Duplicate**) starts with an empty list. History is kept in the library and is there
 after you quit and open the app again, but it begins with the first recorded change:
 there is no entry for the photo as it was before that change, so to get back to the start use **Reset All Adjustments**, **Undo** or the
 **Original** toggle (which only shows the original). While a crop is being
