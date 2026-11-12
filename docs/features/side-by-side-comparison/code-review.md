@@ -396,3 +396,67 @@ No `CLAUDE.md` rule is broken, no rendering changed, `/security-review` is not n
 - C14 and C15 in the running app. For qa-tester once fixed, and to confirm before:
   `compare on`, `duplicate`, `print compare`, `print copies` (the focus against the active
   side), and `duplicate` in the grid, `compare on`, an undo, `print compare`.
+
+### Fifth pass (2026-11-12)
+
+Reviewed: the one commit that changed source or tests since the merge review, "Side by side
+comparison: Duplicate while comparing and a copy's name (D14, D15)" (`6345a70`), against
+`design.md` §16 D14 and D15, `review.md` "Fifth pass" F8 and F9 and PRD decision 16. The
+commits around it (`af51257`, `9d353b8`, `f12afda`) are docs only. Build and tests, on
+`f12afda` (the same source): `swift build` complete;
+`swift test --filter "LocalizationTests|BrandingTests|ComparisonTests|VirtualCopiesTests"`
+90 tests in 4 suites passed (89 before, plus the new one). The app was not launched: everything
+below is read and traced, and the engineer's scripted runs (a) to (d) in `status.md` are for
+qa-tester to repeat.
+
+**Verdict.** C14 and C15 are fixed as D14 and D15 rule, and nothing new is broken. One Nit
+(C16): the new unit test does not guard the fix. Ready for qa-tester. No `CLAUDE.md` rule is
+broken, no rendering, migration, string, dependency or cache key changed, `/security-review`
+is not needed.
+
+| # | Result | How it was confirmed |
+|---|---|---|
+| C14 | Fixed, `6345a70` | **Duplicate is off.** `canDuplicateTargets` (`DuplicateActions.swift:36-39`) requires `!isComparing`. It is the one gate: `duplicateTargets` guards on it, `LibraryMenuState.canDuplicate` reads it (File ▸ Duplicate, ⌘D by key), `PhotoContextMenu.addPhotoItems` leaves the item out and counts it in its separator rule, and the debug script's `duplicate` prints `duplicate unavailable`. **One rule for both writers.** `items` is assigned in two places only, `apply` and `replaceItems` (`LibraryModel.swift:821`, `:932`), and both now read `comparedPairPartners()` before and call `reconcileComparison` after; `apply`'s body is the old code moved, with the same outcomes (`keeps` false still ends with no photo and no announcement). **`replaceItems`, traced.** Kept (every redo; an undo of copies that are not compared; a ⌘D pressed in the single loupe whose copies land after `S`): `ComparisonRules.selection` sets the focus and the pair, the `selecting` and `focusVersionID` arguments are not read, sides, active side and `comparisonHDRHeadroom` are untouched, and the panes see the same version IDs (`ComparisonController.update` shows the same item again, as after a reload). Ended, one copy gone: `remaining` (the active photo if present, else the other) takes the focus, `selected` is emptied, the loupe's rule selects it alone; a copy's original never takes its side (no pair partner for a copy). Ended, both gone: `activeOriginal`, read from the old list before it is replaced (the non-copy item of the active copy's image in the new list), then the undo's own focus, then the first photo; an emptied list goes to the grid. After an undo ended it, a redo finds `comparison` nil and follows virtual-copies §4.3 unchanged. |
+| C15 | Fixed, `6345a70` | Caption name `PhotoName.inFull` (`ComparisonCaption.swift:87`). The Copy badge is built exactly as `LoupeCaption`'s (`DuplicateText.badge`, `badgeHelp(item.fileName)`), after HDR and before Offline, inside `badges`, which all four `ViewThatFits` rows call and only HDR is conditional in, so no fallback drops it. `setComparisonActive` and `announceComparison` use `PhotoName.display`; the refusal alerts `PhotoName.inFull`; walking already went through `PhotoAccessibility.loupeMove`. The only `fileName` left in the comparison's code is the badge's tooltip (the master's, as designed) and the debug pane line. No new string; `LocalizationTests` passes. |
+
+Looked for, as asked:
+
+- **`apply` now announces the photo left alone.** Only when the reload keeps the source and a
+  compared photo left it (`comparisonEnded`), after the observers are told; `announceLoupePhoto`
+  does nothing outside the loupe, so a source emptied to the grid says nothing. This is §10's
+  Leaving row for §6's "it leaves the source" (a filter or search change, an undo of Add to
+  Album, an outside change, D9). For D9 the removal's own announcement is still made after
+  its refreshes (`removalDidFinish`), as before; both are high priority, so which one
+  VoiceOver finishes was not checked.
+- **Undo registration.** Unchanged: `registerDuplicateUndo` still runs on `persist` and
+  registers its opposite. A refused Duplicate returns before anything is registered, so no
+  empty undo step. `step.selectionBefore` and `focusBefore` are ignored only while a comparison
+  stays or ends; they are not changed, so later undos and redos in the single loupe use them.
+- **`replaceItems` when nothing is compared.** The same statements as before, plus two things
+  `apply` already did: `comparisonLeaving = nil` (a leaving animation still running when the
+  copies land is cut short; the single loupe is underneath) and `comparisonMemory = [:]` when
+  the list empties.
+- **#62's placement and focus rules.** `DuplicatePlacement.inserting` is untouched and still
+  decides where copies go while comparing; only the selection and focus it asks for are set
+  aside. `hideCopies`' `endCrop` does nothing while comparing (no crop session is open there).
+  `comparisonMemory` naming a copy an undo took is still harmless, and comes back to life if
+  the redo restores that copy.
+- **#155's rename.** `renameProject`, `renameAlbum` and their undos change `projects` and
+  `albums` and never call `replaceItems`; the sidebar refresh that follows reloads the list
+  only in Last Import after a new import run, through `apply` with the comparison kept. A
+  rename leaves a comparison as it is.
+
+#### New findings
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C16 | Nit | `Tests/PhotoCoreTests/ComparisonTests.swift:372-393` (`undoAndRedoOfDuplicateKeepOrEndTheComparison` and its comment) | The test calls only `ComparisonRules.reconcile`, which this commit did not change (`git diff 9d353b8 6345a70 -- Sources/PhotoCore` is empty), so it passes with the fix taken out. What the fix added is in the app target, which has no tests: `!isComparing` in `canDuplicateTargets`, `replaceItems` calling the rule, the arguments it sets aside, and `remaining ?? activeOriginal ?? focusVersionID`. | Remove `reconcileComparison` from `replaceItems`, or `!isComparing` from `canDuplicateTargets`: C14 is back and `swift test` is green. The test is what `review.md` F8.4 asked for, and the other `!isComparing` gates (Remove from Library…) are checked by script too, so this is not a blocker; but then the scripted checks are the only guard. Either move the choice of focus after a replacement into `ComparisonRules` (a pure function of the state, the lists and the undo's focus) and test it there, or say in the test's comment that it pins the rule and that the wiring is checked by script. | Tests: a test that would fail without the change |
+
+#### For qa-tester
+
+- Map D14 to the scripted checks in `status.md` (a) to (d) and `compare on; duplicate`
+  (`duplicate unavailable`, `print copies` `canDuplicate false`, no Duplicate in the pane's
+  menu), and D15 to `print compare` on a photo beside its copy. They are the only guard (C16).
+- One more worth a run: a ⌘D in the single loupe followed at once by `S`, so the copies land
+  while comparing (`print compare` unchanged, the copy in the list, focus the active photo).
+- `print announcement` after a compared photo leaves by a filter change: the loupe's photo.
