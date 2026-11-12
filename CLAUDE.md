@@ -627,7 +627,13 @@ with undo. Zoom and pan are linked by default (View ▸ Link Zoom and Position,
 a preference); arrow keys or a film strip click replace the active side's
 photo. Refused with an alert: a video, an offline photo, the two files of one
 RAW+JPEG pair shown separately. No editing while comparing (the Adjust tab says
-so; Remove, Paste and Apply Preset are off). Two photos only. Code in
+so; Remove, Paste, Apply Preset and Duplicate are off, Duplicate also gone from
+the pane menu). A photo and its copy (#62) compare as two photos, with no
+shortcut to compare with a copy; a copy shows its own name and the Copy badge in
+the caption and VoiceOver. Undo or redo of a Duplicate never moves the focus
+off the panes: an undo that removes a compared copy ends the comparison on the
+remaining photo (on the active copy's original if both go); redo never changes
+a comparison. Two photos only. Code in
 `Browser/Comparison.swift`, `Loupe/ComparisonView.swift` and
 `Model/ComparisonActions.swift`, rules in PhotoCore. Debug script: `compare`,
 `compareclick`, `compare panbench`; `photobench compare` times and measures two
@@ -636,8 +642,10 @@ Known limitation #153 (linked, after ⌘= twice and a drag, the fitted photo's
 zoom state can flip and Z goes to fit instead of 100%). Shipped, checks
 pending: the AC7 hitch count (zero dropped frames panning two 24 MP raws, never
 measured: display asleep), animations, a real mouse and trackpad, menus and
-refusal-alert keys, looks, in #82 and
-`docs/features/side-by-side-comparison/qa.md`.
+refusal-alert keys, looks, P7 (a copy beside its photo in a narrow window) and
+P8 (Duplicate while comparing: keys, menus, undo and redo), in #82 and
+`docs/features/side-by-side-comparison/qa.md`. The owner acknowledged the
+merged result with #155 and #62 on 2026-11-12.
 
 Not yet: AI masks, healing, lens corrections (distortion, lens vignetting,
 profiles), DNG export, `.dcp` profiles,

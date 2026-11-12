@@ -2,7 +2,7 @@ Issue: #63
 
 # Side by side comparison
 
-Status: Shipped, checks pending 2026-11-12 ([`qa.md`](qa.md): AC7's hitch count, animations, real mouse and trackpad, menus with a key window and alert keys, looks and Full Keyboard Access)
+Status: Shipped, checks pending 2026-11-12, including the merge with develop (#155, #62), which the owner acknowledged the same day ([`qa.md`](qa.md): AC7's hitch count (P3), animations (P1), real mouse and trackpad (P2), menus with a key window and alert keys (P4), looks (P5) and Full Keyboard Access (P6), P7 (a copy beside its photo in a narrow window, D15) and P8 (Duplicate while comparing, D14))
 Slug: side-by-side-comparison
 Roadmap: none (shipped)
 
@@ -165,7 +165,13 @@ proposed (`design.md` §14 and §15):
     R7 asks, so the choice is clear (the designer rules on the form, review
     C15). Duplicate while comparing is not decided here: it is a design
     ruling (review C14), the requirement being that the comparison and the
-    active photo never disagree (R3). Not built, not promised: any
+    active photo never disagree (R3). Built as design D14 and D15
+    (`design.md` §16): Duplicate is dimmed and absent from the pane menu while
+    comparing; undo or redo of a Duplicate never moves the focus off the panes
+    (an undo that removes a compared copy ends the comparison on the remaining
+    photo, or on the active copy's original if both go; redo never changes a
+    comparison); a copy shows its own name and the Copy badge in the caption
+    and in VoiceOver (D15). Not built, not promised: any
     shortcut to compare a photo with its own copy. If the owner wants one,
     it is a new issue.
 
@@ -192,3 +198,6 @@ None for the owner. Checks only a person can do are open in `qa.md`
 - 2026-11-12, merge with #62: the first non-goal reworded and Decision 16
   added (a photo and its copy compare as two photos; reviews C14 and C15
   go to the designer and engineer). No requirement or criterion changed.
+- 2026-11-12, Ship again: D14 and D15 built (Decision 16 now says so); the
+  owner acknowledged the merged result with P1 to P8 left open (P7 and P8
+  are new). No requirement or criterion changed.
