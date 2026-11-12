@@ -541,3 +541,33 @@ awake; they are commands, so qa-tester can also run them when the Mac is awake.
   script only. New checks for a person: P7 (M10) and P8 (M11). The sign-off above (at
   `09f068c`) is unchanged; **the merged result at `34d618d` needs the owner's acknowledgement**,
   with P7 and P8 either done or named as left open (for the pull request and #82).
+- **Acknowledgement of the merged result.** On 2026-11-12 the owner acknowledged the merged
+  result (`develop` with #155 and #62 merged in, plus the integration fixes D14, Duplicate while
+  comparing, and D15, a copy's name) and chose to push, naming P7 and P8 as checks left open
+  alongside those left open at the sign-off above. Commit acknowledged: `24e475c`
+  (`feature/side-by-side-comparison`; its sources and tests are those of `34d618d`, the commit
+  above it adding only this file's re-run). The earlier sign-off stands for the content before
+  the merge: `09f068c` is its hash from before the branch's commits were re-signed, which changed
+  the hashes but not that content.
+
+  **Checks left open for the pull request and #82** (the full list):
+  1. **AC7 hitch count (P3).** `compare panbench 6`, then `compare link off; compare panbench 6`
+     on two 24 MP raws with the display awake; each should report `hitches 0`. Never measured
+     (the display was asleep); AC7 stays Open until it is.
+  2. **Animations (P1, M3).** Entering and leaving comparison, ⌘= / ⌘− and `Z` animating with
+     both photos ending at the same size, and the film strip toggle (⌥⌘B twice) refitting both.
+  3. **Real mouse and trackpad (P2, M2).** Click, drag, pinch, scroll over the inactive photo,
+     double-click (the D12 drag item excepted: that is #153).
+  4. **Menus with a key window and alert keys (P4, M1, M5).** The View menu's comparison items
+     and their state while comparing; Return and Esc on the refusal alert.
+  5. **Looks (P5, M4, M6, M7, M8) and Full Keyboard Access (P6, M9).**
+  6. **A photo beside its copy in a narrow window (P7, M10, D15).** The copy's caption keeps its
+     Copy badge and marks while its name truncates in the middle; the other caption has no badge.
+  7. **Duplicate while comparing (P8, M11, D14).** ⌘D beeps and makes no copy, File ▸ Duplicate
+     is dimmed, no Duplicate in either pane's menu; Undo / Redo Duplicate keeps both panes' zoom,
+     position and sides.
+
+  Known limitation: #153 (linked, after ⌘= twice and a drag of the zoomed photo, the fitted
+  photo's zoom state can flip and `Z` goes to fit instead of 100%). Known weakness: Q2 (code
+  review C16), the D14 wiring is guarded by debug scripts only; the unit test pins the rule, not
+  the wiring. VoiceOver and macOS 15 and 26 are not owner checks (README).
