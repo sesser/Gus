@@ -221,4 +221,30 @@ On the bundled app with a scratch library (the main session gives the command). 
 
 ## Follow-up
 
-None yet.
+**Sign-off (step 5), 2026-11-12.** The owner chose to take #141 to Ship and signed off with its manual
+checks left open. Commit signed off: `f8f6272` on `feature/rename-albums-in-place`. The owner did none of
+the manual checks, so P1–P6 all stay open. No finding was rerun after this sign-off. Q1 stays open
+until P5(d) is checked, and Q2 and Q3 remain Nits.
+
+Checks left open at sign-off (for the pull request and #82):
+
+- **P1 (M1)**, look of the in-place field (File ▸ Rename, context menu, Return; an album under a project).
+- **P2 (M2)**, endings: Escape, clicking a photo, "5" and "P" in the field, an emptied name.
+- **P3 (M3)**, a renamed row that moves in a scrolling sidebar stays selected and in view, also after ⌘Z.
+- **P4 (M4)**, menu bar: File ▸ Rename titles and states, Undo / Redo Rename Album.
+- **P5 (M5)**, a row folded away during a rename, (a)–(d). **P5(d) in particular:** hide the sidebar
+  during a rename and see where the keyboard ends up (does "3" rate the selected photo?). This is
+  finding Q1. If it fails, the fix is to post `.browserShouldTakeFocus` when a rename ends with the
+  sidebar hidden.
+- **P6 (code review Q2)**, scrolling the field out of view and back keeps the typed text.
+
+Also open or known, named for the pull request:
+
+- **Q2 (debug script only).** While a typed rename is open, the debug script's `project`, `sidebar` and
+  `keyword` commands save it outside an undo group, and the scripted app crashes (exit 133). The app
+  itself groups by event and is not affected.
+- **AC8.** The field's accessibility label ("Album name") is not checked by a script: it is SwiftUI's
+  and the script cannot reach it. It is not put to the owner either (PRD A2). Result stays Open.
+- **RI-RA1, a known difference with a follow-up pending.** New Album (and New Smart Album) collapse
+  inner runs of spaces and cut names at 200 characters. Renaming in place keeps inner spaces and has no
+  length limit. This is as specified.
