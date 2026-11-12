@@ -89,6 +89,8 @@ With D3, RI-E2 needs no PRD change: AC6b holds as written.
 | Info tab on the active photo; Adjust tab content-unavailable with Stop Comparing; History hidden; title the active file name, subtitle "Comparing · ‹source›" | `AdjustView`, `HistoryActions`, `WindowTitle` | Pass |
 | Narrow windows: side by side at every width; no automatic hiding of sidebar or inspector | `ComparisonGeometry.canvases` | Pass. 13" look: M8 |
 | Strings (§12) in the catalog | `LocalizationTests` | Pass. "Comparison" shares a key with the smart album editor: follow-up (status.md) |
+| D14: Duplicate dimmed while comparing, left out of the pane menu; undo / redo of a Duplicate keep the comparison (focus on the active side) or end it on the photo that remains | `canDuplicateTargets`, `replaceItems` | **Fail, F8** (fifth pass) |
+| D15: a copy's caption shows its name and the Copy badge (never shed); VoiceOver and alerts use the copy's name | `ComparisonCaption`, `ComparisonActions` | **Fail, F9** (fifth pass) |
 
 ## USER_GUIDE terms
 
@@ -302,6 +304,80 @@ changes something. D11's wording is amended to "retraces through the loupe's ste
 Manual checks: M2 gains one item for a person. With a raw beside a small JPEG, linked, press
 ⌘= twice, then drag the raw. The JPEG must not change, View must still say Zoom to 100%, and
 `Z` must give 100% on both.
+
+## Fifth pass: the merge with virtual copies (C14, C15; rulings D14, D15)
+
+Reviewer: apple-ui-designer, 2026-11-12. Read against `code-review.md` ("Merge with develop
+(#155, #156)", C14 and C15), `docs/features/virtual-copies/design.md` (§4.2, §4.3, §5, §6.3,
+§6.4, D-V2), `LibraryModel.apply` / `replaceItems`, `DuplicateActions.canDuplicateTargets`,
+`PhotoContextMenu.comparison` / `addPhotoItems`, `ComparisonCaption` and `ComparisonActions`.
+Code read, not built or run.
+
+**Verdict: Changes needed (F8, F9).** Neither design covered the other feature. D14 dims
+Duplicate while comparing and makes every list replacement keep the comparison's rules; D15
+names a copy in the comparison as the rest of the app does.
+
+- **F8 (D14). Duplicate while comparing.**
+  1. **`DuplicateActions.canDuplicateTargets`:** add `&& !isComparing`. File ▸ Duplicate and
+     ⌘D are then dimmed while comparing (review included), and `LibraryMenuState.canDuplicate`
+     follows.
+  2. **`PhotoContextMenu.addPhotoItems`:** nothing to add if `state.canDuplicate` reads
+     `canDuplicateTargets` (it does, `LibraryMenuContext.swift:244`); the pane menu then leaves
+     Duplicate out, and the separator rule before Export… stays right. Confirm the pane menu's
+     items: no Duplicate, separator only when Export…, Show in Finder or RAW+JPEG Pair follow.
+  3. **`LibraryModel.replaceItems` while comparing:** reconcile as `apply` does. Before the
+     list is replaced, collect `pairPartners` as `apply` does; after, run
+     `ComparisonRules.reconcile`:
+     - `.kept`: keep the comparison (and the memory update `apply` makes); then focus and
+       selection come from `ComparisonRules.selection(of:indexOf:)`, ignoring the `selecting`
+       and `focusVersionID` arguments. Do not touch the panes' zoom or position.
+     - `.ended(remaining)`: `comparison = nil`, `comparisonHDRHeadroom = [:]`; focus
+       `remaining ?? focusVersionID` (the undo's original when both compared photos went),
+       selection that photo alone (the loupe rule already in `replaceItems`). The comparison
+       view must leave as it does for a removal (refit to the whole loupe, §10's Leaving
+       announcement).
+     The simplest route is one private helper shared by `apply` and `replaceItems`, so the
+     two can't drift apart again; that is the engineer's call.
+  4. **Tests.** PhotoCore where the rule is pure (`ComparisonRules.reconcile` with a list that
+     gains copies: `.kept`, sides and active unchanged; one that loses the active copy: `.ended`
+     on the other; loses both: `.ended(remaining: nil)`). In the app target or by script:
+     `compare on`, `duplicate` reports unavailable, `menuitems Duplicate` shows it disabled.
+  5. **Scripted (for QA):** (a) grid, `duplicate` on A, `compare on` on A′ with its neighbor,
+     undo, `print compare`: not comparing, the loupe on the neighbor, focus and selection it
+     alone. (b) `duplicate` on A and B in the grid, `compare on` on A′ and B′, undo: not
+     comparing, the loupe on the active copy's original. (c) ⌘D in the loupe on A, `S` (A′ and
+     its partner), then an undo of an earlier Duplicate of another photo C: `print compare`
+     unchanged, focus the active side. (d) the same with a redo: unchanged, the copy only in the
+     strip, `5` rates the active photo.
+  6. **`docs/USER_GUIDE.md`** ("Comparing two photos"): add Duplicate to the sentence that says
+     which commands are off while comparing (with Remove from Album and Remove from Library…).
+- **F9 (D15). A copy's name in the comparison.**
+  1. **`ComparisonCaption.name`:** `Text(verbatim: PhotoName.inFull(item))` in place of
+     `item.fileName`.
+  2. **`ComparisonCaption.badges`:** after the HDR badge and before Offline,
+     `if item.isCopy { CaptionBadge(title: DuplicateText.badge, help: DuplicateText.badgeHelp(item.fileName)) }`,
+     exactly as `LoupeCaption` builds it. It is in all four `ViewThatFits` rows (never shed).
+     Update the struct's doc comment: the Copy and Offline badges never go.
+  3. **`ComparisonActions`:** `:125` and `:187` use `PhotoName.display(item)` in place of
+     `item.baseName`; `:205`'s `name` uses `PhotoName.inFull` in place of `fileName`.
+  4. **Debug script:** `print compare`'s caption line (`DebugComparisonCommands.swift:102`)
+     prints the name as the caption shows it (`PhotoName.inFull`) and `copy` when the badge is
+     shown; the pane line in `ComparisonView.swift:668` may keep the file name (it identifies
+     the pane, not what it shows), engineer's choice.
+  5. **Check:** `ComparisonPane`'s accessibility label goes through `PhotoAccessibility.label`
+     (copy-aware since #156); if anything in the comparison builds a label from `baseName` or
+     `fileName`, switch it to `PhotoName.display`.
+  6. **Scripted (for QA):** compare `IMG_x` with its copy; `print compare` shows
+     `IMG_x.ext` and `IMG_x copy` with `copy` on the copy's side only; at a narrow window
+     (`windowsize` small enough to truncate) the badge is still printed.
+
+Design requirements: two rows added to the table above (D14, D15), both **Fail** until F8 and
+F9 land. The VoiceOver wording is checked by script and unit test, not by a person.
+
+Manual checks: **M10** (new). In a comparison of a photo and its copy at a narrow window
+(sidebar and inspector shown on a 13" display, or the window made narrow), the copy's caption
+keeps its Copy badge and its marks while the name truncates. **M11** (new). While comparing, ⌘D beeps and File ▸
+Duplicate is dimmed; right-click on a pane shows no Duplicate.
 
 ## Follow-ups
 

@@ -6,8 +6,8 @@ Status: Complete (apple-ui-designer, 2026-11-11). Requirements issues RI-1 to
 RI-3 are open with the product manager; the design works with the default
 recommended for each, so implementation need not wait on them. The new
 bare keys (§4) need the owner's OK, as earlier new keys had (UI_REDESIGN
-decision 13). Rulings D1 to D8 on the engineer's Design questions are in
-§16 (2026-11-11).
+decision 13). Rulings D1 to D15 on the Design questions are in §16
+(2026-11-11 to 2026-11-12; D14 and D15 on the merge with virtual copies, #62).
 
 Against `prd.md` (approved 2026-11-11). Builds on `docs/UI_REDESIGN.md`:
 §1 (loupe surround, caption), §2 (review), §6 (menu bar and bare keys),
@@ -201,6 +201,7 @@ Existing items while comparing:
 | Photo ▸ Rating, Flag, Color Label, Advance After Rating | the active photo (§6 for Advance) |
 | Add Keywords… ⌘K, Suggest Keywords, Add to Album, Export…, Show in Finder, RAW+JPEG Pair, Copy Adjustments | the active photo. Not edits of the image, so allowed |
 | Remove from Album ⌫, Remove from Library… ⌘⌫ | **dimmed**: they take a compared photo out from under the comparison. Stop comparing (S) first |
+| File ▸ Duplicate ⌘D (#62) | **dimmed** (D14): its result moves the focus to the new copy, off both panes. Its undo and redo while comparing follow D14 |
 | Adjust menu (Paste, presets, Auto, Reset All, Crop `C`, Rotate, masks, maps, Save as Preset) | dimmed (non-goal: no editing while comparing). Import Presets, Manage Presets and the look-up table items stay, as they edit no photo |
 
 ### Context menus (HIG Context menus: leave out what can't act)
@@ -210,7 +211,7 @@ Existing items while comparing:
 | Grid photos | **Compare Side by Side** after Open in Loupe, when 1 or 2 items are selected |
 | Loupe | **Compare Side by Side** after Zoom to 100% / Zoom to Fit |
 | Video loupe | **Compare Side by Side** after Play / Pause (choosing it shows the video alert, §3) |
-| A comparison pane | Right-click first makes that pane active (as a grid right-click selects). Then: the loupe menu's photo items for the active photo (culling, keywords, albums, Copy Adjustments, Export…, Show in Finder, RAW+JPEG Pair) · Zoom In / Zoom Out · Zoom to 100% / Zoom to Fit · Link Zoom and Position (checkmark) · Stop Comparing. No adjust items, no Remove items |
+| A comparison pane | Right-click first makes that pane active (as a grid right-click selects). Then: the loupe menu's photo items for the active photo (culling, keywords, albums, Copy Adjustments, Export…, Show in Finder, RAW+JPEG Pair) · Zoom In / Zoom Out · Zoom to 100% / Zoom to Fit · Link Zoom and Position (checkmark) · Stop Comparing. No adjust items, no Remove items, no Duplicate (D14) |
 
 ### Toolbar
 
@@ -359,10 +360,10 @@ on the seam.
 
 | Part | Spec |
 |---|---|
-| Name | Leading in each caption: the file name (in the single loupe it is the window title, which can't show two). Active pane: `.primary`, semibold; other: `.secondary`, regular. 11 pt (`.subheadline`, as the caption is now) |
+| Name | Leading in each caption: the file name, or a copy's name (D15) (in the single loupe it is the window title, which can't show two). Active pane: `.primary`, semibold; other: `.secondary`, regular. 11 pt (`.subheadline`, as the caption is now) |
 | Position | After the name, " · 12 of 87", monospaced digits, secondary |
 | Marks | `CullingMarks` (stars with reserved width, flag, label dot with its name), centered in the pane's caption |
-| Badges | Trailing: HDR, Offline per photo. Filtered (about the source) once, in the right caption only. Original, maps and machine-learning badges can't occur (§3, §4) |
+| Badges | Trailing: HDR, Copy (D15), Offline per photo. Filtered (about the source) once, in the right caption only. Original, maps and machine-learning badges can't occur (§3, §4) |
 | Film strip toggle | Unchanged, at the right caption's trailing end; hidden in review |
 | Link toggle | Centered on the seam: SwiftUI `Toggle` with `.toggleStyle(.button)`, bordered (not borderless) and `.controlSize(.small)`, so the bezel shows the on state (the strip toggle needs no bezel because the strip shows its state; nothing else shows the link). Symbol `link`, no text. Hit area at least 20 × 20 pt. Tooltip "Zoom and scroll both photos together" when off, "Zoom and scroll each photo on its own" when on (it says what a click will do). Shown in review too |
 
@@ -371,7 +372,7 @@ the position; then middle-truncate the name, down to about six characters
 around the ellipsis; then drop the HDR badge (its tooltip information is
 also in the Info tab). The marks, with the label's name, never go: they
 are what R7 is for, and §10 of UI_REDESIGN requires the label's name next
-to its color. On a 13" display with both side panes shown, everything
+to its color. The Copy and Offline badges never go either (D15). On a 13" display with both side panes shown, everything
 fits (about 470 pt per caption against about 330 pt needed).
 
 ## 10. VoiceOver and accessibility
@@ -659,6 +660,77 @@ text disagrees, the ruling wins.
   would invent non-step magnifications. Neither is worth the complexity.
   D11 now reads: Zoom In retraces Zoom Out **through the loupe's steps**;
   Zoom Out may stop once more at a pane's own fit.
+- **D14 (code review C14, Duplicate while comparing, 2026-11-12): dimmed;
+  undo and redo never move the focus off the panes.**
+  1. **File ▸ Duplicate (⌘D) is dimmed while comparing**, review included,
+     and the comparison pane's context menu leaves it out (HIG Context
+     menus: leave out what can't act). It joins Remove from Album and
+     Remove from Library… in §4. Why: §1 makes the focus the active side
+     and the selection the pair, and virtual-copies §4.2 moves the focus to
+     the new copy. Both can't hold. Letting the copy take a side instead
+     would make Duplicate choose what is compared, which §3 and §6 give to
+     `S`, the arrows and the strip; and leaving the panes while focusing
+     the copy is exactly what breaks AC2. Duplicate is occasional, and `S`
+     before and after it costs two keys. Comparing a photo with its copy
+     needs nothing new: select both in the grid and press `S`, or `S`, ⌘D,
+     `S` and walk the right side to the original (scope of that use is the
+     product manager's question from code review).
+  2. **Undo or redo of a Duplicate while comparing** (the undo stack can
+     still hold one, made before comparing): the comparison owns the focus
+     and the selection, exactly as for any other change to the list (§6,
+     D9). Duplicate's own focus and selection rule (virtual-copies §4.3:
+     originals after an undo, copies after a redo) is not applied while a
+     comparison stays on.
+     - **Both compared photos remain** (every redo; an undo whose copies are
+       not on screen): the comparison is unchanged: the same photo on each
+       side, the same active side, the link, each pane's zoom and position.
+       Focus is the active photo, the selection is the pair. Only the film
+       strip and the captions' positions ("12 of 88") change. No comparison
+       announcement; VoiceOver hears the undo itself as anywhere else.
+     - **One compared photo is a copy the undo takes away:** the comparison
+       ends on the photo that remains, shown alone in the loupe, focused and
+       selected alone, with §10's Leaving announcement. This is §6's "it
+       leaves the source", the same outcome as D9 and every other removal.
+       The copy's side is not replaced (by its original or anything else):
+       a comparison that silently changes what it shows is the risk §4's
+       dimming exists to avoid.
+     - **Both are copies the undo takes away:** the comparison ends, and the
+       loupe does what the undo does in the single loupe: it shows the
+       active copy's original, focused and selected alone.
+     - Redo never starts, restores or changes a comparison. After an undo
+       ended one, a redo follows virtual-copies §4.3 in the single loupe
+       (the loupe moves to the copy); `S` then works as usual.
+- **D15 (code review C15, a copy's name while comparing, 2026-11-12): the
+  copy's name and the Copy badge, as in the single loupe.** One photo has
+  one name everywhere (virtual-copies §5.2, §6.3; HIG Consistency).
+  1. **Caption name:** `PhotoName.inFull`: `IMG_0412.RW2` for an original
+     (unchanged), `IMG_0412 copy 2` for a copy, the same text as the window
+     title. Weight and color by active side as §9.
+  2. **Copy badge:** each caption whose photo is a copy shows the single
+     loupe's Copy badge (same title and tooltip, with the master's file
+     name). Order at the trailing end: Filtered (right caption only), HDR,
+     Copy, Offline, the film strip toggle. Identity badges sit nearest the
+     toggle, as in virtual-copies §6.3.
+  3. **Narrow captions:** the order in §9 is unchanged (position, then
+     middle-truncating the name, then HDR). **The Copy badge never goes**,
+     like Offline and the marks. A middle-truncated name loses "copy"
+     first (`IMG_…py 2`), so the badge is then the only thing on screen
+     that tells a photo from its copy, which is what someone comparing the
+     two needs most. It costs about 40 pt; with both side panes shown on a
+     13" display a caption still fits (about 370 of 470 pt).
+  4. **VoiceOver:** the name spoken is `PhotoName.display` (no extension,
+     as today's base name), so the same words as the grid, strip and
+     loupe labels. "Comparing IMG_0412 and IMG_0412 copy. Left photo
+     active." · "Right photo active: IMG_0412 copy, 2 stars, Picked." ·
+     walking already says "Right photo: IMG_0412 copy, RAW, 13 of 88". No
+     separate "Copy" word: the name says it (virtual-copies §6.4), and the
+     badge is read with the caption. Pane labels use
+     `PhotoAccessibility.label`, which already carries the copy's name.
+  5. **Refusal alerts** (§3) name the photo by `PhotoName.inFull`, as the
+     removal confirmation does (virtual-copies D-V2): "The original of
+     “IMG_0412 copy” is offline. Connect “‹volume›” to compare it." A copy
+     is never a video, so the video text is unaffected.
+  No new strings: the badge, its tooltip and every announcement exist.
 
 ## References
 
