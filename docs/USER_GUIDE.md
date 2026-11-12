@@ -143,18 +143,21 @@ library). **File ▸ New Smart Album…** (⌥⌘N) opens the rule editor: match
 or any of rules on rating, flag, label, keywords, file type and name, capture
 and import dates, project, camera, lens, serial number, ISO, aperture, shutter
 speed, focal length, exposure compensation, flash, white balance, location,
-artist, copyright and description, with a live count. Right-click albums to rename,
-edit or delete them.
+artist, copyright and description, with a live count. Right-click an album to
+rename or delete it, or a smart album to edit or delete it.
 
-**Renaming a project**: select the project in the sidebar and choose **File ▸
+**Renaming a project or an album**: select it in the sidebar and choose **File ▸
 Rename “‹name›”**, press Return while the sidebar has the keyboard, or
-right-click the project and choose **Rename**. Its name becomes a text field
-in place, with the whole name selected: Return saves, Esc puts the old name
-back, and clicking elsewhere saves too. Spaces around the name are dropped, an
-empty name is refused (the old one stays), and two projects may have the same
-name. The name is the library's only: the folder on disk keeps its name (the
-row's tooltip still shows its path), and no sidecar changes. Renaming is one
-undo step.
+right-click it and choose **Rename**. Its name becomes a text field in place,
+with the whole name selected: Return saves, Esc puts the old name back, and
+clicking elsewhere saves too, as does folding or hiding the row away (its
+section, its project, the sidebar). Spaces around the name are dropped, an empty
+name is refused (the old one stays), and two projects, or two albums, may have
+the same name. The name is the library's only, and no sidecar changes. A
+project's folder on disk keeps its name (the row's tooltip still shows its
+path). An album keeps its photos, and moves to its place in the list, which
+is by name. Renaming is one undo step. A smart album is renamed in its editor
+(**File ▸ Edit Smart Album…**).
 
 **Show in Finder** (**File ▸ Show in Finder**, ⇧⌘R, and the context menus of
 the grid, the loupe and a video) reveals the originals of the selected photos,
@@ -462,7 +465,7 @@ review mode. History is not written to sidecars or exports. Edits made with
 `photocli` are listed too, as "Develop (command line)" or "Mask (command line)".
 
 **Undo**: ⌘Z and ⇧⌘Z undo and redo culling, keyword, album and pair changes,
-project renames, adjustments, crop and rotation, and the Info tab's descriptive
+project and album renames, adjustments, crop and rotation, and the Info tab's descriptive
 fields (title, description and the like), including changes made to many photos
 at once. Removing photos or a project from the library cannot be undone.
 

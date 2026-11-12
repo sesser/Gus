@@ -397,11 +397,12 @@ final class LibraryModel {
     }
     /// A sidebar item waiting for its deletion to be confirmed.
     var sidebarDeletion: SidebarDeletion?
-    /// The project whose sidebar row is a text field (File ▸ Rename, the row's
-    /// Rename, Return in the sidebar; docs/features/library-ops/design.md §4).
-    var renamingProjectID: Int64?
-    /// Bumped to scroll the sidebar to the project being renamed.
-    private(set) var projectRevealRevision = 0
+    /// The project or album whose sidebar row is a text field (File ▸ Rename,
+    /// the row's Rename, Return in the sidebar), with what is typed so far.
+    /// One at a time; `beginSidebarRename` and `endSidebarRename` set it.
+    var sidebarRename: SidebarRename?
+    /// The row the sidebar was last asked to bring into view.
+    private(set) var sidebarReveal: SidebarReveal?
     /// The folder Show in Finder can reveal, for each project that has one
     /// now (`ProjectFolder`), checked off the main actor (`refreshProjectFolders`).
     var projectFolders: [Int64: URL] = [:]
@@ -809,7 +810,7 @@ final class LibraryModel {
         if case .project(let id) = sidebarSelection, !projects.contains(where: { $0.id == id }) {
             sidebarSelection = .allPhotos
         }
-        if let id = renamingProjectID, !projects.contains(where: { $0.id == id }) { renamingProjectID = nil }
+        endSidebarRenameIfGone()
         scheduleSidebarRefresh()
         Task { await refreshProjectFolders() }
     }
@@ -821,9 +822,12 @@ final class LibraryModel {
         projects[index].project.name = name
     }
 
-    /// Asks the sidebar to bring a project's row into view.
-    func revealProjectRow() {
-        projectRevealRevision += 1
+    /// Asks the sidebar to bring a project's or an album's row into view.
+    /// `opening` first opens what hides it (its section, an album's
+    /// project), for a rename about to start; without it the sidebar only
+    /// scrolls, and a row that is folded away stays so.
+    func revealSidebarRow(_ item: SidebarSelection, opening: Bool) {
+        sidebarReveal = SidebarReveal(item: item, opensContainers: opening, revision: (sidebarReveal?.revision ?? 0) + 1)
     }
 
     /// Albums, smart albums, dates and their counts, a moment after the last
@@ -864,6 +868,7 @@ final class LibraryModel {
         case .smartAlbum(let id) where !smartAlbums.contains { $0.id == id }: sidebarSelection = .allPhotos
         default: break
         }
+        endSidebarRenameIfGone()
     }
 
     func refreshKeywords() async {

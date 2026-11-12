@@ -157,22 +157,77 @@ enum DebugLibraryOpsCommands {
         if case .project(let id) = model.sidebarSelection, let index = model.projects.firstIndex(where: { $0.id == id }) {
             line += " selected \(index)"
         }
-        if let id = model.renamingProjectID, let index = model.projects.firstIndex(where: { $0.id == id }) {
-            line += " renaming \(index)"
-            // The field editor of the row's text field, with what is selected in it.
-            if let editor = window?.firstResponder as? NSTextView {
-                let range = editor.selectedRange()
-                line += " field '\(editor.string)' selected \(range.location)..<\(range.location + range.length)"
+        if case .project(let id) = model.sidebarRename?.item, let index = model.projects.firstIndex(where: { $0.id == id }) {
+            line += " renaming \(index)" + renameField(window)
+        }
+        print(line + sidebarScroll(model))
+    }
+
+    /// `renamealbum [<n>]`: File ▸ Rename's action for the album selected in
+    /// the sidebar, or the row menu's Rename on album n (in `print albums`'
+    /// order), which need not be the selected one.
+    static func renameAlbum(_ words: [String], model: LibraryModel) {
+        if let index = words.first.flatMap(Int.init) {
+            guard model.albums.indices.contains(index) else {
+                print("debug-script: no album \(index)")
+                return
+            }
+            model.beginSidebarRename(.album(model.albums[index].id))
+        } else if case .album = model.sidebarSelection {
+            model.beginSidebarRename(model.sidebarSelection)
+        } else {
+            print("debug-script: no album is selected")
+        }
+    }
+
+    /// `print albums`: every album in the sidebar's order (the library's and
+    /// the projects' together, by name), a project's with its project; the
+    /// selected one and whether its row is in view; the row being renamed and
+    /// its field; the title File ▸ Rename has for the sidebar's selection.
+    static func printAlbums(_ model: LibraryModel, window: NSWindow?) {
+        let albums = model.albums.map { summary in
+            let project = summary.album.projectId.flatMap { id in model.projects.first { $0.id == id }?.project.name }
+            return "\(summary.album.name)=\(summary.count)" + (project.map { " in \($0)" } ?? "")
+        }
+        var line = "debug-script: albums [" + albums.joined(separator: ", ") + "]"
+        if case .album(let id) = model.sidebarSelection, let index = model.albums.firstIndex(where: { $0.id == id }) {
+            line += " selected \(index)"
+            // The table's selected row: where the sidebar draws the selection.
+            if let table = model.windowObserver.sidebarList() as? NSTableView, table.selectedRow >= 0 {
+                line += " row in view \(table.visibleRect.intersects(table.rect(ofRow: table.selectedRow)))"
             } else {
-                line += " field without the keyboard"
+                line += " row not in the list"
             }
         }
-        // How far the sidebar is scrolled (a row out of view is scrolled to before it is renamed).
-        if let scroll = model.windowObserver.sidebarList()?.enclosingScrollView {
-            let visible = scroll.documentVisibleRect
-            line += " | sidebar shows \(Int(visible.minY))..<\(Int(visible.maxY)) of \(Int(scroll.documentView?.frame.height ?? 0))"
+        if case .album(let id) = model.sidebarRename?.item, let index = model.albums.firstIndex(where: { $0.id == id }) {
+            line += " renaming \(index)" + renameField(window)
         }
-        print(line)
+        line += " | sidebar \(model.showsSidebar ? "shown" : "hidden")"
+        line += " | File '\(LibraryCommands.renameTitle(for: LibraryMenuState(model).sidebarItem))'"
+        print(line + sidebarScroll(model))
+    }
+
+    /// The field of the row being renamed: its text, what is selected in it,
+    /// and whether it is in the visible part of the sidebar. The window's
+    /// first responder is its field editor. (Its accessibility label is
+    /// SwiftUI's and is not on the AppKit field, so it cannot be read here.)
+    private static func renameField(_ window: NSWindow?) -> String {
+        guard let editor = window?.firstResponder as? NSTextView else { return " field without the keyboard" }
+        let range = editor.selectedRange()
+        var line = " field '\(editor.string)' selected \(range.location)..<\(range.location + range.length)"
+        if let field = editor.delegate as? NSTextField {
+            if let scroll = field.enclosingScrollView {
+                line += " in view \(scroll.documentVisibleRect.intersects(field.convert(field.bounds, to: scroll.documentView)))"
+            }
+        }
+        return line
+    }
+
+    /// How far the sidebar is scrolled (a row out of view is scrolled to before it is renamed).
+    private static func sidebarScroll(_ model: LibraryModel) -> String {
+        guard let scroll = model.windowObserver.sidebarList()?.enclosingScrollView else { return "" }
+        let visible = scroll.documentVisibleRect
+        return " | sidebar shows \(Int(visible.minY))..<\(Int(visible.maxY)) of \(Int(scroll.documentView?.frame.height ?? 0))"
     }
 
     /// `print reveal`: what Show in Finder would hand to the Finder for the

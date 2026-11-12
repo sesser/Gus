@@ -150,7 +150,7 @@ extension Catalog {
     }
 
     /// Changes the project's name in the catalog. Its folder on disk keeps
-    /// its name, and no sidecar changes (`ProjectRename` is the rule for
+    /// its name, and no sidecar changes (`InPlaceRename` is the rule for
     /// what a typed name becomes). Removing a project is `removeProject`.
     public func renameProject(id: Int64, to name: String) async throws {
         try await database.write { db in

@@ -34,7 +34,7 @@ I built this with Claude. AI did the work, I did the orchestration.
 - MOV, MP4 and M4V videos, catalogued and played alongside photos
 - A film strip under the photo in the loupe, to see and click through the
   photos around it
-- Rename a project in place, show photos or a project's folder in the
+- Rename a project or an album in place, show photos or a project's folder in the
   Finder (⇧⌘R), and remove photos or a whole project from the library
   (⌘⌫ and Remove Project from Library). Removing changes the catalog only:
   your files and sidecars are never touched, and a removal can't be undone

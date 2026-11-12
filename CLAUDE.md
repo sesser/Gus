@@ -564,7 +564,7 @@ click with a real mouse while a job runs) and P10 (macOS 15 and 26) in
 
 Library operations (`docs/features/library-ops/`, issue #61): rename a
 project in place (sidebar, File ▸ Rename, row menu; one undo step; catalog
-only, `Catalog/ProjectRename.swift`); File ▸ Remove from Library… (⌘⌫)
+only, `Catalog/InPlaceRename.swift`); File ▸ Remove from Library… (⌘⌫)
 removes the selected photos, either file of a RAW+JPEG pair taking both, and
 Remove Project from Library… removes a project, its photos and its own albums
 and smart albums (`Catalog/LibraryRemoval.swift`: one transaction, all or
@@ -577,6 +577,22 @@ add or card import runs. File ▸ Show in Finder (⇧⌘R) reveals photos' maste
 Cached previews of removed photos stay (#142). Shipped, checks pending: macOS
 15 and 26 (confirmation keys, look) not checked by a person, in #82 and
 `docs/features/library-ops/qa.md`.
+
+Rename albums in place (`docs/features/rename-albums-in-place/`, issue #141):
+albums rename in the sidebar row the way projects do (File ▸ Rename, the row's
+context menu, Return; Return saves, Esc cancels, leaving the field saves; one
+undo step, "Rename Album"). Projects and albums share one rename state and one
+name rule (`Catalog/InPlaceRename.swift`: trims only, empty refused, no
+length limit). A row that leaves the list during a rename (section hidden or
+folded, sidebar hidden, review on) saves the typed name as one step. A renamed
+row that moves stays selected and in view. The album Rename sheet is removed;
+keywords keep their sheet (with the merge note) and smart albums keep Edit
+Smart Album…. Catalog only: no migration, no pipeline bump. Known difference:
+New Album still collapses inner spaces and cuts names at 200 characters, a
+rename in place does not. Shipped, checks pending: P1–P6 (look, endings,
+moving row, menu bar, row folded away during a rename including hiding the
+sidebar, scrolling the field out of view) in #82 and
+`docs/features/rename-albums-in-place/qa.md`.
 
 Not yet: AI masks, healing, lens corrections (distortion, lens vignetting,
 profiles), DNG export, `.dcp` profiles,
