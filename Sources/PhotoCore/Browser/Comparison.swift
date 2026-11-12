@@ -86,12 +86,25 @@ public struct ComparisonCandidate: Equatable, Sendable {
 /// Why choosing Compare Side by Side did not enter comparison (design §3).
 /// The UI puts each into an alert's words.
 public enum ComparisonRefusal: Equatable, Sendable {
-    case video(Int64)
-    case offline(Int64)
+    /// `alone`: comparison was asked for with this one photo (the loupe, the
+    /// video loupe, one selected), not with two selected.
+    case video(Int64, alone: Bool)
+    case offline(Int64, alone: Bool)
     /// The two selected items are the files of one RAW+JPEG pair.
     case pairHalves(Int64, Int64)
     /// No other photo in the source can be compared with this one.
     case noPartner(Int64)
+
+    /// The alert's title names what was asked: "Can’t Compare This Photo"
+    /// when comparison was entered with one photo, "… These Photos" with
+    /// two selected (design §16 D5).
+    public var concernsOnePhoto: Bool {
+        switch self {
+        case .video(_, let alone), .offline(_, let alone): alone
+        case .noPartner: true
+        case .pairHalves: false
+        }
+    }
 }
 
 /// What Compare Side by Side does for a selection.
@@ -122,14 +135,24 @@ public enum ComparisonRules {
         return isLoupe || selectedCount == 1 || selectedCount == 2
     }
 
-    /// Which two photos the command compares (design §3 "Which two photos").
+    /// Which two photos the command compares (design §3 "Which two photos",
+    /// §16 D3).
+    ///
+    /// Two selected in the grid: those two in source order, the focused one
+    /// active. One photo (the loupe, the video loupe, one selected): that
+    /// photo on the left and its partner on the right, the partner active,
+    /// so the arrows and the film strip choose the second photo at once.
+    /// When the partner is the photo it was last compared with, that
+    /// comparison comes back as it was left: the same photo on each side
+    /// and the same active side.
     ///
     /// - Parameters:
     ///   - isLoupe: the loupe or the video loupe is showing `focus`.
     ///   - selection: the grid's selected indices.
-    ///   - rememberedPartner: the index of the photo `focus` was last
-    ///     compared with in this loupe session, if it is still in the source.
-    public static func entry(isLoupe: Bool, selection: [Int], focus: Int?, count: Int, rememberedPartner: Int? = nil,
+    ///   - remembered: the comparison the photo was last in during this
+    ///     loupe session, and where its other photo is in the source now.
+    public static func entry(isLoupe: Bool, selection: [Int], focus: Int?, count: Int,
+                             remembered: (state: ComparisonState, partnerIndex: Int)? = nil,
                              candidate: (Int) -> ComparisonCandidate) -> ComparisonEntry {
         guard count >= 2 else { return .unavailable }
         let selected = selection.filter { (0..<count).contains($0) }.sorted()
@@ -138,8 +161,8 @@ public enum ComparisonRules {
             let photos = selected.map(candidate)
             // The first reason that applies, for the first photo it applies to.
             for photo in photos {
-                if photo.isVideo { return .refused(.video(photo.versionID)) }
-                if photo.isOffline { return .refused(.offline(photo.versionID)) }
+                if photo.isVideo { return .refused(.video(photo.versionID, alone: false)) }
+                if photo.isOffline { return .refused(.offline(photo.versionID, alone: false)) }
             }
             if photos[0].isPairHalf(of: photos[1]) {
                 return .refused(.pairHalves(photos[0].versionID, photos[1].versionID))
@@ -151,12 +174,18 @@ public enum ComparisonRules {
         let single: Int? = isLoupe ? focus : (selected.count == 1 ? selected[0] : nil)
         guard let index = single, (0..<count).contains(index) else { return .unavailable }
         let photo = candidate(index)
-        if photo.isVideo { return .refused(.video(photo.versionID)) }
-        if photo.isOffline { return .refused(.offline(photo.versionID)) }
-        guard let partner = partner(of: index, count: count, remembered: rememberedPartner, candidate: candidate) else {
+        if photo.isVideo { return .refused(.video(photo.versionID, alone: true)) }
+        if photo.isOffline { return .refused(.offline(photo.versionID, alone: true)) }
+        guard let partner = partner(of: index, count: count, remembered: remembered?.partnerIndex, candidate: candidate) else {
             return .refused(.noPartner(photo.versionID))
         }
-        return .enter(ComparisonState(left: photo.versionID, right: candidate(partner).versionID, active: .left))
+        let other = candidate(partner).versionID
+        // The same two as last time: as they were left, whichever side the photo was on.
+        if let remembered, partner == remembered.partnerIndex,
+           Set(remembered.state.versionIDs) == [photo.versionID, other] {
+            return .enter(remembered.state)
+        }
+        return .enter(ComparisonState(left: photo.versionID, right: other, active: .right))
     }
 
     /// The photo compared with the one at `index` when only one is chosen:
@@ -232,18 +261,32 @@ public enum ComparisonRules {
         case ended(remaining: Int64?)
     }
 
-    /// - Parameter replacement: the version the reload asks to focus in the
-    ///   active photo's place (the other file of its pair, after RAW+JPEG
-    ///   Pair ▸ Show …): the active side then shows it.
-    public static func reconcile(_ state: ComparisonState, replacement: Int64? = nil,
+    /// - Parameter pairPartner: for a compared photo that stood for a
+    ///   grouped RAW+JPEG pair, the pair's other file. When the pair now
+    ///   shows that file instead (RAW+JPEG Pair ▸ Show …, or its undo), the
+    ///   side shows it: the photo is the same. Nothing else takes a missing
+    ///   photo's place: not the photo a removal focuses next, which nobody
+    ///   chose and which may not be comparable.
+    public static func reconcile(_ state: ComparisonState, pairPartner: (Int64) -> Int64? = { _ in nil },
                                  isPresent: (Int64) -> Bool) -> Reconciled {
         var state = state
-        if !isPresent(state.activeVersionID), let replacement, isPresent(replacement), replacement != state.otherVersionID {
-            state[state.active] = replacement
+        for side in ComparisonSide.allCases where !isPresent(state[side]) {
+            if let partner = pairPartner(state[side]), isPresent(partner), partner != state[side.next] {
+                state[side] = partner
+            }
         }
         let present = state.versionIDs.filter(isPresent)
         if present.count == 2 { return .kept(state) }
         return .ended(remaining: isPresent(state.activeVersionID) ? state.activeVersionID : present.first)
+    }
+
+    // MARK: Selection and targets
+
+    /// The selection while comparing, and after leaving (ruling RI-1): the
+    /// two photos, focus on the active one. Nil while either is not in the source.
+    public static func selection(of state: ComparisonState, indexOf: (Int64) -> Int?) -> (selection: IndexSet, focus: Int)? {
+        guard let left = indexOf(state.left), let right = indexOf(state.right) else { return nil }
+        return (IndexSet([left, right]), state.active == .left ? left : right)
     }
 
     // MARK: Keys
@@ -283,12 +326,20 @@ public enum ComparisonLink {
         return CGPoint(x: min(max(visible.midX / document.width, 0), 1), y: min(max(visible.midY / document.height, 0), 1))
     }
 
-    /// The magnification a pane takes to follow another at `leader`: fit
-    /// when the leader is at its fit, otherwise the same magnification, and
-    /// at the low end each stops at its own fit.
-    public static func magnification(following leader: Double, leaderFit: Double, followerFit: Double,
+    /// Whether a pane counts as fitted for the pane that follows it. A
+    /// pane a command zoomed in is not, even when its photo is so small
+    /// that 100% is its fit (`isZoomedIn`); a pane at fit that a pinch is
+    /// enlarging is not either, before the gesture has ended.
+    public static func isFitted(isZoomedIn: Bool, magnification: Double, fit: Double) -> Bool {
+        !isZoomedIn && magnification <= fit * fitTolerance
+    }
+
+    /// The magnification a pane takes to follow another at `leader`: its
+    /// own fit when the leader is fitted, otherwise the same magnification,
+    /// and at the low end each stops at its own fit.
+    public static func magnification(following leader: Double, leaderIsFitted: Bool, followerFit: Double,
                                      maximum: Double = .infinity) -> Double {
-        if leader <= leaderFit * fitTolerance { return followerFit }
+        if leaderIsFitted { return followerFit }
         return min(max(leader, followerFit), max(maximum, followerFit))
     }
 

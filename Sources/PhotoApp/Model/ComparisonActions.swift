@@ -41,11 +41,8 @@ extension LibraryModel {
     func enterComparison() {
         guard comparison == nil, canToggleComparison else { return }
         let isLoupe = mode == .loupe
-        // The photo it was last compared with in this loupe session, so S
-        // toggles between the single loupe and the same pair.
-        let remembered = isLoupe ? focusedItem.flatMap { comparisonPartners[$0.versionID] }.flatMap(indexOfVersion) : nil
         let entry = ComparisonRules.entry(isLoupe: isLoupe, selection: Array(selection), focus: focusIndex,
-                                          count: items.count, rememberedPartner: remembered,
+                                          count: items.count, remembered: isLoupe ? rememberedComparison : nil,
                                           candidate: comparisonCandidate(at:))
         switch entry {
         case .unavailable:
@@ -57,13 +54,13 @@ extension LibraryModel {
             if editor.showsOriginal { editor.showsOriginal = false }
             editor.endSharpeningMap()
             editor.armFringePicker(nil)
-            // The loupe's photo refits into its pane; from the grid both appear at once.
-            comparisonEntersAnimated = isLoupe && focusedItem?.isVideo == false
-                && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+            // The loupe's photo refits into the pane it goes to; from the grid both appear at once.
+            let animates = isLoupe && focusedItem?.isVideo == false && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+            comparisonEntersFrom = animates ? focusedItem.flatMap { state.side(of: $0.versionID) } : nil
             comparisonLeaving = nil
             comparisonHDRHeadroom = [:]
             comparison = state
-            rememberComparisonPartners(state)
+            rememberComparison(state)
             selectComparison(state)
             if mode != .loupe { mode = .loupe }
             announceComparison(state)
@@ -92,9 +89,19 @@ extension LibraryModel {
         if wasComparing { comparisonDidEnd() }
     }
 
-    private func rememberComparisonPartners(_ state: ComparisonState) {
-        comparisonPartners[state.left] = state.right
-        comparisonPartners[state.right] = state.left
+    /// Each photo's last comparison, as it stands now, so `S` brings the
+    /// same two back on the same sides with the same one active.
+    private func rememberComparison(_ state: ComparisonState) {
+        comparisonMemory[state.left] = state
+        comparisonMemory[state.right] = state
+    }
+
+    /// The comparison the loupe's photo was last in since the loupe opened,
+    /// and where its other photo is in the source now.
+    private var rememberedComparison: (state: ComparisonState, partnerIndex: Int)? {
+        guard let item = focusedItem, let state = comparisonMemory[item.versionID], let side = state.side(of: item.versionID),
+              let partner = indexOfVersion(state[side.next]) else { return nil }
+        return (state, partner)
     }
 
     // MARK: The active photo
@@ -110,6 +117,7 @@ extension LibraryModel {
         guard var state = comparison, state.active != side else { return }
         state.active = side
         comparison = state
+        rememberComparison(state)
         selectComparison(state)
         guard announces, let item = comparisonItem(side) else { return }
         // High priority, so a fast run speaks only the latest.
@@ -138,7 +146,7 @@ extension LibraryModel {
         state[state.active] = item.versionID
         comparison = state
         comparisonHDRHeadroom[state.active] = nil
-        rememberComparisonPartners(state)
+        rememberComparison(state)
         selectComparison(state)
         if announces {
             AccessibilityText.announce(ComparisonText.moved(state.active, photo: PhotoAccessibility.loupeMove(
@@ -194,24 +202,26 @@ extension LibraryModel {
     /// What the refusal's alert says.
     func comparisonRefusalText(_ refusal: ComparisonRefusal) -> (title: String, message: String) {
         func name(_ versionID: Int64) -> String { item(versionID: versionID)?.fileName ?? "" }
+        // The title names what was asked: one photo, or two (design §16 D5).
+        let alertTitle = refusal.concernsOnePhoto ? ComparisonText.cantCompareThis : ComparisonText.cantCompareThese
         switch refusal {
-        case .video(let id):
-            return (ComparisonText.cantCompareThese,
+        case .video(let id, _):
+            return (alertTitle,
                     String(localized: "“\(name(id))” is a video. Only photos can be compared.",
                            comment: "Alert: Compare Side by Side on a video; its file name"))
-        case .offline(let id):
+        case .offline(let id, _):
             let volume = item(versionID: id).flatMap(volumeName(for:)) ?? ""
-            return (ComparisonText.cantCompareThese,
+            return (alertTitle,
                     String(localized: "The original of “\(name(id))” is offline. Connect “\(volume)” to compare it.",
                            comment: "Alert: Compare Side by Side on an offline photo; its file name, its volume's name"))
         case .pairHalves(let first, let second):
             // The RAW first, whichever comes first in the source.
             let files = [first, second].sorted { item(versionID: $0)?.fileKind == .raw && item(versionID: $1)?.fileKind != .raw }
-            return (ComparisonText.cantCompareThese,
+            return (alertTitle,
                     String(localized: "“\(name(files[0]))” and “\(name(files[1]))” are the RAW and JPEG files of one photo.",
                            comment: "Alert: Compare Side by Side on the two files of a RAW+JPEG pair; the RAW's and the JPEG's file names"))
         case .noPartner:
-            return (String(localized: "Can’t Compare This Photo", comment: "Alert title: nothing to compare the photo with"),
+            return (alertTitle,
                     String(localized: "There’s no other photo in “\(title(for: sidebarSelection))” that can be compared with it.",
                            comment: "Alert: Compare Side by Side with no second photo; the source's name"))
         }
@@ -226,6 +236,7 @@ enum ComparisonText {
     static var link: String { String(localized: "Link Zoom and Position", comment: "View menu, pane context menu, caption toggle's label: both panes zoom and scroll together") }
     static var unlink: String { String(localized: "Unlink Zoom and Position", comment: "VoiceOver action on a comparison pane") }
     static var cantCompareThese: String { String(localized: "Can’t Compare These Photos", comment: "Alert title: Compare Side by Side was refused") }
+    static var cantCompareThis: String { String(localized: "Can’t Compare This Photo", comment: "Alert title: Compare Side by Side was asked for one photo and refused") }
     static var linkedAnnouncement: String { String(localized: "Zoom and position linked", comment: "VoiceOver: the comparison's link was turned on") }
     static var unlinkedAnnouncement: String { String(localized: "Zoom and position not linked", comment: "VoiceOver: the comparison's link was turned off") }
 

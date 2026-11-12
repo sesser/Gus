@@ -119,6 +119,8 @@ import PhotoUI
 ///     compare on|off|toggle (View ▸ Compare Side by Side / Stop Comparing's action; a refusal's alert shows
 ///                           with `alert`, and `alert press OK` closes it)
 ///     compare active left|right|switch   compare link on|off   (the active pane; Link Zoom and Position)
+///     compare animate on|off   (off: zoom, refits, entering and leaving happen at once, so a check reads the settled
+///                           state; needed while the display sleeps, when animations and display links do not run)
 ///     compareclick left|right [<x> <y>]  (a click on a pane through its own mouse methods, at unit coordinates
 ///                           of its photo from the top left; waits out the double-click interval)
 ///     compare panbench [<seconds>] [walking]   (both panes to 100%, then a pan on the display link: time until

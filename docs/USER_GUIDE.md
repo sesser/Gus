@@ -84,12 +84,15 @@ in the loupe; Return or Space goes back to the grid.
 
 **Comparing two photos** (View ▸ Compare Side by Side, S): the loupe shows two
 photos next to each other, each as the loupe shows it alone. Select two
-photos in the grid and press S; the earlier one is on the left. With one
-photo selected, or from the loupe, S puts that photo on the left and beside
-it the photo it was last compared with since the loupe opened, or else the
-next photo in the source (the previous one at the end). Videos and photos
-whose originals are offline can't be compared, and neither can the RAW and
-the JPEG of one pair shown as two items; an alert says why.
+photos in the grid and press S; the earlier one is on the left, and the one
+you were on is the active one (see below). With one photo selected, or from
+the loupe, S keeps that photo on the left and puts the next photo in the
+source beside it (the previous one at the end). The photo beside it is then
+the active one, so the arrow keys and the film strip choose the second photo
+right away while the photo you came with stays put; press A to rate the
+photo you came with. Videos and photos whose originals are offline can't be
+compared, and neither can the RAW and the JPEG of one pair shown as two
+items; an alert says why.
 
 One photo is the *active* one: its side has a ring round it and its name is
 bold in the caption line. Everything acts on it only: the rating, flag and
@@ -117,7 +120,9 @@ Nothing is edited while comparing: the Adjust tab says so and offers **Stop
 Comparing**, and the Adjust menu's editing commands, Show Original, the
 History panel, Remove from Album and Remove from Library are off. S again (or
 **Stop Comparing**) goes back to the loupe on the active photo, with the two
-photos still selected in the grid; S once more brings the same two back.
+photos still selected in the grid. S once more brings the same two back as
+they were: each on the side it was on, with the same one active. The app
+remembers that until you go back to the grid.
 Return, Space, a double-click or Esc go back to the grid. Review (F) works
 while comparing and gives the two photos the whole screen, which helps on a
 small display; Esc there leaves review first.

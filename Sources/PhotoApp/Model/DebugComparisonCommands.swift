@@ -38,6 +38,11 @@ enum DebugComparisonCommands {
             }
         case "link":
             model.setComparisonLinked(words.dropFirst().first != "off")
+        case "animate":
+            // Off: zoom, refits, entering and leaving happen at once (a check
+            // that must not wait, or a display that is asleep).
+            ComparisonController.debugAnimates = words.dropFirst().first != "off"
+            return
         case "panbench":
             await panBenchmark(seconds: Double(words.dropFirst().first ?? "") ?? 6, walking: words.contains("walking"),
                                model: model, window: window)
@@ -131,6 +136,11 @@ enum DebugComparisonCommands {
                      sizes.joined(separator: " and "), controller.panes.allSatisfy { $0.rendition.isFullResolution } ? "yes" : "no",
                      sharp, Double(before) / 1_048_576, Double(footprint()) / 1_048_576))
         let run = PanRun(pane: pane, seconds: seconds)
+        guard await run.displayLinkFires() else {
+            // No frames to count: the display is asleep or the window is not on screen.
+            print("debug-script: panbench the display link does not fire (display asleep, or the window not on screen); nothing measured")
+            return
+        }
         if walking {
             var forward = true
             run.everySecond = { [weak model] in
@@ -195,6 +205,23 @@ enum DebugComparisonCommands {
         init(pane: ComparisonPane, seconds: Double) {
             self.pane = pane
             self.seconds = seconds
+        }
+
+        /// Whether frames arrive at all: a display link never fires while
+        /// the display sleeps, and a pan measured then would wait for ever.
+        func displayLinkFires() async -> Bool {
+            guard pane.view.window != nil else { return false }
+            let probe = pane.view.displayLink(target: self, selector: #selector(probed(_:)))
+            probe.add(to: .main, forMode: .common)
+            for _ in 0..<20 where !didProbe { try? await Task.sleep(for: .milliseconds(100)) }
+            probe.invalidate()
+            return didProbe
+        }
+
+        private var didProbe = false
+
+        @objc private func probed(_ link: CADisplayLink) {
+            didProbe = true
         }
 
         func measure() async {

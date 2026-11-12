@@ -14,10 +14,18 @@ struct ComparisonTests {
         return photos
     }
 
+    /// `remembered`: the comparison the photo was last in; its other photo's
+    /// index is looked up in `photos`, as the app does.
     static func entry(_ photos: [ComparisonCandidate], isLoupe: Bool = false, selection: [Int], focus: Int?,
-                      remembered: Int? = nil) -> ComparisonEntry {
-        ComparisonRules.entry(isLoupe: isLoupe, selection: selection, focus: focus, count: photos.count,
-                              rememberedPartner: remembered) { photos[$0] }
+                      remembered: ComparisonState? = nil) -> ComparisonEntry {
+        let photo = focus.flatMap { photos.indices.contains($0) ? photos[$0].versionID : nil }
+        let memory = remembered.flatMap { state -> (state: ComparisonState, partnerIndex: Int)? in
+            guard let photo, let side = state.side(of: photo),
+                  let partner = photos.firstIndex(where: { $0.versionID == state[side.next] }) else { return nil }
+            return (state, partner)
+        }
+        return ComparisonRules.entry(isLoupe: isLoupe, selection: selection, focus: focus, count: photos.count,
+                                     remembered: memory) { photos[$0] }
     }
 
     // MARK: AC1, R2: which two photos
@@ -35,35 +43,56 @@ struct ComparisonTests {
         #expect(Self.entry(photos, selection: [1, 4], focus: nil) == .enter(ComparisonState(left: 101, right: 104, active: .left)))
     }
 
-    @Test func oneSelectedPhotoIsComparedWithTheNext() {
+    /// Design §16 D3 and AC6b: with one photo, the photo beside it is the
+    /// active one, so the arrows and the film strip choose the second photo.
+    @Test func oneSelectedPhotoIsComparedWithTheNextWhichIsActive() {
         let photos = Self.source(6)
-        #expect(Self.entry(photos, selection: [2], focus: 2) == .enter(ComparisonState(left: 102, right: 103, active: .left)))
+        #expect(Self.entry(photos, selection: [2], focus: 2) == .enter(ComparisonState(left: 102, right: 103, active: .right)))
     }
 
     @Test func theLoupesPhotoIsComparedWithItsPartnerWhateverIsSelected() {
         let photos = Self.source(6)
-        // The loupe: the photo on screen, left and active; the grid's selection does not count.
+        // The loupe: the photo on screen stays on the left and the partner is
+        // active; the grid's selection does not count.
         #expect(Self.entry(photos, isLoupe: true, selection: [0, 5], focus: 3)
-            == .enter(ComparisonState(left: 103, right: 104, active: .left)))
+            == .enter(ComparisonState(left: 103, right: 104, active: .right)))
     }
 
     @Test func thePartnerIsThePreviousPhotoAtTheEndOfTheSource() {
         let photos = Self.source(6)
         #expect(Self.entry(photos, isLoupe: true, selection: [], focus: 5)
-            == .enter(ComparisonState(left: 105, right: 104, active: .left)))
+            == .enter(ComparisonState(left: 105, right: 104, active: .right)))
     }
 
     @Test func thePartnerIsThePhotoLastComparedWith() {
         let photos = Self.source(6)
-        // S, then S again: the same pair comes back.
-        #expect(Self.entry(photos, isLoupe: true, selection: [], focus: 1, remembered: 4)
-            == .enter(ComparisonState(left: 101, right: 104, active: .left)))
+        // S, then S again: the same pair comes back, not the next photo.
+        let last = ComparisonState(left: 101, right: 104, active: .right)
+        #expect(Self.entry(photos, isLoupe: true, selection: [], focus: 1, remembered: last) == .enter(last))
         // A remembered photo that can no longer be compared is passed over.
         let offline = Self.source(6) { $0[4].isOffline = true }
-        #expect(Self.entry(offline, isLoupe: true, selection: [], focus: 1, remembered: 4)
-            == .enter(ComparisonState(left: 101, right: 102, active: .left)))
+        #expect(Self.entry(offline, isLoupe: true, selection: [], focus: 1, remembered: last)
+            == .enter(ComparisonState(left: 101, right: 102, active: .right)))
+        // So is one that left the source.
+        #expect(Self.entry(photos, isLoupe: true, selection: [], focus: 1,
+                           remembered: ComparisonState(left: 101, right: 999, active: .left))
+            == .enter(ComparisonState(left: 101, right: 102, active: .right)))
         // Never the photo itself.
         #expect(ComparisonRules.partner(of: 1, count: 6, remembered: 1) { photos[$0] } == 2)
+    }
+
+    /// AC6c and design §16 D3: `S`, `S` brings the comparison back as it was
+    /// left, whichever side the loupe's photo is on and whichever is active.
+    @Test func aRememberedPairComesBackOnTheSameSidesWithTheSameOneActive() {
+        let photos = Self.source(6)
+        // Left with the right photo active: the loupe shows 104, the right one.
+        let leftOnTheRight = ComparisonState(left: 101, right: 104, active: .right)
+        #expect(Self.entry(photos, isLoupe: true, selection: [], focus: 4, remembered: leftOnTheRight) == .enter(leftOnTheRight))
+        // Left with the left photo active after `A`: back with the left active.
+        let leftOnTheLeft = ComparisonState(left: 101, right: 104, active: .left)
+        #expect(Self.entry(photos, isLoupe: true, selection: [], focus: 1, remembered: leftOnTheLeft) == .enter(leftOnTheLeft))
+        // From the grid nothing is remembered: the loupe's session is over.
+        #expect(Self.entry(photos, selection: [4], focus: 4) == .enter(ComparisonState(left: 104, right: 105, active: .right)))
     }
 
     @Test func thePartnerSkipsWhatCannotBeCompared() {
@@ -122,16 +151,35 @@ struct ComparisonTests {
 
     @Test func aVideoIsRefusedAndNamed() {
         let photos = Self.source(4) { $0[2].isVideo = true }
-        #expect(Self.entry(photos, selection: [1, 2], focus: 1) == .refused(.video(102)))
+        #expect(Self.entry(photos, selection: [1, 2], focus: 1) == .refused(.video(102, alone: false)))
         // The video loupe's Compare Side by Side.
-        #expect(Self.entry(photos, isLoupe: true, selection: [2], focus: 2) == .refused(.video(102)))
-        #expect(Self.entry(photos, selection: [2], focus: 2) == .refused(.video(102)))
+        #expect(Self.entry(photos, isLoupe: true, selection: [2], focus: 2) == .refused(.video(102, alone: true)))
+        #expect(Self.entry(photos, selection: [2], focus: 2) == .refused(.video(102, alone: true)))
+    }
+
+    /// Design §16 D5: the alert's title names what was asked.
+    @Test func theRefusalSaysWhetherOnePhotoOrTwoWereAsked() {
+        let photos = Self.source(4) {
+            $0[1].isOffline = true
+            $0[2].isVideo = true
+        }
+        func refusal(_ entry: ComparisonEntry) -> ComparisonRefusal? {
+            if case .refused(let refusal) = entry { refusal } else { nil }
+        }
+        // One photo, itself a video or offline: "Can’t Compare This Photo".
+        #expect(refusal(Self.entry(photos, isLoupe: true, selection: [], focus: 2))?.concernsOnePhoto == true)
+        #expect(refusal(Self.entry(photos, selection: [1], focus: 1))?.concernsOnePhoto == true)
+        #expect(ComparisonRefusal.noPartner(100).concernsOnePhoto)
+        // Two selected: "Can’t Compare These Photos".
+        #expect(refusal(Self.entry(photos, selection: [0, 2], focus: 0))?.concernsOnePhoto == false)
+        #expect(refusal(Self.entry(photos, selection: [0, 1], focus: 0))?.concernsOnePhoto == false)
+        #expect(!ComparisonRefusal.pairHalves(101, 102).concernsOnePhoto)
     }
 
     @Test func anOfflinePhotoIsRefusedAndNamed() {
         let photos = Self.source(4) { $0[1].isOffline = true }
-        #expect(Self.entry(photos, selection: [1, 2], focus: 2) == .refused(.offline(101)))
-        #expect(Self.entry(photos, isLoupe: true, selection: [], focus: 1) == .refused(.offline(101)))
+        #expect(Self.entry(photos, selection: [1, 2], focus: 2) == .refused(.offline(101, alone: false)))
+        #expect(Self.entry(photos, isLoupe: true, selection: [], focus: 1) == .refused(.offline(101, alone: true)))
     }
 
     @Test func whenBothFailTheFirstPhotosFirstReasonIsGiven() {
@@ -139,14 +187,14 @@ struct ComparisonTests {
             $0[1].isOffline = true
             $0[2].isVideo = true
         }
-        #expect(Self.entry(photos, selection: [1, 2], focus: 1) == .refused(.offline(101)))
+        #expect(Self.entry(photos, selection: [1, 2], focus: 1) == .refused(.offline(101, alone: false)))
         // A video that is also offline is a video first.
         let both = Self.source(4) {
             $0[0].isVideo = true
             $0[0].isOffline = true
             $0[1].isOffline = true
         }
-        #expect(Self.entry(both, selection: [0, 1], focus: 0) == .refused(.video(100)))
+        #expect(Self.entry(both, selection: [0, 1], focus: 0) == .refused(.video(100, alone: false)))
     }
 
     @Test func aPhotoWithNothingToCompareWithIsRefused() {
@@ -172,14 +220,18 @@ struct ComparisonTests {
 
     // MARK: AC2, R3: the active photo
 
-    @Test func commandsActOnTheActivePhotoOnly() {
+    /// The rule `LibraryModel.actionTargets` applies: while comparing, the
+    /// selection is the two photos, and a command acts on the active one only.
+    @Test func commandsActOnTheActivePhotoOnly() throws {
+        let indices: [Int64: Int] = [101: 1, 104: 4]
         var state = ComparisonState(left: 101, right: 104, active: .left)
-        #expect(state.activeVersionID == 101)
-        #expect(state.otherVersionID == 104)
+        var compared = try #require(ComparisonRules.selection(of: state) { indices[$0] })
+        #expect(compared.selection == IndexSet([1, 4]))
+        #expect(ActionTargets.indices(isLoupe: true, selection: compared.selection, focus: compared.focus) == IndexSet(integer: 1))
+        // `A`: the other photo, and only it.
         state.switchActive()
-        #expect(state.active == .right)
-        #expect(state.activeVersionID == 104)
-        #expect(state.otherVersionID == 101)
+        compared = try #require(ComparisonRules.selection(of: state) { indices[$0] })
+        #expect(ActionTargets.indices(isLoupe: true, selection: compared.selection, focus: compared.focus) == IndexSet(integer: 4))
         // The switch key cycles, so it scales to more panes.
         state.switchActive()
         #expect(state.active == .left)
@@ -187,14 +239,31 @@ struct ComparisonTests {
         #expect(state.side(of: 7) == nil)
     }
 
+    /// The grid's rule is unchanged: every selected photo, or the focused
+    /// one when nothing is selected.
+    @Test func theGridActsOnItsSelection() {
+        #expect(ActionTargets.indices(isLoupe: false, selection: IndexSet([1, 4]), focus: 4) == IndexSet([1, 4]))
+        #expect(ActionTargets.indices(isLoupe: false, selection: [], focus: 3) == IndexSet(integer: 3))
+        #expect(ActionTargets.indices(isLoupe: true, selection: IndexSet([1, 4]), focus: nil).isEmpty)
+    }
+
     // MARK: AC4, R5 and ruling RI-1: leaving
 
-    @Test func leavingKeepsTheCurrentPairSelectedAndTheActivePhotoFocused() {
+    /// Leaving changes neither the selection nor the focus, so what the
+    /// comparison selects is what is left: the pair on screen (also after a
+    /// walk) and the active photo, which the single loupe then shows.
+    @Test func leavingKeepsTheCurrentPairSelectedAndTheActivePhotoFocused() throws {
+        let indices: [Int64: Int] = [101: 1, 104: 4, 105: 5]
         var state = ComparisonState(left: 101, right: 104, active: .right)
         // The right side walked on: the pair on screen is what stays selected.
         state[.right] = 105
-        #expect(state.versionIDs == [101, 105])
-        #expect(state.activeVersionID == 105)
+        let compared = try #require(ComparisonRules.selection(of: state) { indices[$0] })
+        #expect(compared.selection == IndexSet([1, 5]))
+        #expect(compared.focus == 5)
+        // Back in the grid the pair is selected, and a command acts on both.
+        #expect(ActionTargets.indices(isLoupe: false, selection: compared.selection, focus: compared.focus) == IndexSet([1, 5]))
+        // A photo that is not in the source any more: nothing to select.
+        #expect(ComparisonRules.selection(of: ComparisonState(left: 101, right: 900)) { indices[$0] } == nil)
     }
 
     // MARK: R6: walking a side
@@ -273,13 +342,31 @@ struct ComparisonTests {
         #expect(ComparisonRules.reconcile(state) { _ in false } == .ended(remaining: nil))
     }
 
-    @Test func theActiveSideFollowsItsPairsOtherFile() {
-        // RAW+JPEG Pair ▸ Show the JPEG on the active photo: its version changes, the comparison stays.
+    @Test func aSideFollowsItsPairsOtherFile() {
+        // RAW+JPEG Pair ▸ Show the JPEG on the active photo of a grouped pair:
+        // its version changes, the photo is the same, the comparison stays.
         let state = ComparisonState(left: 101, right: 104, active: .left)
-        #expect(ComparisonRules.reconcile(state, replacement: 201) { $0 != 101 }
+        let pairs: [Int64: Int64] = [101: 201]
+        #expect(ComparisonRules.reconcile(state, pairPartner: { pairs[$0] }) { $0 != 101 }
             == .kept(ComparisonState(left: 201, right: 104, active: .left)))
+        // The same for the side that is not active (the switch undone after `A`).
+        let switched = ComparisonState(left: 101, right: 104, active: .right)
+        #expect(ComparisonRules.reconcile(switched, pairPartner: { pairs[$0] }) { $0 != 101 }
+            == .kept(ComparisonState(left: 201, right: 104, active: .right)))
         // Never the same photo twice.
-        #expect(ComparisonRules.reconcile(state, replacement: 104) { $0 != 101 } == .ended(remaining: 104))
+        #expect(ComparisonRules.reconcile(state, pairPartner: { _ in 104 }) { $0 != 101 } == .ended(remaining: 104))
+        // The pair's other file is not in the source either: the comparison ends.
+        #expect(ComparisonRules.reconcile(state, pairPartner: { pairs[$0] }) { $0 == 104 } == .ended(remaining: 104))
+    }
+
+    /// Removing the active photo (its project, say) reloads with the focus
+    /// on the photo after it. Nobody chose that photo and it may be a video:
+    /// it never takes the side, and the comparison ends on the other photo.
+    @Test func aRemovedPhotosNeighbourNeverTakesItsSide() {
+        let state = ComparisonState(left: 101, right: 104, active: .left)
+        // 102 is present and would be focused next; 101 has no pair.
+        #expect(ComparisonRules.reconcile(state) { $0 != 101 } == .ended(remaining: 104))
+        #expect(ComparisonRules.reconcile(state, pairPartner: { _ in nil }) { $0 != 101 } == .ended(remaining: 104))
     }
 
     // MARK: AC5: review
@@ -328,15 +415,44 @@ struct ComparisonTests {
                                              visible: pane) == CGPoint(x: -100, y: 300))
     }
 
+    /// What the pane that follows does for a leader at `magnification`.
+    static func following(_ magnification: Double, leaderZoomedIn: Bool, leaderFit: Double, followerFit: Double,
+                          maximum: Double = 8) -> Double {
+        ComparisonLink.magnification(
+            following: magnification,
+            leaderIsFitted: ComparisonLink.isFitted(isZoomedIn: leaderZoomedIn, magnification: magnification, fit: leaderFit),
+            followerFit: followerFit, maximum: maximum)
+    }
+
     @Test func linkedPanesTakeTheSameMagnification() {
         // Both to 100%: each at one photo pixel per device pixel.
-        #expect(ComparisonLink.magnification(following: 1, leaderFit: 0.2, followerFit: 0.2) == 1)
-        #expect(ComparisonLink.magnification(following: 2, leaderFit: 0.2, followerFit: 0.4, maximum: 8) == 2)
+        #expect(Self.following(1, leaderZoomedIn: true, leaderFit: 0.2, followerFit: 0.2) == 1)
+        #expect(Self.following(2, leaderZoomedIn: true, leaderFit: 0.2, followerFit: 0.4) == 2)
         // The leader at its fit: the follower at its own.
-        #expect(ComparisonLink.magnification(following: 0.2, leaderFit: 0.2, followerFit: 0.4) == 0.4)
+        #expect(Self.following(0.2, leaderZoomedIn: false, leaderFit: 0.2, followerFit: 0.4) == 0.4)
         // At the low end each stops at its own fit.
-        #expect(ComparisonLink.magnification(following: 0.3, leaderFit: 0.2, followerFit: 0.4) == 0.4)
-        #expect(ComparisonLink.magnification(following: 9, leaderFit: 0.2, followerFit: 0.4, maximum: 8) == 8)
+        #expect(Self.following(0.3, leaderZoomedIn: true, leaderFit: 0.2, followerFit: 0.4) == 0.4)
+        #expect(Self.following(9, leaderZoomedIn: true, leaderFit: 0.2, followerFit: 0.4) == 8)
+        // A pinch enlarging a fitted pane, before the gesture has ended: the other follows it.
+        #expect(Self.following(0.5, leaderZoomedIn: false, leaderFit: 0.2, followerFit: 0.2) == 0.5)
+    }
+
+    /// AC3 for a photo about the size of its pane or smaller, where 100% is
+    /// (nearly) its fit: a 2048 px JPEG in a wide pane beside a 24 MP raw.
+    /// The magnification can't say whether 100% or fit was asked for; the
+    /// zoom the command set does.
+    @Test func aPhotoAsSmallAsItsPaneStillTakesTheOtherTo100Percent() {
+        // The small photo leads, zoomed to 100% by `Z`: the raw goes to 100%, not back to fit.
+        #expect(Self.following(1, leaderZoomedIn: true, leaderFit: 1, followerFit: 0.12) == 1)
+        #expect(Self.following(1, leaderZoomedIn: true, leaderFit: 0.97, followerFit: 0.12) == 1)
+        #expect(!ComparisonLink.isFitted(isZoomedIn: true, magnification: 1, fit: 1))
+        // `Z` again: the same magnification, now meant as fit, and the raw goes to its fit.
+        #expect(Self.following(1, leaderZoomedIn: false, leaderFit: 1, followerFit: 0.12) == 0.12)
+        #expect(ComparisonLink.isFitted(isZoomedIn: false, magnification: 1, fit: 1))
+        // The raw leads at 100%: the small photo stays at 100%, which is its fit.
+        #expect(Self.following(1, leaderZoomedIn: true, leaderFit: 0.12, followerFit: 1) == 1)
+        // The raw leads back to fit: the small photo is at its own fit.
+        #expect(Self.following(0.12, leaderZoomedIn: false, leaderFit: 0.12, followerFit: 1) == 1)
     }
 
     @Test func unitCenterOfAnEmptyDocumentIsTheMiddle() {
@@ -368,6 +484,8 @@ struct ComparisonTests {
         #expect(ComparisonGeometry.canvas(of: .left, in: size, progress: 0) == CGRect(origin: .zero, size: size))
         #expect(ComparisonGeometry.canvas(of: .left, in: size, progress: 1) == ComparisonGeometry.canvases(in: size)[0])
         #expect(ComparisonGeometry.canvas(of: .right, in: size, progress: 1) == ComparisonGeometry.canvases(in: size)[1])
+        // A remembered pair can bring the loupe's photo back on the right (design §16 D3).
+        #expect(ComparisonGeometry.canvas(of: .right, in: size, progress: 0) == CGRect(origin: .zero, size: size))
         #expect(ComparisonGeometry.canvas(of: .left, in: size, progress: 0.5) == CGRect(x: 2, y: 2, width: 746, height: 596))
     }
 
@@ -385,18 +503,34 @@ struct ComparisonTests {
 
     // MARK: Symbols (design §4, §9)
 
-    /// The toolbar item's and the link toggle's symbols exist on macOS 15,
-    /// the app's minimum: they resolve here, and the system's symbol list
-    /// dates them before 15.
+    /// The toolbar item's and the link toggle's symbols resolve on the
+    /// system the tests run on; CI runs them on macOS 15, the app's minimum.
     @Test(arguments: [ComparisonRules.toolbarSymbolName, ComparisonRules.linkSymbolName])
-    @MainActor func symbolsResolveOnMacOS15(_ name: String) throws {
+    @MainActor func symbolsResolve(_ name: String) {
         #expect(NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil)
+    }
+
+    /// Where the system keeps the release each symbol first shipped in. A
+    /// private file: nil when a macOS release has moved or reshaped it.
+    static let symbolReleases: (symbols: [String: String], releases: [String: [String: String]])? = {
         let url = URL(fileURLWithPath: "/System/Library/CoreServices/CoreGlyphs.bundle/Contents/Resources/name_availability.plist")
-        let plist = try #require(try PropertyListSerialization.propertyList(from: Data(contentsOf: url), format: nil) as? [String: Any])
-        let symbols = try #require(plist["symbols"] as? [String: String])
-        let releases = try #require(plist["year_to_release"] as? [String: [String: String]])
-        let year = try #require(symbols[name])
-        let macOS = try #require(releases[year]?["macOS"])
+        guard let data = try? Data(contentsOf: url),
+              let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
+              let symbols = plist["symbols"] as? [String: String],
+              let releases = plist["year_to_release"] as? [String: [String: String]] else { return nil }
+        return (symbols, releases)
+    }()
+
+    /// On a newer macOS the symbols resolving says nothing about macOS 15,
+    /// so the system's own list is asked when it lists them. Skipped where
+    /// the list is not in that place or shape, or does not name the symbol.
+    @Test(.enabled(if: [ComparisonRules.toolbarSymbolName, ComparisonRules.linkSymbolName].allSatisfy { name in
+              ComparisonTests.symbolReleases.map { $0.releases[$0.symbols[name] ?? ""]?["macOS"] != nil } ?? false
+          }, "This macOS does not list symbol availability where macOS 27 does"),
+          arguments: [ComparisonRules.toolbarSymbolName, ComparisonRules.linkSymbolName])
+    func symbolsDateFromBeforeMacOS15(_ name: String) throws {
+        let list = try #require(Self.symbolReleases)
+        let macOS = try #require(list.releases[list.symbols[name] ?? ""]?["macOS"])
         let major = try #require(Int(macOS.split(separator: ".").first ?? ""))
         #expect(major <= 15, "\(name) needs macOS \(macOS)")
     }

@@ -51,6 +51,9 @@ final class ComparisonController: NSObject {
     /// The comparison on screen: the model's, or the one being left.
     private(set) var shown: ComparisonState?
     private var isLeaving = false
+    /// The pane the loupe's photo refits into while entering (design §2,
+    /// §16 D3): left, or right when a remembered pair comes back that way.
+    private var enteringSide = ComparisonSide.left
     private var linked: Bool
     /// 0: one pane fills the loupe, as the single loupe's canvas does; 1:
     /// both panes sit in their columns.
@@ -66,6 +69,11 @@ final class ComparisonController: NSObject {
     private var fittedSize = NSSize.zero
     private var neighborTasks: [Task<Void, Never>] = []
     private var screenObserver: (any NSObjectProtocol)?
+    /// The debug script's `compare animate off`: zoom, refits, entering and
+    /// leaving happen at once, so a scripted check reads the settled state
+    /// without waiting, and works while the display sleeps (animations and
+    /// display links do not run then). Never changed by the app itself.
+    static var debugAnimates = true
     private var describedValues: [ComparisonSide: String] = [:]
 
     init(model: LibraryModel) {
@@ -124,10 +132,10 @@ final class ComparisonController: NSObject {
                 progress = 1
             }
             shown = state
-            if previous == nil, model.comparisonEntersAnimated {
-                beginEntering()
+            if previous == nil, let side = model.comparisonEntersFrom, Self.debugAnimates {
+                beginEntering(into: side)
             }
-            model.comparisonEntersAnimated = false
+            model.comparisonEntersFrom = nil
             layoutPanes()
             for pane in panes {
                 let item = model.item(versionID: state[pane.side])
@@ -145,9 +153,9 @@ final class ComparisonController: NSObject {
                 preloadNeighbors()
                 if previous != nil { NSAccessibility.post(element: hostView, notification: .selectedChildrenChanged) }
             }
-        } else if let leaving = model.comparisonLeaving, shown != nil, !isLeaving {
+        } else if let leaving = model.comparisonLeaving, shown != nil, !isLeaving, Self.debugAnimates {
             beginLeaving(leaving)
-        } else if model.comparisonLeaving != nil, shown == nil {
+        } else if model.comparisonLeaving != nil, shown == nil || !Self.debugAnimates {
             // A view made only for a comparison already left has nothing to animate.
             model.comparisonLeaving = nil
         }
@@ -160,7 +168,7 @@ final class ComparisonController: NSObject {
     func layoutPanes() {
         let size = hostView.bounds.size
         guard size.width > 0, size.height > 0, let shown else { return }
-        let animatesFit = size != fittedSize && Date() < animatesFitUntil
+        let animatesFit = size != fittedSize && Date() < animatesFitUntil && Self.debugAnimates
             && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         if size != fittedSize {
             fittedSize = size
@@ -168,17 +176,38 @@ final class ComparisonController: NSObject {
             // One refit per change of the canvas's frame (the film strip's rule).
             model.loupeFitCount += 1
         }
-        performWithoutFollowing {
-            for pane in panes {
-                let isMoving = isLeaving ? pane.side == shown.active : pane.side == .left
-                let frame = isMoving && progress < 1
-                    ? ComparisonGeometry.canvas(of: pane.side, in: size, progress: progress)
+        // The pane that grows from, or to, the whole loupe: the one the
+        // loupe's photo goes into, or the active one when leaving.
+        let movingSide = isLeaving ? shown.active : enteringSide
+        let place = {
+            for pane in self.panes {
+                let isMoving = pane.side == movingSide
+                let frame = isMoving && self.progress < 1
+                    ? ComparisonGeometry.canvas(of: pane.side, in: size, progress: self.progress)
                     : ComparisonGeometry.canvases(in: size)[pane.side.rawValue]
-                pane.view.isHidden = isLeaving && pane.side != shown.active
-                // Entering: the right pane's photo fades in.
-                pane.view.alphaValue = !isLeaving && pane.side != .left ? CGFloat(progress) : 1
+                pane.view.isHidden = self.isLeaving && !isMoving
+                // Entering: the other pane's photo fades in.
+                pane.view.alphaValue = !self.isLeaving && !isMoving ? CGFloat(self.progress) : 1
                 pane.setFrame(frame, animatesFit: animatesFit)
             }
+        }
+        if animatesFit {
+            // One animation for both refits; nothing follows until it has
+            // ended, or each pane would chase the other's magnification on
+            // its way to the new fit.
+            followSuspensions += 1
+            NSAnimationContext.runAnimationGroup({ context in
+                context.duration = ComparisonGeometry.animationDuration
+                place()
+            }, completionHandler: { [weak self] in
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    self.followSuspensions -= 1
+                    self.publishZoom()
+                }
+            })
+        } else {
+            performWithoutFollowing(place)
         }
         updateRing()
     }
@@ -191,9 +220,10 @@ final class ComparisonController: NSObject {
 
     // MARK: Entering and leaving (design §2)
 
-    /// The single loupe's photo refits into the left pane while the right
+    /// The single loupe's photo refits into its pane while the other
     /// pane's photo fades in.
-    private func beginEntering() {
+    private func beginEntering(into side: ComparisonSide) {
+        enteringSide = side
         progress = 0
         start(FilmStripAnimation(kind: .slide, from: 0, to: 1, duration: ComparisonGeometry.animationDuration,
                                  curve: .easeOut) { [weak self] value in
@@ -332,10 +362,13 @@ final class ComparisonController: NSObject {
 
     private func follow(_ leader: ComparisonPane, _ follower: ComparisonPane) {
         performWithoutFollowing {
+            let fitted = leader.isFitted
             let magnification = ComparisonLink.magnification(
-                following: Double(leader.magnification), leaderFit: Double(leader.fitMagnification),
+                following: Double(leader.magnification), leaderIsFitted: fitted,
                 followerFit: Double(follower.fitMagnification), maximum: Double(follower.scrollView.maxMagnification))
-            follower.show(magnification: CGFloat(magnification), unitCenter: leader.unitCenter)
+            // Linked panes share the zoom: fitted or zoomed in, as the leader is.
+            follower.show(magnification: CGFloat(magnification), unitCenter: leader.unitCenter,
+                          zoom: fitted ? .fit : .actualSize)
         }
     }
 
@@ -345,15 +378,16 @@ final class ComparisonController: NSObject {
         guard let leader = activePane else { return }
         let unit = leader.unitCenter
         let zoom = leader.zoom
-        let animated = !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        let animated = !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion && Self.debugAnimates
         animate(animated, leader: leader) {
             for follower in self.panes where follower !== leader {
                 if zoom == .fit {
                     follower.applyZoom(.fit, unit: nil, animated: animated)
                 } else {
                     let magnification = ComparisonLink.magnification(
-                        following: Double(leader.magnification), leaderFit: Double(leader.fitMagnification),
+                        following: Double(leader.magnification), leaderIsFitted: false,
                         followerFit: Double(follower.fitMagnification), maximum: Double(follower.scrollView.maxMagnification))
+                    follower.setZoom(.actualSize)
                     follower.setMagnification(CGFloat(magnification), unit: unit, animated: animated)
                 }
             }
@@ -361,16 +395,17 @@ final class ComparisonController: NSObject {
     }
 
     /// Runs zoom changes on one or both panes as one animation (the
-    /// loupe's 0.15 s); nothing follows until it has ended. Then the panes
-    /// take their zoom from where they are, and linked panes are put
-    /// exactly where `leader` ended (photos of different sizes can end a
-    /// little apart, since each zooms about its own point on screen).
+    /// loupe's 0.15 s); nothing follows until it has ended. Each pane keeps
+    /// the zoom the command gave it, as the single loupe does (a photo
+    /// about the size of its pane is at 100% and at fit at once, so the
+    /// magnification can't say which was asked for). Then linked panes are
+    /// put exactly where `leader` ended (photos of different sizes can end
+    /// a little apart, since each zooms about its own point on screen).
     private func animate(_ animated: Bool, leader: ComparisonPane, _ changes: @escaping @MainActor () -> Void) {
         followSuspensions += 1
         let finish: @MainActor () -> Void = { [weak self, weak leader] in
             guard let self else { return }
             self.followSuspensions -= 1
-            for pane in self.panes { pane.adoptMagnification() }
             if let leader, self.linked, self.model.comparison != nil {
                 for follower in self.panes where follower !== leader { self.follow(leader, follower) }
             }
@@ -404,8 +439,9 @@ final class ComparisonController: NSObject {
     func setZoom(_ zoom: LoupeController.Zoom, on pane: ComparisonPane, unit: CGPoint? = nil) {
         let unit = unit ?? pane.unitCenter
         let targets = reached(by: pane)
-        animate(true, leader: pane) {
-            for target in targets { target.applyZoom(zoom, unit: unit, animated: true) }
+        let animated = Self.debugAnimates
+        animate(animated, leader: pane) {
+            for target in targets { target.applyZoom(zoom, unit: unit, animated: animated) }
         }
         publishZoom(magnification: zoom == .fit ? pane.fitMagnification : 1, zoom: zoom)
     }
@@ -418,15 +454,18 @@ final class ComparisonController: NSObject {
         guard let target = zoomIn ? LoupeZoomSteps.zoomIn(from: pane.magnification, fit: fit)
                                   : LoupeZoomSteps.zoomOut(from: pane.magnification, fit: fit) else { return }
         let targets = reached(by: pane)
-        animate(true, leader: pane) {
+        let zoom: LoupeController.Zoom = target > fit * 1.001 ? .actualSize : .fit
+        let animated = Self.debugAnimates
+        animate(animated, leader: pane) {
             for other in targets {
                 let magnification = other === pane ? target : CGFloat(ComparisonLink.magnification(
-                    following: Double(target), leaderFit: Double(fit), followerFit: Double(other.fitMagnification),
+                    following: Double(target), leaderIsFitted: zoom == .fit, followerFit: Double(other.fitMagnification),
                     maximum: Double(other.scrollView.maxMagnification)))
-                other.setMagnification(magnification, unit: other.unitCenter, animated: true)
+                other.setZoom(zoom)
+                other.setMagnification(magnification, unit: other.unitCenter, animated: animated)
             }
         }
-        publishZoom(magnification: target, zoom: target > fit * 1.001 ? .actualSize : .fit)
+        publishZoom(magnification: target, zoom: zoom)
     }
 
     /// Tells the menus and the toolbar the active pane's zoom.
@@ -525,9 +564,14 @@ final class ComparisonController: NSObject {
         neighborTasks = []
         guard let index = model.focusIndex else { return }
         let previews = model.previews
+        let hdr = model.showsHDR && (hostView.window?.screen?.maximumPotentialExtendedDynamicRangeColorComponentValue ?? 1) > 1
         for neighbor in [index + 1, index - 1, index + 2] where model.items.indices.contains(neighbor) {
             guard let request = model.previewRequest(for: model.items[neighbor], tier: .preview) else { continue }
-            neighborTasks.append(Task { _ = try? await previews.image(for: request, priority: .prefetch) })
+            let rendersHDR = hdr && neighbor != index + 2
+            neighborTasks.append(Task {
+                _ = try? await previews.image(for: request, priority: .prefetch)
+                if rendersHDR { _ = try? await previews.hdrImage(for: request, priority: .prefetch) }
+            })
         }
     }
 
@@ -902,28 +946,36 @@ final class ComparisonPane: NSObject {
                       width: visible.width / bounds.width, height: visible.height / bounds.height)
     }
 
-    /// The pane's place in the comparison; a fitted photo refits.
+    /// The pane's place in the comparison; a fitted photo refits (inside
+    /// the caller's animation group when `animatesFit`).
     func setFrame(_ frame: NSRect, animatesFit: Bool) {
         guard view.frame != frame else { return }
         view.frame = frame
         guard zoom == .fit else { return }
-        if animatesFit {
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = ComparisonGeometry.animationDuration
-                applyZoom(.fit, unit: nil, animated: true)
-            }
-        } else {
-            applyZoom(.fit, unit: nil, animated: false)
-        }
+        applyZoom(.fit, unit: nil, animated: animatesFit)
+    }
+
+    /// Whether the pane that follows this one should be at its own fit
+    /// (`ComparisonLink.isFitted`).
+    var isFitted: Bool {
+        ComparisonLink.isFitted(isZoomedIn: zoom == .actualSize, magnification: Double(scrollView.magnification),
+                                fit: Double(fitMagnification))
+    }
+
+    /// The zoom a command or the linked pane gives this one; zoomed in
+    /// shows the full-resolution render.
+    func setZoom(_ newZoom: LoupeController.Zoom) {
+        guard zoom != newZoom else { return }
+        zoom = newZoom
+        if newZoom == .actualSize { loadFullResolution() }
     }
 
     // MARK: Zoom
 
     /// Fit, or 100% with `unit` in the middle (the photo's center when nil).
     func applyZoom(_ zoom: LoupeController.Zoom, unit: CGPoint?, animated: Bool) {
-        self.zoom = zoom
+        setZoom(zoom)
         setMagnification(zoom == .fit ? fitMagnification : 1, unit: unit ?? CGPoint(x: 0.5, y: 0.5), animated: animated)
-        if zoom == .actualSize { loadFullResolution() }
     }
 
     /// Inside the caller's animation group when `animated`.
@@ -937,21 +989,22 @@ final class ComparisonPane: NSObject {
         }
     }
 
-    /// Follows the other pane: its magnification, and `unitCenter` in the
-    /// middle, clamped to this photo's bounds.
-    func show(magnification target: CGFloat, unitCenter: CGPoint) {
+    /// Follows the other pane: its magnification, `unitCenter` in the
+    /// middle, clamped to this photo's bounds, and its zoom.
+    func show(magnification target: CGFloat, unitCenter: CGPoint, zoom newZoom: LoupeController.Zoom) {
         if abs(scrollView.magnification - target) > 0.0001 { scrollView.magnification = target }
         let clip = scrollView.contentView
         let origin = ComparisonLink.visibleOrigin(centering: unitCenter, document: imageView.frame.size,
                                                   visible: clip.bounds.size)
         clip.scroll(to: clip.constrainBoundsRect(NSRect(origin: origin, size: clip.bounds.size)).origin)
         scrollView.reflectScrolledClipView(clip)
-        adoptMagnification()
+        updateFiltering()
+        setZoom(newZoom)
     }
 
-    /// Takes the zoom from the magnification a pinch, an Option-scroll, an
-    /// animation or the other pane left: zoomed in past fit shows the full
-    /// resolution render.
+    /// Takes the zoom from the magnification a pinch or an Option-scroll on
+    /// this pane left, as the single loupe does: zoomed in past fit shows
+    /// the full resolution render.
     func adoptMagnification() {
         updateFiltering()
         if scrollView.magnification > fitMagnification * 1.05 {
