@@ -10,6 +10,10 @@ scripted run used `compare animate off`, and display-link work (`compare panbenc
 Re-run after D12: `feature/side-by-side-comparison` at `553fc23`, same Mac and SDK (see
 [Re-run after D12](#re-run-after-d12)).
 
+Re-run after the merge with develop (#155 rename albums in place, #62 virtual copies) and the
+D14 / D15 fix: `feature/side-by-side-comparison` at `34d618d`, same Mac, macOS 27.2.1 (26B131),
+SDK 27.2, display asleep (see [Re-run after the merge with develop](#re-run-after-the-merge-with-develop)).
+
 ## Verdict
 
 Passes for everything that can be checked here: AC1 to AC6c pass by test and debug script, and
@@ -19,6 +23,14 @@ awake.
 
 Later on 2026-11-12 the owner reverted D12 (`f6c80f7`), so Q1 is back as a known limitation
 (#153), and signed off at `09f068c` with checks left open: see [Follow-up](#follow-up).
+
+**After the merge with develop (`34d618d`): passes.** D14 (Duplicate while comparing) and D15 (a
+copy's name and Copy badge) pass by script, the AC1 to AC6c regression scripts give the first
+pass's results on the merged code, and #62's Duplicate / undo / redo and #155's rename in place
+still work. No new finding for the engineer; Q2 (code review C16) is a known weakness of the
+tests, not a fault. This is a re-run after the sign-off: the owner's sign-off at `09f068c`
+stands as recorded, and **the merged result needs the owner's acknowledgement** (and M10, M11
+are new checks for a person, P7 and P8).
 
 ## Acceptance criteria
 
@@ -40,6 +52,8 @@ scripts check the wiring.
 | AC6b | Test, Script | `theLoupesPhotoIsComparedWithItsPartnerWhateverIsSelected`, `oneSelectedPhotoIsComparedWithTheNextWhichIsActive`, `thePartnerSkipsWhatCannotBeCompared`, `aStripClickWalksTheActiveSideOrSwitchesSides`; [scripts B and B3](#b-b3-ac6b): from the loupe on IMG_00003, `S` shows IMG_00004 on the right, active ("Comparing IMG_00003 and IMG_00004. Right photo active."); `→` replaces the right photo; one photo selected in the grid, `S` compares it with the next. A film strip cell's press (its accessibility action, the click's handler) replaces the right photo; pressing the left photo's cell makes the left side active | Pass |
 | AC6c | Test, Script | `commandsActOnTheActivePhotoOnly`, `thePartnerIsThePhotoLastComparedWith`, `aRememberedPairComesBackOnTheSameSidesWithTheSameOneActive`; [script A](#a-ac2-ac4-ac6c): `A` moves the ring, the active caption, the focus and the title to the left; `S`, `S` brings back RAW_00009 left (active) and RAW_00008 right, as left | Pass |
 | AC7 | Script, Person | `photobench compare` here: both sharp p50 183 ms (mean 209) without adjustments and p50 1.16 s with a typical stack, 192 MB held, footprint 1.18 GB / about 4.3 GB. This matches `status.md`. In the app [panbench](#panbench-ac7): both 24 MP raws sharp 0.42 s after zooming in, footprint 106 MB, then 1,047 MB at 100% and 351 MB afterwards, but "the display link does not fire": no hitch count. Target accepted by the owner at sign-off (zero dropped frames, linked and not, 24 MP raws; see Follow-up); the hitch count is still unmeasured. P3 | Open |
+| D14 (PRD Decision 16, R3; design §16 D14) | Script, Person | Unit test `undoAndRedoOfDuplicateKeepOrEndTheComparison` pins the rule only (Q2). [Merge re-run](#re-run-after-the-merge-with-develop) scripts d14refuse, d14menu, d14a to d14cd, d14zoom: Duplicate refused while comparing (and in review), dimmed in File, no Duplicate in the pane menu; undo / redo cases (a) to (d) as ruled; zoom and position kept through undo and redo at 100%. M11's keys and look: P8 | Pass (P8 open) |
+| D15 (PRD Decision 16, R7; design §16 D15) | Script, Person | Merge re-run script d15: captions `'RAW_00007.DNG'` and `'RAW_00007 copy'` with `[copy]` on the copy only; announcements and pane labels use the copy's name; narrow window snapshot keeps the badge while the name truncates. Truncation on a real 13" layout: P7 (M10) | Pass (P7 open) |
 
 ## Findings
 
@@ -68,6 +82,26 @@ pane at its fit and the other zoomed in, a pan of the zoomed pane flips the fitt
 
 No missing tests beyond what code review C3 accepted (undo and the single loupe coming back
 on leaving are covered by script only, in the app target).
+
+**Q2 (code review C16; known weakness, not blocking).** `undoAndRedoOfDuplicateKeepOrEndTheComparison`
+(`Tests/PhotoCoreTests/ComparisonTests.swift`) calls only `ComparisonRules.reconcile`, which the
+D14 commit did not change, so it passes with the fix taken out. The wiring (`!isComparing` in
+`canDuplicateTargets`, `replaceItems` calling `reconcileComparison`, the focus chosen after an
+undo that ends the comparison) is in the app target and guarded only by the scripts in
+[Re-run after the merge with develop](#re-run-after-the-merge-with-develop): rerun d14refuse,
+d14a to d14cd and d14zoom after any change to `LibraryModel.replaceItems`, `apply` or
+`DuplicateActions`. Remedy, if the engineer takes it: move the focus choice after a replacement
+into `ComparisonRules` and test it there, or say in the test's comment that the wiring is checked
+by script.
+
+Tooling notes from the merge re-run (no action on this branch):
+- The script wraps every `key` command in an undo group of its own; a key that changes nothing
+  (`key shift+right`, `key z`) leaves an empty, unnamed undo step (`print undo` shows `undo ''`),
+  so a later `undo` undoes nothing. Real typing groups by event and leaves none. Scripts that test
+  undo should select with `focus` / `compare on` and zoom with `zoom`.
+- `menukey cmd+d s` (or `cmd+d 5`) drops the ⌘D whenever another key follows it in the same
+  command, even in the single loupe with nothing compared; `menukey cmd+d` alone works with the
+  window key. So "⌘D, then `S` before the copies land" cannot be scripted (see the re-run).
 
 Tooling notes (no action on this branch): the `filmstripclick` click posted to a window that is
 not key does not arrive (the accessibility press does). The video loupe's `S` from `key` does
@@ -283,6 +317,136 @@ IMG_00006 1.030 and RAW_00007 0.170, both `zoom fit`, `rendition preview`.
 After the runs no instance was running and the owner's library folder had no file newer than the
 start. The scratch library, bundle copy and its preferences were removed.
 
+### Re-run after the merge with develop
+
+At `34d618d` (merge `bf3f55e` with #155 and #62, then D14 / D15 in `6345a70`), 2026-11-12,
+display asleep. `swift test`: 816 tests in 121 suites passed, 1 known issue (the Live render
+session's). `swift test --filter 'ComparisonTests|VirtualCopiesTests|Comparison'`: 81 tests in 3
+suites passed. `Scripts/build-app.sh`: complete, `vtool` shows `sdk 27.2`.
+
+A copy of the bundle at `<scratch>/GusQA.app`, bundle identifier
+`me.sesser.gus.debugtest.compare-qa2`, re-signed ad hoc. Library: `photobench generate --output
+src --jpeg 6 --dng 6 --heic 0 --pairs 2 --videos 1 --jpeg-size 800x600 --dng-size 6000x4000`,
+`import`, `previews --tier preview` and `--tier thumbnail`; every run started from a fresh copy
+of it. Each ran as `<scratch>/GusQA.app/Contents/MacOS/Gus --library-root <scratch>/lib
+--debug-script "wait 3; compare animate off; compare link on; rating any; flag any; pairs
+grouped; sort captureDate asc; wait 1; <script>"` (filters and window size are preferences and
+carry between runs). Order: IMG_00001 … IMG_00006, RAW_00007 … RAW_00012, PAIR_00013, PAIR_00014,
+MVI_00015; a copy goes right after its original.
+
+**d14refuse** (D14.1):
+```
+focus RAW_00007; key shift+right; compare on; wait 1; print compare; duplicate; print copies; menuitems Duplicate; print menustate; review on; wait 2; print compare; duplicate; print copies; quit
+```
+`duplicate unavailable`, `canDuplicate false`, list unchanged (15), `File/Duplicate key cmd+"d"
+disabled`; the same in review (`review true`).
+
+**d14menu** (D14.1, pane menu):
+```
+focus RAW_00007; key shift+right; compare on; wait 1; contextmenu at 700 300; contextmenu at 400 300; print compare; quit
+```
+Both panes' menus: Rating, Flag, Color Label, Add Keywords…, Suggest Keywords, Copy Adjustments,
+then one separator, Export…, Show in Finder, then the zoom items, Link Zoom and Position
+(checked), Stop Comparing. No Duplicate. The right-click on the inactive left pane made it active.
+
+**d14a** (copy beside its neighbor, undo takes the copy):
+```
+focus RAW_00007; duplicate; print copies; compare on; wait 1; print compare; print undo; undo; wait 2; print compare; print copies; print announcement; print undo; quit
+```
+Compared `'RAW_00007 copy'` [copy] (left) with RAW_00008 (right, active). Undo: `compare off
+mode loupe selection 7 focus 7` (RAW_00008 alone), announcement "RAW_00008, RAW, 8 of 15", redo
+'Duplicate'.
+
+**d14b** (two copies, undo takes both):
+```
+focus RAW_00007; key shift+right; duplicate; print copies; compare on; wait 1; compare active left; print compare; undo; wait 2; print compare; print copies; print announcement; quit
+```
+Compared `RAW_00007 copy` (left, active) with `RAW_00008 copy`. Undo: `compare off mode loupe
+selection 6 focus 6`: RAW_00007, the active copy's original (the undo's own focus would have
+been RAW_00008), announced "RAW_00007, RAW, 7 of 15".
+
+**d14cd** (undo, then redo, of another photo's Duplicate while comparing):
+```
+focus RAW_00007; duplicate; focus IMG_00003; duplicate; print copies; focus 8; compare on; wait 1; print compare; print undo; undo; wait 2; print compare; print copies; print undo; print announcement; redo; wait 2; print compare; print copies; key 5; wait 1; print items; print copies; print undo; quit
+```
+(c) Undo of IMG_00003's Duplicate: same sides (RAW_00007 copy left, RAW_00008 right, active),
+selection the pair (8,9 → 7,8 as the list shrank), focus the active photo, positions now "of
+16", no comparison announcement. (d) Redo: unchanged again; the copy is back in the list only;
+`key 5` rates RAW_00008 alone ('Set Rating').
+
+**d14zoom** (`review.md` sixth pass, the M11 addition: a pair at 100%, undo of a Duplicate made
+before comparing):
+```
+focus IMG_00003; duplicate; focus RAW_00007; compare on; wait 1; zoom; wait 3; pan 300 200; wait 2; print undo; print compare; undo; wait 3; print compare; print copies; redo; wait 3; print compare; print undo; snapshot <out>/d14zoom.png; quit
+```
+Before, after the undo and after the redo, both panes: `magnification 1.000 zoom actualSize
+rendition full visible 0.5097,0.2415 0.1807x0.3180`; selection 7,8 → 6,7 → 7,8, focus the active
+photo. Snapshot looked at: both raws zoomed in on the same spot, ring on the right, captions "8
+of 16" and "9 of 16". (A first attempt with `key shift+right` and `key z` hit the tooling note's
+empty undo step; this version avoids `key`.)
+
+**⌘D in the single loupe, then `S` at once.** Not scriptable (tooling note): `key cmd+d s` and
+`menukey cmd+d s` (launched with `open -W -n --stdout … --args --library-root <scratch>/lib …`,
+window key) both entered the comparison with no copy made; `menukey cmd+d 5` without comparing
+also made no copy; `menukey cmd+d` alone made one. A one-photo Duplicate lands in milliseconds,
+so a person can hardly reach this either. The copies landing while comparing take the same path
+as (d)'s redo (`showCopies` → `replaceItems` → kept), which passes.
+
+**filter** (a compared photo leaves the source by a filter change):
+```
+focus RAW_00007; compare on; wait 1; compare active left; key 5; wait 1; compare active right; print compare; rating 5; wait 2; print compare; print announcement; print title; quit
+```
+RAW_00008 (active) leaves under "5 stars": `compare off mode loupe`, RAW_00007 alone, announcement
+"RAW_00007, RAW, 5 stars, 1 of 1".
+
+**d15** (a photo beside its copy):
+```
+focus RAW_00007; duplicate; focus RAW_00007; compare on; wait 1; print compare; print announcement; snapshot <out>/d15.png; compare active left; print announcement; compare active right; accessibility AXImage; key right; wait 1; print announcement; key left; wait 1; print announcement; print compare; …; windowsize 700 600; …; focus RAW_00007; compare on; wait 2; print compare; snapshot <out>/d15narrow.png; quit
+```
+Captions: left `'RAW_00007.DNG'` badges [], right `'RAW_00007 copy'` badges [copy]; title
+`RAW_00007 copy`. Announcements: "Comparing RAW_00007 and RAW_00007 copy. Right photo active.",
+"Left photo active: RAW_00007", walking "Right photo: RAW_00008, RAW, 9 of 16" and back "Right
+photo: RAW_00007 copy, RAW, 8 of 16". Pane labels `'RAW_00007, RAW'` / `'RAW_00007 copy, RAW'`,
+strip cells the same. Narrow window (panes 262 pt) snapshot looked at: the right caption reads
+"RAW…copy" with the Copy badge, the left "RAW_00007.DNG"; the strip cell of the copy has its
+copy mark. Refusal alerts naming a copy: only the offline case can name one (a copy is never a
+video, and is never half of a pair), and offline can't be made here, so that text is checked by
+code review (C15) only. **paircopy2**: with `pairs separate`, PAIR_00013's copy beside
+PAIR_00013.JPG compares (no alert; Decision 16), captions `'PAIR_00013 copy'` [copy] and
+`'PAIR_00013.JPG'`.
+
+**Regression (AC1 to AC6c)** on the merged code, scripts as in the first pass with names:
+- **A**: same results: `RAW_00008:3` then undo 0; `A` moves to the left; `RAW_00007:2`; `→`
+  walks left to RAW_00009; `S` gives `compare off mode loupe selection 7,8 focus 8`; `S` brings
+  back RAW_00009 (left, active) and RAW_00008.
+- **B, B3**: from the loupe on IMG_00003, IMG_00004 right and active, the same announcement; `→`
+  to IMG_00005; from the grid, IMG_00005 with IMG_00006. Strip cell presses: IMG_00006 to the
+  right; IMG_00003's cell makes the left side active.
+- **C**: `Z` both 1.000 on `0.4097,0.3415`; pan both `0.5430,0.4665`; `compareclick left` only
+  activates; unlinked `Z` left to fit, right stays 1.000; relink brings the right to fit; `Z`
+  both 1.000.
+- **D10**: 2.000 / 2.000; ⌘−: 1.000 fit / 1.000 zoomed in, Zoom Out enabled; 0.500, 0.250,
+  0.165 fit (Zoom Out dimmed); the last press changes nothing.
+- **C11** (#153, accepted): after ⌘= ⌘= and a pan of the raw, IMG_00006 flips to `actualSize
+  rendition full` and `Z` takes both to fit, exactly as recorded before D12; unchanged by the
+  merge.
+- **E**: review, `S`, culling, `A`, Esc (comparison stays), `F`, `S` (single loupe, review).
+- **F, F2**: video: "Can’t Compare These Photos" / "“MVI_00015.MOV” is a video. Only photos can
+  be compared."; separate pair: "“PAIR_00013.DNG” and “PAIR_00013.JPG” are the RAW and JPEG
+  files of one photo."; grouped pair compares; from the video loupe "Can’t Compare This Photo".
+
+**#62 sanity** (`dup`): `duplicate` on IMG_00003: 15 → 16, the copy focused, undo 'Duplicate',
+"Made a copy of “IMG_00003”."; undo: 15, focus the original; redo: 16, the copy back; in the
+loupe the title `IMG_00003 copy`, the Copy badge and its tooltip; `key 5` rates the copy only.
+
+**#155 sanity** (`rename`, `renamecmp`): `renamealbum; text Best picks; key return` renames
+Keepers in place, undo 'Rename Album' gives Keepers back, redo Best picks. Renaming an album
+from its row menu while comparing (`renamealbum 0`) leaves the comparison as it was (sides,
+active side, selection, focus), before and after its undo.
+
+After the runs no instance was running and the owner's library folder had no file newer than the
+start. The scratch library, the bundle copy and its preferences were removed.
+
 ## For a person
 
 The owner does not check VoiceOver or macOS 15 and 26 (README). P1 and P3 need the display
@@ -322,6 +486,18 @@ awake; they are commands, so qa-tester can also run them when the Mac is awake.
   position goes first, then the name shortens, and the marks stay.
 - **P6. Full Keyboard Access** (M9). Tab from the sidebar lands on the comparison once, and the
   next Tab goes on to the inspector. The arrow keys walk the active side while it has focus.
+- **P7. A photo beside its copy in a narrow window** (M10, D15). Select a photo, File ▸
+  Duplicate (⌘D), select the photo and its copy in the grid and press `S`. With the sidebar and
+  inspector shown on a 13" display (or the window made narrow), the copy's caption keeps its Copy
+  badge and its marks (rating, flag, label) while its name truncates in the middle; the other
+  caption has no badge. (Scripted at 262 pt panes: the badge stays and the name reads "RAW…copy";
+  this is the look on a real layout.)
+- **P8. Duplicate while comparing** (M11, D14). With the window key while comparing, ⌘D beeps
+  and makes no copy, File ▸ Duplicate is dimmed, and a right-click on either pane shows no
+  Duplicate. Then, from the `review.md` sixth pass: Duplicate another photo, compare a pair and
+  zoom both to 100% (`Z`) on some detail, then Edit ▸ Undo Duplicate (and Redo): both panes keep
+  their zoom and position, and the same photos stay on the same sides. (Scripted with `zoom`,
+  `pan` and `undo`; this is the real keys and menus.)
 
 ## Follow-up
 
@@ -357,3 +533,11 @@ awake; they are commands, so qa-tester can also run them when the Mac is awake.
      were tried informally by the owner, not recorded one by one, so each stays open.
 
   Known limitation: #153 (above). VoiceOver and macOS 15 and 26 are not owner checks (README).
+- 2026-11-12, `34d618d`: **re-run after the merge with develop** (#155, #62) and D14 / D15
+  ([Re-run after the merge with develop](#re-run-after-the-merge-with-develop)). Full `swift
+  test` and `Scripts/build-app.sh` pass. D14 and D15 pass by script; AC1 to AC6c give the first
+  pass's results; #62 and #155 sanity runs pass; #153 behaves as accepted. No new finding for
+  the engineer. Q2 (code review C16) recorded as a known weakness: the D14 wiring is guarded by
+  script only. New checks for a person: P7 (M10) and P8 (M11). The sign-off above (at
+  `09f068c`) is unchanged; **the merged result at `34d618d` needs the owner's acknowledgement**,
+  with P7 and P8 either done or named as left open (for the pull request and #82).
