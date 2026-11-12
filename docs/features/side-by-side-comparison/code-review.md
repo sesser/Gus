@@ -218,3 +218,82 @@ Also checked, as asked:
 - Everything animated, as listed under the second pass, now including ⌘= / ⌘−: whether a bounds
   change arriving after an animated step's completion makes a pane follow (C11's state without a
   pan), and C9 with a real pinch.
+
+### Fourth pass (2026-11-12)
+
+Reviewed: the one commit that changed source or tests since the third pass, "Side by side
+comparison: following keeps each pane's own zoom (D12)" (`553fc23`, the head).
+Build and tests: `swift build` complete; `swift test` 777 tests in 119 suites passed with 1 known
+issue (the Live render session's existing one); `--filter ComparisonTests` 52 tests passed.
+Scripted checks ran against a copy of the bundle built from this commit, with its own bundle
+identifier and a scratch library from `photobench generate` (two 800 × 600 JPEGs, three
+3000 × 2000 raws), every one with `compare animate off` (the display was asleep): the animated
+paths and a real pinch were read, not run. The rule was also stepped outside the app:
+`ComparisonLink.follow` as committed, copied into a scratch script and driven event by event
+the way `ComparisonPane.zoom(by:)` and a pinch drive it.
+
+**Verdict.** C11 is fixed, and C2, D10 and D11 hold. The fix brought two new findings, C12 and
+C13 (both Should fix): each puts linked panes back in the state C9 was raised for, one zoomed
+in and one fitted at different sizes, after an ordinary zoom gesture on two equal photos. Both
+follow D12 as it is written, so they go to the designer first (Questions). Not ready for QA's
+second pass until they are ruled. No `CLAUDE.md` rule is broken, no rendering changed,
+`/security-review` is still not needed.
+
+| # | Result | How it was confirmed |
+|---|---|---|
+| C11 | Fixed, `553fc23` | `ComparisonLink.follow` (`Comparison.swift:378-388`) gives the follower its own result, and `ComparisonView.follow` (`ComparisonView.swift:376-386`) does nothing on nil. Run, a raw (left, fit 0.289) beside an 800 × 600 JPEG (right, active, fit 1.000): `zoomstep in` twice gives 1.000 `actualSize` / 1.000 `fit`; `pan 300 200` on the raw leaves the JPEG `1.000 zoom fit rendition preview`, `isZoomed: false`; `Z` gives 1.000 / 1.000, both `actualSize`; a pan there leaves both so; `Z` again 0.289 / 1.000, both `fit`. The reverse: a 3% Option-scroll on the fitted JPEG leaves the raw where it was, a larger one takes both to 1.111, zoomed in. Tests `aPanOnTheZoomedPhotoLeavesTheFittedOneFitted`, `aSmallGestureOnTheFittedPhotoLeavesTheZoomedOneAlone`, `aFollowerBroughtDownToItsFitIsFitted`. |
+
+Regressions looked for, as asked:
+
+- **C2: holds.** `Z` from either side with fits 1.000 and 0.289 (run) and 0.97 (traced): the
+  follow when the command ends finds the follower at the magnification it would take, so it
+  keeps the zoom the command gave it; the second `Z` fits both.
+- **C9: holds for one jump, not for a gesture made of small ones.** See C13. The second pass's
+  own run (one 3% Option-scroll, then a second) still gives both fitted, then both zoomed in.
+- **D10, D11: unchanged.** `step` changed only in its comment; `stepZoom` still passes no leader.
+- **Not linked: unchanged.** Every call of `follow` and `ComparisonLink.follow` is behind
+  `linked` (`paneDidScroll`, the end of `animate`, the walk in `update`, `relink`).
+- **Walking at 100%.** Run: both at 1.000, `key right`: the new raw opens `1.000 zoom
+  actualSize rendition full` at the other pane's unit rect. `show(_:)` has already put a new
+  photo at fit, so the state `followerIsNew` passes is the pane's real one.
+- **Relinking.** A zoomed-in leader never gives nil, so the inactive pane always gets a result;
+  the follow at the animation's end finds it there and keeps it. A fitted leader is unchanged.
+- **Nil.** Reached only with a fitted leader and a zoomed-in follower; nothing is shown,
+  scrolled or set. That is right in D10's mixed state and wrong in C12's.
+
+#### New findings
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C12 | Should fix | `Sources/PhotoCore/Browser/Comparison.swift:382-384`; `Sources/PhotoApp/Loupe/ComparisonView.swift:1055-1071` (`zoom(by:)`), `:1077-1080` (`didEndMagnify`) | "A fitted leader leaves a zoomed-in follower alone" also applies when a gesture has just brought the leader down to fit. An Option-scroll sets the leader's zoom from its magnification before the other pane follows (`adoptMagnification`, then `paneDidScroll`), so on the event that takes it to within 1.05 × fit the follow returns nil and the other pane stays where the event before left it. A regression: before this commit the follower went to its own fit with the leader. | Run: two 3000 × 2000 raws, linked, `Z` (1.000 / 1.000), then `optionscroll 300 400 -10` on the left: left `0.329 zoom fit`, right `1.000 zoom actualSize`. With a wheel's notches in a larger window (fit 0.389; `optionscroll 300 400 -1`, eight times): left `0.389 fit`, right `0.472 actualSize`. So zooming one photo out to fit leaves the other zoomed in, at another size, holding its full-resolution render. A pinch ends the same way when it stops between 1.01 and 1.05 × fit (stepped outside the app, not run: leader `fit`, follower `actualSize`, nil at the end). | Correctness; design §5 (Option-scroll, pinch: both take the same magnification, each stopping at its own fit); a regression of C9 |
+| C13 | Should fix | `Sources/PhotoCore/Browser/Comparison.swift:385-387`; `Tests/PhotoCoreTests/ComparisonTests.swift:511-534` | "Unchanged" compares the follower's new magnification with the one the previous event gave it, within 0.01 × its fit. A gesture arrives as many small events, so a slow one never "changes" the follower: it takes every magnification and keeps the zoom it started with. A trackpad Option-scroll of 1 point per event is 0.5% (`ScrollZoom.logFactorPerPoint`), and a pinch that doubles the size in more than about a second is under 1% per event. The test's loop gives the follower each size in one jump from fit, so it does not see this. | Run: two equal raws, linked, both at fit 0.389; `optionscroll 300 400 0.0333` (0.5%) thirty times: left `0.452 zoom actualSize rendition full`, right `0.452 zoom fit rendition preview`, `isZoomed: false` with the right photo active. Then `windowsize 1700 1000`: right refits to 0.456, left stays at 0.452, under its own fit of 0.456; `Z` on the left then fits instead of going to 100%. This is C9's failure again. The other way round (both zoomed in, a slow pinch out to fit) the follower stays `actualSize` at its fit, and C12 then keeps it so. From Q1's state (stepped outside the app) a slow scroll in on the raw carries the fitted JPEG to 1.502 still `fit`. | Correctness; D10's fifth bullet (above its fit a pane is zoomed in); a regression of C9 |
+
+#### Questions
+
+- **For the designer (C12), blocking.** D12's rule 2 leaves a zoomed-in follower alone whenever
+  the leader is fitted. It was written for D10's mixed state, where the fitted photo was fitted
+  all along. Say what the follower does when a pinch or an Option-scroll has just brought the
+  leader down to its fit (§5's second row says it goes to its own fit too), and how the two
+  cases are told apart; the two panes' states alone do not say which it is.
+- **For the designer (C13), blocking.** D12's rule 1 keeps the follower's zoom "if its
+  magnification did not change". Across a gesture's many small events that is always true. Say
+  what decides a follower's zoom while it is carried along: for example its own result whenever
+  the new magnification is above its fit, and "unchanged" only at its fit (C2's case).
+- **For the designer, not blocking.** Rule 3 with rule 1: walking at 100% to a photo no larger
+  than its pane (fit 1.000) opens it at 1.000 and fitted, beside a photo zoomed to 1.000, so the
+  first `Z` there changes nothing on screen. This follows from D12 ("mixed, with the fitted
+  photo active, `Z` takes both to 100%"); traced, not run. Confirm it is meant for a walk too.
+
+#### Not verified (display asleep; for qa-tester or a person)
+
+- C12 and C13 with a real pinch and a real trackpad Option-scroll (momentum included).
+- Everything animated, as listed under the second and third passes, now with the follow at the
+  end of `Z`, Fit, a click and relinking going through `ComparisonLink.follow`.
+
+#### Checked and fine in this commit
+
+- `ComparisonLink.follow` is pure, in PhotoCore, and what both `ComparisonView.follow` and
+  `relink` call; `magnification(following:)` is unchanged. No new string, brand value,
+  dependency, migration, launch option or debug-script command; no rendering or cache key change.
+- `docs/USER_GUIDE.md` and the `step` comment carry D13's wording (F7). `status.md`'s counts
+  match the run (777 tests).
