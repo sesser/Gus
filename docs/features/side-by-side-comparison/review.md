@@ -142,8 +142,8 @@ Not for the owner (README disclaims them): VoiceOver itself, and macOS 15 and 26
 Reviewer: apple-ui-designer, 2026-11-12. Branch at `16fb7ac` ("review fixes"), read against
 the rulings in `design.md` §16 and `status.md` §Review findings. Code read, not built or run.
 
-**Verdict: Approved.** F1 to F3 match D2, D3 and D5; DQ-4 is ruled D9 (as built). No change
-for the engineer.
+**Verdict: Changes needed (one).** F1 to F3 match D2, D3 and D5; DQ-4 is ruled D9 (as
+built). The code review's second-pass question on linked ⌘− is ruled D10, a change (F4).
 
 | Fix | Ruling | Where | Result |
 |---|---|---|---|
@@ -163,6 +163,20 @@ neighbour) bring the build closer to §5 and §6.
 own target, asks first, and is dimmed only for the library-ops reasons; comparison is a view
 state, so it doesn't lock the sidebar. Removing a project that holds a compared photo ends
 the comparison on the remaining photo, as any other departure from the source does. No change.
+
+**Linked ⌘− at the active photo's fit, ruled D10 (`design.md` §16): change.**
+
+- **F4 (D10).** In `ComparisonView.stepZoom`, a step is a magnification, not a fit command:
+  the other panes take the step's magnification, clamped at their own fit, whatever the
+  active pane's zoom state becomes (don't pass `leaderIsFitted: zoom == .fit` for steps; C2's
+  rule stays for `Z`, Fit and click). Each pane sets its own zoom state from its result.
+  While linked, Zoom Out (View menu, ⌘−, pane context menu) is enabled while any linked pane
+  is above its own fit; at the active pane's floor it leaves the active pane and steps the
+  other down through `LoupeZoomSteps` to its fit. Zoom In mirrors it at the maximum.
+  `publishZoom`'s `canZoomIn` / `canZoomOut` follow that. Unlinked: unchanged. Test in
+  `ComparisonTests` (or `ComparisonLink`) with fits 1.000 and 0.290 from 2.000: ⌘− gives
+  1.000 / 1.000, further ⌘− reach 1.000 / 0.290, then Zoom Out is off; the scripted run the
+  code reviewer made should read 1.000 and 1.000 after the first ⌘−.
 
 Manual checks: unchanged (M1 to M9); M3's last sentence now also covers the animation into
 the right pane, which nobody has seen yet.

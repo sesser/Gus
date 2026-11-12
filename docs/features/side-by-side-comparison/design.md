@@ -560,6 +560,35 @@ text disagrees, the ruling wins.
   single loupe when neither remains (code review C1); that is the same
   outcome as any other way a compared photo leaves the source (§6, "When a
   compared photo goes away"). No change.
+- **D10 (code review second pass, linked ⌘− when the active photo's fit is
+  100%, 2026-11-12): change.** As built, ⌘− from 200% lands the active
+  pane on 1.000, which is its fit, so the step is treated as "fit" and the
+  other pane goes straight to its own fit (0.290), skipping 100%. That is
+  not what §5 means. §5 separates two kinds of command:
+  - **Fit commands** (`Z` or a click toggling to fit, the toolbar's Fit,
+    Zoom to Fit): both panes go to their own fit. C2's rule
+    (`ComparisonLink.isFitted`) stays for these.
+  - **Steps** (⌘= / ⌘−, and the pane context menu's Zoom In / Zoom Out):
+    both take the **same magnification** as the step lands on, and each
+    stops at its own fit only when that magnification is below its fit.
+    A step that happens to land on the leader's fit is a magnification
+    (1.000), not a fit command, so the other photo goes to 1.000 too.
+    100% is the level people compare sharpness at; a zoom-out step must
+    never skip it on one side only.
+  - **Stepping on at the leader's floor.** While linked, Zoom Out (menu,
+    ⌘−, context menu) stays enabled as long as either pane is above its
+    own fit. Pressed when the active pane is already at its fit, the
+    active pane stays and the other pane takes its next step down, clamped
+    at its own fit, so repeated ⌘− still takes both to fit by keyboard.
+    Zoom In mirrors this at the top (enabled while either pane is below
+    its maximum). Unlinked, each pane's own state decides, as now.
+  - Each pane's zoom state follows its result: a pane at its fit reports
+    fit, a pane above it reports zoomed, so a later `Z` toggles the pair
+    as §5's first row says (the active pane's state leads).
+  Example, active fit 1.000, other fit 0.290, linked, both at 2.000:
+  ⌘− gives 1.000 / 1.000; each further ⌘− leaves the active pane at 1.000
+  and takes the other through the loupe's zoom steps below 1.000
+  (`LoupeZoomSteps`) down to 0.290; then Zoom Out is dimmed.
 
 ## References
 
