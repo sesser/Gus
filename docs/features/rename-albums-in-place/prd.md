@@ -1,10 +1,9 @@
-Issue: #141
-
 # Rename albums in place in the sidebar
 
-Status: Draft
+Status: Approved (owner, 2026-11-11)
+Issue: #141
 Slug: rename-albums-in-place
-Roadmap: Next (the roadmap is being edited by another agent; not changed here)
+Roadmap: Next
 
 ## Problem
 Library operations (#61) made projects rename in place in the sidebar: Return, the context menu's Rename, or File ▸ Rename, with the name becoming a text field in the row. Albums still rename through a sheet ("Rename…" in the context menu and File ▸ Rename “‹name›”…). So the sidebar has two rename styles for two kinds of item that look and behave alike. The library-ops design (§2.1) named this as an optional follow-up; the owner asked for it on 2026-11-10.
@@ -48,11 +47,13 @@ Renaming keywords or smart albums in place; merging or duplicate-name warnings f
 Builds on library-ops' project rename (`beginProjectRename`/`endProjectRename`, `renameAction`, the name field, Return handling, File ▸ Rename in `LibraryCommands`; design §4). The existing `renameAlbum(_:to:)` and undo name stay. `SidebarSheet.renameAlbum` and its sheet are removed. Touches `SidebarView`, `LibraryCommands`, `LibraryMenuContext` (`SidebarItem` rename title), the String Catalog, and `docs/USER_GUIDE.md` (engineer). Shares the generic name-rule with project rename where sensible (engineer's call). No data or migration change; no rendering change.
 
 ## Assumptions
-A1: Albums in every project and the global ("all projects") albums rename the same way.
-A2: As with project rename, the announcement for an empty name is checked by a person only if at all; the owner has said not to ask for VoiceOver checks, so it is Should and unverified by owner.
-A3: Same trimming as today's sheet (`Catalog.normalizedKeywordName`): the engineer confirms whether it also collapses inner spaces, and whether that matches the project rule. Behavior must be the same for both.
-A4: The context menu title is "Rename" (the system's `RenameButton`), as for projects.
+Confirmed by the owner on 2026-11-11 (approval with all proposed defaults), except A3's engineering check:
+A1 (decided): Albums in every project and the global ("all projects") albums rename the same way.
+A2 (decided): As with project rename, the announcement for an empty name is checked by a person only if at all; the owner has said not to ask for VoiceOver checks, so it is Should and unverified by owner.
+A3 (decided, engineer to confirm): Same trimming as today's sheet (`Catalog.normalizedKeywordName`). The engineer confirms whether it also collapses inner spaces and whether that matches the project rule; behavior must be the same for both.
+A4 (decided): The context menu title is "Rename" (the system's `RenameButton`), as for projects.
 
 ## Open questions
-- Designer: the context menu order for an album row (Rename first, then Delete…, separated?); how smart albums sit beside albums given only albums rename in place.
-- Engineer: whether the project rename's focus and field code can be shared by both row types, and what ("Album name" vs "Project name") labels the field.
+Owner questions: none; all answered by the approval.
+- Designer (open): the context menu order for an album row (Rename first, then Delete…, separated?); how smart albums sit beside albums given only albums rename in place.
+- Engineer (open): whether the project rename's focus and field code can be shared by both row types, and what ("Album name" vs "Project name") labels the field. R7 already requires "Album name" for albums.
