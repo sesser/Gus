@@ -220,6 +220,24 @@ loupe from fit 0.290 would step to 0.500.
 
 Manual checks: unchanged (M1 to M9). No USER_GUIDE term changes.
 
+**F5 confirmed** (commit "Side by side comparison: linked Zoom In (D11)"). `ComparisonLink.step`
+lands Zoom In on the smallest of the panes' next steps (`targets.min()`), whichever is
+active; Zoom Out still takes the active pane first. Each pane takes the landed
+magnification, at its own fit below it, and its zoom state follows. A guard keeps Zoom In
+from ever taking a pane back out: if the panes' magnifications differ, the one further in
+stays where it is. That matches D11's intent and is the right safety. `canZoomIn` follows
+through `publishZoom`. `aLinkedZoomInStepTakesBothToTheSameMagnification` checks 1.000 /
+0.500, 1.000 / 1.000, 2.000 / 2.000 with either side active, that ⌘− retraces it, the zoom
+states, the same-magnification case and the top. The engineer's scripted run (fits
+1.000 / 0.489) reads the same. **Pass.**
+
+USER_GUIDE (§ Comparing two photos): "⌘= and ⌘− take both photos to the same size; a photo
+stops at its own fit when the step would make it smaller than that, ⌘− goes on working
+until both are fitted, and ⌘= goes back up through the same sizes" describes D10 and D11
+correctly, in the UI's terms (View ▸ Link Zoom and Position, Zoom to Fit). No change.
+
+**Third pass verdict: Approved.** No open design findings. Manual checks M1 to M9 stand.
+
 ## Follow-ups
 
 None new from this review; the engineer's proposed issues in `status.md` stand, including the
