@@ -17,6 +17,9 @@ no finding is open. Q1 (code review C11) is fixed at `553fc23` (D12) and no long
 AC7 stays open: its number is still pending the owner, and the hitch count needs the display
 awake.
 
+Later on 2026-11-12 the owner reverted D12 (`f6c80f7`), so Q1 is back as a known limitation
+(#153), and signed off at `09f068c` with checks left open: see [Follow-up](#follow-up).
+
 ## Acceptance criteria
 
 `swift test`: 773 tests in 119 suites passed, 1 known issue (the Live render session's existing
@@ -36,7 +39,7 @@ scripts check the wiring.
 | AC6a | Test, Script | `theTwoFilesOfOnePairAreRefused`, `thePartnerIsNeverTheOtherFileOfThePair`, the walk, strip and pair-follow tests; [script F](#f-f2-ac6-ac6a): `pairs separate`, PAIR_00013.DNG with PAIR_00013.JPG selected: the alert "… are the RAW and JPEG files of one photo." and not entered. Grouped, PAIR_00013 with PAIR_00014 compares normally | Pass |
 | AC6b | Test, Script | `theLoupesPhotoIsComparedWithItsPartnerWhateverIsSelected`, `oneSelectedPhotoIsComparedWithTheNextWhichIsActive`, `thePartnerSkipsWhatCannotBeCompared`, `aStripClickWalksTheActiveSideOrSwitchesSides`; [scripts B and B3](#b-b3-ac6b): from the loupe on IMG_00003, `S` shows IMG_00004 on the right, active ("Comparing IMG_00003 and IMG_00004. Right photo active."); `→` replaces the right photo; one photo selected in the grid, `S` compares it with the next. A film strip cell's press (its accessibility action, the click's handler) replaces the right photo; pressing the left photo's cell makes the left side active | Pass |
 | AC6c | Test, Script | `commandsActOnTheActivePhotoOnly`, `thePartnerIsThePhotoLastComparedWith`, `aRememberedPairComesBackOnTheSameSidesWithTheSameOneActive`; [script A](#a-ac2-ac4-ac6c): `A` moves the ring, the active caption, the focus and the title to the left; `S`, `S` brings back RAW_00009 left (active) and RAW_00008 right, as left | Pass |
-| AC7 | Script, Person | `photobench compare` here: both sharp p50 183 ms (mean 209) without adjustments and p50 1.16 s with a typical stack, 192 MB held, footprint 1.18 GB / about 4.3 GB. This matches `status.md`. In the app [panbench](#panbench-ac7): both 24 MP raws sharp 0.42 s after zooming in, footprint 106 MB, then 1,047 MB at 100% and 351 MB afterwards, but "the display link does not fire": no hitch count. The target itself is pending the owner (PRD Assumptions). P3 | Open |
+| AC7 | Script, Person | `photobench compare` here: both sharp p50 183 ms (mean 209) without adjustments and p50 1.16 s with a typical stack, 192 MB held, footprint 1.18 GB / about 4.3 GB. This matches `status.md`. In the app [panbench](#panbench-ac7): both 24 MP raws sharp 0.42 s after zooming in, footprint 106 MB, then 1,047 MB at 100% and 351 MB afterwards, but "the display link does not fire": no hitch count. Target accepted by the owner at sign-off (zero dropped frames, linked and not, 24 MP raws; see Follow-up); the hitch count is still unmeasured. P3 | Open |
 
 ## Findings
 
@@ -305,7 +308,7 @@ awake; they are commands, so qa-tester can also run them when the Mac is awake.
 - **P3. AC7's number** (pending the owner). With the display awake and nothing else busy, on a
   scratch library with two 24 MP raws (or copies of the owner's own raws), compare them and run
   `compare panbench 6`, then `compare link off; compare panbench 6`. Each should report
-  `hitches 0`. First decide AC7's target and the raw size (PRD Assumptions).
+  `hitches 0`. Target and raw size decided by the owner at sign-off (see Follow-up).
 - **P4. Menus and alert keys** (M1, M5). With the window key while comparing, the View menu
   shows Stop Comparing (S), Switch to Left/Right Photo (A) naming the inactive side, and Link
   Zoom and Position checked; Show Original and Show History are dimmed. Compare Side by Side is
@@ -325,3 +328,32 @@ awake; they are commands, so qa-tester can also run them when the Mac is awake.
 - 2026-11-12, `553fc23` (D12, D13): **Q1 Fixed** ([Re-run after D12](#re-run-after-d12)).
   DQ-QA1 ruled D13, accepted as built. No new findings. P1 to P6 still open; P2 gained the M2
   drag item from `review.md`'s fourth pass.
+- 2026-11-12, `f6c80f7`: the owner reverted D12 (`status.md`, "D12 reverted"); D13's wording
+  stays. **Q1 Not fixed, accepted as a known limitation: #153** (linked, after ⌘= twice and a
+  drag of the zoomed photo, the fitted photo's zoom state can flip and `Z` goes to fit instead of
+  100%; the next step or `Z` puts both right). The D12 scripts in
+  [Re-run after D12](#re-run-after-d12) and the D12 drag item in P2 describe the reverted rule and
+  no longer apply.
+- **Sign-off.** The owner signed off on 2026-11-12 ("looks good") after trying the bundled app on
+  a playground library. Commit signed off: `09f068c` (`feature/side-by-side-comparison`).
+  Owner decisions the same day:
+  - AC7's target is accepted as proposed: zero dropped frames while panning two sharp raws at
+    100% on the reference Mac, linked and not linked. The long frames when a full-resolution
+    picture arrives stay outside it.
+  - The owner's usual raw size is 24 MP (the size `photobench compare` and the panbench scripts
+    used).
+
+  **Checks left open at sign-off** (for the pull request and #82):
+  1. **AC7 hitch count (P3).** `compare panbench 6`, then `compare link off; compare panbench 6`
+     on two 24 MP raws with the display awake; each should report `hitches 0`. Never measured:
+     the display was asleep. AC7 stays Open until it is.
+  2. **Animations (P1, M3).** Entering and leaving comparison, ⌘= / ⌘− and `Z` animating with
+     both photos ending at the same size, and the film strip toggle (⌥⌘B twice) refitting both.
+  3. **Real pinch and trackpad (P2, M2).** Click, drag, pinch, scroll over the inactive photo,
+     double-click, with a real mouse and trackpad (the D12 drag item excepted: that is #153).
+  4. **Menus with a key window and alert keys (P4, M1, M5).** The View menu's comparison items
+     and their state while comparing; Return and Esc on the refusal alert.
+  5. **Looks (P5, M4, M6, M7, M8) and Full Keyboard Access (P6, M9).** M1 to M9 in `review.md`
+     were tried informally by the owner, not recorded one by one, so each stays open.
+
+  Known limitation: #153 (above). VoiceOver and macOS 15 and 26 are not owner checks (README).
