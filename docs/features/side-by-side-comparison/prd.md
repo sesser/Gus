@@ -93,8 +93,10 @@ input is not blocked (Proposed, pending owner; see Assumptions and Open
 questions).
 
 ## Non-goals
-- Comparing versions of one photo (depends on virtual copies, #62, not yet
-  specified). Design must not make it impossible later.
+- A comparison built for versions of one photo: no command that makes a copy
+  and compares it, no listing of a photo's copies, no side-by-side of edit
+  stacks. An original and its copy (#62) are two items and compare like any
+  two photos (Decision 16).
 - Editing in the comparison. Adjust and the inspector's edit tabs are not
   offered while comparing; edit in the single loupe.
 - Survey or lightbox grids of many photos, auto-grouping similar shots, or a
@@ -153,6 +155,20 @@ proposed (`design.md` §14 and §15):
     AC6b holds as written: from the loupe, `S` makes the partner on the right
     active (D3).
 
+16. Product manager, 2026-11-12, from Decision 1 and virtual-copies R5 (no
+    new owner decision: Decision 1 deferred versions only until #62 existed,
+    and #62 made a copy its own item in the grid, loupe and film strip). A
+    photo and its copy enter comparison like any two photos: R1 to R7 apply
+    unchanged, and a copy is never half of a RAW+JPEG pair, so R2's refusal
+    does not touch it. Each side must be told apart: a copy is named as
+    everywhere else in the app (its name, Copy badge) and in VoiceOver, as
+    R7 asks, so the choice is clear (the designer rules on the form, review
+    C15). Duplicate while comparing is not decided here: it is a design
+    ruling (review C14), the requirement being that the comparison and the
+    active photo never disagree (R3). Not built, not promised: any
+    shortcut to compare a photo with its own copy. If the owner wants one,
+    it is a new issue.
+
 ## Assumptions
 None outstanding. The earlier ones (AC7's number, the 24 MP size, the arrival
 frames, AC6b's active side) are decided: Decisions 13 and 15.
@@ -173,3 +189,6 @@ None for the owner. Checks only a person can do are open in `qa.md`
 - 2026-11-12: Ship. Owner signed off with checks left open; Decisions 13 to 15
   record AC7's acceptance, the 24 MP size and #153; Assumptions closed. R9 (three
   or four photos) was not built.
+- 2026-11-12, merge with #62: the first non-goal reworded and Decision 16
+  added (a photo and its copy compare as two photos; reviews C14 and C15
+  go to the designer and engineer). No requirement or criterion changed.
