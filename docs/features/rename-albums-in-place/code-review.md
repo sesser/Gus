@@ -100,4 +100,95 @@ not confirm without running the app; QA's check Q1 settles it. Three nits.
 
 ## Follow-up
 
-None yet.
+Second pass, 2026-11-11. The fixes are in `ba57bb2` (source, tests, user guide) and
+`53f4a51` (`status.md`).
+
+| # | State | Commit | Confirmed by |
+|---|---|---|---|
+| C1 | Fixed | `ba57bb2` | Reading, and `rowLeavesTheList`. `beginSidebarRename` now shows the sidebar and the row's section on every start, the same row included, and keeps the draft (`SidebarRenameActions.swift:75-85`). A rename whose row leaves the list ends by saving: `SidebarView` reports `SidebarListState` changes and `sidebarListChanged` ends it (`:93-98`). The state C1 described (a rename open with no field after its section is hidden or folded) is no longer reached, so Return is not left ignored. The engineer ran Q1 on the reviewed commit and saw C1's state, then R1–R3 after the fix (`status.md`); QA repeats them |
+| C2 | Fixed | `ba57bb2` | Reading. `sidebarpane`, `sidebarsection` and `review` open an undo group while a rename is open (`DebugScript.swift:166-169`). Each sleeps inside its group (300, 500 and 1,500 ms; `:573`, `:578`, `:463`), so the save made by the view's `onChange` on the next update lands in the group |
+| C3 | Fixed | `ba57bb2` | `AlbumRenameTests.swift:158-165`: three fixed orders, each checked to differ from the sorted list. No `shuffled()` left in the suite |
+| C4 | Fixed, with one new stale name (C5) | `53f4a51` | `5129a6e`, `43468c6` and `e2eb548` are ancestors of the branch |
+
+## Second pass
+
+Owner: code-reviewer. Date: 2026-11-11. Reviewed `f85a2b1`..`278cb9d`: `ba57bb2` (the
+fixes), `53f4a51` (status) and `278cb9d` (the design review's second pass, docs only; its
+ruling D-RA2 is the behavior as built). Build and tests: `swift build` complete;
+`swift test` 732 tests in 119 suites passed, the same 1 known issue; `AlbumRenameTests`
+8 tests passed, `rowLeavesTheList` among them; `LocalizationTests` and `BrandingTests`
+pass. The app was not launched; the script checks R1–R3 are the engineer's and QA's.
+
+The branch was rewritten since the first pass: the commits this file calls `629b6b3` and
+the one `status.md` calls `227ed46` are now `2bfce9b` and `f85a2b1` (same trees).
+
+### Verdict
+
+Ready for QA. C1–C4 are fixed and the new code brings no blocker and nothing to fix in
+source. One nit in `status.md` (C5) and one question for QA (Q2).
+
+### New finding
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C5 | Nit | `docs/features/rename-albums-in-place/status.md:15`, `:236` | The code review's commit is named `227ed46`, which is not on the branch; it is `f85a2b1`. C4 again, for a hash added by the fix. | "The commit after `227ed46`" leads to a commit that is not an ancestor of the branch. Since the branch's hashes have changed twice, naming commits by their subject line would last longer than a hash. | WORKFLOW: `status.md` current |
+
+### Question
+
+- **Q2, for QA's "For a person" list (not a finding).** `listState` covers every way a row
+  leaves the list except one that is AppKit's: the sidebar's list makes row views lazily,
+  so a row being renamed that is scrolled far out of view could lose its field without
+  `SidebarListState` changing. I could not settle this by reading (AppKit normally keeps
+  the row holding the first responder). Check: with enough albums to scroll, start a
+  rename, type, scroll the row well out of view with the wheel and back. Expected: the
+  field is still there with the typed text and Return saves. If the field is gone, File ▸
+  Rename on the row brings it back with the text (the same-row start), so nothing is
+  lost; report it then as a follow-up bug, not for this branch (the project rename on
+  `develop` has the same property).
+
+### Checked in the new commits and fine
+
+- **Re-entrancy of `sidebarListChanged`.** It ends the rename through `endSidebarRename`,
+  which clears `sidebarRename` before saving. The save (`renameAlbum`, `renameProject`)
+  changes `albums` or `projects` and sets `sidebarReveal` with `opening: false`; the
+  reveal handler then opens nothing and scrolls to a row that is not listed, so
+  `listState` does not change again and nothing loops. A second call finds
+  `sidebarRename` nil and returns false.
+- **Edge, not level.** `removed` is true only when the row was listed before the change
+  and is not after it. File ▸ Rename on a hidden or folded row sets the rename first and
+  then opens what hides it: every step is unlisted to unlisted or unlisted to listed,
+  for a library album, a project's album (the project inserted by the reveal handler one
+  update later) and a project. If the split view cannot show the sidebar and sets
+  `showsSidebar` back, that is a listed to unlisted change and the rename ends, saved.
+- **Saved once.** Whichever comes first, the field losing the keyboard (`sidebarpane
+  off`, review) or the list change, the other finds `sidebarRename !== rename` or nil and
+  does nothing. Starting on another row still ends the open one inside
+  `beginSidebarRename`, before any list change is reported; the `onChange` then sees the
+  new row, which is listed, and leaves it alone.
+- **Same-row start.** `if sidebarRename == nil { … }` creates the rename only when none
+  is open or the other row's was just ended; an open one on the same row keeps its draft.
+  Return in the list is still guarded by `sidebarRename == nil`.
+- **Undo group rule.** In the app the save runs in the event's own group as before. In
+  the debug script the three commands that can now end a rename are grouped only while
+  one is open, and none is in `changing`, so no group is left open and none is added
+  when no rename is open. One thing for QA's scripts: a grouped command that saves
+  nothing (the name unchanged, or `sidebarsection` only printing while a rename is open)
+  leaves an empty step, as `key` and `text` do (`status.md`, Debug-script results), so
+  an `undo` right after it undoes nothing. `click` and `loupe` stay ungrouped, as the
+  script's header says.
+- **Focus handed back.** `listHasKeyboard = true` is set only when `sidebarListChanged`
+  ended a rename and the sidebar is still shown; folding or hiding with no rename open
+  moves nothing, and a rename that already ended through its field returns false, so the
+  list does not take the keyboard from wherever the person moved it. With the sidebar
+  hidden nothing is forced (design D-RA2; the designer's manual check M5).
+- **`SidebarListState`, `SidebarRowPlace.isListed`** (PhotoCore, no AppKit or SwiftUI,
+  `Sendable`): a library album depends on the sidebar and the Albums section, which holds
+  exactly the albums with no project (`SidebarView.swift:126`); a project's album on the
+  sidebar, the Projects section and its own project's disclosure; a project's row on the
+  sidebar and the Projects section only, since it is the disclosure's label. The test
+  covers each, and that opening is never a removal. It does not compile without the fix.
+  `sidebarListChanged` itself is in `PhotoApp`, which has no test target: it rests on
+  R1–R3, as the other routes do (first pass, Coverage).
+- **Rules.** No catalog, migration, sidecar, pairing, rendering or dependency change; no
+  new UI string (the user guide's sentence is docs); no brand value; no persisted name.
+  `/security-review` is not needed.
