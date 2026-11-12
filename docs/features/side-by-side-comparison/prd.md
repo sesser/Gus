@@ -2,7 +2,7 @@ Issue: #63
 
 # Side by side comparison
 
-Status: Draft (defaults pending the owner's answers to intake; see Assumptions)
+Status: Approved (owner, 2026-11-11)
 Slug: side-by-side-comparison
 Roadmap: Next
 
@@ -85,28 +85,28 @@ responsive (a number to be proposed by the engineer, marked as assumption).
 - Edit history is unaffected: comparison makes no edits.
 - The film strip: needs a rule for what it shows while comparing.
 
-## Assumptions
-Unconfirmed; each is a proposed default for the owner's intake answers.
+## Decisions
+Approved by the owner on 2026-11-11, accepting the proposed defaults.
 1. Compares different photos, two at a time. Versions of one photo wait for #62.
 2. Lives in the library window's loupe and in review mode.
-3. Culling while comparing: yes, on the active photo.
+3. Culling while comparing: yes, on the active photo only.
 4. Zoom and pan linked by default, with an unlink switch.
 5. No editing while comparing.
-6. Two photos is the minimum slice; more is a Could.
-7. Numeric performance target is not yet set.
+6. Two photos is the minimum slice; more is a Could (R9).
+7. Picking: select two in the grid; walking one side against the other is a
+   Should (R6).
+
+## Assumptions
+Still unconfirmed.
+- The numeric performance target (AC7) is not set; the engineer proposes it
+  and it is marked as an assumption until the owner accepts it.
 
 ## Open questions
-Owner:
-- Q1 What is compared: different photos, versions of one photo, or both?
-  Default: different photos only.
-- Q2 How many at once? Default: two.
-- Q3 Where: library window, review mode, or both? Default: both.
-- Q4 Cull while comparing? Default: yes, on the active photo only.
-- Q5 Zoom and pan linked? Default: linked, with a switch.
-- Q6 Edit while comparing? Default: no.
-- Q7 How do you pick the two: select two in the grid, or pin one and walk
-  the rest against it? Default: select two; walking one side is a Should (R6).
+Owner: none; Q1 to Q7 are answered under Decisions.
 Designer: entry points, active marker, key to switch the active photo (note
 bare keys such as C, Z and `\` are taken), film strip behavior, narrow windows.
-Engineer: memory and speed of two 100% views on large raws, and how a
-RAW+JPEG pair resolves.
+Engineer: memory and speed of two 100% views on large raws (and a number for
+AC7), and how a RAW+JPEG pair resolves.
+
+## Revisions
+- 2026-11-11: approved; owner intake defaults recorded as Decisions.
