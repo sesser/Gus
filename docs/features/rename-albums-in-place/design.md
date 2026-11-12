@@ -154,7 +154,9 @@ Selection:
   didn't select would contradict D-L5.
 
 Undo and redo move the row back and forth the same way; the row is not
-re-selected by undo (undo restores the name, not the selection).
+re-selected by undo (undo restores the name, not the selection). A save,
+an undo or a redo only scrolls: it never turns on or expands a section or a
+project the person folded away (D-RA1). Opening is for File ▸ Rename only.
 
 ## 3. File ▸ Rename title (designer question 3)
 
@@ -309,4 +311,23 @@ owner's standing instruction):
 
 ## 9. Design questions from implementation
 
-None yet. Rulings go here, numbered D-RA‹n›.
+Rulings are numbered D-RA‹n›.
+
+**D-RA1. Undo and redo scroll the row into view but don't unfold the
+sidebar** (2026-11-11, from `status.md` "For the designer"). Built as
+`revealSidebarRow(_:opening: false)` after a save, an undo or a redo; only
+File ▸ Rename passes `opening: true`. That is the intended behavior, and §2.5
+now says so. Reasons:
+
+- Every rename route starts from a visible row (File ▸ Rename opens what
+  hides it first), so at save time the row is in view. A row can only be
+  folded away at undo time because the person folded it afterwards. Undoing
+  a rename should restore the name, not undo that layout choice (user
+  control; the same reason undo doesn't restore the selection).
+- The change is not silent: Edit's "Undo Rename Album" names it before it
+  runs, and when the album is the window's current source the window title
+  follows the name.
+- Unfolding on undo would make a sidebar section spring open from ⌘Z typed
+  while working in the grid, a layout change the person didn't ask for.
+
+No change to the code.
