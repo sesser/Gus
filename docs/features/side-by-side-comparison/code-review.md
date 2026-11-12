@@ -92,4 +92,63 @@ Not verified, for qa-tester (I could not make it concrete without launching the 
 
 ## Follow-up
 
-None yet.
+### Second pass (2026-11-12)
+
+Reviewed: `a009995`..`16fb7ac` ("Side by side comparison: review fixes"), the one commit that
+changed source or tests. Build and tests: `swift build` complete; `swift test` 768 tests in 119
+suites passed with 1 known issue (the Live render session's existing one; DQ-2's marker is gone).
+Scripted checks ran against a copy of the bundle built from this commit, with its own bundle
+identifier and a scratch library from `photobench generate`. The display was asleep, so every
+scripted check used `compare animate off`: the animated paths were read, not run.
+
+**Verdict.** C1 to C8 are closed. The C2 change brought one new finding, C9 (Should fix), and
+there is one nit, C10. No `CLAUDE.md` rule is broken, no rendering changed, and
+`/security-review` is still not needed. C9 should go to the engineer before QA, so QA does not
+check linked zoom twice.
+
+| # | Result | How it was confirmed |
+|---|---|---|
+| C1 | Fixed, `16fb7ac` | `reconcile` takes no reload focus (`Comparison.swift:270-281`); `apply` offers only the pair's other file, read from the list before it is replaced (`LibraryModel.swift:814-842`). Test `aRemovedPhotosNeighbourNeverTakesItsSide`. Scripted: comparing two raws, `compare active left; removephotos; alert press Remove`: `compare off`, `mode loupe`, the loupe on the remaining photo alone. |
+| C2 | Fixed, `16fb7ac`; see C9 | A pane keeps the zoom a command gives it; `follow` reads `ComparisonLink.isFitted`. Test `aPhotoAsSmallAsItsPaneStillTakesTheOtherTo100Percent`. Scripted with an 800 × 600 JPEG (fit 1.000) beside a HEIC (fit 0.290): `Z` gives 1.000 and 1.000 with `isZoomed: true`, `Z` again 1.000 and 0.290 with `isZoomed: false`, with either side active. |
+| C3 | Fixed where it can be unit tested, `16fb7ac`; accepted | `ActionTargets.indices` and `ComparisonRules.selection` are in PhotoCore and are what `actionTargets`, `selectComparison` and `apply` call; `commandsActOnTheActivePhotoOnly` and `theGridActsOnItsSelection` fail if the rule changes. Undo and the single loupe coming back stay scripted only, and `status.md` now says so. |
+| C4 | Fixed by reading, `16fb7ac`; the animated run is still open | Both refits are one animation group in `layoutPanes` and `followSuspensions` is held until its completion handler (`ComparisonView.swift:194-208`). With `compare animate off`, `filmstrip off; filmstrip on; print compare` gives `zoom fit`, `rendition preview` on both panes. The check in Questions needs the display awake: for qa-tester or a person. |
+| C5 | Stands as the proposed follow-up issue | One difference closed: `preloadNeighbors` prefetches the HDR rendition exactly as `LoupeView.preloadNeighbors` does. |
+| C6 | Fixed, `16fb7ac` | The ring test asserts 3:1 (design §16 D2: the requirement changed by ruling, not a tolerance loosened to pass) against a lowest measured 4.47:1, so the accent this Mac has set can't fail it. `symbolsResolve` always runs; `symbolsDateFromBeforeMacOS15` skips with a reason where the private list is missing or reshaped (it ran here, macOS 27.2.1). |
+| C7 | Fixed, `16fb7ac` | Either side follows its pair's other file. Test `aSideFollowsItsPairsOtherFile`. Scripted: `compare active left; pairfile jpeg; compare active right; undo; redo`: the comparison and the active side stay each time. |
+| C8 | Fixed, `16fb7ac` | `status.md` names commits by subject. |
+
+Designer's F1 to F3, checked for correctness only: F1 (`entry` makes the partner active with one
+photo and returns a remembered state unchanged; `enteringSide` moves the pane the loupe's photo
+goes to) passes its tests and the scripted `S`, `S` run (same sides, same active photo, after `A`
+and after a walk); F2 (`concernsOnePhoto`) and F3 (3:1) pass their tests.
+
+#### New findings
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C9 | Should fix | `Sources/PhotoApp/Loupe/ComparisonView.swift:363-373` (`follow`), `:1008-1018` (`adoptMagnification`); `Sources/PhotoCore/Browser/Comparison.swift:320`, `:333-335` | Two thresholds now decide "at fit". A pane a gesture ends on calls itself fitted up to 1.05 × fit (`adoptMagnification`); the pane that follows it is told `.fit` only when the leader is within 1.001 × fit (`isFitted`), otherwise `.actualSize`. Before this commit the follower took its zoom from its own magnification with the same 1.05, so the two agreed. A regression from the C2 change. | Run: two 3000 × 2000 raws, linked, both at fit (0.329). `optionscroll 400 400 0.2` (a 3% Option-scroll on the left pane): left `magnification 0.339 zoom fit rendition preview`, right `magnification 0.339 zoom actualSize rendition full`, menu state `isZoomed: true` with the right photo active. So a small scroll or pinch renders one photo at full resolution and holds it. Then `windowsize 1500 900`: left refits to 0.389, right stays at 0.339, below its own fit of 0.389: linked panes at different sizes. Then `Z` with the right photo active goes to fit, not to 100%. A pinch ends through the same two calls (`didEndMagnify`); not run. | Correctness; AC3 |
+| C10 | Nit | `Sources/PhotoApp/Model/LibraryModel.swift:835-836`; `Sources/PhotoApp/Model/ComparisonActions.swift:94-105` | The remembered pair is recorded on entering, switching sides and walking, but not when a reload changes a side's version (RAW+JPEG Pair ▸ Show …, C7's path). The memory then names a version that is no longer in the list, and `rememberedComparison` finds nothing. The old `comparisonPartners` had the same gap; D3 and AC6c now promise more. | Run: comparing RAW_00005 (left) with a grouped pair (right, active); `pairfile raw; key s; key s`: the comparison comes back as the pair on the left with RAW_00004 on the right, not the two that were left. Also, traced: the memory is cleared only in `closeLoupe`, and `apply` goes to the grid on an empty source without it (`LibraryModel.swift:857`). | Correctness, minor; AC6c |
+
+#### Questions
+
+- **For the designer, not blocking.** Linked, with the active photo no larger than its pane (fit
+  1.000): ⌘− from 200% is that photo's fit, so the other photo goes from 200% straight to its own
+  fit and never stops at 100% (run: 2.000 and 2.000, then 1.000 and 0.290). `Z` still reaches
+  100% on both. Say whether that is what §5's "at the low end each stops at its own fit" means.
+
+#### Not verified (display asleep; for qa-tester or a person)
+
+- `Z`, zoom steps and relinking with animation on (C2's fix through the completion handler), the
+  entering animation into the right pane (F1), and C4's check as written under Questions above.
+- C9 with a real pinch.
+
+#### Checked and fine in this commit
+
+- `ActionTargets` (PhotoCore, no AppKit, a neutral name) is the old rule moved, not changed.
+- `apply` still ignores a reload's focus while the comparison is kept, as before; when it ends,
+  the focus is the remaining photo, or the reload's when neither remains.
+- `compare animate on|off` sets a main-actor static the app never writes; it changes no photo, so
+  it needs no undo group. `panbench`'s display-link probe invalidates its link and gives up after
+  2 s.
+- No new string without a catalog entry (`LocalizationTests`), no brand value, no new dependency,
+  no migration, no rendering or cache key change.
