@@ -342,9 +342,10 @@ public enum ComparisonLink {
         wasZoomedIn || magnification > fit * zoomedInThreshold
     }
 
-    /// The magnification a pane takes to follow another at `leader`. A
-    /// leader that is zoomed in: the same magnification, and at the low end
-    /// each stops at its own fit. A leader at fit: the follower's own fit,
+    /// The magnification a pane takes when it follows another at `leader`
+    /// (`follow` says whether it does, and what its zoom then is). A leader
+    /// that is zoomed in: the same magnification, and at the low end each
+    /// stops at its own fit. A leader at fit: the follower's own fit,
     /// enlarged as far as the leader is over its fit (a small pinch that
     /// leaves the leader fitted), so both keep the same size on screen.
     public static func magnification(following leader: Double, leaderFit: Double, leaderIsZoomedIn: Bool,
@@ -355,7 +356,38 @@ public enum ComparisonLink {
         return min(max(leader, followerFit), max(maximum, followerFit))
     }
 
-    /// A pane as a zoom step sees it.
+    /// What a linked pane does when the other one (`leader`) moved: a pan,
+    /// a scroll, a pinch, the end of a `Z` or Fit animation, a walked photo
+    /// opening, relinking (design §16 D12). Nil: nothing; the follower keeps
+    /// its magnification, its position and its zoom. Otherwise it takes the
+    /// result and the leader's unit center.
+    ///
+    /// Following never changes a pane it does not move. Each pane's zoom is
+    /// its own result (D10), not the leader's:
+    /// - Leader zoomed in (`isZoomedIn`, the one rule's answer for it): the
+    ///   follower takes the leader's magnification, stopping at its own fit.
+    ///   If that is the magnification it already has, its zoom stays as it
+    ///   is: a fitted photo beside a zoomed one stays fitted when the zoomed
+    ///   one is panned, and a small photo `Z` zoomed to 100%, which is its
+    ///   fit, stays zoomed in. Otherwise it is zoomed in exactly when the
+    ///   new magnification is above its fit.
+    /// - Leader fitted (a gesture still under the threshold included): a
+    ///   zoomed-in follower is left alone, so a pinch on the fitted photo
+    ///   never zooms the other one out; a fitted follower takes its own fit,
+    ///   enlarged as far as the leader is over its fit, and stays fitted.
+    public static func follow(leader: PaneZoom, follower: PaneZoom, maximum: Double) -> PaneZoom? {
+        let tolerance = Double(LoupeZoomSteps.tolerance)
+        let magnification = magnification(following: leader.magnification, leaderFit: leader.fit,
+                                          leaderIsZoomedIn: leader.isZoomedIn, followerFit: follower.fit, maximum: maximum)
+        guard leader.isZoomedIn else {
+            return follower.isZoomedIn ? nil : PaneZoom(magnification: magnification, fit: follower.fit, isZoomedIn: false)
+        }
+        let unchanged = abs(magnification - follower.magnification) <= tolerance * follower.fit
+        return PaneZoom(magnification: magnification, fit: follower.fit,
+                        isZoomedIn: unchanged ? follower.isZoomedIn : magnification > follower.fit * (1 + tolerance))
+    }
+
+    /// A pane as a zoom step or a follow sees it.
     public struct PaneZoom: Equatable, Sendable {
         public var magnification: Double
         public var fit: Double
@@ -384,10 +416,15 @@ public enum ComparisonLink {
     /// steps instead and the active pane stays, so repeated presses still
     /// take every pane to its fit. Zoom In lands on the smallest of the
     /// panes' next steps, whichever is active (design §16 D11), so the pane
-    /// that is furthest out catches up first and Zoom In retraces Zoom Out:
-    /// from 1.000 and 0.290, 1.000 and 0.500, then 100% and 100%, then 200%
-    /// and 200%. Each pane's zoom follows its own result: at its fit it is
-    /// fitted, above it zoomed in.
+    /// that is furthest out catches up first and Zoom In retraces Zoom Out
+    /// through the loupe's steps: from 1.000 and 0.290, 1.000 and 0.500,
+    /// then 100% and 100%, then 200% and 200%. Zoom Out may stop once more,
+    /// at a pane's own fit, when that fit is not one of the steps (the
+    /// single loupe's clamp at fit, design §16 D13): with fits 0.196
+    /// (active) and 0.165, out from 0.250 and 0.250 gives 0.196 and 0.196,
+    /// then 0.196 and 0.165, while Zoom In from there goes straight to
+    /// 0.250 and 0.250. Each pane's zoom follows its own result: at its fit
+    /// it is fitted, above it zoomed in.
     public static func step(zoomIn: Bool, active: Int, panes: [PaneZoom], maximum: Double) -> [PaneZoom]? {
         guard panes.indices.contains(active) else { return nil }
         func target(_ pane: PaneZoom) -> Double? {

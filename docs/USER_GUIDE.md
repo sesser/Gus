@@ -112,12 +112,12 @@ dragging on either photo move both to the same place at the same size, so two
 frames of a burst line up at 100%. Zoom to Fit fits each photo to its own
 side. ⌘= and ⌘− take both photos to the same size; a photo stops at its own
 fit when the step would make it smaller than that, ⌘− goes on working until
-both are fitted, and ⌘= goes back up through the same sizes. **View ▸ Link Zoom and Position**, or the
-link button in the middle of the caption line, turns that off so each photo
-zooms and scrolls on its own; the app remembers your choice. Turning it back
-on puts the other photo where the active one is. At 100% each photo is sharp
-once its full-size picture has been rendered, a moment after zooming in or
-moving to another photo.
+both are fitted, and ⌘= takes them back up. **View ▸ Link Zoom and Position**,
+or the link button in the middle of the caption line, turns that off so each
+photo zooms and scrolls on its own; the app remembers your choice. Turning it
+back on puts the other photo where the active one is. At 100% each photo is
+sharp once its full-size picture has been rendered, a moment after zooming in
+or moving to another photo.
 
 Nothing is edited while comparing: the Adjust tab says so and offers **Stop
 Comparing**, and the Adjust menu's editing commands, Show Original, the

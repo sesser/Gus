@@ -3,10 +3,11 @@ Issue: #63
 # Side by side comparison: status
 
 Owner: swift-macos-engineer. Branch: `feature/side-by-side-comparison`. State: **Done**
-(2026-11-12, after the third design pass). Every acceptance criterion is built and has a
-test or a scripted check. The designer's rulings D1 to D11 (design §16) and fixes F1 to F5,
-and the code review's findings C1 to C10, are answered under **Review findings**. No design
-question is open. Next: code-reviewer and the designer confirm F5, then qa-tester.
+(2026-11-12, after the fourth design pass). Every acceptance criterion is built and has a
+test or a scripted check. The designer's rulings D1 to D13 (design §16) and fixes F1 to F7,
+the code review's findings C1 to C11 and QA's Q1 are answered under **Review findings**. No
+design question is open. Next: code-reviewer and the designer confirm F6 and F7, and
+qa-tester reruns its C11 script.
 
 Spec: [`prd.md`](prd.md) (R1 to R9, AC1 to AC7, AC6a to AC6c, Decisions 1 to 12),
 [`design.md`](design.md) (§1 to §16). R9 (three or four photos) is a Could and is not built;
@@ -17,10 +18,10 @@ panes, the switch key and the captions are indexed, as design §1 asks.
 | | Baseline (branch point `c72d48e`, plus the PRD and design commits) | Now |
 |---|---|---|
 | `swift build` | clean, no warnings | clean, no warnings |
-| `swift test` | 724 tests in 118 suites passed, 1 known issue | 773 tests in 119 suites passed, the same 1 known issue |
+| `swift test` | 724 tests in 118 suites passed, 1 known issue | 777 tests in 119 suites passed, the same 1 known issue |
 | `Scripts/build-app.sh all` | not run | both bundles built |
 
-New suite: `ComparisonTests` (48 tests). `PaletteContrastTests` gained the ring's contrast.
+New suite: `ComparisonTests` (52 tests). `PaletteContrastTests` gained the ring's contrast.
 No golden moved and no rendering changed: `PreviewCacheKey.currentPipelineVersion` is not
 bumped. The panes show the renditions the single loupe shows, from the same
 `PreviewService` calls with the same keys.
@@ -91,7 +92,7 @@ own bundle identifier, `--library-root` on a scratch library from `photobench ge
 |---|---|---|
 | AC1 | `twoSelectedPhotosAreComparedInSourceOrder`, `activeIsTheLeftPhotoWhenFocusIsNeither`, `aLoadOnlyReplacesALesserRendition`, `panesAreEqualColumnsWithAGutterRoundEach` | `focus 1; key shift+right; compare on; print compare; snapshot`: both photos, the earlier one left, each pane at fit showing its preview; at 100% each shows `rendition full`. Pass. That a pane's picture equals the single loupe's is by construction (same requests); a person compares them by eye |
 | AC2 | `commandsActOnTheActivePhotoOnly`, `theGridActsOnItsSelection`: `ActionTargets.indices` and `ComparisonRules.selection` are the rules `LibraryModel.actionTargets`, `selectComparison` and `apply` call, so a command that reached both compared photos would fail the test | `key 3; print items; undo; print items`: only the active photo's rating changes, undo reverts it. A VoiceOver culling action on the inactive pane makes it active first and changes only it. Pass. **Undo is covered by the script only** (the existing culling undo step, in the app target) |
-| AC3 | `sameSizeFramesLineUpPixelForPixel`, `differentlySizedPhotosStayOnTheSameRelativePoint`, `theFollowerIsClampedToItsOwnBounds`, `linkedPanesTakeTheSameMagnification`, `aPhotoAsSmallAsItsPaneStillTakesTheOtherTo100Percent`, `aSmallGestureLeavesBothLinkedPanesFitted`, `aResizeAfterASmallGestureRefitsBothLinkedPanes`, `aLinkedZoomOutStepNeverSkips100PercentOnOneSide`, `aLinkedZoomInStepTakesBothToTheSameMagnification`, `anUnlinkedStepIsTheLoupes`, `theLinkIsOnUntilTurnedOff` | `key z; print compare`: both at 1.000 with the same visible unit rect; `pan`, `compareclick`, `zoomstep`, `optionscroll` keep the two centers equal (also a 2048 × 1365 JPEG beside a 6000 × 4000 raw, and an 800 × 600 JPEG whose fit is 1.000 beside a 2048 px one: `Z` takes both to 100% and `Z` again both to fit, from either side); `compare link off; key z`: one at fit, the other at 100%; `compare link on`: the inactive pane goes to the active one's. Pass |
+| AC3 | `sameSizeFramesLineUpPixelForPixel`, `differentlySizedPhotosStayOnTheSameRelativePoint`, `theFollowerIsClampedToItsOwnBounds`, `linkedPanesTakeTheSameMagnification`, `aPhotoAsSmallAsItsPaneStillTakesTheOtherTo100Percent`, `aSmallGestureLeavesBothLinkedPanesFitted`, `aResizeAfterASmallGestureRefitsBothLinkedPanes`, `aPanOnTheZoomedPhotoLeavesTheFittedOneFitted`, `aSmallGestureOnTheFittedPhotoLeavesTheZoomedOneAlone`, `aFollowerBroughtDownToItsFitIsFitted`, `aWalkedPhotoOpensWhereTheOtherPaneIs`, `aLinkedZoomOutStepNeverSkips100PercentOnOneSide`, `aLinkedZoomInStepTakesBothToTheSameMagnification`, `anUnlinkedStepIsTheLoupes`, `theLinkIsOnUntilTurnedOff` | `key z; print compare`: both at 1.000 with the same visible unit rect; `pan`, `compareclick`, `zoomstep`, `optionscroll` keep the two centers equal (also a 2048 × 1365 JPEG beside a 6000 × 4000 raw, and an 800 × 600 JPEG whose fit is 1.000 beside a 2048 px one: `Z` takes both to 100% and `Z` again both to fit, from either side); `compare link off; key z`: one at fit, the other at 100%; `compare link on`: the inactive pane goes to the active one's. Pass |
 | AC4 | `leavingKeepsTheCurrentPairSelectedAndTheActivePhotoFocused`: the selection the comparison holds (`ComparisonRules.selection`, which the model calls) is the pair on screen and the active photo, and back in the grid a command acts on both. That `stopComparing` leaves that selection alone and shows the single loupe is in the app target | `key s` while comparing: `compare off`, `mode loupe`, focus on the active photo, the pair on screen selected (also after a walk), the loupe's announcement. Pass. **The single loupe coming back is covered by the script only** |
 | AC5 | `escLeavesReviewFirstAndComparisonStaysOn` | `review on; print compare; key 2; key a; key x; key escape; key f; key s`: comparison stays on through entering and leaving review, culling and `A` work in it, `S` in review leaves comparison and stays in review. Pass |
 | AC6 | `aVideoIsRefusedAndNamed`, `anOfflinePhotoIsRefusedAndNamed`, `whenBothFailTheFirstPhotosFirstReasonIsGiven`, `aPhotoWithNothingToCompareWithIsRefused`, `theRefusalSaysWhetherOnePhotoOrTwoWereAsked`, `theCommandIsDimmedOnlyForCounts`, `theWrongCountEntersNothing` | A photo and a video selected, `compare on; alert`: "Can’t Compare These Photos", "“MVI_00010.MOV” is a video. Only photos can be compared.", one OK button, comparison not entered. From the video loupe's context menu: "Can’t Compare This Photo" with the same text. Pass. Offline: unit test only (no offline volume in the scratch library) |
@@ -133,7 +134,9 @@ photo" / "Right photo"), `S` ignored during a crop session, and the single loupe
   `compare on; filmstrip off; wait 1; filmstrip on; wait 2; print compare` with the display
   awake; each pane should report `zoom fit` and a rendition that is not `full`. With
   `compare animate off` it does. The second pass's fixes (C9, D10) were checked the same
-  way: a real pinch, and ⌘= / ⌘− with their animation, are still to be run.
+  way, and so were the later passes' (D11, D12): a real pinch, a real drag on the zoomed
+  photo beside a fitted one (the designer's new item under M2), and ⌘= / ⌘− with their
+  animation, are still to be run.
 - **Menus with a key window.** A scripted launch is not the active app, and macOS refused
   to activate the test bundle while the Mac was in use (`print responder`: `key nil`), so
   the View menu's titles and enabled states were read only as `print menustate`. `menukey s`
@@ -265,10 +268,18 @@ a scratch library with 800 × 600 JPEGs, 3000 × 2000 raws and two grouped pairs
 |---|---|---|
 | D11, F5 | Linked Zoom In lands on the smallest of the panes' next steps, not the active pane's, so it never skips 100% on one side and retraces Zoom Out | **Built.** `ComparisonLink.step`: for Zoom In the landing is the smallest `LoupeZoomSteps.zoomIn` target among the panes the step reaches, whichever is active; each pane takes it or stays at its own fit as in D10, and is never taken back out. Zoom Out, `Z`, Fit and clicks are unchanged; with both panes at one magnification nothing changes. Test `aLinkedZoomInStepTakesBothToTheSameMagnification` (fits 1.000 and 0.290 from fit, either pane active: 1.000 / 0.500, 1.000 / 1.000, 2.000 / 2.000, and ⌘− back through the same three). Scripted with `compare animate off` (an 800 × 600 JPEG at fit 1.000 beside a raw at fit 0.489, both fitted, each side active in turn): `zoomstep in` three times gives 1.000 / 0.500, 1.000 / 1.000, 2.000 / 2.000; `zoomstep out` three times gives 1.000 / 1.000, 1.000 / 0.500, 1.000 / 0.489; a fourth changes nothing |
 
+### Fourth pass (`review.md` "Fourth pass" F6, F7; `design.md` §16 D12, D13; code review C11; QA Q1)
+
+| | Ruling | Done |
+|---|---|---|
+| D12, F6 (C11, Q1) | Following never changes a pane it does not move; each pane's zoom is its own result | **Built.** `ComparisonLink.follow(leader:follower:maximum:)` in PhotoCore returns what the follower does, or nil for nothing. Leader zoomed in: the follower takes the leader's magnification, stopping at its own fit; its zoom stays as it is when that is the magnification it already has (within `LoupeZoomSteps.tolerance`), and otherwise is zoomed in exactly when above its fit. Leader fitted: a zoomed-in follower is left alone; a fitted one takes its own fit enlarged by the leader's share (C9). `ComparisonView.follow` calls it and does nothing on nil; a walked photo is passed as at its fit and fitted; relinking with a zoomed-in active pane uses the same function. C2's "linked panes share the zoom" is gone from following. `Z` and the View menu's title follow the active pane's state, as before. Tests: `aPanOnTheZoomedPhotoLeavesTheFittedOneFitted` (Q1), `aPhotoAsSmallAsItsPaneStillTakesTheOtherTo100Percent` (C2: a 1.000 zoomed follower stays zoomed), `aSmallGestureOnTheFittedPhotoLeavesTheZoomedOneAlone` (nil at 1.03, 1.06 zoomed past the threshold), `aFollowerBroughtDownToItsFitIsFitted` (0.329 fitted), `linkedPanesTakeTheSameMagnification` (equal fits unchanged), `aWalkedPhotoOpensWhereTheOtherPaneIs`. Scripted with `compare animate off`, a 6000 × 4000 raw (left) beside an 800 × 600 JPEG (right, active), QA's C11 steps: after ⌘= ⌘= and `pan 300 200` on the raw, IMG_00006 reads `1.000 zoom fit rendition preview` and the zoom state `isZoomed: false`; `Z` gives 1.000 / 1.000, a pan there leaves both zoomed in, `Z` again gives 0.178 / 1.000, both fitted. Two equal raws: `Z`, `pan`, `Z` gives 1.000 / 1.000 zoomed, the same after the pan, then both at fit. A walk at 100% opens the new photo at 1.000, zoomed in, `rendition full`; a walk beside a fitted pane opens it at fit, `rendition preview`. The reverse: with the fitted photo on the left and the raw at 0.500, a 3% Option-scroll on the fitted photo leaves the raw at 0.500, and a larger one takes both to 1.094, zoomed in |
+| D13, F7 | Zoom Out's extra stop at a pane's own fit is accepted; wording | `ComparisonLink.step`'s comment says Zoom In retraces Zoom Out through the loupe's steps and that Zoom Out may stop once more at a pane's own fit when it is not a step. `docs/USER_GUIDE.md`: "and ⌘= takes them back up" |
+
 ## Design questions (for apple-ui-designer)
 
-None open. DQ-1 to DQ-3 are ruled D1 to D3, DQ-4 is ruled D9 (as built), and the code
-review's question on linked ⌘− is ruled D10 (built, above).
+None open. DQ-1 to DQ-3 are ruled D1 to D3, DQ-4 is ruled D9 (as built), the code review's
+question on linked ⌘− is ruled D10, the engineer's note on ⌘= D11, C11 / Q1 D12 and QA's
+DQ-QA1 D13 (all built, above).
 
 ## Requirements issues (for product-manager)
 
@@ -316,4 +327,5 @@ benchmark commands.
 
 By subject (`git log --oneline c72d48e..`): "Side by side comparison: rules in PhotoCore",
 "… two panes in the loupe", "… benchmarks and user guide", "… status, Done", then, after the
-reviews, "… review fixes", "… second-pass fixes" and "… linked Zoom In (D11)".
+reviews, "… review fixes", "… second-pass fixes", "… linked Zoom In (D11)" and "… following keeps
+each pane's own zoom (D12)".

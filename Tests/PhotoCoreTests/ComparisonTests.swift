@@ -415,83 +415,137 @@ struct ComparisonTests {
                                              visible: pane) == CGPoint(x: -100, y: 300))
     }
 
-    /// What the pane that follows does for a leader at `magnification`:
-    /// its magnification, and whether it is zoomed in (the leader's answer
-    /// to the one rule, which linked panes share).
-    static func following(_ magnification: Double, leaderWasZoomedIn: Bool, leaderFit: Double, followerFit: Double,
-                          maximum: Double = 8) -> (magnification: Double, isZoomedIn: Bool) {
-        let zoomedIn = ComparisonLink.isZoomedIn(wasZoomedIn: leaderWasZoomedIn, magnification: magnification, fit: leaderFit)
-        return (ComparisonLink.magnification(following: magnification, leaderFit: leaderFit, leaderIsZoomedIn: zoomedIn,
-                                             followerFit: followerFit, maximum: maximum), zoomedIn)
+    typealias Pane = ComparisonLink.PaneZoom
+
+    /// A leader as a follow sees it: zoomed in by the one rule, from the zoom
+    /// a command or an ended gesture left (`wasZoomedIn`) and its magnification.
+    static func leader(_ magnification: Double, fit: Double, wasZoomedIn: Bool) -> Pane {
+        Pane(magnification: magnification, fit: fit,
+             isZoomedIn: ComparisonLink.isZoomedIn(wasZoomedIn: wasZoomedIn, magnification: magnification, fit: fit))
+    }
+
+    static func follow(_ leader: Pane, _ follower: Pane, maximum: Double = 8) -> Pane? {
+        ComparisonLink.follow(leader: leader, follower: follower, maximum: maximum)
     }
 
     @Test func linkedPanesTakeTheSameMagnification() {
+        let fitted = Pane(magnification: 0.2, fit: 0.2, isZoomedIn: false)
         // Both to 100%: each at one photo pixel per device pixel.
-        #expect(Self.following(1, leaderWasZoomedIn: true, leaderFit: 0.2, followerFit: 0.2).magnification == 1)
-        #expect(Self.following(2, leaderWasZoomedIn: true, leaderFit: 0.2, followerFit: 0.4).magnification == 2)
-        // The leader at its fit: the follower at its own.
-        #expect(Self.following(0.2, leaderWasZoomedIn: false, leaderFit: 0.2, followerFit: 0.4) == (0.4, false))
-        // At the low end each stops at its own fit.
-        #expect(Self.following(0.3, leaderWasZoomedIn: true, leaderFit: 0.2, followerFit: 0.4).magnification == 0.4)
-        #expect(Self.following(9, leaderWasZoomedIn: true, leaderFit: 0.2, followerFit: 0.4).magnification == 8)
+        #expect(Self.follow(Self.leader(1, fit: 0.2, wasZoomedIn: true), fitted) == Pane(magnification: 1, fit: 0.2, isZoomedIn: true))
+        // The leader at its fit: a fitted follower at its own.
+        let wide = Pane(magnification: 0.4, fit: 0.4, isZoomedIn: false)
+        #expect(Self.follow(Self.leader(0.2, fit: 0.2, wasZoomedIn: false), wide) == wide)
+        // At the low end each stops at its own fit, and is fitted there.
+        #expect(Self.follow(Self.leader(0.3, fit: 0.2, wasZoomedIn: true), Pane(magnification: 2, fit: 0.4, isZoomedIn: true))
+            == Pane(magnification: 0.4, fit: 0.4, isZoomedIn: false))
+        #expect(Self.follow(Self.leader(9, fit: 0.2, wasZoomedIn: true), wide)?.magnification == 8)
         // A pinch enlarging a fitted pane, before the gesture has ended: the other follows it, zoomed in.
-        #expect(Self.following(0.5, leaderWasZoomedIn: false, leaderFit: 0.2, followerFit: 0.2) == (0.5, true))
+        #expect(Self.follow(Self.leader(0.5, fit: 0.2, wasZoomedIn: false), fitted) == Pane(magnification: 0.5, fit: 0.2, isZoomedIn: true))
+        // Equal fits, both zoomed in: the follower stays as it is, zoomed in.
+        let zoomed = Pane(magnification: 1, fit: 0.2, isZoomedIn: true)
+        #expect(Self.follow(Self.leader(1, fit: 0.2, wasZoomedIn: true), zoomed) == zoomed)
+        // And goes along when the leader's magnification changes.
+        #expect(Self.follow(Self.leader(2, fit: 0.2, wasZoomedIn: true), zoomed) == Pane(magnification: 2, fit: 0.2, isZoomedIn: true))
     }
 
     /// AC3 for a photo about the size of its pane or smaller, where 100% is
-    /// (nearly) its fit: a 2048 px JPEG in a wide pane beside a 24 MP raw.
-    /// The magnification can't say whether 100% or fit was asked for; the
-    /// zoom the command set does.
+    /// (nearly) its fit: an 800 px JPEG beside a 24 MP raw. The magnification
+    /// can't say whether 100% or fit was asked for; the zoom the command set
+    /// does, and a follow that does not move the photo keeps it (code review
+    /// C2, design §16 D12).
     @Test func aPhotoAsSmallAsItsPaneStillTakesTheOtherTo100Percent() {
+        let rawAtFit = Pane(magnification: 0.12, fit: 0.12, isZoomedIn: false)
         // The small photo leads, zoomed to 100% by `Z`: the raw goes to 100%, not back to fit.
-        #expect(Self.following(1, leaderWasZoomedIn: true, leaderFit: 1, followerFit: 0.12) == (1, true))
-        #expect(Self.following(1, leaderWasZoomedIn: true, leaderFit: 0.97, followerFit: 0.12) == (1, true))
-        // `Z` again: the same magnification, now meant as fit, and the raw goes to its fit.
-        #expect(Self.following(1, leaderWasZoomedIn: false, leaderFit: 1, followerFit: 0.12) == (0.12, false))
-        // The raw leads at 100%: the small photo stays at 100%, which is its fit.
-        #expect(Self.following(1, leaderWasZoomedIn: true, leaderFit: 0.12, followerFit: 1) == (1, true))
-        // The raw leads back to fit: the small photo is at its own fit.
-        #expect(Self.following(0.12, leaderWasZoomedIn: false, leaderFit: 0.12, followerFit: 1) == (1, false))
+        #expect(Self.follow(Self.leader(1, fit: 1, wasZoomedIn: true), rawAtFit) == Pane(magnification: 1, fit: 0.12, isZoomedIn: true))
+        #expect(Self.follow(Self.leader(1, fit: 0.97, wasZoomedIn: true), rawAtFit) == Pane(magnification: 1, fit: 0.12, isZoomedIn: true))
+        // After `Z` both are at 100% and zoomed in. A pan on the raw leaves the
+        // small photo at 1.000, still zoomed in, so the next `Z` fits both.
+        let smallZoomed = Pane(magnification: 1, fit: 1, isZoomedIn: true)
+        #expect(Self.follow(Self.leader(1, fit: 0.165, wasZoomedIn: true), smallZoomed) == smallZoomed)
+        // `Z` again (a fit command sets both to fit); the follow after it changes nothing.
+        let smallFitted = Pane(magnification: 1, fit: 1, isZoomedIn: false)
+        #expect(Self.follow(Self.leader(1, fit: 1, wasZoomedIn: false), rawAtFit) == rawAtFit)
+        #expect(Self.follow(Self.leader(0.12, fit: 0.12, wasZoomedIn: false), smallFitted) == smallFitted)
+    }
+
+    /// QA's Q1 (code review C11): after ⌘= ⌘= the raw is at 0.500, zoomed in,
+    /// and the small photo at its fit of 1.000, fitted. A pan on the raw moves
+    /// nothing on the small photo, so it stays fitted: no full-resolution
+    /// render, the menu still says Zoom to 100%, and `Z` takes both to 100%.
+    @Test func aPanOnTheZoomedPhotoLeavesTheFittedOneFitted() {
+        let small = Pane(magnification: 1, fit: 1, isZoomedIn: false)
+        #expect(Self.follow(Self.leader(0.5, fit: 0.165, wasZoomedIn: true), small) == small)
+    }
+
+    /// The reverse: a gesture on the fitted photo. While it leaves that
+    /// photo fitted (under the threshold) the zoomed one is not touched, so
+    /// a pinch never zooms the other photo out first; past the threshold
+    /// the other photo takes the same magnification.
+    @Test func aSmallGestureOnTheFittedPhotoLeavesTheZoomedOneAlone() {
+        let raw = Pane(magnification: 0.5, fit: 0.165, isZoomedIn: true)
+        #expect(Self.follow(Self.leader(1.03, fit: 1, wasZoomedIn: false), raw) == nil)
+        #expect(Self.follow(Self.leader(1.06, fit: 1, wasZoomedIn: false), raw) == Pane(magnification: 1.06, fit: 0.165, isZoomedIn: true))
+    }
+
+    /// A zoomed-in follower that the leader brings down to its own fit is
+    /// fitted there: its zoom is its own result.
+    @Test func aFollowerBroughtDownToItsFitIsFitted() {
+        #expect(Self.follow(Self.leader(0.25, fit: 0.22, wasZoomedIn: true), Pane(magnification: 0.5, fit: 0.329, isZoomedIn: true))
+            == Pane(magnification: 0.329, fit: 0.329, isZoomedIn: false))
+    }
+
+    /// A photo a walk just put in a pane counts as at its fit and fitted
+    /// (the caller passes it so): beside a photo at 100% it opens at 100%,
+    /// zoomed in; beside a fitted one, at its own fit.
+    @Test func aWalkedPhotoOpensWhereTheOtherPaneIs() {
+        let new = Pane(magnification: 0.165, fit: 0.165, isZoomedIn: false)
+        #expect(Self.follow(Self.leader(1, fit: 0.165, wasZoomedIn: true), new) == Pane(magnification: 1, fit: 0.165, isZoomedIn: true))
+        #expect(Self.follow(Self.leader(0.196, fit: 0.196, wasZoomedIn: false), new) == new)
     }
 
     /// One rule says "at fit" (code review C9). A 3% Option-scroll or pinch
     /// on a fitted pane leaves that pane fitted when the gesture ends
-    /// (`wasZoomedIn` false: the magnification decides), and the pane that
-    /// follows it gets the same answer: it stays fitted, renders nothing at
-    /// full resolution, and is enlarged by the same 3%.
-    @Test func aSmallGestureLeavesBothLinkedPanesFitted() {
+    /// (`wasZoomedIn` false: the magnification decides), and the fitted pane
+    /// that follows it stays fitted, renders nothing at full resolution, and
+    /// is enlarged by the same 3%.
+    @Test func aSmallGestureLeavesBothLinkedPanesFitted() throws {
         let fit = 0.329
         let scrolled = fit * 1.03
+        let atFit = Pane(magnification: fit, fit: fit, isZoomedIn: false)
         // The pane the gesture ended on.
         #expect(!ComparisonLink.isZoomedIn(wasZoomedIn: false, magnification: scrolled, fit: fit))
         // The pane that follows it: the same size on screen, and fitted too.
-        let follower = Self.following(scrolled, leaderWasZoomedIn: false, leaderFit: fit, followerFit: fit)
+        let follower = try #require(Self.follow(Self.leader(scrolled, fit: fit, wasZoomedIn: false), atFit))
         #expect(!follower.isZoomedIn)
         #expect(abs(follower.magnification - scrolled) < 1e-12)
         // A photo with another fit is enlarged by the same share of its own fit.
-        #expect(abs(Self.following(scrolled, leaderWasZoomedIn: false, leaderFit: fit, followerFit: 0.5).magnification - 0.515) < 1e-12)
-        // Whatever the gesture's size, the two panes agree on fitted or zoomed in.
+        let other = try #require(Self.follow(Self.leader(scrolled, fit: fit, wasZoomedIn: false),
+                                             Pane(magnification: 0.5, fit: 0.5, isZoomedIn: false)))
+        #expect(abs(other.magnification - 0.515) < 1e-12)
+        // Whatever the gesture's size, two fitted panes agree on fitted or zoomed in.
         for step in 0...40 {
             let magnification = fit * (1 + Double(step) * 0.005)
-            let leader = ComparisonLink.isZoomedIn(wasZoomedIn: false, magnification: magnification, fit: fit)
-            #expect(Self.following(magnification, leaderWasZoomedIn: false, leaderFit: fit, followerFit: fit).isZoomedIn == leader)
+            let leader = Self.leader(magnification, fit: fit, wasZoomedIn: false)
+            #expect(Self.follow(leader, atFit)?.isZoomedIn == leader.isZoomedIn)
         }
         // Past the threshold both are zoomed in, at the same magnification.
-        #expect(Self.following(fit * 1.06, leaderWasZoomedIn: false, leaderFit: fit, followerFit: fit) == (fit * 1.06, true))
+        #expect(Self.follow(Self.leader(fit * 1.06, fit: fit, wasZoomedIn: false), atFit)
+            == Pane(magnification: fit * 1.06, fit: fit, isZoomedIn: true))
         #expect(ComparisonLink.zoomedInThreshold == 1.05)
     }
 
     /// After that small gesture both panes are fitted, so a window resize
     /// refits both: each goes to its new fit, and they stay the same size.
-    @Test func aResizeAfterASmallGestureRefitsBothLinkedPanes() {
+    @Test func aResizeAfterASmallGestureRefitsBothLinkedPanes() throws {
         let (oldFit, newFit) = (0.329, 0.389)
         let scrolled = oldFit * 1.03
         // Both panes count as fitted after the gesture (the rule a refit asks).
-        let leaderFitted = !ComparisonLink.isZoomedIn(wasZoomedIn: false, magnification: scrolled, fit: oldFit)
-        let followerFitted = !Self.following(scrolled, leaderWasZoomedIn: false, leaderFit: oldFit, followerFit: oldFit).isZoomedIn
-        #expect(leaderFitted && followerFitted)
+        let leader = Self.leader(scrolled, fit: oldFit, wasZoomedIn: false)
+        let follower = try #require(Self.follow(leader, Pane(magnification: oldFit, fit: oldFit, isZoomedIn: false)))
+        #expect(!leader.isZoomedIn && !follower.isZoomedIn)
         // Refitted, the leader is at its new fit and the follower at its own: equal for equal photos.
-        #expect(Self.following(newFit, leaderWasZoomedIn: false, leaderFit: newFit, followerFit: newFit) == (newFit, false))
+        let refitted = Pane(magnification: newFit, fit: newFit, isZoomedIn: false)
+        #expect(Self.follow(Self.leader(newFit, fit: newFit, wasZoomedIn: false), refitted) == refitted)
         // A pane a command zoomed in is not refitted by the same resize.
         #expect(ComparisonLink.isZoomedIn(wasZoomedIn: true, magnification: 1, fit: newFit))
     }
