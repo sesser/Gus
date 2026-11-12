@@ -125,7 +125,9 @@ import PhotoUI
 ///                           the Finder is not opened)
 ///     print removal         (whether a removal may start, is asked for or runs, and its Activity job)
 ///
-/// End a scripted rename with a key or `sidebarfocus`: taking the keyboard away another way saves outside any undo group.
+/// End a scripted rename with a key, `sidebarfocus`, another `renamealbum` or `renameproject`, or by taking its row
+/// out of the list (`sidebarpane off`, `sidebarsection … hide|collapse`, `review on`): taking the keyboard away
+/// another way (`click`, `loupe`) saves outside any undo group.
 ///
 /// Keys are characters ("3", "p") or names (left, right, up, down, home, end,
 /// pageup, pagedown, return, escape, space, delete, tab); prefix "opt+", "shift+" or "cmd+" for modifiers. Key events go through
@@ -158,10 +160,13 @@ enum DebugScript {
                 let words = command.split(separator: " ")
                 // "accessibility <role> <n> <action>" runs an action; listing changes nothing.
                 // "contextmenu fringe <n>" lists, and its Pick from Photo only arms.
-                // Starting a rename while another row's is open saves the open one.
+                // While a sidebar row is being renamed, starting a rename on
+                // another row saves it, and so does taking its row out of the
+                // list (the sidebar hidden, review, its section hidden or folded).
+                let endsRename: Set<String> = ["renameproject", "renamealbum", "sidebarpane", "sidebarsection", "review"]
                 let grouped = (changing.contains(String(words.first ?? ""))
                     && !DebugLensCommands.contextMenuChangesNothing(words.map(String.init)))
-                    || (["renameproject", "renamealbum"].contains(words.first) && model.sidebarRename != nil)
+                    || (endsRename.contains(String(words.first ?? "")) && model.sidebarRename != nil)
                     || (words.first == "accessibility" && words.count >= 4)
                     || (words.first == "history" && words.dropFirst().first == "revert")
                 if grouped { undoManager.beginUndoGrouping() }

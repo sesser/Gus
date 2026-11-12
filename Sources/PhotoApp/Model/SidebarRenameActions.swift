@@ -67,25 +67,34 @@ extension LibraryModel {
     }
 
     /// Puts a project's or an album's sidebar row into editing, making the
-    /// row visible first: the sidebar, the row's section, the project of a
-    /// project's album, the row. One row at a time: a rename open on another
-    /// row ends first, saved, as when the keyboard moves elsewhere.
+    /// row visible first, every time: the sidebar, the row's section, the
+    /// project of a project's album, the row. One row at a time: a rename
+    /// open on another row ends first, saved, as when the keyboard moves
+    /// elsewhere. A rename already open on this row keeps what was typed and
+    /// is shown again.
     func beginSidebarRename(_ item: SidebarSelection) {
         guard item.renameRoute == .inPlace, let name = inPlaceName(of: item), let place = sidebarRowPlace(of: item) else { return }
-        if let open = sidebarRename {
-            if open.item == item {
-                revealSidebarRow(item, opening: true)
-                return
-            }
-            endSidebarRename(open, save: true)
-        }
+        if let open = sidebarRename, open.item != item { endSidebarRename(open, save: true) }
         showsSidebar = true
         switch place {
         case .albums: setSidebarSection(.albums, shown: true)
         case .projects: setSidebarSection(.projects, shown: true)
         }
-        sidebarRename = SidebarRename(item: item, name: name)
+        if sidebarRename == nil { sidebarRename = SidebarRename(item: item, name: name) }
         revealSidebarRow(item, opening: true)
+    }
+
+    /// The sidebar's list changed what it shows. If that took the row being
+    /// renamed out of the list (its section hidden or folded, its project
+    /// folded, the sidebar hidden), its field went with it and can no longer
+    /// end the rename: it ends here, saved, as when the keyboard moves
+    /// elsewhere. Returns whether a rename ended.
+    @discardableResult
+    func sidebarListChanged(from old: SidebarListState, to new: SidebarListState) -> Bool {
+        guard let rename = sidebarRename, let place = sidebarRowPlace(of: rename.item),
+              new.removed(place, since: old) else { return false }
+        endSidebarRename(rename, save: true)
+        return true
     }
 
     /// The row's field ended. `save` is false for Escape: the old name

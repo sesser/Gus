@@ -155,8 +155,14 @@ struct AlbumRenameTests {
         let names = ["beach", "Alps", "alps", "ALPS", "Alpine", "Alp", "Zoo", "Ärger", "ärger", "été", "10 best", "2 best", "_drafts", "a b", "ab"]
         for name in names { _ = try await catalog.createAlbum(name: name) }
         let listed = try await catalog.albumSummaries()
-        #expect(listed.reversed().sorted(by: AlbumSummary.isListedBefore) == listed)
-        #expect(listed.shuffled().sorted(by: AlbumSummary.isListedBefore) == listed)
+        // Fixed orders, so a failure repeats: reversed, rotated, and every other one first.
+        let rotated = Array(listed[5...] + listed[..<5])
+        let interleaved = listed.indices.filter { $0.isMultiple(of: 2) }.map { listed[$0] }
+            + listed.indices.filter { !$0.isMultiple(of: 2) }.map { listed[$0] }.reversed()
+        for order in [Array(listed.reversed()), rotated, interleaved] {
+            #expect(order != listed)
+            #expect(order.sorted(by: AlbumSummary.isListedBefore) == listed)
+        }
 
         // "Alps" to "Zebra": the model changes the name and sorts; the catalog agrees once the write lands.
         let moved = try #require(listed.first { $0.album.name == "Alps" })
@@ -174,6 +180,43 @@ struct AlbumRenameTests {
         #expect(SidebarRowPlace.album(inProject: nil) == .albums)
         #expect(SidebarRowPlace.album(inProject: 7) == .projects(expanding: 7))
         #expect(SidebarRowPlace.project == .projects(expanding: nil))
+    }
+
+    @Test("Design §2.3, code review C1: a row being renamed leaves the list when its section is hidden or folded, its project folded, or the sidebar hidden; scrolling and opening never take it out")
+    func rowLeavesTheList() {
+        let open = SidebarListState(showsSidebar: true, albumsOpen: true, projectsOpen: true, expandedProjects: [7])
+        var noAlbums = open
+        noAlbums.albumsOpen = false
+        var noProjects = open
+        noProjects.projectsOpen = false
+        var folded = open
+        folded.expandedProjects = [3]
+        var hidden = open
+        hidden.showsSidebar = false
+
+        // A library album: only the Albums section and the sidebar matter.
+        #expect(SidebarRowPlace.albums.isListed(in: open))
+        #expect(noAlbums.removed(.albums, since: open))
+        #expect(hidden.removed(.albums, since: open))
+        #expect(!noProjects.removed(.albums, since: open))
+        #expect(!folded.removed(.albums, since: open))
+        // A project's album: the Projects section, its own project's disclosure, the sidebar.
+        let inProject = SidebarRowPlace.album(inProject: 7)
+        #expect(inProject.isListed(in: open))
+        #expect(noProjects.removed(inProject, since: open))
+        #expect(folded.removed(inProject, since: open))
+        #expect(hidden.removed(inProject, since: open))
+        #expect(!noAlbums.removed(inProject, since: open))
+        // A project's row is the disclosure's label: folding its albums leaves it listed.
+        #expect(!folded.removed(.project, since: open))
+        #expect(noProjects.removed(.project, since: open))
+        #expect(hidden.removed(.project, since: open))
+        // Opening is never a removal, nor is a row that was not listed to begin with:
+        // File ▸ Rename on a hidden row sets the rename first, then opens what hides it.
+        #expect(!open.removed(.albums, since: noAlbums))
+        #expect(!open.removed(inProject, since: folded))
+        #expect(!hidden.removed(.albums, since: noAlbums))
+        #expect(!open.removed(.albums, since: open))
     }
 
     // MARK: AC5, AC6: which items rename in place

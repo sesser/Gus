@@ -80,7 +80,21 @@ struct SidebarView: View {
                     // After the update that opens them, when the row exists.
                     Task { proxy.scrollTo(reveal.item) }
                 }
+                // A row being renamed that is hidden or folded away takes its
+                // field with it: the rename ends, saved (design §2.3), and the
+                // sidebar, if it is still there, keeps the keyboard (R1).
+                .onChange(of: listState) { old, new in
+                    if model.sidebarListChanged(from: old, to: new), new.showsSidebar { listHasKeyboard = true }
+                }
         }
+    }
+
+    /// How much of the list is open (`SidebarListState`).
+    private var listState: SidebarListState {
+        SidebarListState(showsSidebar: model.showsSidebar,
+                         albumsOpen: model.showsSidebarSection(.albums) && albumsExpanded,
+                         projectsOpen: model.showsSidebarSection(.projects) && projectsExpanded,
+                         expandedProjects: expandedProjects)
     }
 
     private var list: some View {

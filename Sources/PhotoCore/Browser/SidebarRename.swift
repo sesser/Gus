@@ -46,4 +46,42 @@ public enum SidebarRowPlace: Equatable, Sendable {
     public static func album(inProject projectID: Int64?) -> SidebarRowPlace {
         projectID.map { .projects(expanding: $0) } ?? .albums
     }
+
+    /// Whether the row is in the sidebar's list: the sidebar is shown, its
+    /// section is turned on and expanded, and for a project's album the
+    /// project is expanded. A row scrolled out of view is still listed.
+    public func isListed(in list: SidebarListState) -> Bool {
+        guard list.showsSidebar else { return false }
+        switch self {
+        case .albums: return list.albumsOpen
+        case .projects(let project): return list.projectsOpen && (project.map(list.expandedProjects.contains) ?? true)
+        }
+    }
+}
+
+/// How much of the sidebar's list is open, as far as rows that rename in
+/// place go. When a change here takes a row being renamed out of the list
+/// (its section hidden or folded, its project folded, the sidebar hidden),
+/// the rename ends, saved, as when the keyboard moves elsewhere
+/// (docs/features/rename-albums-in-place/design.md §2.3; code review C1).
+public struct SidebarListState: Equatable, Sendable {
+    public var showsSidebar: Bool
+    /// The Albums section is turned on (View ▸ Sidebar Sections) and expanded.
+    public var albumsOpen: Bool
+    /// The same for the Projects section.
+    public var projectsOpen: Bool
+    /// The projects whose albums are disclosed.
+    public var expandedProjects: Set<Int64>
+
+    public init(showsSidebar: Bool, albumsOpen: Bool, projectsOpen: Bool, expandedProjects: Set<Int64>) {
+        self.showsSidebar = showsSidebar
+        self.albumsOpen = albumsOpen
+        self.projectsOpen = projectsOpen
+        self.expandedProjects = expandedProjects
+    }
+
+    /// Whether the change from `old` to this state took the row out of the list.
+    public func removed(_ place: SidebarRowPlace, since old: SidebarListState) -> Bool {
+        place.isListed(in: old) && !place.isListed(in: self)
+    }
 }

@@ -150,7 +150,8 @@ rename or delete it, or a smart album to edit or delete it.
 Rename “‹name›”**, press Return while the sidebar has the keyboard, or
 right-click it and choose **Rename**. Its name becomes a text field in place,
 with the whole name selected: Return saves, Esc puts the old name back, and
-clicking elsewhere saves too. Spaces around the name are dropped, an empty
+clicking elsewhere saves too, as does folding or hiding the row away (its
+section, its project, the sidebar). Spaces around the name are dropped, an empty
 name is refused (the old one stays), and two projects, or two albums, may have
 the same name. The name is the library's only, and no sidecar changes. A
 project's folder on disk keeps its name (the row's tooltip still shows its
