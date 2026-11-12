@@ -265,7 +265,7 @@ Finder uses for duplicates:
 | Type badge | `RAW`, `RAW+JPEG`… | the copied file's type only, never a pair (§4.1) |
 | Loupe window title | `IMG_0412.RW2` | `IMG_0412 copy 2`, without the extension. With the extension the title would name a file that doesn't exist on disk, and Show in Finder reveals `IMG_0412.RW2`. The caption's Copy badge names the file (§6.3) |
 | Film strip tooltip, VoiceOver label (grid, strip, loupe) | `IMG_0412, RAW` | `IMG_0412 copy 2, RAW` |
-| Removal confirmation title (one target) | `Remove “IMG_0412” from the library?` | `Remove “IMG_0412 copy 2” from the library?` |
+| Removal confirmation title (one target) | `Remove “IMG_0412.RW2” from the library?` (as library-ops built it; D-V2) | `Remove “IMG_0412 copy 2” from the library?` |
 | Inspector, Info tab, file rows | `IMG_0412.RW2` | `IMG_0412.RW2`: the Info tab describes the file, which is the master's |
 | Activity rows that name photos (export failures, for example) | file name | display name |
 | Search field | matches the file name | unchanged: typing "copy" doesn't find copies (R11 covers finding them) |
@@ -517,4 +517,64 @@ takes over the sidecar and the RAW+JPEG pair link."
 
 ## 15. Design questions from implementation
 
-None yet. Rulings are recorded here as D-V1, D-V2….
+Rulings on the engineer's DQ-V1…DQ-V6 (`status.md`), 2026-11-11, at design
+review. Each D-V‹n› answers DQ-V‹n›.
+
+### D-V1. Changed on Disk lists originals only, and the inspector shows a change only for an original
+
+Option (b), and the same rule carried into the inspector. A change on disk is
+about the file's sidecar, which belongs to the default version (D3).
+Listing a copy there invites the person to resolve something the copy has no
+part in, and the source's count then disagrees with the sidebar badge.
+
+- **Source.** `.changedOnDisk` lists default versions only (one condition
+  in `whereClause`). Its count matches the sidebar badge.
+- **Inspector.** The Info tab's Changed on Disk section is computed from the
+  default versions among the targets only. With a copy selected in All
+  Photos, it doesn't show the original's change. Otherwise "Use File
+  Values" would change the original's rating while the copy is the photo
+  selected, and the section's values would not be the ones on screen. A
+  selection holding both the original and its copy shows the section once,
+  for the original, as now.
+- No new text. The user guide needs no change: it already says copies are
+  never written to sidecars.
+
+### D-V2. The removal title keeps the file name for an original
+
+As built. Library-ops shows `Remove “IMG_0412.RW2” from the library?`, and
+that stays: the confirmation is about a file-backed photo, and the extension
+tells a RAW from its JPEG. §5.2's row was wrong, and it is corrected. A copy
+uses its name without an extension (`PhotoName.inFull`), the same as the
+window title, since no file of that name exists.
+
+### D-V3. Right to left: the grid mirrors, the film strip doesn't change
+
+As built. In the grid both marks follow the layout direction, which also
+fixes the offline mark. The film strip places all four of its marks by fixed
+corners. Mirroring only the copy mark there would put it on the offline
+mark's corner. Mirroring the whole strip is a separate change to the film
+strip, and the app has no right-to-left localization to test it against.
+No change. Proposed follow-up, only if a right-to-left language is ever
+added: mirror the film strip's marks.
+
+### D-V4. Sentence order and the singular
+
+As built. The order is pair sentence, copies sentence, then the standard
+sentence. It goes from what is added to the removal to what is kept and
+lost, and the irreversible part is last, where LO §6.2 put it. "1 copy of
+these photos is removed with them." is right: the plural rule supplies the
+singular §7 left out. A separate key for "Its copy is removed with it." is
+right too.
+
+### D-V5. When the focused target is a video, the first new copy takes the focus
+
+As built. It is the nearest thing to the rule in §4.2: the focus lands on
+one of the new copies, which are the selection.
+
+### D-V6. Undo or Redo of Duplicate while another source is on screen
+
+As built. The window's undo manager spans sources, as the Mac expects. Undo
+takes the copies out of the catalog, out of any list on screen that shows
+them, and out of the sidebar counts, and it leaves a list that never showed
+them alone. Redo doesn't switch sources to show its result: no other undo
+step in the app does, and a source change from ⇧⌘Z would be a surprise.
