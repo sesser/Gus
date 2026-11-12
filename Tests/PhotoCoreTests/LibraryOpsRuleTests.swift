@@ -10,14 +10,14 @@ struct LibraryOpsRuleTests {
 
     @Test("L5: a typed project name is trimmed, an empty one refused, the same one a no-op")
     func projectNameRule() {
-        #expect(ProjectRename.resolve(typed: "Iceland 2026", current: "100OLYMP") == .rename("Iceland 2026"))
-        #expect(ProjectRename.resolve(typed: "  Iceland  2026 \n", current: "100OLYMP") == .rename("Iceland  2026"))
-        #expect(ProjectRename.resolve(typed: "", current: "100OLYMP") == .refused)
-        #expect(ProjectRename.resolve(typed: " \t\n ", current: "100OLYMP") == .refused)
-        #expect(ProjectRename.resolve(typed: "100OLYMP", current: "100OLYMP") == .unchanged)
-        #expect(ProjectRename.resolve(typed: " 100OLYMP ", current: "100OLYMP") == .unchanged)
+        #expect(InPlaceRename.resolve(typed: "Iceland 2026", current: "100OLYMP") == .rename("Iceland 2026"))
+        #expect(InPlaceRename.resolve(typed: "  Iceland  2026 \n", current: "100OLYMP") == .rename("Iceland  2026"))
+        #expect(InPlaceRename.resolve(typed: "", current: "100OLYMP") == .refused)
+        #expect(InPlaceRename.resolve(typed: " \t\n ", current: "100OLYMP") == .refused)
+        #expect(InPlaceRename.resolve(typed: "100OLYMP", current: "100OLYMP") == .unchanged)
+        #expect(InPlaceRename.resolve(typed: " 100OLYMP ", current: "100OLYMP") == .unchanged)
         // Only the case differs: that is a change.
-        #expect(ProjectRename.resolve(typed: "100olymp", current: "100OLYMP") == .rename("100olymp"))
+        #expect(InPlaceRename.resolve(typed: "100olymp", current: "100OLYMP") == .rename("100olymp"))
     }
 
     // MARK: L3: which files Show in Finder reveals

@@ -42,7 +42,7 @@ extension LibraryModel {
         guard renamingProjectID == id else { return }
         renamingProjectID = nil
         guard let typed, let current = projects.first(where: { $0.id == id })?.project.name else { return }
-        switch ProjectRename.resolve(typed: typed, current: current) {
+        switch InPlaceRename.resolve(typed: typed, current: current) {
         case .rename(let name):
             renameProject(id, to: name)
         case .unchanged:
