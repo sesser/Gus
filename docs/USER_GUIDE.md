@@ -54,6 +54,8 @@ photos the library does not have yet, and a folder with nothing new makes none.
 | Return, Space, double-click | open the loupe | back to the grid |
 | Esc | | cancels picking a fringe color, else hides the fringe or sharpening map, else leaves review, else back to the grid |
 | F | review the focused photo | enter or leave review |
+| S | compare the one or two selected photos side by side | compare the photo with another, or stop comparing |
+| A | | while comparing, make the other photo the active one |
 | - and = | | while picking a color, pixel magnifier zoom out / in |
 | Z, click | | toggle fit / 100% at the clicked point (⌥-scroll and pinch zoom too; drag pans) |
 | 0–5 | set rating | set rating |
@@ -79,6 +81,46 @@ sidebar and inspector hidden, full screen, and the toolbar shown only when
 the pointer reaches the top. Culling keys, arrows and Z keep working; ⌥⌘I
 brings the inspector back. F or Esc puts the window back as it was and stays
 in the loupe; Return or Space goes back to the grid.
+
+**Comparing two photos** (View ▸ Compare Side by Side, S): the loupe shows two
+photos next to each other, each as the loupe shows it alone. Select two
+photos in the grid and press S; the earlier one is on the left. With one
+photo selected, or from the loupe, S puts that photo on the left and beside
+it the photo it was last compared with since the loupe opened, or else the
+next photo in the source (the previous one at the end). Videos and photos
+whose originals are offline can't be compared, and neither can the RAW and
+the JPEG of one pair shown as two items; an alert says why.
+
+One photo is the *active* one: its side has a ring round it and its name is
+bold in the caption line. Everything acts on it only: the rating, flag and
+label keys, keywords, albums, Export, Show in Finder, the Info tab and the
+window's title. **A** (View ▸ Switch to Right Photo / Switch to Left Photo)
+or a click on the other photo makes that one active; that click does nothing
+else. The arrow keys, Home and End move the active side to another photo
+while the other side stays, skipping videos, offline photos and the photo on
+the other side; so does a click on a film strip thumbnail, and a click on the
+other side's thumbnail makes that side active. In the strip the active photo
+is outlined as usual, and the other one is highlighted without an outline. With **Advance After Rating**
+on, the active side moves to the next photo after each change, so you can
+reject the weaker photo and get the next one in its place.
+
+Zoom and position are linked: Z, a click, ⌘= and ⌘−, pinching, scrolling and
+dragging on either photo move both to the same place at the same size, so two
+frames of a burst line up at 100%. **View ▸ Link Zoom and Position**, or the
+link button in the middle of the caption line, turns that off so each photo
+zooms and scrolls on its own; the app remembers your choice. Turning it back
+on puts the other photo where the active one is. At 100% each photo is sharp
+once its full-size picture has been rendered, a moment after zooming in or
+moving to another photo.
+
+Nothing is edited while comparing: the Adjust tab says so and offers **Stop
+Comparing**, and the Adjust menu's editing commands, Show Original, the
+History panel, Remove from Album and Remove from Library are off. S again (or
+**Stop Comparing**) goes back to the loupe on the active photo, with the two
+photos still selected in the grid; S once more brings the same two back.
+Return, Space, a double-click or Esc go back to the grid. Review (F) works
+while comparing and gives the two photos the whole screen, which helps on a
+small display; Esc there leaves review first.
 
 **Film strip**: the loupe shows the current source's photos, filtered and
 sorted as in the grid, in a row between the photo and the caption line, with

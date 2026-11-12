@@ -121,8 +121,9 @@ import PhotoUI
 ///     compare active left|right|switch   compare link on|off   (the active pane; Link Zoom and Position)
 ///     compareclick left|right [<x> <y>]  (a click on a pane through its own mouse methods, at unit coordinates
 ///                           of its photo from the top left; waits out the double-click interval)
-///     compare panbench [<seconds>]   (both panes to 100%, then a pan on the display link: time until both are
-///                           sharp, frame intervals, hitches, main-thread time per step, memory)
+///     compare panbench [<seconds>] [walking]   (both panes to 100%, then a pan on the display link: time until
+///                           both are sharp, frame intervals, hitches, main-thread time per step, memory; walking
+///                           also moves the active side to the next photo once a second)
 ///     print compare         (the two versions, active side, link, each pane's magnification and visible unit
 ///                           rect, the ring and its color, the selection, title and each caption's content)
 ///

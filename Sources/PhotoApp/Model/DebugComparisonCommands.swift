@@ -21,7 +21,7 @@ enum DebugComparisonCommands {
 
     /// `compare on|off|toggle` (the menu command's path, alerts included),
     /// `compare active left|right|switch`, `compare link on|off`,
-    /// `compare panbench [<seconds>]`.
+    /// `compare panbench [<seconds>] [walking]`.
     static func run(_ words: [String], model: LibraryModel, window: NSWindow?) async {
         switch words.first {
         case "on":
@@ -39,7 +39,8 @@ enum DebugComparisonCommands {
         case "link":
             model.setComparisonLinked(words.dropFirst().first != "off")
         case "panbench":
-            await panBenchmark(seconds: Double(words.dropFirst().first ?? "") ?? 6, model: model, window: window)
+            await panBenchmark(seconds: Double(words.dropFirst().first ?? "") ?? 6, walking: words.contains("walking"),
+                               model: model, window: window)
             return
         default:
             print("debug-script: unknown compare command")
@@ -101,13 +102,15 @@ enum DebugComparisonCommands {
 
     // MARK: Pan benchmark (AC7)
 
-    /// `compare panbench [<seconds>]`: both panes to 100%, the time until
-    /// both show their full-resolution render, then a pan of the active
-    /// pane on the display link for `seconds`, the other pane following
-    /// through the link as it does under a drag. Reports frame intervals
-    /// (a hitch is a frame longer than 1.5 refresh intervals, as in
-    /// `ScrollBenchmark`), the main-thread time of each step, and memory.
-    private static func panBenchmark(seconds: Double, model: LibraryModel, window: NSWindow?) async {
+    /// `compare panbench [<seconds>] [walking]`: both panes to 100%, the
+    /// time until both show their full-resolution render, then a pan of the
+    /// active pane on the display link for `seconds`, the other pane
+    /// following through the link as it does under a drag. Reports frame
+    /// intervals (a hitch is a frame longer than 1.5 refresh intervals, as
+    /// in `ScrollBenchmark`), the main-thread time of each step, and memory.
+    /// `walking`: the active side also moves to the next photo once a
+    /// second, so full-resolution renders run while the panes pan.
+    private static func panBenchmark(seconds: Double, walking: Bool, model: LibraryModel, window: NSWindow?) async {
         guard let controller = controller(in: window), let pane = controller.activePane else {
             print("debug-script: panbench not comparing")
             return
@@ -128,6 +131,16 @@ enum DebugComparisonCommands {
                      sizes.joined(separator: " and "), controller.panes.allSatisfy { $0.rendition.isFullResolution } ? "yes" : "no",
                      sharp, Double(before) / 1_048_576, Double(footprint()) / 1_048_576))
         let run = PanRun(pane: pane, seconds: seconds)
+        if walking {
+            var forward = true
+            run.everySecond = { [weak model] in
+                guard let model else { return }
+                if model.walkComparison(forward ? .next : .previous, announces: false) == nil {
+                    forward.toggle()
+                    model.walkComparison(forward ? .next : .previous, announces: false)
+                }
+            }
+        }
         await run.measure()
         let intervals = run.intervals.sorted()
         let steps = run.stepSeconds.sorted()
@@ -136,6 +149,13 @@ enum DebugComparisonCommands {
         }
         let mean = intervals.isEmpty ? 0 : intervals.reduce(0, +) / Double(intervals.count) * 1000
         let meanStep = steps.isEmpty ? 0 : steps.reduce(0, +) / Double(steps.count) * 1000
+        if walking {
+            // What the long frames came with: a photo's full-resolution render
+            // arriving (its image goes to the layer), a walk (a new photo's
+            // preview), or neither.
+            print("debug-script: panbench walked \(run.walks) times while panning; long frames with a full render arriving"
+                  + " \(run.hitchesAtArrival), with a walk \(run.hitchesAtWalk), other \(run.hitchesElsewhere)")
+        }
         print(String(format: "debug-script: panbench linked %@ frames %d refresh %.2f ms frame mean %.2f p95 %.2f p99 %.2f max %.2f ms"
                          + " hitches %d step mean %.3f p95 %.3f max %.3f ms panned %.0f pt footprint %.0f MB",
                      model.linksComparison ? "yes" : "no", intervals.count, run.refreshInterval * 1000, mean,
@@ -160,6 +180,16 @@ enum DebugComparisonCommands {
         private var ends: CFTimeInterval = 0
         private var direction = CGVector(dx: 1, dy: 1)
         private var finish: CheckedContinuation<Void, Never>?
+        /// Run once a second during the pan (the walking variant).
+        var everySecond: (() -> Void)?
+        private(set) var walks = 0
+        private var nextSecond: CFTimeInterval = 0
+        /// Long frames, by what happened since the frame before.
+        private(set) var hitchesAtArrival = 0
+        private(set) var hitchesAtWalk = 0
+        private(set) var hitchesElsewhere = 0
+        private var walkedSinceLastFrame = false
+        private var sharpPanes = 0
         private static let speed = 1500.0
 
         init(pane: ComparisonPane, seconds: Double) {
@@ -182,11 +212,24 @@ enum DebugComparisonCommands {
                 last = link.timestamp
                 refreshInterval = link.targetTimestamp - link.timestamp
                 ends = link.timestamp + seconds
+                nextSecond = link.timestamp + 1
                 return
+            }
+            if let everySecond, link.timestamp >= nextSecond {
+                nextSecond += 1
+                walks += 1
+                walkedSinceLastFrame = true
+                everySecond()
             }
             let elapsed = link.timestamp - last
             last = link.timestamp
             intervals.append(elapsed)
+            let sharp = pane.controller?.panes.filter { $0.rendition.isFullResolution }.count ?? 0
+            if elapsed > refreshInterval * 1.5 {
+                if sharp > sharpPanes { hitchesAtArrival += 1 } else if walkedSinceLastFrame { hitchesAtWalk += 1 } else { hitchesElsewhere += 1 }
+            }
+            sharpPanes = sharp
+            walkedSinceLastFrame = false
             let began = CACurrentMediaTime()
             let clip = pane.scrollView.contentView
             let document = pane.imageView.frame.size
