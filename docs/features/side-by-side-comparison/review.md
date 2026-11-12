@@ -137,6 +137,36 @@ row and paragraph match D1. Needs the F1.5 update.
 
 Not for the owner (README disclaims them): VoiceOver itself, and macOS 15 and 26.
 
+## Second pass
+
+Reviewer: apple-ui-designer, 2026-11-12. Branch at `16fb7ac` ("review fixes"), read against
+the rulings in `design.md` §16 and `status.md` §Review findings. Code read, not built or run.
+
+**Verdict: Approved.** F1 to F3 match D2, D3 and D5; DQ-4 is ruled D9 (as built). No change
+for the engineer.
+
+| Fix | Ruling | Where | Result |
+|---|---|---|---|
+| F1.1 | D3: one photo, the partner (right) is active; two selected unchanged | `ComparisonRules.entry`; `ComparisonTests` | Pass |
+| F1.2 | D3, D6: a remembered pair comes back with the same sides and active side | `comparisonMemory` keyed by both versions, updated on entering, `setComparisonActive` and `replaceComparisonActive` (walks), cleared when the loupe closes; `rememberedComparison` passed to `entry` from the loupe; test `aRememberedPairComesBackOnTheSameSidesWithTheSameOneActive` | Pass |
+| F1.3 | D3: the loupe's photo refits into whichever pane it goes to; the other fades in | `comparisonEntersFrom` from the state's side of the focused item; `ComparisonView.layoutPanes` moves `enteringSide`, fades the other; Reduce Motion and video skip it | Pass in code. Not run on screen (engineer's display asleep): **M3** covers it |
+| F1.5 | Guide says the partner is active with one photo and `S` brings the pair back | `docs/USER_GUIDE.md` | Pass (per `status.md`; terms unchanged) |
+| F2 | D5: "Can’t Compare This Photo" when entered with one photo; "These Photos" with two | `ComparisonRefusal.concernsOnePhoto` (`video`/`offline` carry `alone`; `noPartner` is always one photo; `pairHalves` never), used by `showComparisonRefusal`; test `theRefusalSaysWhetherOnePhotoOrTwoWereAsked` | Pass. Keys: M5 |
+| F3 | D2: 3:1 in every appearance, no known issue | `PaletteContrastTests.theComparisonRingStandsOutOnTheSurround`: 3:1 for dark and high-contrast dark, neutral, the set accent and the eight named system colors; `withKnownIssue` gone | Pass. The named colors as stand-ins for the accent setting are an acceptable proxy (the setting can't be changed per process); the window is dark only, so light appearances need no check |
+
+The design requirements table above now reads Pass for the entry table (F1) and the refusal
+alert (F2), and the ring's contrast (F3). The C1 to C8 code fixes change no UI that §1 to §16
+specify; C2 (linked `Z` with a small photo) and C1 (a side never taken by the other side's
+neighbour) bring the build closer to §5 and §6.
+
+**DQ-4, ruled D9 (`design.md` §16): (a), as built.** Remove Project from Library… names its
+own target, asks first, and is dimmed only for the library-ops reasons; comparison is a view
+state, so it doesn't lock the sidebar. Removing a project that holds a compared photo ends
+the comparison on the remaining photo, as any other departure from the source does. No change.
+
+Manual checks: unchanged (M1 to M9); M3's last sentence now also covers the animation into
+the right pane, which nobody has seen yet.
+
 ## Follow-ups
 
 None new from this review; the engineer's proposed issues in `status.md` stand, including the

@@ -543,6 +543,23 @@ text disagrees, the ruling wins.
   accepted.** It matches the single loupe (Consistency); after the
   animation the linked pane is put on the leader's unit point, which is
   what §5 asks.
+- **D9 (DQ-4, Remove Project from Library… while comparing, 2026-11-12):
+  option (a), as built.** File ▸ Remove Project from Library… and the
+  sidebar row's menu item stay enabled while comparing. §4 dims the photo
+  commands (Remove from Library…, Remove from Album) because they would act
+  on the active photo, and a destructive command whose target silently
+  shifts with the active side is the risk; this command names its target
+  (the sidebar's project), asks first with no default button, and is
+  dimmed only for the reasons the library-ops design gives (an import or
+  folder add running). Comparison is a view state of the loupe, not a mode
+  that locks the library (§1), so it should not change what the sidebar can
+  do; a blanket "nothing is removed while comparing" rule would dim a
+  command for a reason the person can't see (HIG Menus: dim an item only
+  when it can't act). When the removed project holds a compared photo, the
+  comparison ends on the photo that remains, or the loupe closes as in the
+  single loupe when neither remains (code review C1); that is the same
+  outcome as any other way a compared photo leaves the source (§6, "When a
+  compared photo goes away"). No change.
 
 ## References
 
