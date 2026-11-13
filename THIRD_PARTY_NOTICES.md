@@ -44,21 +44,40 @@ SOFTWARE.
 ## LibRaw 0.22.3
 
 Vendored in `Sources/CLibRaw` (the `src`, `internal` and `libraw` folders of the
-release, from https://github.com/LibRaw/LibRaw, tag `0.22.3`). Used under the
-Common Development and Distribution License 1.0 (`Sources/CLibRaw/LICENSE.CDDL`;
-LibRaw is also offered under LGPL 2.1). Copyright 2008-2025 LibRaw LLC, with
-portions by Dave Coffin (dcraw) and others: see `Sources/CLibRaw/COPYRIGHT`.
+release, from https://github.com/LibRaw/LibRaw, tag `0.22.3`). LibRaw is offered
+under the GNU Lesser General Public License, version 2.1, or the Common
+Development and Distribution License 1.0, at the user's option. It is used here
+under the **LGPL 2.1** (`Sources/CLibRaw/LICENSE.LGPL`, upstream's file): this
+project is under the GPL, version 3 or later, with which the Free Software
+Foundation lists the LGPL 2.1 as compatible and the CDDL as not. Upstream's
+`LICENSE.CDDL` stays beside it only because the release ships both; that
+license is not the one taken. Copyright 2008-2025 LibRaw LLC, with portions by
+Dave Coffin (dcraw) and others: see `Sources/CLibRaw/COPYRIGHT`.
 
 - **Used for** raws the system's RAW decoder gives no image for (Fujifilm X-E3
   on macOS 27.2.1), and by `photobench rawcompare`:
   `Sources/PhotoCore/Preview/LibRawDecoder.swift` calls its C API,
-  `PreviewGenerator.decode` falls back to it.
-- **Modified files** (CDDL: changes to LibRaw's own files stay available in
-  source form): `internal/x3f_tools.h` and `internal/libraw_checked_buffer.h`,
-  one `#include "../libraw/…"` line each, changed to `"libraw/…"` for SwiftPM's
-  layout. Nothing else in the vendored tree is changed.
-- **Not built**: the GPL demosaic packs (never vendored), libjpeg, lcms,
-  RawSpeed and the Adobe DNG SDK. `src/*/…_ph.cpp` are included by other
-  LibRaw files and excluded from the target (`Package.swift`).
+  `PreviewGenerator.decode` falls back to it. The apps and `photocli` link it
+  statically.
+- **Modified files** (changed 2026-11-13): `internal/x3f_tools.h` and
+  `internal/libraw_checked_buffer.h`, one `#include "../libraw/…"` line each,
+  changed to `#include "libraw/…"` for SwiftPM's layout. Nothing else in the
+  vendored tree is changed.
+- **Changing LibRaw and building again.** LibRaw's complete source, as used, is
+  in this repository and is compiled from it by `Package.swift` (the `CLibRaw`
+  target); nothing is linked from a binary. To use a modified LibRaw, change
+  the files under `Sources/CLibRaw` (or replace `src`, `internal` and
+  `include/libraw` with those of another LibRaw release that has the same C
+  API, and make the two `#include` changes above) and run `swift build` or
+  `Scripts/build-app.sh`. The rest of
+  the source is in the same repository under the GPL, so the whole program can
+  be rebuilt with it.
+- **Not built**: zlib, libjpeg, lcms, RawSpeed and the Adobe DNG SDK (so
+  deflate-compressed and lossy DNGs are not decoded by it), and the GPL
+  demosaic packs, which were never vendored. `src/*/…_ph.cpp` are upstream's
+  placeholder stubs for builds without the real sources beside them, and
+  `src/Makefile` is upstream's own build; both are excluded from the target
+  (`Package.swift`). LibRaw is built thread-safe: `LIBRAW_NOTHREADS` is not
+  defined.
 
 https://www.libraw.org
