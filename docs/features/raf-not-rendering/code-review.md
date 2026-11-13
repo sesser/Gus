@@ -113,3 +113,139 @@ before sign-off; the license question (Q1) is the owner's.
   `LocalizationTests` pass.
 
 ## Follow-up
+
+### Second pass, 2026-11-13
+
+Reviewed: `0f2b4ee`..`69bb1c5` (ten commits). Source and tests change in
+`7957ed1`, `573a3ec`, `4e3441a`, `a150f76`, `ac2a1fd` and `3f1ec1b`; the last
+one (the design review's fixes F1 to F5) landed while this pass was running and
+is included. Build and tests at `69bb1c5`, working tree clean: `swift build`
+complete, no warning from the package (a clean build of `4ff5d30` in a scratch
+copy shows only two older warnings in `SmartAlbumTests` and
+`VirtualCopiesTests`); `swift test` 879 tests in 131 suites passed, the same 1
+known issue (`LiveSessionTests`); `RAF_SAMPLE=…/DSCF5123.RAF swift test --filter
+LibRawFallbackTests` 5 tests passed (31 s). macOS 27.2.1 (26B131).
+`Scripts/build-app.sh` not run; the app not launched.
+
+**Verdict.** C1 to C12 are closed: ten fixed, C5 ruled (Q4), C10 fixed where
+the engineer owns the file. No blocker. One new Should fix, C14, came in with
+the last commit and is the designer's call: choosing Custom in the White
+Balance Mode pop-up of any JPEG now looks dead and still saves an edit. Rule on
+it before QA so QA runs once; C13 and C15 are nits.
+
+#### Earlier findings
+
+| # | Outcome | Commit | How it was confirmed |
+| --- | --- | --- | --- |
+| C1 | Fixed | `7957ed1`, tests in `4e3441a` | `Package.swift` no longer defines `LIBRAW_NOTHREADS`. The process-wide statics the finding named are gone from the built `CLibRaw.o` (`nm`: two function statics left, see Checked). A scratch copy of `4ff5d30` with the define put back: `concurrentDecodesMatchSoloDecodes` fails (13 of 48 decodes differ), `buildIsThreadSafe` fails, and one orientation case fails beside them; without it all pass. |
+| C2 | Fixed | `4e3441a`, `a150f76`, `3f1ec1b` | One test, `SystemRAWDecoder.reads`; `RawDefaults` is nil exactly when it is false, and the editor's `isRaw`, the Adjust tab, Auto White Balance and `RenderContext.isRaw` follow it (`oneTestOfWhatIsDecodedAsRaw`, `autoWhiteBalanceFollowsTheDecoder`, `rendererAdjustsTheLibRawImage`; on the X-E3 file `adjustmentsChangeTheRender`, Auto gives relative 16, -22). Kelvin values still reach such a photo by paste, a preset or `photocli` and change nothing: ruled by the designer (D2), kept in the stack, the pop-up shows what renders (but see C14). |
+| C3 | Fixed | `4e3441a` | Decode settings reach only a raw the system decodes (`SystemRAWDecoder.Memo`). On the X-E3 file, one `LiveRenderSession`: an interactive frame, a final one, a Kelvin change, noise reduction, Exposure and Highlights below 0, relative white balance and a 0.9 crop made 1 decode (frames after the first 0.01 to 0.06 s); a 0.3 crop made the second, full one; removing the crop reused the first. For raws the system decodes the keys and the crop arithmetic are as before. |
+| C4 | Fixed | `4e3441a` | `PreviewGenerator.nativeSize` is 5998x3997 for the X-E3 file (`LibRawDecoder.frameSize`, 1.8 ms); the 0.3 crop renders 1799x1199 in the pipeline and in the live session. |
+| C5 | Ruled (Q4): no change | | The owner accepts two looks after a macOS change; the user guide says so. |
+| C6 | Fixed | `4e3441a`, `3f1ec1b` | 17 tests in two suites run by default on synthetic DNGs. With the fallback's line switched off in a scratch copy, `rawWithoutSystemImageRenders` (the test the Bug section now names) fails with `undecodable`, and five more with it. |
+| C7 | Fixed | `4e3441a`, changed by `3f1ec1b` | A machine learning request on a raw the system does not read reports `cameraNotSupported` on every macOS (design review F3), never `failed`; the check box stays enabled while asked, so it can be turned off. The render is still kept for the session only, as every not-applied render is. |
+| C8 | Fixed | `4e3441a` | LibRaw's reason is logged (category `decode`, file name private). |
+| C9 | Fixed | `573a3ec` | `src/Makefile` excluded, zlib not linked. |
+| C10 | Fixed where the engineer owns the file | `573a3ec`, `4e3441a`, `4ff5d30` | Notices, the decoder's comments, the user guide. `CLAUDE.md` (line 158 and Dependencies) and `.claude/agents/code-reviewer.md` were changed in `4ff5d30` and read correctly. `README.md` waits for Ship (the product manager's). See C15. |
+| C11 | Fixed | `4e3441a` | Long edges compared. |
+| C12 | Fixed | `ac2a1fd` | First run and best of N; usage text and `docs/PROFILING.md`. |
+
+#### New findings
+
+| # | Severity | Where | Finding | Failure | Rule |
+| --- | --- | --- | --- | --- | --- |
+| C13 | Nit | `Sources/PhotoCore/Preview/LibRawDecoder.swift:98` | `Frame.isTurned` is true for LibRaw's flips 5 and 6 only. Flips 4 and 7 (orientations 5 and 7, mirrored and turned) also swap width and height. | A synthetic DNG with orientation 5 or 7: the decode is 192x256, `LibRawDecoder.frameSize` (and so `PreviewGenerator.nativeSize`) says 256x192, against its comment "as it is shown". Nothing uses the difference today (`Crop.sourceZoom` tries both ways, the decode key takes the long edge); `LibRawFallbackTests.decodesAtFullAndSmallSizes` would fail on such a file. `flip & 4 != 0` covers all four. | Correctness |
+| C14 | Should fix (designer's call, Q8) | `Sources/PhotoApp/Views/AdjustView.swift:299,349-350`; `Sources/PhotoCore/Edits/Adjustments.swift:507-510` (`3f1ec1b`) | The Mode pop-up of every file that is not decoded as a raw (JPEG, HEIC, TIFF, PNG and LibRaw photos) now selects `relativeDisplayPreset`, which is As Shot whenever both relative values are 0. Choosing Custom still stores `preset = custom` (`pick`). | Any JPEG with Temperature and Tint at 0: choose Custom. The pop-up goes back to As Shot, and an edit is saved: a White Balance undo step, a history entry and a new render hash for the same pixels (`photocli render photo.jpg --set whiteBalance.preset=custom`: one `whiteBalance` operation, another `renderHash`, the PNG byte for byte the unedited one). Before `3f1ec1b` the pop-up showed Custom. By trace for the pop-up (the app was not launched); `print ml` prints `wb mode`, so QA can script it. The rule is the design review's F2 as written ("As Shot when both relative values are 0"), which also says picking a mode "behaves as today". | Correctness: state that drifts between two sources of truth |
+| C15 | Nit | `docs/features/raf-not-rendering/status.md` (Not done, and why; Owner's rulings Q2) | Says `CLAUDE.md` still says CDDL and "GRDB is the only dependency", and that `.claude/agents/code-reviewer.md` is not edited. `4ff5d30` changed all three. `CLAUDE.md`'s Layout and Commands still say nothing of `Sources/CLibRaw` or `RAF_SAMPLE` (the owner's sections; a proposal, not a finding). | A reader of `status.md` is told the rules still name the CDDL. | `docs/WORKFLOW.md` ownership |
+
+#### Questions
+
+- **Q5, owner: the frame.** Still open, as `status.md` lists it.
+- **Q6, engineer: two assumptions in the new keying, neither reproduced.**
+  `LiveRenderSession.decodeKey` (`LiveRenderSession.swift:426-447`) treats
+  every raw the system does not read as decoded by LibRaw and keeps its decode
+  under one of two keys. If ImageIO decodes such a file instead, the first
+  request's size serves every later one (forced with `systemDecodesRaw: false`
+  on a file LibRaw cannot open: a 250 pixel base for a 400 pixel frame and for
+  its crop). I found no file that takes that path: twelve mis-named JPEG, PNG,
+  TIFF and HEIC files and six truncated raws are each read by the system
+  decoder or by nothing. And `SystemRAWDecoder.reads` asks with default
+  settings, while `PreviewGenerator.decode` asks with the stack's (a pinned
+  decoder version once a macOS makes version 9 the default, the whole-sensor
+  copy): if the two ever disagree for a file, the Adjust tab offers a raw's
+  controls for a LibRaw image. Keying on what the decode returned
+  (`context.isRaw`, and whether LibRaw made it) would close both.
+- **Q7, qa-tester: several LibRaw photos at 100%.** A full LibRaw decode takes
+  about 9 s, cannot be cancelled, and peaks near 0.9 GB. `scheduleRegionPrepare`
+  starts one 150 ms after a photo is ready at 100% and leaving the photo drops
+  the renderer, not the decode. Step through five or six X-E3 photos at 100%
+  and watch memory and how long the last one takes to get sharp. Not measured
+  here (it needs the app).
+- **Q8, designer (Design question): C14.** What should the Mode pop-up show
+  after Custom is chosen with both values at 0, and should that choice save
+  anything? Showing the stored mode when it is one of the three offered and
+  has no Kelvin values would keep F2's fix for pasted modes; not saving when
+  nothing renders differently is the other way.
+
+#### Checked and fine
+
+- **`SystemRAWDecoder`.** `reads` and `RawDefaults.init?` make the same test
+  (`givesImage`: an image with a non-empty extent from `RAWDecodeGraph.output`,
+  never rendered; the tripwire in `RAWDecodeGraphTests` lists the file).
+  0.055 s on the X-E3 file. Never called on the main actor: the editor reads it
+  with `RawDefaults` in a detached task and hands the answer to the three
+  actors; `Memo` is a value inside each actor; `rectForCropping`, the fringe
+  picker and Color Alignment run detached.
+- **Editor.** `isRaw`, `usesFallbackDecoder`, `rawDefaults`, `cameraRect` and
+  the sessions are set in one main-actor step before `state = .ready`, and the
+  Adjust tab lays out controls only when ready, so no layout of the wrong kind
+  is drawn. Crop sessions, Rotate in the loupe and the grid's Rotate
+  (`rectForCropping`) take no camera frame for a LibRaw photo.
+- **Thread-safe build.** The two function statics left in `CLibRaw.o`
+  (`ljpeg_idct`'s cosine table, `vng_interpolate`'s cursor) are upstream's own
+  and are in its thread-safe build too; the first is for lossy DNGs, which this
+  build does not decode, the second for the VNG demosaic (four-color sensors at
+  full size). No sample, not reproduced.
+- **Vendored tree.** Unchanged since the first pass except `LICENSE.LGPL`
+  added, identical to upstream's at tag `0.22.3`.
+- **Pipeline version, goldens.** No bump needed: before this branch these files
+  did not render, so no stored stack renders differently; raws the system
+  decodes keep their decode arithmetic; `reducedOnce` leaves images up to 512
+  pixels alone, so Auto White Balance for JPEGs measures as before. No golden
+  moved, no tolerance changed. The two existing tests that changed
+  (`RAWDecodeGraphTests`, `LiveRegionRendererTests.decodeWhileMoving`) are not
+  loosened.
+- **Strings.** The note, "Not applied: this camera isn't supported. Luminance
+  applies instead." and the badge tooltip are in the catalog; the replaced
+  note's old key is gone; every caller of `MachineLearningText.caption`,
+  `checkBoxHelp` and `badgeHelp` passes `fallbackDecoder`. `LocalizationTests`
+  and `BrandingTests` pass. No persisted name, no migration, no catalog or
+  sidecar write, no network, no subprocess. `print ml` only reads, so it needs
+  no undo group.
+- **Tests.** Swift Testing, no sleeps, synthetic files in temporary folders;
+  expected values derived (linear levels from the mosaic's, orientation by
+  definition, the inset crop pixel for pixel). Tests that need the bug's
+  condition say so and still pass through the system decoder where it reads the
+  256 x 192 DNG.
+
+#### `/security-review`
+
+Should run on the branch: it adds a parser of untrusted files. What to look at
+now:
+
+- LibRaw 0.22.3 (C++, in process) now opens any raw the system decoder gives no
+  image for, with no action by the user: thumbnails of a folder or card just
+  added, the loupe, export, `photocli`. Known advisories against 0.22.3, and
+  what a hostile file costs in memory and time (LibRaw's own limits are left at
+  their defaults; a decode cannot be cancelled).
+- `LibRawDecoder.frameSize`: a header parse (`libraw_open_file`) of every raw
+  whose size the system decoder does not give, reached from
+  `PreviewGenerator.nativeSize`.
+- The bridge in `LibRawDecoder.decode`: the copy loop trusts the processed
+  image's `width`, `height`, `colors` and `bits` (checked for 16 bits and three
+  colors, not against `data_size`), and `Data(count: width * height * 8)` is
+  sized from them.
+- The build: thread-safe (no `LIBRAW_NOTHREADS`), all warnings off (`-w`), no
+  zlib, libjpeg or lcms, so those code paths are compiled out.
+- What LibRaw prints on standard error for damaged files, and the new log line
+  (file name private, LibRaw's reason public).
