@@ -52,6 +52,7 @@ public actor LiveRegionRenderer {
     private let generator: PreviewGenerator
     private let colorSpace: CGColorSpace?
     private var base: Base?
+    private var decoder: SystemRAWDecoder.Memo
     /// A decode under way: reentrant calls join it instead of starting another.
     private var decoding: (settings: RAWDecodeSettings, task: Task<Base, Error>)?
 
@@ -67,16 +68,21 @@ public actor LiveRegionRenderer {
         var machineLearning: MachineLearningNoiseReduction.Outcome
     }
 
-    /// - Parameter colorSpace: The display's color space, so frames need no conversion on screen.
-    public init(source: URL, generator: PreviewGenerator, colorSpace: CGColorSpace?) {
+    /// - Parameters:
+    ///   - colorSpace: The display's color space, so frames need no conversion on screen.
+    ///   - systemDecodesRaw: `SystemRAWDecoder.reads(source)` when the caller knows it; else the file is asked once.
+    public init(source: URL, generator: PreviewGenerator, colorSpace: CGColorSpace?, systemDecodesRaw: Bool? = nil) {
         self.source = source
         self.generator = generator
         self.colorSpace = colorSpace.flatMap { $0.model == .rgb ? $0 : nil }
+        self.decoder = SystemRAWDecoder.Memo(source, known: systemDecodesRaw)
     }
 
+    /// The decode settings that reach this master's decode: none for a file
+    /// the system RAW decoder does not read (a raw LibRaw decodes among
+    /// them), so no change of values asks for the same decode again.
     private func settings(for values: Adjustments) -> RAWDecodeSettings {
-        guard SupportedFormats.isRaw(pathExtension: source.pathExtension) else { return .none }
-        return generator.renderer.decodeSettings(for: values.editStack)
+        decoder.decodeSettings(generator.renderer.decodeSettings(for: values.editStack))
     }
 
     /// Whether `render` can draw `values` now, without a decode.
