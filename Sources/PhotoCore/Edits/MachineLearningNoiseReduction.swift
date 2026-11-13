@@ -52,6 +52,15 @@ public enum MachineLearningNoiseReduction {
         }
     }
 
+    /// Why machine learning is not applied to a raw the system's RAW decoder
+    /// gives no image for (`SystemRAWDecoder`), which LibRaw decodes: the
+    /// machine learning model is part of the system decoder, and that decoder
+    /// does not read this camera's file on this Mac. The camera is the reason
+    /// on every macOS; "needs macOS 27" would promise that an update helps,
+    /// and nothing says a later macOS reads the file (raf-not-rendering
+    /// review F3).
+    public static let reasonWithoutSystemDecoder = Reason.cameraNotSupported
+
     /// What one decode did with the request.
     public enum Outcome: Hashable, Sendable {
         /// The stack did not ask for it (or its Noise Reduction group is off), or the file is not RAW.

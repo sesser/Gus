@@ -498,6 +498,17 @@ public struct WhiteBalance: AdjustmentModule {
         return out.values
     }
 
+    /// The mode to show for a file that is not decoded as a raw, among
+    /// `Preset.relativePresets`: the one that renders. Only the relative
+    /// values reach such a file, so a named light source or a Custom that
+    /// holds Kelvin values (pasted from a raw, or from a preset) renders as
+    /// shot, and is shown so; Auto stays Auto. Display only: the stored
+    /// preset and values are kept.
+    public var relativeDisplayPreset: Preset {
+        if preset == .auto { return .auto }
+        return relativeTemperature == 0 && relativeTint == 0 ? .asShot : .custom
+    }
+
     /// Picks a named preset for a RAW file.
     public static func raw(_ preset: Preset) -> WhiteBalance {
         guard let neutral = preset.neutral else { return WhiteBalance(preset: preset) }

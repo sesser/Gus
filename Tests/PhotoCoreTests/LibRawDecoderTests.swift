@@ -524,19 +524,52 @@ struct LibRawFallbackPipelineTests {
     }
 
     /// Code review C7: the reason was overwritten with "failed", for a file
-    /// the system decoder does not read at all.
-    @Test("Machine learning asked of a raw LibRaw decodes is not applied for the availability's reason")
-    func machineLearningReasonIsTheAvailabilitys() async throws {
+    /// the system decoder does not read at all. Design review F3: the reason
+    /// is the camera on every macOS, never "this Mac needs macOS 27": machine
+    /// learning is the system decoder's, and it does not read this file.
+    @Test("Machine learning asked of a raw LibRaw decodes is not applied because of the camera")
+    func machineLearningReasonIsTheCamera() async throws {
+        #expect(MachineLearningNoiseReduction.reasonWithoutSystemDecoder == .cameraNotSupported)
         try await RepositoryFiles.withTemporaryDirectory { folder in
             let url = try Self.smallDNG(in: folder)
             guard !SystemRAWDecoder.reads(url) else { return }
-            let availability = MachineLearningNoiseReduction.availability(for: url)
-            let expected = try #require(MachineLearningNoiseReduction.Reason(availability),
-                                        "machine learning is \(availability) for a file the system decoder does not read")
             let decoded = try PreviewGenerator.decode(url, longEdge: nil, draft: false,
                                                       settings: RAWDecodeSettings(machineLearning: true))
-            #expect(decoded.machineLearning == .notApplied(expected))
-            #expect(expected != .failed)
+            #expect(decoded.machineLearning == .notApplied(.cameraNotSupported))
+            // The inspector's state for it, asked for or not (ml-denoise S6 and S4).
+            let asked = MachineLearningNoiseReduction.Status(asks: true, groupIsOn: true, availability: .cameraNotSupported)
+            #expect(asked.state == .notApplied(.cameraNotSupported))
+            #expect(asked.checkBoxIsEnabled)
+            let notAsked = MachineLearningNoiseReduction.Status(asks: false, groupIsOn: true, availability: .cameraNotSupported)
+            #expect(notAsked.state == .unavailable(.cameraNotSupported))
+            #expect(!notAsked.checkBoxIsEnabled)
         }
+    }
+
+    /// Design review F2: the Mode pop-up of a file that is not decoded as a
+    /// raw offers As Shot, Auto and Custom, and showed a stale item for a
+    /// stored mode that is none of them (a Daylight pasted from a raw). It
+    /// shows what renders; the stored values are not rewritten.
+    @Test("The white balance mode shown for a rendered image is the one that renders")
+    func relativeModeShown() {
+        let offered = WhiteBalance.Preset.relativePresets
+        #expect(WhiteBalance().relativeDisplayPreset == .asShot)
+        // Pasted from a raw macOS decodes: Kelvin values only, which change nothing here.
+        #expect(WhiteBalance.raw(.daylight).relativeDisplayPreset == .asShot)
+        #expect(WhiteBalance(preset: .custom, temperature: 2500, tint: 60).relativeDisplayPreset == .asShot)
+        // Relative values render.
+        #expect(WhiteBalance(preset: .custom, relativeTemperature: 30).relativeDisplayPreset == .custom)
+        #expect(WhiteBalance(preset: .custom, relativeTint: -5).relativeDisplayPreset == .custom)
+        #expect(WhiteBalance(preset: .tungsten, temperature: 2850, tint: 0, relativeTemperature: 10).relativeDisplayPreset == .custom)
+        // Auto is Auto, whatever it measured.
+        #expect(WhiteBalance(preset: .auto, relativeTemperature: 16, relativeTint: -22).relativeDisplayPreset == .auto)
+        #expect(WhiteBalance(preset: .auto).relativeDisplayPreset == .auto)
+        for preset in WhiteBalance.Preset.allCases {
+            #expect(offered.contains(WhiteBalance.raw(preset).relativeDisplayPreset), "\(preset)")
+        }
+        // Display only: the stack keeps what was pasted.
+        let pasted = WhiteBalance.raw(.daylight)
+        _ = pasted.relativeDisplayPreset
+        #expect(pasted.preset == .daylight && pasted.temperature == 5500)
     }
 }

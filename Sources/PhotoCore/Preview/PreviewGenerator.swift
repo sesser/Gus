@@ -177,11 +177,9 @@ public struct PreviewGenerator: Sendable {
             var fallback = try decode(url, longEdge: longEdge, draft: draft, extendedRange: extendedRange,
                                       settings: settings.classical)
             // The system decoder read the file and its machine learning decode
-            // failed; or it does not read the file at all, which is the
-            // availability's reason (this camera, or this Mac), not a failure.
-            let unsupported = fallback.context.isRaw
-                ? nil : MachineLearningNoiseReduction.Reason(MachineLearningNoiseReduction.availability(for: url))
-            fallback.machineLearning = .notApplied(unsupported ?? .failed)
+            // failed; or it does not read the file at all, which is not a failure.
+            fallback.machineLearning = .notApplied(
+                fallback.context.isRaw ? .failed : MachineLearningNoiseReduction.reasonWithoutSystemDecoder)
             return fallback
         }
         if isRaw, let decoded = decodeRAW(url, longEdge: longEdge, draft: draft, extendedRange: extendedRange,

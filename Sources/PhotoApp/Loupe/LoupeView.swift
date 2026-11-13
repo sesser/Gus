@@ -1415,7 +1415,8 @@ struct LoupeCaption: View {
                              help: String(localized: "Highlights up to \(headroom.formatted(.number.precision(.fractionLength(1))))× SDR white are shown with the display's extended range"))
             }
             if let reason = model.editor.machineLearningNotApplied {
-                CaptionBadge(title: MachineLearningText.badge, help: MachineLearningText.badgeHelp(reason))
+                CaptionBadge(title: MachineLearningText.badge,
+                             help: MachineLearningText.badgeHelp(reason, fallbackDecoder: model.editor.usesFallbackDecoder))
             }
             // Identity badges last, where the transient ones before them
             // come and go without moving them (virtual-copies design §6.3).

@@ -13,15 +13,20 @@ enum MachineLearningText {
         comment: "Check box in Details ▸ Noise Reduction. Decodes the raw file with the macOS raw decoder's machine learning model, which reduces noise. Sentence-style: it is a check box")
 
     /// The check box's tooltip and VoiceOver help: S1 and S2, otherwise the caption.
-    static func checkBoxHelp(_ state: MachineLearningNoiseReduction.Status.State) -> String {
-        if let caption = caption(state) { return caption }
+    static func checkBoxHelp(_ state: MachineLearningNoiseReduction.Status.State, fallbackDecoder: Bool = false) -> String {
+        if let caption = caption(state, fallbackDecoder: fallbackDecoder) { return caption }
         return String(localized: "Reduce noise with the machine learning model in the macOS raw decoder. Luminance sets the amount; Color isn't used.",
                       comment: "Tooltip and VoiceOver help of the Use machine learning check box")
     }
 
     /// The note under the check box (design §3); nil in S1. With the group
     /// off (S7) it is the caption the group would have on.
-    static func caption(_ state: MachineLearningNoiseReduction.Status.State) -> String? {
+    ///
+    /// `fallbackDecoder`: the photo is a raw macOS can't decode, shown through
+    /// the app's own decoder (`AdjustmentEditor.usesFallbackDecoder`). Color
+    /// noise reduction doesn't apply to it, so its "not applied" texts name
+    /// Luminance only (raf-not-rendering review D3).
+    static func caption(_ state: MachineLearningNoiseReduction.Status.State, fallbackDecoder: Bool = false) -> String? {
         switch state {
         case .notOffered, .off, .unknown: nil
         case .applied:
@@ -44,6 +49,9 @@ enum MachineLearningText {
         case .notApplied(.notOnThisMac):
             String(localized: "Not applied on this Mac: it needs macOS 27 or later. Luminance and Color apply instead.",
                    comment: "Caption and check box help: the photo asks for machine learning noise reduction; the setting is kept")
+        case .notApplied(.cameraNotSupported) where fallbackDecoder:
+            String(localized: "Not applied: this camera isn't supported. Luminance applies instead.",
+                   comment: "Caption and check box help of Use machine learning: the photo asks for machine learning noise reduction, and macOS can't decode this raw file (the app's own decoder has no Color noise reduction); the setting is kept")
         case .notApplied(.cameraNotSupported):
             String(localized: "Not applied: this camera isn't supported. Luminance and Color apply instead.",
                    comment: "Caption and check box help: the photo asks for machine learning noise reduction; the setting is kept")
@@ -51,7 +59,7 @@ enum MachineLearningText {
             String(localized: "Not applied: it could not be applied to this photo. Luminance and Color apply instead.",
                    comment: "Caption and check box help: the machine learning decode failed for this file; the setting is kept")
         case .groupOff(let on):
-            caption(on)
+            caption(on, fallbackDecoder: fallbackDecoder)
         }
     }
 
@@ -85,7 +93,8 @@ enum MachineLearningText {
     static let badge = String(localized: "Machine Learning Not Applied",
                               comment: "Loupe caption badge. Title-style, as the other badges")
 
-    static func badgeHelp(_ reason: MachineLearningNoiseReduction.Reason) -> String {
+    /// `fallbackDecoder` as for `caption`.
+    static func badgeHelp(_ reason: MachineLearningNoiseReduction.Reason, fallbackDecoder: Bool = false) -> String {
         switch reason {
         case .notOnThisMac where newEnoughMacOS:
             String(localized: "This photo is set to use machine learning noise reduction, which isn't available on this Mac. It's shown with Luminance and Color instead.",
@@ -93,6 +102,9 @@ enum MachineLearningText {
         case .notOnThisMac:
             String(localized: "This photo is set to use machine learning noise reduction, which needs macOS 27 or later. It's shown with Luminance and Color instead.",
                    comment: "Tooltip of the Machine Learning Not Applied badge: this Mac")
+        case .cameraNotSupported where fallbackDecoder:
+            String(localized: "This photo is set to use machine learning noise reduction, which doesn't support its camera. It's shown with Luminance instead.",
+                   comment: "Tooltip of the Machine Learning Not Applied badge, for a raw file macOS can't decode")
         case .cameraNotSupported:
             String(localized: "This photo is set to use machine learning noise reduction, which doesn't support its camera. It's shown with Luminance and Color instead.",
                    comment: "Tooltip of the Machine Learning Not Applied badge: this camera")

@@ -69,7 +69,7 @@ enum DebugMachineLearningCommands {
         print("debug-script: ml state \(status.state) asks \(status.asks) groupOn \(status.groupIsOn)"
               + " availability \(status.availability?.rawValue ?? "unknown") applied \(status.isApplied)"
               + " colorAvailable \(status.colorIsAvailable)")
-        let caption = MachineLearningText.caption(status.state)
+        let caption = MachineLearningText.caption(status.state, fallbackDecoder: editor.usesFallbackDecoder)
         print("debug-script: ml caption '\(caption ?? "-")' triangle \(MachineLearningText.showsTriangle(status.state))")
         let root = window?.contentView?.superview
         if let root, let box = find(NSButton.self, in: root, where: { $0.title == MachineLearningText.checkBoxTitle }) {
@@ -116,14 +116,15 @@ enum DebugMachineLearningCommands {
         let temperature = root.flatMap {
             find(SliderRow.self, in: $0, where: { $0.accessibilityLabel() == String(localized: "Temperature") })
         }
-        print("debug-script: decoder \(decoder) wb modes [\(modes?.itemTitles.joined(separator: ", ") ?? "not shown")]"
+        print("debug-script: decoder \(decoder) wb mode '\(modes?.titleOfSelectedItem ?? "-")'"
+              + " modes [\(modes?.itemTitles.joined(separator: ", ") ?? "not shown")]"
               + " temperature \(temperature?.debugState ?? "not shown")"
               + " note \(editor.usesFallbackDecoder ? "'\(FallbackDecoderText.note)'" : "none")")
     }
 
     private static func badge(_ editor: AdjustmentEditor) -> String {
         guard let reason = editor.machineLearningNotApplied else { return "none" }
-        return "'\(MachineLearningText.badge)' help '\(MachineLearningText.badgeHelp(reason))'"
+        return "'\(MachineLearningText.badge)' help '\(MachineLearningText.badgeHelp(reason, fallbackDecoder: editor.usesFallbackDecoder))'"
     }
 
     private static func find<V: NSView>(_ type: V.Type, in view: NSView, where test: (V) -> Bool) -> V? {

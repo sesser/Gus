@@ -48,9 +48,6 @@ final class AdjustmentEditor {
     /// A raw file the system's RAW decoder gives no image for, decoded by
     /// LibRaw (issue #161): the Adjust tab says what that leaves out.
     private(set) var usesFallbackDecoder = false
-    /// Machine learning noise reduction's availability for such a file (this
-    /// camera, or this Mac), which the dimmed check box gives as its reason.
-    @ObservationIgnored private var fallbackMachineLearning: MachineLearningNoiseReduction.Availability?
     /// What the decoder chose for a RAW file (as-shot white balance, defaults).
     /// Nil exactly when `isRaw` is false.
     private(set) var rawDefaults: RawDefaults?
@@ -371,7 +368,6 @@ final class AdjustmentEditor {
         // Known once the file's header is read, with the defaults below.
         isRaw = false
         usesFallbackDecoder = false
-        fallbackMachineLearning = nil
         let catalog = library.catalog
         let generator = library.previews.interactiveGenerator
         let colorSpace = library.previews.displayColorSpace
@@ -391,10 +387,6 @@ final class AdjustmentEditor {
             // A camera frame is undone only by the system decoder's whole-sensor decode.
             let camera = systemDecodes
                 ? await Task.detached(priority: .userInitiated) { CameraFrame.rect(of: url) }.value : nil
-            // The system decoder lists no version for a file it gives no image for:
-            // the reason is this camera, or this Mac before macOS 27.
-            let fallbackLearning = fileIsRaw && !systemDecodes
-                ? MachineLearningNoiseReduction.availability(for: url, decoderVersions: []) : nil
             let cached = await Task.detached(priority: .userInitiated) { previewKey.map(cache.contains) ?? false }.value
             let fallback = previewKey.flatMap(cache.sessionOnlyReason)
             guard !Task.isCancelled, item?.versionID == versionID else { return }
@@ -413,7 +405,6 @@ final class AdjustmentEditor {
                     rawDefaults = defaults
                     isRaw = systemDecodes
                     usesFallbackDecoder = fileIsRaw && !systemDecodes
-                    fallbackMachineLearning = fallbackLearning
                     previewWasCached = cached
                     arrivedWithFailedFallback = fallback == .failed
                     if let fallback { learnUnavailability(fallback) }
@@ -493,7 +484,6 @@ final class AdjustmentEditor {
         rawDefaults = nil
         isRaw = false
         usesFallbackDecoder = false
-        fallbackMachineLearning = nil
         sourceURL = nil
         selectedMaskID = nil
         cameraRect = nil
@@ -946,7 +936,10 @@ final class AdjustmentEditor {
         }
         return MachineLearningNoiseReduction.Status(
             asks: values.asksForMachineLearning, groupIsOn: values.isEnabled(.noiseReduction),
-            availability: isRaw ? rawDefaults?.machineLearning : usesFallbackDecoder ? fallbackMachineLearning : .notRaw,
+            // Machine learning is the system decoder's, which does not read a
+            // fallback raw: the camera is the reason on every macOS, never
+            // "needs macOS 27" (`MachineLearningNoiseReduction.reasonWithoutSystemDecoder`).
+            availability: isRaw ? rawDefaults?.machineLearning : usesFallbackDecoder ? .cameraNotSupported : .notRaw,
             renderFailed: failed)
     }
 

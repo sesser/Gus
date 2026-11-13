@@ -354,15 +354,16 @@ photo, and at these zooms it can lag until you pause.
 **Raw files macOS can't decode**: when the macOS raw decoder has no image for a
 raw file (on macOS 27.2, the Fujifilm X-E3's), the app decodes it with its own
 decoder (LibRaw) instead of showing nothing. Such a photo has the camera's white
-balance but no profile or tone curve, so it starts out flatter and darker than a
-raw macOS decodes, and its frame can be a few pixels smaller than the camera's
+balance but not the macOS decoder's profile and contrast, so it starts out
+flatter and darker than a raw macOS decodes, and its frame can be a few pixels smaller than the camera's
 JPEG. You adjust it like any other photo; what differs is what differs for a
 JPEG. In the Adjust tab a note stands in place of **Profile**. White Balance
 offers **As Shot**, **Auto** and **Custom**, with Temperature and Tint relative
 to the camera's setting (no Kelvin scale and no Daylight to Flash). Noise
-Reduction has **Luminance** only, and **Use machine learning** is dimmed. Light,
-Presence, the curve, color, masks, Lens, Effects, Sharpening and crop work as
-usual. Pasted adjustments or presets from a raw macOS decodes keep their Kelvin
+Reduction has **Luminance** only, and **Use machine learning** is dimmed unless
+a paste or preset turned it on; it then says it isn't applied, and Luminance
+applies instead. Tone, Presence, Tone Curve, Color Mixer, Color Grading, masks,
+Lens, Effects, Sharpening and crop work as usual. Pasted adjustments or presets from a raw macOS decodes keep their Kelvin
 white balance, Profile and Color noise reduction, which do nothing here. These
 photos take longer to open, most of all at 100% or with a crop that needs the
 whole frame (several seconds for a 24-megapixel Fujifilm file). If a later macOS

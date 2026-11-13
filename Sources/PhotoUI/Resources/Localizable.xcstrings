@@ -6657,13 +6657,13 @@
         }
       }
     },
-    "macOS can't decode this raw file, so it is shown without a profile. White balance is relative to the camera's, and Color noise reduction isn't available." : {
+    "macOS can't decode this raw file, so it's shown without a profile. Temperature and Tint are relative to the camera's white balance, and Color noise reduction isn't available." : {
       "comment" : "Adjust tab, under the Profile heading, for a raw file the macOS raw decoder cannot read: the app decodes it with its own decoder, which has no Profile or Decoder choice, no Kelvin white balance or named white balance presets, and no Color noise reduction",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "macOS can't decode this raw file, so it is shown without a profile. White balance is relative to the camera's, and Color noise reduction isn't available."
+            "value" : "macOS can't decode this raw file, so it's shown without a profile. Temperature and Tint are relative to the camera's white balance, and Color noise reduction isn't available."
           }
         }
       }
@@ -7653,6 +7653,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Not applied: this camera isn't supported. Luminance and Color apply instead."
+          }
+        }
+      }
+    },
+    "Not applied: this camera isn't supported. Luminance applies instead." : {
+      "comment" : "Caption and check box help of Use machine learning: the photo asks for machine learning noise reduction, and macOS can't decode this raw file (the app's own decoder has no Color noise reduction); the setting is kept",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not applied: this camera isn't supported. Luminance applies instead."
           }
         }
       }
@@ -11310,6 +11321,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "This photo is set to use machine learning noise reduction, which doesn't support its camera. It's shown with Luminance and Color instead."
+          }
+        }
+      }
+    },
+    "This photo is set to use machine learning noise reduction, which doesn't support its camera. It's shown with Luminance instead." : {
+      "comment" : "Tooltip of the Machine Learning Not Applied badge, for a raw file macOS can't decode",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This photo is set to use machine learning noise reduction, which doesn't support its camera. It's shown with Luminance instead."
           }
         }
       }
