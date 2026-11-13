@@ -249,3 +249,125 @@ now:
   zlib, libjpeg or lcms, so those code paths are compiled out.
 - What LibRaw prints on standard error for damaged files, and the new log line
   (file name private, LibRaw's reason public).
+
+### Third pass, 2026-11-13
+
+Reviewed: `3bec924`..`b162839` (three commits): `f5495be` (source and tests),
+`1cd27ab` (`status.md`), `b162839` (`CLAUDE.md` Layout and Commands,
+`status.md`). Build and tests at `b162839`, working tree clean: `swift build`
+complete (a clean build of the same sources in a scratch copy shows only the
+two older warnings in `SmartAlbumTests` and `VirtualCopiesTests`); `swift test`
+879 tests in 131 suites passed, the same 1 known issue (`LiveSessionTests`);
+`RAF_SAMPLE=/private/tmp/claude-501/x/DSCF5123.RAF swift test --filter
+LibRawFallbackTests` 5 tests passed (32 s); `Scripts/build-app.sh all` built
+both bundles (SDK 27.2, minimum 15.0, LibRaw linked in statically, ad hoc
+signature). macOS 27.2.1 (26B131). The app not launched.
+
+**Verdict.** Ready for qa-tester. C13, C14 and C15 are fixed and Q6 is
+answered in code; each of the three code fixes has a test that fails without
+it. Two new nits (C16, C17), neither blocking, and one Design question still
+with the designer (Q9). The security read of the bridge and the build found
+nothing above Low; no known advisory applies to LibRaw 0.22.3.
+
+#### Second pass findings
+
+| # | Outcome | Commit | How it was confirmed |
+| --- | --- | --- | --- |
+| C13 | Fixed | `f5495be` | `Frame.isTurned` is `flip & 4 != 0`. `decodeIsOriented` now runs orientations 2 to 8 pixel for pixel and compares `frameSize` with the decode; `frameFromSizes` runs every flip. In a scratch copy with `flip == 5 \|\| flip == 6` put back, `decodeIsOriented` fails for orientations 5 and 7 and `frameFromSizes` for flips 4 and 7. |
+| C14 | Fixed, as ruled in D5 | `f5495be` | `WhiteBalance.relativeDisplayPreset` is D5's two rules word for word (the stored mode when it is As Shot, Auto or Custom and holds no Kelvin values; otherwise As Shot at 0/0, else Custom); `pick` is unchanged, so Custom at 0/0 still saves one step and now shows Custom. `relativeModeShown` covers D5's four cases; with the old rule put back it fails on Custom at 0/0 and on a raw's Auto carrying Kelvin values. The pop-up itself was not driven here (the app was not launched): D5's manual check M6, and `print ml` for QA. |
+| C15 | Fixed | `1cd27ab`, `b162839` | `status.md` no longer says the rules name the CDDL. `CLAUDE.md` gained the `RAF_SAMPLE` command (run above, as written) and the `Sources/CLibRaw` Layout entry; "called only from `Preview/LibRawDecoder.swift`" holds (the one `import CLibRaw`). Those sections are the owner's; `status.md` says the main session applied them on the owner's confirmation, which I cannot check from the branch. |
+| Q6 | Answered in code | `f5495be` | (b) `PreviewGenerator.Decoded.decoder` names the decoder, and `LiveRenderSession.learn` keeps a decode by LibRaw's two sizes only when LibRaw made it. With `learn` switched off in a scratch copy, `decodeSettingsDoNotDecodeAgain` fails (one decode where two are due, the draft's base serving the 400 pixel frame): the failure the question described. (a) `SystemRAWDecoder.reads`, `RawDefaults` and Auto White Balance now test the filter set up as an untouched photo decodes (`givesImageUntouched`), and `PreviewGenerator.decode` tries the system decoder again without the stack's own choices before it turns to LibRaw. `oneTestOfWhatIsDecodedAsRaw` checks the agreement on every file here, with a whole-sensor request and an unknown decoder version. See C16 for the retry itself. |
+
+#### New findings
+
+| # | Severity | Where | Finding | Failure | Rule |
+| --- | --- | --- | --- | --- | --- |
+| C16 | Nit | `Sources/PhotoCore/Preview/PreviewGenerator.swift:205-210` | The retry without the stack's decoder choices has no test, as `status.md` says: no file here takes it. | With the branch switched off (`if false, …`) in a scratch copy, the LibRaw, RAW decode, machine learning, camera frame and crop suites (105 tests) all pass. A later change that breaks it, or the agreement it stands for, is not caught. It also costs a LibRaw photo with a crop, a mask or a decoder choice one more `CIRAWFilter` set-up per decode (about 0.05 s on the X-E3 file, second pass) before LibRaw's 0.6 s or 9 s; by trace. A test needs a seam; leaving it as stated is acceptable. | Tests |
+| C17 | Nit (Security notes S1) | `Sources/PhotoCore/Preview/LibRawDecoder.swift:137-162` | The bridge sets no limit of its own on the frame it decodes: the image buffer is `width * height * 8` bytes whatever the header says, bounded only by LibRaw's 2 GiB raw buffer limit (about a gigapixel). | A 192 megapixel DNG (16000 x 12000, a sparse file of zeros): `photobench rawcompare --runs 1` (debug build) took 45.6 s for LibRaw's full decode and 6.4 s for the half one, with a peak footprint of 10.0 GB for the run. In the app such a decode starts with no action by the user for any raw the system decoder gives no image for, up to about eight at once, and cannot be cancelled. A file that only claims the size fails at once (see S1). A cap on `Frame`'s pixel count after `libraw_open_file`, at a size the owner picks, would bound it. | Security: sizes checked before allocation |
+
+#### Questions
+
+- **Q9, designer (Design question, raised by the engineer in `status.md`
+  Open): Custom chosen over pasted Kelvin values.** On a photo not decoded as
+  a raw that holds a pasted Daylight (`preset` daylight, 5500 K), choosing
+  Custom stores `preset` custom, keeps the Kelvin values and saves one step,
+  and by D5's rule 2 the pop-up still shows As Shot until a slider moves
+  (`relativeModeShown` expects exactly this for Custom with Kelvin values).
+  It is what remains of C14, in a corner only a paste or preset reaches.
+  Built as ruled; not a finding.
+- **Q10, main session or owner (a proposal).** `.claude/settings.json` allows
+  `CAMERA_RAW_SAMPLE=`, `RAW_EDGE_SAMPLES=` and `RAW_CONTEXT_SOAK=` test runs
+  but has no entry for `RAF_SAMPLE=* swift test *`, while `CLAUDE.md` says the
+  commands it lists run without a prompt.
+- **Q5** (the frame) and **Q7** (several LibRaw photos at 100%, for
+  qa-tester) stand as written.
+
+#### Checked and fine
+
+- **The retry in `decode`.** Reached only when the system decoder gave no image
+  for the stack's settings; the machine learning path reaches it through its
+  classical decode and still reports `failed` for a raw the system reads. Its
+  log line keeps the file name private. No file here takes it, so no stored
+  stack renders differently: no pipeline bump is due, no golden moved, no
+  tolerance changed.
+- **`givesImageUntouched`.** `RAWDecodeSettings.none.apply` only pins the
+  decoder version below 9, which changes nothing while the system's default is
+  older, as on this macOS. In `AutoAdjuster.whiteBalance` the stack's settings
+  are applied after it and end at the same version as before; `RawDefaults`
+  reads the same values in the same state as before.
+- **`LiveRenderSession`.** `libRawFrame`, `learn` and `decodeKey` are actor
+  state and run on the session's actor; the header reads (`reads`, 20 to
+  100 ms; `frameSize`, about 2 ms) are never on the main actor. After `learn`
+  changes its mind the base is stored under the key that fits what made it; a
+  base stored earlier under the other kind of key is still a decode of the size
+  its key names. `LibRawDecoder.usesHalfSize` decides both the key and the
+  decode from the same long edge.
+- **`Decoded.decoder`.** Set by all five constructors: `systemRAW` only in
+  `decodeRAW`, `libRaw` only in `decodeWithLibRaw`, the default for ImageIO.
+- **Rules.** No UI string, no persisted name, no brand value, no migration, no
+  catalog or sidecar write, no network, no subprocess, no new dependency.
+  `Sources/CLibRaw` untouched. Tests are Swift Testing, no sleeps; the two
+  blocks of `decodeSettingsDoNotDecodeAgain` that depend on what this macOS
+  reads are skipped where their premise does not hold.
+
+#### Security notes
+
+A read of the new Swift bridge and the build settings only
+(`Sources/PhotoCore/Preview/LibRawDecoder.swift`, `Package.swift`), with
+LibRaw's side of each call checked in the vendored source. LibRaw's parsers
+were not audited. Severity is for a local app that opens files the user
+points it at, with no user action per file.
+
+| # | Severity | What | Detail |
+| --- | --- | --- | --- |
+| S1 | Low | No frame size limit in the bridge (C17) | After `libraw_open_file` the frame comes from the header (16-bit sizes, so at most 65535 on a side); nothing in Swift refuses a large one. LibRaw refuses a raw buffer over 2048 MB (`max_raw_memory_mb`, left at its default, `unpack.cpp`), about a gigapixel. Beyond the raw buffer, a full decode holds LibRaw's image (8 bytes a pixel), the processed copy (6) and the Swift copy (8, `Data(count:)`, which traps if it cannot allocate). Measured: a 99 KB DNG whose header claims 12000 x 9000 fails in 0.07 s at 9 MB ("Unexpected end of file", then `undecodable`), so a hostile file has to hold the data, or data that expands to it (compressed payloads not tried); a 192 megapixel sparse DNG costs what C17 says. Denial of service only. |
+| S2 | Info | `width`, `height`, `colors`, `bits` are trusted, not `type` or `data_size` | Safe with this LibRaw: `dcraw_make_mem_image` (`mem_image.cpp:277-304`) allocates exactly height x width x colors x bits/8 from the same four values it writes into the struct, and the bridge refuses anything but 16 bits and 3 colors before reading, so the loop reads `width * height * 6` bytes of a buffer of that size. All four are 16-bit, so `width * height * 8` cannot overflow. `data` is at offset 16 of a `malloc` block: aligned for `UInt16`. A check of `type == LIBRAW_IMAGE_BITMAP` (and of `data_size`, which is 32 bits and wraps above 4 GiB) would keep that true across LibRaw updates. A one-color (monochrome) raw is refused, not misread. |
+| S3 | Info | `frameSize` and `Frame` | No allocation in Swift from header values. The inset subtraction is guarded (`insetLeft >= leftMargin`, `insetTop >= topMargin`), so `UInt32(…)` cannot trap; an inset larger than the visible area is clamped by LibRaw (`raw2image.cpp:374-377`), and one that leaves nothing returns `LIBRAW_BAD_CROP`, which the bridge throws. The path reaches LibRaw as a C string from `URL.path`; nothing is passed through a shell. `frameSize` runs LibRaw's whole header parse (`open_file`: identify and the maker-note parsers) on any raw whose size the system decoder does not give, from `PreviewGenerator.nativeSize`: that parse, not the bridge, is the exposed surface. |
+| S4 | Info | Exceptions across the C boundary | `libraw_init` catches `std::bad_alloc`; `open_file` and `unpack` catch LibRaw's exceptions, `std::bad_alloc` and `std::exception`; `dcraw_process` catches the first two only (`dcraw_process.cpp:269-277`); `dcraw_make_mem_image` throws nothing and returns null on a failed `malloc`, which the bridge checks. The only other `throw`s in the tree are in code this build leaves out (the Windows datastream, RawSpeed). Should another exception leave `dcraw_process`, it meets Swift frames with no handler and the process ends (`std::terminate`): a crash, not memory corruption. By reading; not reproduced. |
+| S5 | Info | Camera make and model strings | `String(cString:)` reads a copy of each 64-byte field with no length limit. LibRaw ends both at byte 63 after identifying the file (`identify.cpp:925, 983`), so it stops inside the copy. Only a test reads the strings. A bounded read would not depend on that. |
+| S6 | Info | Build settings | `Package.swift` passes LibRaw one flag, `-w` (warnings off, for that target only), and defines nothing: thread-safe, no zlib, libjpeg, lcms, RawSpeed or DNG SDK, so those decoders are compiled out. Release objects are built `-Os` with exceptions on and the stack protector (Darwin's default; `___stack_chk_fail` is referenced). macOS headers apply checked `strcpy` and `sprintf` to C only, so LibRaw's are the plain ones. Optional hardening, tried in a scratch copy only (both build, and the 17 LibRaw tests pass; speed not measured): `_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_FAST` and `-ftrivial-auto-var-init=zero` on the target. The owner's call: the second is another unsafe flag. |
+| S7 | Info | Where a parser bug would run | LibRaw is linked into both apps and `photocli` and decodes in process. The bundles `build-app.sh` makes are signed ad hoc without the hardened runtime, and the app is not sandboxed (as before this branch), so memory corruption in a LibRaw parser would run with the user's rights. Decoding in a helper process would be a feature of its own. |
+| S8 | Info | Standard error | LibRaw's default callbacks print the file's full path there for a damaged file (seen: "…/claim-12000x9000.dng: Unexpected end of file" before `photocli`'s JSON). A fixed format string, local output only. `libraw_set_dataerror_handler` would silence it. |
+
+**Known advisories for LibRaw 0.22.3** (the newest release, 2026-10-24;
+looked up 2026-11-13 in the NVD by keyword and in LibRaw's changelog at tag
+`0.22.3`). The NVD lists 70 entries for LibRaw; none names 0.22.3 as affected.
+
+- Fixed before 0.22.3: CVE-2026-5318 and CVE-2026-5342 (0.22.1), and the six
+  Talos reports of April 2026 (CVE-2026-20884, -20889, -20911, -21413, -24450,
+  -24660; the changelog lists their fixes under 0.22.1).
+- CVE-2026-88387 (`parse_tiff_ifd`, an out-of-range NewSubfileType converted
+  to `int`; the NVD names 0.22.0, analysis deferred). 0.22.3 took upstream's
+  type check and then reverted it, and added a not-a-number and infinity check
+  in `getreal`; the vendored line (`src/metadata/tiff.cpp:572`) still converts
+  a finite out-of-range value. That is undefined behavior in C++, reported as
+  a crash under a sanitizer; arm64 saturates the conversion and this build has
+  no sanitizer, and the value only selects DNG frames. No effect expected
+  here; not reproduced.
+- CVE-2026-111272 (Nikon ShotInfo read past a short buffer, "through 0.22.2").
+  Upstream's 0.22.3 changelog calls it a false positive: the buffer comes from
+  LibRaw's own allocator, which pads every block (1024 bytes in the vendored
+  source, `init_close_utils.cpp:29`). Not checked beyond that.
+
+`/security-review` on the branch is still worth running for the parser side:
+this section covers the bridge and the build, not LibRaw's decoders.
