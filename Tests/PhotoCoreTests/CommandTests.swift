@@ -267,6 +267,76 @@ struct CommandTests {
         }
     }
 
+    @Test("export --policy overwrite never writes over a master (issue #160)")
+    func exportNeverOverwritesAMaster() async throws {
+        try await Self.withLibrary { library in
+            let names = (1...3).map { "IMG_000\($0).jpg" }
+            func masters() throws -> [Data] {
+                try names.map { try Data(contentsOf: library.photos.appending(path: $0)) }
+            }
+            let before = try masters()
+            // Into the photos' own folder, where each export's name is its master's.
+            var arguments = ["export", "--to", library.photos.path, "--policy", "overwrite",
+                             "--settings", #"{"sizing": "longEdge", "edgeLength": 100}"#]
+            arguments += library.versionIDs.flatMap { ["--version", String($0)] }
+            let result = await library.cli.run(arguments + ["--library-root", library.root.path])
+            #expect(result.exitCode == 0, "\(result.standardError)")
+            let json = try JSONValue.parse(result.standardOutput)
+            let written = try #require(json["written"]?.arrayValue).compactMap { $0.stringValue }
+            #expect(Set(written.map { ($0 as NSString).lastPathComponent })
+                        == Set(names.map { $0.replacingOccurrences(of: ".jpg", with: "-2.jpg") }))
+            #expect(json["protectedMasters"] == 3 && json["failures"]?.arrayValue?.isEmpty == true)
+            #expect(try masters() == before)
+            #expect(try FileManager.default.contentsOfDirectory(atPath: library.photos.path).count == 6)
+
+            // Elsewhere the policy does what it says: the same file is written again, nothing is protected.
+            let destination = library.root.deletingLastPathComponent().appending(path: "Out").path
+            var paths: [String] = []
+            for _ in 1...2 {
+                let ordinary = await library.run("export", "--version", String(library.versionIDs[0]), "--to", destination,
+                                                 "--policy", "overwrite")
+                #expect(ordinary.json["protectedMasters"] == 0)
+                paths.append(try #require(ordinary.json["written"]?.arrayValue?.first?.stringValue))
+            }
+            #expect(paths[0] == paths[1])
+            #expect(try FileManager.default.contentsOfDirectory(atPath: destination).count == 1)
+        }
+    }
+
+    @Test("export --policy overwrite never writes over a master on a volume the catalog can't recognize (#160, C5)")
+    func exportNeverOverwritesAMasterKnownOnlyByItsContent() async throws {
+        try await Self.withLibrary { library in
+            // A card with no volume UUID, catalogued at a mount point that is gone and mounted
+            // elsewhere now: its identity changed with its mount point, so nothing but the
+            // file's content says that DCIM/IMG_0001.jpg is a master.
+            let folder = library.root.deletingLastPathComponent().appending(path: "Card/DCIM", directoryHint: .isDirectory)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            let master = folder.appending(path: "IMG_0001.jpg")
+            try SyntheticImages.writeJPEG(to: master, width: 400, height: 300, seed: 99)
+            let bytes = try Data(contentsOf: master)
+            let catalog = try Catalog.open(at: library.locations.catalogFileURL)
+            // The library's own IMG_0001.jpg: exported, it is named like the card's.
+            let exported = try #require(try await catalog.libraryItems(matching: LibraryFilter(groupsPairs: false))
+                .first { $0.fileName == "IMG_0001.jpg" }).versionID
+            let recorded = "/Volumes/NOUUID-\(UUID().uuidString)"
+            let card = try await catalog.registerVolume(
+                VolumeDescriptor(identity: "mount:NOUUID@\(recorded)", name: "NOUUID", mountPath: recorded))
+            let project = try await catalog.createProject(name: "Card")
+            _ = try await catalog.insertMasters(
+                [NewMaster(relativePath: "DCIM/IMG_0001.jpg", fileSize: Int64(bytes.count), modifiedAt: Date(),
+                           contentHash: Digest.sha256Hex(bytes), metadata: ImageMetadata(pixelWidth: 400, pixelHeight: 300))],
+                volumeID: try #require(card.id), projectID: try #require(project.id))
+            let result = await library.run("export", "--version", String(exported), "--to", folder.path,
+                                           "--policy", "overwrite",
+                                           "--settings", #"{"sizing": "longEdge", "edgeLength": 100}"#)
+            #expect(result.output.exitCode == 0, "\(result.output.standardError)")
+            let written = try #require(result.json["written"]?.arrayValue).compactMap { $0.stringValue }
+            #expect(written.map { ($0 as NSString).lastPathComponent } == ["IMG_0001-2.jpg"])
+            #expect(result.json["protectedMasters"] == 1 && result.json["failures"]?.arrayValue?.isEmpty == true)
+            #expect(try Data(contentsOf: master) == bytes)
+        }
+    }
+
     // MARK: adjustments
 
     @Test("adjustments lists every module and every parameter")

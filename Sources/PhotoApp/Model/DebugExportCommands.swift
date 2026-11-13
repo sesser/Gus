@@ -55,7 +55,11 @@ enum DebugExportCommands {
                 ?? .keepBoth
             if await !export.requestExport() {
                 if export.conflict != nil {
-                    print("debug-script: export conflicts \(export.conflict?.count ?? 0), using \(policy.rawValue)")
+                    print("debug-script: export conflicts \(export.conflict?.count ?? 0)"
+                          + " originals \(export.conflict?.masters ?? 0), using \(policy.rawValue)")
+                    print("debug-script:   alert message: "
+                          + ExportModel.conflictMessage(count: export.conflict?.count ?? 0,
+                                                        masters: export.conflict?.masters ?? 0))
                     export.resolveConflict(policy)
                 } else {
                     print("debug-script: export did not start: \(export.issue?.text ?? "")")
@@ -70,7 +74,8 @@ enum DebugExportCommands {
             while export.isExporting { try? await Task.sleep(for: .milliseconds(100)) }
             if let summary = export.lastSummary {
                 print("debug-script: exported \(summary.written.count) to \(summary.destination.path)"
-                      + " skipped \(summary.skippedExisting) videos \(summary.skippedVideos)"
+                      + " skipped \(summary.skippedExisting) originals kept \(summary.protectedMasters)"
+                      + " videos \(summary.skippedVideos)"
                       + " failed \(summary.failures.count) cancelled \(summary.cancelled)")
                 for url in summary.written { print("debug-script:   \(url.lastPathComponent)") }
                 for failure in summary.failures { print("debug-script:   \(ExportModel.text(failure))") }

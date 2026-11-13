@@ -647,6 +647,35 @@ P8 (Duplicate while comparing: keys, menus, undo and redo), in #82 and
 `docs/features/side-by-side-comparison/qa.md`. The owner acknowledged the
 merged result with #155 and #62 on 2026-11-12.
 
+Export never overwrites a master (`docs/features/export-overwrites-masters/`,
+bug fix, issue #160, branch `bug/export-overwrites-masters`): Replace in the
+sheet and `photocli export --policy overwrite` could write an export over a
+catalogued original (the project's own folder, a RAW's name matching its
+pair's JPEG, a link to the folder, `IMG_1.JPG` against `IMG_1.jpg`). Now a name
+that is a master's is never given to an export, and an existing file with a
+master's size and SHA-256 is never replaced: the photo gets the next free
+numbered name (`IMG_1-2.jpg`), written without replacing anything. Masters are
+known by place (the whole catalog, each volume at its recorded mount and
+wherever it is mounted now; folders resolved through links, names compared
+as the file system does, a missing master's place kept) and by content (for
+volumes the catalog can't recognize; an exact copy of an original is left
+alone too). Ordinary existing files are still replaced; Keep Both and Skip
+are as before. If the catalog can't be read, nothing is written. The
+alert says how many of the files in the way are originals (four wordings);
+title and buttons are unchanged. `photocli export` prints
+`protectedMasters`. Rule in PhotoCore (`Catalog/MasterFiles.swift`,
+`Export/ExportNaming.swift`, `ExportJob`), shared by the app and `photocli`.
+Hashing reads one reused 1 MiB buffer. No migration, no pipeline bump, no
+rendering changed. Known limits: a master another app changed since the
+catalog last hashed it, on a volume the catalog can't recognize, is an
+ordinary file and is replaced; a 0-byte master protects every empty file;
+network volumes untimed; a file that becomes a master's between the check and
+the write is replaced (accepted); Activity doesn't say when Replace numbered
+photos. Open follow-ups: double Return can start two exports, and the count
+before the alert can't be stopped; `photocli render --out` can overwrite a
+master; the importer's hashing loops may hold whole files in memory;
+`photocli` reads masters at the recorded mount path.
+
 Not yet: AI masks, healing, lens corrections (distortion, lens vignetting,
 profiles), DNG export, `.dcp` profiles,
 general (hand-made or burst) stacks, hierarchical

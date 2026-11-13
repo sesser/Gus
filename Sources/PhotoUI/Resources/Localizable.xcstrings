@@ -469,6 +469,29 @@
         }
       }
     },
+    "%lld of them are originals in the library. Originals are never replaced, so those photos are written under numbered names." : {
+      "comment" : "Export window: existing files alert message when some of the files are originals; how many",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld of them is an original in the library. Originals are never replaced, so that photo is written under a numbered name."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld of them are originals in the library. Originals are never replaced, so those photos are written under numbered names."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld photos" : {
       "comment" : "Window subtitle; also VoiceOver, after the result of a culling action on several photos (“Picked, 12 photos”)",
       "localizations" : {
@@ -5850,6 +5873,17 @@
         }
       }
     },
+    "It is an original in the library. Originals are never replaced, so the new file is written under a numbered name." : {
+      "comment" : "Export window: existing files alert message when the one file is an original",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It is an original in the library. Originals are never replaced, so the new file is written under a numbered name."
+          }
+        }
+      }
+    },
     "It is removed from %lld photos. The photos stay in the library." : {
       "comment" : "Delete keyword confirmation",
       "localizations" : {
@@ -11210,6 +11244,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "These edits were saved by a newer version of %@. Editing is off so they are not lost."
+          }
+        }
+      }
+    },
+    "They are all originals in the library. Originals are never replaced, so the new files are written under numbered names." : {
+      "comment" : "Export window: existing files alert message when every file is an original",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "They are all originals in the library. Originals are never replaced, so the new files are written under numbered names."
           }
         }
       }

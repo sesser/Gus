@@ -192,7 +192,7 @@ Abbreviations: P1–P6 = `docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR
 | Sizing and sharpening | Full, box, long/short edge, percentage; never enlarged; PPI; output sharpening for screen/print | P4 |
 | Metadata levels | All, all except location, copyright and contact only, none; ratings/labels never written | P4 |
 | Watermark | One PNG, nine anchors, margin, size, opacity; preview in the sheet | P4; UIR §8 |
-| Naming and conflicts | Original name or template; batch names decided first; keep both / replace / skip asked once | P4 |
+| Naming and conflicts | Original name or template; batch names decided first; keep both / replace / skip asked once. A catalogued master is never replaced, whatever the policy: by place (any current mount, links and case followed) or by size and SHA-256 content; the photo gets a numbered name. The alert says how many files in the way are originals | P4; `export-overwrites-masters/` (issue #160); `Catalog/MasterFiles.swift`, `Export/ExportNaming.swift` |
 | Export presets | `exportPreset` table | P4 |
 | Background export | Progress and Stop in the toolbar Activity item. Results (written, failed, skipped) are reported in Activity only, never in an alert. Can reveal the written files in the Finder when done; the only Finder reveal in the app | UIR §1, §8; UG; `Model/ExportModel.swift`; `ui-redesign/status.md` E14 (`ExportActivityReport`) |
 
@@ -201,7 +201,7 @@ Abbreviations: P1–P6 = `docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR
 | Capability | What it does | Source |
 |---|---|---|
 | Registry and contract | One JSON object out; exit codes 0/1/2; `--library-root` | P5 Command line |
-| Commands | `render`, `adjustments`, `query projects`, `query images`, `develop`, `rate`, `flag`, `label`, `export`, `help`. `develop` sets `colorFringes.*` and `colorAlignment.*` (`colorAlignment.automatic=true` measures the original), and `noiseReduction.machineLearning` on raws only; `render` and `export` JSON say whether it applied | P5 Commands; `Commands/`; `ml-denoise/status.md` AC11 |
+| Commands | `render`, `adjustments`, `query projects`, `query images`, `develop`, `rate`, `flag`, `label`, `export`, `help`. `develop` sets `colorFringes.*` and `colorAlignment.*` (`colorAlignment.automatic=true` measures the original), and `noiseReduction.machineLearning` on raws only; `render` and `export` JSON say whether it applied; `export` JSON has `protectedMasters` (photos given a numbered name to spare a master) and `--policy overwrite` never replaces one | P5 Commands; `Commands/`; `ml-denoise/status.md` AC11 |
 | Mask commands | `mask list`, `mask add`, `mask set`, `mask remove` | P6 Results; `Commands/MaskCommands.swift` (not in CL's or UG's command lists) |
 
 ## UI shell

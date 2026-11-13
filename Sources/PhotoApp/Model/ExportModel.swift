@@ -56,6 +56,8 @@ final class ExportModel {
     struct Conflict: Identifiable {
         let id = UUID()
         let count: Int
+        /// Those of `count` that are originals in the library: never replaced.
+        let masters: Int
         let items: [ExportItem]
     }
 
@@ -295,16 +297,42 @@ final class ExportModel {
             issue = Issue(place: .general, text: String(localized: "Could not read the photos to export: \(error.localizedDescription)"))
             return false
         }
-        let date = Date()
-        let contexts = items.filter { !$0.isVideo }.enumerated()
-            .map { $1.templateContext(sequence: $0 + 1, exportDate: date) }
-        let existing = ExportNaming.existingCount(contexts, settings: settings, in: destination)
-        if existing > 0 {
-            conflict = Conflict(count: existing, items: items)
+        let clashes: ExportClashes
+        do {
+            clashes = try await job.clashes(for: items, settings: settings, in: destination)
+        } catch {
+            issue = Issue(place: .general, text: String(localized: "Could not read the photos to export: \(error.localizedDescription)"))
+            return false
+        }
+        if clashes.existing > 0 {
+            conflict = Conflict(count: clashes.existing, masters: clashes.masters, items: items)
             return false
         }
         start(items: items, policy: .keepBoth)
         return true
+    }
+
+    /// The existing-files alert's message for `count` files in the way,
+    /// `masters` of them originals in the library: what Keep Both does, or,
+    /// when there are originals, what happens to the photos whose names are
+    /// theirs. The messages with originals say what happens and compare no
+    /// buttons (owner, sign-off P1; review.md R1 before that).
+    /// `ExportClashes.originals` picks the case.
+    static func conflictMessage(count: Int, masters: Int) -> String {
+        switch ExportClashes(existing: count, masters: masters).originals {
+        case .none:
+            String(localized: "Keep Both writes the new files under numbered names.",
+                   comment: "Export window: existing files alert message")
+        case .some(let masters):
+            String(localized: "\(masters) of them are originals in the library. Originals are never replaced, so those photos are written under numbered names.",
+                   comment: "Export window: existing files alert message when some of the files are originals; how many")
+        case .theOnlyFile:
+            String(localized: "It is an original in the library. Originals are never replaced, so the new file is written under a numbered name.",
+                   comment: "Export window: existing files alert message when the one file is an original")
+        case .all:
+            String(localized: "They are all originals in the library. Originals are never replaced, so the new files are written under numbered names.",
+                   comment: "Export window: existing files alert message when every file is an original")
+        }
     }
 
     /// Runs the export the window asked about with `policy` for taken names.
