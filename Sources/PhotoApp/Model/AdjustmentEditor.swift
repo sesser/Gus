@@ -40,8 +40,19 @@ final class AdjustmentEditor {
     private(set) var state = State.idle
     /// The photo being edited.
     private(set) var item: CatalogItem?
+    /// The system's RAW decoder reads the photo's file, so the stack's decode
+    /// settings apply (`SystemRAWDecoder`): the Adjust tab offers a raw's
+    /// controls. False for a raw LibRaw decodes, which is adjusted as a file
+    /// that is not RAW.
     private(set) var isRaw = false
+    /// A raw file the system's RAW decoder gives no image for, decoded by
+    /// LibRaw (issue #161): the Adjust tab says what that leaves out.
+    private(set) var usesFallbackDecoder = false
+    /// Machine learning noise reduction's availability for such a file (this
+    /// camera, or this Mac), which the dimmed check box gives as its reason.
+    @ObservationIgnored private var fallbackMachineLearning: MachineLearningNoiseReduction.Availability?
     /// What the decoder chose for a RAW file (as-shot white balance, defaults).
+    /// Nil exactly when `isRaw` is false.
     private(set) var rawDefaults: RawDefaults?
     /// Current values, ahead of the catalog while a slider is dragged.
     private(set) var adjustments = Adjustments()
@@ -357,7 +368,10 @@ final class AdjustmentEditor {
         }
         state = .loading
         sourceURL = url
-        isRaw = SupportedFormats.isRaw(pathExtension: url.pathExtension)
+        // Known once the file's header is read, with the defaults below.
+        isRaw = false
+        usesFallbackDecoder = false
+        fallbackMachineLearning = nil
         let catalog = library.catalog
         let generator = library.previews.interactiveGenerator
         let colorSpace = library.previews.displayColorSpace
@@ -368,10 +382,19 @@ final class AdjustmentEditor {
         // The Lens kernels compile once, the first time; not on the first frame that needs them.
         Self.prepareLensKernelsOnce()
         loadTask = Task {
-            let defaults = SupportedFormats.isRaw(pathExtension: url.pathExtension)
+            let fileIsRaw = SupportedFormats.isRaw(pathExtension: url.pathExtension)
+            let defaults = fileIsRaw
                 ? await Task.detached(priority: .userInitiated) { RawDefaults(source: url) }.value : nil
-            let camera = SupportedFormats.isRaw(pathExtension: url.pathExtension)
+            // The defaults exist exactly for a raw the system decoder reads
+            // (`SystemRAWDecoder`): one read of the file answers both.
+            let systemDecodes = defaults != nil
+            // A camera frame is undone only by the system decoder's whole-sensor decode.
+            let camera = systemDecodes
                 ? await Task.detached(priority: .userInitiated) { CameraFrame.rect(of: url) }.value : nil
+            // The system decoder lists no version for a file it gives no image for:
+            // the reason is this camera, or this Mac before macOS 27.
+            let fallbackLearning = fileIsRaw && !systemDecodes
+                ? MachineLearningNoiseReduction.availability(for: url, decoderVersions: []) : nil
             let cached = await Task.detached(priority: .userInitiated) { previewKey.map(cache.contains) ?? false }.value
             let fallback = previewKey.flatMap(cache.sessionOnlyReason)
             guard !Task.isCancelled, item?.versionID == versionID else { return }
@@ -388,12 +411,17 @@ final class AdjustmentEditor {
                     adjustments = loaded
                     committed = loaded
                     rawDefaults = defaults
+                    isRaw = systemDecodes
+                    usesFallbackDecoder = fileIsRaw && !systemDecodes
+                    fallbackMachineLearning = fallbackLearning
                     previewWasCached = cached
                     arrivedWithFailedFallback = fallback == .failed
                     if let fallback { learnUnavailability(fallback) }
                     cameraRect = camera
-                    session = LiveRenderSession(source: url, generator: generator, colorSpace: colorSpace)
-                    regionRenderer = LiveRegionRenderer(source: url, generator: generator, colorSpace: colorSpace)
+                    session = LiveRenderSession(source: url, generator: generator, colorSpace: colorSpace,
+                                                systemDecodesRaw: systemDecodes)
+                    regionRenderer = LiveRegionRenderer(source: url, generator: generator, colorSpace: colorSpace,
+                                                        systemDecodesRaw: systemDecodes)
                     state = .ready
                     refreshMachineLearning()
                     refreshFringeSwatches()
@@ -463,6 +491,9 @@ final class AdjustmentEditor {
         showsOriginal = false
         isChanging = false
         rawDefaults = nil
+        isRaw = false
+        usesFallbackDecoder = false
+        fallbackMachineLearning = nil
         sourceURL = nil
         selectedMaskID = nil
         cameraRect = nil
@@ -686,7 +717,8 @@ final class AdjustmentEditor {
         guard let wanted = refinementWanted, let session, let url = sourceURL, let library else { return }
         let refinesPhoto = wanted == .photoWithoutSlot
         let refiner = mapRefiner ?? SharpeningMapRefiner(source: url, generator: library.previews.interactiveGenerator,
-                                                         colorSpace: library.previews.displayColorSpace)
+                                                         colorSpace: library.previews.displayColorSpace,
+                                                         systemDecodesRaw: isRaw)
         mapRefiner = refiner
         let values = refinesPhoto ? valuesOnScreen : (previewValues ?? adjustments)
         let longEdge = loupeIsZoomed ? nil : session.longEdge
@@ -914,7 +946,8 @@ final class AdjustmentEditor {
         }
         return MachineLearningNoiseReduction.Status(
             asks: values.asksForMachineLearning, groupIsOn: values.isEnabled(.noiseReduction),
-            availability: isRaw ? rawDefaults?.machineLearning : .notRaw, renderFailed: failed)
+            availability: isRaw ? rawDefaults?.machineLearning : usesFallbackDecoder ? fallbackMachineLearning : .notRaw,
+            renderFailed: failed)
     }
 
     /// The saved values rendered with machine learning: a fallback kept for
@@ -1443,8 +1476,11 @@ final class AdjustmentEditor {
         previewValues = nil
         let start = adjustments.crop
         cropImageTask?.cancel()
+        // Only the system decoder's whole-sensor decode has a camera frame to start from.
+        let hasCameraFrame = isRaw
         cropImageTask = Task {
-            let cameraRect = await Task.detached(priority: .userInitiated) { CameraFrame.rect(of: url) }.value ?? .full
+            let cameraRect = hasCameraFrame
+                ? await Task.detached(priority: .userInitiated) { CameraFrame.rect(of: url) }.value ?? .full : .full
             guard !Task.isCancelled, item?.versionID == versionID, let image = await renderWholeImage() else { return }
             // A photo without a crop shows its camera's frame; with one, the rectangle
             // is in the whole sensor already.

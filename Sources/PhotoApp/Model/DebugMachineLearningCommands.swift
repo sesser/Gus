@@ -61,6 +61,7 @@ enum DebugMachineLearningCommands {
 
     static func printState(model: LibraryModel, window: NSWindow?) {
         let editor = model.editor
+        printDecoder(editor, window: window)
         guard let status = editor.machineLearning else {
             print("debug-script: ml none (editor \(editor.state)) badge \(badge(editor))")
             return
@@ -102,6 +103,22 @@ enum DebugMachineLearningCommands {
         let frame = editor.frame.map { "\($0.machineLearning)" + ($0.adjustments == editor.adjustments ? "" : " (other values)") }
         print("debug-script: ml badge \(badge(editor)) spinner \(editor.isAwaitingMachineLearningFrame)"
               + " frame \(frame ?? "none") undo '\(model.undoManager.undoActionName)'")
+    }
+
+    /// Which decoder gives the photo's image, and what the Adjust tab offers
+    /// for it (`SystemRAWDecoder`): the white balance modes and the
+    /// Temperature row (Kelvin for a raw the system decodes, relative otherwise).
+    private static func printDecoder(_ editor: AdjustmentEditor, window: NSWindow?) {
+        let decoder = editor.isRaw ? "system" : editor.usesFallbackDecoder ? "fallback" : "not raw"
+        let root = window?.contentView?.superview
+        let asShot = String(localized: "As Shot", comment: "White balance preset")
+        let modes = root.flatMap { find(NSPopUpButton.self, in: $0, where: { $0.itemTitles.contains(asShot) }) }
+        let temperature = root.flatMap {
+            find(SliderRow.self, in: $0, where: { $0.accessibilityLabel() == String(localized: "Temperature") })
+        }
+        print("debug-script: decoder \(decoder) wb modes [\(modes?.itemTitles.joined(separator: ", ") ?? "not shown")]"
+              + " temperature \(temperature?.debugState ?? "not shown")"
+              + " note \(editor.usesFallbackDecoder ? "'\(FallbackDecoderText.note)'" : "none")")
     }
 
     private static func badge(_ editor: AdjustmentEditor) -> String {

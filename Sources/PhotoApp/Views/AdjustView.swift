@@ -174,6 +174,8 @@ private struct DevelopControls: View {
                 GroupLabel(.profile, editor: editor)
                 profile
                     .showsTurnedOff(.profile, editor: editor)
+            } else if editor.usesFallbackDecoder {
+                fallbackDecoderNote
             }
             GroupLabel(.whiteBalance, editor: editor)
             VStack(alignment: .leading, spacing: 2) {
@@ -205,6 +207,23 @@ private struct DevelopControls: View {
             }
             .showsTurnedOff(.presence, editor: editor)
         }
+    }
+
+    /// In the Profile group's place for a raw the system's RAW decoder gives no
+    /// image for: nothing there could apply to LibRaw's decode, and the note
+    /// says so instead of the group going missing (issue #161).
+    private var fallbackDecoderNote: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            ControlGroupLabel(text: AdjustText.title(.profile))
+                .frame(height: InspectorMetrics.groupLabelHeight)
+                .padding(.top, InspectorMetrics.groupLabelTop)
+            Text(FallbackDecoderText.note)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.bottom, 2)
+        }
+        .accessibilityElement(children: .combine)
     }
 
     private var profile: some View {
