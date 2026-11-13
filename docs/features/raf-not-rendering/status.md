@@ -4,9 +4,9 @@ Issue: #161. Bug fix, branch `bug/raf-not-rendering`, cut from `develop` at `ef5
 
 **Status: Done** (2026-11-13). A raw the system's RAW decoder gives no image
 for is decoded by the vendored LibRaw and renders everywhere; it is adjusted
-like any rendered image. The code review's findings C1 to C12 are answered
-below. Next: code-reviewer's second pass and, because the Adjust tab changed,
-the designer; then qa-tester; then the owner's sign-off.
+like any rendered image. The code review's findings C1 to C12 and the design
+review's fixes F1 to F5 are answered below. Next: the designer and the
+code-reviewer confirm their fixes; then qa-tester; then the owner's sign-off.
 
 ## Bug
 
@@ -74,12 +74,13 @@ JPEG is (`RenderContext.isRaw` false):
 | White Balance modes | As Shot, Auto, Daylight … Flash, Custom | As Shot, Auto, Custom |
 | Temperature, Tint | Kelvin and tint, in the decoder | relative (−100 … 100), in the renderer |
 | Auto White Balance | Kelvin (5886 K, tint 7) | relative (16, −22) |
-| Exposure, Light, Presence, curve, color, masks, Lens, Effects, Sharpening, crop | renderer | renderer, the same |
+| Tone, Presence, Tone Curve, Color Mixer, Color Grading, masks, Lens, Effects, Sharpening, crop | renderer | renderer, the same |
 | Highlights or Exposure below 0 | decoder keeps values above white | what the decode holds (as a JPEG) |
 | Luminance noise reduction | decoder | renderer's denoiser |
 | Color noise reduction | decoder | not offered |
 | Profile, Decoder | offered | a note in the group's place |
-| Use machine learning | offered | dimmed: "Not available for this camera." |
+| Use machine learning | offered | dimmed: "Not available for this camera." (on every macOS, F3) |
+| Mode shown after a paste of Daylight or a Kelvin Custom | the pasted mode | As Shot: what renders (F2) |
 
 `photocli render --long-edge 600` with one `--set` at a time, SHA-256 of the
 PNG against the unedited render (debug build):
@@ -101,7 +102,8 @@ So the two kinds of raw mirror each other in white balance: Kelvin values do
 nothing to a LibRaw photo, relative values do nothing to a system raw. That is
 how a JPEG has always behaved, and the Adjust tab offers each photo only the
 kind that works. Kelvin values reach a LibRaw photo only by paste, a preset or
-`photocli`, and then change nothing (Design question D2).
+`photocli`, and then change nothing; they stay in the stack, and the Mode
+pop-up shows the mode that renders (design review D2, F2).
 
 ## Code review findings
 
@@ -120,11 +122,32 @@ kind that works. Kelvin values reach a LibRaw photo only by paste, a preset or
 | C11 | Fixed: the real-file test compares long edges. |
 | C12 | Fixed: `rawcompare` prints the first run and the best of N, is in the usage text and in `docs/PROFILING.md`, which says what the figures do not show. |
 
+## Design review (`review.md`, 2026-11-13)
+
+Rulings on the engineer's Design questions: **D1** keep the note under the
+Profile heading, no dimmed pop-ups. **D2** no Kelvin scale and no Daylight to
+Flash for these photos. **D3** their machine learning caption, check box help
+and badge tooltip name Luminance only. **D4** no decoder badge in the grid or
+the loupe.
+
+| # | Outcome |
+|---|---|
+| F1 | Fixed. For a photo the system decoder doesn't read (`AdjustmentEditor.usesFallbackDecoder`), the caption and check box help are "Not applied: this camera isn't supported. Luminance applies instead." and the badge tooltip ends "It's shown with Luminance instead." (`MachineLearningText.caption`, `checkBoxHelp` and `badgeHelp` take `fallbackDecoder`; no new `Reason`, so export rows keep one reason per camera). Both keys are in the catalog with the review's comments. `print ml` prints them. |
+| F2 | Fixed. `WhiteBalance.relativeDisplayPreset` (PhotoCore): Auto when the mode is Auto, else As Shot when both relative values are 0, else Custom. The Mode pop-up of every file that is not decoded as a raw (JPEGs too) selects it; the stack is not rewritten. Test: `LibRawFallbackPipelineTests.relativeModeShown`. Scripted: Daylight and machine learning copied from the X-T3 and pasted onto the X-E3 show `wb mode 'As Shot'` with `"preset":"daylight","temperature":5500` kept in the stack; after Temperature +25, `'Custom'`. `print ml` prints the pop-up's selected mode. |
+| F3 | Fixed. The reason for these photos is the camera on every macOS: `MachineLearningNoiseReduction.reasonWithoutSystemDecoder` (`cameraNotSupported`) is what a decode reports (so the badge, `photocli` and the export's Activity row), and the editor gives the check box and caption `cameraNotSupported` without asking the macOS version. Test: `machineLearningReasonIsTheCamera`. Not run before macOS 27: no such Mac here; the code no longer has a branch on the version for these photos. |
+| F4 | Fixed: the note reads "macOS can't decode this raw file, so it's shown without a profile. Temperature and Tint are relative to the camera's white balance, and Color noise reduction isn't available." (catalog key and value; place, style and the combined accessibility element kept). |
+| F5 | Fixed in `docs/USER_GUIDE.md`: "not the macOS decoder's profile and contrast"; the groups by their names (Tone, Presence, Tone Curve, Color Mixer, Color Grading, …); Use machine learning "dimmed unless a paste or preset turned it on; it then says it isn't applied, and Luminance applies instead". |
+
+The review's improvement (the tab laying out as for a JPEG while a photo
+loads): the Adjust tab shows its spinner while the editor is loading
+(`loupeAdjustState` `.loading`) and lays the controls out only once the file's
+kind is known, so no layout of the wrong kind is drawn. M5 stays a manual check.
+
 ## Build and tests
 
 - Baseline before this pass (`7957ed1`): `swift build` complete with one
   warning (C9); `swift test` 859 tests in 129 suites passed, 1 known issue.
-- Now: `swift build` complete, no warning. `swift test`: 878 tests in 131
+- Now: `swift build` complete, no warning. `swift test`: 879 tests in 131
   suites passed, the same 1 known issue (`LiveSessionTests`, values above
   white in the cached stages). `RAF_SAMPLE=… swift test --filter
   LibRawFallbackTests`: 5 tests passed. `Scripts/build-app.sh all`: both
@@ -154,10 +177,16 @@ root in a scratch folder, the X-E3 and X-T3 files added with `addfolder`.
 - Not checked by script: the note's look (the snapshot leaves the inspector
   blank in this design, and SwiftUI text is not found through AppKit).
 
-**For a person:** open an X-E3 photo, Adjust tab. Under the Profile heading
-there should be the note and no pop-ups; Temperature and Tint run −100 to 100
-and move the picture; the Mode pop-up has three items; Use machine learning is
-dimmed with its reason; the note wraps and does not crowd White Balance.
+- After the design review's fixes, a paste from the X-T3 (Daylight, Use
+  machine learning on) onto the X-E3: `wb mode 'As Shot'`; `ml caption 'Not
+  applied: this camera isn't supported. Luminance applies instead.' triangle
+  true`, the check box on and enabled with the same tip; the badge's help ends
+  "It's shown with Luminance instead."; turning it off gives the dimmed "Not
+  available for this camera." again.
+
+**For a person:** the design review's manual checks M1 to M5 (`review.md`):
+the note's look, White Balance, the dimmed check box, a paste from a raw macOS
+decodes, and switching between the two photos.
 
 ## Timings
 
@@ -200,8 +229,11 @@ size. LibRaw is single-threaded here.
   change and its date in each modified file (the two headers carry none: the
   vendored tree was not to be touched; the notices file has it). Not legal
   advice. Requirements issue R3.
-- **Kelvin and the named presets for LibRaw photos.** Design question D2.
-- **The note's wording and place.** Design question D1.
+- **White balance across decoders.** Ruled for this fix (D2: not offered). A
+  Kelvin white balance pasted onto a LibRaw photo, or a relative one onto a
+  raw macOS decodes, is kept and does nothing; the designer proposes an
+  enhancement for the product manager (slug `white-balance-across-decoders`),
+  which also covers R1.
 
 ## Not done, and why
 
