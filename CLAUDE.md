@@ -361,8 +361,11 @@ compatible and never put `#` comment lines inside pasted command snippets.
   with the library app; never fork them. Without a catalog (`CardImportModel.library`
   nil) it copies only, writes preset metadata into new sidecars (never into
   existing ones), and does not mark duplicates.
-- **Dependencies**: GRDB only. Ask before adding anything else. Apple frameworks
-  (Vision, AVFoundation, AVKit) are fine.
+- **Dependencies**: GRDB, and LibRaw 0.22.3 vendored in `Sources/CLibRaw` (CDDL;
+  `THIRD_PARTY_NOTICES.md`), which decodes only raws the system's RAW decoder
+  gives no image for (`LibRawDecoder`, the fallback in `PreviewGenerator.decode`).
+  Ask before adding anything else. Apple frameworks (Vision, AVFoundation,
+  AVKit) are fine.
 
 ## Scope so far
 
