@@ -50,7 +50,7 @@ The Bug section of `status.md` and the issue's ruling, case by case.
 | R5. Hashing holds one chunk, not the file (C6, C9) | Test | `hashingALargeFileHoldsOneChunkNotTheFile`, `aFileOfSeveralChunksHashesAsTheCatalogDoes` | Pass |
 | R6. A missing master's place is not taken (decision 1) | Test | `aMissingMastersPlaceIsNotTaken`, "A missing master's place is kept when the export makes its folder again" | Pass |
 | R7. Keep Both and Skip behave as before | Test, Script | `skipLeavesAnExistingMasterAndKeepBothNumbersIt`, `existingFilesAreSkippedOverwrittenOrKept`; S-A, S2 | Pass |
-| A1. The alert's message: four cases, `review.md` R1's exact English | Test, Script | the four tests of "Export clashes: how many of the files in the way are originals" pick the case; S-A and S-B print all four from the bundle | Pass |
+| A1. The alert's message: four cases (`review.md` R1), final English `review.md` R5 | Test, Script, Person | the four tests of "Export clashes: how many of the files in the way are originals" pick the case; S-A and S-B printed all four from the bundle (in R1's wording, before R5); the final wording read by the owner in P1 at sign-off | Pass |
 | A2. Title, buttons, order, default and cancel unchanged | Person | P1, P2 (`review.md` requirements 2 and 3 pass by reading) | Open |
 | M1. The message fits, wrapped, nothing cut off | Person | P1 | Open |
 | M2. A real click on Replace; Return and Esc | Person | P2 | Open |
@@ -178,11 +178,17 @@ Both images are detached.
 
 | Run | Printed |
 |---|---|
-| overwrite 1 | `export conflicts 2 originals 2`; "They are all originals in the library. Originals are never replaced, so Replace, like Keep Both, writes the new files under numbered names."; `exported 4 … originals kept 2`: `IMG_00001-2.jpg`, `IMG_00002-2.jpg`, `RAW_00003.jpg`, `RAW_00004.jpg` |
-| overwrite 2 | `export conflicts 4 originals 2`; "2 of them are originals in the library. Originals are never replaced, so Replace writes those photos under numbered names. Keep Both gives every new file a numbered name."; `IMG_…-3.jpg`, `RAW_00003.jpg` and `RAW_00004.jpg` replaced |
+| overwrite 1 | `export conflicts 2 originals 2`; "They are all originals in the library. Originals are never replaced, so the new files are written under numbered names."; `exported 4 … originals kept 2`: `IMG_00001-2.jpg`, `IMG_00002-2.jpg`, `RAW_00003.jpg`, `RAW_00004.jpg` |
+| overwrite 2 | `export conflicts 4 originals 2`; "2 of them are originals in the library. Originals are never replaced, so those photos are written under numbered names."; `IMG_…-3.jpg`, `RAW_00003.jpg` and `RAW_00004.jpg` replaced |
 | keepboth | same count and message; `IMG_…-4.jpg`, `RAW_…-2.jpg`; `originals kept 2` (decision 3) |
 | skip | `exported 0 … skipped 4 originals kept 0` |
-| one photo, overwrite | `export conflicts 1 originals 1`; "It is an original in the library. Originals are never replaced, so Replace, like Keep Both, writes the new file under a numbered name."; `IMG_00002-5.jpg` |
+| one photo, overwrite | `export conflicts 1 originals 1`; "It is an original in the library. Originals are never replaced, so the new file is written under a numbered name."; `IMG_00002-5.jpg` |
+
+The messages quoted in S-A, S-B and S-C are the final ones (`review.md` R5,
+after the owner's P1 finding). This pass's runs printed the earlier R1
+wording ("…so Replace, like Keep Both, writes…"); the counts, cases and file
+names above are what the runs showed. The scripts were not run again after
+R5 (no builds in the sign-off pass); the owner read the final text in P1.
 
 `print items` before and after: `IMG_00001:0 IMG_00002:0 RAW_00003:0
 RAW_00004:0`. In the snapshot the grid's four photos all show their pictures
@@ -195,8 +201,8 @@ limit of `snapshot`). Masters: all 4 OK.
 
 Run 1: `conflicts 1 originals 1`, "It is an original…", `IMG_00001-2.jpg`.
 Run 2: `conflicts 2 originals 1`, "1 of them is an original in the library.
-Originals are never replaced, so Replace writes that photo under a numbered
-name. Keep Both gives every new file a numbered name.", `IMG_00001-3.jpg`
+Originals are never replaced, so that photo is written under a numbered
+name.", `IMG_00001-3.jpg`
 and `RAW_00002.jpg` replaced. Masters OK.
 
 **S-C, the app, library A: content and a link.** `$S/backupA` holds an exact
@@ -227,7 +233,8 @@ photos). Use File ▸ Add Folder Without Copying… on a folder of JPEGs.
 - **P1, the alert's look** (M1, M3; `status.md` items 1 and 3). Select every
   photo of a project. File ▸ Export…, JPEG, Original Name, the project's own
   folder, Export. Under the usual title, read "They are all originals in the
-  library…": wrapped, nothing cut off, same four buttons in the same order,
+  library. Originals are never replaced, so the new files are written under
+  numbered names." (`review.md` R5): wrapped, nothing cut off, same four buttons in the same order,
   Keep Both the default. Repeat with one photo ("It is an original…"). Then
   export a few photos once to that folder with a template such as
   `{name}-web`, and export them again together with others, so that both
@@ -254,4 +261,21 @@ photos). Use File ▸ Add Folder Without Copying… on a folder of JPEGs.
 
 ## Follow-up
 
-Nothing yet. Reruns after fixes and the owner's sign-off go here.
+**Sign-off, 2026-11-13.** The owner ran P1 to P4 on a scratch library and
+signed off with **no checks left open**. Commit signed off: `371aa4a`
+("Export never overwrites a catalogued master (#160)").
+
+- **P1:** done. The owner found the wording "Replace, like Keep Both,
+  writes…" confusing and ruled to drop the comparison. The engineer changed
+  the messages (`status.md`, "Owner's findings at sign-off"), the designer
+  accepted the five final messages in `review.md` R5, and code-reviewer
+  closed it in its sixth pass. The quotes in Scripts and P1 above now give
+  R5's text. Fixed.
+- **P2, P3, P4:** done by the owner, nothing found.
+- Code-review C8 and C9 (the note under Findings): confirmed fixed in
+  `code-review.md`'s fifth pass (2026-11-13).
+- **Not part of #160:** the owner also found that Fujifilm RAF files do not
+  render in the loupe. That is issue #161, filed apart. It was not caused by
+  this branch and was not checked in this QA.
+
+Not rerun by qa-tester after R5: no builds or tests in this pass.
