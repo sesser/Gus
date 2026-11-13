@@ -256,12 +256,8 @@ size. LibRaw is single-threaded here.
 
 ## Not done, and why
 
-- **`CLAUDE.md`'s Layout and Commands** (a line for `Sources/CLibRaw`, the
-  `RAF_SAMPLE` command): not edited by the engineer, whose rules do not let
-  another agent's message authorize a change to `CLAUDE.md` or `.claude/`,
-  whatever it relays. The wording is in the engineer's report for the main
-  session, which made the earlier edits (`4ff5d30`: line 158, Dependencies and
-  `.claude/agents/code-reviewer.md`, all correct now).
+- **`CLAUDE.md`'s Layout and Commands**: applied by the main session on the owner's
+  confirmation (the `Sources/CLibRaw` Layout entry and the `RAF_SAMPLE` command).
 - **`README.md`**: the product manager's (`docs/WORKFLOW.md`); see **README**.
 - **`Sources/CLibRaw`**: untouched except for `LICENSE.LGPL`.
 - No decoder badge in the grid or loupe, no `decoder` field in `photocli`'s

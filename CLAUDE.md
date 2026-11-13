@@ -64,6 +64,10 @@ RAW_EDGE_SAMPLES=wide.RW2:longer.RW2 swift test --filter RAWEdgeSmearTests
 ```
 
 ```bash
+RAF_SAMPLE=path/to/file.RAF swift test --filter LibRawFallbackTests
+```
+
+```bash
 RAW_CONTEXT_SOAK=12000 swift test --filter RAWContextSoakTests
 ```
 
@@ -196,6 +200,10 @@ compatible and never put `#` comment lines inside pasted command snippets.
   `CardImport/` (templates, copying), `Export/` (rendering, naming, metadata
   and watermarks for exports), `Suggestions/` (Vision), `Video/`.
   Everything testable lives here.
+- `Sources/CLibRaw` — LibRaw 0.22.3, vendored (LGPL 2.1, `THIRD_PARTY_NOTICES.md`):
+  upstream's `src`, `internal` and `include/libraw`, built by `Package.swift` and
+  called only from `Preview/LibRawDecoder.swift`, for raws the system's RAW
+  decoder gives no image for. Never edit it.
 - `Sources/PhotoUI` — UI shared by both apps: `Import/` (the import window:
   toolbar, options inspector, the `NSCollectionView` grid of `ImportCell`s
   with check boxes, its model, `ImportCommands` and debug-script commands),
