@@ -89,7 +89,9 @@ I built this with Claude. AI did the work, I did the orchestration.
   app has changed a sidecar, Gus shows the difference instead of overwriting it.
 - Export to JPEG or 8/16-bit TIFF in sRGB, Display P3, Adobe RGB or ProPhoto
   RGB, with resizing, output sharpening, templated file names, a choice of
-  metadata, an optional watermark and saved presets
+  metadata, an optional watermark and saved presets. Export never replaces an
+  original that's in your library, even when you choose Replace: the new file
+  gets a numbered name instead (`IMG_1-2.jpg`)
 - ExifTool is used for metadata when it's installed, ImageIO otherwise
 
 **Command line**
