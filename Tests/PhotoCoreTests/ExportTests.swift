@@ -41,7 +41,7 @@ struct ExportNamingTests {
     @Test func namesInABatchNeverCollide() {
         let folder = URL(fileURLWithPath: "/out")
         let plan = ExportNaming.plan([context("a.NEF"), context("A.jpg"), context("a.heic"), context("b.NEF")],
-                                     settings: ExportSettings(), in: folder, policy: .keepBoth) { _ in false }
+                                     settings: ExportSettings(), in: folder, policy: .keepBoth, masters: .none) { _ in false }
         #expect(plan.map(\.url.lastPathComponent) == ["a.jpg", "A-2.jpg", "a-3.jpg", "b.jpg"])
     }
 
@@ -51,12 +51,16 @@ struct ExportNamingTests {
         let exists = { (url: URL) in existing.contains(url.lastPathComponent) }
         let contexts = [context("a.NEF"), context("b.NEF")]
         let settings = ExportSettings()
-        #expect(ExportNaming.existingCount(contexts, settings: settings, in: folder, fileExists: exists) == 1)
-        #expect(ExportNaming.plan(contexts, settings: settings, in: folder, policy: .skip, fileExists: exists)
+        #expect(ExportNaming.clashes(contexts, settings: settings, in: folder, masters: .none, fileExists: exists)
+            == ExportClashes(existing: 1, masters: 0))
+        #expect(ExportNaming.plan(contexts, settings: settings, in: folder, policy: .skip, masters: .none,
+                                  fileExists: exists)
             == [.skip(folder.appending(path: "a.jpg")), .write(folder.appending(path: "b.jpg"), replacing: false)])
-        #expect(ExportNaming.plan(contexts, settings: settings, in: folder, policy: .overwrite, fileExists: exists)
+        #expect(ExportNaming.plan(contexts, settings: settings, in: folder, policy: .overwrite, masters: .none,
+                                  fileExists: exists)
             .first == .write(folder.appending(path: "a.jpg"), replacing: true))
-        #expect(ExportNaming.plan(contexts, settings: settings, in: folder, policy: .keepBoth, fileExists: exists)
+        #expect(ExportNaming.plan(contexts, settings: settings, in: folder, policy: .keepBoth, masters: .none,
+                                  fileExists: exists)
             .first == .write(folder.appending(path: "a-3.jpg"), replacing: false))
     }
 }

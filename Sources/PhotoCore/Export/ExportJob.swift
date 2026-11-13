@@ -77,6 +77,11 @@ public struct ExportSummary: Sendable, Hashable {
     /// The written files that asked for machine learning noise reduction, in completion order.
     public var machineLearning: [MachineLearningResult] = []
     public var skippedExisting = 0
+    /// Photos given a numbered name because theirs is a library master's
+    /// place, which no export takes whatever its policy, or because the file
+    /// there has a master's content, which is looked at only when the policy
+    /// would replace it (as planned: some may have failed since).
+    public var protectedMasters = 0
     public var skippedVideos = 0
     public var failures: [Failure] = []
     public var cancelled = false
@@ -97,6 +102,9 @@ public struct ExportJob: Sendable {
     /// The words of a copy's name, for file names and reports. Plain English
     /// unless the caller has localized ones.
     public var copyNaming: CopyNaming
+    /// Where volumes are mounted right now, for placing the masters an export
+    /// must not write over (`Catalog.masterFiles(mounted:)`). Tests inject it.
+    public var mountedVolumes: @Sendable () -> [VolumeDescriptor] = { VolumeAvailability.mountedVolumes() }
 
     private static let log = Logger(subsystem: AppBranding.bundleIdentifier, category: "export")
 
@@ -125,6 +133,21 @@ public struct ExportJob: Sendable {
         return items
     }
 
+    /// The names `items` would use in `destination` that are taken there, and
+    /// how many of those files are library masters, for asking before an
+    /// export starts. Reads the catalog and the folder off the caller's actor.
+    public func clashes(for items: [ExportItem], settings: ExportSettings, in destination: URL,
+                        date: Date = Date()) async throws -> ExportClashes {
+        let masters = try await catalog.masterFiles(mounted: mountedVolumes())
+        let contexts = items.filter { !$0.isVideo }.enumerated()
+            .map { $1.templateContext(sequence: $0 + 1, exportDate: date) }
+        let clashes = ExportNaming.clashes(contexts, settings: settings, in: destination, masters: masters)
+        // A file being read for its content when the task was cancelled counts as a
+        // master (`MasterFiles.holdsContent`); such a count is not an answer.
+        try Task.checkCancellation()
+        return clashes
+    }
+
     /// Exports `items` (or the request's versions when nil). Videos are
     /// counted and skipped. `progress` gets (done, total) after each image.
     public func run(_ request: ExportRequest, items: [ExportItem]? = nil,
@@ -144,6 +167,26 @@ public struct ExportJob: Sendable {
         let exportable = all.filter { !$0.isVideo }
         summary.skippedVideos = all.count - exportable.count
 
+        // The masters first: without them nothing is written or made, since a name
+        // could be a master's. Those of the destination are taken before it is made:
+        // a folder resolves differently once it exists, and the masters' own folders
+        // were resolved without it.
+        let masters: MasterFiles
+        let protected: MasterFiles.Names
+        do {
+            masters = try await catalog.masterFiles(mounted: mountedVolumes())
+            protected = masters.names(in: request.destination)
+        } catch {
+            // A stopped export reads nothing more; that is not a failure of its photos.
+            if Task.isCancelled {
+                summary.cancelled = true
+            } else {
+                summary.failures = exportable.map {
+                    .init(fileName: $0.reportName, reason: .writeFailed(error.localizedDescription))
+                }
+            }
+            return summary
+        }
         do {
             try FileManager.default.createDirectory(at: request.destination, withIntermediateDirectories: true)
         } catch {
@@ -153,8 +196,16 @@ public struct ExportJob: Sendable {
             return summary
         }
         let contexts = exportable.enumerated().map { $1.templateContext(sequence: $0 + 1, exportDate: request.date) }
-        let destinations = ExportNaming.plan(contexts, settings: request.settings, in: request.destination,
-                                             policy: request.policy)
+        // Files that would be replaced are asked for their content here: a master on a
+        // volume the catalog can't place is still a master. A read cut short by Stop
+        // counts as one, so nothing is replaced, and nothing starts below.
+        let entries = ExportNaming.entries(contexts, settings: request.settings, in: request.destination,
+                                           policy: request.policy, protected: protected,
+                                           holdsMasterContent: masters.holdsContent(ofFileAt:))
+        let destinations = entries.map(\.destination)
+        summary.protectedMasters = entries.count { entry in
+            if case .write = entry.destination { entry.isMaster } else { false }
+        }
         let total = exportable.count
         var done = 0
         progress(0, total)

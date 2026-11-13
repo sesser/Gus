@@ -36,7 +36,7 @@ struct ExportSheet: View {
             Button("Skip Them") { resolve(.skip) }
             Button("Cancel", role: .cancel) { export.conflict = nil }
         } message: {
-            Text("Keep Both writes the new files under numbered names.")
+            Text(ExportModel.conflictMessage(count: export.conflict?.count ?? 0, masters: export.conflict?.masters ?? 0))
         }
     }
 

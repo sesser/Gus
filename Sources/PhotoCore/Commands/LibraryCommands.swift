@@ -331,7 +331,10 @@ enum LibraryCommands {
             CommandParameter("to", .path, "The destination folder (created if needed).", required: true),
             CommandParameter("preset", .string, "A saved export preset, by name or id."),
             CommandParameter("settings", .json, "Settings over the preset's (or the defaults)."),
-            CommandParameter("policy", .string, "When a file exists: keepBoth (default), overwrite or skip."),
+            CommandParameter("policy", .string, """
+                When a file exists: keepBoth (default), overwrite or skip. A library master is never \
+                overwritten: the export gets a numbered name, counted in protectedMasters.
+                """),
             libraryRoot,
         ],
         run: runExport)
@@ -377,6 +380,8 @@ enum LibraryCommands {
             "destination": .string(summary.destination.path),
             "written": .array(summary.written.map { .string($0.path) }),
             "skippedExisting": JSONValue(summary.skippedExisting),
+            // Written under a numbered name because theirs is a master's, whatever --policy says.
+            "protectedMasters": JSONValue(summary.protectedMasters),
             "skippedVideos": JSONValue(summary.skippedVideos),
             "failures": .array(summary.failures.map { failure in
                 ["fileName": .string(failure.fileName), "reason": .string(String(describing: failure.reason))]

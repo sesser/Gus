@@ -515,8 +515,21 @@ from its RAW; videos are not exported. A sheet on the library window sets:
 
 Settings can be saved as **presets**. When files with the same names are
 already in the folder, the sheet asks once whether to keep both (the new files
-get numbered names), replace them or skip them. The export runs in the
-background, with progress and Stop in the toolbar's Activity item. When it
+get numbered names), replace them or skip them. An export never replaces an
+original in the library. When you export into a folder that holds originals (a
+project's own folder, say) and some of the files in the way are originals, the
+sheet says how many, and **Replace** writes those photos under numbered names
+(`IMG_0412-2.jpg`) while replacing the other files as asked; exporting there
+again adds `-3`, and so on. When all of them are originals, the sheet says so,
+and the new files are written under numbered names. This covers every original in
+the library, not only those of the photos you are exporting, and holds when the
+folder is reached through a symbolic link, a name differs only in case, or the
+original's volume is mounted at another place than last time. A file that is
+byte for byte an original in the library is not replaced either, wherever it is
+and whatever it is called: that is how an original is known on a disk the
+library no longer recognizes, and it means an exact copy of an original (a
+backup) is left alone too and counted with the originals. The export runs
+in the background, with progress and Stop in the toolbar's Activity item. When it
 ends, Activity reports the result; there is no alert. If any photos could not
 be exported (an offline volume, for instance), the report is a warning that
 lists up to ten of them with the reason for each. Photos skipped because you
@@ -606,7 +619,9 @@ adjustments, `query projects` and `query images` (smart-album rules as JSON),
 `mask remove` (a version's local adjustments; `--dry-run` only shows the
 result). `noiseReduction.machineLearning=true` turns on machine learning noise
 reduction; `render` and `export` report in their JSON whether it was applied,
-and why not. `colorFringes.color1=purple` (or `green`, or OkLab `L,a,b`) fills a
+and why not. `export --policy overwrite` replaces existing files but never an
+original in the library: such a photo is written under a numbered name and
+counted in the result's `protectedMasters`. `colorFringes.color1=purple` (or `green`, or OkLab `L,a,b`) fills a
 fringe slot, `colorFringes.tolerance1=40` sets its Tolerance, and
 `colorAlignment.automatic=true` measures the original and stores the
 correction (`colorAlignment.red` and `blue` set it by hand), and

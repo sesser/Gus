@@ -654,7 +654,7 @@ struct VirtualCopiesTests {
                         context("IMG_0412.NEF", copy: "IMG_0412 copy 2", sequence: 3)]
         let folder = URL(fileURLWithPath: "/tmp/out")
         func names(_ settings: ExportSettings) -> [String] {
-            ExportNaming.plan(contexts, settings: settings, in: folder, policy: .keepBoth) { _ in false }.map(\.url.lastPathComponent)
+            ExportNaming.plan(contexts, settings: settings, in: folder, policy: .keepBoth, masters: .none) { _ in false }.map(\.url.lastPathComponent)
         }
         var settings = ExportSettings()
         settings.format = .jpeg
