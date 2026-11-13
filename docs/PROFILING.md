@@ -393,6 +393,45 @@ frame of a walk itself. Both panes were sharp 0.29 to 0.42 s after
 zooming in. The app's footprint was 115 MB before, 1.05 GB the moment both
 were sharp, and 354 MB a few seconds later.
 
+## The system RAW decoder against LibRaw (raf-not-rendering)
+
+Measured on 2026-11-13, macOS 27.2.1, a release build, local copies of one
+file per camera. Decode plus render to 8-bit sRGB at full size (LibRaw also at
+half size, its binned decode), three runs each on one `CIContext`: the first
+run, then the best of the three.
+
+| File | System, first / best | LibRaw full, first / best | LibRaw half, first / best |
+|---|---|---|---|
+| Sony ARW, 24 MP (first file of the run) | 0.19 / 0.06 s | 1.18 / 1.15 s | 0.13 / 0.12 s |
+| Fujifilm X-T3 RAF, 26 MP, compressed | 0.05 / 0.05 s | 9.62 / 9.55 s | 0.64 / 0.62 s |
+| Fujifilm X-E3 RAF, 24 MP, compressed | no image | 8.79 / 8.71 s | 0.60 / 0.59 s |
+| Canon CR2, 21 MP | 0.05 / 0.05 s | 1.29 / 1.26 s | 0.30 / 0.30 s |
+| Olympus ORF, 20 MP | 0.09 / 0.08 s | 1.32 / 1.30 s | 0.42 / 0.41 s |
+| Panasonic RW2, 20 MP | 0.05 / 0.02 s | 1.09 / 1.09 s | 0.16 / 0.16 s |
+| Panasonic HDR DNG (floating point) | 0.04 / 0.03 s | unsupported | n/a |
+
+How to read it:
+
+- LibRaw runs on one CPU thread and its two figures agree; they are its cost.
+  X-Trans files (Fujifilm) cost about 9 s at full size, Bayer files a little
+  over 1 s. The half-size decode is what thumbnails and fitted previews use.
+- The system's best of three is a warm run: the context reuses what it
+  prepared for the file. Its first run is the first use of that file in the
+  process, but only the first file of a run (the Sony here) also pays for
+  setting the context up, and nothing here shows whether macOS had the file's
+  decode cached from an earlier process. Neither figure is a cold decode, and
+  0.05 s for 20 MP and more should not be read as one. The earlier figures in
+  `docs/features/raf-not-rendering/status.md` were the best of two.
+- The two decoders' pictures differ first in look: LibRaw's is linear with the
+  camera's white balance and no tone curve, 18 to 37 levels (of 255) darker
+  in mean luma on these files, with a mean absolute difference of 21 to 39.
+- The app uses LibRaw only for raws the system gives no image for, so none of
+  the system's figures changed with it.
+
+```bash
+swift run -c release photobench rawcompare --files a.RAF:b.ARW --runs 3 --output /tmp/rawcompare
+```
+
 ## Reproducing
 
 Build the tools:

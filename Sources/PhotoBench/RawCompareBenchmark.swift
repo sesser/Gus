@@ -11,6 +11,13 @@ import UniformTypeIdentifiers
 /// baseline exposure and tone mapping, so the difference is first of all one
 /// of look; `meanLuma` and the written PNGs show it.
 ///
+/// Each time is given twice: the first run and the best of `--runs`. The
+/// runs share one `CIContext`, so the system decoder's best is a warm run
+/// (what it prepared for the file is reused) and far below its first; the
+/// first run of the first file also pays for setting the context up, so it
+/// is not a cold decode either. LibRaw runs on the CPU and its two figures
+/// are close.
+///
 /// `photobench rawcompare --files a.RAF:b.RW2 [--output DIR] [--runs N]`
 enum RawCompareBenchmark {
     static func run(_ arguments: Arguments) async throws -> [String: any Sendable] {
@@ -26,15 +33,20 @@ enum RawCompareBenchmark {
         var rows: [[String: any Sendable]] = []
         for file in files {
             var row: [String: any Sendable] = ["file": file.lastPathComponent]
-            func time(_ body: () throws -> CGImage?) rethrows -> (seconds: Double, image: CGImage?) {
-                var best = Double.infinity
+            func time(_ body: () throws -> CGImage?) rethrows -> (first: Double, best: Double, image: CGImage?) {
+                var first = Double.infinity, best = Double.infinity
                 var image: CGImage?
-                for _ in 0..<runs {
+                for run in 0..<max(runs, 1) {
                     let start = DispatchTime.now()
                     image = try body()
-                    best = min(best, Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1e9)
+                    let seconds = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1e9
+                    if run == 0 { first = seconds }
+                    best = min(best, seconds)
                 }
-                return (best, image)
+                return (first, best, image)
+            }
+            func describe(_ timed: (first: Double, best: Double, image: CGImage?)) -> String? {
+                timed.image.map { "\($0.width)x\($0.height), first run \(fmt(timed.first)) s, best of \(max(runs, 1)) \(fmt(timed.best)) s" }
             }
             let system = time {
                 guard let image = PreviewGenerator.systemRAWImage(file) else { return nil }
@@ -51,9 +63,9 @@ enum RawCompareBenchmark {
                 guard let decoded = try? LibRawDecoder.decode(file, halfSize: true) else { return nil }
                 return context.createCGImage(decoded.image, from: decoded.image.extent, format: .RGBA8, colorSpace: srgb)
             }
-            row["system"] = system.image.map { "\($0.width)x\($0.height) in \(fmt(system.seconds)) s" } ?? "no image"
-            row["libraw"] = full.image.map { "\($0.width)x\($0.height) in \(fmt(full.seconds)) s" } ?? "no image: \(libError ?? "?")"
-            row["librawHalf"] = half.image.map { "\($0.width)x\($0.height) in \(fmt(half.seconds)) s" } ?? "no image"
+            row["system"] = describe(system) ?? "no image"
+            row["libraw"] = describe(full) ?? "no image: \(libError ?? "?")"
+            row["librawHalf"] = describe(half) ?? "no image"
 
             if let a = system.image, let b = full.image {
                 let pa = small(a), pb = small(b)
