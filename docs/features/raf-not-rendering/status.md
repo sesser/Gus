@@ -4,9 +4,10 @@ Issue: #161. Bug fix, branch `bug/raf-not-rendering`, cut from `develop` at `ef5
 
 **Status: Done** (2026-11-13). A raw the system's RAW decoder gives no image
 for is decoded by the vendored LibRaw and renders everywhere; it is adjusted
-like any rendered image. The code review's findings C1 to C12 and the design
-review's fixes F1 to F5 are answered below. Next: the designer and the
-code-reviewer confirm their fixes; then qa-tester; then the owner's sign-off.
+like any rendered image. The code review's findings C1 to C15 and question Q6,
+and the design review's fixes F1 to F5 and ruling D5, are answered below.
+Next: the code-reviewer and the designer confirm the second pass's fixes; then
+qa-tester (with the reviewer's Q7); then the owner's sign-off.
 
 ## Bug
 
@@ -49,8 +50,9 @@ system decoder gives no image, so nothing gets slower.
 
 - **Q1, license.** LibRaw is taken under the LGPL 2.1, not the CDDL.
 - **Q2, `CLAUDE.md`.** The Dependencies edit stands, with LGPL 2.1 in place of
-  CDDL; the other "GRDB only" statements follow. See **Not done** below: the
-  wording is proposed there, not applied by the engineer.
+  CDDL; the other "GRDB only" statements follow. Applied by the main session
+  in `4ff5d30` (`CLAUDE.md` line 158 and Dependencies,
+  `.claude/agents/code-reviewer.md`); see **Not done** for Layout and Commands.
 - **Q3, adjusting.** A photo LibRaw decoded must still be adjustable. Controls
   are not hidden unless an adjustment is impossible; what is impossible is
   reported as a Design question.
@@ -80,7 +82,8 @@ JPEG is (`RenderContext.isRaw` false):
 | Color noise reduction | decoder | not offered |
 | Profile, Decoder | offered | a note in the group's place |
 | Use machine learning | offered | dimmed: "Not available for this camera." (on every macOS, F3) |
-| Mode shown after a paste of Daylight or a Kelvin Custom | the pasted mode | As Shot: what renders (F2) |
+| Mode shown after a paste of Daylight or a Kelvin Custom | the pasted mode | As Shot: what renders (F2, D5) |
+| Mode shown after choosing Custom with both sliders at 0 | Custom | Custom (D5) |
 
 `photocli render --long-edge 600` with one `--set` at a time, SHA-256 of the
 PNG against the unedited render (debug build):
@@ -114,13 +117,25 @@ pop-up shows the mode that renders (design review D2, F2).
 | C3 | Fixed. Decode settings reach only a raw the system decodes (`SystemRAWDecoder.Memo`, told by the editor from `RawDefaults`, else read from the file once), so they no longer key a LibRaw decode in `LiveRenderSession`, `LiveRegionRenderer`, `SharpeningMapRefiner`, the fringe picker or Color Alignment. `LiveRenderSession` also keeps LibRaw's decodes by what they differ by, half the frame or all of it, so a draft request, a final one and a small crop share one. On the X-E3 file: one decode through an interactive frame, a final frame, Kelvin and noise reduction changes and a 0.9 crop; a second, full one for a 0.3 crop. Test: `decodeSettingsDoNotDecodeAgain`. |
 | C4 | Fixed. `LibRawDecoder.frameSize` reads the frame from the header (`libraw_open_file` only, about 1 ms) and `PreviewGenerator.nativeSize` answers with it. The reviewer's command now gives 1799x1199 for the X-E3 (was 900x600; X-T3 1872x1248). Tests: `cropDecodesLargeEnough`, and `aCropDecodesLargeEnough` on a real file. |
 | C5 | Ruled (Q4): no change. |
-| C6 | Fixed. `LibRawDecoderTests` (8 tests) and `LibRawFallbackPipelineTests` (8) run by default on synthetic DNGs: linear and neutral levels derived from the mosaic's values, orientations 3, 6 and 8 pixel for pixel, the half-size rule, the frame math and a real inset crop (`SyntheticDNG` can write a default crop), failing files, concurrent decodes, the fallback, the shared test, crop size, decode keys, the machine learning reason, Auto White Balance. The Bug section names the failing test. |
+| C6 | Fixed. `LibRawDecoderTests` (8 tests) and `LibRawFallbackPipelineTests` (9) run by default on synthetic DNGs: linear and neutral levels derived from the mosaic's values, orientations 2 to 8 pixel for pixel, the half-size rule, the frame math and a real inset crop (`SyntheticDNG` can write a default crop), failing files, concurrent decodes, the fallback, the shared test, crop size, decode keys, the machine learning reason, Auto White Balance. The Bug section names the failing test. |
 | C7 | Fixed: the reason is the availability's (`cameraNotSupported` on macOS 27, `notOnThisMac` before), not `failed`. Such a preview is still kept for the session only, as every not-applied render is. |
 | C8 | Fixed: LibRaw's reason is logged (category `decode`) when it cannot decode a file the system decoder gave no image for. |
 | C9 | Fixed: `src/Makefile` excluded (the build has no warning now), zlib no longer linked. |
 | C10 | Fixed in `THIRD_PARTY_NOTICES.md`, `LibRawDecoder`'s comments, this file and the user guide. `README.md`, `CLAUDE.md` and `.claude/agents/code-reviewer.md`: see **Not done**. |
 | C11 | Fixed: the real-file test compares long edges. |
 | C12 | Fixed: `rawcompare` prints the first run and the best of N, is in the usage text and in `docs/PROFILING.md`, which says what the figures do not show. |
+
+## Code review, second pass (`code-review.md` Follow-up, 2026-11-13)
+
+C1 to C12 closed by the reviewer. New:
+
+| # | Outcome |
+|---|---|
+| C13 | Fixed. `LibRawDecoder.Frame.isTurned` is `flip & 4 != 0`: the mirrored quarter turns (LibRaw's flips 4 and 7, orientations 5 and 7) swap width and height as 5 and 6 do, so `frameSize` and `PreviewGenerator.nativeSize` give the size as shown. Tests: `decodeIsOriented` now covers orientations 2 to 8 pixel for pixel, with `frameSize` against the decode; `frameFromSizes` covers every flip. |
+| C14 | Fixed by the designer's ruling D5 (the reviewer's Q8), exactly: see the design review below. |
+| C15 | Fixed here: `CLAUDE.md` (line 158, Dependencies) and `.claude/agents/code-reviewer.md` were updated in `4ff5d30` by the main session, and this file no longer says otherwise. Layout and Commands: see **Not done**. |
+| Q6 | Answered in code. (a) `SystemRAWDecoder.reads`, `RawDefaults` and Auto White Balance test the filter set up as an untouched photo decodes (`givesImageUntouched`: `RAWDecodeSettings.none`, which pins the decoder version as every decode does), and `PreviewGenerator.decode` decides by the same test: when the stack's own choices (the whole-sensor copy, a decoder version) leave the system decoder without an image, it decodes without them, and logs it, before it would turn to LibRaw. A raw `reads` says the system decodes never gets LibRaw's image. No file takes that retry here, so it has no test of its own; `oneTestOfWhatIsDecodedAsRaw` checks that such choices never move a file to the other decoder. (b) `PreviewGenerator.Decoded.decoder` says which decoder made an image, and `LiveRenderSession` keeps a decode by LibRaw's two sizes only when LibRaw made it: it expects LibRaw of a raw the system does not read whose header LibRaw reads, and takes what the decode returned over that (`learn`). Test: a session told the system does not decode a 1024 x 768 DNG that it does decode: the draft's 250 pixel base no longer serves the 400 pixel frame (with `learn` switched off the test fails with exactly the reviewer's 250). |
+| Q7 | For qa-tester (several LibRaw photos at 100%: memory, time to sharp). Not measured here. |
 
 ## Design review (`review.md`, 2026-11-13)
 
@@ -133,7 +148,7 @@ the loupe.
 | # | Outcome |
 |---|---|
 | F1 | Fixed. For a photo the system decoder doesn't read (`AdjustmentEditor.usesFallbackDecoder`), the caption and check box help are "Not applied: this camera isn't supported. Luminance applies instead." and the badge tooltip ends "It's shown with Luminance instead." (`MachineLearningText.caption`, `checkBoxHelp` and `badgeHelp` take `fallbackDecoder`; no new `Reason`, so export rows keep one reason per camera). Both keys are in the catalog with the review's comments. `print ml` prints them. |
-| F2 | Fixed. `WhiteBalance.relativeDisplayPreset` (PhotoCore): Auto when the mode is Auto, else As Shot when both relative values are 0, else Custom. The Mode pop-up of every file that is not decoded as a raw (JPEGs too) selects it; the stack is not rewritten. Test: `LibRawFallbackPipelineTests.relativeModeShown`. Scripted: Daylight and machine learning copied from the X-T3 and pasted onto the X-E3 show `wb mode 'As Shot'` with `"preset":"daylight","temperature":5500` kept in the stack; after Temperature +25, `'Custom'`. `print ml` prints the pop-up's selected mode. |
+| F2, D5 | Fixed, then changed by the second pass's ruling **D5** (code review C14: with F2 as first written, choosing Custom at 0/0 on any JPEG snapped back to As Shot). `WhiteBalance.relativeDisplayPreset` (PhotoCore) is D5's rule: the stored mode when it is As Shot, Auto or Custom and the balance holds no Kelvin values; otherwise As Shot when both relative values are 0, else Custom. The Mode pop-up of every file that is not decoded as a raw (JPEGs too) selects it; the stack is not rewritten, and choosing Custom at 0/0 still saves one undo step, as ruled. Test: `LibRawFallbackPipelineTests.relativeModeShown` (D5's four cases and both rules). Scripted on the X-E3: `adjust wb custom` shows `wb mode 'Custom'` with `"preset":"custom"` stored and one undo step, undo shows `'As Shot'`; Daylight pasted from the X-T3 shows `'As Shot'` with `"preset":"daylight","temperature":5500` kept; after Temperature +25, `'Custom'`. `print ml` prints the pop-up's selected mode. |
 | F3 | Fixed. The reason for these photos is the camera on every macOS: `MachineLearningNoiseReduction.reasonWithoutSystemDecoder` (`cameraNotSupported`) is what a decode reports (so the badge, `photocli` and the export's Activity row), and the editor gives the check box and caption `cameraNotSupported` without asking the macOS version. Test: `machineLearningReasonIsTheCamera`. Not run before macOS 27: no such Mac here; the code no longer has a branch on the version for these photos. |
 | F4 | Fixed: the note reads "macOS can't decode this raw file, so it's shown without a profile. Temperature and Tint are relative to the camera's white balance, and Color noise reduction isn't available." (catalog key and value; place, style and the combined accessibility element kept). |
 | F5 | Fixed in `docs/USER_GUIDE.md`: "not the macOS decoder's profile and contrast"; the groups by their names (Tone, Presence, Tone Curve, Color Mixer, Color Grading, …); Use machine learning "dimmed unless a paste or preset turned it on; it then says it isn't applied, and Luminance applies instead". |
@@ -184,9 +199,9 @@ root in a scratch folder, the X-E3 and X-T3 files added with `addfolder`.
   "It's shown with Luminance instead."; turning it off gives the dimmed "Not
   available for this camera." again.
 
-**For a person:** the design review's manual checks M1 to M5 (`review.md`):
+**For a person:** the design review's manual checks M1 to M6 (`review.md`):
 the note's look, White Balance, the dimmed check box, a paste from a raw macOS
-decodes, and switching between the two photos.
+decodes, switching between the two photos, and Custom staying Custom.
 
 ## Timings
 
@@ -229,6 +244,10 @@ size. LibRaw is single-threaded here.
   change and its date in each modified file (the two headers carry none: the
   vendored tree was not to be touched; the notices file has it). Not legal
   advice. Requirements issue R3.
+- **Choosing Custom on a photo that holds pasted Kelvin values.** By D5's
+  rule 2 the pop-up then still shows As Shot (the Kelvin values stay in the
+  stack and both relative values are 0) until a slider moves. Built as ruled;
+  a Design question in the engineer's report.
 - **White balance across decoders.** Ruled for this fix (D2: not offered). A
   Kelvin white balance pasted onto a LibRaw photo, or a relative one onto a
   raw macOS decodes, is kept and does nothing; the designer proposes an
@@ -237,11 +256,12 @@ size. LibRaw is single-threaded here.
 
 ## Not done, and why
 
-- **`CLAUDE.md`** (Dependencies, about line 364, still says CDDL; line 158
-  still says GRDB is the only dependency) and
-  **`.claude/agents/code-reviewer.md:37`**: not edited. The engineer's rules do
-  not let another agent's message authorize a change to `CLAUDE.md` or to
-  `.claude/`; the wording is in the report for the owner or the main session.
+- **`CLAUDE.md`'s Layout and Commands** (a line for `Sources/CLibRaw`, the
+  `RAF_SAMPLE` command): not edited by the engineer, whose rules do not let
+  another agent's message authorize a change to `CLAUDE.md` or `.claude/`,
+  whatever it relays. The wording is in the engineer's report for the main
+  session, which made the earlier edits (`4ff5d30`: line 158, Dependencies and
+  `.claude/agents/code-reviewer.md`, all correct now).
 - **`README.md`**: the product manager's (`docs/WORKFLOW.md`); see **README**.
 - **`Sources/CLibRaw`**: untouched except for `LICENSE.LGPL`.
 - No decoder badge in the grid or loupe, no `decoder` field in `photocli`'s
