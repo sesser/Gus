@@ -156,7 +156,7 @@ recorded in `docs/UI_REDESIGN.md` and the phase plans
 the historical record of those decisions.
 
 This file's rules win over anything in an agent's prompt: GRDB is the only
-dependency, goldens are updated only on purpose, brand values stay in
+package dependency (LibRaw is vendored source: see Dependencies), goldens are updated only on purpose, brand values stay in
 `AppBranding.swift`, and work goes on a branch off `develop`.
 
 ## Checking image code
@@ -361,9 +361,11 @@ compatible and never put `#` comment lines inside pasted command snippets.
   with the library app; never fork them. Without a catalog (`CardImportModel.library`
   nil) it copies only, writes preset metadata into new sidecars (never into
   existing ones), and does not mark duplicates.
-- **Dependencies**: GRDB, and LibRaw 0.22.3 vendored in `Sources/CLibRaw` (CDDL;
-  `THIRD_PARTY_NOTICES.md`), which decodes only raws the system's RAW decoder
-  gives no image for (`LibRawDecoder`, the fallback in `PreviewGenerator.decode`).
+- **Dependencies**: GRDB, and LibRaw 0.22.3 vendored in `Sources/CLibRaw` (LGPL 2.1;
+  `THIRD_PARTY_NOTICES.md`; never edit the vendored tree), which decodes only raws
+  the system's RAW decoder gives no image for (`LibRawDecoder`, the fallback in
+  `PreviewGenerator.decode`; `SystemRAWDecoder.reads` is the one test of which
+  decoder a raw gets).
   Ask before adding anything else. Apple frameworks (Vision, AVFoundation,
   AVKit) are fine.
 

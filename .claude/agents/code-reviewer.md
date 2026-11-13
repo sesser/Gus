@@ -34,7 +34,7 @@ Project rules from `CLAUDE.md` (check the ones the diff touches):
 - UI: no SwiftUI `ScrollView` under the toolbar (`AppKitScrollView`, `AppKitButton` instead); menus read focused values, never a model passed into `Commands`; app launch options always take a value.
 - Copying imports verify every copy before it counts. Export decides names for the whole batch first and moves each file into place only when complete. The standalone importer shares the import window and model; never a fork.
 - Branding and strings: brand values only in `AppBranding.swift` and `Branding.xcconfig`; persisted names (files, tables, columns, JSON keys, operation identifiers) never contain the product name; every UI string has an entry in `Localizable.xcstrings`.
-- Dependencies: GRDB only. Any new package is a blocker until the owner approves it.
+- Dependencies: GRDB, and LibRaw vendored in `Sources/CLibRaw` (LGPL 2.1). Any new package or vendored library is a blocker until the owner approves it.
 - Clean room: no names, strings, icons or code taken from another photo application.
 
 Security and privacy (local app, but it reads untrusted files):
