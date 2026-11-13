@@ -30,7 +30,6 @@ let package = Package(
             publicHeadersPath: "include",
             cxxSettings: [
                 .headerSearchPath("."),
-                .define("LIBRAW_NOTHREADS"),
                 .unsafeFlags(["-w"]),
             ],
             linkerSettings: [.linkedLibrary("z")]
