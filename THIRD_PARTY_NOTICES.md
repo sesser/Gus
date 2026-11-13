@@ -40,3 +40,15 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## LibRaw 0.22.3
+
+Vendored in `Sources/CLibRaw` (the `src`, `internal` and `libraw` folders of the
+release; two `#include "../libraw/…"` lines in `internal/` changed to
+`"libraw/…"` for SwiftPM's layout). Used under the Common Development and
+Distribution License 1.0 (`Sources/CLibRaw/LICENSE.CDDL`; LibRaw is also offered
+under LGPL 2.1). Copyright 2008-2025 LibRaw LLC, with portions by Dave Coffin
+(dcraw) and others: see `Sources/CLibRaw/COPYRIGHT`. Built without the GPL
+demosaic packs, libjpeg, lcms and RawSpeed. CDDL file-level terms: changes to
+LibRaw's own files stay available in source form; the modified files are the two
+headers named above. https://www.libraw.org

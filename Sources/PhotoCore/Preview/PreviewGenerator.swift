@@ -176,7 +176,27 @@ public struct PreviewGenerator: Sendable {
                                           settings: settings) {
             return decoded
         }
+        // A raw the system's RAW decoder gives no image for (Fujifilm X-E3 files
+        // on macOS 27.2.1, issue #161) goes to LibRaw, and only then: it is far
+        // slower than the system's. Its image takes none of the stack's decode
+        // settings, so it is treated as a rendered image (`isRaw` false).
+        if isRaw, let decoded = decodeWithLibRaw(url, longEdge: longEdge) {
+            return decoded
+        }
         return try decodeWithImageIO(url, longEdge: longEdge)
+    }
+
+    /// LibRaw's decode, at half size when the target is at most half the frame.
+    private static func decodeWithLibRaw(_ url: URL, longEdge: Int?) -> Decoded? {
+        guard let output = try? LibRawDecoder.decode(url, longEdge: longEdge), !output.image.extent.isEmpty else { return nil }
+        return Decoded(image: output.image,
+                       context: RenderContext(scale: Self.scale(of: output.image, native: output.fullSize), isRaw: false))
+    }
+
+    /// The system RAW decoder's image of a raw with its default settings, or nil
+    /// when it gives none. For comparing it with LibRaw (`photobench rawcompare`).
+    public static func systemRAWImage(_ url: URL) -> CIImage? {
+        CIRAWFilter(imageURL: url).flatMap { RAWDecodeGraph.output(of: $0) }
     }
 
     /// The RAW decoder's image, or nil when it gives none.

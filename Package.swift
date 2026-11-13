@@ -18,9 +18,26 @@ let package = Package(
         .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.9.0"),
     ],
     targets: [
+        // LibRaw 0.22.3, vendored, under its CDDL-1.0 license (Sources/CLibRaw/
+        // LICENSE.CDDL). Built without the GPL demosaic packs, libjpeg, lcms
+        // and RawSpeed. See docs/features/raf-not-rendering/status.md.
+        .target(
+            name: "CLibRaw",
+            path: "Sources/CLibRaw",
+            exclude: ["LICENSE.CDDL", "COPYRIGHT", "src/postprocessing/postprocessing_ph.cpp",
+                      "src/preprocessing/preprocessing_ph.cpp", "src/write/write_ph.cpp"],
+            sources: ["src"],
+            publicHeadersPath: "include",
+            cxxSettings: [
+                .headerSearchPath("."),
+                .define("LIBRAW_NOTHREADS"),
+                .unsafeFlags(["-w"]),
+            ],
+            linkerSettings: [.linkedLibrary("z")]
+        ),
         .target(
             name: "PhotoCore",
-            dependencies: [.product(name: "GRDB", package: "GRDB.swift")]
+            dependencies: [.product(name: "GRDB", package: "GRDB.swift"), "CLibRaw"]
         ),
         // UI shared by the library app and the standalone importer: the import
         // window and its model, colors and the String Catalog.

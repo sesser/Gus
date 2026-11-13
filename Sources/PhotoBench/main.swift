@@ -142,6 +142,7 @@ do {
     case "viewport": report = try await ViewportBenchmark.run(arguments)
     case "compare": report = try await ComparisonBenchmark.run(arguments)
     case "denoise": report = try await DenoiseBenchmark.run(arguments)
+    case "rawcompare": report = try await RawCompareBenchmark.run(arguments)
     case "scenes": report = try await SceneFiles.run(arguments)
     default:
         print(usage)
