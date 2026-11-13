@@ -151,6 +151,16 @@ public struct PreviewGenerator: Sendable {
         public var image: CIImage
         public var context: RenderContext
         public var machineLearning: MachineLearningNoiseReduction.Outcome = .notRequested
+        /// Which decoder made the image.
+        public var decoder = Decoder.imageIO
+    }
+
+    public enum Decoder: Sendable, Hashable {
+        /// The system's RAW decoder: the stack's decode settings are applied (`context.isRaw`).
+        case systemRAW
+        /// LibRaw, for a raw the system decoder gives no image for.
+        case libRaw
+        case imageIO
     }
 
     /// Decodes a master into the working space, oriented, at roughly `longEdge`.
@@ -186,6 +196,18 @@ public struct PreviewGenerator: Sendable {
                                           settings: settings) {
             return decoded
         }
+        // Which decoder a raw gets is one test, the one `SystemRAWDecoder.reads`
+        // makes: the system decoder's image of the file as an untouched photo
+        // decodes. Where a choice of the stack's left it without an image (the
+        // whole-sensor copy, a decoder version), the decode is made without that
+        // choice rather than handed to LibRaw, whose image the editor, told the
+        // system reads the file, would offer a raw's controls for.
+        if isRaw, settings.choosesTheDecode,
+           let decoded = decodeRAW(url, longEdge: longEdge, draft: draft, extendedRange: extendedRange,
+                                   settings: settings.withoutDecodeChoices) {
+            log.error("\(url.lastPathComponent, privacy: .private): no image for the stack's decoder choices; decoded without them")
+            return decoded
+        }
         // A raw the system's RAW decoder gives no image for (Fujifilm X-E3 files
         // on macOS 27.2.1, issue #161) goes to LibRaw, and only then: it is far
         // slower than the system's. Its image takes none of the stack's decode
@@ -207,7 +229,8 @@ public struct PreviewGenerator: Sendable {
             let output = try LibRawDecoder.decode(url, longEdge: longEdge)
             guard !output.image.extent.isEmpty else { return nil }
             return Decoded(image: output.image,
-                           context: RenderContext(scale: Self.scale(of: output.image, native: output.fullSize), isRaw: false))
+                           context: RenderContext(scale: Self.scale(of: output.image, native: output.fullSize), isRaw: false),
+                           decoder: .libRaw)
         } catch {
             log.error("\(url.lastPathComponent, privacy: .private): no image from the system RAW decoder, and \(String(describing: error), privacy: .public)")
             return nil
@@ -248,7 +271,7 @@ public struct PreviewGenerator: Sendable {
                 return Decoded(image: output, context: RenderContext(scale: Self.scale(of: output, native: native),
                                                                      isRaw: true,
                                                                      cameraFrame: wholeSensor == nil ? nil : CameraFrame.rect(of: url)),
-                               machineLearning: outcome)
+                               machineLearning: outcome, decoder: .systemRAW)
             }
         }
         return nil

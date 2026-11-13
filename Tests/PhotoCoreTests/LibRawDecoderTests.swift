@@ -68,27 +68,35 @@ struct LibRawDecoderTests {
     }
 
     /// LibRaw applies the file's orientation; each oriented pixel is the
-    /// stored pixel the orientation's definition names.
-    @Test("A decode is oriented as the file says", arguments: [3, 6, 8])
+    /// stored pixel the orientation's definition names. All seven that are
+    /// not upright: the mirrored quarter turns (5 and 7) swap width and height
+    /// as the plain ones (6 and 8) do (code review C13).
+    @Test("A decode is oriented as the file says", arguments: [2, 3, 4, 5, 6, 7, 8])
     func decodeIsOriented(orientation: Int) async throws {
         try await RepositoryFiles.withTemporaryDirectory { folder in
             let upright = try LibRawDecoder.decode(try Self.dng(in: folder, "upright"))
             let turnedURL = try Self.dng(in: folder, "turned", orientation: orientation)
             let turned = try LibRawDecoder.decode(turnedURL)
             let w = Self.width, h = Self.height
-            let isQuarter = orientation != 3
-            #expect(turned.size == (isQuarter ? CGSize(width: h, height: w) : CGSize(width: w, height: h)))
+            let swapsSides = orientation >= 5
+            #expect(turned.size == (swapsSides ? CGSize(width: h, height: w) : CGSize(width: w, height: h)))
+            // The header alone gives the size as it is shown.
             #expect(LibRawDecoder.frameSize(turnedURL) == turned.size)
+            #expect(PreviewGenerator.nativeSize(turnedURL).map { max($0.width, $0.height) } == CGFloat(w))
             let stored = Self.samples(upright), shown = Self.samples(turned)
             let shownWidth = Int(turned.size.width), shownHeight = Int(turned.size.height)
             var differing = 0
             for y in 0..<shownHeight {
                 for x in 0..<shownWidth {
-                    // 3: half a turn. 6: the stored picture turned a quarter clockwise. 8: counterclockwise.
+                    // The stored pixel shown at (x, y), by the orientation tag's definition.
                     let (sx, sy) = switch orientation {
-                    case 3: (w - 1 - x, h - 1 - y)
-                    case 6: (y, h - 1 - x)
-                    default: (w - 1 - y, x)
+                    case 2: (w - 1 - x, y)          // mirrored left to right
+                    case 3: (w - 1 - x, h - 1 - y)  // half a turn
+                    case 4: (x, h - 1 - y)          // mirrored top to bottom
+                    case 5: (y, x)                  // mirrored, then a quarter turn: rows become columns
+                    case 6: (y, h - 1 - x)          // a quarter turn clockwise
+                    case 7: (w - 1 - y, h - 1 - x)  // mirrored, then a quarter turn the other way
+                    default: (w - 1 - y, x)         // 8: a quarter turn counterclockwise
                     }
                     if Self.pixel(shown, width: shownWidth, x: x, y: y) != Self.pixel(stored, width: w, x: sx, y: sy) {
                         differing += 1
@@ -141,6 +149,13 @@ struct LibRawDecoderTests {
         #expect(none.cropBox == nil)
         #expect(none.width == 5472 && none.height == 3648)
         #expect(none.orientedSize == CGSize(width: 3648, height: 5472))
+        // Every flip with LibRaw's "swap the axes" bit turns the frame: 4 and 7 as 5 and 6.
+        for flip in 0...7 {
+            let frame = LibRawDecoder.Frame(visibleWidth: 300, visibleHeight: 200, leftMargin: 0, topMargin: 0,
+                                            insetLeft: 0xffff, insetTop: 0xffff, insetWidth: 0, insetHeight: 0, flip: flip)
+            #expect(frame.isTurned == [4, 5, 6, 7].contains(flip), "flip \(flip)")
+            #expect(frame.orientedSize == (frame.isTurned ? CGSize(width: 200, height: 300) : CGSize(width: 300, height: 200)))
+        }
         // An inset that starts before the visible area cannot be a crop of it: ignored.
         let before = LibRawDecoder.Frame(visibleWidth: 4000, visibleHeight: 3000, leftMargin: 16, topMargin: 16,
                                          insetLeft: 8, insetTop: 16, insetWidth: 3900, insetHeight: 2900, flip: 3)
@@ -352,9 +367,17 @@ struct LibRawFallbackPipelineTests {
                 #expect((RawDefaults(source: url) != nil) == reads, "\(url.lastPathComponent)")
                 #expect(try PreviewGenerator.decode(url, longEdge: nil, draft: false).context.isRaw == reads,
                         "\(url.lastPathComponent)")
+                // The stack's own choices never move a file to the other decoder (code review Q6).
+                let chosen = RAWDecodeSettings(temperature: 4200, decoderVersion: "no such version", fullFrame: true)
+                let decoded = try PreviewGenerator.decode(url, longEdge: 200, draft: false, settings: chosen)
+                #expect(decoded.context.isRaw == reads, "\(url.lastPathComponent)")
+                #expect((decoded.decoder == .systemRAW) == reads, "\(url.lastPathComponent)")
+                #expect(decoded.decoder == (reads ? .systemRAW : url == jpeg ? .imageIO : .libRaw), "\(url.lastPathComponent)")
                 var memo = SystemRAWDecoder.Memo(url)
                 let remembered = memo.reads()
                 #expect(remembered == reads)
+                #expect(chosen.choosesTheDecode && !chosen.withoutDecodeChoices.choosesTheDecode)
+                #expect(chosen.withoutDecodeChoices.temperature == 4200)
                 let asked = RAWDecodeSettings(temperature: 4000, fullFrame: true)
                 let reaching = memo.decodeSettings(asked)
                 #expect(reaching == (reads ? asked : .none))
@@ -497,19 +520,37 @@ struct LibRawFallbackPipelineTests {
             // LibRaw decodes at two sizes and has no draft mode: a draft and a full request it
             // answers with the same half-size decode share one, and a crop that needs more than
             // half the frame decodes once more, in full.
+            if !SystemRAWDecoder.reads(url) {
+                let session = LiveRenderSession(source: url, generator: generator, longEdge: 100, colorSpace: nil)
+                var edited = Adjustments()
+                edited.exposure.ev = 0.5
+                _ = try await session.render(edited, interactive: true)
+                let whole = try await session.render(edited)
+                #expect(whole.maskFrameSize == CGSize(width: 128, height: 96))
+                edited.crop = Crop(rect: CropRect(x: 0.05, y: 0.05, width: 0.9, height: 0.9))
+                _ = try await session.render(edited)
+                #expect(await session.decodeCount == 1)
+                edited.crop = Crop(rect: CropRect(x: 0.25, y: 0.25, width: 0.5, height: 0.5))
+                let cropped = try await session.render(edited)
+                #expect(await session.decodeCount == 2)
+                #expect(cropped.maskFrameSize == CGSize(width: 256, height: 192))
+            }
+            // Only an image LibRaw made is kept that way (code review Q6): a session that
+            // expects LibRaw of a file another decoder then answers for keeps one decode
+            // per request, so a small draft never stands in for the frame after it.
             let large = try LibRawDecoderTests.dng(in: folder, "large", width: 1024, height: 768)
-            let session = LiveRenderSession(source: large, generator: generator, longEdge: 400, colorSpace: nil,
-                                            systemDecodesRaw: false)
-            var edited = Adjustments()
-            edited.exposure.ev = 0.5
-            _ = try await session.render(edited, interactive: true)
-            _ = try await session.render(edited)
-            edited.crop = Crop(rect: CropRect(x: 0.05, y: 0.05, width: 0.9, height: 0.9))
-            _ = try await session.render(edited)
-            #expect(await session.decodeCount == 1)
-            edited.crop = Crop(rect: CropRect(x: 0.25, y: 0.25, width: 0.5, height: 0.5))
-            _ = try await session.render(edited)
-            #expect(await session.decodeCount == 2)
+            if SystemRAWDecoder.reads(large) {
+                let session = LiveRenderSession(source: large, generator: generator, longEdge: 400, colorSpace: nil,
+                                                systemDecodesRaw: false)
+                var edited = Adjustments()
+                edited.exposure.ev = 0.5
+                let draft = try await session.render(edited, interactive: true)
+                #expect(max(draft.maskFrameSize.width, draft.maskFrameSize.height) < 400)
+                let final = try await session.render(edited)
+                #expect(await session.decodeCount == 2)
+                #expect(max(final.maskFrameSize.width, final.maskFrameSize.height) >= 400)
+                #expect(max(final.image.cgImage.width, final.image.cgImage.height) == 400)
+            }
             // The 100% renderer holds one decode for every such change.
             let region = LiveRegionRenderer(source: url, generator: generator, colorSpace: nil, systemDecodesRaw: false)
             var values = Adjustments()
@@ -546,26 +587,42 @@ struct LibRawFallbackPipelineTests {
         }
     }
 
-    /// Design review F2: the Mode pop-up of a file that is not decoded as a
-    /// raw offers As Shot, Auto and Custom, and showed a stale item for a
-    /// stored mode that is none of them (a Daylight pasted from a raw). It
-    /// shows what renders; the stored values are not rewritten.
-    @Test("The white balance mode shown for a rendered image is the one that renders")
+    /// Design review F2 and D5 (code review C14): the Mode pop-up of a file
+    /// that is not decoded as a raw offers As Shot, Auto and Custom. A stored
+    /// mode that is one of them, with no Kelvin values, is shown as it is, so
+    /// a mode picked from the pop-up sticks. Any other (a paste or preset from
+    /// a raw the system decodes) left a stale item; it shows what renders.
+    /// The stored values are not rewritten.
+    @Test("The white balance mode shown for a rendered image is the stored one, or for a pasted raw mode the one that renders")
     func relativeModeShown() {
-        let offered = WhiteBalance.Preset.relativePresets
-        #expect(WhiteBalance().relativeDisplayPreset == .asShot)
-        // Pasted from a raw macOS decodes: Kelvin values only, which change nothing here.
+        // D5's four cases.
+        // 1. Custom chosen with both sliders at 0 stays Custom.
+        #expect(WhiteBalance(preset: .custom).relativeDisplayPreset == .custom)
+        // 2. A pasted Daylight at 0/0 renders as shot.
         #expect(WhiteBalance.raw(.daylight).relativeDisplayPreset == .asShot)
-        #expect(WhiteBalance(preset: .custom, temperature: 2500, tint: 60).relativeDisplayPreset == .asShot)
-        // Relative values render.
-        #expect(WhiteBalance(preset: .custom, relativeTemperature: 30).relativeDisplayPreset == .custom)
-        #expect(WhiteBalance(preset: .custom, relativeTint: -5).relativeDisplayPreset == .custom)
-        #expect(WhiteBalance(preset: .tungsten, temperature: 2850, tint: 0, relativeTemperature: 10).relativeDisplayPreset == .custom)
-        // Auto is Auto, whatever it measured.
+        // 3. A pasted Custom with Kelvin values and a relative value renders that value.
+        #expect(WhiteBalance(preset: .custom, temperature: 2500, tint: 60, relativeTemperature: 30).relativeDisplayPreset == .custom)
+        // 4. The relative Auto (no Kelvin values) is Auto, whatever it measured.
         #expect(WhiteBalance(preset: .auto, relativeTemperature: 16, relativeTint: -22).relativeDisplayPreset == .auto)
         #expect(WhiteBalance(preset: .auto).relativeDisplayPreset == .auto)
+
+        // Rule 1: the three offered modes without Kelvin values, whatever the relative values.
+        #expect(WhiteBalance().relativeDisplayPreset == .asShot)
+        #expect(WhiteBalance(preset: .custom, relativeTemperature: 30).relativeDisplayPreset == .custom)
+        #expect(WhiteBalance(preset: .custom, relativeTint: -5).relativeDisplayPreset == .custom)
+        // Rule 2: Kelvin values (either one) or a mode that is not offered.
+        #expect(WhiteBalance(preset: .custom, temperature: 2500, tint: 60).relativeDisplayPreset == .asShot)
+        #expect(WhiteBalance(preset: .custom, tint: 10).relativeDisplayPreset == .asShot)
+        // A raw's Auto pasted here carries a Kelvin and renders as shot.
+        #expect(WhiteBalance(preset: .auto, temperature: 5886, tint: 7).relativeDisplayPreset == .asShot)
+        #expect(WhiteBalance(preset: .auto, temperature: 5886, tint: 7, relativeTint: 4).relativeDisplayPreset == .custom)
+        #expect(WhiteBalance(preset: .tungsten, temperature: 2850, tint: 0, relativeTemperature: 10).relativeDisplayPreset == .custom)
+        #expect(WhiteBalance(preset: .shade).relativeDisplayPreset == .asShot)
+        // Always one of the three offered.
+        let offered = WhiteBalance.Preset.relativePresets
         for preset in WhiteBalance.Preset.allCases {
             #expect(offered.contains(WhiteBalance.raw(preset).relativeDisplayPreset), "\(preset)")
+            #expect(offered.contains(WhiteBalance(preset: preset, relativeTint: 3).relativeDisplayPreset), "\(preset)")
         }
         // Display only: the stack keeps what was pasted.
         let pasted = WhiteBalance.raw(.daylight)

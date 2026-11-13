@@ -15,18 +15,31 @@ import Foundation
 /// the editor, the live sessions, Auto and the measurements all ask here, and
 /// `PreviewGenerator.decode` decides the same way (`RenderContext.isRaw`).
 public enum SystemRAWDecoder {
-    /// Whether the system's RAW decoder gives an image of `url` with its
-    /// default settings. Reads the file's header (20 to 100 ms): callers that
-    /// ask with every frame keep the answer (`Memo`).
+    /// Whether the system's RAW decoder gives an image of `url` decoded as an
+    /// untouched photo is (`givesImageUntouched`). Reads the file's header
+    /// (20 to 100 ms): callers that ask with every frame keep the answer (`Memo`).
+    ///
+    /// `PreviewGenerator.decode` decides by the same test: when the stack's
+    /// own choices (the whole sensor, a decoder version) leave the system
+    /// decoder without an image, it decodes without them before it would turn
+    /// to LibRaw, so a raw this says the system reads never gets LibRaw's image.
     public static func reads(_ url: URL) -> Bool {
         guard SupportedFormats.isRaw(pathExtension: url.pathExtension), let raw = CIRAWFilter(imageURL: url) else {
             return false
         }
+        return givesImageUntouched(raw)
+    }
+
+    /// The test itself, on a filter just made for the file: set up as for a
+    /// photo without edits (`RAWDecodeSettings.none`, which pins the decoder
+    /// version as every decode does), it has an image. Leaves the filter set
+    /// up that way.
+    static func givesImageUntouched(_ raw: CIRAWFilter) -> Bool {
+        RAWDecodeSettings.none.apply(to: raw)
         return givesImage(raw)
     }
 
-    /// The test `PreviewGenerator.decode` makes of a decode: the decoder can
-    /// give no image, or an empty one, without an error.
+    /// The decoder can give no image, or an empty one, without an error.
     static func givesImage(_ raw: CIRAWFilter) -> Bool {
         RAWDecodeGraph.output(of: raw).map { !$0.extent.isEmpty } ?? false
     }

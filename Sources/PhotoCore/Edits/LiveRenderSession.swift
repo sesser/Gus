@@ -81,6 +81,11 @@ public actor LiveRenderSession {
     private var decoder: SystemRAWDecoder.Memo
     /// How many times the master was decoded: for tests.
     private(set) var decodeCount = 0
+    /// The long edge of the frame LibRaw decodes for this master, nil when
+    /// LibRaw does not decode it; not yet asked while the outer value is nil.
+    /// Expected from the file before the first decode, then what a decode
+    /// returned (`learn`).
+    private var libRawFrame: Int??
     /// Keeps what a drag of a mask control does not change (`StageCache`);
     /// false renders every frame whole, for comparison.
     public let cachesStages: Bool
@@ -416,15 +421,38 @@ public actor LiveRenderSession {
         // LibRaw's decodes come in two sizes and are shared as such (`decodeKey`), so
         // steps gain nothing, and a step up could ask for the slow full decode where
         // the half one is enough: what the crop needs, no more.
-        let wanted = decodesWithLibRaw
+        let wanted = libRawFrameLongEdge() != nil
             ? Int((Double(longEdge) * exact).rounded(.up))
             : Int(Double(longEdge) * ((exact * 4).rounded(.up) / 4))
         return min(wanted, Int(max(size.width, size.height)))
     }
 
-    /// A raw the system's RAW decoder gives no image for (`SystemRAWDecoder`).
-    private var decodesWithLibRaw: Bool {
-        SupportedFormats.isRaw(pathExtension: source.pathExtension) && !decoder.reads()
+    /// The frame LibRaw decodes for this master, or nil when it is not LibRaw
+    /// that decodes it. Before a decode has said so, it is what the file
+    /// promises: a raw the system's RAW decoder gives no image for
+    /// (`SystemRAWDecoder`) whose header LibRaw reads.
+    private func libRawFrameLongEdge() -> Int? {
+        if let known = libRawFrame { return known }
+        var frame: Int?
+        if SupportedFormats.isRaw(pathExtension: source.pathExtension), !decoder.reads() {
+            frame = Self.libRawFrame(of: source)
+        }
+        libRawFrame = .some(frame)
+        return frame
+    }
+
+    private static func libRawFrame(of source: URL) -> Int? {
+        LibRawDecoder.frameSize(source).map { Int(max($0.width, $0.height)) }.flatMap { $0 > 0 ? $0 : nil }
+    }
+
+    /// Takes what a decode returned over what was expected of the file: only
+    /// an image LibRaw made is kept by LibRaw's two sizes (`decodeKey`). A
+    /// file ImageIO or the system decoder answered for keeps one decode per
+    /// request, at the size asked.
+    private func learn(from decoded: PreviewGenerator.Decoded) {
+        let madeByLibRaw = decoded.decoder == .libRaw
+        guard madeByLibRaw != (libRawFrameLongEdge() != nil) else { return }
+        libRawFrame = .some(madeByLibRaw ? Self.libRawFrame(of: source) : nil)
     }
 
     /// The master's size, read from its header once.
@@ -440,8 +468,7 @@ public actor LiveRenderSession {
     /// one, and none of them runs it again. Every other file keeps the
     /// request as its key.
     private func decodeKey(_ request: BaseKey) -> BaseKey {
-        guard decodesWithLibRaw, let frame = masterSize().map({ Int(max($0.width, $0.height)) }), frame > 0
-        else { return request }
+        guard let frame = libRawFrameLongEdge() else { return request }
         let half = LibRawDecoder.usesHalfSize(longEdge: Self.decodeSize(request), frameLongEdge: frame)
         return BaseKey(settings: .none, draft: false, longEdge: half ? frame / 2 : frame)
     }
@@ -454,7 +481,7 @@ public actor LiveRenderSession {
     /// Renders the base for `request`, or reuses one: a full decode serves a
     /// draft request too.
     private func base(for request: BaseKey) throws -> Base {
-        let key = decodeKey(request)
+        var key = decodeKey(request)
         if let base = bases[key] { return touch(key, base) }
         if request.draft,
            let full = bases[decodeKey(BaseKey(settings: request.settings, draft: false, longEdge: request.longEdge))] {
@@ -463,6 +490,9 @@ public actor LiveRenderSession {
         let decoded = try PreviewGenerator.decode(source, longEdge: Self.decodeSize(request), draft: request.draft,
                                                   settings: request.settings)
         decodeCount += 1
+        // Kept by what made it, whatever was expected of the file.
+        learn(from: decoded)
+        key = decodeKey(request)
         let extent = decoded.image.extent.integral
         guard !extent.isInfinite,
               let image = generator.engine.withContext({

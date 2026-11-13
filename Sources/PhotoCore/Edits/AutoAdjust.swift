@@ -46,11 +46,10 @@ public struct RawDefaults: Sendable, Hashable {
     /// Nil exactly when `SystemRAWDecoder.reads(source)` is false.
     public init?(source: URL) {
         guard SupportedFormats.isRaw(pathExtension: source.pathExtension), let raw = CIRAWFilter(imageURL: source),
-              SystemRAWDecoder.givesImage(raw)
+              // Sets the filter up as an untouched photo decodes: the defaults read below are that version's.
+              SystemRAWDecoder.givesImageUntouched(raw)
         else { return nil }
         let versions = raw.supportedDecoderVersions.map(\.rawValue)
-        // The defaults of the version an untouched photo decodes with.
-        RAWDecodeSettings.none.apply(to: raw)
         let availability = MachineLearningNoiseReduction.availability(for: source, decoderVersions: versions)
         self.init(temperature: Double(raw.neutralTemperature), tint: Double(raw.neutralTint),
                   decoderVersions: versions,
@@ -116,7 +115,7 @@ public struct AutoAdjuster: Sendable {
     public func whiteBalance(source: URL, adjustments: Adjustments) throws -> WhiteBalance {
         let engine = generator.engine
         if SupportedFormats.isRaw(pathExtension: source.pathExtension), let raw = CIRAWFilter(imageURL: source),
-           SystemRAWDecoder.givesImage(raw) {
+           SystemRAWDecoder.givesImageUntouched(raw) {
             var settings = adjustments.decodeSettings
             settings.temperature = nil
             settings.tint = nil

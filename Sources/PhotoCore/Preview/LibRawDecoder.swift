@@ -60,7 +60,8 @@ public enum LibRawDecoder {
         /// LibRaw's crop box for the frame (left, top, width, height in the
         /// visible area), nil for the whole visible area.
         var cropBox: (left: UInt32, top: UInt32, width: UInt32, height: UInt32)?
-        /// The file's orientation turns the picture a quarter (LibRaw's flip 5 and 6).
+        /// The file's orientation swaps width and height: a quarter turn, mirrored
+        /// or not (bit 4 of LibRaw's flip: 5 and 6, and the mirrored 4 and 7).
         var isTurned: Bool
 
         var longEdge: Int { max(width, height) }
@@ -95,7 +96,7 @@ public enum LibRawDecoder {
                 height = visibleHeight
                 cropBox = nil
             }
-            isTurned = flip == 5 || flip == 6
+            isTurned = flip & 4 != 0
         }
     }
 
