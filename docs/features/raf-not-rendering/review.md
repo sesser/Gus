@@ -247,9 +247,76 @@ Use a scratch library with one X-E3 RAF (LibRaw) and one X-T3 RAF (macOS).
   relative values when a later macOS decodes its camera (`status.md` R1).
   Product manager's call; slug `white-balance-across-decoders`.
 
+## Second pass (2026-11-13): C14 and the fixes
+
+Read on the branch after `3f1ec1b` and later, by code only (not built, not
+run).
+
+### D5. The Mode pop-up after Custom is chosen (code review C14, Q8)
+
+My F2 as written ("As Shot when both relative values are 0") was wrong: it
+mapped every stored mode to its values, so on any JPEG, HEIC, TIFF, PNG or
+LibRaw photo with Temperature and Tint at 0, choosing Custom saved an edit
+and the pop-up snapped back to As Shot. A pop-up that refuses the item just
+chosen looks broken, and the saved step it leaves behind is invisible. The
+fix F2 was for is pasted modes that aren't offered; a mode the person picks
+from the three offered must stick.
+
+**Ruling.** For a photo not decoded as a raw (`editor.isRaw` false), Mode
+shows:
+
+1. the stored `preset`, when it is As Shot, Auto or Custom **and** the white
+   balance holds no Kelvin values (`temperature == nil && tint == nil`);
+2. otherwise (Daylight to Flash, or any mode carrying Kelvin values, as a
+   paste or preset from a raw macOS decodes leaves): **As Shot** when
+   `relativeTemperature == 0 && relativeTint == 0`, else **Custom**.
+
+Display only, as before: the stored values are never rewritten. Raws macOS
+decodes keep showing `balance.preset` unchanged. (Checked against the
+writers: the relative Auto stores `.auto` with no Kelvin values, so a JPEG's
+own Auto shows Auto; a raw's Auto pasted onto a JPEG carries Kelvin values,
+renders as shot and shows As Shot.)
+
+**Choosing Custom with both values at 0 saves, as it does today.** It is one
+White Balance undo step and one history entry, and Mode then shows Custom.
+That matches a raw, where choosing Custom also changes no pixels and is still
+recorded; the person chose a mode, the pop-up shows it, and ⌘Z takes it back.
+Not saving would bring the dead pop-up back by another route. The extra
+render hash for identical pixels is a cache cost, not something a person
+sees; leave it.
+
+Engineer: replace `relativeDisplayPreset` with this rule and test the four
+cases (stored Custom with no Kelvin at 0/0 shows Custom; pasted Daylight at
+0/0 shows As Shot; pasted Custom with Kelvin and a relative value shows
+Custom; relative Auto shows Auto). `print ml` prints `wb mode`, so QA can
+script the first two. Manual check M4 is unchanged; add M6 below.
+
+### Fixes confirmed by reading the code
+
+| Fix | Result | Where |
+| --- | --- | --- |
+| F1 | Fixed | `MachineLearningText.caption`, `checkBoxHelp` and `badgeHelp` take `fallbackDecoder`; the two strings are word for word D3's, with comments; every caller (`AdjustView` 513 and 516, `LoupeView` 1419, `DebugMachineLearningCommands`) passes `editor.usesFallbackDecoder`. Group off (S7) passes it through. |
+| F2 | **Reopened as D5** | `Adjustments.swift` 507 to 510, `AdjustView.swift` 299 |
+| F3 | Fixed | `AdjustmentEditor.status(for:)` gives `.cameraNotSupported` for every photo the system decoder doesn't read, on any macOS; `reasonWithoutSystemDecoder` in PhotoCore; code review C7 confirms the render side. |
+| F4 | Fixed | `FallbackDecoderText.note` is the wanted copy. |
+| F5 | Fixed | `USER_GUIDE.md` 354 to 372: "not the macOS decoder's profile and contrast", the list "Tone, Presence, Tone Curve, Color Mixer, Color Grading, masks, Lens, Effects, Sharpening and crop", and the pasted machine learning case. |
+
+Manual check added:
+
+- **M6. Custom sticks.** On a JPEG (and on the X-E3) with Temperature and
+  Tint at 0, choose Custom from Mode: it stays Custom; ⌘Z returns it to As
+  Shot. Choose As Shot again: the sliders read 0.
+
 ## Summary for the issue
 
-Design review: **changes requested** (3 should-fix, 2 copy). Approach upheld:
+Second pass (2026-11-13): F1, F3, F4 and F5 confirmed fixed by code reading.
+F2 reopened as **D5** (code review C14): on a photo not decoded as a raw,
+Mode shows the stored As Shot, Auto or Custom when it holds no Kelvin values;
+only a mode that isn't offered or carries Kelvin values (a paste from a raw)
+shows As Shot or Custom by its relative values. Choosing Custom at 0/0 still
+saves one undo step and now stays Custom. Manual check M6 added.
+
+First pass: Design review: **changes requested** (3 should-fix, 2 copy). Approach upheld:
 a raw macOS can't decode is adjusted as a rendered image, with a note under
 "Profile" in place of the group.
 Rulings: D1 keep the note (no dimmed pop-ups); D2 no Kelvin or Daylight to
