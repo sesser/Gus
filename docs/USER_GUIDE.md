@@ -351,6 +351,33 @@ even with the control still held. If that takes more than half a second, a
 small spinner shows in the caption. The histogram always describes the whole
 photo, and at these zooms it can lag until you pause.
 
+**Raw files macOS can't decode**: when the macOS raw decoder has no image for a
+raw file (on macOS 27.2, the Fujifilm X-E3's lossless compressed files), the app decodes it with its own
+decoder (LibRaw) instead of showing nothing. Such a photo has the camera's white
+balance but not the macOS decoder's profile and contrast, so it starts out
+flatter and darker than a raw macOS decodes. A Fujifilm file gets the camera's
+own frame (6000 x 4000 for an X-E3) and the lens corrections the camera stored
+in it, as the macOS decoder applies them to the raws it reads: distortion
+(straight lines are straight), color fringing toward the corners, and corner
+shading. There is no control for them; they line up with the camera's own JPEG
+to within a pixel or two of the full-size photo, a little more in the far
+corners. Blown highlights stay white right to the corners. A file shot in a
+camera's 1.25x crop mode, or one from an old Super CCD camera, is shown
+uncorrected in the frame its decoder gives, as are files of other makers. You adjust it like any other photo; what differs is what differs for a
+JPEG. In the Adjust tab a note stands in place of **Profile**. White Balance
+offers **As Shot**, **Auto** and **Custom**, with Temperature and Tint relative
+to the camera's setting (no Kelvin scale and no Daylight to Flash). Noise
+Reduction has **Luminance** only, and **Use machine learning** is dimmed unless
+a paste or preset turned it on; it then says it isn't applied, and Luminance
+applies instead. Tone, Presence, Tone Curve, Color Mixer, Color Grading, masks,
+Lens, Effects, Sharpening and crop work as usual. Pasted adjustments or presets from a raw macOS decodes keep their Kelvin
+white balance, Profile and Color noise reduction, which do nothing here. These
+photos take longer to open, most of all at 100% or with a crop that needs the
+whole frame (several seconds for a 24-megapixel Fujifilm file). If a later macOS
+decodes the camera, macOS decodes these photos from then on: they look
+different, a Temperature or Tint set meanwhile no longer applies, and thumbnails
+made before keep the old look until the photo is edited or the cache is deleted.
+
 **Sharpening Map**: Masking (Details ▸ Sharpening) holds sharpening back where
 the photo is smooth, such as skies and skin, and keeps it on edges. To see where
 it goes, turn on the **Sharpening Map** toggle under Masking, or choose

@@ -174,6 +174,8 @@ private struct DevelopControls: View {
                 GroupLabel(.profile, editor: editor)
                 profile
                     .showsTurnedOff(.profile, editor: editor)
+            } else if editor.usesFallbackDecoder {
+                fallbackDecoderNote
             }
             GroupLabel(.whiteBalance, editor: editor)
             VStack(alignment: .leading, spacing: 2) {
@@ -205,6 +207,23 @@ private struct DevelopControls: View {
             }
             .showsTurnedOff(.presence, editor: editor)
         }
+    }
+
+    /// In the Profile group's place for a raw the system's RAW decoder gives no
+    /// image for: nothing there could apply to LibRaw's decode, and the note
+    /// says so instead of the group going missing (issue #161).
+    private var fallbackDecoderNote: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            ControlGroupLabel(text: AdjustText.title(.profile))
+                .frame(height: InspectorMetrics.groupLabelHeight)
+                .padding(.top, InspectorMetrics.groupLabelTop)
+            Text(FallbackDecoderText.note)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.bottom, 2)
+        }
+        .accessibilityElement(children: .combine)
     }
 
     private var profile: some View {
@@ -274,8 +293,11 @@ private struct DevelopControls: View {
         let balance = editor.adjustments.whiteBalance
         let presets = editor.isRaw ? WhiteBalance.Preset.allCases : WhiteBalance.Preset.relativePresets
         LabeledPopUp(title: String(localized: "Mode", comment: "White balance: As Shot, Auto, Daylight…")) {
+            // The mode that renders: a pasted Daylight or Kelvin Custom changes nothing on a
+            // file that is not decoded as a raw, and is not among its modes.
             AppKitPopUp(items: presets.map { .init(title: Self.presetTitle($0), tag: $0.rawValue) },
-                        selection: balance.preset.rawValue, isEnabled: !editor.isMeasuring) { tag in
+                        selection: (editor.isRaw ? balance.preset : balance.relativeDisplayPreset).rawValue,
+                        isEnabled: !editor.isMeasuring) { tag in
                 pick(WhiteBalance.Preset(rawValue: tag) ?? .asShot)
             }
         }
@@ -488,10 +510,11 @@ private struct DetailControls: View {
     /// Use machine learning and its caption (ml-denoise design §3): dimmed
     /// only where it cannot be turned on; the caption says why, or what it does.
     private func machineLearningRow(_ status: MachineLearningNoiseReduction.Status) -> some View {
-        let caption = MachineLearningText.caption(status.state)
+        let caption = MachineLearningText.caption(status.state, fallbackDecoder: editor.usesFallbackDecoder)
         return VStack(alignment: .leading, spacing: 2) {
             AppKitCheckbox(state: status.asks ? .on : .off, label: MachineLearningText.checkBoxTitle,
-                           help: MachineLearningText.checkBoxHelp(status.state), title: MachineLearningText.checkBoxTitle,
+                           help: MachineLearningText.checkBoxHelp(status.state, fallbackDecoder: editor.usesFallbackDecoder),
+                           title: MachineLearningText.checkBoxTitle,
                            isEnabled: status.checkBoxIsEnabled) {
                 editor.setMachineLearning(!status.asks)
             }

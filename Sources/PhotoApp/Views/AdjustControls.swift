@@ -126,6 +126,8 @@ enum InspectorMetrics {
     static let rowPitch: CGFloat = 24
     static let headerHeight: CGFloat = 28
     static let groupLabelHeight: CGFloat = 20
+    /// Space above a group's heading.
+    static let groupLabelTop: CGFloat = 10
     static let disclosureSlot: CGFloat = 16
     static let checkSlot: CGFloat = 16
     /// From a small check box's leading edge to its title's, as AppKit lays
@@ -699,7 +701,7 @@ struct GroupLabel<Trailing: View>: View {
                 .frame(width: InspectorMetrics.resetSlot, height: 1)
         }
         .frame(height: InspectorMetrics.groupLabelHeight)
-        .padding(.top, 10)
+        .padding(.top, InspectorMetrics.groupLabelTop)
     }
 }
 

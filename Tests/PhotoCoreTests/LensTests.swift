@@ -50,7 +50,7 @@ struct LensRenderingTests {
 
     @Test("The kernels compile from Metal source")
     func kernelsCompile() throws {
-        #expect(try LensKernels.compile() == 7)
+        #expect(try LensKernels.compile() == 8)
     }
 
     /// A context whose intermediates are 32-bit float: the renderer's math

@@ -243,6 +243,7 @@ struct RAWDecodeGraphTests {
         let known = [
             "Sources/PhotoCore/Preview/PreviewGenerator.swift": true,   // decodeRAW; nativeSize reads a size
             "Sources/PhotoCore/Preview/CameraFrame.swift": false,       // hands its filter to decodeRAW
+            "Sources/PhotoCore/Preview/SystemRAWDecoder.swift": false,  // asks whether there is an image (keyed, never rendered)
             "Sources/PhotoCore/Edits/AutoAdjust.swift": true,           // Auto White Balance; RawDefaults reads values
             "Sources/PhotoCore/Edits/MachineLearningNoiseReduction.swift": false, // reads decoder versions
         ]

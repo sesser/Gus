@@ -20,6 +20,8 @@ public actor SharpeningMapRefiner {
     private let generator: PreviewGenerator
     private let colorSpace: CGColorSpace?
     private var input: Input?
+    /// Whether the stack's decode settings reach this master's decode (`SystemRAWDecoder`).
+    private var decoder: SystemRAWDecoder.Memo
 
     private struct Key: Equatable {
         var settings: RAWDecodeSettings
@@ -36,11 +38,14 @@ public actor SharpeningMapRefiner {
         var machineLearning: MachineLearningNoiseReduction.Outcome
     }
 
-    /// - Parameter colorSpace: The display's color space, so frames need no conversion on screen.
-    public init(source: URL, generator: PreviewGenerator, colorSpace: CGColorSpace?) {
+    /// - Parameters:
+    ///   - colorSpace: The display's color space, so frames need no conversion on screen.
+    ///   - systemDecodesRaw: `SystemRAWDecoder.reads(source)` when the caller knows it; else the file is asked once.
+    public init(source: URL, generator: PreviewGenerator, colorSpace: CGColorSpace?, systemDecodesRaw: Bool? = nil) {
         self.source = source
         self.generator = generator
         self.colorSpace = colorSpace.flatMap { $0.model == .rgb ? $0 : nil }
+        self.decoder = SystemRAWDecoder.Memo(source, known: systemDecodesRaw)
     }
 
     /// The map of `adjustments` at full resolution, reduced to fit `longEdge`
@@ -57,8 +62,7 @@ public actor SharpeningMapRefiner {
         guard let renderer = generator.renderer as? AdjustmentRenderer else { throw PreviewGenerator.Failure.renderFailed }
         try cancellation?.check()
         let stack = adjustments.editStack
-        let isRaw = SupportedFormats.isRaw(pathExtension: source.pathExtension)
-        let settings = isRaw ? renderer.decodeSettings(for: stack) : .none
+        let settings = decoder.decodeSettings(renderer.decodeSettings(for: stack))
         // Sharpening and grain come after the map's input: changing them keeps it.
         var before = adjustments
         before.sharpen = Sharpen()
@@ -96,8 +100,7 @@ public actor SharpeningMapRefiner {
         let started = clock.now
         guard let renderer = generator.renderer as? AdjustmentRenderer else { throw PreviewGenerator.Failure.renderFailed }
         try cancellation?.check()
-        let isRaw = SupportedFormats.isRaw(pathExtension: source.pathExtension)
-        let settings = isRaw ? renderer.decodeSettings(for: adjustments.editStack) : .none
+        let settings = decoder.decodeSettings(renderer.decodeSettings(for: adjustments.editStack))
         let decoded = try PreviewGenerator.decode(source, longEdge: nil, draft: false, settings: settings)
         var image = content == .fringeMap
             ? AdjustmentRenderer.sharpeningMapDisplay(renderer.fringeMap(adjustments, to: decoded.image, context: decoded.context))

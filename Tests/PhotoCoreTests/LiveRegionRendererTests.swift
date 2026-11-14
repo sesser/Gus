@@ -323,7 +323,10 @@ struct LiveRegionRendererTests {
     /// a control that changes the decode every frame waits for the pause (R4).
     @Test("A moving frame decodes only once its settings stop changing (code review C4)")
     func decodeWhileMoving() async throws {
-        let renderer = LiveRegionRenderer(source: URL(fileURLWithPath: "/nonexistent/photo.dng"), generator: PreviewGenerator(), colorSpace: nil)
+        // No file is read: the renderer is told the system RAW decoder reads this one, as the
+        // editor tells it, so the stack's decode settings count (`SystemRAWDecoder`).
+        let renderer = LiveRegionRenderer(source: URL(fileURLWithPath: "/nonexistent/photo.dng"), generator: PreviewGenerator(),
+                                          colorSpace: nil, systemDecodesRaw: true)
         var values = Adjustments()
         // Highlights below 0 changes the settings once: extended range.
         values.tone.highlights = -5

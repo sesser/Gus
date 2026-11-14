@@ -77,6 +77,12 @@ I built this with Claude. AI did the work, I did the orchestration.
   undo that if you change your mind
 - RAW files from the same camera come out the same whatever you looked at
   before them: no more smeared left and right edges on some photos
+- Raw files macOS can't decode (some Fujifilm X-E3 files on macOS 27.2) now
+  show up and can be edited and exported. They look flatter than ones macOS
+  decodes, with relative white balance and no raw profile. For Fujifilm files
+  Gus uses the camera's own frame and the lens corrections stored in the file
+  (distortion, color fringing, corner shading); it is about 9 s to sharpen
+  such a photo at 100%
 - Before/after, copy and paste, and presets, including import of Lightroom
   presets (`.lrtemplate`, `.xmp`, `.dng`) with a report of anything that
   doesn't carry over
@@ -109,7 +115,8 @@ app doesn't have open.
 
 ## Not there yet
 
-Healing, distortion and lens vignetting corrections, lens profiles, DNG
+Healing, distortion and lens vignetting corrections (other than the camera's
+own in Fujifilm raws macOS can't decode), lens profiles, DNG
 export, automatic (subject/sky) masks, DCP camera profiles, hand-made and
 burst stacks,
 hierarchical keywords, importing straight from a camera over USB, a second
@@ -159,7 +166,9 @@ swift test
 ```
 
 `swift run photocli help` lists the command-line tool's commands. GRDB is
-the only third-party dependency.
+the only package dependency. LibRaw 0.22.3 is vendored in `Sources/CLibRaw`
+under the LGPL 2.1 (see `THIRD_PARTY_NOTICES.md`) and decodes raw files the
+macOS raw decoder can't.
 
 ## Documentation
 
@@ -180,6 +189,7 @@ the only third-party dependency.
 | `Sources/PhotoApp` | The library app: window and toolbar, grid, loupe, inspector, sidebar, sheets |
 | `Sources/PhotoImporter` | The standalone importer |
 | `Sources/PhotoCLI` | `photocli` |
+| `Sources/CLibRaw` | LibRaw's source, vendored and built by `Package.swift`; never edited |
 | `Sources/PhotoFixtures` | Synthetic JPEG, HEIC and DNG files for tests and benchmarks |
 | `Sources/PhotoBench` | Synthetic library generator, test scene files and profiling (`photobench`) |
 | `Sources/StringCatalogCompiler` | Compiles the String Catalog for the build script |
@@ -199,3 +209,18 @@ Gus is free software: you can redistribute it and/or modify it under the terms
 of the [GNU General Public License, version 3](LICENSE) or (at your option) any
 later version. It is distributed in the hope that it will be useful, but
 without any warranty; see the license for details.
+
+The vendored LibRaw is included under the GNU Lesser General Public License,
+version 2.1; see `THIRD_PARTY_NOTICES.md`.
+
+## Credits
+
+Gus stands on other people's work, and says so:
+
+- **LibRaw** decodes the raws macOS can't (see above).
+- **darktable** showed how to apply the lens corrections Fujifilm stores in its
+  raw files (distortion, lateral colour, vignetting): Gus's version was written
+  in Swift and Metal after reading how darktable does it, with nothing copied,
+  and is checked against the camera's own JPEG. See `THIRD_PARTY_NOTICES.md`.
+- **LightCraft** for the brush and colour-range mask math (same file).
+- **GRDB** for the catalog.

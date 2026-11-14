@@ -498,6 +498,23 @@ public struct WhiteBalance: AdjustmentModule {
         return out.values
     }
 
+    /// The mode to show for a file that is not decoded as a raw, among
+    /// `Preset.relativePresets` (raf-not-rendering design review D5):
+    ///
+    /// 1. the stored mode, when it is one of those three and the balance
+    ///    holds no Kelvin values: a mode picked from the pop-up sticks,
+    ///    Custom with both sliders at 0 included;
+    /// 2. otherwise (a named light source, or any mode carrying Kelvin
+    ///    values, as a paste or preset from a raw the system decodes leaves)
+    ///    the mode that renders: As Shot when both relative values are 0,
+    ///    else Custom. Only the relative values reach such a file.
+    ///
+    /// Display only: the stored preset and values are never rewritten.
+    public var relativeDisplayPreset: Preset {
+        if Preset.relativePresets.contains(preset), temperature == nil, tint == nil { return preset }
+        return relativeTemperature == 0 && relativeTint == 0 ? .asShot : .custom
+    }
+
     /// Picks a named preset for a RAW file.
     public static func raw(_ preset: Preset) -> WhiteBalance {
         guard let neutral = preset.neutral else { return WhiteBalance(preset: preset) }

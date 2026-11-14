@@ -61,6 +61,7 @@ enum DebugMachineLearningCommands {
 
     static func printState(model: LibraryModel, window: NSWindow?) {
         let editor = model.editor
+        printDecoder(editor, window: window)
         guard let status = editor.machineLearning else {
             print("debug-script: ml none (editor \(editor.state)) badge \(badge(editor))")
             return
@@ -68,7 +69,7 @@ enum DebugMachineLearningCommands {
         print("debug-script: ml state \(status.state) asks \(status.asks) groupOn \(status.groupIsOn)"
               + " availability \(status.availability?.rawValue ?? "unknown") applied \(status.isApplied)"
               + " colorAvailable \(status.colorIsAvailable)")
-        let caption = MachineLearningText.caption(status.state)
+        let caption = MachineLearningText.caption(status.state, fallbackDecoder: editor.usesFallbackDecoder)
         print("debug-script: ml caption '\(caption ?? "-")' triangle \(MachineLearningText.showsTriangle(status.state))")
         let root = window?.contentView?.superview
         if let root, let box = find(NSButton.self, in: root, where: { $0.title == MachineLearningText.checkBoxTitle }) {
@@ -104,9 +105,26 @@ enum DebugMachineLearningCommands {
               + " frame \(frame ?? "none") undo '\(model.undoManager.undoActionName)'")
     }
 
+    /// Which decoder gives the photo's image, and what the Adjust tab offers
+    /// for it (`SystemRAWDecoder`): the white balance modes and the
+    /// Temperature row (Kelvin for a raw the system decodes, relative otherwise).
+    private static func printDecoder(_ editor: AdjustmentEditor, window: NSWindow?) {
+        let decoder = editor.isRaw ? "system" : editor.usesFallbackDecoder ? "fallback" : "not raw"
+        let root = window?.contentView?.superview
+        let asShot = String(localized: "As Shot", comment: "White balance preset")
+        let modes = root.flatMap { find(NSPopUpButton.self, in: $0, where: { $0.itemTitles.contains(asShot) }) }
+        let temperature = root.flatMap {
+            find(SliderRow.self, in: $0, where: { $0.accessibilityLabel() == String(localized: "Temperature") })
+        }
+        print("debug-script: decoder \(decoder) wb mode '\(modes?.titleOfSelectedItem ?? "-")'"
+              + " modes [\(modes?.itemTitles.joined(separator: ", ") ?? "not shown")]"
+              + " temperature \(temperature?.debugState ?? "not shown")"
+              + " note \(editor.usesFallbackDecoder ? "'\(FallbackDecoderText.note)'" : "none")")
+    }
+
     private static func badge(_ editor: AdjustmentEditor) -> String {
         guard let reason = editor.machineLearningNotApplied else { return "none" }
-        return "'\(MachineLearningText.badge)' help '\(MachineLearningText.badgeHelp(reason))'"
+        return "'\(MachineLearningText.badge)' help '\(MachineLearningText.badgeHelp(reason, fallbackDecoder: editor.usesFallbackDecoder))'"
     }
 
     private static func find<V: NSView>(_ type: V.Type, in view: NSView, where test: (V) -> Bool) -> V? {
