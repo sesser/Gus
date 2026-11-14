@@ -6,18 +6,18 @@ Owner: swift-macos-engineer. Branch: `feature/about-gus`. State: **Done** (2026-
 Every acceptance criterion that can be met before #172 is built and tested; AC7's and AC13's
 full-text halves are built and checked against a bundle with the files copied in by hand, and
 turn on by themselves when #172 puts the files in the bundles. Nothing is blocked. The findings
-of the code review (C1–C5, Q3) and the design review (F1–F3) are fixed (**Review findings**).
+of the code review (C1–C7, Q3) and the design review (F1–F4) are fixed (**Review findings**).
 
 Spec: the PRD (issue #179's body, R1–R11, AC1–AC13) and [`design.md`](design.md) (§1–§13,
 rulings D-A1 to D-A8).
-Next: the second pass of code-reviewer and the designer on the fixes, then qa-tester.
+Next: code-reviewer and the designer confirm C6, C7 and F4, then qa-tester.
 
 ## Results
 
 | | Baseline (`3b8819e`) | Now |
 |---|---|---|
 | `swift build` | clean, no warnings | clean, no warnings |
-| `swift test` | 906 tests in 133 suites passed, 1 known issue | 949 tests in 138 suites passed, the same 1 known issue |
+| `swift test` | 906 tests in 133 suites passed, 1 known issue | 952 tests in 138 suites passed, the same 1 known issue |
 | `Scripts/build-app.sh all` | not run | both bundles built |
 
 `swift build --build-tests` prints two warnings that were there before and are not touched
@@ -28,8 +28,9 @@ is not changed: putting the license files in the bundles is #172's.
 
 ## Tests
 
-`swift test`: 949 tests in 138 suites passed, with the 1 known issue the baseline has (42 new tests
-in 5 new suites, and one more in `QuitConfirmationTests`). Before the review fixes: 945.
+`swift test`: 952 tests in 138 suites passed, with the 1 known issue the baseline has (43 new tests
+in 5 new suites, and three more in `QuitConfirmationTests`). Before the review fixes: 945; after
+the first pass: 949. The last run took 299 s instead of about 50: see **Seen while testing**.
 
 New suites (all in `Tests/PhotoCoreTests`):
 
@@ -85,7 +86,10 @@ The commands are under **Debug script**.
 - **M7 VoiceOver, Voice Control**, macOS 15 and macOS 26 are not checked by anyone (the README
   says so).
 - **M8 Quit while a job runs, from the About window.** Start an export (or an import), open
-  About so it is key, press ⌘Q: the question appears on the library window, not on About.
+  About so it is key, press ⌘Q: the library window comes in front of About and the question
+  is a sheet on it; Return and Esc keep the job going. Again with a sheet already up on the
+  library window (the look-up table browser): the question is on that sheet, at once. Not
+  checked by anyone: the library window on another Space or in full screen.
 - **M9 ⌘F on a non-Latin layout.** With a Russian or Greek input source, ⌘F in a license window
   opens its find bar.
 
@@ -98,7 +102,8 @@ needs a key window except `click` and `escape posted` (`quithost` says more with
 about open [app|help]     about close     about escape [posted]     about menus
 about print               about windows   about link <project>      about snapshot <file.png>
 about license <project>|app [print|close|find|snapshot <file.png>]
-about click <x> <y>       about height <points>|max        about quithost       about closeothers
+about click <x> <y>       about height <points>|max        about closeothers
+about quithost            about quitask [keep]
 ```
 
 `about print` gives the window (title, size and limits, buttons, Window menu, first
@@ -122,6 +127,8 @@ What I ran, and what came back:
 | The app's own window closed, a license window open (design §2.2; code review Q2), both apps | `about closeothers` leaves only license windows; both About items are enabled; `about open help` opens About (1 window), and after closing it `about open app` opens it again |
 | All four View License buttons alike (F1) | `about height max` then `about snapshot`: the footer's button has the entries' font and title color in the picture (dark). By eye in light: M1 |
 | The window a quit confirmation goes on (code review Q3), app active | `about quithost`: “All Photos” while the library window is key, while About is key and while a license window is key; none (the alert stands alone) when only license windows are left. Importer: “Gus Importer” with About open. A real ⌘Q during an export with About key was **not** run (M8) |
+| The same with a sheet up on the library window (C6) | `lutwindow open; about open app; about quithost` → "a sheet on “All Photos”". `about quitask` (the real `QuitGuard.ask`, nothing running, nothing quitting): "question on screen true, sheets on it 0 → 1", so it is shown on the sheet and not kept waiting behind it; `about quitask keep` answers it |
+| The host comes in front of About (F4) | Front to back before `about quitask`: About, All Photos; after: All Photos, About (the question's glass window above both). The same in the importer copy. In these three runs macOS refused to make the test copy the active app, so "the host becomes key" was not seen by the script: M8 |
 | ⌘F after C4 | Posted ⌘F in a key license window: find bar shown; Esc: bar closed, window stays. A non-Latin input source was not tried (M9) |
 
 To see the state after #172 before it lands, copy the two files into a test copy of the bundle
@@ -191,9 +198,11 @@ MIT notice and its Swift.org-derived files":
   the address those headers give. The Apache license's text is **not** reproduced, and the note
   says so.
 
-**To confirm at Ship (owner, product manager; #172 owns the content):** the wording of the GRDB
+**Open for Ship (owner, product manager; #172 owns the content), RI-E2:** the wording of the GRDB
 and ExifTool sections, and whether naming the Swift.org-derived files with a link is enough or
-the Apache 2.0 text should travel with the apps. I am not a lawyer and did not decide that; I
+the Apache 2.0 text should travel with the apps. The code reviewer's second pass notes that
+the Runtime Library Exception, as written, is about the Swift runtime embedded by compiling,
+not about source copied into GRDB's files, so the question is a real one. I am not a lawyer and did not decide that; I
 only made the section say what GRDB's sources say. GRDB's View License window shows the whole
 section, so whatever is settled there is what the window shows.
 
@@ -284,6 +293,9 @@ From [`code-review.md`](code-review.md) and [`review.md`](review.md), both of 20
 | C5 | The statement test compared the README with a copy typed into the test | `statementMatchesTheReadme` reads the literal `AboutText.freeSoftwareStatement` passes to `String(localized:)` from its source and compares that with the README and the catalog; `copyrightLineMatchesTheReadme` does the same for the copyright line |
 | Q2 | "The library window closed, a license window open" was not in my checks | Run in both apps (**Debug script**): About opens from both menus |
 | Q3 | ⌘Q during a job put the confirmation on the About window when it was key | The library app asks on `QuitGuard.confirmationWindow`: the key window, else the main one, else a visible one, never the About or a license window (`QuitConfirmation.host` in PhotoCore, tested in `QuitConfirmationTests`); with only such windows left the alert stands alone. The importer already asked on its import window (`CardImportModel.window`), so it needed no change. `about quithost` shows the choice; a real quit during a job is M8 |
+| C6 (second pass) | With About or a license window key and a sheet already up on the library window, the question was asked on the window and AppKit kept it waiting behind the sheet: ⌘Q seemed to do nothing | The host is the window's front-most sheet when it shows one (`QuitConfirmation.frontSheet`, used by `host`; a sheet on a sheet is followed). `QuitGuard.ask` applies the same to whatever window it is given, so the importer, which asks on its import window, can't queue a question behind a sheet either: that case was there before this feature, and falls to the same line. `QuitConfirmationTests`: `confirmationGoesOnTheSheetOfAWindowThatShowsOne`, `frontSheetFollowsTheChainAndStops`. `about quithost` names a sheet as "a sheet on ‹window›"; `about quitask` shows the real question and says whether it is on screen |
+| F4 (second pass) | The host may be behind About, where the sheet comes down | **Kept the explicit call**: `QuitGuard.ask` calls `bringForward` before the sheet, which does `makeKeyAndOrderFront` on the host (for a sheet, on the window it is on) when the host is not the key window, and nothing when it is. It is in `ask`, so the importer gets it too. The code reviewer's probe says AppKit already fronts a sheet's window; the call then changes nothing, and it also makes the host key and covers a system that doesn't. I can't tell the two apart from the script: the order was right after asking (above) |
+| C7 (second pass) | The mutation tests leaned on GRDB's exact version line and on Credits being the README's last section | They insert through `addingDependency` (after `dependencies: [`) and `addingCreditsLine` (at the end of the Credits section, wherever it is). `mutationsUseStableAnchors` runs both on a manifest with another version and a README with a section after the Credits |
 | Aside in the code review | The notices were read three times when About appears | `BundledLicenses.available` reads each file once |
 | I-3 | User guide: "Help ▸ About" without the name | Now "**Help ▸ About** followed by the app's name" |
 | I-1, I-2 | Entry heights; ⌘F while Edit ▸ Find… shows disabled | Left, as the review says |
@@ -298,7 +310,9 @@ From [`code-review.md`](code-review.md) and [`review.md`](review.md), both of 20
   notices section or as a file) and say which; the reader then needs a small change for a
   second file.
 - **RI-E2 Notices and Credits lines added here** (see above): GRDB's and ExifTool's notices
-  sections and ExifTool's Credits line were needed for R9 and AC11. Confirm or reword.
+  sections and ExifTool's Credits line were needed for R9 and AC11. Confirm or reword. **Still
+  open for Ship:** whether the Apache 2.0 text must ship for GRDB's three Swift.org-derived
+  files, or the note and its link are enough.
 - **RI-E3 The contract with #172.** This feature looks for `THIRD_PARTY_NOTICES.md` and
   `LICENSE` directly in the bundle's `Contents/Resources`
   (`BundledLicenses.noticesFileName`, `.licenseFileName`). #172 should use those names and
@@ -323,7 +337,7 @@ For the product manager at Ship:
     `AboutCommands`, debug-script commands; the record is `Acknowledgements` in PhotoCore's
     `About/`)".
   - The debug paragraph, after the sentence on `menuitems` and `menupress`: "`about open|close|
-    escape|menus|print|windows|link|license|snapshot|click|height|quithost|closeothers` drives the About window and its
+    escape|menus|print|windows|link|license|snapshot|click|height|closeothers|quithost|quitask` drives the About window and its
     license windows in both apps without a key window (`AboutDebugCommands`); links are
     reported, never opened, under a script. `menukey` posts keys for the library window even
     when another window is key, so use `about escape posted` for Esc in the About window."
@@ -332,6 +346,17 @@ For the product manager at Ship:
     the README's Credits together; `AcknowledgementConsistencyTests` fails otherwise. License
     text is never typed into Swift or the String Catalog."
 - No change to requirements or build commands.
+
+## Seen while testing, not this feature's
+
+- **A sleeping network share stalls `swift test`, and would stall the app the same way.**
+  During the last full run the suite stopped for about four and a half minutes at 0% CPU in
+  `ExportJobTests`, inside `VolumeAvailability.mountedVolumes()`
+  (`Sources/PhotoCore/Import/VolumeResolver.swift`): `FileManager.mountedVolumeURLs(
+  includingResourceValuesForKeys:)` was waiting in the SMB client for a mounted share whose
+  server was asleep (`ls` on it timed out too). It went on by itself once the server answered,
+  and the run passed. That code is not touched by this branch. Proposed as an issue in my
+  report: the same call is made on export, import and when the library looks for its volumes.
 
 ## Not done, on purpose
 
