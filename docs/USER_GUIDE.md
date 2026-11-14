@@ -382,7 +382,7 @@ from a raw macOS decodes, or a preset's, applies here too, and **Auto**
 measures a Kelvin and tint. On any raw, choosing **Custom** keeps the
 **Temperature** and **Tint** shown, so a paste carries those numbers. A photo
 shot in light beyond the sliders' ends (under 2,000 K, say) shows the nearest
-end; choosing **Custom** or moving a slider then renders that number. Two things to know about the numbers. The Kelvin shown comes from the
+end; choosing **Custom** or moving a slider then changes the photo to that end's color, and **As Shot** brings back the camera's own. Two more things to know about the numbers. The Kelvin shown comes from the
 app's own color data for the camera, which is not always what macOS reads for
 the same camera (close for a Fujifilm X-E3 on the one file that could be
 compared; about a fifth lower for an X-T3). So for the same camera and the

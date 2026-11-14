@@ -25,8 +25,8 @@ comment at each place:
     not freely available: its formulas were taken as later papers restate
     them (Baxter, Royer and Smet, "Modifications of the Robertson Method for
     Calculating Correlated Color Temperature to Improve Accuracy and Speed",
-    Leukos, 2023, equation 1), and its Table II as the publisher's page
-    lists it.
+    Leukos, 2023, equation 1). The paper's own Table II was not read first
+    hand.
   - The CIE 1960 uniform chromaticity scale, for (u, v) against CIE 1931
     (x, y); the correlated color temperatures of the CIE's standard
     illuminants.
@@ -39,8 +39,8 @@ comment at each place:
     the figures of the 31 lines themselves. Those figures are the table as
     the literature reprints it (cited there as Wyszecki and Stiles, "Color
     Science", 2nd edition, Table 1(3.11); the book was not consulted),
-    which differs from Robertson's Table II in the last figures (by up to
-    0.0001 in u) and has a known misprint at 325 mired (u 0.24702 for
+    which may differ from Robertson's own Table II in the last figures
+    (a summary of that table seen second hand suggested so; not checked) and has a known misprint at 325 mired (u 0.24702 for
     0.24792). The system decoder has the misprint, so it is kept.
     `ColorTemperatureTests` repeats the measurement.
 - The temperatures taken for a DNG's calibration illuminants
