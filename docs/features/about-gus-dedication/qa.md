@@ -241,4 +241,18 @@ build puts `THIRD_PARTY_NOTICES.md` and `LICENSE` in both bundles and that the b
 
 ## Follow-up
 
-(Reruns after fixes, P items as the owner reports them, and the owner's sign-off go here.)
+### Sign-off (2026-11-13)
+
+- **Signed off by the owner** on 2026-11-13, in chat (“Signed off”), as relayed by the main
+  session, at commit `4512449` on `feature/about-gus` (QA's `qa.md` commit on top of
+  `a702501`; no source or test change since QA tested `a702501`).
+- **Checks left open:** the owner named none, and did not report P1–P9 one by one. So P1 to P9
+  all stay **pending** in **For a person** above. They go to the standing manual-checks issue
+  #82 at Ship, and are named in the pull request.
+- **Q1:** P8(b), a real ⌘Q with the look-up table browser up on the library window during an
+  export, decides whether the proposed bug issue (“Quit while a sheet is up on the library
+  window shows no question”) is filed. Until someone runs P8(b), Q1 stays open as an
+  observation, not a fix on this branch.
+- **Q2** (launch crash from a saved toolbar configuration, also on `develop`) is unaffected by
+  the sign-off. It is still a proposed follow-up issue.
+- **Still open until #172:** the packaging halves of AC7 and AC13.
