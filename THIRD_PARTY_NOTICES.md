@@ -8,24 +8,59 @@ comment at each place:
 - The color step after a LibRaw decode (white balance from a camera
   neutral, the camera's color matrices read between two calibration lights
   by reciprocal temperature, forward matrices, the linear Bradford adaptation
-  to D50) follows the Adobe DNG Specification 1.7.1, chapter 6, "Mapping
-  Camera Color Space to CIE XYZ Space", written from the specification's
-  text: `Sources/PhotoCore/CameraColor/CameraColor.swift` and
-  `CameraProfile.swift`.
-- Kelvin and tint against chromaticity use Robertson's method (A. R.
-  Robertson, "Computation of Correlated Color Temperature and Distribution
-  Temperature", Journal of the Optical Society of America 58, 1968; the
-  isotherm table as in Wyszecki and Stiles, "Color Science", 2nd edition).
-  The tint (the distance from the black body's color along the isotherm in
-  CIE 1960 (u, v), times 3000, positive toward green), the reading between
-  two isotherms and the temperatures taken for a DNG's calibration
-  illuminants are those of Adobe's DNG SDK 1.7.1 (`dng_temperature`,
-  `dng_camera_profile`), written again in Swift with nothing copied:
-  `Sources/PhotoCore/CameraColor/ColorTemperature.swift` and
-  `CameraProfile.kelvin(ofLightSource:)`. The system's RAW decoder reports
-  the same numbers for the same chromaticity (`ColorTemperatureTests`).
-- The fluorescent light sources' temperatures are the middles of the ranges
-  the EXIF specification (CIPA DC-008) gives them.
+  to D50) follows Adobe's "Digital Negative (DNG) Specification", chapter 6,
+  "Mapping Camera Color Space to CIE XYZ Space" (read in version 1.6.0.0,
+  December 2021), written from the specification's text:
+  `Sources/PhotoCore/CameraColor/CameraColor.swift` and `CameraProfile.swift`.
+  Of a camera neutral's white point the specification says only to guess one
+  and "iterate until the xy values converge to a solution": how
+  `CameraColor.white(ofNeutral:)` starts, when it stops and what it does when
+  the guesses do not settle are this project's own.
+- Kelvin and tint against chromaticity
+  (`Sources/PhotoCore/CameraColor/ColorTemperature.swift`) have three sources:
+  - Robertson's method of reading a correlated color temperature between
+    lines of constant temperature (A. R. Robertson, "Computation of
+    Correlated Color Temperature and Distribution Temperature", Journal of
+    the Optical Society of America 58 (11), 1528–1535, 1968). The paper is
+    not freely available: its formulas were taken as later papers restate
+    them (Baxter, Royer and Smet, "Modifications of the Robertson Method for
+    Calculating Correlated Color Temperature to Improve Accuracy and Speed",
+    Leukos, 2023, equation 1), and its Table II as the publisher's page
+    lists it.
+  - The CIE 1960 uniform chromaticity scale, for (u, v) against CIE 1931
+    (x, y); the correlated color temperatures of the CIE's standard
+    illuminants.
+  - Measurement of the system's RAW decoder (`CIRAWFilter`'s
+    `neutralTemperature`, `neutralTint` and `neutralChromaticity`), for
+    everything the paper leaves open, so that one Kelvin and tint is the
+    same light to both decoders: the tint (the distance from the black
+    body's color along the line of constant temperature, times 3000,
+    positive toward green), how the lines are read between and beyond, and
+    the figures of the 31 lines themselves. Those figures are the table as
+    the literature reprints it (cited there as Wyszecki and Stiles, "Color
+    Science", 2nd edition, Table 1(3.11); the book was not consulted),
+    which differs from Robertson's Table II in the last figures (by up to
+    0.0001 in u) and has a known misprint at 325 mired (u 0.24702 for
+    0.24792). The system decoder has the misprint, so it is kept.
+    `ColorTemperatureTests` repeats the measurement.
+- The temperatures taken for a DNG's calibration illuminants
+  (`CameraProfile.kelvin(ofLightSource:)`) are this project's choices: the
+  specification gives none. The numbering is the EXIF `LightSource` tag's
+  (CIPA DC-008-2012, Exif 2.3). A fluorescent lamp is the middle of the
+  range that specification gives its kind; a standard illuminant is the
+  round number it is known by (D65: 6500 K; standard light A: 2850 K, the
+  CIE's 2856 K to the nearest 50 K); a kind of light EXIF only names
+  (daylight, cloudy weather, tungsten…) is the temperature of the White
+  Balance mode of that name.
+- `ColorTemperature.init(_:)`, `ColorTemperature.chromaticity`,
+  `CameraProfile.kelvin(ofLightSource:)` and `CameraColor.white(ofNeutral:)`
+  were written again on 2026-11-14 from the sources above alone. Their first
+  versions followed the source of Adobe's DNG SDK (`dng_temperature`,
+  `dng_camera_profile`, `dng_color_spec`; issue #170, code review C1); the
+  rewrite was made without that source or any other raw converter's. What
+  the two versions have in common is what the sources above fix: the
+  table's figures, the tint's scale, what the system decoder was measured
+  to do, and the standard lights' round temperatures.
 - That a Fujifilm raw records the exposure its camera held back
   (`RawExposureBias`) is from ExifTool's tag documentation; the value is read
   by LibRaw (`Sources/PhotoCore/Preview/LibRawDecoder.swift`).
