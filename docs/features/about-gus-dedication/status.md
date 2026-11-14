@@ -5,17 +5,19 @@ Issue: #179
 Owner: swift-macos-engineer. Branch: `feature/about-gus`. State: **Done** (2026-11-13).
 Every acceptance criterion that can be met before #172 is built and tested; AC7's and AC13's
 full-text halves are built and checked against a bundle with the files copied in by hand, and
-turn on by themselves when #172 puts the files in the bundles. Nothing is blocked.
+turn on by themselves when #172 puts the files in the bundles. Nothing is blocked. The findings
+of the code review (C1–C5, Q3) and the design review (F1–F3) are fixed (**Review findings**).
 
-Spec: the PRD (issue #179's body, R1–R11, AC1–AC13) and [`design.md`](design.md) (§1–§13).
-Next: code-reviewer and the designer's review, then qa-tester.
+Spec: the PRD (issue #179's body, R1–R11, AC1–AC13) and [`design.md`](design.md) (§1–§13,
+rulings D-A1 to D-A8).
+Next: the second pass of code-reviewer and the designer on the fixes, then qa-tester.
 
 ## Results
 
 | | Baseline (`3b8819e`) | Now |
 |---|---|---|
 | `swift build` | clean, no warnings | clean, no warnings |
-| `swift test` | 906 tests in 133 suites passed, 1 known issue | 945 tests in 138 suites passed, the same 1 known issue |
+| `swift test` | 906 tests in 133 suites passed, 1 known issue | 949 tests in 138 suites passed, the same 1 known issue |
 | `Scripts/build-app.sh all` | not run | both bundles built |
 
 `swift build --build-tests` prints two warnings that were there before and are not touched
@@ -26,8 +28,8 @@ is not changed: putting the license files in the bundles is #172's.
 
 ## Tests
 
-`swift test`: 945 tests in 138 suites passed, with the 1 known issue the baseline has (39 new tests
-in 5 new suites).
+`swift test`: 949 tests in 138 suites passed, with the 1 known issue the baseline has (42 new tests
+in 5 new suites, and one more in `QuitConfirmationTests`). Before the review fixes: 945.
 
 New suites (all in `Tests/PhotoCoreTests`):
 
@@ -80,18 +82,23 @@ The commands are under **Debug script**.
   is dimmed; dragging the window by its background moves it.
 - **M6 The app menu and Help in the menu bar** by eye: About first and alone above a
   separator in the app menu; the search field above About in Help.
-- **M7 VoiceOver**, macOS 15 and macOS 26 are not checked by anyone (the README says so).
+- **M7 VoiceOver, Voice Control**, macOS 15 and macOS 26 are not checked by anyone (the README
+  says so).
+- **M8 Quit while a job runs, from the About window.** Start an export (or an import), open
+  About so it is key, press ⌘Q: the question appears on the library window, not on About.
+- **M9 ⌘F on a non-Latin layout.** With a Russian or Greek input source, ⌘F in a license window
+  opens its find bar.
 
 ## Debug script
 
 `about …` in both apps' debug scripts (`Sources/PhotoUI/About/AboutDebugCommands.swift`); none
-needs a key window except `click` and `escape posted`:
+needs a key window except `click` and `escape posted` (`quithost` says more with the app active):
 
 ```
 about open [app|help]     about close     about escape [posted]     about menus
 about print               about windows   about link <project>      about snapshot <file.png>
 about license <project>|app [print|close|find|snapshot <file.png>]
-about click <x> <y>
+about click <x> <y>       about height <points>|max        about quithost       about closeothers
 ```
 
 `about print` gives the window (title, size and limits, buttons, Window menu, first
@@ -112,6 +119,10 @@ What I ran, and what came back:
 | `.build/debug/PhotoApp` (no bundle) | `version none`, no buttons, the statement still there |
 | Importer copy | Menus, one window, header "Gus Importer", dedication "Gus stands on…", "Gus License" |
 | File ▸ New Window | Not added by the license window group (`menuitems New` lists only the album items) |
+| The app's own window closed, a license window open (design §2.2; code review Q2), both apps | `about closeothers` leaves only license windows; both About items are enabled; `about open help` opens About (1 window), and after closing it `about open app` opens it again |
+| All four View License buttons alike (F1) | `about height max` then `about snapshot`: the footer's button has the entries' font and title color in the picture (dark). By eye in light: M1 |
+| The window a quit confirmation goes on (code review Q3), app active | `about quithost`: “All Photos” while the library window is key, while About is key and while a license window is key; none (the alert stands alone) when only license windows are left. Importer: “Gus Importer” with About open. A real ⌘Q during an export with About key was **not** run (M8) |
+| ⌘F after C4 | Posted ⌘F in a key license window: find bar shown; Esc: bar closed, window stays. A non-Latin input source was not tried (M9) |
 
 To see the state after #172 before it lands, copy the two files into a test copy of the bundle
 and sign it again:
@@ -168,6 +179,24 @@ of its own:
 - `README.md` Credits: one line, "**ExifTool** reads metadata when it is installed; it is not
   part of Gus."
 
+After the code review (C3) the GRDB section also carries, in commit "Notices: GRDB's second
+MIT notice and its Swift.org-derived files":
+
+- the **second MIT notice** GRDB has in `GRDB/Utils/Inflections+English.swift` ("Copyright (c)
+  2005-2019 David Heinemeier Hansson"), copied from that file's header with the comment marks
+  taken off;
+- a **note naming the three files** whose headers say parts come from the Swift.org project
+  under the Apache License v2.0 with Runtime Library Exception (`GRDB/Core/Cursor.swift`, and
+  one function each in `GRDB/Record/EncodableRecord.swift` and `FetchableRecord.swift`), with
+  the address those headers give. The Apache license's text is **not** reproduced, and the note
+  says so.
+
+**To confirm at Ship (owner, product manager; #172 owns the content):** the wording of the GRDB
+and ExifTool sections, and whether naming the Swift.org-derived files with a link is enough or
+the Apache 2.0 text should travel with the apps. I am not a lawyer and did not decide that; I
+only made the section say what GRDB's sources say. GRDB's View License window shows the whole
+section, so whatever is settled there is what the window shows.
+
 The README is the product manager's and the notices' content is #172's: both should read these
 lines and reword them if they want (RI-E2).
 
@@ -201,13 +230,11 @@ lines and reword them if they want (RI-E2).
   posted keys. One thing found: the find bar lies over the top of the text in the current
   design, so opening it at the start of the text hid the first line; the view now stays at
   the start.
-- **Q-E6 (scroll view).** A SwiftUI `ScrollView` is kept. On macOS 27.2 clicks posted through
-  the event queue reached the link and the View License button inside it. macOS 26 and 15
-  were not checked; the fault CLAUDE.md describes was seen in the earlier design, which a
-  bundle built by `build-app.sh` no longer runs in on macOS 26+. If a review finds it on 15,
-  `AppKitScrollView` moves to PhotoUI.
+- **Q-E6 (scroll view).** A SwiftUI `ScrollView` is kept, by the owner's ruling (**Rulings**,
+  Q1). On macOS 27.2 clicks posted through the event queue reached the link and the View
+  License button inside it. macOS 26 and 15 were not checked.
 
-## Where I read the design one way (for the designer to confirm)
+## Where I read the design one way (all accepted at design review: design.md §13, D-A1 to D-A6)
 
 - **D-1 Heights are the window's.** "Minimum 400, ideal 640" is applied to the window with its
   title bar (the view lies under the title bar, so the view's own limits are 32 pt less on
@@ -234,6 +261,32 @@ lines and reword them if they want (RI-E2).
   importer's own name. Built so: `AboutScenes(appName:projectName:)`, where `projectName`
   defaults to `AppBranding.displayName` and neither app passes it
   (`AboutWiringTests.projectNameIsTheLibraryApps`). Nothing is pending on it.
+- **Q1 of the code review (owner, 2026-11-13, relayed by the main session).** `CLAUDE.md`'s "No
+  SwiftUI `ScrollView` under the toolbar" does not cover the About window. Its body stays a
+  SwiftUI `ScrollView`; `AppKitScrollView` stays in the library app.
+- **Design rulings D-A1 to D-A8** are in [`design.md`](design.md) §13: D-A1 to D-A6 accept the
+  six readings below as built; D-A7 (Voice Control names) and D-A8 (catalog comments) are
+  findings F2 and F3.
+
+## Review findings
+
+From [`code-review.md`](code-review.md) and [`review.md`](review.md), both of 2026-11-13.
+
+| # | Finding | What was done |
+|---|---|---|
+| F1 | The footer's View License took the footer's callout font and secondary color | `.font(.callout)` and `.foregroundStyle(.secondary)` are on the two footer texts, not on their stack. The four buttons are now one view, `ViewLicenseButton`, so they can't differ again. Snapshot at full height: alike |
+| F2 (D-A7) | Voice Control names | `accessibilityInputLabels` on all four: "View License", then "View ‹owner› License". The VoiceOver label is unchanged. Not checked with Voice Control (M7) |
+| F3 (D-A8) | Translator comments named the app, not the project | The dedication's and the statement's comments, in `AboutText.swift` and the catalog, say the argument is the project's name (the library app's name, also in the standalone importer) |
+| C1 | The R9 test saw only `.package(url:)` and `.package(path:)` | `AcknowledgementConsistency.dependencies(in:)` reads every `.package(…)` (url, path, registry id, with or without `name:`, wrapped over lines) and every `.binaryTarget(…)`, with comments taken out by a scanner that leaves strings whole; a call it can't read is reported with its own text. `everyFormOfDependencyIsNamed` (seven forms), `commentsAreStripped` |
+| C2 | A Credits line with no bold name wasn't read as a credit | Every list item of the Credits section must open with a name in bold, or the test fails quoting the item. Tested with five shapes of such a line |
+| C3 | GRDB's section lacked its second MIT notice and said nothing of its Swift.org-derived files | Added (see **Changes to the notices and the README**); wording to confirm at Ship |
+| C4 | Find keys matched on `charactersIgnoringModifiers` | `LicenseTextView` matches `event.characters`, as menu key equivalents do. ⌘F and Esc checked again with posted keys; a non-Latin layout not tried (M9) |
+| C5 | The statement test compared the README with a copy typed into the test | `statementMatchesTheReadme` reads the literal `AboutText.freeSoftwareStatement` passes to `String(localized:)` from its source and compares that with the README and the catalog; `copyrightLineMatchesTheReadme` does the same for the copyright line |
+| Q2 | "The library window closed, a license window open" was not in my checks | Run in both apps (**Debug script**): About opens from both menus |
+| Q3 | ⌘Q during a job put the confirmation on the About window when it was key | The library app asks on `QuitGuard.confirmationWindow`: the key window, else the main one, else a visible one, never the About or a license window (`QuitConfirmation.host` in PhotoCore, tested in `QuitConfirmationTests`); with only such windows left the alert stands alone. The importer already asked on its import window (`CardImportModel.window`), so it needed no change. `about quithost` shows the choice; a real quit during a job is M8 |
+| Aside in the code review | The notices were read three times when About appears | `BundledLicenses.available` reads each file once |
+| I-3 | User guide: "Help ▸ About" without the name | Now "**Help ▸ About** followed by the app's name" |
+| I-1, I-2 | Entry heights; ⌘F while Edit ▸ Find… shows disabled | Left, as the review says |
 
 ## Requirements issues (for the product manager)
 
@@ -270,7 +323,7 @@ For the product manager at Ship:
     `AboutCommands`, debug-script commands; the record is `Acknowledgements` in PhotoCore's
     `About/`)".
   - The debug paragraph, after the sentence on `menuitems` and `menupress`: "`about open|close|
-    escape|menus|print|windows|link|license|snapshot|click` drives the About window and its
+    escape|menus|print|windows|link|license|snapshot|click|height|quithost|closeothers` drives the About window and its
     license windows in both apps without a key window (`AboutDebugCommands`); links are
     reported, never opened, under a script. `menukey` posts keys for the library window even
     when another window is key, so use `about escape posted` for Esc in the About window."

@@ -606,8 +606,8 @@ previews still display, and the app never removes them from the catalog by
 itself (you can, with **File ▸ Remove from Library…**).
 
 **About**: the first item of the app menu, **About** followed by the app's
-name, opens the About window; **Help ▸ About** is the same item and opens the
-same window (there is only ever one). It shows the app's version and build,
+name, opens the About window; **Help ▸ About** followed by the app's name is
+the same item and opens the same window (there is only ever one). It shows the app's version and build,
 then a thank-you to the projects the app relies on: LibRaw, darktable,
 LightCraft, GRDB and ExifTool, each with a sentence on what it gave, its
 license, and a link to its page. A link opens in your browser; the app itself
