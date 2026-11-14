@@ -253,7 +253,25 @@ Open the inspector, the Adjust tab, in the loupe.
 
 ## Follow-up
 
-None yet.
+**Sign-off (2026-11-14).** The owner signed off on `3013abf`, as the main session relayed. That commit is
+`afba824` plus this file (`git diff afba824..3013abf` touches only `qa.md`), so the code signed off is the code
+tested above. The owner ran the scratch-library bundle.
+
+Checks left open: P1 to P10, all of them. The owner named none as done on its own.
+
+- P1 (AC6): the X-E3 beside the X-T3.
+- P2 (M1): the note.
+- P3 (M2): White Balance on the X-E3 by hand.
+- P4 (M3): Auto's wait.
+- P5 (M4): paste with real menus or keys.
+- P6 (M5, M6): switching photos, and Custom with the mouse, including no extra undo step.
+- P7 (M7, M9): the unavailable and not-applied captions and their spacing.
+- P8 (M8): live drag with the mouse.
+- P9 (M10): light beyond the sliders' ends.
+- P10: the new look on a library cached by a #161 build.
+
+AC5 stays "measured, accepted by the owner 2026-11-14". The open checks stay in "For a person" above. Per
+`docs/WORKFLOW.md`, they also go to the standing manual-checks issue (#82) and are named in the pull request.
 
 ## Summary for the issue
 
