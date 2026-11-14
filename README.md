@@ -212,3 +212,15 @@ without any warranty; see the license for details.
 
 The vendored LibRaw is included under the GNU Lesser General Public License,
 version 2.1; see `THIRD_PARTY_NOTICES.md`.
+
+## Credits
+
+Gus stands on other people's work, and says so:
+
+- **LibRaw** decodes the raws macOS can't (see above).
+- **darktable** showed how to apply the lens corrections Fujifilm stores in its
+  raw files (distortion, lateral colour, vignetting): Gus's version was written
+  in Swift and Metal after reading how darktable does it, with nothing copied,
+  and is checked against the camera's own JPEG. See `THIRD_PARTY_NOTICES.md`.
+- **LightCraft** for the brush and colour-range mask math (same file).
+- **GRDB** for the catalog.

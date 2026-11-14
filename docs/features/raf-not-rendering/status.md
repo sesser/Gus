@@ -438,3 +438,14 @@ For the product manager at Ship:
 - The License section may want a line that LibRaw is included under the LGPL 2.1.
 - `CLAUDE.md`'s "Scope so far" needs an entry for this fix; its Commands could
   list `RAF_SAMPLE=path/to/file.RAF swift test --filter LibRawFallbackTests`.
+
+## Owner ruling: clean-room rule and darktable (2026-11-13)
+
+Q13: accepted. Reimplementing documented math after reading another
+application's source is within the clean-room rule when nothing is copied and
+the source is credited, as with LightCraft's mask math. The owner also ruled
+that the source of the implementation is disclosed in Gus, not left implied:
+done in the code comments (`EmbeddedLensCorrection.swift`, `FujifilmRAF.swift`),
+`THIRD_PARTY_NOTICES.md` (darktable, GPL 3 or later) and a Credits section in
+`README.md`. Not yet in the app itself (it has no About or Acknowledgements
+window; #172 puts the notices in the bundles).
