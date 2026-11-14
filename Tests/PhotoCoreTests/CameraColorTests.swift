@@ -96,6 +96,13 @@ struct CameraColorTests {
     static let daylightForward: [Double] = [0.6800, 0.1500, 0.1343, 0.2800, 0.6600, 0.0600, 0.0400, 0.0900, 0.6951]
     static let tungstenForward: [Double] = [0.7300, 0.1100, 0.1243, 0.3100, 0.6400, 0.0500, 0.0300, 0.0600, 0.7351]
     static let neutral: [Double] = [0.5, 1, 0.6]
+    /// A camera unit's own calibration for each light (`CameraCalibration1`,
+    /// `CameraCalibration2`) and its analog balance, as Adobe's converter
+    /// writes them for some cameras: made up, near identity, and different
+    /// from each other so that pairing one with the other light shows.
+    static let daylightCalibration: [Double] = [1.0200, 0.0100, 0.0000, 0.0000, 1.0000, 0.0200, 0.0100, 0.0000, 0.9700]
+    static let tungstenCalibration: [Double] = [0.9500, 0.0000, 0.0200, 0.0100, 1.0300, 0.0000, 0.0000, 0.0200, 1.0600]
+    static let analogBalance: [Double] = [1.25, 1, 0.8]
 
     enum Kind: String, CaseIterable, Sendable {
         /// One matrix, as a file that is not a DNG has.
@@ -104,6 +111,17 @@ struct CameraColorTests {
         case dual
         /// Two matrices and two forward matrices.
         case forward
+        /// Two matrices, a camera calibration for each and an analog
+        /// balance (code review C3). The file names the daylight
+        /// calibration first: each camera calibration must stay with its
+        /// own light when the two are put in order of temperature.
+        case calibrated
+        /// The same with forward matrices, where the calibration is undone
+        /// before the forward matrix (the reference neutral).
+        case calibratedForward
+
+        var hasForwardMatrices: Bool { self == .forward || self == .calibratedForward }
+        var hasCalibration: Bool { self == .calibrated || self == .calibratedForward }
 
         var tags: SyntheticDNG.Color {
             switch self {
@@ -113,6 +131,14 @@ struct CameraColorTests {
             case .forward: .init(matrix1: CameraColorTests.tungstenMatrix, illuminant1: 17, matrix2: CameraColorTests.daylightMatrix,
                                  illuminant2: 21, forward1: CameraColorTests.tungstenForward,
                                  forward2: CameraColorTests.daylightForward, asShotNeutral: CameraColorTests.neutral)
+            // Daylight first in the file, tungsten second.
+            case .calibrated, .calibratedForward:
+                .init(matrix1: CameraColorTests.daylightMatrix, illuminant1: 21, matrix2: CameraColorTests.tungstenMatrix,
+                      illuminant2: 17,
+                      forward1: self == .calibratedForward ? CameraColorTests.daylightForward : nil,
+                      forward2: self == .calibratedForward ? CameraColorTests.tungstenForward : nil,
+                      asShotNeutral: CameraColorTests.neutral, analogBalance: CameraColorTests.analogBalance,
+                      calibration1: CameraColorTests.daylightCalibration, calibration2: CameraColorTests.tungstenCalibration)
             }
         }
 
@@ -123,13 +149,22 @@ struct CameraColorTests {
             case .single: [.init(illuminant: 6500, colorMatrix: matrix(CameraColorTests.daylightMatrix))]
             case .dual: [.init(illuminant: 2850, colorMatrix: matrix(CameraColorTests.tungstenMatrix)),
                          .init(illuminant: 6500, colorMatrix: matrix(CameraColorTests.daylightMatrix))]
-            case .forward: [.init(illuminant: 2850, colorMatrix: matrix(CameraColorTests.tungstenMatrix),
-                                  forwardMatrix: matrix(CameraColorTests.tungstenForward)),
-                            .init(illuminant: 6500, colorMatrix: matrix(CameraColorTests.daylightMatrix),
-                                  forwardMatrix: matrix(CameraColorTests.daylightForward))]
+            case .forward, .calibratedForward:
+                [.init(illuminant: 2850, colorMatrix: matrix(CameraColorTests.tungstenMatrix),
+                       forwardMatrix: matrix(CameraColorTests.tungstenForward)),
+                 .init(illuminant: 6500, colorMatrix: matrix(CameraColorTests.daylightMatrix),
+                       forwardMatrix: matrix(CameraColorTests.daylightForward))]
+            case .calibrated: [.init(illuminant: 2850, colorMatrix: matrix(CameraColorTests.tungstenMatrix)),
+                               .init(illuminant: 6500, colorMatrix: matrix(CameraColorTests.daylightMatrix))]
             }
+            // Analog balance × camera calibration, the cooler light's first, as the profile has its calibrations.
+            let balance = Matrix3x3.diagonal(SIMD3(CameraColorTests.analogBalance[0], CameraColorTests.analogBalance[1],
+                                                   CameraColorTests.analogBalance[2]))
+            let calibration = hasCalibration
+                ? [balance * matrix(CameraColorTests.tungstenCalibration), balance * matrix(CameraColorTests.daylightCalibration)] : []
             return CameraColor(profile: CameraProfile(name: "test", calibrations: calibrations),
-                               asShotNeutral: SIMD3(CameraColorTests.neutral[0], CameraColorTests.neutral[1], CameraColorTests.neutral[2]))
+                               asShotNeutral: SIMD3(CameraColorTests.neutral[0], CameraColorTests.neutral[1], CameraColorTests.neutral[2]),
+                               calibration: calibration)
         }
 
         /// The same camera for the reference: the tags' values, and the
@@ -141,10 +176,16 @@ struct CameraColorTests {
             let calibrations: [(kelvin: Double, colorMatrix: [[Double]], forwardMatrix: [[Double]]?)] = switch self {
             case .single: [(6500, daylight, nil)]
             case .dual: [(2850, tungsten, nil), (6500, daylight, nil)]
-            case .forward: [(2850, tungsten, rows(CameraColorTests.tungstenForward)),
-                            (6500, daylight, rows(CameraColorTests.daylightForward))]
+            case .forward, .calibratedForward: [(2850, tungsten, rows(CameraColorTests.tungstenForward)),
+                                                (6500, daylight, rows(CameraColorTests.daylightForward))]
+            case .calibrated: [(2850, tungsten, nil), (6500, daylight, nil)]
             }
-            return .init(calibrations: calibrations, asShotNeutral: CameraColorTests.neutral)
+            var camera = CameraColorReference.Camera(calibrations: calibrations, asShotNeutral: CameraColorTests.neutral)
+            if hasCalibration {
+                camera.cameraCalibrations = [rows(CameraColorTests.tungstenCalibration), rows(CameraColorTests.daylightCalibration)]
+                camera.analogBalance = CameraColorTests.analogBalance
+            }
+            return camera
         }
     }
 
@@ -215,9 +256,10 @@ struct CameraColorTests {
         // The reference finds the same white point.
         let theirs = CameraColorReference.white(kind.reference, ofNeutral: Self.neutral, kelvinOf: Self.kelvin(of:))
         #expect(abs(white.x - theirs.x) < 1e-6 && abs(white.y - theirs.y) < 1e-6)
-        // A believable light: this neutral is daylight to the X-E3's matrix.
+        // A believable light: this neutral is daylight to the X-E3's matrix. (With the made-up
+        // analog balance and calibration it is another light, but still one.)
         let asShot = try #require(color.asShot)
-        #expect((4500...7000).contains(asShot.kelvin), "\(asShot)")
+        #expect((kind.hasCalibration ? 2000...12000 : 4500...7000).contains(asShot.kelvin), "\(asShot)")
         for balance in Self.balances.compactMap({ $0 }) {
             let neutral = try #require(color.neutral(for: balance.chromaticity))
             #expect(neutral.max() == 1 && neutral.min() > 0)
@@ -233,7 +275,7 @@ struct CameraColorTests {
             let matrix = try #require(kind.color.cameraToWorking(white: white))
             let rendered = matrix * SIMD3(1, 1, 1)
             // The made-up forward matrices are written to four decimals.
-            let tolerance = kind == .forward ? 2e-4 : 1e-9
+            let tolerance = kind.hasForwardMatrices ? 2e-4 : 1e-9
             #expect(abs(rendered.x - 1) < tolerance && abs(rendered.y - 1) < tolerance && abs(rendered.z - 1) < tolerance,
                     "\(kind) \(String(describing: balance)): \(rendered)")
         }
@@ -286,6 +328,39 @@ struct CameraColorTests {
                 }
             }
         }
+    }
+
+    /// Code review C3, on the math alone: the analog balance and the camera
+    /// calibration are part of XYZ to camera, each calibration with its own
+    /// light, read between the two as the color matrices are.
+    @Test("A camera's calibration and analog balance are part of its matrix, each calibration with its own light")
+    func calibrationAndAnalogBalance() throws {
+        let calibrated = Kind.calibrated.color, plain = Kind.dual.color
+        #expect(calibrated.calibration.count == 2)
+        // Without them the camera is another camera: another neutral for the same light, another white for the same neutral.
+        let daylight = ColorTemperature(kelvin: 5500, tint: 0).chromaticity
+        let with = try #require(calibrated.neutral(for: daylight)), without = try #require(plain.neutral(for: daylight))
+        #expect(abs(with.x - without.x) > 0.02 || abs(with.z - without.z) > 0.02, "\(with) against \(without)")
+        let asShot = try #require(calibrated.asShot), plainAsShot = try #require(plain.asShot)
+        #expect(abs(asShot.kelvin - plainAsShot.kelvin) > 200)
+        // At or beyond a calibration's light, XYZ to camera is that light's balance × calibration × color matrix.
+        let balance = Matrix3x3.diagonal(SIMD3(Self.analogBalance[0], Self.analogBalance[1], Self.analogBalance[2]))
+        let tungsten = balance * Matrix3x3(Self.tungstenCalibration) * Matrix3x3(Self.tungstenMatrix)
+        let day = balance * Matrix3x3(Self.daylightCalibration) * Matrix3x3(Self.daylightMatrix)
+        for (kelvin, expected) in [(2500.0, tungsten), (2850, tungsten), (6500, day), (9000, day)] {
+            let matrix = calibrated.xyzToCamera(at: kelvin)
+            #expect(zip(matrix.values, expected.values).allSatisfy { abs($0 - $1) < 1e-12 }, "\(kelvin) K")
+        }
+        // Between them, each of the two is read between its own pair.
+        let weight = calibrated.profile.weightOfFirst(at: 4000)
+        let between = (weight * (balance * Matrix3x3(Self.tungstenCalibration)) + (1 - weight) * (balance * Matrix3x3(Self.daylightCalibration)))
+            * (weight * Matrix3x3(Self.tungstenMatrix) + (1 - weight) * Matrix3x3(Self.daylightMatrix))
+        #expect(zip(calibrated.xyzToCamera(at: 4000).values, between.values).allSatisfy { abs($0 - $1) < 1e-12 })
+        // One calibration for both lights is used at every temperature.
+        var one = calibrated
+        one.calibration = [balance]
+        #expect(one.calibration(at: 3000) == balance && one.calibration(at: 8000) == balance)
+        #expect(plain.calibration(at: 4000) == .identity)
     }
 
     @Test("Color data that gives no white point is not usable, and has no transform")

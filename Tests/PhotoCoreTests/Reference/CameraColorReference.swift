@@ -20,7 +20,14 @@ enum CameraColorReference {
         var asShotNeutral: [Double]
         /// `BaselineExposure` plus the profile's, in stops.
         var exposure: Double = 0
+        /// `CameraCalibration1` and `CameraCalibration2`, in the order of
+        /// `calibrations` (each with its own light); nil for identity.
+        var cameraCalibrations: [Matrix]?
+        /// `AnalogBalance`; nil for 1, 1, 1.
+        var analogBalance: [Double]?
     }
+
+    static let identity: Matrix = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
 
     /// The part of the white level at which the decoder counts a channel as saturated (`LibRawDecoder.whiteMargin`).
     static let whiteMargin = 0.99
@@ -56,11 +63,25 @@ enum CameraColorReference {
         return (1 / kelvin - 1 / high) / (1 / low - 1 / high)
     }
 
-    /// XYZtoCamera = AB × CC × CM, with AB and CC identity here.
+    /// AB × CC: the analog balance as a diagonal matrix times the camera
+    /// calibration, which is read between the two calibrations' as the
+    /// color matrix is ("CC: CameraCalibration1 or CameraCalibration2, or
+    /// interpolated"). Identity for a camera that has neither.
+    static func balanceAndCalibration(_ camera: Camera, kelvin: Double) -> Matrix {
+        var calibration = identity
+        if let both = camera.cameraCalibrations {
+            calibration = both.count == 2 ? mix(both[0], both[1], weightOfFirst: weightOfFirst(camera, kelvin: kelvin)) : both[0]
+        }
+        return OutputReference.multiply(diagonal(camera.analogBalance ?? [1, 1, 1]), calibration)
+    }
+
+    /// XYZtoCamera = AB × CC × CM.
     static func xyzToCamera(_ camera: Camera, kelvin: Double) -> Matrix {
-        guard camera.calibrations.count == 2 else { return camera.calibrations[0].colorMatrix }
-        return mix(camera.calibrations[0].colorMatrix, camera.calibrations[1].colorMatrix,
-                   weightOfFirst: weightOfFirst(camera, kelvin: kelvin))
+        var colorMatrix = camera.calibrations[0].colorMatrix
+        if camera.calibrations.count == 2 {
+            colorMatrix = mix(colorMatrix, camera.calibrations[1].colorMatrix, weightOfFirst: weightOfFirst(camera, kelvin: kelvin))
+        }
+        return OutputReference.multiply(balanceAndCalibration(camera, kelvin: kelvin), colorMatrix)
     }
 
     /// "Translating White Balance xy Coordinates to Camera Neutral
@@ -104,18 +125,25 @@ enum CameraColorReference {
     /// by the neutral (white-balanced, a neutral is 1, 1, 1):
     ///
     /// - with forward matrices: CameraToXYZ_D50 = FM × D × Inverse(AB × CC),
-    ///   D the inverse of the reference neutral as a diagonal matrix. On
-    ///   white-balanced values, with AB and CC identity, that is FM itself;
+    ///   D the inverse of the reference neutral (Inverse(AB × CC) ×
+    ///   CameraNeutral) as a diagonal matrix. That is for camera values as
+    ///   recorded; white-balanced values are those divided by the neutral,
+    ///   so the neutral is multiplied back in first;
     /// - otherwise CameraToXYZ_D50 = CA × Inverse(XYZtoCamera), CA the
     ///   Bradford adaptation from the white point to D50; scaled so that a
     ///   saturated neutral is the connection space's white (Y = 1).
     static func balancedCameraToD50(_ camera: Camera, white: (x: Double, y: Double), kelvin: Double) -> Matrix {
-        if camera.calibrations.allSatisfy({ $0.forwardMatrix != nil }) {
-            let first = camera.calibrations[0].forwardMatrix!
-            guard camera.calibrations.count == 2 else { return first }
-            return mix(first, camera.calibrations[1].forwardMatrix!, weightOfFirst: weightOfFirst(camera, kelvin: kelvin))
-        }
         let neutral = neutral(camera, white: white, kelvin: kelvin)
+        if camera.calibrations.allSatisfy({ $0.forwardMatrix != nil }) {
+            var forward = camera.calibrations[0].forwardMatrix!
+            if camera.calibrations.count == 2 {
+                forward = mix(forward, camera.calibrations[1].forwardMatrix!, weightOfFirst: weightOfFirst(camera, kelvin: kelvin))
+            }
+            let toReference = OutputReference.invert(balanceAndCalibration(camera, kelvin: kelvin))
+            let referenceNeutral = times(toReference, neutral)
+            let d = diagonal(referenceNeutral.map { 1 / $0 })
+            return OutputReference.multiply(forward, OutputReference.multiply(d, OutputReference.multiply(toReference, diagonal(neutral))))
+        }
         let cameraToXYZ = OutputReference.invert(xyzToCamera(camera, kelvin: kelvin))
         let adapted = OutputReference.multiply(bradford(from: xyz(x: white.x, y: white.y), to: d50),
                                                OutputReference.multiply(cameraToXYZ, diagonal(neutral)))

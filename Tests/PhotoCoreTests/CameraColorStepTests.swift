@@ -87,6 +87,14 @@ struct CameraColorStepTests {
                 #expect(zip(read.colorMatrix.values, written.colorMatrix.values).allSatisfy { abs($0 - $1) < 1e-6 })
             }
             #expect(abs(color.asShotNeutral.x - 0.5) < 1e-6 && color.asShotNeutral.y == 1 && abs(color.asShotNeutral.z - 0.6) < 1e-6)
+            // The analog balance and each light's camera calibration, whichever light the file names
+            // first (code review C3): identity for a file without the tags.
+            #expect(color.calibration.count == color.profile.calibrations.count)
+            for kelvin in [2500.0, 2850, 4000, 6500, 9000] {
+                let read = color.calibration(at: kelvin), written = kind.color.calibration(at: kelvin)
+                #expect(zip(read.values, written.values).allSatisfy { abs($0 - $1) < 1e-6 }, "\(kind) at \(kelvin) K: \(read)")
+            }
+            #expect((color.calibration(at: 2850) != color.calibration(at: 6500)) == kind.hasCalibration)
             let decoded = LibRawDecoderTests.samples(output)
             let width = Int(output.size.width), height = Int(output.size.height)
             let look = try #require(BaselineLook.toneCurve)

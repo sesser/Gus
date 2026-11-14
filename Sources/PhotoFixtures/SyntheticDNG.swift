@@ -27,10 +27,16 @@ public enum SyntheticDNG {
         public var baselineExposure: Double?
         /// `AnalogBalance`; nil writes none.
         public var analogBalance: [Double]?
+        /// `CameraCalibration1`, `CameraCalibration2` (nine values each); nil writes none.
+        public var calibration1: [Double]?
+        public var calibration2: [Double]?
 
         public init(matrix1: [Double]?, illuminant1: UInt16 = 21, matrix2: [Double]? = nil, illuminant2: UInt16 = 21,
                     forward1: [Double]? = nil, forward2: [Double]? = nil, asShotNeutral: [Double]? = [1, 1, 1],
-                    baselineExposure: Double? = nil, analogBalance: [Double]? = nil) {
+                    baselineExposure: Double? = nil, analogBalance: [Double]? = nil,
+                    calibration1: [Double]? = nil, calibration2: [Double]? = nil) {
+            self.calibration1 = calibration1
+            self.calibration2 = calibration2
             self.matrix1 = matrix1
             self.illuminant1 = illuminant1
             self.matrix2 = matrix2
@@ -124,17 +130,38 @@ public enum SyntheticDNG {
         }
     }
 
-    public static func write(to url: URL, options: Options) throws {
-        try data(options: options).write(to: url)
+    /// - Parameter mosaic: The mosaic to write (`mosaic(options:)` of options
+    ///   with the same size, scene, seed and noise) instead of drawing it.
+    public static func write(to url: URL, options: Options, mosaic: Data? = nil) throws {
+        try data(options: options, mosaic: mosaic).write(to: url)
     }
 
-    public static func data(options: Options) throws -> Data {
+    /// The mosaic `options` describe: the scene drawn and sampled through
+    /// the color filter array.
+    ///
+    /// The pattern and stripes scenes are drawn by Core Graphics, whose
+    /// pixels are not bit for bit the same every time when several drawings
+    /// run at once (measured: 15 to 20 of 720 concurrent drawings differed,
+    /// none of 2,000 one at a time). Files that are meant to hold one
+    /// picture (the same mosaic under another orientation, crop or color
+    /// tag) are therefore written from one mosaic, drawn once, and never by
+    /// drawing the scene again.
+    public static func mosaic(options: Options) throws -> Data {
         let width = options.width & ~1
         let height = options.height & ~1
         guard width >= 16, height >= 16,
               let scene = options.scene.image(width: width, height: height, seed: options.seed)
         else { throw CocoaError(.fileWriteInvalidFileName) }
-        let mosaic = try mosaic(scene, width: width, height: height, noise: options.noise, seed: options.seed)
+        return try mosaic(scene, width: width, height: height, noise: options.noise, seed: options.seed)
+    }
+
+    public static func data(options: Options, mosaic drawn: Data? = nil) throws -> Data {
+        let width = options.width & ~1
+        let height = options.height & ~1
+        guard width >= 16, height >= 16 else { throw CocoaError(.fileWriteInvalidFileName) }
+        let mosaic = try drawn ?? mosaic(options: options)
+        // A mosaic of another size is not this file's.
+        guard mosaic.count == width * height * 2 else { throw CocoaError(.fileWriteInvalidFileName) }
 
         var tiff = TIFFWriter()
         let date = options.dateTimeOriginal ?? "2024:01:01 00:00:00"
@@ -180,6 +207,12 @@ public enum SyntheticDNG {
         if let matrix = color.matrix2 {
             ifd.srational(50722, matrix)           // ColorMatrix2
             ifd.short(50779, [color.illuminant2])  // CalibrationIlluminant2
+        }
+        if let calibration = color.calibration1 {
+            ifd.srational(50723, calibration)      // CameraCalibration1
+        }
+        if let calibration = color.calibration2 {
+            ifd.srational(50724, calibration)      // CameraCalibration2
         }
         if let balance = color.analogBalance {
             ifd.rational(50727, balance)           // AnalogBalance

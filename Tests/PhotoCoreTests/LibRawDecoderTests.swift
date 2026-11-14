@@ -14,11 +14,24 @@ struct LibRawDecoderTests {
     static let width = 256, height = 192
 
     static func dng(in folder: URL, _ name: String, width: Int = width, height: Int = height, seed: UInt64 = 7,
-                    orientation: Int = 1, scene: SyntheticDNG.Scene = .pattern, defaultCrop: CGRect? = nil) throws -> URL {
+                    orientation: Int = 1, scene: SyntheticDNG.Scene = .pattern, defaultCrop: CGRect? = nil,
+                    mosaic: Data? = nil) throws -> URL {
         let url = folder.appending(path: "\(name).dng")
         try SyntheticDNG.write(to: url, options: .init(width: width, height: height, seed: seed, orientation: orientation,
-                                                       scene: scene, defaultCrop: defaultCrop))
+                                                       scene: scene, defaultCrop: defaultCrop), mosaic: mosaic)
         return url
+    }
+
+    /// One picture's mosaic, drawn once. Tests that compare the decodes of
+    /// two files holding the same picture (another orientation, another
+    /// crop) write both from it: the scene's drawing is Core Graphics', and
+    /// two drawings of one scene are not always the same bytes when other
+    /// drawings run at the same time (`SyntheticDNG.mosaic(options:)`; code
+    /// review C2: such tests failed 7 times in 80 runs under load, each
+    /// reading as a decoder race that was not one).
+    static func mosaic(width: Int = width, height: Int = height, seed: UInt64 = 7,
+                       scene: SyntheticDNG.Scene = .pattern) throws -> Data {
+        try SyntheticDNG.mosaic(options: .init(width: width, height: height, seed: seed, scene: scene))
     }
 
     /// The decode's samples, four to a pixel, rows from the top.
@@ -95,7 +108,8 @@ struct LibRawDecoderTests {
     @Test("A decode's level is the file's white level, whatever the frame holds")
     func whiteLevelIsTheFiles() async throws {
         try await RepositoryFiles.withTemporaryDirectory { folder in
-            let whole = try LibRawDecoder.decode(try Self.dng(in: folder, "whole", seed: .max))
+            let mosaic = try Self.mosaic(seed: .max)
+            let whole = try LibRawDecoder.decode(try Self.dng(in: folder, "whole", seed: .max, mosaic: mosaic))
             let all = Self.samples(whole)
             let brightest = stride(from: 0, to: all.count, by: 4).map { max(all[$0], all[$0 + 1], all[$0 + 2]) }.max() ?? 0
             // A window of the mosaic whose brightest value is well under the whole picture's.
@@ -118,7 +132,8 @@ struct LibRawDecoderTests {
             let window = try #require(crop, "no part of the picture is without its brightest values")
             // The whole picture's brightest value is over three quarters of the white level: LibRaw's default acts on it.
             #expect(Double(brightest) > 0.75 * 65535 && cropBrightest < brightest)
-            let cropped = try LibRawDecoder.decode(try Self.dng(in: folder, "cropped", seed: .max, defaultCrop: window))
+            let cropped = try LibRawDecoder.decode(try Self.dng(in: folder, "cropped", seed: .max, defaultCrop: window,
+                                                                mosaic: mosaic))
             #expect(cropped.size == window.size)
             let part = Self.samples(cropped)
             var differing = 0
@@ -142,8 +157,9 @@ struct LibRawDecoderTests {
     @Test("A decode is oriented as the file says", arguments: [2, 3, 4, 5, 6, 7, 8])
     func decodeIsOriented(orientation: Int) async throws {
         try await RepositoryFiles.withTemporaryDirectory { folder in
-            let upright = try LibRawDecoder.decode(try Self.dng(in: folder, "upright"))
-            let turnedURL = try Self.dng(in: folder, "turned", orientation: orientation)
+            let mosaic = try Self.mosaic()
+            let upright = try LibRawDecoder.decode(try Self.dng(in: folder, "upright", mosaic: mosaic))
+            let turnedURL = try Self.dng(in: folder, "turned", orientation: orientation, mosaic: mosaic)
             let turned = try LibRawDecoder.decode(turnedURL)
             let w = Self.width, h = Self.height
             let swapsSides = orientation >= 5
@@ -239,8 +255,9 @@ struct LibRawDecoderTests {
     func insetCropIsDecoded() async throws {
         try await RepositoryFiles.withTemporaryDirectory { folder in
             let crop = CGRect(x: 16, y: 20, width: 224, height: 168)
-            let whole = try LibRawDecoder.decode(try Self.dng(in: folder, "whole", seed: .max))
-            let croppedURL = try Self.dng(in: folder, "cropped", seed: .max, defaultCrop: crop)
+            let mosaic = try Self.mosaic(seed: .max)
+            let whole = try LibRawDecoder.decode(try Self.dng(in: folder, "whole", seed: .max, mosaic: mosaic))
+            let croppedURL = try Self.dng(in: folder, "cropped", seed: .max, defaultCrop: crop, mosaic: mosaic)
             let cropped = try LibRawDecoder.decode(croppedURL)
             #expect(cropped.size == crop.size)
             #expect(LibRawDecoder.frameSize(croppedURL) == crop.size)
