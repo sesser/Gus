@@ -59,6 +59,20 @@ public struct RAWDecodeSettings: Sendable, Hashable {
 
     public static let none = RAWDecodeSettings()
 
+    /// The stack makes a choice that decides which image the decoder is asked
+    /// for (the whole-sensor copy, a decoder version), beyond what an
+    /// untouched photo decodes with.
+    var choosesTheDecode: Bool { fullFrame || decoderVersion != nil }
+
+    /// These settings without those choices: the decode `SystemRAWDecoder.reads`
+    /// tests, with the stack's values.
+    var withoutDecodeChoices: RAWDecodeSettings {
+        var copy = self
+        copy.fullFrame = false
+        copy.decoderVersion = nil
+        return copy
+    }
+
     /// These settings without the machine learning request: what renders
     /// when it cannot apply.
     public var classical: RAWDecodeSettings {

@@ -64,6 +64,10 @@ RAW_EDGE_SAMPLES=wide.RW2:longer.RW2 swift test --filter RAWEdgeSmearTests
 ```
 
 ```bash
+RAF_SAMPLE=path/to/file.RAF swift test --filter LibRawFallbackTests
+```
+
+```bash
 RAW_CONTEXT_SOAK=12000 swift test --filter RAWContextSoakTests
 ```
 
@@ -156,7 +160,7 @@ recorded in `docs/UI_REDESIGN.md` and the phase plans
 the historical record of those decisions.
 
 This file's rules win over anything in an agent's prompt: GRDB is the only
-dependency, goldens are updated only on purpose, brand values stay in
+package dependency (LibRaw is vendored source: see Dependencies), goldens are updated only on purpose, brand values stay in
 `AppBranding.swift`, and work goes on a branch off `develop`.
 
 ## Checking image code
@@ -196,6 +200,10 @@ compatible and never put `#` comment lines inside pasted command snippets.
   `CardImport/` (templates, copying), `Export/` (rendering, naming, metadata
   and watermarks for exports), `Suggestions/` (Vision), `Video/`.
   Everything testable lives here.
+- `Sources/CLibRaw` — LibRaw 0.22.3, vendored (LGPL 2.1, `THIRD_PARTY_NOTICES.md`):
+  upstream's `src`, `internal` and `include/libraw`, built by `Package.swift` and
+  called only from `Preview/LibRawDecoder.swift`, for raws the system's RAW
+  decoder gives no image for. Never edit it.
 - `Sources/PhotoUI` — UI shared by both apps: `Import/` (the import window:
   toolbar, options inspector, the `NSCollectionView` grid of `ImportCell`s
   with check boxes, its model, `ImportCommands` and debug-script commands),
@@ -361,8 +369,13 @@ compatible and never put `#` comment lines inside pasted command snippets.
   with the library app; never fork them. Without a catalog (`CardImportModel.library`
   nil) it copies only, writes preset metadata into new sidecars (never into
   existing ones), and does not mark duplicates.
-- **Dependencies**: GRDB only. Ask before adding anything else. Apple frameworks
-  (Vision, AVFoundation, AVKit) are fine.
+- **Dependencies**: GRDB, and LibRaw 0.22.3 vendored in `Sources/CLibRaw` (LGPL 2.1;
+  `THIRD_PARTY_NOTICES.md`; never edit the vendored tree), which decodes only raws
+  the system's RAW decoder gives no image for (`LibRawDecoder`, the fallback in
+  `PreviewGenerator.decode`; `SystemRAWDecoder.reads` is the one test of which
+  decoder a raw gets).
+  Ask before adding anything else. Apple frameworks (Vision, AVFoundation,
+  AVKit) are fine.
 
 ## Scope so far
 
@@ -676,8 +689,47 @@ before the alert can't be stopped; `photocli render --out` can overwrite a
 master; the importer's hashing loops may hold whole files in memory;
 `photocli` reads masters at the recorded mount path.
 
+Raws macOS can't decode (`docs/features/raf-not-rendering/`, bug fix, issue
+#161, branch `bug/raf-not-rendering`): on macOS 27.2 the system's RAW decoder
+gave no image for some Fujifilm files (the X-E3's lossless compressed RAFs: a
+black loupe, grey tiles, `undecodable` from `photocli`). Now, when and only
+when the system decoder gives no image for a raw, `PreviewGenerator.decode`
+falls back to the vendored LibRaw (`Preview/LibRawDecoder.swift`; order of
+decoders in `PreviewGenerator.rawImage`). Raws the system decodes are
+untouched, byte for byte, and nothing got slower. The one test of which kind a
+file is, `SystemRAWDecoder.reads`, decides everywhere (Adjust tab, Auto White
+Balance, live session, 100% renderer, fringe picker, Color Alignment). A LibRaw
+photo is a rendered image like a JPEG: it renders, edits, exports and saves
+history, but flatter than the system's, with White Balance As Shot, Auto and
+Custom only and Temperature and Tint relative (a Kelvin value pasted onto it
+is kept and does nothing, and the reverse), no Profile or Decoder choice and no
+Color noise reduction; Use machine learning is dimmed ("Not available for this
+camera."), and a pasted setting says it isn't applied and Luminance applies
+instead. Fujifilm RAFs LibRaw decodes get the camera's own frame (6000x4000
+for the X-E3) and the lens corrections the camera stored in the file
+(distortion, lateral color, corner shading: `Preview/FujifilmRAF.swift`,
+`EmbeddedLensCorrection.swift`, kernel `embeddedLens` in
+`Kernels/LensKernels.swift`; math after darktable, GPL 3 or later), applied on
+LibRaw's image before the crop, automatically, with no control. Other files
+keep LibRaw's inset crop and get no corrections. Half-size decodes serve
+thumbnails and previews (about 0.6 s); a full decode, for 100%, large exports
+and tight crops, takes about 9 s for an X-E3 file (single-threaded). No
+migration, no pipeline bump, no golden moved. Limits that are the owner's: a
+raw over 150,000,000 sensor pixels is refused (`LibRawDecoder.maximumSensorPixels`);
+the corrections are about 3 full-size pixels off the camera's own JPEG in the
+outer quarter of the radius with the 35mm; files in a 1.25x crop mode are shown
+uncorrected, in their frame (no sample to check); LibRaw's white level depends
+on the frame's content (up to 0.4 EV between two frames of a scene); previews
+cached by earlier builds of this branch stay until the preview cache is
+deleted; the bundles carry no LGPL notices yet; no deflate or lossy DNGs (no
+zlib or JPEG support in LibRaw here); no decoder badge or `photocli` field says
+which decoder rendered. Shipped, checks pending: P1 to P7 (the window frame
+and corners by eye, the note's look, White Balance and Noise Reduction by
+hand, a paste from an X-T3, switching photos, Custom from the Mode pop-up) in
+#82 and `docs/features/raf-not-rendering/qa.md`.
+
 Not yet: AI masks, healing, lens corrections (distortion, lens vignetting,
-profiles), DNG export, `.dcp` profiles,
+profiles; only the camera's own tables in Fujifilm raws LibRaw decodes), DNG export, `.dcp` profiles,
 general (hand-made or burst) stacks, hierarchical
 keywords, PTP cameras, a second backup destination. Writing metadata into
 originals was dropped (2026-11-04, `docs/roadmap.md`): originals are never

@@ -153,6 +153,7 @@ Abbreviations: P1–P6 = `docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR
 | Copy / Paste Adjustments | Paste carries crop, not masks | UG; P6 |
 | Live rendering | Decoded master reused per frame; one save and undo step per gesture; stage cache and adaptive drafts at fit; at 100% and above, frames of the visible area at full resolution (see Sharp live frames at 100%). The loupe loads a photo's edits only after its pending saves land (shows loading meanwhile), and library reloads never put back values older than a change already made | CL Editing; P6 Caching and drafts; `editor-follow-edit-drop/status.md` (PR #43) |
 | Runtime GPU kernels (spike) | Compiled at run time; not used by the renderer | P5; `Edits/Kernels/RuntimeKernels.swift` |
+| Embedded lens corrections (Fujifilm RAF, LibRaw path only) | Distortion, lateral color and corner shading from the tables the camera stored in the file, applied automatically on LibRaw's image before the crop; no control. Used only when the file's frame matches the tables and the crop mode is not 1.25x; else uncorrected with a log line. Math after darktable (GPL 3 or later). Lens kernel `embeddedLens` | `raf-not-rendering/status.md`; `Preview/FujifilmRAF.swift`, `EmbeddedLensCorrection.swift`; `THIRD_PARTY_NOTICES.md` |
 | Lens kernels | Stitchable Core Image kernels compiled at run time, used by the Lens heading. If they can't compile, the corrections are skipped with no message (known limitation, RI-CR1) | `chromatic-aberration/prd.md`; `Edits/Kernels/LensKernels.swift` |
 
 ## Crop
@@ -161,6 +162,7 @@ Abbreviations: P1–P6 = `docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR
 |---|---|---|
 | Crop, rotate, straighten | Session in the loupe (`C`), aspect presets, quarter turns, ±45° straighten; Rotate ⌘[ / ⌘] commits at once | CL Scope; UG |
 | Whole-sensor crop for camera-cropped raws | Olympus/OM System/Panasonic aspect crops can be widened | CL; `Preview/CameraFrame.swift` |
+| Camera frame for Fujifilm RAFs decoded by LibRaw | The frame is the camera's own (`RawImageCropTopLeft`, `RawImageCroppedSize`: 6000x4000 for the X-E3), cut from LibRaw's visible area; other LibRaw files keep its inset crop; Super CCD files get no crop | `raf-not-rendering/status.md`; `Preview/LibRawDecoder.swift`, `FujifilmRAF.swift` |
 
 ## Masks (local adjustments)
 
@@ -239,6 +241,7 @@ Abbreviations: P1–P6 = `docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR
 | Render engine | Core Image, extended linear Rec. 2020 working space, Display P3 output; pool of contexts | CL Rendering; PROFILING "Real camera RAW files" |
 | Preview cache | Thumbnail and preview tiers, keyed by content hash, render hash, tier, pipeline version (now 8). A rendition is kept only under the hash of the stack it was rendered from (`PreviewService.Failure.staleEditStack`), and the editor shows a new hash only after its write lands. Machine learning fallback renders are kept in memory for the session only, never on disk | CL; `Preview/PreviewCacheKey.swift:30`; `ml-denoise/status.md`; `stale-preview-after-save/status.md` (PR #40) |
 | RAW decode graph key | Every RAW decode takes its image from `RAWDecodeGraph.output(of:)`, a pass-through clamp with bounds of its own, so a context never reuses one raw's prepared graph (lens correction regions) for another; stops smeared left and right edges. Rests on undocumented Core Image behavior: run `RAWEdgeSmearTests` on real files on every new macOS | `raw-edge-smear/`; CL Rendering; `Preview/RAWDecodeGraph.swift`. Manual check P2 (macOS 26 and 15) open |
+| LibRaw fallback decoder | Vendored LibRaw 0.22.3 (LGPL 2.1, `Sources/CLibRaw`) decodes a raw only when the system decoder gives no image (`SystemRAWDecoder.reads` is the one test). Such a photo is a rendered image like a JPEG: relative White Balance (As Shot, Auto, Custom), no Profile, Decoder or Color noise reduction, machine learning dimmed. Half-size decode for thumbnails and previews (about 0.6 s), full decode about 9 s (X-E3). Refused above 150,000,000 sensor pixels; no deflate or lossy DNGs. Raws the system decodes are untouched. Manual checks P1 to P7 open | `raf-not-rendering/` (issue #161); `Preview/LibRawDecoder.swift`, `SystemRAWDecoder.swift` |
 
 ## Quality and tooling
 

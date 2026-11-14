@@ -34,7 +34,8 @@ Principles (drawn from `README.md` and `CLAUDE.md`):
 4. **Native first.** System components and Apple's HIG before custom chrome;
    macOS 15 stays supported.
 5. **Keyboard-first culling**, with every command also in a menu.
-6. **Few dependencies, checkable output.** GRDB only; renders pinned by
+6. **Few dependencies, checkable output.** GRDB as the only package, plus
+   the vendored LibRaw (LGPL 2.1, owner ruling 2026-11-13, #161); renders pinned by
    goldens and CPU references; everything scriptable through `photocli`.
 
 ## Now (maximum three)

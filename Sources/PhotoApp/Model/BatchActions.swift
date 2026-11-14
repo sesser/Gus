@@ -55,7 +55,7 @@ extension LibraryModel {
         }
         Task {
             let cameraRects = await Task.detached(priority: .userInitiated) {
-                Dictionary(uniqueKeysWithValues: raws.map { ($0.0, CameraFrame.rect(of: $0.1)) })
+                Dictionary(uniqueKeysWithValues: raws.map { ($0.0, CameraFrame.rectForCropping(of: $0.1)) })
             }.value
             changeAdjustments(ofVersions: selection.versionIDs, actionName: actionName) { id, values in
                 var values = values

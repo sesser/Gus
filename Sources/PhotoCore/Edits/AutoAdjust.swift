@@ -2,7 +2,9 @@ import CoreImage
 import Foundation
 
 /// What the RAW decoder chose for a file before any edit: shown by controls
-/// whose value is "as shot" or "camera default".
+/// whose value is "as shot" or "camera default". There are none for a raw the
+/// system decoder gives no image for (`SystemRAWDecoder`): nothing would
+/// apply them.
 public struct RawDefaults: Sendable, Hashable {
     public var temperature: Double
     public var tint: Double
@@ -41,13 +43,13 @@ public struct RawDefaults: Sendable, Hashable {
         self.machineLearningLuminanceNoiseReduction = machineLearningLuminanceNoiseReduction
     }
 
+    /// Nil exactly when `SystemRAWDecoder.reads(source)` is false.
     public init?(source: URL) {
-        guard SupportedFormats.isRaw(pathExtension: source.pathExtension), let raw = CIRAWFilter(imageURL: source) else {
-            return nil
-        }
+        guard SupportedFormats.isRaw(pathExtension: source.pathExtension), let raw = CIRAWFilter(imageURL: source),
+              // Sets the filter up as an untouched photo decodes: the defaults read below are that version's.
+              SystemRAWDecoder.givesImageUntouched(raw)
+        else { return nil }
         let versions = raw.supportedDecoderVersions.map(\.rawValue)
-        // The defaults of the version an untouched photo decodes with.
-        RAWDecodeSettings.none.apply(to: raw)
         let availability = MachineLearningNoiseReduction.availability(for: source, decoderVersions: versions)
         self.init(temperature: Double(raw.neutralTemperature), tint: Double(raw.neutralTint),
                   decoderVersions: versions,
@@ -107,11 +109,13 @@ public struct AutoAdjuster: Sendable {
     // MARK: White balance
 
     /// A white balance that renders the image's average color neutral (grey world,
-    /// ignoring clipped and very dark pixels). RAW files get a Kelvin and tint,
-    /// other files relative shifts; the preset is `.auto`.
+    /// ignoring clipped and very dark pixels). RAW files the system decoder reads
+    /// get a Kelvin and tint, other files (a raw LibRaw decodes among them)
+    /// relative shifts; the preset is `.auto`.
     public func whiteBalance(source: URL, adjustments: Adjustments) throws -> WhiteBalance {
         let engine = generator.engine
-        if SupportedFormats.isRaw(pathExtension: source.pathExtension), let raw = CIRAWFilter(imageURL: source) {
+        if SupportedFormats.isRaw(pathExtension: source.pathExtension), let raw = CIRAWFilter(imageURL: source),
+           SystemRAWDecoder.givesImageUntouched(raw) {
             var settings = adjustments.decodeSettings
             settings.temperature = nil
             settings.tint = nil
@@ -135,12 +139,28 @@ public struct AutoAdjuster: Sendable {
         }
 
         let decoded = try PreviewGenerator.decode(source, longEdge: Self.measureSize, draft: true)
+        let image = Self.reducedOnce(decoded.image, engine: engine)
         let solved = Self.neutralize(start: (0, 0), steps: (5, 5), mired: -100...100, tint: -100...100) { warmth, tint in
             let balanced = AdjustmentRenderer.relativeWhiteBalance(
-                decoded.image, WhiteBalance(relativeTemperature: warmth, relativeTint: tint))
+                image, WhiteBalance(relativeTemperature: warmth, relativeTint: tint))
             return PixelSample(balanced, engine: engine)?.neutralAverage()
         }
         return WhiteBalance(preset: .auto, relativeTemperature: solved.mired.rounded(), relativeTint: solved.tint.rounded())
+    }
+
+    /// `image` at the measuring size, rendered once, when it is much larger: a
+    /// decode that cannot be asked for a small size (LibRaw's is half the
+    /// sensor at least) would otherwise be reduced again for every step of
+    /// the search. Smaller images are returned as they are.
+    static func reducedOnce(_ image: CIImage, engine: RenderEngine) -> CIImage {
+        let extent = image.extent
+        guard !extent.isInfinite, max(extent.width, extent.height) > CGFloat(measureSize * 2) else { return image }
+        let reduced = image.scaledToFit(longEdge: measureSize)
+        let bounds = reduced.extent.integral
+        guard let rendered = engine.withContext({
+            $0.createCGImage(reduced, from: bounds, format: .RGBAh, colorSpace: RenderEngine.workingColorSpace)
+        }) else { return image }
+        return CIImage(cgImage: rendered)
     }
 
     /// Newton iterations on two parameters (with finite-difference slopes) that

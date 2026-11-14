@@ -167,6 +167,15 @@ public struct CameraFrame: Equatable, Sendable {
         return frame.rect
     }
 
+    /// As `rect(of:)`, for a crop that starts from the camera's frame: nil too
+    /// for a raw the system's RAW decoder gives no image for, since only its
+    /// whole-sensor decode undoes that frame (LibRaw's decode has one frame,
+    /// and a crop of it starts from the whole of it). The decoder is asked
+    /// only for a file that has a camera frame.
+    public static func rectForCropping(of url: URL) -> CropRect? {
+        rect(of: url).flatMap { SystemRAWDecoder.reads(url) ? $0 : nil }
+    }
+
     /// The file's bytes with the frame set to the whole image. The file itself
     /// is only read.
     func fullFrameData(of url: URL) -> Data? {

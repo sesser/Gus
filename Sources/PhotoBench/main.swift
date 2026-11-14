@@ -59,6 +59,12 @@ let usage = """
                  synthetic 6000x4000 DNGs) one after the other, as the two panes get them, without
                  adjustments and with a typical stack: time until each is sharp, and the memory two hold.
 
+      rawcompare --files FILE[:FILE...] [--output DIR] [--runs N]
+                 The system RAW decoder against LibRaw on real raws: decode and render to 8-bit sRGB at
+                 full size (LibRaw also at half size), each as the first run and the best of N (default 3;
+                 the system decoder's best is a warm run), mean brightness and difference of the two, and
+                 with --output both as 1600 px PNGs.
+
       denoise    [--size WxH] [--source FILE] [--runs N]
                  A raw (default a synthetic 6000x4000 DNG with noise) with machine learning noise
                  reduction off and on: thumbnail, 2560 px preview and full-resolution export times.
@@ -142,6 +148,7 @@ do {
     case "viewport": report = try await ViewportBenchmark.run(arguments)
     case "compare": report = try await ComparisonBenchmark.run(arguments)
     case "denoise": report = try await DenoiseBenchmark.run(arguments)
+    case "rawcompare": report = try await RawCompareBenchmark.run(arguments)
     case "scenes": report = try await SceneFiles.run(arguments)
     default:
         print(usage)

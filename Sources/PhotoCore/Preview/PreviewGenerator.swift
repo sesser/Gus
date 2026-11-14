@@ -1,6 +1,7 @@
 import CoreImage
 import Foundation
 import ImageIO
+import os
 
 /// Decodes masters and renders them through the edit stack.
 public struct PreviewGenerator: Sendable {
@@ -131,10 +132,14 @@ public struct PreviewGenerator: Sendable {
     }
 
     /// The master's size in pixels, before or after its orientation, from its header.
+    /// For a raw the system's RAW decoder gives no image for, the frame LibRaw
+    /// decodes (its header only, nothing unpacked).
     public static func nativeSize(_ url: URL) -> CGSize? {
-        if SupportedFormats.isRaw(pathExtension: url.pathExtension), let raw = CIRAWFilter(imageURL: url),
-           raw.nativeSize.width > 0 {
-            return raw.nativeSize
+        if SupportedFormats.isRaw(pathExtension: url.pathExtension) {
+            if let raw = CIRAWFilter(imageURL: url), raw.nativeSize.width > 0 {
+                return raw.nativeSize
+            }
+            if let size = LibRawDecoder.frameSize(url) { return size }
         }
         guard let source = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
               CGImageSourceGetCount(source) > 0 else { return nil }
@@ -146,14 +151,26 @@ public struct PreviewGenerator: Sendable {
         public var image: CIImage
         public var context: RenderContext
         public var machineLearning: MachineLearningNoiseReduction.Outcome = .notRequested
+        /// Which decoder made the image.
+        public var decoder = Decoder.imageIO
+    }
+
+    public enum Decoder: Sendable, Hashable {
+        /// The system's RAW decoder: the stack's decode settings are applied (`context.isRaw`).
+        case systemRAW
+        /// LibRaw, for a raw the system decoder gives no image for.
+        case libRaw
+        case imageIO
     }
 
     /// Decodes a master into the working space, oriented, at roughly `longEdge`.
     ///
     /// RAW files go through `CIRAWFilter`, which can demosaic at a reduced scale
     /// (and in draft mode) for small targets, and applies the stack's decode
-    /// settings. Everything else is decoded by ImageIO, which downsamples during
-    /// decode when a size is given.
+    /// settings. A raw it gives no image for goes to LibRaw, which applies none
+    /// of them: `context.isRaw` is false for its image, as `SystemRAWDecoder.reads`
+    /// is for the file. Everything else is decoded by ImageIO, which downsamples
+    /// during decode when a size is given.
     ///
     /// A machine learning request that cannot apply, or whose decode gives
     /// no image, decodes with the classical decoder instead and says why in
@@ -169,14 +186,73 @@ public struct PreviewGenerator: Sendable {
             // The machine learning decode gave no image: the classical one instead.
             var fallback = try decode(url, longEdge: longEdge, draft: draft, extendedRange: extendedRange,
                                       settings: settings.classical)
-            fallback.machineLearning = .notApplied(.failed)
+            // The system decoder read the file and its machine learning decode
+            // failed; or it does not read the file at all, which is not a failure.
+            fallback.machineLearning = .notApplied(
+                fallback.context.isRaw ? .failed : MachineLearningNoiseReduction.reasonWithoutSystemDecoder)
             return fallback
         }
-        if isRaw, let decoded = decodeRAW(url, longEdge: longEdge, draft: draft, extendedRange: extendedRange,
-                                          settings: settings) {
+        if isRaw, let decoded = rawImage(settings: settings, system: {
+            decodeRAW(url, longEdge: longEdge, draft: draft, extendedRange: extendedRange, settings: $0)
+        }, libRaw: {
+            decodeWithLibRaw(url, longEdge: longEdge)
+        }, droppedChoices: {
+            log.error("\(url.lastPathComponent, privacy: .private): no image for the stack's decoder choices; decoded without them")
+        }) {
             return decoded
         }
         return try decodeWithImageIO(url, longEdge: longEdge)
+    }
+
+    /// Which decoder's image a raw gets, in order:
+    ///
+    /// 1. the system decoder's, with the stack's settings;
+    /// 2. the system decoder's without the stack's own decoder choices (the
+    ///    whole-sensor copy, a decoder version), where those left it without
+    ///    an image. Which decoder a raw gets is one test, the one
+    ///    `SystemRAWDecoder.reads` makes (the file as an untouched photo
+    ///    decodes), so a raw it says the system reads is never handed to
+    ///    LibRaw, whose image the editor would offer a raw's controls for;
+    /// 3. LibRaw's, for a raw the system decoder gives no image for
+    ///    (lossless-compressed Fujifilm X-E3 files on macOS 27.2.1, issue
+    ///    #161), and only then: it is far slower. Its image takes none of the
+    ///    stack's decode settings, so it is a rendered image (`isRaw` false):
+    ///    the renderer applies relative white balance and its own noise
+    ///    reduction to it.
+    ///
+    /// Nil when neither has one (ImageIO is tried next).
+    static func rawImage<Image>(settings: RAWDecodeSettings, system: (RAWDecodeSettings) -> Image?,
+                                libRaw: () -> Image?, droppedChoices: () -> Void = {}) -> Image? {
+        if let image = system(settings) { return image }
+        if settings.choosesTheDecode, let image = system(settings.withoutDecodeChoices) {
+            droppedChoices()
+            return image
+        }
+        return libRaw()
+    }
+
+    private static let log = Logger(subsystem: AppBranding.bundleIdentifier, category: "decode")
+
+    /// LibRaw's decode, at half size when the target is at most half the frame.
+    /// Nil when LibRaw cannot decode the file either; its reason is logged, since
+    /// the caller then reports only that the file is undecodable.
+    private static func decodeWithLibRaw(_ url: URL, longEdge: Int?) -> Decoded? {
+        do {
+            let output = try LibRawDecoder.decode(url, longEdge: longEdge)
+            guard !output.image.extent.isEmpty else { return nil }
+            return Decoded(image: output.image,
+                           context: RenderContext(scale: Self.scale(of: output.image, native: output.fullSize), isRaw: false),
+                           decoder: .libRaw)
+        } catch {
+            log.error("\(url.lastPathComponent, privacy: .private): no image from the system RAW decoder, and \(String(describing: error), privacy: .public)")
+            return nil
+        }
+    }
+
+    /// The system RAW decoder's image of a raw with its default settings, or nil
+    /// when it gives none. For comparing it with LibRaw (`photobench rawcompare`).
+    public static func systemRAWImage(_ url: URL) -> CIImage? {
+        CIRAWFilter(imageURL: url).flatMap { RAWDecodeGraph.output(of: $0) }
     }
 
     /// The RAW decoder's image, or nil when it gives none.
@@ -207,7 +283,7 @@ public struct PreviewGenerator: Sendable {
                 return Decoded(image: output, context: RenderContext(scale: Self.scale(of: output, native: native),
                                                                      isRaw: true,
                                                                      cameraFrame: wholeSensor == nil ? nil : CameraFrame.rect(of: url)),
-                               machineLearning: outcome)
+                               machineLearning: outcome, decoder: .systemRAW)
             }
         }
         return nil

@@ -25,9 +25,13 @@ public enum SyntheticDNG {
         public var iso: Int?
         /// What the sensor sees.
         public var scene: Scene
+        /// Written as `DefaultCropOrigin` and `DefaultCropSize` (the part of the
+        /// mosaic a reader should keep, in its pixels), nil for neither tag.
+        public var defaultCrop: CGRect?
 
         public init(width: Int, height: Int, seed: UInt64, dateTimeOriginal: String? = nil, orientation: Int = 1,
-                    noise: Double = 0, writesNoiseProfile: Bool = false, iso: Int? = nil, scene: Scene = .pattern) {
+                    noise: Double = 0, writesNoiseProfile: Bool = false, iso: Int? = nil, scene: Scene = .pattern,
+                    defaultCrop: CGRect? = nil) {
             self.width = width
             self.height = height
             self.seed = seed
@@ -37,6 +41,7 @@ public enum SyntheticDNG {
             self.writesNoiseProfile = writesNoiseProfile
             self.iso = iso
             self.scene = scene
+            self.defaultCrop = defaultCrop
         }
     }
 
@@ -115,6 +120,10 @@ public enum SyntheticDNG {
         ifd.ascii(50708, "Synthetic Bayer Generator") // UniqueCameraModel
         ifd.long(50714, [0])                       // BlackLevel
         ifd.long(50717, [65535])                   // WhiteLevel
+        if let crop = options.defaultCrop {
+            ifd.long(50719, [UInt32(crop.minX), UInt32(crop.minY)])   // DefaultCropOrigin
+            ifd.long(50720, [UInt32(crop.width), UInt32(crop.height)]) // DefaultCropSize
+        }
         ifd.srational(50721, [                     // ColorMatrix1: XYZ (D65) -> camera (= linear sRGB)
             3.2406, -1.5372, -0.4986,
             -0.9689, 1.8758, 0.0415,

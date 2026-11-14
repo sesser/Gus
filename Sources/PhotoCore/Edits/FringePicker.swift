@@ -212,7 +212,8 @@ public enum FringePicker {
     /// memory (one render when picking starts; R20, R30, R36).
     public static func samplePixels(source: URL, values: Adjustments, generator: PreviewGenerator) throws -> FringeSamplePixels {
         guard let renderer = generator.renderer as? AdjustmentRenderer else { throw PreviewGenerator.Failure.renderFailed }
-        let isRaw = SupportedFormats.isRaw(pathExtension: source.pathExtension)
+        // A raw LibRaw decodes takes no decode settings and has one frame only.
+        let isRaw = SystemRAWDecoder.reads(source)
         var settings = isRaw ? renderer.decodeSettings(for: values.editStack) : .none
         // Mask-frame points are on the whole sensor, whatever the camera cropped.
         settings.fullFrame = isRaw
