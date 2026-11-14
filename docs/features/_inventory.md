@@ -37,6 +37,10 @@ comparison under Loupe, the `photobench` row), from its `status.md`, `qa.md` and
 `docs/USER_GUIDE.md`; the comparison row again the same day after the merge
 with develop (Duplicate off while comparing, copies compare as photos).
 
+Updated 2026-11-13 (Ship pass) for about-gus-dedication (#179: About window row
+under UI shell, the Menu bar, Quit guard and Debug script rows), from its
+`status.md` and `qa.md`.
+
 Markers:
 
 - **[inferred from code]**: no document states it; the claim rests on code alone.
@@ -80,7 +84,7 @@ Abbreviations: P1–P6 = `docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR
 | Keep picks on rescan | Toggling videos or Rescan keeps shots the user left out | Issue #19; UIR step 10; `CardImport/ImportSelection.swift` |
 | Shutter count in subtitle | Newest photo's camera and shutter count | UIR §8; `CardImport/CameraSummary.swift` |
 | Import keeps running after window closes | Shown in library window's Activity item | UIR §8 states table |
-| Quit guard | Asks before quitting stops an import or export | UIR §8; `PhotoUI/QuitGuard.swift` |
+| Quit guard | Asks before quitting stops an import or export. The question goes on the key window, else the main one, never the About or a license window, and on the front-most sheet when that window shows one (`QuitConfirmation.host`, `frontSheet`), with the host brought forward. Open observation Q1: a real ⌘Q with a sheet up showed no question in a script run, on `develop` too (P8(b)) | UIR §8; `PhotoUI/QuitGuard.swift`; `about-gus-dedication/status.md` C6, F4 |
 | Metadata reading | ExifTool `-stay_open` process pool when installed; ImageIO fallback; AVFoundation for video. Nothing in the app says which reader is in use | CL; P1 Profiling; README. Roadmap: metadata-reader-status |
 
 ## Standalone importer
@@ -213,11 +217,12 @@ Abbreviations: P1–P6 = `docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR
 | One library window | `NavigationSplitView` with inspector; dark appearance on the library window only | UIR decisions 8–9, §1 |
 | Customizable toolbar | Import menu, Export, Grid/Loupe, size/zoom, Activity, Filter, Search, inspector; palette items | UIR §5 |
 | Activity item | Progress, Stop, last 20 messages; warnings vs information. Stays while its popover is open; messages count as read when the popover closes, not when it opens | UIR §1; `activity-popover/status.md` |
-| Menu bar | File, Edit, View, Photo, Adjust, Window, Help; bare keys shown, enabled only when grid/loupe has focus. One File ▸ Stop (⌘.) names the newest job; one Edit ▸ Deselect All (⇧⌘A) serves both windows; Adjust has Import Look-Up Tables…, Reset Crop, Show / Hide Mask Overlay; View ▸ Info / Adjust are checked; New Mask and Add to Mask dim at their limits. Help has no items in either app (the dead "‹app› Help" item was removed); the menu stays for Help ▸ Search | UIR §6; CL Menus; `ui-redesign/design.md` §6; `ui-redesign/status.md` E4–E11, E26, E28 |
+| Menu bar | File, Edit, View, Photo, Adjust, Window, Help; bare keys shown, enabled only when grid/loupe has focus. One File ▸ Stop (⌘.) names the newest job; one Edit ▸ Deselect All (⇧⌘A) serves both windows; Adjust has Import Look-Up Tables…, Reset Crop, Show / Hide Mask Overlay; View ▸ Info / Adjust are checked; New Mask and Add to Mask dim at their limits. Help has one item in either app, About ‹name› (the dead "‹app› Help" item was removed; the menu stays for Help ▸ Search) | UIR §6; CL Menus; `ui-redesign/design.md` §6; `ui-redesign/status.md` E4–E11, E26, E28 |
 | Context menus | Photos, loupe, video loupe (culling, keywords, albums, Play / Pause, Show Grid), sidebar items, inspector headers, slider rows, presets, masks, import cells | UIR §7; `ui-redesign/status.md` E9 |
 | Inspector | Info / Adjust tabs, pinned histogram, Original toggle and ⋯ menu | UIR §4 |
 | Sheets and panels | Export, LUT browser, presets as sheets; panels and alerts window-modal | UIR §8 |
 | Settings | Card auto-open; write XMP sidecars | `Views/SettingsView.swift`; UG |
+| About window | One window in both apps, opened by the app menu's About ‹name› and Help ▸ About ‹name› (the system About panel is replaced; a second use brings the same window forward; works with the main window closed or a sheet up; not in the Window menu). Shows the app's version and build from the bundle (left out with no bundle), a dedication naming the project, five entries from one record (LibRaw, darktable, LightCraft, GRDB, ExifTool) each with a sentence worded by relationship (included, studied, reimplemented, optional and not included), its license and a link to its page (reported, never opened, under the debug script; no network code), and Gus's copyright (© 2026 Randy Sesser) with the GPL 3-or-later statement. **View License** buttons (LibRaw, LightCraft, GRDB, Gus) open a license window of the file's text from `THIRD_PARTY_NOTICES.md` (the project's section) or `LICENSE` in the bundle's `Resources`, byte for byte, with find; they appear only when those files are there, which needs #172 (none in today's bundles). In the importer the dedication and statement name the project (Gus), the menus, title and header the importer. `Acknowledgements.all` is the one record; `AcknowledgementConsistencyTests` fails when it, the notices, the README Credits and the package or vendored source disagree; no license text in Swift or the catalog. Known: LibRaw's section points to `Sources/CLibRaw/LICENSE.LGPL`, which isn't in the bundle (RI-E1). Checks pending: P1–P9, and the packaging halves of AC7 and AC13 (#172) | `about-gus-dedication/` (#179); UG; `PhotoCore/About/`, `PhotoUI/About/` |
 
 ## Accessibility
 
@@ -250,7 +255,7 @@ Abbreviations: P1–P6 = `docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR
 | Goldens and CPU references | 16-bit PNG goldens per module; RAW goldens fingerprinted per macOS build | P5; P6 finding 7; CL Checking image code |
 | CI | Build and test on `macos-26` and `macos-15`; CodeQL; golden failure images uploaded; when the test process crashes, a backtrace of every thread goes to the log and the system crash reports are uploaded | P5 Notes; P6 question D; `.github/workflows/` (crash capture: PR #42) |
 | `photobench` | Synthetic libraries; import, preview, query, edits, masks, kernels, blend-error benchmarks; `denoise` times machine learning noise reduction; `compare` times and measures two full-resolution renders; `scenes` writes the chromatic aberration test scenes (fringes, fringe subjects, pixel grid, lateral color) as TIFFs and a DNG | `docs/PROFILING.md`; P6; `ml-denoise/status.md` R14 |
-| Debug script | Drives the app for snapshots and checks; `compare` and `compareclick` drive comparison, `compare panbench` counts hitches while panning | CL Commands; `Model/DebugScript.swift` |
+| Debug script | Drives the app for snapshots and checks; `compare` and `compareclick` drive comparison, `compare panbench` counts hitches while panning; `about …` (open, print, menus, link, license, snapshot, click, quithost, quitask…) drives the About window and its license windows in both apps | CL Commands; `Model/DebugScript.swift`; `PhotoUI/About/AboutDebugCommands.swift` |
 | Launch guard | A test launch without `--library-root` is refused before anything in the standard data or cache folders is opened or created: a bundle identifier other than the release one (or none, as with `swift run`), or `--debug-script` / `--benchmark-scroll`. The reason goes to standard error; a launch a person started then shows an alert; either way the app quits with status 64. `photocli`, `photobench` and the standalone importer are not guarded | `library-launch-guard/status.md` (PR #47); UG Development options; `Launch/LibraryLaunchGuard.swift`, `AppLauncher.swift` |
 | Branding isolation | Brand values only in `AppBranding.swift` / `Branding.xcconfig`; enforced by tests | CL Naming rules |
 

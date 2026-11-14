@@ -728,6 +728,38 @@ and corners by eye, the note's look, White Balance and Noise Reduction by
 hand, a paste from an X-T3, switching photos, Custom from the Mode pop-up) in
 #82 and `docs/features/raf-not-rendering/qa.md`.
 
+About window (`docs/features/about-gus-dedication/`, issue #179, branch
+`feature/about-gus`): the app menu's About and Help ▸ About open one window of
+our own in both apps, replacing the system panel (`Sources/PhotoUI/About/`;
+`AboutCommands` on `.appInfo` and `.help`, `AboutScenes`). It shows the version
+and build from the bundle (left out with no bundle), a dedication naming the
+project (Gus, also in the importer, whose menus, title and header keep its own
+name), five entries (LibRaw, darktable, LightCraft, GRDB, ExifTool) each with a
+sentence worded by what the project is to Gus (included, studied,
+reimplemented, optional and not included), its license and a link (reported,
+never opened, under the debug script; no network code), and Gus's copyright and
+GPL 3-or-later statement. The one record is `Acknowledgements.all` in PhotoCore
+(`About/`); `AcknowledgementConsistencyTests` fails when it disagrees with
+`THIRD_PARTY_NOTICES.md`, the README's Credits or the package and vendored
+source. View License buttons open a window with the project's section of
+`THIRD_PARTY_NOTICES.md` or the whole `LICENSE`, read from the bundle's
+`Contents/Resources` (`BundledLicenses`), byte for byte, never typed into Swift
+or the String Catalog; with the files absent there are no buttons. Today's
+bundles don't carry the files: #172 puts them there (this feature's packaging
+test). The quit question now goes on the key or main window, never an About or
+license window, and on the front-most sheet of a window that shows one
+(`QuitConfirmation.host`, `frontSheet`). The notices gained GRDB (with its
+second MIT notice and a note on three Swift.org-derived files whose Apache 2.0
+text is not reproduced: the owner's open question) and ExifTool, and the
+Credits an ExifTool line. No migration, no pipeline bump, no rendering changed.
+Known: LibRaw's View License shows its notice, not the LGPL text (RI-E1); the
+`Info.plist`s have no `NSHumanReadableCopyright`. Shipped, checks pending: P1 to
+P9 (look in light and with Increase Contrast, Keyboard Navigation, no network,
+a real link click, resizing, menus by eye, Esc, ⌘W and ⌘F with a real keyboard,
+a real ⌘Q during an export from About and with a sheet up, ⌘F on a non-Latin
+layout) in #82 and `docs/features/about-gus-dedication/qa.md`, and AC7's and
+AC13's packaging halves, which wait on #172.
+
 Not yet: AI masks, healing, lens corrections (distortion, lens vignetting,
 profiles; only the camera's own tables in Fujifilm raws LibRaw decodes), DNG export, `.dcp` profiles,
 general (hand-made or burst) stacks, hierarchical
