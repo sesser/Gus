@@ -573,3 +573,107 @@ bound for a RAF, which is always decoded whole.
 
 `/security-review` should run on the branch: it now has a second parser of
 outside files in process, besides LibRaw.
+
+### Fifth pass, 2026-11-13
+
+Reviewed: `a2e5b19`..`a2301a9` (three commits): `aaf4ab5` (`FujifilmRAF`: the
+knot at the center, the tables' frame radius, the crop mode from the embedded
+JPEG's Exif, tests), `20fb3b5` (`LibRawDecoder`: Super CCD frames, the size
+cap, the `framed` and `lensTables` seams; white after the gain in the kernel
+and its reference; `PreviewGenerator.rawImage`; tests; the user guide) and
+`a2301a9` (`status.md`). Build and tests at `a2301a9`, working tree clean:
+`swift build` complete; `swift test` 906 tests in 133 suites passed, the same 1
+known issue; `RAF_SAMPLE=/private/tmp/claude-501/x/DSCF5123.RAF swift test
+--filter LibRawFallbackTests` 7 tests passed (50 s, the figures of the fourth
+pass to the digit); `Scripts/build-app.sh all` built both bundles (SDK 27.2,
+minimum 15.0). macOS 27.2.1 (26B131). The app not launched.
+
+**Verdict.** Ready for qa-tester. C16 to C22 are fixed and Q11 is answered in
+code; each fix has a default-run test that fails without it, and the three that
+change a render were also confirmed on real files. One new nit (C23, the
+cap's number, which `status.md` already leaves to the owner). Raws the system
+decodes are still byte for byte as on `develop`.
+
+#### Fourth pass findings
+
+| # | Outcome | Commit | How it was confirmed |
+| --- | --- | --- | --- |
+| C16 | Fixed | `20fb3b5` | The order of decoders is `PreviewGenerator.rawImage`, which `decode` calls with the same three steps as before (read side by side: the system decoder with the stack's settings, then without its decoder choices with the log line, then LibRaw). `decoderOrder` drives it with stand-ins; with the retry switched off in a scratch copy it fails. |
+| C17 | Fixed | `20fb3b5` | `decode` throws `Failure.tooLarge` after `libraw_open_file` when raw width times raw height is over 150,000,000, before anything is unpacked, and `frameSize` is nil for such a file; the reason reaches the log through `decodeWithLibRaw`. `sensorSizeLimit` fails with the limit raised in a scratch copy. See C23 for the number. |
+| C18 | Fixed | `20fb3b5` | A file with `fuji_width` set gets no crop box and no camera frame; its frame is the size LibRaw works out from the header on an instance of its own (`libraw_adjust_sizes_info_only`, which already turns the size for flips 4 to 7, as `Frame` expects). The public FinePix F700 and S5000 samples render whole through `photocli`: 2035 x 1533 and 2012 x 1521 (were 3511 x 755 and 3477 x 752), looked at; `nativeSize` now equals the decode for both. A RAF's camera frame is used only when the records' sensor size is the one LibRaw reads: `theFrameIsTheCameras` still passes on eleven real files (the owner's X-E3, two public X-E3, X-T3, X-T30, X-T20, X-T2, X-Pro2, X-T5, X-A5, X100). |
+| C19 | Fixed | `20fb3b5` | `min(…, 1)` on the three channels in the kernel and in the reference. `photocli render DSCF5170.RAF --long-edge 300 --set exposure.ev=-3`: the blown reflection at 0.7 to 0.8 of the radius is 0.124 and 0.125 (was 0.17 to 0.23; white is 0.125). `gainEndsAtWhite` renders a white and a part-clipped picture; without the `min` it fails, and so do the reference, half-float and decode tests. The decode's working space is the kernel's (linear Rec. 2020), so 1 is the decode's white in every channel. |
+| C20 | Fixed | `aaf4ab5` | A knot at 0 with no distortion, no shift and all the light is put before knots that start further out, as darktable does. All four real nine-knot files here (X-T3, X-T30, two X-T5) now read ten knots from 0. The X-T30 file against its own JPEG, the scratch test of the fourth pass: 0.6 and 1.2 pixels at 0.15 and 0.25 of the radius (were 2.3 and 2.6), median 1.5 (was 1.8). `readsARealNineKnotLayout` uses the X-T3 file's values and fails without the knot. |
+| C21 | Fixed | `20fb3b5` | What `decode` does with LibRaw's image is `LibRawDecoder.framed` and `lensTables`, tested by default (`decodeFramesAndCorrects`: the cut, the correction against the reference, the half-pixel resample, `fullSize`, a frame LibRaw cropped itself; `whichTablesADecodeUses`). What is left in `decode` is the one call that joins them. |
+| C22 | Fixed | `aaf4ab5`, `20fb3b5`, `a2301a9` | `status.md` says 7 tests and lossless compressed X-E3 files, as do the user guide and `rawImage`'s comment; the scale rule's comment names the X-A5 exception; a file whose tables are not used says why in the log (file name private, reason public). |
+| Q11 | Answered in code | `aaf4ab5` | `cropMode` reads 0x104D from the maker note of the embedded JPEG's Exif; `frameRadius` is the tags' leading value times the knot count; tables are used only outside modes 2 and 4 and when that radius is the camera frame's half diagonal within 2 pixels. On twelve real files with tables and no crop mode the radius is the frame's to under a pixel (3605.00 against 3605.55, 3749.00 against 3749.77, 4643.00 against 4643.95, 2573.00 against 2573.81, 2030.00 against 2030.00) and none is refused; the mode reads 0 where ExifTool prints 0 (X-T3, X-T30, X-T5) and nil where the file has no such tag. A real crop-mode file (public X-T5, `DSCF4964_70-300.RAF`, ExifTool: mode 2): read as 2 and refused; see the note below. |
+
+#### New finding
+
+| # | Severity | Where | Finding | Failure | Rule |
+| --- | --- | --- | --- | --- | --- |
+| C23 | Nit (the owner's number) | `Sources/PhotoCore/Preview/LibRawDecoder.swift:57-66`; `Tests/PhotoCoreTests/EmbeddedLensTests.swift` (`sensorSizeLimit`); `status.md` (C17) | The comment and `status.md` say 150 megapixels is "above every camera's single frame (the largest medium format backs)". The test's own comment says the 150 megapixel backs (14204 x 10652, 151.3 megapixels before their margins) are refused. | A raw of such a back that the system decoder gives no image for is `undecodable` with "over the 150 megapixels LibRaw is given here" in the log. No such file here; whether macOS reads them I did not check. 160 megapixels would take them at about 3.5 GB a full decode by the comment's own 22 bytes a pixel. Either the number or the sentence. | Correctness of a record; the cap itself is as asked in C17 |
+
+#### Notes
+
+- **The crop-mode file.** In the public X-T5 file shot in mode 2 the tables'
+  radius is still the whole frame's (4643) while the camera's frame is 6000 x
+  4000 (half diagonal 3605.55): 1.288 times, not darktable's 1.25. So the
+  radius check alone tells such a file, and the knots times that ratio would
+  be the exact reading if these files are ever to be corrected. Today the file
+  is refused twice over (LibRaw's visible area for it is 6000 x 3997, three
+  rows short of the camera's frame, so it keeps LibRaw's frame and the log says
+  its frame is not part of LibRaw's image), and the system decoder reads it
+  anyway. A follow-up at most (below); nothing to fix here.
+- **Against the system decoder** the X-T30 file's middle moved from 0.3 and
+  0.6 pixels out to 0.9 and 0.3 in at 0.15 and 0.25 of the radius: macOS reads
+  the nine-knot table nearer the old way. Under a pixel either way; the camera's
+  JPEG and darktable agree with the new reading.
+- **Q10** is still open (`.claude/settings.json` has no `RAF_SAMPLE=` entry).
+  **Q12 to Q14** are the owner's, as `status.md` says; **Q9** the designer's.
+
+#### Checked and fine
+
+- **Raws the system decodes are untouched.** The six `photocli render`
+  variants of `/private/tmp/claude-501/cmp/in/DSCF4583.RAF` of the fourth pass
+  have the same SHA-256 as `develop`'s again.
+- **Tests fail without the fixes.** Seven changes undone at once in a scratch
+  copy (the `min` in the kernel, the knot at 0, the crop mode refusal, the
+  radius check, the sensor size and Super CCD conditions of `cameraFrame`, the
+  size limit, the retry in `rawImage`): ten tests fail, at least one for each.
+- **The new parser code** (`cropMode(inJPEG:)`, `cropMode(inExif:)`): the JPEG
+  must start FF D8; each segment's four header bytes are checked before they
+  are read, a length under 2 or a start of scan ends the walk, and every step
+  advances at least four bytes; the Exif payload is cut to what was read; IFD0,
+  the Exif IFD and the maker note's IFD go through the same bounded `entries`
+  as the Fujifilm IFD; the note must be at least 12 bytes and lie inside the
+  segment before its header is read; the value must be one SHORT. At most
+  64 KiB + 16 bytes of the JPEG are read, whatever its length says.
+- **`frameRadius`** is refused when not finite (a zero denominator in the
+  leading value), with the tables.
+- **Super CCD frames at half size.** `fullSize` falls back to twice the
+  decode, within a pixel of `frameSize`, as for every frame LibRaw sizes
+  itself.
+- **Rules.** No UI string, no persisted name, no migration, no catalog or
+  sidecar write, no network, no subprocess, no new dependency; `Package.swift`
+  and `Sources/CLibRaw` untouched; no golden moved; no pipeline bump is due
+  (these files do not render on `develop`). The user guide says what the
+  code does (blown highlights, crop mode, Super CCD).
+
+#### Security notes, fifth pass
+
+The parser grew by the Exif walk above. The fuzzing of the fourth pass was run
+again on the new source, with an Exif segment and maker note in every file and
+two more kinds of damage aimed at them (marker lengths, the Exif header, IFD
+counts and offsets, the note): 3,000,000 files, no trap; 2,013,163 returned a
+crop mode, all within 0 … 65535; 749,111 returned tables, every one plausible
+with a finite radius; `lensTables(for:)` never returned tables together with a
+refusal; the file handle and in-memory readers agreed on all 60,000 files run
+through both.
+
+| # | Severity | What | Detail |
+| --- | --- | --- | --- |
+| S1 (C17) | Closed | The frame size limit | 150,000,000 pixels of raw width times raw height, checked after `libraw_open_file` and before `libraw_unpack`, in `decode` and in `frameSize`. The product of two 16-bit values cannot overflow. |
+| S14 | Info | The Exif walk | As under Checked. It adds one read of at most 64 KiB + 16 bytes per parse and no allocation sized by a file's value beyond that. A hostile crop mode or leading value can only turn the corrections off for its own file. |
+| S15 | Info | A second LibRaw instance for Super CCD files | `diagonalOutputSize` opens the file again for a header parse (`libraw_open_file`, `libraw_adjust_sizes_info_only`): the same surface as `frameSize` (S3), once more per decode of such a file. Closed on every path. |
+
+S2 to S13 stand. `/security-review` should still run on the branch.
