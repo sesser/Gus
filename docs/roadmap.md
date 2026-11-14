@@ -40,7 +40,7 @@ Principles (drawn from `README.md` and `CLAUDE.md`):
 
 ## Now (maximum three)
 
-Empty. The owner decides what fills it. First candidate: the top of Next.
+1. [#170](https://github.com/sesser/Gus/issues/170) `white-balance-across-decoders`: White balance and baseline look differ between decoders (also covers #171). In progress; owner ruling 2026-11-14 put it ahead of #150.
 
 ## Next
 
