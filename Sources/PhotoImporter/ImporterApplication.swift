@@ -25,10 +25,15 @@ struct ImporterApplication: App {
         .commands {
             CommandGroup(replacing: .newItem) {}
             ImportCommands(includesLibraryItems: false)
-            // No help content yet: SwiftUI's "‹app› Help" only says so. The
-            // Help menu and its search field stay (prd.md R1, R2).
-            CommandGroup(replacing: .help) {}
+            // About ‹name› in the app menu, in place of the system's panel,
+            // and in Help, in place of SwiftUI's "‹app› Help" (there is no
+            // help content yet). The Help menu's search field stays.
+            AboutCommands(appName: AppBranding.importerDisplayName)
         }
+
+        // The window's title and header name this app; its dedication and
+        // free-software statement name the project (the default).
+        AboutScenes(appName: AppBranding.importerDisplayName)
     }
 
     /// No catalog: presets and remembered options live in this app's preferences.
@@ -69,6 +74,7 @@ final class ImporterDelegate: NSObject, NSApplicationDelegate {
 ///
 ///     wait <seconds>    snapshot <file.png>    helpmenu (the Help menu and its items)    quit
 ///     import …          (the library app's import commands, see ImportDebugCommands)
+///     about …           (the About window and its license windows, see AboutDebugCommands)
 @MainActor
 enum ImporterDebugScript {
     private static var started = false
@@ -87,7 +93,9 @@ enum ImporterDebugScript {
     }
 
     private static var window: NSWindow? {
-        NSApp.windows.first { $0.isVisible && $0.contentView != nil && $0.className.contains("Window") }
+        // The import window, not the About window or a license window.
+        NSApp.windows.first { $0.isVisible && $0.contentView != nil && $0.className.contains("Window")
+            && !AboutWindowRegistry.owns($0) }
     }
 
     private static func run(_ command: String, model: CardImportModel) async {
@@ -107,6 +115,8 @@ enum ImporterDebugScript {
             }
         case "helpmenu":
             HelpMenuProbe.print()
+        case "about":
+            await AboutDebugCommands.run(rest, appName: AppBranding.importerDisplayName)
         case "quit":
             QuitGuard.allowsQuit = true
             NSApp.terminate(nil)

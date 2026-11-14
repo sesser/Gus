@@ -28,9 +28,10 @@ struct PhotoApplication: App {
         .commands {
             LibraryCommands()
             ImportCommands(includesLibraryItems: true, includesOptionsItem: false, includesSharedItems: false)
-            // No help content yet: SwiftUI's "‹app› Help" only says so. The
-            // Help menu and its search field stay (prd.md R1, R2).
-            CommandGroup(replacing: .help) {}
+            // About ‹name› in the app menu, in place of the system's panel,
+            // and in Help, in place of SwiftUI's "‹app› Help" (there is no
+            // help content yet). The Help menu's search field stays.
+            AboutCommands(appName: AppBranding.displayName)
         }
 
         Window(String(localized: "Import"), id: "import") {
@@ -39,6 +40,8 @@ struct PhotoApplication: App {
             }
         }
         .defaultSize(width: 1200, height: 780)
+
+        AboutScenes(appName: AppBranding.displayName)
 
         Settings {
             if let model = library.model {

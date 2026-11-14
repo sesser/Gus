@@ -67,6 +67,28 @@
         }
       }
     },
+    "%@ is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License, version 3 or (at your option) any later version. It is distributed in the hope that it will be useful, but without any warranty; see the license for details." : {
+      "comment" : "About window: the app's free-software statement (the GPL's short notice, as in the README). Not the license text itself",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License, version 3 or (at your option) any later version. It is distributed in the hope that it will be useful, but without any warranty; see the license for details."
+          }
+        }
+      }
+    },
+    "%@ License" : {
+      "comment" : "Title of the window showing a license text, e.g. “LibRaw License”",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ License"
+          }
+        }
+      }
+    },
     "%@ MP · %@ × %@" : {
       "comment" : "Info tab Size row: megapixels, then width × height in pixels",
       "localizations" : {
@@ -173,6 +195,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ s"
+          }
+        }
+      }
+    },
+    "%@ stands on other people's work. Thank you to:" : {
+      "comment" : "About window: the dedication above the list of projects; the argument is the app's name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ stands on other people's work. Thank you to:"
           }
         }
       }
@@ -1174,6 +1207,17 @@
         }
       }
     },
+    "About %@" : {
+      "comment" : "App menu and Help menu item, and the About window's title; the argument is the app's name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "About %@"
+          }
+        }
+      }
+    },
     "Activity" : {
       "comment" : "Toolbar item: running jobs and recent messages",
       "localizations" : {
@@ -1924,6 +1968,17 @@
         }
       }
     },
+    "Artistic License / GPL, as ExifTool states" : {
+      "comment" : "About window: ExifTool's license as ExifTool describes it",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Artistic License / GPL, as ExifTool states"
+          }
+        }
+      }
+    },
     "As Shot" : {
       "comment" : "White balance preset",
       "localizations" : {
@@ -2328,6 +2383,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Can't Read %@"
+          }
+        }
+      }
+    },
+    "Can't Show the License" : {
+      "comment" : "License window: title when the license file is missing from the app",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can't Show the License"
           }
         }
       }
@@ -3271,6 +3337,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Copyright and contact only"
+          }
+        }
+      }
+    },
+    "Copyright © %@ %@" : {
+      "comment" : "About window: the app's copyright line; the arguments are the year and the copyright holder",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copyright © %1$@ %2$@"
           }
         }
       }
@@ -5005,6 +5082,17 @@
         }
       }
     },
+    "GPL 3 or later" : {
+      "comment" : "About window: darktable's license, as a short name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GPL 3 or later"
+          }
+        }
+      }
+    },
     "Grain" : {
       "comment" : "Adjust tab group",
       "localizations" : {
@@ -6252,6 +6340,17 @@
         }
       }
     },
+    "LGPL 2.1" : {
+      "comment" : "About window: LibRaw's license, as a short name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LGPL 2.1"
+          }
+        }
+      }
+    },
     "LZW" : {
       "comment" : "Export window: TIFF compression",
       "localizations" : {
@@ -6973,6 +7072,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Midtones"
+          }
+        }
+      }
+    },
+    "MIT" : {
+      "comment" : "About window: the MIT License, as a short name (LightCraft, GRDB)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MIT"
           }
         }
       }
@@ -8596,6 +8706,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "RAW+JPEG Pair"
+          }
+        }
+      }
+    },
+    "Reads metadata when it is installed; not part of the app." : {
+      "comment" : "About window: ExifTool is an optional separate program the app uses when present; it is not included",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reads metadata when it is installed; not part of the app."
+          }
+        }
+      }
+    },
+    "Reads raw files macOS can't." : {
+      "comment" : "About window: what LibRaw (a library included in the app) does for it",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reads raw files macOS can't."
           }
         }
       }
@@ -10326,6 +10458,17 @@
         }
       }
     },
+    "Showed how to apply the lens corrections Fujifilm stores in its raw files. This app's version was written after reading how darktable does it; no code was copied." : {
+      "comment" : "About window: what darktable gave the app. Its approach was studied; none of its code is in the app. Keep that distinction in translation",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Showed how to apply the lens corrections Fujifilm stores in its raw files. This app's version was written after reading how darktable does it; no code was copied."
+          }
+        }
+      }
+    },
     "Showing the fringe map." : {
       "comment" : "Announcement",
       "localizations" : {
@@ -10838,6 +10981,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Switch to Right Photo"
+          }
+        }
+      }
+    },
+    "The database toolkit under the catalog." : {
+      "comment" : "About window: what GRDB (a library included in the app) does for it",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The database toolkit under the catalog."
+          }
+        }
+      }
+    },
+    "The formulas behind brush and color range masks, reimplemented in Swift." : {
+      "comment" : "About window: what LightCraft gave the app. Formulas were reimplemented, not code copied",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The formulas behind brush and color range masks, reimplemented in Swift."
+          }
+        }
+      }
+    },
+    "The license text is missing from this copy of %@." : {
+      "comment" : "License window: description when the license file is missing; the argument is the app's name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The license text is missing from this copy of %@."
           }
         }
       }
@@ -11827,6 +12003,17 @@
         }
       }
     },
+    "Version %@ (build %@)" : {
+      "comment" : "About window: the version line, from the bundle; left out when either is missing",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Version %1$@ (build %2$@)"
+          }
+        }
+      }
+    },
     "VIDEO" : {
       "comment" : "Grid badge: video file",
       "localizations" : {
@@ -11877,6 +12064,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "View"
+          }
+        }
+      }
+    },
+    "View %@ License" : {
+      "comment" : "About window: VoiceOver label of the View License button; the argument says whose license",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View %@ License"
+          }
+        }
+      }
+    },
+    "View License" : {
+      "comment" : "About window: button that opens a project's or the app's full license text in its own window",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View License"
           }
         }
       }

@@ -39,6 +39,9 @@ import PhotoUI
 ///     menuitems [<text>]    (main menu items whose title contains text: key equivalent, enabled, checked)
 ///     menupress <title>     (runs the main menu item with that title, if enabled)
 ///     helpmenu              (the Help menu: whether AppKit treats it as the help menu, and its items)
+///     about open [app|help] | close | escape | menus | print | windows | link <project>
+///            | license <project>|app [print|close|find|snapshot <file.png>] | snapshot <file.png>
+///            (the About window and its license windows, in both apps; see AboutDebugCommands)
 ///     playpause             (View ▸ Play / Pause's action on the video loupe)
 ///     deselectall           (Edit ▸ Deselect All's action in the grid)
 ///     toolbar [add <text>]  (lists the toolbar's items; add inserts an allowed item whose identifier contains text)
@@ -205,9 +208,11 @@ enum DebugScript {
     }
 
     private static var window: NSWindow? {
-        // The library window, not the import or look-up table window.
+        // The library window, not the import or look-up table window, nor
+        // the About window or a license window.
         NSApp.windows.first { $0.isVisible && $0.contentView != nil && $0.className.contains("Window")
-            && $0.title != String(localized: "Import") && $0.title != String(localized: "Look-Up Tables") }
+            && $0.title != String(localized: "Import") && $0.title != String(localized: "Look-Up Tables")
+            && !AboutWindowRegistry.owns($0) }
     }
 
     /// The window of a popover that is on screen (the Activity item's).
@@ -602,6 +607,8 @@ enum DebugScript {
             printMenuItems(containing: rest.joined(separator: " "))
         case "helpmenu":
             HelpMenuProbe.print()
+        case "about":
+            await AboutDebugCommands.run(rest, appName: AppBranding.displayName)
         case "activity":
             switch rest.first {
             case "open" where !ActivityToolbarItem.isVisible(model):
