@@ -159,3 +159,66 @@ alone), (c) the library window on another Space or full screen (not checked by a
 `/security-review`: still not needed. The fix commits add no parser of outside files (the
 manifest scanner is test code reading the repository's own `Package.swift`), no subprocess,
 no file writing and no network code.
+
+### Third pass (2026-11-13)
+
+Reviewed: `feature/about-gus`, e45906b..1804e7c (three commits: 1e113fb the quit
+confirmation, f48cfa0 the acknowledgement tests, 1804e7c status). Build and tests:
+`swift build` complete; `swift test` 952 tests in 138 suites passed with 1 known issue (the
+same one), in 46 s: the share at `/Volumes/photos` was mounted and answered, so
+`ExportJobTests` did not stall. The app was not launched. One scratch AppKit program outside
+the repository made the calls `QuitGuard.ask` now makes (five cases, below), on macOS 27.2,
+as an app that was not active.
+
+**Verdict.** C6 and C7 are fixed, and F4's call does what it says without a regression I
+could find, the importer's path included. No new findings. Ready for qa-tester once the
+designer has confirmed F4.
+
+| # | Result | Commit | What I checked |
+|---|---|---|---|
+| C6 | Fixed | 1e113fb | `QuitConfirmation.host` hands its choice to `frontSheet`, which follows `attachedSheet` to the last one; `QuitGuard.ask` applies the same to whatever window it is given, so the result does not depend on the caller. My case (About key, a sheet up on the library window) is the first line of `confirmationGoesOnTheSheetOfAWindowThatShowsOne`, and fails without the change (the host is then "library"). Probe: with a sheet S on W and another window in front, the alert asked on S is on screen at once (`S.attachedSheet` is the alert, `W.sheets.count` stays 1), and ending it with the first button leaves S on W: the Esc monitor's `sheetParent.endSheet` path holds for a sheet on a sheet. With no sheet and no About window the host is what it was. `about quithost` now names a sheet as a sheet, and `about quitask` runs the real `ask` |
+| F4 (code side; the design is the designer's) | Does what it says | 1e113fb | `bringForward` does nothing for nil or for the key window, else `makeKeyAndOrderFront` on the window the sheet chain hangs from. Probe: front to back before A, W; after W, A, with the question above both. It never runs for the alert that stands alone |
+| C7 | Fixed | f48cfa0 | No test names GRDB's version line any more (the only `GRDB.swift.git` left is the removed-package test, whose subject it is), and none appends a credit to the README's end. `addingDependency` inserts after the first `dependencies: [`, which is the package's own list (`Package.swift:17`; the targets' come later); `addingCreditsLine` inserts before the blank lines that close the Credits section. My two inputs now pass by construction: the helper never reads the version, and `mutationsUseStableAnchors` runs the real README with a section added after Credits (no problem reported, then exactly one, naming the added credit) |
+
+The regressions asked about, each checked:
+
+- **The importer's path** (`CardImportModel.confirmQuit` → `ask(in: window)`, its import
+  window). Before, a question asked while a sheet was up on the import window (the preset
+  editor, a folder panel: the options inspector is not turned off during a copy) waited behind
+  that sheet; now it is on the sheet. With no sheet and the window key, nothing changed:
+  `frontSheet` returns the window and `bringForward` returns at once. With the window gone
+  (`window` is weak) the alert is app-modal as before.
+- **A minimized window.** In the library app a minimized window is not a host (not key, not
+  main, not visible), so the alert stands alone, as in the second pass. In the importer the
+  import window is given whatever its state. Probe, with and without the new
+  `makeKeyAndOrderFront`: AppKit takes the window out of the Dock when the sheet begins, the
+  alert is on screen and its answer arrives. The same for a minimized window that has a sheet
+  (the window and its sheet come back, the alert is on the sheet). No difference from before
+  the change.
+- **Loops.** `frontSheet` stops after 16 steps (`frontSheetFollowsTheChainAndStops` gives it a
+  chain that comes back on itself). `bringForward`, and `describe` in the debug commands, walk
+  `sheetParent` without a bound; AppKit gives a sheet one parent and I can't construct a
+  cycle, so this is not a finding.
+- **A second ⌘Q while the question is up, About key again.** The host is the first question
+  (the front sheet), so the second is a sheet on the first, on screen. Before the fix it waited
+  unseen; with the library window key it was already so (the key window is the first alert).
+- **App not active** (Quit from the Dock menu). `NSApp.keyWindow` is nil, so `bringForward`
+  always runs: the host comes in front of the app's own windows. `orderFront` does not put an
+  inactive app's window over the active app's by AppKit's documentation; not run here.
+
+Seen with the probe, not from these commits, and not a finding of this review: when the sheet
+a question is on is ended from code (`W.endSheet(S)`), the question goes with it and its
+completion handler is never called, so `ask` never returns (the quit stays cancelled; a later
+⌘Q asks again and is shown; the Esc monitor of the lost question stays installed and matches
+nothing). A person can't end a sheet under a question by hand. The one path I found in the
+sources is `ExportSheet.swift:59`: Export clicked while an import runs, ⌘Q before
+`requestExport` returns, then the sheet closes itself. That was so before this branch (the
+key window is the sheet), and I ran it in AppKit only, not in the app with SwiftUI's sheet.
+
+For qa-tester, with M8: the script could not see the host become key (macOS would not make the
+test copy active, `status.md`), and my probe's app was not active either. A real ⌘Q with About
+key, with and without a sheet on the library window, is still the check; so are the library
+window on another Space and in full screen.
+
+`/security-review`: still not needed. These commits add no parser, subprocess, file writing or
+network code.

@@ -219,6 +219,66 @@ About.
 **Second-pass verdict: Pass with one should-fix (F4).** F1–F3 and I-3 are
 closed. Nothing else changed in the UI.
 
+## Third pass (2026-11-13)
+
+Branch `feature/about-gus` at `1804e7c`, the commits since `e45906b`. Read:
+`Sources/PhotoUI/QuitGuard.swift`, `Sources/PhotoCore/Import/QuitConfirmation.swift`,
+the two call sites (`PhotoApplication.applicationShouldTerminate`,
+`CardImportModel.confirmQuit`), the `quithost` and `quitask` debug commands,
+and `status.md` (**Debug script**, **Review findings** C6 and F4, M8). Checked
+against the live HIG pages Sheets and Alerts. No shell: nothing run by me.
+
+| Finding | Result | Evidence |
+|---|---|---|
+| F4 Host window forward before the sheet | **Fixed** | `QuitGuard.bringForward` runs inside `ask`, before `WindowModal.run`: when the host is not already key it walks `sheetParent` to the root window and calls `makeKeyAndOrderFront`, which brings the root and its sheets forward and makes the front sheet key. Being in `ask` rather than at one call site, the importer gets it too, which is what F4 asked. A no-op when the host is key, so the ordinary case (⌘Q from the library window) is unchanged. Script: front to back About, All Photos before; All Photos, About after, in both apps. "The host becomes key" was not seen (macOS refused to activate the test copy): stays in M8 |
+
+### The stacked-sheet rule (C6): question on the front-most sheet
+
+**Accepted.** The HIG (Sheets) says "Display only one sheet at a time from the
+main interface" and, when something done in a sheet calls for another one,
+to close the first. That rule is about task sheets chained from one another,
+where closing the second leaves people in a sheet they didn't expect. It
+doesn't fit here, for three reasons:
+
+- **Closing the first sheet would cost the person their work.** The sheet up
+  might be Export with settings half chosen, or the preset manager. Dismissing
+  it to ask "Quit While Exporting?" means that Keep Exporting, the default
+  answer, returns them to a window whose sheet is gone. The HIG's own reason
+  for the rule ("they expect to return to the parent") is met better by
+  stacking: Keep, Return or Esc takes them straight back to the sheet they
+  were in.
+- **A confirmation alert on a sheet is the platform's own pattern.** The
+  standard save panel run as a sheet asks "Replace?" as an alert sheet on
+  itself. The alert is short, has nothing to fill in, and goes away with one
+  key. It is not a second task.
+- **The alternatives are worse.** Asking on the window behind the sheet, as
+  before C6, gets the alert queued by AppKit and ⌘Q seems to do nothing (no
+  feedback). An app-modal alert works, but it loses the tie to the window
+  whose job it would stop, and the HIG (Alerts; Modality) prefers a sheet when
+  the question concerns one window.
+
+The macOS section of Sheets also says "When a sheet opens, you bring its
+parent window to the front", which is exactly what `bringForward` now does.
+The 16-step bound on the chain only guards a loop; real chains are one or two
+deep. Esc still keeps the job: the monitor ends the alert on its own
+`sheetParent`, which is the first sheet when the alert is stacked.
+
+### Improvement (judgment, not required for #179)
+
+- **I-4 Quit while the app is inactive.** `bringForward` orders the host to
+  the front of the app's windows but does not activate the app. ⌘Q always
+  comes from the active app, but Quit from the Dock menu or a logout does not,
+  and then the sheet may come down on a window behind another app's. The
+  behavior predates this feature (the import and export questions have always
+  been asked this way). If it's worth doing: call `NSApp.activate()` (macOS
+  14+) in `ask` when `!NSApp.isActive`, before `bringForward`. Propose as a
+  follow-up issue, not a fix on this branch.
+
+**Third-pass verdict: Pass.** F4 is closed; the stacked-sheet rule is right
+for the platform. No open design findings. Manual checks stay M1 to M8
+(M8 now also covers "with a sheet already up": the question appears on that
+sheet at once), plus the engineer's M9.
+
 ## Requirements issues (for the product manager)
 
 - **RI-R1 (endorses the engineer's RI-E1; for #172).** LibRaw's View License
