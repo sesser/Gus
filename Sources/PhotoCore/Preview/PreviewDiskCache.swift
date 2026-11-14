@@ -138,6 +138,15 @@ public final class PreviewDiskCache: Sendable {
     /// there is no such folder or the current version already has one (the
     /// earlier one is then removed with the other obsolete versions).
     ///
+    /// When a rendition written since `cutoff` cannot be deleted, the folder
+    /// is not renamed (that would bring the rendition under the current
+    /// version): the older ones are moved into the current version one by
+    /// one instead (copied where a move is refused), and what stays behind
+    /// is left to `removeObsoletePipelineVersions`. A rendition written
+    /// since `cutoff` is never found under the current version, and one
+    /// failure does not cost the older renditions, which for an offline
+    /// master could not be made again (code review C7).
+    ///
     /// Call before `removeObsoletePipelineVersions`, before anything reads
     /// or writes the cache.
     ///
@@ -152,32 +161,64 @@ public final class PreviewDiskCache: Sendable {
         guard earlier != current, manager.fileExists(atPath: from.path), !manager.fileExists(atPath: to.path),
               let enumerator = manager.enumerator(at: from, includingPropertiesForKeys: [.contentModificationDateKey, .isRegularFileKey])
         else { return (0, 0) }
-        var kept = 0, deleted = 0
+        var old: [URL] = []
+        var deleted = 0, undeleted = 0
         for case let file as URL in enumerator {
             guard let values = try? file.resourceValues(forKeys: [.contentModificationDateKey, .isRegularFileKey]),
                   values.isRegularFile == true else { continue }
             // A rendition whose date cannot be read is not known to be old enough.
             if let written = values.contentModificationDate, written < cutoff {
-                kept += 1
-            } else {
-                do {
-                    try manager.removeItem(at: file)
-                    deleted += 1
-                } catch {
-                    // Left where it is: the folder is then not carried over at all (below).
-                    Self.log.error("Could not remove \(file.lastPathComponent, privacy: .public): \(error.localizedDescription, privacy: .public)")
-                    return (0, deleted)
-                }
+                old.append(file)
+                continue
+            }
+            do {
+                try manager.removeItem(at: file)
+                deleted += 1
+            } catch {
+                undeleted += 1
+                Self.log.error("Could not remove \(file.lastPathComponent, privacy: .public): \(error.localizedDescription, privacy: .public)")
             }
         }
-        do {
-            try manager.moveItem(at: from, to: to)
-        } catch {
-            Self.log.error("Could not carry v\(earlier) over to v\(current): \(error.localizedDescription, privacy: .public)")
-            return (0, deleted)
+        var kept = 0
+        if undeleted == 0 {
+            do {
+                try manager.moveItem(at: from, to: to)
+                kept = old.count
+            } catch {
+                Self.log.error("Could not carry v\(earlier) over to v\(current): \(error.localizedDescription, privacy: .public)")
+                kept = moveEach(old, from: from, to: to)
+            }
+        } else {
+            kept = moveEach(old, from: from, to: to)
         }
-        Self.log.notice("Carried \(kept) renditions of pipeline version \(earlier) over to \(current); \(deleted) are made again")
+        Self.log.notice("Carried \(kept) of \(old.count) renditions of pipeline version \(earlier) over to \(current); \(deleted) are made again, \(undeleted) could not be removed")
         return (kept, deleted)
+    }
+
+    /// Moves each of `files` from under `from` to the same place under
+    /// `to`, copying where a move is refused (a folder that cannot be
+    /// written to). Returns how many arrived.
+    private func moveEach(_ files: [URL], from: URL, to: URL) -> Int {
+        let manager = FileManager.default
+        let prefix = from.standardizedFileURL.path + "/"
+        var arrived = 0
+        for file in files {
+            let path = file.standardizedFileURL.path
+            guard path.hasPrefix(prefix) else { continue }
+            let destination = to.appending(path: String(path.dropFirst(prefix.count)), directoryHint: .notDirectory)
+            do {
+                try manager.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+                do {
+                    try manager.moveItem(at: file, to: destination)
+                } catch {
+                    try manager.copyItem(at: file, to: destination)
+                }
+                arrived += 1
+            } catch {
+                Self.log.error("Could not carry \(file.lastPathComponent, privacy: .public) over: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+        return arrived
     }
 
     /// Deletes renditions written by older pipeline versions.

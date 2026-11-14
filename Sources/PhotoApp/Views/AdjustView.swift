@@ -360,8 +360,10 @@ private struct DevelopControls: View {
         }
     }
 
-    /// Under the Mode pop-up, from its leading edge: the machine learning
-    /// caption's style and, for a setting that is not applied, its triangle.
+    /// Under the Mode pop-up, from its leading edge, the stack's spacing
+    /// below it (2 points, as the machine learning caption under its check
+    /// box): that caption's style and, for a setting that is not applied,
+    /// its triangle.
     private func whiteBalanceCaption(_ text: String, showsTriangle: Bool) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 4) {
             if showsTriangle {
@@ -375,7 +377,6 @@ private struct DevelopControls: View {
         .font(.caption)
         .foregroundStyle(.secondary)
         .padding(.leading, InspectorMetrics.labelWidth + InspectorMetrics.gap)
-        .padding(.top, 2)
         .padding(.bottom, 2)
     }
 

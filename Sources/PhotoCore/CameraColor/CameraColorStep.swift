@@ -12,26 +12,45 @@ public struct CameraColorStep: Sendable, Hashable {
     /// What LibRaw multiplied each channel's sensor values by, as the part
     /// of a channel's saturation level that is 1 in the decode's values.
     public var channelScale: SIMD3<Double>
+    /// The file's own exposure in stops (a DNG's baseline exposure, what a
+    /// Fujifilm camera held back), for a file whose color data cannot be
+    /// used: it still opens as bright as the file asks. With color data it
+    /// is `color.baselineExposure`, the same number, and that is used.
+    public var fileExposure: Double
 
-    public init(color: CameraColor?, channelScale: SIMD3<Double> = SIMD3(1, 1, 1)) {
+    public init(color: CameraColor?, channelScale: SIMD3<Double> = SIMD3(1, 1, 1), fileExposure: Double = 0) {
         self.color = color
         self.channelScale = channelScale
+        self.fileExposure = fileExposure
     }
 
     /// As Shot for the White Balance group; nil when white balance cannot be changed.
     public var asShot: ColorTemperature? { color?.asShot }
 
+    /// A Kelvin and tint as the step renders them: each within
+    /// `WhiteBalance`'s ranges (2000 to 50000 K, ±150), the ranges of the
+    /// sliders. A number past an end renders as the end. The White Balance
+    /// group shows and stores a LibRaw photo's as-shot values through this
+    /// (`WhiteBalanceControls`), so the sliders and the render agree for a
+    /// camera white outside the ranges too.
+    public static func rendered(_ balance: ColorTemperature) -> ColorTemperature {
+        ColorTemperature(
+            kelvin: min(max(balance.kelvin, WhiteBalance.temperatureRange.lowerBound), WhiteBalance.temperatureRange.upperBound),
+            tint: min(max(balance.tint, WhiteBalance.tintRange.lowerBound), WhiteBalance.tintRange.upperBound))
+    }
+
     /// The transform for a stack's Kelvin and tint (`RAWDecodeSettings`'s:
     /// nil for the camera's own; one of them alone takes the other from
-    /// the camera's), each kept within `WhiteBalance`'s ranges.
+    /// the camera's), each kept within `WhiteBalance`'s ranges (`rendered`).
+    /// Only with neither is the camera's own neutral used as it is: As Shot
+    /// is never moved into the ranges.
     public func transform(temperature: Double?, tint: Double?) -> CameraColorTransform {
-        guard let color, let asShot = color.asShot else { return .baseline(of: .builtIn(calibrations: [])) }
+        guard let color, let asShot = color.asShot else {
+            return .baseline(of: .builtIn(calibrations: []), fileExposure: color?.baselineExposure ?? fileExposure)
+        }
         var balance: ColorTemperature?
         if temperature != nil || tint != nil {
-            let kelvin = temperature ?? asShot.kelvin, tint = tint ?? asShot.tint
-            balance = ColorTemperature(
-                kelvin: min(max(kelvin, WhiteBalance.temperatureRange.lowerBound), WhiteBalance.temperatureRange.upperBound),
-                tint: min(max(tint, WhiteBalance.tintRange.lowerBound), WhiteBalance.tintRange.upperBound))
+            balance = Self.rendered(ColorTemperature(kelvin: temperature ?? asShot.kelvin, tint: tint ?? asShot.tint))
         }
         // A white balance the camera's matrix has no answer for renders as shot.
         return color.transform(for: balance, channelScale: channelScale)

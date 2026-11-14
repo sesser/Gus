@@ -371,15 +371,18 @@ to within a pixel or two of the full-size photo, a little more in the far
 corners. Blown highlights stay white right to the corners, at any white
 balance. A file shot in a
 camera's 1.25x crop mode, or one from an old Super CCD camera, is shown
-uncorrected in the frame its decoder gives, as are files of other makers. You adjust it like any other raw, with two differences. In the Adjust tab a
-note stands in place of **Profile** (the built-in profile can't be changed),
-and Noise Reduction has **Luminance** only: **Use machine learning** is dimmed
+uncorrected in the frame its decoder gives, as are files of other makers. You adjust it like any other raw, with two differences. In the Adjust tab,
+under **Profile**, a note stands in place of its pop-ups (the built-in profile
+can't be changed), and Noise Reduction has **Luminance** only: **Use machine learning** is dimmed
 unless a paste or preset turned it on; it then says it isn't applied, and
 Luminance applies instead. **White Balance** works as on any raw: the same
-entries under **Mode** (**As Shot**, Auto, Daylight to Flash, Custom),
-**Temperature** in Kelvin and **Tint**, so a white balance copied from a raw
-macOS decodes, or a preset's, applies here too, and Auto measures a Kelvin and
-tint. Two things to know about the numbers. The Kelvin shown comes from the
+entries under **Mode** (**As Shot**, **Auto**, **Daylight** to **Flash**,
+**Custom**), **Temperature** in Kelvin and **Tint**, so a white balance copied
+from a raw macOS decodes, or a preset's, applies here too, and **Auto**
+measures a Kelvin and tint. On any raw, choosing **Custom** keeps the
+**Temperature** and **Tint** shown, so a paste carries those numbers. A photo
+shot in light beyond the sliders' ends (under 2,000 K, say) shows the nearest
+end; choosing **Custom** or moving a slider then renders that number. Two things to know about the numbers. The Kelvin shown comes from the
 app's own color data for the camera, which is not always what macOS reads for
 the same camera (close for a Fujifilm X-E3 on the one file that could be
 compared; about a fifth apart for an X-T3), so one Kelvin can give a somewhat

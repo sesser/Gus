@@ -6,6 +6,13 @@ import Foundation
 public enum WhiteBalanceControls: Sendable, Hashable {
     /// A raw by either decoder: the nine modes, Kelvin and tint, starting
     /// from the as-shot values.
+    ///
+    /// For a raw LibRaw decodes the as-shot values are the ones its color
+    /// step renders (`CameraColorStep.rendered`): inside `WhiteBalance`'s
+    /// ranges. A camera's own white outside them (candle light under
+    /// 2000 K, a tint past ±150) is shown at the range's end, so what the
+    /// sliders show, what Custom stores and what then renders are one
+    /// number; As Shot itself still renders the camera's own neutral.
     case kelvin(asShot: ColorTemperature)
     /// A raw LibRaw decodes whose color data cannot be used (no matrix for
     /// the camera, no white balance coefficients): it renders as shot and
@@ -21,7 +28,7 @@ public enum WhiteBalanceControls: Sendable, Hashable {
         if let systemDefaults {
             self = .kelvin(asShot: ColorTemperature(kelvin: systemDefaults.temperature, tint: systemDefaults.tint))
         } else if usesFallbackDecoder {
-            self = fallbackColor?.asShot.map { .kelvin(asShot: $0) } ?? .unavailable
+            self = fallbackColor?.asShot.map { .kelvin(asShot: CameraColorStep.rendered($0)) } ?? .unavailable
         } else {
             self = .relative
         }
@@ -54,13 +61,29 @@ public enum WhiteBalanceControls: Sendable, Hashable {
 
     /// The white balance after `preset` is picked from the Mode pop-up, or
     /// nil when picking it starts a measurement instead (Auto) or changes
-    /// nothing. As Shot clears the white balance; a named light source
-    /// stores its Kelvin and tint on a raw; Custom stores Custom.
+    /// nothing. As Shot clears the white balance. A named light source
+    /// stores its Kelvin and tint on a raw.
+    ///
+    /// Custom on a raw, by either decoder, stores Custom with the Kelvin and
+    /// tint the sliders show (design §17.1): a value already stored is kept
+    /// (a Tungsten turned into Custom keeps 2850 K and 0), one that is not
+    /// becomes the as-shot value, unrounded, so its slider stays on its
+    /// default and the field reads what it read. The relative values are
+    /// left as stored (R10). Custom then means "these numbers": the pop-up
+    /// shows it (`kelvinDisplayPreset`, rule 1), and a paste carries them.
+    /// On a file that is not a raw, Custom stores Custom beside the stored
+    /// values (#161's D5).
     public func picking(_ preset: WhiteBalance.Preset, from balance: WhiteBalance) -> WhiteBalance? {
         switch (self, preset) {
         case (_, .asShot): return WhiteBalance()
         case (.unavailable, _), (_, .auto): return nil
-        case (_, .custom):
+        case (.kelvin(let asShot), .custom):
+            var custom = balance
+            custom.preset = .custom
+            custom.temperature = custom.temperature ?? asShot.kelvin
+            custom.tint = custom.tint ?? asShot.tint
+            return custom
+        case (.relative, .custom):
             var custom = balance
             custom.preset = .custom
             return custom

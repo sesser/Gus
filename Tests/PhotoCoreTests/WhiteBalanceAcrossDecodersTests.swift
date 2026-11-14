@@ -16,8 +16,11 @@ struct WhiteBalanceAcrossDecodersTests {
     static let generator = PreviewGenerator(engine: ReferenceTests.engine)
 
     /// A raw LibRaw decodes here, with a camera's matrix and a neutral that is not 1, 1, 1.
-    static func libRawDNG(in folder: URL, _ name: String = "libraw", color: SyntheticDNG.Color = CameraColorTests.Kind.single.tags) throws -> URL {
-        try CameraColorStepTests.dng(in: folder, name, color: color)
+    static func libRawDNG(in folder: URL, _ name: String = "libraw", color: SyntheticDNG.Color = CameraColorTests.Kind.single.tags,
+                          mosaic: Data? = nil) throws -> URL {
+        let url = folder.appending(path: "\(name).dng")
+        try SyntheticDNG.write(to: url, options: .init(width: 256, height: 192, seed: 7, color: color), mosaic: mosaic)
+        return url
     }
 
     /// A raw the system decoder reads here.
@@ -129,10 +132,11 @@ struct WhiteBalanceAcrossDecodersTests {
             #expect(try Self.pixels(url, Self.balanced(tungsten)) != (try Self.pixels(url, .none)))
             // Tungsten light is warmer than this photo's: the picture is rendered bluer.
             #expect(try Self.warmth(url, Self.balanced(tungsten)) < (try Self.warmth(url, .none)) * 0.8)
-            // As Shot clears the white balance; Custom stores Custom and sticks; Auto measures.
+            // As Shot clears the white balance; Custom stores the numbers shown and sticks
+            // (`customStoresTheNumbersShown`); Auto measures.
             #expect(controls.picking(.asShot, from: tungsten) == WhiteBalance())
             let custom = try #require(controls.picking(.custom, from: WhiteBalance()))
-            #expect(custom == WhiteBalance(preset: .custom))
+            #expect(custom == WhiteBalance(preset: .custom, temperature: asShot.kelvin, tint: asShot.tint))
             #expect(controls.mode(for: custom) == .offered(modes, selected: .custom))
             #expect(controls.picking(.auto, from: WhiteBalance()) == nil)
             // Every named light source means the same Kelvin and tint as on any raw (R2).
@@ -211,6 +215,106 @@ struct WhiteBalanceAcrossDecodersTests {
             #expect(throws: AutoAdjuster.Failure.whiteBalanceUnavailable) {
                 _ = try AutoAdjuster(generator: Self.generator).whiteBalance(source: url, adjustments: .none)
             }
+        }
+    }
+
+    // MARK: Custom (design §17.1)
+
+    /// The designer's ruling on DQ-1: Custom means "these numbers". On a
+    /// raw by either decoder it stores the Kelvin and tint the sliders show.
+    @Test("Choosing Custom on a raw stores the Kelvin and tint it shows; on other files Custom alone")
+    func customStoresTheNumbersShown() async throws {
+        let asShot = ColorTemperature(kelvin: 5318.442815396026, tint: 1.740704475662509)
+        let raw = WhiteBalanceControls.kelvin(asShot: asShot)
+        // From As Shot: the as-shot Kelvin and tint, unrounded, so each slider stays on its default.
+        #expect(raw.picking(.custom, from: WhiteBalance())
+            == WhiteBalance(preset: .custom, temperature: 5318.442815396026, tint: 1.740704475662509))
+        // From Tungsten: its 2850 K and 0 are kept.
+        #expect(raw.picking(.custom, from: .raw(.tungsten)) == WhiteBalance(preset: .custom, temperature: 2850, tint: 0))
+        // A Kelvin stored without a tint (`photocli --set`) gets the as-shot tint, as the sliders show it; and the reverse.
+        #expect(raw.picking(.custom, from: WhiteBalance(preset: .asShot, temperature: 4100))
+            == WhiteBalance(preset: .custom, temperature: 4100, tint: 1.740704475662509))
+        #expect(raw.picking(.custom, from: WhiteBalance(preset: .auto, tint: -8))
+            == WhiteBalance(preset: .custom, temperature: 5318.442815396026, tint: -8))
+        // Relative values are left as stored; a Custom stored without numbers by an earlier build gets them.
+        #expect(raw.picking(.custom, from: WhiteBalance(preset: .custom, relativeTemperature: 60, relativeTint: 30))
+            == WhiteBalance(preset: .custom, temperature: asShot.kelvin, tint: asShot.tint, relativeTemperature: 60, relativeTint: 30))
+        // A Custom that holds both numbers is what it was: nothing to record.
+        let held = WhiteBalance(preset: .custom, temperature: 4000, tint: 12)
+        #expect(raw.picking(.custom, from: held) == held)
+        // Every result shows Custom.
+        for stored in [WhiteBalance(), .raw(.shade), WhiteBalance(preset: .auto, relativeTemperature: 16)] {
+            #expect(raw.picking(.custom, from: stored)?.kelvinDisplayPreset == .custom)
+        }
+        // A file that is not a raw: Custom alone, beside what is stored (#161's D5).
+        #expect(WhiteBalanceControls.relative.picking(.custom, from: WhiteBalance()) == WhiteBalance(preset: .custom))
+        #expect(WhiteBalanceControls.relative.picking(.custom, from: WhiteBalance(relativeTemperature: 20))
+            == WhiteBalance(preset: .custom, relativeTemperature: 20))
+        // A raw without color data: nothing.
+        #expect(WhiteBalanceControls.unavailable.picking(.custom, from: WhiteBalance()) == nil)
+        #expect(WhiteBalanceControls.unavailable.picking(.custom, from: .raw(.daylight)) == nil)
+
+        // On files: the stored numbers are the as-shot ones, and the photo does not visibly change.
+        try await RepositoryFiles.withTemporaryDirectory { folder in
+            for url in [try Self.libRawDNG(in: folder), try Self.systemDNG(in: folder)] {
+                let controls = Self.controls(for: url)
+                guard let shown = controls.asShot else { continue }
+                let custom = try #require(controls.picking(.custom, from: WhiteBalance()))
+                #expect(custom.temperature == shown.kelvin && custom.tint == shown.tint)
+                // As shot renders the camera's own neutral, Custom the same light as numbers: equal to
+                // within rounding (a level of 255 here and there), not always to the byte.
+                let before = try Self.pixels(url, .none), after = try Self.pixels(url, Self.balanced(custom))
+                #expect(before.count == after.count)
+                let largest = zip(before, after).map { abs(Int($0) - Int($1)) }.max() ?? 0
+                #expect(largest <= 1, "\(url.lastPathComponent): a sample moved by \(largest) of 255")
+                // Pasted onto another photo, Custom carries its numbers.
+                #expect(Adjustments().replacing([.whiteBalance], from: Self.balanced(custom)).decodeSettings.temperature
+                    == Float(shown.kelvin))
+            }
+        }
+    }
+
+    /// The color step keeps a Kelvin within 2000 to 50000 and a tint
+    /// within ±150, the sliders' ranges. A camera's own white outside them
+    /// (candle light here) is shown and stored at the range's end, so the
+    /// sliders, Custom and the render are one number; As Shot itself still
+    /// renders the camera's neutral. Picking Custom on such a photo changes
+    /// it, to the number the slider shows.
+    @Test("An as-shot white beyond the sliders' ranges is shown, stored and rendered at the range's end",
+          arguments: [ColorTemperature(kelvin: 1750, tint: 0), ColorTemperature(kelvin: 5200, tint: 190)])
+    func asShotBeyondTheRanges(light: ColorTemperature) async throws {
+        try await RepositoryFiles.withTemporaryDirectory { folder in
+            // The neutral this camera records for that light, as the file's as-shot neutral.
+            let camera = CameraColorTests.Kind.single.color
+            let neutral = try #require(camera.neutral(for: light.chromaticity))
+            var tags = CameraColorTests.Kind.single.tags
+            tags.asShotNeutral = [neutral.x, neutral.y, neutral.z]
+            let url = try Self.libRawDNG(in: folder, "beyond", color: tags)
+            let color = try #require(LibRawDecoder.cameraColor(url))
+            let own = try #require(color.asShot)
+            // The premise: the camera's own white is outside a range (to the file's four decimals).
+            #expect(abs(own.kelvin / light.kelvin - 1) < 0.02 && abs(own.tint - light.tint) < 3, "\(own)")
+            #expect(!WhiteBalance.temperatureRange.contains(own.kelvin) || !WhiteBalance.tintRange.contains(own.tint))
+            // Shown at the range's end; the other number as it is.
+            let controls = WhiteBalanceControls(systemDefaults: nil, usesFallbackDecoder: true, fallbackColor: color)
+            let shown = try #require(controls.asShot)
+            #expect(shown == CameraColorStep.rendered(own))
+            #expect(shown.kelvin == max(own.kelvin, 2000) && shown.tint == min(own.tint, 150))
+            #expect(WhiteBalance.temperatureRange.contains(shown.kelvin) && WhiteBalance.tintRange.contains(shown.tint))
+            // Custom stores what is shown, and that is what renders: the stored numbers, not moved again.
+            let custom = try #require(controls.picking(.custom, from: WhiteBalance()))
+            #expect(custom.temperature == shown.kelvin && custom.tint == shown.tint)
+            let step = try LibRawDecoder.decode(url, halfSize: true).step
+            let stored = step.transform(temperature: custom.temperature, tint: custom.tint)
+            #expect(stored == color.transform(for: shown, channelScale: step.channelScale))
+            // Numbers beyond the ranges (a stack from elsewhere) render as the range's end too.
+            #expect(step.transform(temperature: own.kelvin, tint: own.tint) == stored)
+            // As Shot is the camera's own neutral, not the range's end: Custom changes this photo.
+            let asShot = step.transform(temperature: nil, tint: nil)
+            #expect(asShot != stored)
+            let ownGain = try #require(asShot.gain), storedGain = try #require(stored.gain)
+            #expect(abs(ownGain.x / ownGain.z - storedGain.x / storedGain.z) > 0.01 * (ownGain.x / ownGain.z)
+                || abs(ownGain.y / ownGain.x - storedGain.y / storedGain.x) > 0.01 * (ownGain.y / ownGain.x))
         }
     }
 
@@ -333,15 +437,13 @@ struct WhiteBalanceAcrossDecodersTests {
                     continue
                 }
                 #expect(modes.count == 9 && selected == .asShot, "\(url.lastPathComponent)")
-                // Choosing Custom on a photo without such values sticks (design §5, rule 2).
-                let custom = try #require(controls.picking(.custom, from: WhiteBalance()))
-                #expect(controls.mode(for: custom) == .offered(modes, selected: .custom))
-                // On this one, Custom is stored beside the relative values, which are not rewritten
-                // (R10), and by rule 3 a Custom carrying relative values shows As Shot. The design's
-                // manual check M6 expects Custom to stay: a Design question in status.md (DQ-1).
+                // Choosing Custom stores the as-shot Kelvin and tint beside the relative values, which
+                // are not rewritten (R10), so it shows Custom (design §17.1, rule 1) and sticks.
+                let asShot = try #require(controls.asShot)
                 let leftover = try #require(controls.picking(.custom, from: values.whiteBalance))
-                #expect(leftover == values.whiteBalance)
-                #expect(controls.mode(for: leftover) == .offered(modes, selected: .asShot))
+                #expect(leftover == WhiteBalance(preset: .custom, temperature: asShot.kelvin, tint: asShot.tint,
+                                                 relativeTemperature: 60, relativeTint: 30), "\(url.lastPathComponent)")
+                #expect(controls.mode(for: leftover) == .offered(modes, selected: .custom))
             }
             // The same values on a file that is not a raw still change it, and show Custom.
             let jpeg = try Self.jpeg(in: folder)
@@ -562,19 +664,125 @@ struct WhiteBalanceAcrossDecodersTests {
         #expect(abs(held.exposure / normal.exposure - 2) < 1e-12)
     }
 
-    /// A DNG states its own baseline exposure, which LibRaw reads.
-    @Test("A DNG's baseline exposure is added to the look's")
+    /// A DNG states its own baseline exposure, which LibRaw reads. The value
+    /// is a file's, so it is used only within four stops either way (code
+    /// review C6: 5000 stops was a factor of infinity and a frame of values
+    /// that are not numbers).
+    @Test("A DNG's baseline exposure is added to the look's, within four stops")
     func dngBaselineExposure() async throws {
+        for kept in [0.5, -1.5, 4, -4, 0] {
+            #expect(LibRawDecoder.dngExposure(baselineExposure: kept) == kept)
+        }
+        // LibRaw's "not in the file" among them.
+        for refused in [4.01, -4.01, 200, 5000, -999, Double.nan, .infinity, -.infinity] {
+            #expect(LibRawDecoder.dngExposure(baselineExposure: refused) == nil, "\(refused)")
+        }
         try await RepositoryFiles.withTemporaryDirectory { folder in
-            var tags = CameraColorTests.Kind.single.tags
-            tags.baselineExposure = 0.5
-            let color = try #require(LibRawDecoder.cameraColor(try Self.libRawDNG(in: folder, "exposed", color: tags)))
-            #expect(color.baselineExposure == 0.5)
-            let plain = try #require(LibRawDecoder.cameraColor(try Self.libRawDNG(in: folder, "plain")))
+            // One picture, written with different tags.
+            let mosaic = try SyntheticDNG.mosaic(options: .init(width: 256, height: 192, seed: 7))
+            func tags(_ exposure: Double?) -> SyntheticDNG.Color {
+                var tags = CameraColorTests.Kind.single.tags
+                tags.baselineExposure = exposure
+                return tags
+            }
+            let plainURL = try Self.libRawDNG(in: folder, "plain", mosaic: mosaic)
+            let plain = try #require(LibRawDecoder.cameraColor(plainURL))
             #expect(plain.baselineExposure == 0)
+            let color = try #require(LibRawDecoder.cameraColor(try Self.libRawDNG(in: folder, "exposed", color: tags(0.5), mosaic: mosaic)))
+            #expect(color.baselineExposure == 0.5)
             #expect(color.profile.baselineExposure == BaselineLook.exposure && color.profile.toneCurve == BaselineLook.toneCurve)
             let transform = try #require(color.transform(for: nil, channelScale: SIMD3(repeating: 1)))
             #expect(abs(transform.exposure - pow(2, 0.5 + BaselineLook.exposure)) < 1e-12)
+            // A file that states a number no file means: rendered without it, every value a number.
+            let plainPixels = ReferenceTests.renderLinear(try LibRawDecoder.decode(plainURL).image()).pixels
+            for absurd in [5000.0, 200, -50] {
+                let url = try Self.libRawDNG(in: folder, "absurd", color: tags(absurd), mosaic: mosaic)
+                #expect(try #require(LibRawDecoder.cameraColor(url)).baselineExposure == 0, "\(absurd)")
+                let output = try LibRawDecoder.decode(url)
+                #expect(output.step.fileExposure == 0)
+                let pixels = ReferenceTests.renderLinear(output.image()).pixels
+                #expect(!pixels.contains { !$0.isFinite }, "\(absurd)")
+                #expect(pixels == plainPixels, "\(absurd)")
+            }
+        }
+    }
+
+    /// Code review C5. A file whose color data cannot be used has no
+    /// `CameraColor` for its exposure to ride on; the step keeps it.
+    @Test("A file without usable color data keeps its own exposure")
+    func exposureWithoutColorData() async throws {
+        // The step alone: a Fujifilm raw's held-back stop, with no camera color.
+        let held = CameraColorStep(color: nil, fileExposure: 1).transform(temperature: nil, tint: nil)
+        #expect(held.gain == nil && held.matrix == nil && held.toneCurve == BaselineLook.toneCurve)
+        #expect(abs(held.exposure - pow(2, 1 + BaselineLook.exposure)) < 1e-12)
+        #expect(held == CameraColorStep(color: nil, fileExposure: 1).transform(temperature: 3000, tint: 20))
+        #expect(CameraColorStep(color: nil).transform(temperature: nil, tint: nil).exposure == pow(2, BaselineLook.exposure))
+        try await RepositoryFiles.withTemporaryDirectory { folder in
+            // Through the decoder: a DNG with no color matrix that states a baseline exposure.
+            let mosaic = try SyntheticDNG.mosaic(options: .init(width: 256, height: 192, seed: 7))
+            let exposed = try LibRawDecoder.decode(try Self.libRawDNG(
+                in: folder, "exposed", color: SyntheticDNG.Color(matrix1: nil, baselineExposure: 1), mosaic: mosaic))
+            let plain = try LibRawDecoder.decode(try Self.libRawDNG(in: folder, "plain", color: SyntheticDNG.Color(matrix1: nil),
+                                                                    mosaic: mosaic))
+            #expect(exposed.step.color == nil && plain.step.color == nil)
+            #expect(exposed.step.fileExposure == 1 && plain.step.fileExposure == 0)
+            let transform = exposed.step.transform(temperature: nil, tint: nil)
+            #expect(abs(transform.exposure - pow(2, 1 + BaselineLook.exposure)) < 1e-12)
+            // The same decode, a stop brighter before the tone curve: a brighter picture.
+            #expect(LibRawDecoderTests.samples(exposed) == LibRawDecoderTests.samples(plain))
+            let brighter = LibRawFallbackPipelineTests.means(exposed.image()), normal = LibRawFallbackPipelineTests.means(plain.image())
+            #expect(brighter.y > normal.y * 1.2)
+            // With color data the exposure is the camera color's, the same number.
+            var tags = CameraColorTests.Kind.single.tags
+            tags.baselineExposure = 1
+            let colored = try LibRawDecoder.decode(try Self.libRawDNG(in: folder, "colored", color: tags, mosaic: mosaic))
+            #expect(colored.step.color?.baselineExposure == 1 && colored.step.fileExposure == 1)
+        }
+    }
+
+    /// Code review C7. One rendition written since the cutoff that cannot
+    /// be removed must not cost the older ones, which for an offline master
+    /// could not be made again, and must not come under the current version.
+    @Test("A rendition that cannot be removed does not stop the older ones from being carried over")
+    func carryOverSurvivesAFailedRemoval() async throws {
+        let edits = EditStack.identity.renderHash
+        func key(_ byte: String, _ tier: PreviewTier, version: Int = PreviewCacheKey.currentPipelineVersion) throws -> PreviewCacheKey {
+            try #require(PreviewCacheKey(contentHash: String(repeating: byte, count: 32), editStackHash: edits, tier: tier,
+                                         pipelineVersion: version))
+        }
+        let cutoff = PreviewCacheKey.libRawDecodingSince
+        try await RepositoryFiles.withTemporaryDirectory { folder in
+            let cache = PreviewDiskCache(root: folder)
+            // "ab" and "ac" share a folder ("a…"); "cd" has its own.
+            let old = try key("ab", .preview, version: 8), stuck = try key("ac", .preview, version: 8)
+            let oldElsewhere = try key("cd", .thumbnail, version: 8), recent = try key("ef", .preview, version: 8)
+            try cache.store(Data([1, 2, 3]), for: old)
+            try cache.store(Data([4]), for: stuck)
+            try cache.store(Data([5, 6]), for: oldElsewhere)
+            try cache.store(Data([7]), for: recent)
+            let manager = FileManager.default
+            try manager.setAttributes([.modificationDate: cutoff.addingTimeInterval(-3600)], ofItemAtPath: cache.url(for: old).path)
+            try manager.setAttributes([.modificationDate: cutoff.addingTimeInterval(-3600)], ofItemAtPath: cache.url(for: oldElsewhere).path)
+            try manager.setAttributes([.modificationDate: cutoff.addingTimeInterval(3600)], ofItemAtPath: cache.url(for: stuck).path)
+            // The folder that holds "ab" and "ac" cannot be written to: nothing in it can be removed or moved out.
+            let locked = cache.url(for: stuck).deletingLastPathComponent()
+            try manager.setAttributes([.posixPermissions: 0o555], ofItemAtPath: locked.path)
+            defer { try? manager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: locked.path) }
+            try #require(!manager.isDeletableFile(atPath: cache.url(for: stuck).path), "the test cannot make a file unremovable here")
+
+            let moved = cache.carryOver()
+            // Both older renditions arrived (one copied out of the locked folder); the removable recent one is gone.
+            #expect(moved.kept == 2 && moved.deleted == 1)
+            let carried = try key("ab", .preview), carriedElsewhere = try key("cd", .thumbnail)
+            #expect(try Data(contentsOf: cache.url(for: carried)) == Data([1, 2, 3]))
+            #expect(try Data(contentsOf: cache.url(for: carriedElsewhere)) == Data([5, 6]))
+            // The one that could not be removed is not found under the current version, nor is the recent one.
+            let stuckToday = try key("ac", .preview), recentToday = try key("ef", .preview)
+            #expect(!cache.contains(stuckToday) && !cache.contains(recentToday))
+            // What follows at launch leaves the carried ones alone.
+            cache.removeObsoletePipelineVersions()
+            #expect(cache.contains(carried) && cache.contains(carriedElsewhere))
+            #expect(!cache.contains(stuckToday))
         }
     }
 }

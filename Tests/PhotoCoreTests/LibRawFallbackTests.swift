@@ -1,3 +1,4 @@
+import CLibRaw
 import CoreImage
 import Foundation
 import ImageIO
@@ -91,12 +92,36 @@ struct LibRawFallbackTests {
         // One matrix (the file is not a DNG), LibRaw's for the camera under D65; the built-in look.
         #expect(color.profile.calibrations.map(\.illuminant) == [6500])
         #expect(color.profile.toneCurve == BaselineLook.toneCurve)
-        // A Fujifilm raw says how much exposure its camera held back for the dynamic range setting.
-        #expect(color.baselineExposure >= 0 && color.baselineExposure <= 3)
-        print("LibRawFallbackTests: as shot \(asShot.kelvin) K, tint \(asShot.tint);",
-              "exposure held back by the camera: \(color.baselineExposure) EV")
+        print("LibRawFallbackTests: as shot \(asShot.kelvin) K, tint \(asShot.tint)")
         // The decode's own color step says the same.
         #expect(try LibRawDecoder.decode(url, halfSize: true).step.asShot == asShot)
+    }
+
+    /// The file's own `RawExposureBias` as LibRaw reads it, apart from the decoder's use of it.
+    private func rawExposureBias() throws -> Double {
+        let processor = try #require(libraw_init(0))
+        defer { libraw_close(processor) }
+        try #require(libraw_open_file(processor, url.path) == LIBRAW_SUCCESS.rawValue)
+        return Double(processor.pointee.makernotes.fuji.ExpoMidPointShift)
+    }
+
+    /// A Fujifilm raw says how much exposure its camera held back for the
+    /// dynamic range setting, and the photo is brightened by it: a stop for
+    /// a file shot at 200% (`RawExposureBias` −1.72, as `DSCF5123.RAF`),
+    /// two at 400%. Fails without the wiring for such a file (code review
+    /// C4); a file shot at 100% holds nothing back and cannot tell.
+    @Test func theExposureTheCameraHeldBackIsAdded() throws {
+        let bias = try rawExposureBias()
+        try #require((-4.0...0.0).contains(bias), "not a Fujifilm raw that states its exposure bias (\(bias))")
+        let expected = max(0, -0.72 - bias)
+        let color = try #require(LibRawDecoder.cameraColor(url), "LibRaw has no usable color data for this camera")
+        #expect(abs(color.baselineExposure - expected) < 1e-5, "\(color.baselineExposure) EV for a bias of \(bias)")
+        let output = try LibRawDecoder.decode(url, halfSize: true)
+        #expect(abs(output.step.fileExposure - expected) < 1e-5)
+        let transform = output.step.transform(temperature: nil, tint: nil)
+        #expect(abs(transform.exposure - pow(2, expected + BaselineLook.exposure)) < 1e-4)
+        print("LibRawFallbackTests: RawExposureBias \(bias): \(expected) EV held back by the camera is added",
+              expected == 0 ? "(this file holds nothing back: use one shot at 200% dynamic range to check the wiring)" : "")
     }
 
     // MARK: The camera's frame and lens corrections (Fujifilm RAF)

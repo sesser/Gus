@@ -306,7 +306,6 @@ public enum LibRawDecoder {
         guard coefficients.min() > 1e-5, coefficients.max().isFinite else { return nil }
         var calibrations: [CameraProfile.Calibration] = []
         var cameraCalibration: [Matrix3x3] = []
-        var baselineExposure = 0.0
         if processor.pointee.idata.dng_version != 0 {
             let levels = processor.pointee.color.dng_levels
             let balance = Matrix3x3.diagonal(SIMD3(Double(levels.analogbalance.0), Double(levels.analogbalance.1),
@@ -328,13 +327,6 @@ public enum LibRawDecoder {
             if calibrations.count == 2, calibrations[0].illuminant > calibrations[1].illuminant {
                 cameraCalibration.swapAt(0, 1)
             }
-            // LibRaw's value for "not in the file".
-            if levels.baseline_exposure > -100, levels.baseline_exposure.isFinite {
-                baselineExposure = Double(levels.baseline_exposure)
-            }
-        }
-        if let bias = fujifilmExposureBias(of: processor) {
-            baselineExposure = bias
         }
         if calibrations.isEmpty {
             let m = processor.pointee.color.cam_xyz
@@ -344,9 +336,34 @@ public enum LibRawDecoder {
             cameraCalibration = []
         }
         let color = CameraColor(profile: .builtIn(calibrations: calibrations), asShotNeutral: SIMD3(1, 1, 1) / coefficients,
-                                calibration: cameraCalibration, baselineExposure: baselineExposure)
+                                calibration: cameraCalibration, baselineExposure: fileExposure(of: processor))
         return color.isUsable ? color : nil
     }
+
+    /// The exposure the file itself asks for on top of the look's, in
+    /// stops: what a Fujifilm camera held back (`fujifilmExposureBias`), or a
+    /// DNG's `BaselineExposure`; 0 for a file that states neither. It does
+    /// not depend on the file's color data: a file whose color cannot be
+    /// used keeps it (`CameraColorStep.fileExposure`).
+    static func fileExposure(of processor: UnsafeMutablePointer<libraw_data_t>) -> Double {
+        if let held = fujifilmExposureBias(of: processor) { return held }
+        guard processor.pointee.idata.dng_version != 0 else { return 0 }
+        return dngExposure(baselineExposure: Double(processor.pointee.color.dng_levels.baseline_exposure)) ?? 0
+    }
+
+    /// A DNG's `BaselineExposure` as far as it is used: nil for a value
+    /// that is not finite or beyond `dngExposureLimit` stops either way,
+    /// LibRaw's −999 for "not in the file" among them. The value is a
+    /// file's: 5000 stops would be a factor of infinity and a frame of
+    /// values that are not numbers (code review C6). Such a file renders
+    /// without it.
+    static func dngExposure(baselineExposure value: Double) -> Double? {
+        value.isFinite && abs(value) <= dngExposureLimit ? value : nil
+    }
+
+    /// Stops. Adobe's converter writes values within about −1 … 2; four
+    /// either way is a factor of 16.
+    static let dngExposureLimit = 4.0
 
     /// The exposure a Fujifilm camera held back from the raw data, in stops
     /// over its normal amount; nil for other makers' files and for a file
@@ -470,7 +487,8 @@ public enum LibRawDecoder {
         let decoded = CGSize(width: width, height: height)
         let framed = framed(image, size: decoded, frame: frame,
                             tables: lensCorrections ? lensTables(camera, frame: frame, file: url.lastPathComponent) : nil)
-        return Output(linear: framed.image, step: CameraColorStep(color: color, channelScale: channelScale),
+        let step = CameraColorStep(color: color, channelScale: channelScale, fileExposure: fileExposure(of: processor))
+        return Output(linear: framed.image, step: step,
                       rgba16: rgba, size: framed.size,
                       fullSize: framed.fullSize ?? (half ? CGSize(width: width * 2, height: height * 2) : decoded),
                       cameraMake: make, cameraModel: model, hasLensCorrections: framed.corrected)
