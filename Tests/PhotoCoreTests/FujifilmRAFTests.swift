@@ -1,0 +1,239 @@
+import CoreGraphics
+import Foundation
+import ImageIO
+import PhotoFixtures
+import Testing
+@testable import PhotoCore
+
+/// A RAF container made of bytes, enough for `FujifilmRAF` to parse: the
+/// header, an embedded "JPEG", the CFA header's records and a raw data
+/// section that starts with the little-endian TIFF structure holding
+/// Fujifilm's IFD.
+enum SyntheticRAF {
+    struct Rational {
+        var numerator: Int32
+        var denominator: Int32
+        var value: Double { Double(numerator) / Double(denominator) }
+    }
+
+    /// `value` as a rational with six decimals.
+    static func rational(_ value: Double) -> Rational {
+        Rational(numerator: Int32((value * 1_000_000).rounded()), denominator: 1_000_000)
+    }
+
+    static func bigEndian<T: FixedWidthInteger>(_ value: T) -> Data {
+        withUnsafeBytes(of: value.bigEndian) { Data($0) }
+    }
+
+    static func littleEndian<T: FixedWidthInteger>(_ value: T) -> Data {
+        withUnsafeBytes(of: value.littleEndian) { Data($0) }
+    }
+
+    /// The raw data section: a TIFF header, an IFD whose one entry (0xF000)
+    /// points at Fujifilm's IFD, that IFD's entries and their values.
+    static func rawSection(tags: [(tag: UInt16, values: [Rational])], pointerTag: UInt16 = 0xF000) -> Data {
+        var data = Data([0x49, 0x49, 0x2A, 0x00]) + littleEndian(UInt32(8))
+        data += littleEndian(UInt16(1)) + littleEndian(pointerTag) + littleEndian(UInt16(13)) + littleEndian(UInt32(1))
+            + littleEndian(UInt32(26)) + littleEndian(UInt32(0))
+        precondition(data.count == 26)
+        // A width first, as cameras write, then the tables.
+        let entryCount = tags.count + 1
+        var valueOffset = 26 + 2 + entryCount * 12 + 4
+        var entries = littleEndian(UInt16(entryCount))
+        entries += littleEndian(UInt16(0xF001)) + littleEndian(UInt16(4)) + littleEndian(UInt32(1)) + littleEndian(UInt32(6048))
+        var values = Data()
+        for (tag, rationals) in tags {
+            entries += littleEndian(tag) + littleEndian(UInt16(10)) + littleEndian(UInt32(rationals.count))
+                + littleEndian(UInt32(valueOffset))
+            for rational in rationals { values += littleEndian(rational.numerator) + littleEndian(rational.denominator) }
+            valueOffset += rationals.count * 8
+        }
+        return data + entries + littleEndian(UInt32(0)) + values
+    }
+
+    static func records(fullSize: (width: Int, height: Int)?, cropOrigin: (left: Int, top: Int)?,
+                        cropSize: (width: Int, height: Int)?) -> Data {
+        var list: [(UInt16, Data)] = []
+        if let fullSize { list.append((0x100, bigEndian(UInt16(fullSize.height)) + bigEndian(UInt16(fullSize.width)))) }
+        if let cropOrigin { list.append((0x110, bigEndian(UInt16(cropOrigin.top)) + bigEndian(UInt16(cropOrigin.left)))) }
+        if let cropSize { list.append((0x111, bigEndian(UInt16(cropSize.height)) + bigEndian(UInt16(cropSize.width)))) }
+        // A record the parser has no use for, with an odd length.
+        list.append((0x9650, Data([0xFF, 0x54, 0x00])))
+        var data = bigEndian(UInt32(list.count))
+        for (tag, payload) in list { data += bigEndian(tag) + bigEndian(UInt16(payload.count)) + payload }
+        return data
+    }
+
+    static func file(jpeg: Data = Data([0xFF, 0xD8, 0xFF, 0xD9]), records: Data, raw: Data) -> Data {
+        var header = Data("FUJIFILMCCD-RAW 0201FF129505X-E3".utf8)
+        header += Data(count: 84 - header.count)
+        let jpegOffset = 160, recordsOffset = jpegOffset + jpeg.count, rawOffset = recordsOffset + records.count
+        for (offset, length) in [(jpegOffset, jpeg.count), (recordsOffset, records.count), (rawOffset, raw.count)] {
+            header += bigEndian(UInt32(offset)) + bigEndian(UInt32(length))
+        }
+        header += Data(count: 160 - header.count)
+        return header + jpeg + records + raw
+    }
+
+    /// The Fujifilm XF 35mm f/2's tables at f/2 as an X-E3 writes them
+    /// (11 knots; the leading value is the frame's half diagonal in pixels
+    /// over the number of knots).
+    static let distortion35 = [0, -0.027, -0.11, -0.302, -0.656, -1.191, -1.898, -2.816, -3.999, -5.575, -7.568]
+    static let red35 = [1.8e-05, 4.5e-05, 8.8e-05, 0.000155, 0.000183, 0.000123, 0.000178, 0.000216, 0.000261, 0.000274]
+    static let blue35 = [-5.7e-05, -0.000112, -0.00016, -0.0002, -0.000244, -0.0003, -0.000331, -0.0004, -0.000383, -0.000335]
+    static let vignetting35 = [100, 97.69, 95.09, 91.87, 87.77, 83.13, 78.63, 73.69, 68.55, 62.96, 52.15]
+    static let knots11 = (0...10).map { Double($0) / 10 }
+
+    static func elevenKnotTags(distortion: [Double] = distortion35, red: [Double] = red35, blue: [Double] = blue35,
+                               vignetting: [Double] = vignetting35, knots: [Double] = knots11)
+        -> [(tag: UInt16, values: [Rational])] {
+        let lead = Rational(numerator: 3605, denominator: 11), caLead = Rational(numerator: 3605, denominator: 10)
+        return [
+            (0xF00B, [lead] + knots.map(rational) + distortion.map(rational)),
+            (0xF00F, [caLead] + knots.dropFirst().map(rational) + red.map(rational) + blue.map(rational)),
+            (0xF010, [lead] + knots.map(rational) + vignetting.map(rational)),
+        ]
+    }
+
+    static func xe3() -> Data {
+        file(records: records(fullSize: (6048, 4038), cropOrigin: (16, 21), cropSize: (6000, 4000)),
+             raw: rawSection(tags: elevenKnotTags()))
+    }
+}
+
+@Suite("Fujifilm RAF container")
+struct FujifilmRAFTests {
+    @Test("The frame, the embedded JPEG and the lens tables are read from an X-E3's layout")
+    func readsElevenKnotLayout() throws {
+        let raf = try #require(FujifilmRAF(data: SyntheticRAF.xe3()))
+        #expect(raf.fullWidth == 6048 && raf.fullHeight == 4038)
+        #expect(raf.cameraFrame == FujifilmRAF.PixelRect(left: 16, top: 21, width: 6000, height: 4000))
+        #expect(raf.embeddedJPEG == 160..<164)
+        let lens = try #require(raf.lens)
+        #expect(lens.knots == SyntheticRAF.knots11)
+        #expect(lens.distortion == SyntheticRAF.distortion35)
+        #expect(lens.vignetting == SyntheticRAF.vignetting35)
+        // The chromatic aberration tag has no knot at the center: nothing is shifted there.
+        #expect(lens.red == [0] + SyntheticRAF.red35)
+        #expect(lens.blue == [0] + SyntheticRAF.blue35)
+        #expect(!lens.isIdentity)
+    }
+
+    @Test("The nine-knot layout of later cameras is read too")
+    func readsNineKnotLayout() throws {
+        let knots = [0.0, 0.15, 0.3, 0.45, 0.6, 0.7, 0.8, 0.9, 1.0]
+        let distortion = [0, 0.05, 0.2, 0.45, 0.8, 1.1, 1.4, 1.8, 2.3]
+        let red = [0, 1e-05, 2e-05, 3e-05, 4e-05, 5e-05, 6e-05, 7e-05, 8e-05]
+        let blue = red.map { -$0 }
+        let vignetting = [100, 99, 97, 94, 90, 86, 81, 75, 68.5]
+        let r = SyntheticRAF.rational
+        let lead = SyntheticRAF.Rational(numerator: 4000, denominator: 9)
+        let raw = SyntheticRAF.rawSection(tags: [
+            (0xF00B, [lead] + knots.map(r) + distortion.map(r)),
+            (0xF00F, [lead] + knots.map(r) + red.map(r) + blue.map(r) + [r(1)]),
+            (0xF010, [lead] + knots.map(r) + vignetting.map(r)),
+        ])
+        let data = SyntheticRAF.file(records: SyntheticRAF.records(fullSize: (6384, 4182), cropOrigin: (72, 15), cropSize: (6240, 4160)),
+                                     raw: raw)
+        let raf = try #require(FujifilmRAF(data: data))
+        #expect(raf.cameraFrame == FujifilmRAF.PixelRect(left: 72, top: 15, width: 6240, height: 4160))
+        #expect(raf.lens == FujifilmRAF.LensTables(knots: knots, distortion: distortion, red: red, blue: blue, vignetting: vignetting))
+    }
+
+    @Test("A file without the tables, or with tables no lens has, has no lens corrections and keeps its frame")
+    func filesWithoutUsableTables() throws {
+        let records = SyntheticRAF.records(fullSize: (6048, 4038), cropOrigin: (16, 21), cropSize: (6000, 4000))
+        func lens(_ raw: Data) -> FujifilmRAF.LensTables? {
+            let raf = FujifilmRAF(data: SyntheticRAF.file(records: records, raw: raw))
+            #expect(raf?.cameraFrame?.width == 6000)
+            return raf?.lens
+        }
+        // The premise: the same builder with the real tables gives them.
+        #expect(lens(SyntheticRAF.rawSection(tags: SyntheticRAF.elevenKnotTags())) != nil)
+        // An older camera: the section starts with raw data.
+        #expect(lens(Data(repeating: 0x5A, count: 4096)) == nil)
+        // A manual lens: no distortion tag; or no Fujifilm IFD at all.
+        #expect(lens(SyntheticRAF.rawSection(tags: Array(SyntheticRAF.elevenKnotTags().dropFirst()))) == nil)
+        #expect(lens(SyntheticRAF.rawSection(tags: SyntheticRAF.elevenKnotTags(), pointerTag: 0xF0F0)) == nil)
+        // Knots that differ between the tags, or do not ascend.
+        var tags = SyntheticRAF.elevenKnotTags()
+        tags[2].values[3] = SyntheticRAF.rational(0.25)
+        #expect(lens(SyntheticRAF.rawSection(tags: tags)) == nil)
+        var descending = SyntheticRAF.knots11
+        descending.swapAt(4, 5)
+        #expect(lens(SyntheticRAF.rawSection(tags: SyntheticRAF.elevenKnotTags(knots: descending))) == nil)
+        // A count neither layout has.
+        tags = SyntheticRAF.elevenKnotTags()
+        tags[0].values.removeLast()
+        #expect(lens(SyntheticRAF.rawSection(tags: tags)) == nil)
+        // Values no lens has: half the radius of distortion, no light at the corner, a zero denominator.
+        var wild = SyntheticRAF.distortion35
+        wild[10] = -50
+        #expect(lens(SyntheticRAF.rawSection(tags: SyntheticRAF.elevenKnotTags(distortion: wild))) == nil)
+        var dark = SyntheticRAF.vignetting35
+        dark[10] = 0
+        #expect(lens(SyntheticRAF.rawSection(tags: SyntheticRAF.elevenKnotTags(vignetting: dark))) == nil)
+        tags = SyntheticRAF.elevenKnotTags()
+        tags[0].values[15].denominator = 0
+        #expect(lens(SyntheticRAF.rawSection(tags: tags)) == nil)
+        // Tables that correct nothing are read, and say so.
+        let flat = lens(SyntheticRAF.rawSection(tags: SyntheticRAF.elevenKnotTags(
+            distortion: [Double](repeating: 0, count: 11), red: [Double](repeating: 0, count: 10),
+            blue: [Double](repeating: 0, count: 10), vignetting: [Double](repeating: 100, count: 11))))
+        #expect(flat?.isIdentity == true)
+    }
+
+    @Test("A frame that does not fit the sensor is left out; other files are not RAFs")
+    func framesAndOtherFiles() throws {
+        let raw = SyntheticRAF.rawSection(tags: SyntheticRAF.elevenKnotTags())
+        let outside = SyntheticRAF.file(records: SyntheticRAF.records(fullSize: (6048, 4038), cropOrigin: (100, 21),
+                                                                      cropSize: (6000, 4000)), raw: raw)
+        let raf = try #require(FujifilmRAF(data: outside))
+        #expect(raf.cameraFrame == nil)
+        #expect(raf.lens != nil)
+        let noOrigin = SyntheticRAF.file(records: SyntheticRAF.records(fullSize: (6048, 4038), cropOrigin: nil, cropSize: (6000, 4000)),
+                                         raw: raw)
+        #expect(FujifilmRAF(data: noOrigin)?.cameraFrame == nil)
+        #expect(FujifilmRAF(data: Data()) == nil)
+        #expect(FujifilmRAF(data: Data("FUJIFILMCCD-RAW ".utf8)) == nil)
+        #expect(FujifilmRAF(data: Data(repeating: 0, count: 4096)) == nil)
+        #expect(FujifilmRAF(contentsOf: URL(fileURLWithPath: "/nonexistent/photo.RAF")) == nil)
+    }
+
+    /// Offsets, counts and lengths come from the file: none may be trusted.
+    @Test("Damaged files are read without a crash: cut short anywhere, or with any byte changed")
+    func damagedFiles() {
+        let whole = SyntheticRAF.xe3()
+        for length in 0..<whole.count {
+            _ = FujifilmRAF(data: whole.prefix(length))
+        }
+        var random = SplitMix64(seed: 161)
+        for _ in 0..<4000 {
+            var damaged = whole
+            // Mostly in the structures (the header's offsets, the records, the IFDs), with wild values.
+            for _ in 0..<(1 + Int(random.next() % 3)) {
+                let index = 84 + Int(random.next() % UInt64(damaged.count - 84))
+                damaged[index] = UInt8(truncatingIfNeeded: random.next())
+            }
+            if let raf = FujifilmRAF(data: damaged), let lens = raf.lens {
+                // Whatever is returned is usable.
+                #expect(lens.isPlausible)
+            }
+        }
+        // A slice of a larger buffer parses as the same file.
+        let padded = Data(repeating: 0xEE, count: 37) + whole
+        #expect(FujifilmRAF(data: padded.suffix(whole.count)) == FujifilmRAF(data: whole))
+    }
+
+    @Test("A file on disk is read through its header and two small parts")
+    func readsFromDisk() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { folder in
+            let url = folder.appending(path: "synthetic.RAF")
+            // Raw data after the tables, as in a camera's file: it is never read.
+            try (SyntheticRAF.xe3() + Data(repeating: 0xAB, count: 300_000)).write(to: url)
+            #expect(FujifilmRAF(contentsOf: url) == FujifilmRAF(data: SyntheticRAF.xe3()))
+            // Not a raw LibRaw can decode: the decoder's frame logic is not reached, and nothing crashes.
+            #expect(LibRawDecoder.frameSize(url) == nil)
+        }
+    }
+}
