@@ -110,7 +110,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         else { return .terminateNow }
         Task { @MainActor in
             // The window ⌘Q came from, a visible one if none is key; the
-            // library window rather than the About or a license window.
+            // library window (or the sheet on it) rather than the About or
+            // a license window, brought forward by `ask`.
             let stop = await QuitGuard.ask(QuitGuard.text(for: confirmation), in: QuitGuard.confirmationWindow)
             guard stop else { return }
             // Nothing more is said: the app quits before the jobs report.

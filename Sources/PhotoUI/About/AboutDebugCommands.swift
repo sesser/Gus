@@ -24,8 +24,12 @@ import PhotoCore
 ///     about snapshot <file.png>
 ///     about height <points>|max   (the About window's height, kept within its limits, its top left in place:
 ///                             max shows everything at once, for a snapshot with the footer in it)
-///     about quithost          (the window a quit confirmation would go on now, and the key window: never the
-///                             About window or a license window)
+///     about quithost          (the window a quit confirmation would go on now: never the About window or a
+///                             license window, and the sheet on a window that shows one; then the key window and
+///                             the visible windows front to back)
+///     about quitask [keep]    (asks "Quit While Exporting?" where ⌘Q during an export would, with nothing running
+///                             and nothing quitting, and says whether the question is on screen, on what, and the
+///                             window order; `keep` answers Keep Exporting. Not shown when no window would host it)
 ///     about closeothers       (the close buttons' action on every window that is not the About window or a
 ///                             license window, for checks with only those left)
 ///     about click <x> <y>     (a mouse down and up through the event queue, in the About window's points from its
@@ -84,8 +88,10 @@ public enum AboutDebugCommands {
             await settle()
             print("debug-script: about height \(size(window.frame.size))")
         case "quithost":
-            func title(_ window: NSWindow?) -> String { window.map { "“\($0.title)”" } ?? "none" }
-            print("debug-script: about quithost \(title(QuitGuard.confirmationWindow)), key \(title(NSApp.keyWindow)), app active \(NSApp.isActive)")
+            print("debug-script: about quithost \(describe(QuitGuard.confirmationWindow)), key \(describe(NSApp.keyWindow))"
+                  + ", app active \(NSApp.isActive), front to back [\(windowOrder())]")
+        case "quitask":
+            await quitAsk(rest.first)
         case "closeothers":
             let others = NSApp.windows.filter {
                 $0.isVisible && $0.contentView != nil && $0.className.contains("Window") && !AboutWindowRegistry.owns($0)
@@ -234,6 +240,53 @@ public enum AboutDebugCommands {
         print("debug-script: about windows: \(about.count) titled “\(title)”, \(licenses.count) license"
               + " [\(licenses.map(\.title).sorted().joined(separator: ", "))]"
               + ", visible [\(visible.map(\.title).joined(separator: ", "))]")
+    }
+
+    // MARK: Quit confirmation
+
+    /// A window by its title; a sheet by the window it is on.
+    private static func describe(_ window: NSWindow?) -> String {
+        guard let window else { return "none" }
+        if let parent = window.sheetParent { return "a sheet on \(describe(parent))" }
+        return "“\(window.title)”"
+    }
+
+    private static func windowOrder() -> String {
+        // Sheets are told with their windows; an untitled window by its class.
+        NSApp.orderedWindows.filter { $0.isVisible && $0.sheetParent == nil && $0.className.contains("Window") }
+            .map { $0.title.isEmpty ? "(\($0.className))" : "“\($0.title)”" }.joined(separator: ", ")
+    }
+
+    private static weak var askedOn: NSWindow?
+
+    /// `QuitGuard.ask`, as the library app's quit calls it, without a job
+    /// and without quitting: the answer is dropped.
+    private static func quitAsk(_ argument: String?) async {
+        if argument == "keep" {
+            guard let host = askedOn, let alert = host.attachedSheet else {
+                print("debug-script: about quitask keep: no question is up")
+                return
+            }
+            host.endSheet(alert, returnCode: .alertFirstButtonReturn)
+            await settle()
+            print("debug-script: about quitask keep: answered, sheets on its window \(host.sheets.count)")
+            return
+        }
+        guard let host = QuitGuard.confirmationWindow else {
+            print("debug-script: about quitask: no window would host it; the alert would stand alone (not shown by the script)")
+            return
+        }
+        askedOn = host
+        let before = host.sheets.count
+        let previous = host.attachedSheet
+        Task { _ = await QuitGuard.ask(QuitGuard.text(for: .exporting), in: host) }
+        await settle()
+        // A question kept waiting behind another sheet is not on screen.
+        let alert = host.attachedSheet
+        let shown = alert != nil && alert !== previous && alert?.isVisible == true
+        print("debug-script: about quitask on \(describe(host)): question on screen \(shown)"
+              + ", sheets on it \(before) → \(host.sheets.count), key \(describe(NSApp.keyWindow))"
+              + ", front to back [\(windowOrder())]")
     }
 
     /// Both at once: a control's tracking loop waits for the mouse up.
