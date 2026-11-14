@@ -355,8 +355,14 @@ photo, and at these zooms it can lag until you pause.
 raw file (on macOS 27.2, the Fujifilm X-E3's), the app decodes it with its own
 decoder (LibRaw) instead of showing nothing. Such a photo has the camera's white
 balance but not the macOS decoder's profile and contrast, so it starts out
-flatter and darker than a raw macOS decodes, and its frame can be a few pixels smaller than the camera's
-JPEG. You adjust it like any other photo; what differs is what differs for a
+flatter and darker than a raw macOS decodes. A Fujifilm file gets the camera's
+own frame (6000 x 4000 for an X-E3) and the lens corrections the camera stored
+in it, as the macOS decoder applies them to the raws it reads: distortion
+(straight lines are straight), color fringing toward the corners, and corner
+shading. There is no control for them; they line up with the camera's own JPEG
+to within a pixel or two of the full-size photo, a little more in the far
+corners. Files of other makers keep the frame their decoder gives and get no
+lens corrections. You adjust it like any other photo; what differs is what differs for a
 JPEG. In the Adjust tab a note stands in place of **Profile**. White Balance
 offers **As Shot**, **Auto** and **Custom**, with Temperature and Tint relative
 to the camera's setting (no Kelvin scale and no Daylight to Flash). Noise

@@ -169,6 +169,33 @@ enum LensKernels {
             return float4(r, g.g, b, g.a);
         }
         """,
+        "embeddedLens": """
+        /// One entry of a row of the lookup table, between its two nearest entries.
+        float4 lensTableValue(coreimage::sampler table, float position, float row) {
+            float i = floor(position);
+            float4 a = table.sample(table.transform(float2(i + 0.5f, row + 0.5f)));
+            float4 b = table.sample(table.transform(float2(i + 1.5f, row + 0.5f)));
+            return mix(a, b, position - i);
+        }
+
+        /// A camera's lens corrections (EmbeddedLensCorrection): each channel taken from
+        /// its own place in the recorded image and divided by the light that reached it.
+        /// scales: table entries per pixel of destination radius, per pixel of source
+        /// radius, and the last entry's index.
+        [[stitchable]] float4 embeddedLens(sampler source, sampler table, float2 sourceCenter, float2 outputCenter,
+                                           float3 scales, destination dest) {
+            float2 d = dest.coord() - outputCenter;
+            float3 m = 1.0f + lensTableValue(table, min(length(d) * scales.x, scales.z), 0.0f).rgb;
+            float3 radii = length(d) * m * scales.y;
+            float r = bilinear(source, sourceCenter + d * m.r).r
+                * (1.0f + lensTableValue(table, min(radii.r, scales.z), 1.0f).r);
+            float g = bilinear(source, sourceCenter + d * m.g).g
+                * (1.0f + lensTableValue(table, min(radii.g, scales.z), 1.0f).r);
+            float b = bilinear(source, sourceCenter + d * m.b).b
+                * (1.0f + lensTableValue(table, min(radii.b, scales.z), 1.0f).r);
+            return float4(r, g, b, 1);
+        }
+        """,
         "fringeMap": """
             /// How much of its color the pixel loses, as a gray (the fringe map).
             [[stitchable]] float4 fringeMap(sample_t s, sample_t edge, float4 slot1, float4 slot2) {

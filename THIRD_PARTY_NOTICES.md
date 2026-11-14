@@ -41,6 +41,39 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
+## darktable
+
+The lens corrections a Fujifilm camera stores in its raw files (geometric
+distortion, lateral chromatic aberration and vignetting tables) are read and
+applied after darktable (https://github.com/darktable-org/darktable, `master`
+as of 2026-11-13), which is free software under the GNU General Public
+License, version 3 or (at your option) any later version; this project is
+under the same license. Nothing was copied verbatim: the layout and the
+formulas were written again in Swift and Metal. Each place says so in a
+comment.
+
+- Which values of the three tags are knots and which are values, in the two
+  layouts cameras write (23, 31 and 23 values; 19, 29 and 19):
+  `Sources/PhotoCore/Preview/FujifilmRAF.swift` (`LensTables`), from
+  `src/common/exif.cc` ("Fuji lens correction data"). Where the tags are in a
+  RAF file follows ExifTool's tag documentation (FujiFilm RAF and FujiIFD
+  tags) and the file itself; no ExifTool code is used.
+- The correction: tables linear between knots that are radii of the recorded
+  image, the corrected radius as the recorded one over (1 + distortion / 100),
+  red and blue taken from their own radii, each sample divided by
+  vignetting / 100, and the picture scaled by the largest multiplier between
+  the frame's short side and its corner:
+  `Sources/PhotoCore/Preview/EmbeddedLensCorrection.swift` and the
+  `embeddedLens` kernel in `Sources/PhotoCore/Edits/Kernels/LensKernels.swift`,
+  from `src/iop/lens.cc` (`_init_coeffs_md_v2` and `_process_md`, the
+  embedded-metadata correction "based on the algorithm developed by Freddie
+  Witherden" in darktable pull request 7092). darktable resamples its spline
+  at fixed knots; here the recorded radius is solved for exactly and kept in
+  a lookup table.
+
+Copyright (C) 2019-2026 darktable developers. The license's text is this
+project's own `LICENSE`.
+
 ## LibRaw 0.22.3
 
 Vendored in `Sources/CLibRaw` (the `src`, `internal` and `libraw` folders of the

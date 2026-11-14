@@ -1,6 +1,7 @@
 import CLibRaw
 import CoreImage
 import Foundation
+import os
 
 /// Decodes a raw file with the vendored LibRaw (LGPL 2.1, `THIRD_PARTY_NOTICES.md`),
 /// for raws the system's RAW decoder gives no image for (issue #161;
@@ -21,10 +22,13 @@ import Foundation
 /// Each call has a LibRaw instance of its own and LibRaw is built thread-safe
 /// (without `LIBRAW_NOTHREADS`), so decodes may run at the same time.
 public enum LibRawDecoder {
+    private static let log = Logger(subsystem: AppBranding.bundleIdentifier, category: "decode")
+
     public struct Output {
         public var image: CIImage
-        /// The image's pixels: red, green, blue and alpha, 16 bits each in host
-        /// order, rows from the top. The image reads the same bytes.
+        /// LibRaw's own pixels (before a Fujifilm RAF's frame is cut from them
+        /// and its lens corrections applied): red, green, blue and alpha, 16
+        /// bits each in host order, rows from the top.
         var rgba16: Data
         /// The decode's size in pixels (half the frame's with `halfSize`).
         public var size: CGSize
@@ -32,6 +36,8 @@ public enum LibRawDecoder {
         public var fullSize: CGSize
         public var cameraMake: String
         public var cameraModel: String
+        /// The camera's lens corrections were read from the file and applied.
+        public var hasLensCorrections = false
     }
 
     public enum Failure: Error, CustomStringConvertible {
@@ -49,20 +55,39 @@ public enum LibRawDecoder {
     /// The part of the sensor a decode keeps, from the file's header.
     ///
     /// LibRaw's visible area includes pixels the camera leaves out of its own
-    /// pictures (6032x4028 on a Fujifilm X-E3); the file's first inset crop is
-    /// the camera's frame, as LibRaw reads it (5998x3997 there, where the
-    /// camera's JPEG is 6000x4000). Files without one keep the visible area.
+    /// pictures (6032x4028 on a Fujifilm X-E3). The frame is, in order:
+    ///
+    /// 1. the camera's own frame, where the file states it (a Fujifilm RAF:
+    ///    6000x4000 at (16, 21) of that sensor, the size of the camera's JPEG
+    ///    and of the system decoder's image where it reads such files, and
+    ///    the frame the camera's lens corrections are centered on). LibRaw
+    ///    decodes the whole visible area and the frame is cut from its image
+    ///    (`window`): LibRaw's own crop must start on the sensor's color
+    ///    pattern, which this frame does not;
+    /// 2. the file's first inset crop as LibRaw reads it (a DNG's default
+    ///    crop), which LibRaw crops to itself (`cropBox`);
+    /// 3. the visible area.
+    ///
     /// The second inset crop (a 16:9 or 1:1 picture's) is not read.
     struct Frame {
         /// In sensor pixels, before the orientation.
         var width: Int
         var height: Int
         /// LibRaw's crop box for the frame (left, top, width, height in the
-        /// visible area), nil for the whole visible area.
+        /// visible area), nil when LibRaw decodes the whole visible area.
         var cropBox: (left: UInt32, top: UInt32, width: UInt32, height: UInt32)?
+        /// Where the frame starts in the visible area, in sensor pixels from
+        /// its top left, when it is cut from LibRaw's image afterwards.
+        var window: (left: Int, top: Int)?
+        var visibleWidth: Int
+        var visibleHeight: Int
+        /// LibRaw's orientation of its image: 1 mirrors columns, 2 mirrors
+        /// rows, 4 swaps rows and columns first (`LibRaw::flip_index`).
+        var flip: Int
+
         /// The file's orientation swaps width and height: a quarter turn, mirrored
         /// or not (bit 4 of LibRaw's flip: 5 and 6, and the mirrored 4 and 7).
-        var isTurned: Bool
+        var isTurned: Bool { flip & 4 != 0 }
 
         var longEdge: Int { max(width, height) }
 
@@ -71,22 +96,36 @@ public enum LibRawDecoder {
             isTurned ? CGSize(width: height, height: width) : CGSize(width: width, height: height)
         }
 
-        init(_ sizes: libraw_image_sizes_t) {
+        init(_ sizes: libraw_image_sizes_t, cameraFrame: FujifilmRAF.PixelRect? = nil) {
             let inset = sizes.raw_inset_crops.0
             self.init(visibleWidth: Int(sizes.width), visibleHeight: Int(sizes.height),
                       leftMargin: Int(sizes.left_margin), topMargin: Int(sizes.top_margin),
                       insetLeft: Int(inset.cleft), insetTop: Int(inset.ctop),
-                      insetWidth: Int(inset.cwidth), insetHeight: Int(inset.cheight), flip: Int(sizes.flip))
+                      insetWidth: Int(inset.cwidth), insetHeight: Int(inset.cheight), flip: Int(sizes.flip),
+                      cameraFrame: cameraFrame)
         }
 
         /// LibRaw's sizes: the visible area and its margins on the sensor, and
         /// the inset crop in sensor coordinates (an unset one has no size, and
         /// its origin is 0xffff). An inset that starts before the visible
-        /// area is not a crop of it and is left out.
+        /// area is not a crop of it and is left out, as is a camera frame
+        /// that does not lie within the visible area.
         init(visibleWidth: Int, visibleHeight: Int, leftMargin: Int, topMargin: Int,
-             insetLeft: Int, insetTop: Int, insetWidth: Int, insetHeight: Int, flip: Int) {
-            if insetWidth > 0, insetHeight > 0, insetLeft >= leftMargin, insetTop >= topMargin,
-               insetLeft != 0xffff, insetTop != 0xffff {
+             insetLeft: Int, insetTop: Int, insetWidth: Int, insetHeight: Int, flip: Int,
+             cameraFrame: FujifilmRAF.PixelRect? = nil) {
+            self.visibleWidth = visibleWidth
+            self.visibleHeight = visibleHeight
+            self.flip = flip
+            if let camera = cameraFrame, camera.width > 0, camera.height > 0,
+               camera.left >= leftMargin, camera.top >= topMargin,
+               camera.left - leftMargin + camera.width <= visibleWidth,
+               camera.top - topMargin + camera.height <= visibleHeight {
+                width = camera.width
+                height = camera.height
+                window = (camera.left - leftMargin, camera.top - topMargin)
+                cropBox = nil
+            } else if insetWidth > 0, insetHeight > 0, insetLeft >= leftMargin, insetTop >= topMargin,
+                      insetLeft != 0xffff, insetTop != 0xffff {
                 width = insetWidth
                 height = insetHeight
                 cropBox = (UInt32(insetLeft - leftMargin), UInt32(insetTop - topMargin),
@@ -96,7 +135,26 @@ public enum LibRawDecoder {
                 height = visibleHeight
                 cropBox = nil
             }
-            isTurned = flip & 4 != 0
+        }
+
+        /// The frame in LibRaw's image of the whole visible area, oriented as
+        /// LibRaw orients it and `imageSize` large (the visible area, or half
+        /// of it), in Core Image's coordinates (from the bottom left). It may
+        /// start between pixels in a half-size image. Nil without a `window`.
+        func windowRect(inImageOf imageSize: CGSize) -> CGRect? {
+            guard let window, visibleWidth > 0, visibleHeight > 0 else { return nil }
+            // Columns and rows the frame covers on the sensor, mirrored as LibRaw mirrors them …
+            var columns = (start: window.left, end: window.left + width)
+            var rows = (start: window.top, end: window.top + height)
+            if flip & 1 != 0 { columns = (visibleWidth - columns.end, visibleWidth - columns.start) }
+            if flip & 2 != 0 { rows = (visibleHeight - rows.end, visibleHeight - rows.start) }
+            // … then swapped: the image's columns are the sensor's rows.
+            var across = (range: columns, of: visibleWidth), down = (range: rows, of: visibleHeight)
+            if isTurned { swap(&across, &down) }
+            let sx = imageSize.width / CGFloat(across.of), sy = imageSize.height / CGFloat(down.of)
+            return CGRect(x: CGFloat(across.range.start) * sx, y: imageSize.height - CGFloat(down.range.end) * sy,
+                          width: CGFloat(across.range.end - across.range.start) * sx,
+                          height: CGFloat(down.range.end - down.range.start) * sy)
         }
     }
 
@@ -115,13 +173,19 @@ public enum LibRawDecoder {
         guard let processor = libraw_init(0) else { return nil }
         defer { libraw_close(processor) }
         guard libraw_open_file(processor, url.path) == LIBRAW_SUCCESS.rawValue else { return nil }
-        let frame = Frame(processor.pointee.sizes)
+        let frame = Frame(processor.pointee.sizes, cameraFrame: FujifilmRAF(contentsOf: url)?.cameraFrame)
         return frame.width > 0 && frame.height > 0 ? frame.orientedSize : nil
     }
 
     /// The raw's decode. `halfSize` asks for a binned decode whatever the
     /// target; otherwise `longEdge` decides (`usesHalfSize`).
-    public static func decode(_ url: URL, halfSize: Bool = false, longEdge: Int? = nil) throws -> Output {
+    ///
+    /// A Fujifilm RAF is cut to the camera's frame and given the camera's
+    /// lens corrections from the file (`EmbeddedLensCorrection`), as the
+    /// system decoder does for the raws it reads; `lensCorrections` false
+    /// leaves them out, for comparing.
+    public static func decode(_ url: URL, halfSize: Bool = false, longEdge: Int? = nil,
+                              lensCorrections: Bool = true) throws -> Output {
         guard let processor = libraw_init(0) else { throw Failure.noMemory }
         defer { libraw_close(processor) }
         libraw_set_output_bps(processor, 16)
@@ -134,7 +198,8 @@ public enum LibRawDecoder {
 
         var code = libraw_open_file(processor, url.path)
         guard code == LIBRAW_SUCCESS.rawValue else { throw Failure.libraw("open", code: code) }
-        let frame = Frame(processor.pointee.sizes)
+        let camera = FujifilmRAF(contentsOf: url)
+        let frame = Frame(processor.pointee.sizes, cameraFrame: camera?.cameraFrame)
         if let box = frame.cropBox {
             processor.pointee.params.cropbox = (box.left, box.top, box.width, box.height)
         }
@@ -170,7 +235,7 @@ public enum LibRawDecoder {
             }
         }
         guard let space = CGColorSpace(name: CGColorSpace.extendedLinearITUR_2020) else { throw Failure.noMemory }
-        let image = CIImage(bitmapData: rgba, bytesPerRow: width * 8, size: CGSize(width: width, height: height),
+        var image = CIImage(bitmapData: rgba, bytesPerRow: width * 8, size: CGSize(width: width, height: height),
                             format: .RGBA16, colorSpace: space)
         let make = withUnsafePointer(to: processor.pointee.idata.make) {
             $0.withMemoryRebound(to: CChar.self, capacity: 64) { String(cString: $0) }
@@ -178,9 +243,33 @@ public enum LibRawDecoder {
         let model = withUnsafePointer(to: processor.pointee.idata.model) {
             $0.withMemoryRebound(to: CChar.self, capacity: 64) { String(cString: $0) }
         }
-        let size = CGSize(width: width, height: height)
-        return Output(image: image, rgba16: rgba, size: size,
-                      fullSize: half ? CGSize(width: width * 2, height: height * 2) : size,
-                      cameraMake: make, cameraModel: model)
+        var size = CGSize(width: width, height: height)
+        var fullSize = half ? CGSize(width: width * 2, height: height * 2) : size
+        var corrected = false
+        if let window = frame.windowRect(inImageOf: size) {
+            // The camera's frame of LibRaw's image of the visible area, with the camera's
+            // lens corrections. A half-size image's frame can start between two pixels:
+            // it is then resampled too, with tables that correct nothing, so that every
+            // size shows the same frame.
+            let tables = lensCorrections ? camera?.lens : nil
+            let startsOnPixels = window.minX == window.minX.rounded() && window.minY == window.minY.rounded()
+            let correct = tables.map { !$0.isIdentity } ?? false
+            if correct || !startsOnPixels,
+               let result = EmbeddedLensCorrection(correct ? tables ?? .none : .none, shortSideRadius: Double(
+                   min(window.width, window.height) / hypot(window.width, window.height))).apply(to: image, frame: window) {
+                image = result
+                corrected = correct
+            } else {
+                // Cut on whole pixels (also when the kernel is not available).
+                if correct { log.error("the lens correction kernel is not available: \(url.lastPathComponent, privacy: .private) is shown uncorrected") }
+                let cut = CGRect(x: window.minX.rounded(.down), y: window.minY.rounded(.down),
+                                 width: window.width.rounded(), height: window.height.rounded())
+                image = image.cropped(to: cut).transformed(by: CGAffineTransform(translationX: -cut.minX, y: -cut.minY))
+            }
+            size = image.extent.size
+            fullSize = frame.orientedSize
+        }
+        return Output(image: image, rgba16: rgba, size: size, fullSize: fullSize, cameraMake: make, cameraModel: model,
+                      hasLensCorrections: corrected)
     }
 }
