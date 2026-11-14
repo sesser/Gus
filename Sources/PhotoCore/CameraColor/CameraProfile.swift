@@ -3,12 +3,18 @@ import Foundation
 /// How a camera's colors are turned into the working space: what the color
 /// step after a LibRaw decode takes its inputs from (issue #170, R8).
 ///
-/// The fields are those of a DNG camera profile (Adobe DNG Specification
-/// 1.7.1, chapter 6, "Mapping Camera Color Space to CIE XYZ Space"), so an
-/// Adobe `.dcp` file can be read into one later (#89). Today's only profile
-/// is the built-in one, made from what LibRaw knows about the camera
-/// (`CameraColor.builtIn`): its matrix or the DNG's own, and the baseline
-/// look of `BaselineLook`. Nothing reads, stores or lists profiles yet.
+/// The fields are those of a DNG camera profile (Adobe, "Digital Negative
+/// (DNG) Specification", the camera profile tags and chapter 6, "Mapping
+/// Camera Color Space to CIE XYZ Space"; read in version 1.6.0.0), so an
+/// Adobe `.dcp` file can be read into one later (#89). The specification
+/// gives no temperatures for calibration lights; those are this file's own,
+/// and `kelvin(ofLightSource:)` says where each is from
+/// (`THIRD_PARTY_NOTICES.md`).
+///
+/// Today's only profile is the built-in one, made from what LibRaw knows
+/// about the camera (`CameraColor.builtIn`): its matrix or the DNG's own,
+/// and the baseline look of `BaselineLook`. Nothing reads, stores or lists
+/// profiles yet.
 public struct CameraProfile: Sendable, Hashable {
     /// The camera's response under one light.
     public struct Calibration: Sendable, Hashable {
@@ -127,24 +133,45 @@ public struct CameraProfile: Sendable, Hashable {
         return weight * low + (1 - weight) * high
     }
 
-    /// The temperature of an EXIF `LightSource` value, as a DNG's
-    /// `CalibrationIlluminant` tags give it; nil for one that names no
-    /// temperature (unknown, "other"). The fluorescent kinds are the middle
-    /// of the ranges the EXIF specification gives them.
+    /// The correlated color temperature of the light an EXIF `LightSource`
+    /// value names, which is what a DNG's `CalibrationIlluminant` tags hold
+    /// ("The legal values for this tag are the same as the legal values for
+    /// the LightSource EXIF tag"); nil for a value that names no light
+    /// (0, unknown; 255, other, which a DNG 1.6 file describes in a tag of
+    /// its own that is not read; anything reserved).
+    ///
+    /// The DNG specification asks for "the correlated color temperature for
+    /// … the two calibration illuminants" and gives no figures. These are
+    /// this file's, from three places, one table for each.
     public static func kelvin(ofLightSource code: Int) -> Double? {
-        switch code {
-        case 3, 17: 2850         // tungsten, standard light A
-        case 24: 3200            // ISO studio tungsten
-        case 23: 5000            // D50
-        case 1, 4, 9, 18, 20: 5500 // daylight, flash, fine weather, standard light B, D55
-        case 10, 19, 21: 6500    // cloudy, standard light C, D65
-        case 11, 22: 7500        // shade, D75
-        case 12: (5700 + 7100) / 2 // daylight fluorescent
-        case 13: (4600 + 5500) / 2 // day white fluorescent
-        case 2, 14: (3800 + 4500) / 2 // fluorescent, cool white fluorescent
-        case 15: (3250 + 3800) / 2 // white fluorescent
-        case 16: (2600 + 3250) / 2 // warm white fluorescent
-        default: nil
-        }
+        if let mode = namedLights[code] { return mode.neutral?.temperature }
+        if let range = fluorescentLamps[code] { return (range.lowerBound + range.upperBound) / 2 }
+        return standardLights[code]
     }
+
+    /// Kinds of light EXIF names without a temperature (1 daylight, 2
+    /// fluorescent, 3 tungsten, 4 flash, 9 fine weather, 10 cloudy weather,
+    /// 11 shade): each is the light the White Balance mode of that name
+    /// stands for, so the two cannot disagree.
+    static let namedLights: [Int: WhiteBalance.Preset] = [
+        1: .daylight, 2: .fluorescent, 3: .tungsten, 4: .flash, 9: .daylight, 10: .cloudy, 11: .shade,
+    ]
+
+    /// Fluorescent lamps by kind (12 daylight, 13 day white, 14 cool white,
+    /// 15 white, 16 warm white): EXIF 2.3 (CIPA DC-008-2012) gives each a
+    /// range of temperatures, restated here; the light is taken as the
+    /// middle of its range.
+    static let fluorescentLamps: [Int: ClosedRange<Double>] = [
+        12: 5700...7100, 13: 4600...5500, 14: 3800...4500, 15: 3250...3800, 16: 2600...3250,
+    ]
+
+    /// Standard lights, in the round numbers they are known by. The D
+    /// illuminants (20 D55, 21 D65, 22 D75, 23 D50) have their temperature
+    /// in their name; the CIE's present figures for them are 3 or 4 K
+    /// higher (D65: 6504 K). Standard lights A, B and C (17, 18, 19) are
+    /// the CIE's 2856 K, 4874 K and 6774 K to the nearest 50 K, like the
+    /// rest. ISO studio tungsten (24) is a 3200 K lamp.
+    static let standardLights: [Int: Double] = [
+        17: 2850, 18: 4850, 19: 6750, 20: 5500, 21: 6500, 22: 7500, 23: 5000, 24: 3200,
+    ]
 }

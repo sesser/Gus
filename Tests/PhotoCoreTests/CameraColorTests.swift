@@ -81,6 +81,78 @@ struct ColorTemperatureTests {
             #expect(worst < 1e-6, "largest difference in x or y: \(worst)")
         }
     }
+
+    /// Where `ColorTemperature`'s figures come from: the measurement its
+    /// comment describes, repeated. Each of the 31 lines is where the
+    /// system decoder has it (the black body's color at tint 0, the line's
+    /// direction at a tint either way), the misprinted one included; below
+    /// the coolest line it continues the last two; and it reads a
+    /// chromaticity beyond the lines as the nearest of those it reads
+    /// between, with the tint we give it.
+    @Test("Every line of the table, and what lies beyond them, is the system RAW decoder's")
+    func linesAreTheSystemDecoders() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { folder in
+            let url = try LibRawDecoderTests.dng(in: folder, "large", width: 1536, height: 1152)
+            guard SystemRAWDecoder.reads(url), let raw = CIRAWFilter(imageURL: url) else {
+                print("ColorTemperatureTests: the system RAW decoder does not read the 1536 x 1152 DNG here; lines not compared")
+                return
+            }
+            // The table's temperatures (the first is infinite), then two below its last, 1667 K.
+            let temperatures = ColorTemperature.lines.map { Float(1_000_000 / $0.mired) } + [1500, 1000]
+            #expect(temperatures.count == 33 && temperatures[0] == .infinity)
+            for kelvin in temperatures {
+                for tint: Float in [-150, 0, 150] {
+                    raw.neutralTemperature = kelvin
+                    raw.neutralTint = tint
+                    let theirs = raw.neutralChromaticity
+                    let ours = ColorTemperature(kelvin: Double(kelvin), tint: Double(tint)).chromaticity
+                    #expect(abs(ours.x - theirs.x) < 1e-6 && abs(ours.y - theirs.y) < 1e-6, "\(kelvin) K, tint \(tint)")
+                }
+            }
+            // Hotter than 100,000 K and cooler than 1667 K, read back.
+            for kelvin in [400_000.0, 150_000, 1500, 1200] {
+                for tint in [-60.0, 0, 60] {
+                    let light = ColorTemperature(kelvin: kelvin, tint: tint).chromaticity
+                    raw.neutralChromaticity = CGPoint(x: light.x, y: light.y)
+                    let ours = ColorTemperature(light)
+                    #expect(abs(ours.kelvin / Double(raw.neutralTemperature) - 1) < 1e-5, "\(kelvin) K: \(ours.kelvin) against \(raw.neutralTemperature)")
+                    #expect(abs(ours.tint - Double(raw.neutralTint)) < 0.01, "\(kelvin) K, tint \(tint): \(ours.tint) against \(raw.neutralTint)")
+                }
+            }
+        }
+    }
+
+    @Test("Light beyond the lines reads as the nearest line, and every reading is a number")
+    func beyondTheLines() {
+        // Nothing reads hotter than the second line or cooler than the last, as the system decoder has it.
+        #expect(ColorTemperature(ColorTemperature(kelvin: 400_000, tint: 20).chromaticity).kelvin == 100_000)
+        #expect(ColorTemperature(ColorTemperature(kelvin: .infinity).chromaticity).kelvin == 100_000)
+        #expect(abs(ColorTemperature(ColorTemperature(kelvin: 1200, tint: -20).chromaticity).kelvin - 1_000_000 / 600) < 1e-9)
+        // At the ends themselves nothing jumps.
+        #expect(abs(ColorTemperature(ColorTemperature(kelvin: 99_999).chromaticity).kelvin - 99_999) < 1)
+        #expect(abs(ColorTemperature(ColorTemperature(kelvin: 1667).chromaticity).kelvin - 1667) < 0.01)
+        // A temperature that is none still has a chromaticity, and a chromaticity that is none a temperature.
+        for kelvin in [0.0, -40, .nan] {
+            let light = ColorTemperature(kelvin: kelvin).chromaticity
+            #expect(light.x.isFinite && light.y.isFinite, "\(kelvin) K")
+        }
+        for light in [Chromaticity(x: .nan, y: 0.3), Chromaticity(x: 1.5, y: 0), Chromaticity(x: .infinity, y: .infinity)] {
+            #expect(ColorTemperature(light) == ColorTemperature(kelvin: 6500, tint: 0), "\(light)")
+        }
+        #expect(ColorTemperature(Chromaticity(x: 0, y: 0)).kelvin.isFinite)
+    }
+
+    @Test("The table is the one the system decoder uses, its misprint included")
+    func table() {
+        let lines = ColorTemperature.lines
+        #expect(lines.count == 31 && lines.first?.mired == 0 && lines.last?.mired == 600)
+        #expect(zip(lines, lines.dropFirst()).allSatisfy { $0.mired < $1.mired })
+        // Toward green is up and to the left on every line, at length one.
+        #expect(lines.allSatisfy { $0.green.x < 0 && $0.green.y > 0 && abs(($0.green * $0.green).sum() - 1) < 1e-12 })
+        // 325 mired: where its neighbors put the black body (0.2479) is not where the table has it.
+        // Correcting it would make 2857 K to 3333 K another light here than in the system decoder.
+        #expect(lines.first { $0.mired == 325 }?.locus.x == 0.24702)
+    }
 }
 
 /// The camera color math (issue #170, R3 and R8), without Core Image:
@@ -246,6 +318,30 @@ struct CameraColorTests {
         #expect(CameraProfile.kelvin(ofLightSource: 255) == nil)
     }
 
+    /// The three tables `CameraProfile.kelvin(ofLightSource:)` reads, by where each comes from.
+    @Test("A named kind of light is its White Balance mode's, a fluorescent lamp the middle of EXIF's range, a standard light its round number")
+    func lightSourceTables() {
+        // EXIF names these without a temperature; the White Balance group has one for each.
+        let named: [(Int, WhiteBalance.Preset)] = [(1, .daylight), (2, .fluorescent), (3, .tungsten), (4, .flash),
+                                                   (9, .daylight), (10, .cloudy), (11, .shade)]
+        for (code, mode) in named {
+            let kelvin = CameraProfile.kelvin(ofLightSource: code)
+            #expect(kelvin != nil && kelvin == mode.neutral?.temperature, "light source \(code)")
+        }
+        // EXIF 2.3: D 5700 to 7100 K, N 4600 to 5500 K, W 3800 to 4500 K, WW 3250 to 3800 K, L 2600 to 3250 K.
+        let lamps: [(Int, Double)] = [(12, 6400), (13, 5050), (14, 4150), (15, 3525), (16, 2925)]
+        for (code, kelvin) in lamps {
+            #expect(CameraProfile.kelvin(ofLightSource: code) == kelvin, "light source \(code)")
+        }
+        // Standard lights B and C: the CIE's 4874 K and 6774 K to the nearest 50 K, as A's 2856 K is 2850.
+        #expect(CameraProfile.kelvin(ofLightSource: 18) == 4850)
+        #expect(CameraProfile.kelvin(ofLightSource: 19) == 6750)
+        // Values EXIF reserves name no light.
+        for code in [-1, 5, 8, 25, 100, 254, 256] {
+            #expect(CameraProfile.kelvin(ofLightSource: code) == nil, "light source \(code)")
+        }
+    }
+
     @Test("A neutral's white point and a white point's neutral are each other's inverse", arguments: Kind.allCases)
     func neutralAndWhite(kind: Kind) throws {
         let color = kind.color
@@ -266,6 +362,38 @@ struct CameraColorTests {
             let read = try #require(color.white(ofNeutral: neutral))
             #expect(abs(read.x - balance.chromaticity.x) < 1e-5 && abs(read.y - balance.chromaticity.y) < 1e-5, "\(balance)")
         }
+    }
+
+    /// The specification's guessing ("iterate until the xy values converge")
+    /// need not settle. Here the daylight calibration takes the neutral for
+    /// candle light and the tungsten calibration takes it for blue sky, so
+    /// each guess sends the next to the other light, for ever. A white point
+    /// whose own temperature picks the matrix that gives it still exists
+    /// between the two, and is found.
+    @Test("A white point is found when the specification's guesses do not settle")
+    func whitePointWithoutSettling() throws {
+        let base = Matrix3x3(Self.daylightMatrix)
+        func neutral(at kelvin: Double) -> SIMD3<Double> { base * ColorTemperature(kelvin: kelvin).chromaticity.xyz }
+        let shot = neutral(at: 4000)
+        let color = CameraColor(profile: CameraProfile(name: "unsettled", calibrations: [
+            .init(illuminant: 2850, colorMatrix: Matrix3x3.diagonal(shot / neutral(at: 12000)) * base),
+            .init(illuminant: 6500, colorMatrix: Matrix3x3.diagonal(shot / neutral(at: 2200)) * base),
+        ]), asShotNeutral: shot)
+        // The guessing by itself: from daylight to tungsten and back.
+        func guess(after kelvin: Double) throws -> Double {
+            let toXYZ = try #require(color.xyzToCamera(at: kelvin).inverse)
+            return ColorTemperature(try #require(Chromaticity(xyz: toXYZ * shot))).kelvin
+        }
+        #expect(try guess(after: 6500) < 2850)
+        #expect(try guess(after: 2850) > 6500)
+        // The white point found is consistent: its temperature lies between the lights, and its neutral is the one asked about.
+        let white = try #require(color.white(ofNeutral: color.asShotNeutral))
+        let kelvin = ColorTemperature(white).kelvin
+        #expect(kelvin > 2850 && kelvin < 6500, "\(kelvin) K")
+        #expect(abs(try guess(after: kelvin) / kelvin - 1) < 1e-8)
+        let back = try #require(color.neutral(for: white))
+        #expect((back - color.asShotNeutral).max() < 1e-6 && (color.asShotNeutral - back).max() < 1e-6, "\(back)")
+        #expect(color.isUsable)
     }
 
     @Test("A neutral under the chosen white comes out neutral, and white as white", arguments: Kind.allCases)
@@ -375,6 +503,11 @@ struct CameraColorTests {
         #expect(noNeutral.asShot != nil || noNeutral.transform(for: nil, channelScale: SIMD3(1, 1, 1)) == nil)
         let noProfile = CameraColor(profile: CameraProfile(name: "empty", calibrations: []), asShotNeutral: SIMD3(0.5, 1, 0.6))
         #expect(!noProfile.isUsable)
+        // A neutral the matrix takes to a color without luminance is no light: it has no white point.
+        for kind in Kind.allCases {
+            let dark = kind.color.xyzToCamera(at: 6500) * SIMD3(1, -0.2, 0.5)
+            #expect(kind.color.white(ofNeutral: dark) == nil, "\(kind)")
+        }
         // A white balance far from any light still renders: the neutral is held above zero.
         let extreme = Kind.single.color.neutral(for: ColorTemperature(kelvin: 2000, tint: -150).chromaticity)
         #expect(extreme.map { $0.min() >= 0.001 && $0.max() == 1 } == true)

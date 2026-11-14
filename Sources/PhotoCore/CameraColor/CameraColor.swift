@@ -5,9 +5,12 @@ import Foundation
 /// balance (Kelvin and tint) into what the color step applies to LibRaw's
 /// camera-space image (`CameraColorTransform`).
 ///
-/// The method is the DNG specification's (Adobe DNG Specification 1.7.1,
-/// chapter 6, "Mapping Camera Color Space to CIE XYZ Space"), written from
-/// the specification (`THIRD_PARTY_NOTICES.md`):
+/// The method is the DNG specification's (Adobe, "Digital Negative (DNG)
+/// Specification", chapter 6, "Mapping Camera Color Space to CIE XYZ Space";
+/// read in version 1.6.0.0), written from the specification's text
+/// (`THIRD_PARTY_NOTICES.md`). Where the text leaves something open (how
+/// the guessing in `white(ofNeutral:)` starts, stops and is kept from going
+/// on for ever), the choice is this file's and its comment says so:
 ///
 /// - a white point's camera neutral is XYZtoCamera × its XYZ, with
 ///   XYZtoCamera = calibration × ColorMatrix read between the profile's two
@@ -91,19 +94,69 @@ public struct CameraColor: Sendable, Hashable {
         return (neutral / largest).clamped(lowerBound: SIMD3(repeating: 0.001), upperBound: SIMD3(repeating: 1))
     }
 
-    /// The white point a camera neutral stands for.
+    /// The white point a camera neutral stands for: the one whose own
+    /// temperature picks the matrix that turns this neutral into it.
+    ///
+    /// The specification's "Translating Camera Neutral Coordinates to White
+    /// Balance xy Coordinates": guess a white point, take the matrix for its
+    /// temperature, find XYZ = Inverse(XYZtoCamera) × CameraNeutral as a new
+    /// white point, and repeat until it settles. The specification stops
+    /// there; the rest is this file's own:
+    ///
+    /// - with one calibration (or two for the same light) the matrix is the
+    ///   same whatever the guess, so one step is the answer;
+    /// - the matrix depends on the guess only through its temperature, and
+    ///   only between the two calibration lights, so the guessing is done
+    ///   on that temperature, kept between the two;
+    /// - the first guess is the hotter (daylight) calibration;
+    /// - guesses that have not settled after `settlingPasses` are not
+    ///   trusted to: a temperature the guessing leaves in place always
+    ///   exists between the two lights (at the cooler light the next guess
+    ///   is no cooler, at the hotter no hotter), and halving that range
+    ///   finds one.
+    ///
+    /// Nil when a matrix has no inverse or the neutral is no light under it.
     public func white(ofNeutral neutral: SIMD3<Double>) -> Chromaticity? {
-        var white = Chromaticity.d50
-        for pass in 0..<30 {
-            guard let inverse = xyzToCamera(at: ColorTemperature(white).kelvin).inverse,
-                  let next = Chromaticity(xyz: inverse * neutral), next.x.isFinite, next.y > 0 else { return nil }
-            let moved = abs(next.x - white.x) + abs(next.y - white.y)
-            // Two matrices can leave the answer alternating between two points: the last pass takes the middle.
-            white = pass == 29 ? Chromaticity(x: (white.x + next.x) / 2, y: (white.y + next.y) / 2) : next
-            if moved < 1e-7 { break }
+        /// The specification's steps 2 and 3 for a guess of `kelvin`. A
+        /// white point is a light: its luminance (Y, so y) is above 0.
+        func white(guessing kelvin: Double) -> Chromaticity? {
+            guard let toXYZ = xyzToCamera(at: kelvin).inverse, let white = Chromaticity(xyz: toXYZ * neutral),
+                  white.y > 0 else { return nil }
+            return white
         }
-        return white
+        guard profile.calibrations.count >= 2, let coolest = profile.calibrations.first?.illuminant,
+              let hottest = profile.calibrations.last?.illuminant, hottest > coolest else {
+            return white(guessing: profile.calibrations.first?.illuminant ?? 0)
+        }
+        /// The temperature the next guess would be: that of the white point `kelvin` gives.
+        func next(after kelvin: Double) -> Double? {
+            white(guessing: kelvin).map { min(max(ColorTemperature($0).kelvin, coolest), hottest) }
+        }
+        func settled(_ one: Double, _ other: Double) -> Bool { abs(one - other) <= Self.settledWithin * other }
+
+        var guess = hottest
+        for _ in 0..<Self.settlingPasses {
+            guard let found = next(after: guess) else { return nil }
+            if settled(found, guess) { return white(guessing: found) }
+            guess = found
+        }
+        // Between `low` and `high` the next guess goes from no cooler than its guess to no hotter.
+        var low = coolest, high = hottest
+        while !settled(low, high) {
+            let middle = (low + high) / 2
+            guard middle > low, middle < high, let found = next(after: middle) else { break }
+            if found > middle { low = middle } else { high = middle }
+        }
+        return white(guessing: (low + high) / 2)
     }
+
+    /// How many guesses a white point gets to settle by itself. The test
+    /// cameras' take 18 at most (each guess is three to ten times nearer
+    /// than the one before).
+    static let settlingPasses = 24
+    /// A temperature has settled when a guess and the next are this part of
+    /// it apart: far under what shows in a white point's sixth decimal.
+    static let settledWithin = 1e-10
 
     /// The white point of the camera's own choice for the shot.
     public var asShotWhite: Chromaticity? { white(ofNeutral: asShotNeutral) }
