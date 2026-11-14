@@ -224,3 +224,4 @@ Gus stands on other people's work, and says so:
   and is checked against the camera's own JPEG. See `THIRD_PARTY_NOTICES.md`.
 - **LightCraft** for the brush and colour-range mask math (same file).
 - **GRDB** for the catalog.
+- **ExifTool** reads metadata when it is installed; it is not part of Gus.
