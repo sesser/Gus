@@ -18,7 +18,7 @@ enum AboutText {
 
     static func dedication(_ projectName: String) -> String {
         String(localized: "\(projectName) stands on other people's work. Thank you to:",
-               comment: "About window: the dedication above the list of projects; the argument is the app's name")
+               comment: "About window: the dedication above the list of projects; the argument is the project's name (the library app's name, also in the standalone importer)")
     }
 
     /// What a project gave, in one sentence that says what it is to the app:
@@ -68,7 +68,7 @@ enum AboutText {
     /// The GPL's short notice, as in the README. Not license text.
     static func freeSoftwareStatement(_ projectName: String) -> String {
         String(localized: "\(projectName) is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License, version 3 or (at your option) any later version. It is distributed in the hope that it will be useful, but without any warranty; see the license for details.",
-               comment: "About window: the app's free-software statement (the GPL's short notice, as in the README). Not the license text itself")
+               comment: "About window: the free-software statement (the GPL's short notice, as in the README); the argument is the project's name (the library app's name, also in the standalone importer). Not the license text itself")
     }
 
     static var licenseMissingTitle: String {

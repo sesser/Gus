@@ -188,21 +188,41 @@ struct AboutView: View {
 
     private var footer: some View {
         VStack(alignment: .leading, spacing: 0) {
+            // The style is on the two texts, not on the stack: the button
+            // below must look like the entries' buttons.
             Text(verbatim: AboutText.copyright)
+                .font(.callout)
+                .foregroundStyle(.secondary)
                 .textSelection(.enabled)
             Text(verbatim: AboutText.freeSoftwareStatement(projectName))
+                .font(.callout)
+                .foregroundStyle(.secondary)
                 .padding(.top, AboutMetrics.copyrightToStatement)
             if content.offersAppLicense {
-                Button(AboutText.viewLicense) {
+                ViewLicenseButton(owner: projectName) {
                     openWindow(id: AboutWindowID.license, value: LicenseDocument.app)
                 }
-                .controlSize(.small)
-                .accessibilityLabel(Text(verbatim: AboutText.viewLicenseLabel(projectName)))
                 .padding(.top, AboutMetrics.statementToButton)
             }
         }
-        .font(.callout)
-        .foregroundStyle(.secondary)
+    }
+}
+
+/// View License, the same control in the entries and in the footer: a small
+/// bordered button that opens a license in a window of its own.
+private struct ViewLicenseButton: View {
+    /// Whose license: a project's name, or this project's.
+    let owner: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(AboutText.viewLicense, action: action)
+            .controlSize(.small)
+            // VoiceOver hears whose license it is; Voice Control also takes
+            // the title as it is shown.
+            .accessibilityLabel(Text(verbatim: AboutText.viewLicenseLabel(owner)))
+            .accessibilityInputLabels([Text(verbatim: AboutText.viewLicense),
+                                       Text(verbatim: AboutText.viewLicenseLabel(owner))])
     }
 }
 
@@ -235,9 +255,7 @@ private struct AboutEntryView: View {
                     .foregroundStyle(.secondary)
                 Spacer(minLength: AboutMetrics.bodySide)
                 if offersLicense {
-                    Button(AboutText.viewLicense, action: viewLicense)
-                        .controlSize(.small)
-                        .accessibilityLabel(Text(verbatim: AboutText.viewLicenseLabel(entry.name)))
+                    ViewLicenseButton(owner: entry.name, action: viewLicense)
                 }
             }
         }

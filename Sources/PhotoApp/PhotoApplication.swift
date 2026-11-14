@@ -109,9 +109,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                                          isExporting: library.export.isExporting)
         else { return .terminateNow }
         Task { @MainActor in
-            // The window ⌘Q came from; a visible one if none is key.
-            let window = NSApp.keyWindow ?? NSApp.mainWindow ?? NSApp.windows.first { $0.isVisible && $0.canBecomeMain }
-            let stop = await QuitGuard.ask(QuitGuard.text(for: confirmation), in: window)
+            // The window ⌘Q came from, a visible one if none is key; the
+            // library window rather than the About or a license window.
+            let stop = await QuitGuard.ask(QuitGuard.text(for: confirmation), in: QuitGuard.confirmationWindow)
             guard stop else { return }
             // Nothing more is said: the app quits before the jobs report.
             library.cardImport.cancelImport()

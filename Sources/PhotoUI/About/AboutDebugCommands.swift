@@ -22,6 +22,12 @@ import PhotoCore
 ///                             window's title, the bytes and SHA-256 of the text it shows, or its missing state;
 ///                             find is ⌘F in it)
 ///     about snapshot <file.png>
+///     about height <points>|max   (the About window's height, kept within its limits, its top left in place:
+///                             max shows everything at once, for a snapshot with the footer in it)
+///     about quithost          (the window a quit confirmation would go on now, and the key window: never the
+///                             About window or a license window)
+///     about closeothers       (the close buttons' action on every window that is not the About window or a
+///                             license window, for checks with only those left)
 ///     about click <x> <y>     (a mouse down and up through the event queue, in the About window's points from its
 ///                             top left; launch with `open` so the app is active. A link clicked this way is
 ///                             reported, not opened)
@@ -65,6 +71,28 @@ public enum AboutDebugCommands {
         case "snapshot":
             guard let window = visibleAbout(), let path = rest.first else { return }
             WindowSnapshot.write(window, to: URL(fileURLWithPath: (path as NSString).expandingTildeInPath))
+        case "height":
+            guard let window = visibleAbout() else { return }
+            let limits = window.contentMinSize.height...max(window.contentMinSize.height, window.contentMaxSize.height)
+            let wanted = rest.first == "max" ? limits.upperBound : CGFloat(Double(rest.first ?? "") ?? Double(window.frame.height))
+            var frame = window.frame
+            let height = window.frameRect(forContentRect: NSRect(x: 0, y: 0, width: frame.width,
+                                                                 height: min(max(wanted, limits.lowerBound), limits.upperBound))).height
+            frame.origin.y += frame.height - height
+            frame.size.height = height
+            window.setFrame(frame, display: true)
+            await settle()
+            print("debug-script: about height \(size(window.frame.size))")
+        case "quithost":
+            func title(_ window: NSWindow?) -> String { window.map { "“\($0.title)”" } ?? "none" }
+            print("debug-script: about quithost \(title(QuitGuard.confirmationWindow)), key \(title(NSApp.keyWindow)), app active \(NSApp.isActive)")
+        case "closeothers":
+            let others = NSApp.windows.filter {
+                $0.isVisible && $0.contentView != nil && $0.className.contains("Window") && !AboutWindowRegistry.owns($0)
+            }
+            others.forEach { $0.performClose(nil) }
+            await settle()
+            print("debug-script: about closeothers closed [\(others.map(\.title).joined(separator: ", "))]")
         case "click":
             guard let window = visibleAbout(), rest.count >= 2, let x = Double(rest[0]), let y = Double(rest[1]) else { return }
             click(NSPoint(x: x, y: window.frame.height - y), in: window)

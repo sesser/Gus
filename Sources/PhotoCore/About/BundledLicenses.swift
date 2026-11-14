@@ -87,33 +87,43 @@ public struct BundledLicenses: Sendable {
     /// unreadable, not UTF-8, empty, or (for a project) has no section of
     /// that project's.
     public func text(for document: LicenseDocument) -> String? {
-        guard let directory else { return nil }
         switch document {
         case .app:
-            guard let data = try? Data(contentsOf: directory.appending(path: Self.licenseFileName)),
-                  let text = String(data: data, encoding: .utf8), !text.isEmpty
+            guard let data = read(Self.licenseFileName), let text = String(data: data, encoding: .utf8), !text.isEmpty
             else { return nil }
             return text
         case .project(let project):
-            guard let entry = Acknowledgements.entry(for: project),
-                  let data = try? Data(contentsOf: directory.appending(path: Self.noticesFileName))
-            else { return nil }
-            let notices = NoticesFile(data: data)
-            guard let section = notices.section(named: entry.name) else { return nil }
-            return notices.text(of: section)
+            guard let entry = Acknowledgements.entry(for: project), let notices = notices() else { return nil }
+            return Self.text(for: entry, in: notices)
         }
     }
 
     /// The documents a View License control is offered for: this project's
     /// license when its file is there, and each project whose license asks
     /// for a notice and whose section is found. Never the others, whatever
-    /// the notices file holds.
+    /// the notices file holds. Each file is read once.
     public func available(among entries: [Acknowledgement] = Acknowledgements.all) -> Set<LicenseDocument> {
         var result: Set<LicenseDocument> = []
         if text(for: .app) != nil { result.insert(.app) }
-        for entry in entries where entry.requiresNotice && text(for: .project(entry.project)) != nil {
+        guard let notices = notices() else { return result }
+        for entry in entries where entry.requiresNotice && Self.text(for: entry, in: notices) != nil {
             result.insert(.project(entry.project))
         }
         return result
+    }
+
+    /// A missing or unreadable file is the same as none: the window then
+    /// offers nothing for it, and says nothing (design §5).
+    private func read(_ name: String) -> Data? {
+        guard let directory else { return nil }
+        return try? Data(contentsOf: directory.appending(path: name))
+    }
+
+    private func notices() -> NoticesFile? {
+        read(Self.noticesFileName).map(NoticesFile.init(data:))
+    }
+
+    private static func text(for entry: Acknowledgement, in notices: NoticesFile) -> String? {
+        notices.section(named: entry.name).flatMap(notices.text(of:))
     }
 }

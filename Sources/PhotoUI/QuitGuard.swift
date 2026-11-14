@@ -36,6 +36,15 @@ public enum QuitGuard {
         }
     }
 
+    /// The window a quit confirmation goes on (`QuitConfirmation.host`):
+    /// the one ⌘Q came from, a visible one if none is key, and never the
+    /// About window or a license window.
+    public static var confirmationWindow: NSWindow? {
+        QuitConfirmation.host(key: NSApp.keyWindow, main: NSApp.mainWindow,
+                              visible: NSApp.windows.filter { $0.isVisible && $0.canBecomeMain },
+                              isPassedOver: AboutWindowRegistry.owns)
+    }
+
     /// True when the person chose Stop and Quit.
     public static func ask(_ text: Text, in window: NSWindow?) async -> Bool {
         let alert = NSAlert()

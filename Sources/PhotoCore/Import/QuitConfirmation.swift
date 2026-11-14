@@ -28,4 +28,16 @@ public enum QuitConfirmation: Equatable, Sendable {
             return isExporting ? .exporting : nil
         }
     }
+
+    /// The window the confirmation is attached to: the key window, else
+    /// the main one, else the first of the visible ones; but never one
+    /// `isPassedOver` names. The About window and the license windows are
+    /// passed over: a quit asked from one of them is confirmed on the
+    /// app's own window (the library's, the import window), where the job
+    /// it would stop is. Nil when no other window is there: the alert then
+    /// stands alone.
+    public static func host<Window>(key: Window?, main: Window?, visible: [Window],
+                                    isPassedOver: (Window) -> Bool) -> Window? {
+        ([key, main].compactMap { $0 } + visible).first { !isPassedOver($0) }
+    }
 }

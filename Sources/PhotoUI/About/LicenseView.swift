@@ -106,7 +106,10 @@ private struct LicenseTextArea: NSViewRepresentable {
 final class LicenseTextView: NSTextView {
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         let modifiers = event.modifierFlags.intersection([.command, .option, .control, .shift])
-        switch (event.charactersIgnoringModifiers?.lowercased(), modifiers) {
+        // `characters`, as menu key equivalents are matched: with Command
+        // down it is the Latin letter even on a layout whose own letter on
+        // that key is another (Russian, Greek).
+        switch (event.characters?.lowercased(), modifiers) {
         case ("f", [.command]):
             find(.showFindInterface)
         case ("g", [.command]):
