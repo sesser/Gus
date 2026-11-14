@@ -371,3 +371,205 @@ looked up 2026-11-13 in the NVD by keyword and in LibRaw's changelog at tag
 
 `/security-review` on the branch is still worth running for the parser side:
 this section covers the bridge and the build, not LibRaw's decoders.
+
+### Fourth pass, 2026-11-13
+
+Reviewed: `741878c`..`d54beb3` (three commits): `e125555` (`FujifilmRAF.swift`
+and its tests), `42e11a5` (the camera's frame and the lens corrections in
+`LibRawDecoder`, `EmbeddedLensCorrection.swift`, the `embeddedLens` kernel,
+their tests, the notices and the user guide) and `d54beb3` (`status.md`). The
+addition is the owner's ruling of 2026-11-13 recorded in `status.md` (Lens
+corrections, new scope). Build and tests at `d54beb3`, working tree clean:
+`swift build` complete; `swift test` 898 tests in 133 suites passed, the same 1
+known issue (`LiveSessionTests`); `RAF_SAMPLE=/private/tmp/claude-501/x/DSCF5123.RAF
+swift test --filter LibRawFallbackTests` 7 tests passed (52 s; `status.md` still
+says 5); `Scripts/build-app.sh all` built both bundles (SDK 27.2, minimum 15.0,
+ad hoc signature). macOS 27.2.1 (26B131). The app not launched.
+
+**Verdict.** No blocker. The parser is bounded everywhere I could reach, the
+math is darktable's second algorithm as its source has it, the kernel matches
+its reference, and raws the system decodes are byte for byte as on `develop`.
+Three Should fix: a class of old Fujifilm files now renders as garbage (C18,
+from the first pass's crop code, found now), clipped highlights come out
+brighter than white toward the corners (C19), and the layout newer cameras
+write is read differently from darktable below its first knot (C20). C18 to
+C20 each change what renders, so fixing them before qa-tester lets QA run
+once; nothing else stops QA.
+
+#### Third pass findings
+
+| # | Outcome | How it was confirmed |
+| --- | --- | --- |
+| C16 | Not fixed: no answer in `status.md` | The retry still has no test. A nit; `qa.md` lists it as open. |
+| C17 | Not fixed: no answer in `status.md` | No frame size cap in the bridge. For a RAF LibRaw now always decodes the whole visible area (no crop box), which changes nothing about the bound. A nit; `qa.md` lists it as open. |
+| Q9 | With the designer | Unchanged by these commits. |
+| Q10 | Open | `.claude/settings.json` still has no `RAF_SAMPLE=` entry; `CLAUDE.md` lists the command. |
+
+#### New findings
+
+| # | Severity | Where | Finding | Failure | Rule |
+| --- | --- | --- | --- | --- | --- |
+| C18 | Should fix | `Sources/PhotoCore/Preview/LibRawDecoder.swift:127-132,203-205` (the inset crop of `0f2b4ee`, not these commits; found now with new samples) | For a Fujifilm Super CCD file (LibRaw's `fuji_width` set: the sensor is read turned 45 degrees) the RAF's crop records are not a rectangle of LibRaw's visible area, and the bridge hands them to LibRaw as a crop box. The system decoder gives no image for these files, so they take this path. | Two public samples (raw.pixls.us, FinePix F700 and FinePix S5000), `photocli render`: 3511 x 755 and 3477 x 752, a strip of the scene with a magenta copy beside it. A scratch C program on the branch's `CLibRaw.o`: without a crop box LibRaw gives 2035 x 1533 and 2012 x 1521, the whole picture; with the bridge's crop box, the strip. `LibRawDecoder.frameSize` says 2832 x 1064 for the first, so `PreviewGenerator.nativeSize` is wrong as well. On `develop` these files say `undecodable`; here they are cached as garbage. No crop box when `rawdata.ioparams.fuji_width` is set would give the whole picture. The camera frame of these commits is refused for both files (it does not fit the sensor's size), so they did not make it worse; a FinePix S5 Pro's frame is refused the same way. | Correctness |
+| C19 | Should fix | `Sources/PhotoCore/Edits/Kernels/LensKernels.swift:190-195`; `Sources/PhotoCore/Preview/EmbeddedLensCorrection.swift:136-138` | The vignetting gain multiplies whatever the decode holds, clipped values included. LibRaw's decode ends at its white (1.0); after the gain a clipped area is 1.0 at the center and up to 100 / vignetting toward the corner. Before these commits a clipped area was 1.0 everywhere. | The kernel on a decode that is 1.0 everywhere, the XF 35mm f/2's tables (compiled alone from the branch's sources): 1.00 at the center, 1.47 at the middle of the short edges, 1.73 in the corner. On a file: `photocli render DSCF5170.RAF --long-edge 300 --set exposure.ev=-3` (XF 14mm, 56% of the light at 0.85): the blown reflection at the left edge is linear 0.17 to 0.23 where white is 0.125 (34 pixels, all at 0.7 to 0.8 of the radius); in `DSCF5150.RAF` (the 35mm at f/2.8, 99.6% of the light at 0.4) the clipped area at 0.3 to 0.5 of the radius is 0.125, and in `DSCF5162.RAF` (tables that correct nothing) it is 0.124 to 0.125 at every radius from 0.1 to 0.7. So with Exposure or Highlights pulled down, a blown sky that reaches the corners is gray in the middle and up to 1.9 times brighter at the corners, a bright ring that was not in the photo, and `status.md`'s "what the decode holds (as a JPEG)" no longer bounds a LibRaw photo at white. The camera's JPEG and the system decoder clip after the gain. Capping the result at the decode's white is one way; the engineer's call. No test covers a clipped source. | Correctness |
+| C20 | Should fix | `Sources/PhotoCore/Preview/EmbeddedLensCorrection.swift:79-86`; `Sources/PhotoCore/Preview/FujifilmRAF.swift:22,68-72`; `Tests/PhotoCoreTests/FujifilmRAFTests.swift:122-141` | The nine-knot layout's knots do not start at 0: both real files here (the X-T3 sample `DSCF4583.RAF` and a public X-T30 one) have 0.3535, 0.5 … 1, 1.0606. `value` holds the first knot's value from there to the center. darktable (`_init_coeffs_md_v2`, "add a knot with no corrections at 0 value if not existing") adds a knot at 0 with no distortion, no shift and full light, and reads linearly from it. `LensTables.knots` is documented "the first one 0", and the nine-knot test uses made-up knots that start at 0, so the difference is not exercised. | The X-T30 sample's tables (XF 35mm f/2, the owner's lens): −0.469% at the first knot. This code applies −0.469% from the center out, so the multiplier at the center is 0.99531, not 1, and green is taken up to 1.56 pixels (of 6240 x 4160, at 0.175 of the radius) from where darktable's reading takes it. The same lens's eleven-knot table in the owner's X-E3 file gives −0.027%, −0.11% and −0.302% at 0.1, 0.2 and 0.3: the distortion does go to nothing at the center. Against the X-T30 file's own JPEG (a scratch test, Q12) the corrected render is 2.3 to 2.6 pixels further out at 0.15 to 0.25 of the radius and back to 0.7 at 0.35, the first knot: the bump this predicts (darktable's reading would leave about 1; against the system decoder's image of that file the same places are only 0.3 and 0.6 out). The X-T3 sample's vignetting (98.46 at the first knot): gain 1.0156 at the center where darktable has 1, so the inner third of the frame is 1.6% brighter. Small, and no nine-knot file takes the LibRaw path on this Mac (the X-T3 and X-T30 are read by the system decoder); it is the layout every newer camera writes, which is where a camera macOS does not know yet will come from. `status.md` and the notices say the formulas are darktable's. | Correctness |
+| C21 | Nit | `Tests/PhotoCoreTests/LibRawFallbackTests.swift:107-205`; `Sources/PhotoCore/Preview/LibRawDecoder.swift:249-271` | The part of `decode` that reads a RAF's tables and frame and applies them (which tables, the half-pixel resample, the whole-pixel cut, `fullSize`, the log line) runs only with `RAF_SAMPLE`: no default test names `hasLensCorrections` or `lensCorrections:`. The pieces it joins are well covered (see Checked). The light check of `theCorrectedRenderLinesUpWithTheCamerasJPEG` does not run on the documented sample (`DSCF5123`: "nan", too dark), so the documented command never checks vignetting on a file; it does on `DSCF5139` and `DSCF5170` (1.001, 1.003). | With `let tables = lensCorrections ? camera?.lens : nil` replaced by `nil`, `swift test` and CI stay green; only the run with a sample fails. By reading (the four mutations I ran were in the pieces, and all were caught). A synthetic RAF LibRaw can decode would be needed; leaving it as stated is acceptable. | Tests |
+| C22 | Nit | `docs/features/raf-not-rendering/status.md` (Build and tests; Bug); `Sources/PhotoCore/Preview/EmbeddedLensCorrection.swift:32-36`; `Sources/PhotoCore/Preview/FujifilmRAF.swift:22`; `docs/USER_GUIDE.md:355` | Records out of step. `status.md` says the sample run is 5 tests (7 now). The correction's comment says the scale rule "is also what the camera does": it is for the three X-Trans samples below, not for the X-A5 one (Q12). "The first one 0" (C20). The user guide and the Bug section say the system decoder cannot read "the Fujifilm X-E3's" files: it reads a public uncompressed X-E3 file (raw.pixls.us `DSCF2175.RAF`, sensor 6160 x 4032) and gives its image at 6000 x 4000; the ones it gives nothing for are lossless-compressed (6048 x 4038: all 54 of the owner's folder by their headers, and the public `DSCF2176.RAF`, for which `SystemRAWDecoder.reads` is false). An X-T3's lossless-compressed file is read. A RAF whose tables are plausible but whose frame is refused is left uncorrected with no log line. | A reader is told something the code or the files do not bear out. | `docs/WORKFLOW.md` ownership |
+
+#### Questions
+
+- **Q11, engineer: the 1.25x crop modes (by reading, no sample here).**
+  darktable multiplies the knots by 1.25 when the maker note's `CropMode` is 2
+  or 4 (`exif.cc`, "Account for the 1.25x crop modes in some Fuji cameras").
+  `FujifilmRAF` does not read `CropMode`, and `isPlausible` lets knots up to
+  1.25 through, so such a file would have each table value applied at 0.8 of
+  the radius it belongs to. No file here has the mode set (the X-T3 and X-T30 samples say n/a; the others have no such tag). The
+  tags' leading value is not used either: it is the frame's half diagonal over
+  the knot count in every file here (3605 / 11 for 6000 x 4000, 3749 / 9 for
+  6240 x 4160), so comparing it with the frame would tell a file whose tables
+  are for another frame, whatever the reason. Read the mode, check the leading
+  value, or leave such files uncorrected?
+- **Q12, engineer and owner: the scale rule against the camera, by lens.**
+  With a scratch test that looks up blocks of the camera's JPEG and of the
+  system decoder's image in the corrected LibRaw render (LibRaw called
+  directly, also for files the system reads):
+
+  | Sample | Table | Scale | Against the system decoder | Against the camera's JPEG |
+  | --- | --- | --- | --- | --- |
+  | X-E3, XF 50mm f/2 (public, uncompressed) | pincushion, +0.98% | 1.0098 | median 0.4, no trend by radius | median 1.6 (the system decoder's image: 1.3) |
+  | X-T20, XF 18-55mm at 53mm (public) | pincushion, +3.84% | 1.0384 | median 1.3, rising to 2 at 0.75 of the radius | median 3.7 |
+  | X-T30, XF 35mm f/2 (public, nine knots) | barrel, −8.9% | 0.9848 | median 2.3; within 3 out to 0.75, then −9 at 0.85 (37 blocks) and −22 at 0.95 (3 blocks) | median 1.8; −3 at 0.85, −17 at 0.95; the bump of C20 near the center |
+  | X-T3, XF 23mm f/1.4 (`DSCF4583`) | no distortion | 1 | not run | the suite: 0.40 JPEG pixels |
+  | X-E3, XF 35mm f/2 and XF 14mm (the owner's) | barrel −7.6%; none | 0.985; 1 | no image | the suite: 0.35, 0.43 and 0.27 JPEG pixels of 3.1 (`status.md`'s figures, reproduced) |
+  | X-A5, XC 15-45mm (public, a Bayer body) | barrel −9.6% | 0.9618 | 3.6% smaller, evenly from the center out | 3.6% smaller; JPEG and system decoder agree to 1.6 |
+
+  (Shifts in pixels of the full-size photo.) So for the X-Trans files the
+  rule is the camera's and macOS's through the middle of the frame, for both
+  signs of distortion. With barrel distortion the outermost tenth is off by 10
+  to 22 pixels against either reference, which also differ from each other
+  by about 6 at 0.85 of the radius (the X-T30 file): what `status.md` already lists for the owner ("what does
+  not match the camera"), now seen on a second body. For the X-A5 file the
+  camera and macOS both show the picture at its center scale (3.6% tighter,
+  130 pixels at the corner) where this code and darktable show more of the
+  scene. Lines are straight either way, and the X-A5 is read by the system
+  decoder, so no photo in the app is affected today. Whether that difference
+  is the body, the lens or the size of the correction I cannot tell from one
+  file: worth a look with an X-E3 file taken with a strongly distorting zoom
+  at its wide end, if the owner has one. Not a finding.
+- **Q13, owner: the clean-room rule and darktable.** `CLAUDE.md` says no code
+  from an existing photo application. The correction was written after reading
+  darktable's source (GPL 3 or later, the app's own license), as the mask math
+  was after LightCraft's, and `THIRD_PARTY_NOTICES.md` records it the same way.
+  I compared the Swift and Metal with `lens.cc` and `exif.cc` at `master`: no
+  line, identifier or comment is taken over, and the structure differs (the
+  recorded radius is solved for by bisection and kept in a 1024-entry table
+  where darktable resamples a spline at 16 knots; one kernel where darktable
+  makes two passes). Please confirm the rule allows it, as for LightCraft.
+- **Q14, owner: sharpness.** The resampling is bilinear (darktable uses the
+  interpolation the user chose). And a half-size decode of an X-E3 file is
+  resampled even without tables, because the camera's frame starts half a
+  pixel down in it (row 7.5): each row is the mean of two. Accepted in
+  `status.md` so that every size shows one frame; said here so it is a choice.
+- **For qa-tester.** Thumbnails and previews cached by an earlier build of
+  this branch are stale (`status.md`): start from an empty preview cache. A
+  photo with a blown sky and Exposure −2 shows C19. Q7 stands. A 16:9 or 1:1
+  RAF: by LibRaw's reading of the same records (`open.cpp:862-899`) the crop
+  record stays the whole 3:2 frame and the aspect is a record of its own
+  (0x115), which `FujifilmRAF` does not read, so such a photo would show the
+  whole frame; no sample.
+
+#### Checked and fine
+
+- **Raws the system decodes are untouched.** `photocli render` of
+  `/private/tmp/claude-501/cmp/in/DSCF4583.RAF` (X-T3) from a build of
+  `develop` (`ef592d9`) and from the branch: the same SHA-256 for the PNG at
+  600 pixels unedited, with a Kelvin white balance, with +1 EV, with a 0.3
+  crop at 2560, with Highlights −80 and noise reduction at 1200, and at full
+  size (6240 x 4160). The new code is reached only from `LibRawDecoder`
+  (`decode` and `frameSize`); a file that is not a RAF costs one more open and
+  a 108-byte read there, and keeps the path it had.
+- **The layouts against darktable** (`exif.cc` at `master`, read today): which
+  of the 23, 31, 23 and 19, 29, 19 values are knots, distortion, red, blue and
+  vignetting, the missing first knot of the eleven-knot chromatic aberration
+  tag, and the check that the three tags' knots agree, are as darktable has
+  them. Against ExifTool on six real files (X-E3, X-T3, X-T30, X-T20, X-A5 and a
+  FinePix F550EXR) the frames and every table value the parser returns are
+  the ones ExifTool prints.
+- **The math against darktable** (`lens.cc`, `_init_coeffs_md_v2` and
+  `_process_md`): knots are radii of the recorded image over half its
+  diagonal; the corrected radius is r / (1 + distortion / 100); red and blue
+  multiply green's source radius by 1 + their shift at that radius; the scale
+  is the largest multiplier of any color at 200 radii from the short side to
+  the corner, applied to radii and multipliers; vignetting divides the source
+  at the radius the sample comes from; beyond the last knot the last value
+  holds; samples outside the image repeat its edge. All as the source has it,
+  except C20 and Q11. The units are right: the kernel's `scales` turn pixels
+  of output radius and of source radius into table positions, both clamped to
+  the last entry, whose neighbor outside the table has no weight.
+- **The frame.** 6000 x 4000 at (16, 15) of LibRaw's 6032 x 4028 for the X-E3
+  file, the same at full and half size (3000 x 2000, from (8, 6.5)), and
+  `nativeSize`, `frameSize`, `fullSize` and the live session's half-size rule
+  all take it from one `Frame`. All eight orientations are checked pixel for
+  pixel against LibRaw's `flip_index` (and with that line of `windowRect`
+  removed in a scratch copy, flips 2, 3, 6 and 7 fail); a portrait file
+  (`DSCF5139`, turned 270) passes the suite with the sample. On the X-T3
+  sample LibRaw's frame is the system decoder's 6240 x 4160.
+- **Tests fail without the code.** In a scratch copy: no gain for blue in the
+  kernel, the mirrored rows left out of `windowRect`, blue read one value
+  early in the eleven-knot layout, and the scale searched from the center:
+  six tests fail across `EmbeddedLensTests` and `FujifilmRAFTests` (the
+  reference, the half-float bound, the restored picture, four flips, the
+  layout, the scale). The reference is plain Swift and shares only the lookup
+  tables with the kernel; the tables are checked against the functions, and
+  the functions against their inverse. Bounds are derived, no sleeps, no
+  golden touched, `kernelsCompile` counts 8.
+- **On real files** (`RAF_SAMPLE`, the suite as written): `DSCF5123` 7 passed
+  (median 0.35 JPEG pixels, 90th percentile 0.85; uncorrected 5.7); `DSCF5139`
+  (portrait) 0.43 and 1.43, light 1.001; `DSCF5170` (XF 14mm) 0.27 and 0.73,
+  light 1.003; the X-T3 sample, nine knots, 0.40 and 0.87, light 1.000 (its
+  premise test fails there, as it should: the system reads the file).
+- **Kernel and fallback.** `embeddedLens` is in a library of its own, as the
+  others. All kernels compile together, so a source that does not compile
+  takes the Lens heading's kernels with it; `kernelsCompile` would say so.
+  Without the kernel `apply` returns nil and `decode` cuts the frame on whole
+  pixels and logs once per decode (file name private). A shared context never
+  gave one lens's table to another photo: 30 renders of five lenses and two
+  pictures in one context with cached intermediates equal fresh contexts'
+  exactly (the fault of #55 does not show here).
+- **Concurrency.** Everything new runs inside `LibRawDecoder.decode` and
+  `frameSize`, which were already off the main actor; the new types are value
+  types; building a correction takes about 1 ms (optimized).
+- **Pipeline version.** No bump is due: on `develop` these files do not
+  render, and no stack of a file the system decodes renders differently (see
+  the first point). The caveat for libraries opened with an earlier build of
+  this branch is in `status.md`.
+- **Rules.** No UI string, no persisted name, no brand value, no migration, no
+  catalog or sidecar write, no network, no subprocess (ExifTool is not used),
+  no new dependency, `Package.swift` and `Sources/CLibRaw` untouched. The
+  notices name darktable, its license and what was taken from where.
+
+#### Security notes, fourth pass
+
+`Sources/PhotoCore/Preview/FujifilmRAF.swift` is a new parser of untrusted
+files, in process, run for every raw LibRaw opens (`frameSize` and `decode`),
+with no action by the user. Read line by line, and fuzzed with a scratch
+program that compiles the file alone: 2,000,000 damaged synthetic RAFs (random
+bytes, boundary values over 32-bit fields, the header's six offsets and
+lengths, IFD counts, types and offsets, truncation after damage, slices with a
+non-zero start, one in fifty through the file handle) with no trap; 317,905 of
+them gave tables, every one within `isPlausible`'s bounds, and the file handle
+and in-memory readers agreed on every file.
+
+| # | Severity | What | Detail |
+| --- | --- | --- | --- |
+| S9 | Info | Offsets, lengths and counts in `FujifilmRAF` | The header must be 108 bytes with the magic. Section offsets and lengths are 32-bit values widened to 64 bits before any sum. Reads are capped (1 MiB of records, 64 KiB of the raw section) whatever the header claims, and a short read is checked wherever bytes are indexed (`parseRecords` guards the count; each record's four bytes and its length are checked against what was read; at most 4096 records). An IFD offset must be at least 8 and its 2 + 12 x count bytes inside the 64 KiB (at most 512 entries); there are two levels and no loop to follow. A table is 1 to 64 signed rationals of type 10 whose bytes must lie inside what was read. No allocation is sized by a file's value beyond those caps, no path comes from the file, and nothing is written. |
+| S10 | Info | Values that reach the kernel | A zero denominator is NaN and is refused with every other non-finite value. `isPlausible` then bounds distortion to ±30%, shifts to ±2%, vignetting to 5 … 200 and knots to ascending within 0 … 1.25, so the source radius is 0.69 to 2.04 times the corrected one, the multipliers the kernel reads (that over the scale, which has the same range) stay within about 0.3 … 3, and the gain within 0.5 … 20, all finite; the lookup tables are 1024 x 2 whatever the file says; the kernel clamps table positions and the source is clamped to its extent; the region of interest is the output rectangle scaled by the smallest and largest multiplier. Knots a damaged file could still carry (10⁻¹² apart, subnormal spacing, values jumping between −30 and 30, 5 and 200) make the solved radius any root of a function that is no longer monotonic: 60 such tables rendered a finite, wrong picture in at most 8 ms each. A garbage picture, no crash, no growth. |
+| S11 | Info | The camera frame from the file | Used only when it lies inside LibRaw's visible area, so the output is never larger than LibRaw's image and the resample never reads outside it. A file can claim a frame as small as 1 x 1: its picture is then that small, and every decode of it is a full one (the half-size rule compares with the frame). Bounded by C17's bound. |
+| S12 | Info | `embeddedJPEG` | A range taken from the header with no check against the file's size (up to 8 GiB long). Only a test reads it. If app code ever does, cap the read. |
+| S13 | Info | Two opens of one file | `FujifilmRAF(contentsOf:)` opens the file after LibRaw has. A file swapped in between gives a frame from one and sizes from the other; the frame is still checked against the sizes in use. |
+
+Hostile tables and frames cost a wrong picture at worst. S1 to S8 stand;
+C17 (no cap on the frame LibRaw decodes) is still open and is now also the
+bound for a RAF, which is always decoded whole.
+
+`/security-review` should run on the branch: it now has a second parser of
+outside files in process, besides LibRaw.
