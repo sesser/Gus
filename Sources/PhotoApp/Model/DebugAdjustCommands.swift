@@ -12,7 +12,8 @@ import PhotoCore
 ///     adjust lutspace srgb|displayP3|adobeRGB|proPhoto
 ///     adjust off|on <group>     (profile, whiteBalance, light, presence, toneCurve, sharpening,
 ///                               noiseReduction, colorMixer, colorGrade, lookTable, vignette, grain)
-///     adjust look standard|neutral|flat       adjust wb <preset>
+///     adjust look standard|neutral|flat       adjust wb <preset>   (stores the mode as a paste would, whatever the file)
+///     adjust wb pick <preset>   (as the Mode pop-up does: the group's own rule for this photo)
 ///     adjust curve rgb|red|green|blue <x,y> <x,y> …
 ///     adjust grade shadows|midtones|highlights <hue> <amount> [<luminance>]
 ///     adjust mix red|orange|yellow|green|aqua|blue|purple|magenta <hue> <saturation> <luminance>
@@ -83,15 +84,31 @@ enum DebugAdjustCommands {
                 $0.decode.look = RawDecode.Look(rawValue: arguments.first ?? "") ?? .standard
             }
         case "wb":
+            if arguments.first == "pick" {
+                // The Mode pop-up's rule (`WhiteBalanceControls.picking`); Auto measures.
+                let preset = WhiteBalance.Preset(rawValue: arguments.dropFirst().first ?? "") ?? .asShot
+                let controls = editor.whiteBalanceControls
+                if preset == .auto, controls != .unavailable {
+                    editor.autoWhiteBalance()
+                    try? await Task.sleep(for: .milliseconds(50))
+                    while editor.isMeasuring { try? await Task.sleep(for: .milliseconds(50)) }
+                } else if let picked = controls.picking(preset, from: editor.adjustments.whiteBalance) {
+                    editor.change(String(localized: "White Balance"), phase: .committed) { $0.whiteBalance = picked }
+                } else {
+                    print("debug-script: adjust wb pick \(preset.rawValue) changes nothing here")
+                }
+                break
+            }
             let preset = WhiteBalance.Preset(rawValue: arguments.first ?? "") ?? .asShot
             editor.change(actionName, phase: .committed) { $0.whiteBalance = .raw(preset) }
         case "temperature", "tint":
             guard let value else { break }
-            let defaults = editor.rawDefaults
+            // As the sliders: the other value starts from as shot, by either decoder.
+            let asShot = editor.whiteBalanceControls.asShot
             editor.change(actionName, phase: .committed) {
                 $0.whiteBalance.preset = .custom
-                $0.whiteBalance.temperature = name == "temperature" ? value : $0.whiteBalance.temperature ?? defaults?.temperature
-                $0.whiteBalance.tint = name == "tint" ? value : $0.whiteBalance.tint ?? defaults?.tint
+                $0.whiteBalance.temperature = name == "temperature" ? value : $0.whiteBalance.temperature ?? asShot?.kelvin
+                $0.whiteBalance.tint = name == "tint" ? value : $0.whiteBalance.tint ?? asShot?.tint
             }
         case "luminance-nr":
             editor.change(actionName, phase: .committed) { $0.noiseReduction.luminance = value }
@@ -152,7 +169,7 @@ enum DebugAdjustCommands {
                 editor.change("Debug temperature", phase: phase) {
                     $0.whiteBalance.preset = .custom
                     $0.whiteBalance.temperature = value
-                    $0.whiteBalance.tint = $0.whiteBalance.tint ?? editor.rawDefaults?.tint
+                    $0.whiteBalance.tint = $0.whiteBalance.tint ?? editor.whiteBalanceControls.asShot?.tint
                 }
             case "luminance-nr":
                 editor.change("Debug luminance", phase: phase) { $0.noiseReduction.luminance = value }

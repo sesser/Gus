@@ -106,8 +106,12 @@ enum DebugMachineLearningCommands {
     }
 
     /// Which decoder gives the photo's image, and what the Adjust tab offers
-    /// for it (`SystemRAWDecoder`): the white balance modes and the
-    /// Temperature row (Kelvin for a raw the system decodes, relative otherwise).
+    /// for it (`SystemRAWDecoder`, `WhiteBalanceControls`): the White Balance
+    /// group's state (`kelvin` for a raw by either decoder, `relative` for a
+    /// file that is not a raw, `unavailable` or `unapplied` for a raw whose
+    /// color data can't be used, white-balance-across-decoders design §6),
+    /// its as-shot values, the Mode pop-up and its help, the caption under
+    /// it, the Temperature row, and the Profile heading's note.
     private static func printDecoder(_ editor: AdjustmentEditor, window: NSWindow?) {
         let decoder = editor.isRaw ? "system" : editor.usesFallbackDecoder ? "fallback" : "not raw"
         let root = window?.contentView?.superview
@@ -116,9 +120,23 @@ enum DebugMachineLearningCommands {
         let temperature = root.flatMap {
             find(SliderRow.self, in: $0, where: { $0.accessibilityLabel() == String(localized: "Temperature") })
         }
+        let tint = root.flatMap {
+            find(SliderRow.self, in: $0, where: { $0.accessibilityLabel() == String(localized: "Tint") })
+        }
+        let controls = editor.whiteBalanceControls
+        let state: String, caption: String?
+        switch controls.mode(for: editor.adjustments.whiteBalance) {
+        case .offered: (state, caption) = (controls == .relative ? "relative" : "kelvin", nil)
+        case .unavailable: (state, caption) = ("unavailable", WhiteBalanceText.unavailable)
+        case .notApplied: (state, caption) = ("unapplied", WhiteBalanceText.notApplied)
+        }
+        let values = controls.asShot.map { "\(Int($0.kelvin.rounded())) K tint \(Int($0.tint.rounded()))" } ?? "none"
+        print("debug-script: decoder \(decoder) wb state \(state) asShot \(values)"
+              + " caption \(caption.map { "'\($0)'" } ?? "none")")
         print("debug-script: decoder \(decoder) wb mode '\(modes?.titleOfSelectedItem ?? "-")'"
+              + " enabled \(modes?.isEnabled ?? false) tip '\(modes?.toolTip ?? "-")'"
               + " modes [\(modes?.itemTitles.joined(separator: ", ") ?? "not shown")]"
-              + " temperature \(temperature?.debugState ?? "not shown")"
+              + " temperature \(temperature?.debugState ?? "not shown") tint \(tint?.debugState ?? "not shown")"
               + " note \(editor.usesFallbackDecoder ? "'\(FallbackDecoderText.note)'" : "none")")
     }
 
