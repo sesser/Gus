@@ -241,6 +241,23 @@ which macOS can't decode), the X-T3 `DSCF4583.RAF` and a JPEG.
 **Second run (2026-11-13, at `8aedc11`):** this file above. Everything above was re-checked on a new library with
 an empty cache. The new checks are N1 to N7, C16 to C21, and P1 and P2.
 
+**Sign-off (2026-11-13).** The owner signed off on `d200907`, as the main session relayed. That commit is
+`8aedc11` plus this file's second-run record (`git diff 8aedc11..d200907` touches only `qa.md`), so the code signed
+off is the code tested above.
+
+Checks left open: P1 to P7, all of them. The owner named none as done.
+
+- P1: `DSCF5124`'s window frame by eye.
+- P2: the corners.
+- P3 (M1): the note's look.
+- P4 (M2, M3): White Balance and Noise Reduction by hand.
+- P5 (M4): paste from the X-T3 with real menus or keys.
+- P6 (M5): switching photos.
+- P7 (M6): Custom from the Mode pop-up with the mouse.
+
+They stay in "For a person" above. Per `docs/WORKFLOW.md`, they also go to the standing manual-checks issue (#82)
+and are named in the pull request.
+
 ## Summary for the issue
 
 QA second run (2026-11-13), `bug/raf-not-rendering` at `8aedc11`: **passes, no findings.** The run started from a
