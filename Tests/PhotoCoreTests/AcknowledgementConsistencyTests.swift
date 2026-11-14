@@ -192,6 +192,26 @@ struct AcknowledgementConsistency {
         return folders.sorted()
     }
 
+    /// `Package.swift` with one more declaration at the head of its
+    /// package dependencies, whatever is declared there now.
+    static func addingDependency(_ declaration: String, to package: String) throws -> String {
+        let anchor = try #require(package.range(of: "dependencies: ["), "Package.swift has no “dependencies: [”")
+        return package.replacingCharacters(in: anchor, with: "dependencies: [\n        " + declaration)
+    }
+
+    /// The README with one more line at the end of its Credits section,
+    /// wherever that section is.
+    static func addingCreditsLine(_ line: String, to readme: String) throws -> String {
+        var lines = readme.components(separatedBy: "\n")
+        let start = try #require(lines.firstIndex { $0.trimmingCharacters(in: .whitespaces) == "## Credits" },
+                                 "README.md has no “## Credits” section")
+        var end = lines[(start + 1)...].firstIndex { $0.hasPrefix("## ") } ?? lines.count
+        // Before the blank lines that close the section.
+        while end > start + 1, lines[end - 1].trimmingCharacters(in: .whitespaces).isEmpty { end -= 1 }
+        lines.insert(line, at: end)
+        return lines.joined(separator: "\n")
+    }
+
     func problems() -> [String] {
         var problems: [String] = []
         let headings = noticesHeadings
@@ -272,11 +292,8 @@ struct AcknowledgementConsistencyTests {
     @Test("AC10: a package the record lacks fails with the package's name")
     func addingAPackageIsNamed() throws {
         var repository = try AcknowledgementConsistency.repository()
-        let declared = #".package(url: "https://github.com/groue/GRDB.swift.git", from: "7.9.0"),"#
-        #expect(repository.package.contains(declared))
-        repository.package = repository.package.replacingOccurrences(
-            of: declared,
-            with: declared + "\n        .package(url: \"https://example.org/someone/SwiftWidgets.git\", from: \"1.0.0\"),")
+        repository.package = try AcknowledgementConsistency.addingDependency(
+            #".package(url: "https://example.org/someone/SwiftWidgets.git", from: "1.0.0"),"#, to: repository.package)
         let problems = repository.problems()
         #expect(problems.count == 1)
         #expect(problems.first?.contains("SwiftWidgets") == true, "\(problems)")
@@ -301,13 +318,45 @@ struct AcknowledgementConsistencyTests {
     ])
     func everyFormOfDependencyIsNamed(declaration: String, name: String) throws {
         var repository = try AcknowledgementConsistency.repository()
-        let declared = #".package(url: "https://github.com/groue/GRDB.swift.git", from: "7.9.0"),"#
-        #expect(repository.package.contains(declared))
-        repository.package = repository.package.replacingOccurrences(of: declared, with: declared + "\n        " + declaration)
+        repository.package = try AcknowledgementConsistency.addingDependency(declaration, to: repository.package)
         let problems = repository.problems()
         #expect(problems.count == 1, "\(problems)")
         #expect(problems.first?.contains(name) == true && problems.first?.contains("Package.swift") == true, "\(problems)")
         #expect(!problems.contains { $0.contains("Commented") })
+    }
+
+    @Test("The tests' own edits don't depend on a version line or on Credits being the README's last section")
+    func mutationsUseStableAnchors() throws {
+        // A manifest with another minimum version, and other dependencies.
+        let manifest = """
+            let package = Package(
+                name: "X",
+                dependencies: [
+                    .package(url: "https://github.com/groue/GRDB.swift.git", from: "9.9.9"),
+                ],
+                targets: [.target(name: "A", dependencies: ["B"])]
+            )
+            """
+        let added = try AcknowledgementConsistency.addingDependency(#".package(path: "../New"),"#, to: manifest)
+        #expect(AcknowledgementConsistency.packageLocations(in: added)
+            == ["../New", "https://github.com/groue/GRDB.swift.git"])
+
+        // A README where a section follows the Credits.
+        let readme = "# X\n\n## Credits\n\nThanks:\n\n- **LibRaw** decodes.\n\n## Afterword\n\n- not a credit\n"
+        let credited = try AcknowledgementConsistency.addingCreditsLine("- **New** for something.", to: readme)
+        #expect(credited == "# X\n\n## Credits\n\nThanks:\n\n- **LibRaw** decodes.\n- **New** for something.\n\n## Afterword\n\n- not a credit\n")
+        #expect(AcknowledgementConsistency.creditsSection(of: credited).map(AcknowledgementConsistency.creditedNames) == ["LibRaw", "New"])
+        // Credits last, as today: the line still lands in the section.
+        let last = try AcknowledgementConsistency.addingCreditsLine("- **New**", to: "## Credits\n\n- **LibRaw** decodes.\n")
+        #expect(last == "## Credits\n\n- **LibRaw** decodes.\n- **New**\n")
+
+        // On the real files with a section after the Credits, the drift is still named, once.
+        var repository = try AcknowledgementConsistency.repository()
+        repository.readme += "\n## Afterword\n\n- A list that credits nobody.\n"
+        #expect(repository.problems().isEmpty)
+        repository.readme = try AcknowledgementConsistency.addingCreditsLine("- **OpenColorIO** for something.", to: repository.readme)
+        let problems = repository.problems()
+        #expect(problems.count == 1 && problems.first?.contains("OpenColorIO") == true, "\(problems)")
     }
 
     @Test("Comments are taken out of Package.swift, and strings are not")
@@ -352,7 +401,7 @@ struct AcknowledgementConsistencyTests {
                 "\(problems)")
 
         repository = try AcknowledgementConsistency.repository()
-        repository.readme += "- **OpenColorIO** for something.\n"
+        repository.readme = try AcknowledgementConsistency.addingCreditsLine("- **OpenColorIO** for something.", to: repository.readme)
         problems = repository.problems()
         #expect(problems.count == 1)
         #expect(problems.first?.contains("OpenColorIO") == true && problems.first?.contains("Credits") == true, "\(problems)")
@@ -361,7 +410,7 @@ struct AcknowledgementConsistencyTests {
         for line in ["- OpenColorIO for the color transforms.", "* Thanks to OpenColorIO.", "  - OpenColorIO, nested.",
                      "1. OpenColorIO", "- See **OpenColorIO**."] {
             repository = try AcknowledgementConsistency.repository()
-            repository.readme += line + "\n"
+            repository.readme = try AcknowledgementConsistency.addingCreditsLine(line, to: repository.readme)
             problems = repository.problems()
             #expect(!problems.isEmpty, "\(line)")
             #expect(problems.allSatisfy { $0.contains("OpenColorIO") && $0.contains("Credits") }, "\(line): \(problems)")
