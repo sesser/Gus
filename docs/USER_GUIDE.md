@@ -605,6 +605,24 @@ Photos on a volume that is not connected show an offline badge. Their cached
 previews still display, and the app never removes them from the catalog by
 itself (you can, with **File ▸ Remove from Library…**).
 
+**About**: the first item of the app menu, **About** followed by the app's
+name, opens the About window; **Help ▸ About** followed by the app's name is
+the same item and opens the same window (there is only ever one). It shows the app's version and build,
+then a thank-you to the projects the app relies on: LibRaw, darktable,
+LightCraft, GRDB and ExifTool, each with a sentence on what it gave, its
+license, and a link to its page. A link opens in your browser; the app itself
+contacts nothing, and the window works without a network. Below the list are
+the app's own copyright and its license (the GNU General Public License,
+version 3 or later). **View License**, beside LibRaw, LightCraft and GRDB and
+under the app's own license statement, opens that text in a window of its
+own, where it can be selected, copied and searched (⌘F, then ⌘G and ⇧⌘G);
+several can be open at once. The button is there only when this copy of the
+app carries the text: a copy built before the license files are packaged into
+it shows the license names and links only. The version line is left out when
+the app runs without a bundle (`swift run`). Esc or ⌘W closes the About
+window; it can be made taller, not wider. The standalone importer has the
+same window under its own name.
+
 ## Data locations
 
 - Catalog: `~/Library/Application Support/<app folder>/Library/catalog.sqlite`

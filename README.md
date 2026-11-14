@@ -44,6 +44,10 @@ I built this with Claude. AI did the work, I did the orchestration.
   Finder (⇧⌘R), and remove photos or a whole project from the library
   (⌘⌫ and Remove Project from Library). Removing changes the catalog only:
   your files and sidecars are never touched, and a removal can't be undone
+- An About window (app menu or Help, in both apps) with the version, the
+  projects Gus stands on and what each gave it, a link to each, and Gus's own
+  copyright and license. The full license texts open from it once the app
+  bundles carry the license files (not yet: #172)
 
 **Import**
 
@@ -185,7 +189,7 @@ macOS raw decoder can't.
 | Path | Contents |
 |---|---|
 | `Sources/PhotoCore` | Catalog (GRDB), import, metadata, edits, masks and rendering, presets, previews, sidecars, export |
-| `Sources/PhotoUI` | UI shared by both apps: the import window, grid pieces, palette, String Catalog |
+| `Sources/PhotoUI` | UI shared by both apps: the import window, the About window, grid pieces, palette, String Catalog |
 | `Sources/PhotoApp` | The library app: window and toolbar, grid, loupe, inspector, sidebar, sheets |
 | `Sources/PhotoImporter` | The standalone importer |
 | `Sources/PhotoCLI` | `photocli` |
@@ -223,4 +227,5 @@ Gus stands on other people's work, and says so:
   in Swift and Metal after reading how darktable does it, with nothing copied,
   and is checked against the camera's own JPEG. See `THIRD_PARTY_NOTICES.md`.
 - **LightCraft** for the brush and colour-range mask math (same file).
-- **GRDB** for the catalog.
+- **GRDB** for the catalog (MIT; its notice is in `THIRD_PARTY_NOTICES.md`).
+- **ExifTool** reads metadata when it is installed; it is not part of Gus.

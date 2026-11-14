@@ -28,9 +28,10 @@ struct PhotoApplication: App {
         .commands {
             LibraryCommands()
             ImportCommands(includesLibraryItems: true, includesOptionsItem: false, includesSharedItems: false)
-            // No help content yet: SwiftUI's "‹app› Help" only says so. The
-            // Help menu and its search field stay (prd.md R1, R2).
-            CommandGroup(replacing: .help) {}
+            // About ‹name› in the app menu, in place of the system's panel,
+            // and in Help, in place of SwiftUI's "‹app› Help" (there is no
+            // help content yet). The Help menu's search field stays.
+            AboutCommands(appName: AppBranding.displayName)
         }
 
         Window(String(localized: "Import"), id: "import") {
@@ -39,6 +40,8 @@ struct PhotoApplication: App {
             }
         }
         .defaultSize(width: 1200, height: 780)
+
+        AboutScenes(appName: AppBranding.displayName)
 
         Settings {
             if let model = library.model {
@@ -106,9 +109,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                                          isExporting: library.export.isExporting)
         else { return .terminateNow }
         Task { @MainActor in
-            // The window ⌘Q came from; a visible one if none is key.
-            let window = NSApp.keyWindow ?? NSApp.mainWindow ?? NSApp.windows.first { $0.isVisible && $0.canBecomeMain }
-            let stop = await QuitGuard.ask(QuitGuard.text(for: confirmation), in: window)
+            // The window ⌘Q came from, a visible one if none is key; the
+            // library window (or the sheet on it) rather than the About or
+            // a license window, brought forward by `ask`.
+            let stop = await QuitGuard.ask(QuitGuard.text(for: confirmation), in: QuitGuard.confirmationWindow)
             guard stop else { return }
             // Nothing more is said: the app quits before the jobs report.
             library.cardImport.cancelImport()

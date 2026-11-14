@@ -36,8 +36,33 @@ public enum QuitGuard {
         }
     }
 
-    /// True when the person chose Stop and Quit.
+    /// The window a quit confirmation goes on (`QuitConfirmation.host`):
+    /// the one ⌘Q came from, a visible one if none is key, never the About
+    /// window or a license window, and the sheet on it when it shows one.
+    public static var confirmationWindow: NSWindow? {
+        QuitConfirmation.host(key: NSApp.keyWindow, main: NSApp.mainWindow,
+                              visible: NSApp.windows.filter { $0.isVisible && $0.canBecomeMain },
+                              isPassedOver: AboutWindowRegistry.owns,
+                              attachedSheet: \.attachedSheet)
+    }
+
+    /// Brings the window a confirmation goes on to the front and makes it
+    /// key, when it is not already: the About window or a license window
+    /// may be over it, on the spot where the sheet comes down. For a sheet,
+    /// the window it is on comes forward, which makes the sheet key.
+    static func bringForward(_ window: NSWindow?) {
+        guard let window, NSApp.keyWindow !== window else { return }
+        var root = window
+        while let parent = root.sheetParent { root = parent }
+        root.makeKeyAndOrderFront(nil)
+    }
+
+    /// True when the person chose Stop and Quit. Asked on `window`, on the
+    /// sheet it shows if it shows one, brought forward first; app-modal
+    /// when there is no window.
     public static func ask(_ text: Text, in window: NSWindow?) async -> Bool {
+        let window = window.map { QuitConfirmation.frontSheet(of: $0, attachedSheet: \.attachedSheet) }
+        bringForward(window)
         let alert = NSAlert()
         alert.messageText = text.title
         alert.informativeText = text.message
