@@ -19,7 +19,9 @@ public struct FujifilmRAF: Sendable, Equatable {
     /// from its center (0) to its corner (1, half the frame's diagonal), on
     /// the image as the sensor recorded it.
     public struct LensTables: Sendable, Equatable {
-        /// The radii the values are given at, ascending, the first one 0.
+        /// The radii the values are given at, ascending, the first one 0 (a
+        /// file whose knots start further out gets one at 0 where nothing is
+        /// corrected, as darktable adds it).
         public var knots: [Double]
         /// Geometric distortion in percent of the radius: where a point at
         /// this radius of the recorded image belongs, relative to it
@@ -32,13 +34,20 @@ public struct FujifilmRAF: Sendable, Equatable {
         /// The light reaching the sensor at this radius, in percent of the
         /// center's.
         public var vignetting: [Double]
+        /// Half the diagonal, in pixels, of the frame the tables are for: the
+        /// tags' leading value (that over the number of knots, in every file
+        /// seen: 3605 / 11 for an X-E3's 6000 x 4000) times the knots. Nil
+        /// for tables that did not come from a file.
+        public var frameRadius: Double?
 
-        public init(knots: [Double], distortion: [Double], red: [Double], blue: [Double], vignetting: [Double]) {
+        public init(knots: [Double], distortion: [Double], red: [Double], blue: [Double], vignetting: [Double],
+                    frameRadius: Double? = nil) {
             self.knots = knots
             self.distortion = distortion
             self.red = red
             self.blue = blue
             self.vignetting = vignetting
+            self.frameRadius = frameRadius
         }
 
         /// The three tags' values, in either of the two layouts cameras write
@@ -50,7 +59,12 @@ public struct FujifilmRAF: Sendable, Equatable {
         ///   and blue.
         /// - 19, 29 and 19 values (X-Trans IV and V): a leading value, then 9
         ///   knots and 9 values; chromatic aberration has 9 knots, 9 red, 9
-        ///   blue and a trailing value.
+        ///   blue and a trailing value. These knots start away from the
+        ///   center (0.35 in an X-T3's file): a knot at 0 with no distortion,
+        ///   no shift and all the light is put before them, as darktable's
+        ///   correction does ("add a knot with no corrections at 0"), so the
+        ///   corrections fade to nothing toward the center instead of
+        ///   holding the first knot's value there.
         ///
         /// Nil for any other count, for knots that differ between the tags,
         /// that do not ascend or leave 0 … 1.25, and for values no lens has
@@ -76,8 +90,15 @@ public struct FujifilmRAF: Sendable, Equatable {
             let knots = Array(d[1...count])
             guard knots == Array(v[1...count]), knots == caKnots else { return nil }
             self.init(knots: knots, distortion: Array(d[(count + 1)...(2 * count)]), red: red, blue: blue,
-                      vignetting: Array(v[(count + 1)...(2 * count)]))
-            guard isPlausible else { return nil }
+                      vignetting: Array(v[(count + 1)...(2 * count)]), frameRadius: d[0] * Double(count))
+            if let first = knots.first, first > 0 {
+                self.knots.insert(0, at: 0)
+                distortion.insert(0, at: 0)
+                self.red.insert(0, at: 0)
+                self.blue.insert(0, at: 0)
+                vignetting.insert(100, at: 0)
+            }
+            guard isPlausible, frameRadius?.isFinite == true else { return nil }
         }
 
         /// Knots that ascend within 0 … 1.25, and values a lens could have:
@@ -126,6 +147,29 @@ public struct FujifilmRAF: Sendable, Equatable {
     /// Where the camera's embedded JPEG is in the file.
     public var embeddedJPEG: Range<UInt64>?
     public var lens: LensTables?
+    /// The maker note's `CropMode` (0x104D) from the embedded JPEG's Exif,
+    /// nil when it has none: 2 and 4 are the 1.25x crops some cameras offer,
+    /// for which the tables' radii are of another frame (darktable multiplies
+    /// the knots by 1.25 then).
+    public var cropMode: Int?
+
+    /// The camera's tables, when they can be applied to `frame` as they are:
+    /// not in a 1.25x crop mode, and made for a frame of this size (the
+    /// tables' own radius is this frame's half diagonal, to its rounding).
+    /// Otherwise nil with the reason, for the log: no file of either kind
+    /// was at hand to check a correction against, so such a file is shown
+    /// uncorrected rather than corrected at the wrong radii.
+    public func lensTables(for frame: PixelRect) -> (tables: LensTables?, refusal: String?) {
+        guard let lens else { return (nil, nil) }
+        if let cropMode, cropMode == 2 || cropMode == 4 {
+            return (nil, "the camera's crop mode \(cropMode) (1.25x)")
+        }
+        let halfDiagonal = hypot(Double(frame.width), Double(frame.height)) / 2
+        if let radius = lens.frameRadius, abs(radius - halfDiagonal) > 2 {
+            return (nil, "tables made for a frame of half diagonal \(radius), not this one's \(halfDiagonal)")
+        }
+        return (lens, nil)
+    }
 
     static let magic = Data("FUJIFILMCCD-RAW ".utf8)
     /// The header: the magic, the camera, and at 84 the three sections'
@@ -169,6 +213,10 @@ public struct FujifilmRAF: Sendable, Equatable {
         fullHeight = 0
         if jpeg.offset > 0, jpeg.length > 0 {
             embeddedJPEG = jpeg.offset..<(jpeg.offset + UInt64(jpeg.length))
+            // The Exif segment is at the JPEG's start and at most 64 KiB long.
+            if let start = read(jpeg.offset, min(jpeg.length, Self.maximumIFDLength + 16)) {
+                cropMode = Self.cropMode(inJPEG: start)
+            }
         }
         if records.offset > 0, records.length >= 4,
            let data = read(records.offset, min(records.length, Self.maximumRecordsLength)) {
@@ -243,6 +291,44 @@ public struct FujifilmRAF: Sendable, Equatable {
         guard let distortion = rationals(Tag.geometricDistortion), let aberration = rationals(Tag.chromaticAberration),
               let vignetting = rationals(Tag.vignetting) else { return nil }
         return LensTables(distortion: distortion, chromaticAberration: aberration, vignetting: vignetting)
+    }
+
+    // MARK: The crop mode
+
+    /// `CropMode` from the Exif segment at the start of a JPEG: IFD0, the
+    /// Exif IFD (0x8769), the maker note (0x927C, "FUJIFILM", then an IFD
+    /// whose offsets count from the note's start), tag 0x104D. Little-endian
+    /// Exif only, as Fujifilm writes it.
+    static func cropMode(inJPEG data: Data) -> Int? {
+        guard data.count >= 4, byte(data, 0) == 0xFF, byte(data, 1) == 0xD8 else { return nil }
+        var position = 2
+        while position + 4 <= data.count, byte(data, position) == 0xFF {
+            let marker = byte(data, position + 1), length = Int(bigEndian16(data, position + 2))
+            guard length >= 2, marker != 0xDA else { return nil }
+            let end = min(position + 2 + length, data.count)
+            if marker == 0xE1, position + 10 <= end,
+               data.subdata(in: (data.startIndex + position + 4)..<(data.startIndex + position + 10)) == Data("Exif\0\0".utf8) {
+                return cropMode(inExif: data.subdata(in: (data.startIndex + position + 10)..<(data.startIndex + end)))
+            }
+            position += 2 + length
+        }
+        return nil
+    }
+
+    private static func cropMode(inExif tiff: Data) -> Int? {
+        guard tiff.count >= 8, tiff.prefix(4) == Data([0x49, 0x49, 0x2A, 0x00]),
+              let root = entries(tiff, at: Int(littleEndian32(tiff, 4))),
+              let exifPointer = root.first(where: { $0.tag == 0x8769 }),
+              let exif = entries(tiff, at: Int(exifPointer.value)),
+              let note = exif.first(where: { $0.tag == 0x927C }), note.count >= 12
+        else { return nil }
+        let start = Int(note.value)
+        guard start >= 8, start + 12 <= tiff.count else { return nil }
+        let maker = tiff.subdata(in: start..<min(start + note.count, tiff.count))
+        guard maker.prefix(8) == Data("FUJIFILM".utf8), let tags = entries(maker, at: Int(littleEndian32(maker, 8))),
+              let mode = tags.first(where: { $0.tag == 0x104D }), mode.type == 3, mode.count == 1
+        else { return nil }
+        return Int(mode.value & 0xFFFF)
     }
 
     private struct Entry {
