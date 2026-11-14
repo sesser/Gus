@@ -468,25 +468,73 @@ struct WhiteBalanceAcrossDecodersTests {
 
     // MARK: Previews cached before the change (AC12)
 
-    @Test("A preview cached by the pipeline version before the color step is not found (AC12)")
+    /// AC12 (R12), with R11's "their cached previews stay valid": a cache
+    /// key cannot say which decoder a file gets, so the version is bumped
+    /// for everything, and the earlier version's previews that cannot be
+    /// LibRaw's (written before LibRaw decoded anything) are carried over.
+    @Test("A preview cached since LibRaw decoding existed is made again; an older one is kept (AC12)")
     func cachedPreviewsAreRegenerated() async throws {
         // 8 was the version of the builds that showed LibRaw's photos without a color step or a look.
-        #expect(PreviewCacheKey.currentPipelineVersion == 9)
-        let content = String(repeating: "ab", count: 32), edits = EditStack.identity.renderHash
-        let current = try #require(PreviewCacheKey(contentHash: content, editStackHash: edits, tier: .preview))
-        let earlier = try #require(PreviewCacheKey(contentHash: content, editStackHash: edits, tier: .preview, pipelineVersion: 8))
+        #expect(PreviewCacheKey.currentPipelineVersion == 9 && PreviewCacheKey.versionCarriedOver == 8)
+        let edits = EditStack.identity.renderHash
+        func key(_ byte: String, _ tier: PreviewTier, version: Int = PreviewCacheKey.currentPipelineVersion) throws -> PreviewCacheKey {
+            try #require(PreviewCacheKey(contentHash: String(repeating: byte, count: 32), editStackHash: edits, tier: tier,
+                                         pipelineVersion: version))
+        }
+        let current = try key("ab", .preview), earlier = try key("ab", .preview, version: 8)
         #expect(current.pipelineVersion == 9 && current != earlier && current.relativePath != earlier.relativePath)
         #expect(current.relativePath.hasPrefix("v9/") && earlier.relativePath.hasPrefix("v8/"))
+        // 2026-11-13, midnight UTC: the day LibRaw decoding first existed in a build (#161).
+        let cutoff = PreviewCacheKey.libRawDecodingSince
+        #expect(cutoff == ISO8601DateFormatter().date(from: "2026-11-13T00:00:00Z"))
+        func setDate(_ cache: PreviewDiskCache, _ key: PreviewCacheKey, _ date: Date) throws {
+            try FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: cache.url(for: key).path)
+        }
+
         try await RepositoryFiles.withTemporaryDirectory { folder in
             let cache = PreviewDiskCache(root: folder)
+            // Without the carry-over a version 8 preview is simply not found: a miss, rendered again.
             try cache.store(Data([1, 2, 3]), for: earlier)
-            #expect(cache.contains(earlier))
-            // The same photo and stack today: a miss, so it is rendered again.
-            #expect(!cache.contains(current))
+            #expect(cache.contains(earlier) && !cache.contains(current))
             #expect(cache.loadImage(for: current) == nil)
-            // The earlier version's files are the ones a launch clears.
+
+            // Three photos' previews under version 8: one from before LibRaw decoded anything (a
+            // JPEG's, a raw's the system decoder read), with its thumbnail; one from the day after
+            // (possibly a LibRaw photo's old look); one written just now.
+            let old = try key("ab", .preview, version: 8), oldThumbnail = try key("ab", .thumbnail, version: 8)
+            let recent = try key("cd", .preview, version: 8), now = try key("ef", .thumbnail, version: 8)
+            try cache.store(Data([4, 5, 6]), for: oldThumbnail)
+            try cache.store(Data([7, 8]), for: recent)
+            try cache.store(Data([9]), for: now)
+            try setDate(cache, old, cutoff.addingTimeInterval(-1))
+            try setDate(cache, oldThumbnail, cutoff.addingTimeInterval(-90 * 86_400))
+            try setDate(cache, recent, cutoff.addingTimeInterval(86_400))
+            let moved = cache.carryOver()
+            #expect(moved.kept == 2 && moved.deleted == 2)
+            // The old ones are found under today's keys, byte for byte.
+            let carried = try key("ab", .preview), carriedThumbnail = try key("ab", .thumbnail)
+            #expect(cache.contains(carried) && cache.contains(carriedThumbnail))
+            #expect(try Data(contentsOf: cache.url(for: carried)) == Data([1, 2, 3]))
+            #expect(try Data(contentsOf: cache.url(for: carriedThumbnail)) == Data([4, 5, 6]))
+            // The ones a LibRaw photo's old look could be in are gone: made again on demand.
+            let dropped = try key("cd", .preview), droppedThumbnail = try key("ef", .thumbnail)
+            #expect(!cache.contains(dropped) && !cache.contains(droppedThumbnail))
+            #expect(!FileManager.default.fileExists(atPath: folder.appending(path: "v8").path))
+            // Once only: with version 9 in place, a version 8 folder that turns up later (an
+            // earlier build was run again) is not merged in, and goes with the obsolete versions.
+            let late = try key("12", .preview, version: 8), lateToday = try key("12", .preview)
+            try cache.store(Data([1]), for: late)
+            try setDate(cache, late, cutoff.addingTimeInterval(-1))
+            #expect(cache.carryOver() == (0, 0))
+            #expect(!cache.contains(lateToday))
             cache.removeObsoletePipelineVersions()
-            #expect(!cache.contains(earlier))
+            #expect(!FileManager.default.fileExists(atPath: folder.appending(path: "v8").path))
+            #expect(cache.contains(carried))
+        }
+        // A new library, or a cache that was deleted: nothing to carry.
+        try await RepositoryFiles.withTemporaryDirectory { folder in
+            #expect(PreviewDiskCache(root: folder).carryOver() == (0, 0))
+            #expect(PreviewDiskCache(root: folder.appending(path: "missing")).carryOver() == (0, 0))
         }
     }
 

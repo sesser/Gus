@@ -131,6 +131,55 @@ public final class PreviewDiskCache: Sendable {
         }
     }
 
+    /// Brings an earlier pipeline version's renditions under the current
+    /// version, for a bump that only renditions written since `cutoff` can
+    /// need: those are deleted (and made again on demand), the older ones
+    /// are kept, with one rename of the version's folder. Does nothing when
+    /// there is no such folder or the current version already has one (the
+    /// earlier one is then removed with the other obsolete versions).
+    ///
+    /// Call before `removeObsoletePipelineVersions`, before anything reads
+    /// or writes the cache.
+    ///
+    /// - Returns: How many renditions were kept and how many deleted.
+    @discardableResult
+    public func carryOver(fromVersion earlier: Int = PreviewCacheKey.versionCarriedOver,
+                          toVersion current: Int = PreviewCacheKey.currentPipelineVersion,
+                          writtenBefore cutoff: Date = PreviewCacheKey.libRawDecodingSince) -> (kept: Int, deleted: Int) {
+        let manager = FileManager.default
+        let from = root.appending(path: "v\(earlier)", directoryHint: .isDirectory)
+        let to = root.appending(path: "v\(current)", directoryHint: .isDirectory)
+        guard earlier != current, manager.fileExists(atPath: from.path), !manager.fileExists(atPath: to.path),
+              let enumerator = manager.enumerator(at: from, includingPropertiesForKeys: [.contentModificationDateKey, .isRegularFileKey])
+        else { return (0, 0) }
+        var kept = 0, deleted = 0
+        for case let file as URL in enumerator {
+            guard let values = try? file.resourceValues(forKeys: [.contentModificationDateKey, .isRegularFileKey]),
+                  values.isRegularFile == true else { continue }
+            // A rendition whose date cannot be read is not known to be old enough.
+            if let written = values.contentModificationDate, written < cutoff {
+                kept += 1
+            } else {
+                do {
+                    try manager.removeItem(at: file)
+                    deleted += 1
+                } catch {
+                    // Left where it is: the folder is then not carried over at all (below).
+                    Self.log.error("Could not remove \(file.lastPathComponent, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                    return (0, deleted)
+                }
+            }
+        }
+        do {
+            try manager.moveItem(at: from, to: to)
+        } catch {
+            Self.log.error("Could not carry v\(earlier) over to v\(current): \(error.localizedDescription, privacy: .public)")
+            return (0, deleted)
+        }
+        Self.log.notice("Carried \(kept) renditions of pipeline version \(earlier) over to \(current); \(deleted) are made again")
+        return (kept, deleted)
+    }
+
     /// Deletes renditions written by older pipeline versions.
     public func removeObsoletePipelineVersions(current: Int = PreviewCacheKey.currentPipelineVersion) {
         guard let items = try? FileManager.default.contentsOfDirectory(atPath: root.path) else { return }

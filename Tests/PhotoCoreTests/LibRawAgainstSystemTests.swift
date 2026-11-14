@@ -29,9 +29,12 @@ import Testing
 ///   decoder has its own. For the X-T3 the two read the same neutral about
 ///   a fifth apart, and it is the system decoder that stands alone: the
 ///   camera's own table of white balances by Kelvin (in the file) agrees
-///   with LibRaw's matrix to 5% from 3000 K to 6700 K. So the same Kelvin
-///   gives a visibly different picture under the two decoders for that
-///   camera, and a nearly equal one for the X-E3.
+///   with LibRaw's matrix to 5% from 3400 K to 7100 K (8% at 2500 K). So
+///   the same Kelvin gives a visibly different picture under the two
+///   decoders for that camera, and a nearly equal one for the X-E3 on the
+///   one file that could be compared (shot at about 3900 K; the X-E3's own
+///   table and LibRaw's matrix agree to 4% up to 5300 K and drift apart
+///   above, to 13% at 6300 K).
 /// - **Brightness.** The look's exposure is the X-E3's; the system decoder
 ///   has one for each camera, which no file states (`BaselineLook`).
 struct LibRawAgainstSystemLimits {
