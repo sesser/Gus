@@ -5,9 +5,12 @@ Issue: #161. Bug fix, branch `bug/raf-not-rendering`, cut from `develop` at `ef5
 **Status: Done** (2026-11-13). A raw the system's RAW decoder gives no image
 for is decoded by the vendored LibRaw and renders everywhere; it is adjusted
 like any rendered image. The code review's findings C1 to C15 and question Q6,
-and the design review's fixes F1 to F5 and ruling D5, are answered below.
-Next: the code-reviewer and the designer confirm the second pass's fixes; then
-qa-tester (with the reviewer's Q7); then the owner's sign-off.
+and the design review's fixes F1 to F5 and ruling D5, are answered below. Added
+on the owner's ruling of 2026-11-13: a Fujifilm RAF that LibRaw decodes gets
+the camera's own frame and the lens corrections the camera stored in the file
+(**Lens corrections and the frame**, below). Next: code review of that
+addition, then qa-tester again (with the reviewer's Q7), then the owner's
+sign-off.
 
 ## Bug
 
@@ -59,7 +62,12 @@ system decoder gives no image, so nothing gets slower.
 - **Q4, the cache.** LibRaw previews stay on disk under the same keys as any
   preview; two looks after a macOS change are accepted. No cache change was
   made.
-- **Q5, the frame.** Stays LibRaw's first inset crop. Listed under **Open**.
+- **Q5, the frame.** Stayed LibRaw's first inset crop at first; decided for
+  Fujifilm files with the lens corrections (the camera's own frame).
+- **Lens corrections (new scope, 2026-11-13).** LibRaw photos came out without
+  the camera's lens corrections (straight lines bowed). To be fixed on this
+  branch: read Fujifilm's tables from the RAF and apply them on the LibRaw
+  path only, automatically, with no control for now.
 
 ## What a LibRaw photo is
 
@@ -82,6 +90,8 @@ JPEG is (`RenderContext.isRaw` false):
 | Color noise reduction | decoder | not offered |
 | Profile, Decoder | offered | a note in the group's place |
 | Use machine learning | offered | dimmed: "Not available for this camera." (on every macOS, F3) |
+| Lens corrections (distortion, lateral color, corner shading) | by the decoder | from the camera's tables in a Fujifilm RAF; none for other files |
+| Frame | the decoder's (6240x4160, X-T3) | the camera's, from a Fujifilm RAF (6000x4000, X-E3); else LibRaw's inset crop |
 | Mode shown after a paste of Daylight or a Kelvin Custom | the pasted mode | As Shot: what renders (F2, D5) |
 | Mode shown after choosing Custom with both sliders at 0 | Custom | Custom (D5) |
 
@@ -137,6 +147,120 @@ C1 to C12 closed by the reviewer. New:
 | Q6 | Answered in code. (a) `SystemRAWDecoder.reads`, `RawDefaults` and Auto White Balance test the filter set up as an untouched photo decodes (`givesImageUntouched`: `RAWDecodeSettings.none`, which pins the decoder version as every decode does), and `PreviewGenerator.decode` decides by the same test: when the stack's own choices (the whole-sensor copy, a decoder version) leave the system decoder without an image, it decodes without them, and logs it, before it would turn to LibRaw. A raw `reads` says the system decodes never gets LibRaw's image. No file takes that retry here, so it has no test of its own; `oneTestOfWhatIsDecodedAsRaw` checks that such choices never move a file to the other decoder. (b) `PreviewGenerator.Decoded.decoder` says which decoder made an image, and `LiveRenderSession` keeps a decode by LibRaw's two sizes only when LibRaw made it: it expects LibRaw of a raw the system does not read whose header LibRaw reads, and takes what the decode returned over that (`learn`). Test: a session told the system does not decode a 1024 x 768 DNG that it does decode: the draft's 250 pixel base no longer serves the 400 pixel frame (with `learn` switched off the test fails with exactly the reviewer's 250). |
 | Q7 | For qa-tester (several LibRaw photos at 100%: memory, time to sharp). Not measured here. |
 
+## Lens corrections and the frame (new scope, 2026-11-13)
+
+**The problem.** The system decoder applies a camera's lens corrections;
+LibRaw does not. An X-E3 photo with the XF 35mm f/2 showed its barrel
+distortion (7.6% at the corner), color fringing and corner shading (52% of the
+light at the corner).
+
+**Where the tables are.** A RAF's big-endian header gives three sections at
+offset 84: the embedded JPEG, the "CFA header" (records: `RawImageFullSize`
+0x100, `RawImageCropTopLeft` 0x110, `RawImageCroppedSize` 0x111) and the raw
+data. In X-Trans files the raw data section starts with a little-endian TIFF
+header whose one entry, 0xF000, points at Fujifilm's IFD; there
+`GeometricDistortionParams` (0xF00B), `ChromaticAberrationParams` (0xF00F) and
+`VignettingParams` (0xF010) are signed rationals: a leading value (the frame's
+half diagonal in pixels over the number of knots: 3605 / 11), then the knots
+(radii, 1 at the corner) and the values. Two layouts: 23, 31 and 23 values
+(11 knots, the X-E3) and 19, 29 and 19 (9 knots, later cameras).
+`Preview/FujifilmRAF.swift` reads the header, the records and at most 64 KiB
+of the raw section; it never uses ExifTool. Files without the tables, with
+tables that correct nothing (a lens without contacts writes zeros) or with
+values no lens has are left uncorrected.
+
+**The math** follows darktable's embedded-metadata lens correction
+(`src/iop/lens.cc`, GPL 3 or later, recorded in `THIRD_PARTY_NOTICES.md`),
+written again in Swift and Metal (`Preview/EmbeddedLensCorrection.swift`):
+tables linear between knots that are radii of the recorded image; a recorded
+radius r belongs at r / (1 + distortion / 100); red and blue come from their
+own radii; each sample is divided by vignetting / 100; and the picture is
+scaled by the largest multiplier between the frame's short side and its corner
+(0.985 for this lens), so nothing is taken from outside the recorded frame.
+The recorded radius for each output radius is solved for exactly and kept in a
+1024-entry lookup table (the kernel reads between entries).
+
+**Where it runs.** In `LibRawDecoder.decode` only, on LibRaw's linear image,
+before anything else sees it (so before the crop, the masks' frame and the
+Lens heading, as the system decoder's corrections are). One stitchable kernel,
+`embeddedLens`, in a Metal library of its own (`Kernels/LensKernels.swift`);
+samples at pixel centers, interpolated by hand. If the kernel cannot compile,
+the photo is cut to its frame uncorrected and a line is logged (the same
+limitation as the Lens heading's, RI-CR1).
+
+**The frame (Q5).** For a Fujifilm RAF the frame is the camera's own
+(`RawImageCropTopLeft`, `RawImageCroppedSize`): 6000x4000 for the X-E3, the
+size of its JPEG and of the system decoder's image where it reads such files,
+and the frame the tables are centered on. LibRaw's crop must start on the
+sensor's color pattern (that is why its inset was 5998x3997), so LibRaw now
+decodes its whole visible area (6032x4028) and the frame is cut from it in the
+same resampling. A half-size decode's frame starts between two pixels and is
+resampled too, so every size shows the same frame. Files that are not RAFs
+keep LibRaw's inset crop (a DNG's default crop) or its visible area. A RAF
+shot at 16:9 or 1:1: no sample here; the frame is whatever those two tags say.
+
+**Checked against the camera's JPEG.** The JPEG the camera embeds in the RAF
+(1920x1280) has the camera's own corrections. `LibRawFallbackTests`
+(`theCorrectedRenderLinesUpWithTheCamerasJPEG`) looks up 48-pixel blocks of it
+in the half-size render (zero-mean normalized cross-correlation, sub-pixel by a
+parabola) and reports how far each has moved, in JPEG pixels (one is 3.1
+pixels of the full-size photo), and how bright the render is beside the JPEG
+far from the center against near it:
+
+| File | Blocks | Corrected: median, 90th percentile | Beyond 0.75 of the radius | Uncorrected: median (largest) | Light far / near |
+|---|---|---|---|---|---|
+| DSCF5123, XF 35mm f/2 | 474 | 0.35, 0.85 | 0.79 | 5.7 (80) | too dark to tell |
+| DSCF5124, XF 35mm f/2 | 536 | 0.36, 1.07 | 0.89 | 3.8 (90) | too dark to tell |
+| DSCF5139, XF 35mm f/2, camera upright | 866 | 0.43, 1.43 | 0.95 | 5.1 (20 within the search) | 1.001 (lens: 0.66) |
+| DSCF5170, XF 14mm f/2.8 (no distortion in its table) | 858 | 0.27, 0.73 | 0.43 | (nothing to move) | 1.003 (lens: 0.56) |
+| DSCF5162, lens without contacts (tables correct nothing) | 502 | 0.30, 1.59 | 0.34 | (nothing to move) | 0.97 (lens: 1.0) |
+
+(The uncorrected figures of DSCF5124 and DSCF5139 are from a run before an
+uncorrected half-size decode's frame was resampled; DSCF5123's moved from 4.1
+to 5.7 with that.)
+
+So the window frame and other details are where the camera's JPEG has them to
+about a third of a JPEG pixel (one pixel of the 24-megapixel photo) in the
+middle of the distribution, and the corner shading is undone (1.00 where the
+lens passes 56% to 66% of the light). What does not match: with the 35mm the
+outer quarter of the radius is off by 0.8 to 0.95 JPEG pixels (about 3 pixels
+at full size) in the median, against 0.4 where there is nothing to correct;
+by radius the residual is +0.2 to +0.3 JPEG pixels around the middle and −1
+(16 blocks) to −3.5 (3 blocks) in the outermost tenth: the camera takes the
+far corners from slightly further in than the table's linear reading gives.
+The scale rule also leaves a residual of 0.03% of the radius. Neither was
+tuned away: the formulas are darktable's as documented.
+
+**System-decoded raws are untouched.** The X-T3's `photocli render
+--long-edge 600` PNGs (unedited, a Kelvin white balance, +1 EV) have the same
+SHA-256 as before the change; every golden and reference passes; the code is
+only reached from `LibRawDecoder`.
+
+**Pipeline version: no bump** (8 stays). On `develop` these files do not
+render at all, so no cached preview of a shipped build changes. One caveat for
+whoever ran an earlier build of this branch on a library with such photos (the
+owner did): their cached thumbnails and previews were made without the
+corrections and at 5998x3997, under keys that have not changed, and stay until
+the photo is edited or the preview cache folder is deleted. Crops and masks
+made on such photos with an earlier build of this branch sit a few pixels off
+(the frame moved by 2 and 3 pixels and the geometry changed).
+
+**Tests** (all in the default run unless noted): `FujifilmRAFTests` (6: both
+layouts, files without usable tables, frames, every truncation and 4,000
+random damages of a synthetic RAF, which found a crash on a short read while
+it was written; reading from disk), `EmbeddedLensTests` (11: the tables'
+functions and their inverse, the scale rule, the lookup tables' reading error
+against the slope jumps at knots, the kernel against its CPU reference
+`Reference/EmbeddedLensReference.swift` in a float context with a bound from
+single precision, the app's half-float context with its derived bound, a
+picture recorded through the lens restored to within bilinear reading error
+and off by more than 0.1 without the correction, tables that correct nothing,
+the frame in LibRaw's image for all eight orientations). On a real file
+(`RAF_SAMPLE`): `theFrameIsTheCameras` and
+`theCorrectedRenderLinesUpWithTheCamerasJPEG` (median at most 0.5 JPEG pixels,
+90th percentile at most 1.5, uncorrected at least four times worse, light far
+from the center within half of what the lens's falloff would show).
+
 ## Design review (`review.md`, 2026-11-13)
 
 Rulings on the engineer's Design questions: **D1** keep the note under the
@@ -162,7 +286,7 @@ kind is known, so no layout of the wrong kind is drawn. M5 stays a manual check.
 
 - Baseline before this pass (`7957ed1`): `swift build` complete with one
   warning (C9); `swift test` 859 tests in 129 suites passed, 1 known issue.
-- Now: `swift build` complete, no warning. `swift test`: 879 tests in 131
+- Now: `swift build` complete, no warning. `swift test`: 898 tests in 133
   suites passed, the same 1 known issue (`LiveSessionTests`, values above
   white in the cached stages). `RAF_SAMPLE=… swift test --filter
   LibRawFallbackTests`: 5 tests passed. `Scripts/build-app.sh all`: both
@@ -226,10 +350,20 @@ size. LibRaw is single-threaded here.
 
 ## Open (the owner's call)
 
-- **Q5, the frame.** LibRaw's first inset crop: 5998x3997 for the X-E3 (its
-  JPEG is 6000x4000; LibRaw moves the crop onto the X-Trans pattern), and the
-  visible area where a file has none. The second inset crop (a 16:9 or 1:1
-  picture) is not read; no sample here.
+- **Q5, the frame.** Decided for Fujifilm RAFs: the camera's own frame
+  (6000x4000 for the X-E3). Other files LibRaw decodes keep its first inset
+  crop, or its visible area. A 16:9 or 1:1 picture: no sample here.
+- **Lens corrections: what does not match the camera** (above): about 3
+  pixels of the full-size photo in the outer quarter of the radius with the
+  35mm, more in the far corners. Accept, or look for the camera's exact rule.
+- **Lens corrections for other makers.** Only Fujifilm's tables are read. A
+  raw of another maker that the system decoder gives no image for is shown
+  uncorrected (darktable reads Sony's, Olympus's and Panasonic's and a DNG's
+  opcodes the same way). No such file here.
+- **No control** for the camera's corrections (as ruled). Design question in
+  the engineer's report: whether one is wanted.
+- **Stale previews** from earlier builds of this branch (above): delete the
+  preview cache once.
 - **Edits when a later macOS decodes the camera.** The photo then goes to the
   system decoder: its look changes (Q4 accepted that for the cache), and a
   relative Temperature or Tint set meanwhile stops applying, because a system
@@ -256,8 +390,12 @@ size. LibRaw is single-threaded here.
 
 ## Not done, and why
 
-- **`CLAUDE.md`'s Layout and Commands**: applied by the main session on the owner's
-  confirmation (the `Sources/CLibRaw` Layout entry and the `RAF_SAMPLE` command).
+- **`CLAUDE.md`** and **`.claude/agents/code-reviewer.md`**: not edited by
+  the engineer, whose rules do not let another agent's message authorize a
+  change to `CLAUDE.md` or `.claude/`, whatever it relays. The main session
+  made the edits (`4ff5d30`: line 158, Dependencies, the reviewer's rule;
+  `b162839`: Layout and Commands). Proposed for the lens corrections: a line
+  in the Rendering rule, in the engineer's report.
 - **`README.md`**: the product manager's (`docs/WORKFLOW.md`); see **README**.
 - **`Sources/CLibRaw`**: untouched except for `LICENSE.LGPL`.
 - No decoder badge in the grid or loupe, no `decoder` field in `photocli`'s
@@ -275,7 +413,10 @@ For the product manager at Ship:
 - The layout table has no row for `Sources/CLibRaw` (LibRaw's source, built by
   `Package.swift`; never edited).
 - Requirements: raws macOS does not decode (the Fujifilm X-E3 on macOS 27.2)
-  now render, flatter, with the differences the user guide lists.
+  now render, flatter, with the differences the user guide lists; Fujifilm
+  files with the camera's frame and lens corrections.
+- `THIRD_PARTY_NOTICES.md` now also names darktable (GPL 3 or later: the lens
+  correction math, written again).
 - The License section may want a line that LibRaw is included under the LGPL 2.1.
 - `CLAUDE.md`'s "Scope so far" needs an entry for this fix; its Commands could
   list `RAF_SAMPLE=path/to/file.RAF swift test --filter LibRawFallbackTests`.
