@@ -49,7 +49,7 @@ amendment, D-A7). A catalog comment fix (F3) is trivial.
 | 15 | Entry View License: small bordered button, only for LibRaw, LightCraft, GRDB when the text is found (§3.4, §5, AC7) | Pass | `offersLicense`; snapshots before and after the files; never on darktable or ExifTool |
 | 16 | Wording by relationship; the approved sentences (§8, AC3, AC4) | Pass | `AboutText.summary`; catalog keys match §8 word for word |
 | 17 | Links open through the system; nothing fetched (§3.4, AC6) | Pass by code | `openURL` environment → `.systemAction`; reported under a script. Real browser: M4; network off: M3 |
-| 18 | Footer: divider, copyright selectable, GPL notice, View License only when `LICENSE` is found (§3.5, AC13) | **Fail (F1)** for the button's look; rest Pass | The button sits inside the footer stack that sets `.font(.callout)` and `.foregroundStyle(.secondary)`, so its title likely differs from the entries' buttons. See F1 |
+| 18 | Footer: divider, copyright selectable, GPL notice, View License only when `LICENSE` is found (§3.5, AC13) | **Fail (F1)** for the button's look; rest Pass. Second pass: Pass (F1 fixed) | The button sits inside the footer stack that sets `.font(.callout)` and `.foregroundStyle(.secondary)`, so its title likely differs from the entries' buttons. See F1 |
 | 19 | Missing file: no alert, no error line; licence window shows "Can't Show the License" (§5) | Pass | Snapshot `license-missing`; D-A4 |
 | 20 | Licence window: one per licence, titled "‹name› License", 640×720, min 420×320, centered, not restored, no New Window item, listed in Window menu, independent of About (§6.1) | Pass | `WindowGroup(id:for:)`, `commandsRemoved()`; status checks |
 | 21 | Licence text verbatim, monospaced 12 pt, 16 pt inset, system text colors, selectable, wraps (§6.2, AC7, AC13) | Pass | `LicenseTextArea`; no link or data detection; snapshot. Byte checks are QA's |
@@ -154,9 +154,70 @@ Debug script).
   Help: the search field, then About ‹name›. Both in the importer too.
 - **M7 Esc and ⌘W with a real keyboard.** Esc closes About; Esc in a licence
   window does nothing (or closes its find bar); ⌘W closes either.
+- **M8 Quit during a job from About** (second pass, with F4). Start an export,
+  make About key, press ⌘Q: the library window comes in front of About and
+  the question is a sheet on it; Return and Esc keep exporting.
 
 Not asked of the owner (README disclaims them): VoiceOver and Voice Control,
 and macOS 15 and 26 (including Q-E6's scroll view clicks on 15).
+
+## Second pass (2026-11-13)
+
+Branch `feature/about-gus` at `20f18f8`, the fixes since `7138b18`. Read:
+`Sources/PhotoUI/About/AboutView.swift`, `AboutText.swift`, the two catalog
+entries, `Sources/PhotoCore/Import/QuitConfirmation.swift`,
+`Sources/PhotoUI/QuitGuard.swift`, the quit path in
+`Sources/PhotoApp/PhotoApplication.swift`, the About paragraph of
+`docs/USER_GUIDE.md` and `status.md`'s **Review findings**. Seen: the
+engineer's full-height snapshot with the files copied in (dark). No shell:
+nothing run by me.
+
+| Finding | Result | Evidence |
+|---|---|---|
+| F1 Footer View License | **Fixed** | Font and secondary style are on the two footer `Text`s only; all four buttons are one `ViewLicenseButton` (`.controlSize(.small)`), so they can't drift again. Snapshot: the footer button has the entries' size and primary title. Row 18 now Pass; light and Increase Contrast stay M1 |
+| F2 Voice Control names (D-A7) | **Fixed** | `accessibilityInputLabels(["View License", "View ‹owner› License"])` on `ViewLicenseButton`, `accessibilityLabel` unchanged, no new strings. Spoken check stays unasked (README) |
+| F3 Catalog comments (D-A8) | **Fixed** | Dedication and statement comments say "the project's name (the library app's name, also in the standalone importer)", identical in `AboutText.swift` and the catalog |
+| I-3 User guide | **Done** | "**Help ▸ About** followed by the app's name", matching the app-menu sentence |
+
+### Q3: where the quit confirmation goes
+
+**Accepted, with one fix (F4).** Passing over the About and licence windows
+is right. The HIG (Alerts; Sheets) asks for a sheet when the alert concerns a
+particular window, and app-modal otherwise. The job a quit would stop is an
+import or export that belongs to the library window (the importer's to its
+import window), not to About, which is an auxiliary panel with no state. A
+"Quit While Exporting?" sheet hanging off About would point the person at
+the wrong place, and closing About with Esc or ⌘W would have to dismiss the
+sheet first. With only About or licence windows left, a free-standing
+app-modal alert is the correct fallback: the job has no window to attach to.
+The rule is small, in PhotoCore, tested, and the importer already behaved
+this way. Moving the sheet to another window does not break the keyboard
+model: Return and Esc still keep the job going.
+
+**F4: bring the host window forward before the sheet (should fix).**
+When About is key, `confirmationWindow` returns the library window behind
+it, and `WindowModal.run` calls `beginSheetModal(for:)` on it as it is. To my
+knowledge AppKit does not order a sheet's parent window to the front, and I
+couldn't confirm it either way. If it doesn't, About (520 pt wide and
+centered on screen) can cover the top-center of the library window, which is
+exactly where the sheet drops. In the worst case the library window sits on
+another display or behind other apps' windows. Then ⌘Q seems to do nothing:
+the app is waiting on a sheet nobody can see. HIG area: Alerts (people must
+see a confirmation to answer it) and Feedback. Fix: in the library app's quit
+path, when the chosen host isn't `NSApp.keyWindow`, call
+`makeKeyAndOrderFront(nil)` on it before `QuitGuard.ask`. That is one line
+at the call site, with no change to `QuitConfirmation.host`. The importer
+asks on `CardImportModel.window` and gets the same treatment if its About can
+cover it. Check it with `about quithost` followed by a print of the window
+order or the key window (the host should be key and first), and by eye in M8.
+
+M8 (quit during a job with About key) and M9 (⌘F on a non-Latin layout) in
+`status.md` are accepted as manual checks. M8 now also confirms F4: the
+sheet appears on the library window, and that window comes in front of
+About.
+
+**Second-pass verdict: Pass with one should-fix (F4).** F1–F3 and I-3 are
+closed. Nothing else changed in the UI.
 
 ## Requirements issues (for the product manager)
 

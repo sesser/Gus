@@ -108,4 +108,54 @@ Requirements issues, for the product manager (the engineer's, which I confirm fr
 
 ## Follow-up
 
-None yet.
+### Second pass (2026-11-13)
+
+Reviewed: `feature/about-gus`, 7138b18..20f18f8 (four commits: cfe18a2 the notices, 8fd9cd2
+the source fixes, 86a4f59 the tests, 20f18f8 status and user guide). Build and tests:
+`swift build` complete; `swift test` 949 tests in 138 suites passed with 1 known issue (the
+same one, `LiveSessionTests.swift:258`), the count `status.md` gives. The app was not
+launched. Three scratch programs outside the repository stood in for it: two AppKit probes
+(a sheet asked on a window that already has one; a sheet asked on a covered window) and a
+read of the key layout tables.
+
+**Verdict.** C1 to C5 are fixed. The Q3 change does what it says, and brings one regression
+(C6, Should fix) in a narrow case. One Nit on the new tests (C7). Not ready for qa-tester
+until C6 is answered; it is on the same line as the designer's F4, so fix them together.
+
+| # | Result | Commit | What I checked |
+|---|---|---|---|
+| C1 | Fixed | 86a4f59 | `dependencies(in:)` finds every `.package(` and `.binaryTarget(` outside comments, reads `url:`, `path:`, `id:` (a binary target without either: its `name:`), and lists a call it can't read by its own text, so nothing is passed over silently. My two inputs (`.package(id: "groue.GRDB-extras", …)`, both `.binaryTarget` forms) are cases of `everyFormOfDependencyIsNamed` and fail with the name; a commented-out declaration is not counted (`commentsAreStripped`). The comment scanner keeps strings whole and ends cleanly on an unterminated block comment. Not seen, and not asked for by R9 (c): a `.systemLibrary` target, and `.package (` written with a space |
+| C2 | Fixed | 86a4f59 | Every list item of the Credits section must open with a bold name. My input (`- OpenColorIO for the color transforms.`) and four other shapes fail quoting the item. A `**Name** …` paragraph is not mistaken for a `*` list item (the marker needs a space after it) |
+| C3 | Fixed; the Apache question stays with RI-E2 | cfe18a2 | The second MIT notice is byte-identical to lines 24 to 43 of `GRDB/Utils/Inflections+English.swift` in the pinned checkout (7.11.1, b83108d) with the comment marks removed (`cmp`, 1073 bytes). GRDB's own license block is still identical to upstream's `LICENSE`. The note on the Swift.org files is accurate: file names, the two function names, the years (2014 - 2018, 2014 - 2020), the license's name and address are what the three headers say. No other file of the `GRDB` target or `Sources/` carries a notice (four files have one; all four are covered). The headings parser is not disturbed: the new block has no `## ` line, and GRDB's license window shows the whole section |
+| C4 | Fixed | 8fd9cd2 | Read from the layouts' own tables (`UCKeyTranslate`, key codes 3 and 5): with Command, Russian, Ukrainian, Greek, Hebrew and Arabic give "f" and "g" where the plain key gives "а", "φ", "כ", "ب"; with Command and Shift they give "F"/"G" or "f"/"g", and the code lowercases. Dvorak gives its own letter and Dvorak-QWERTY ⌘ the QWERTY one, as menus do. A real keypress on such a layout is still M9 |
+| C5 | Fixed | 86a4f59 | `statementMatchesTheReadme` reads the literal from `AboutText.swift` and compares it with the catalog and the README; `copyrightLineMatchesTheReadme` does the same for the copyright line. Rewording either in the source alone now fails. A reformatted line (the literal moved off its `String(localized:` line) fails with "expected one line with …", not silently |
+| Q3 | Changed as described; see C6 | 8fd9cd2 | `QuitConfirmation.host` is the old order (key, main, a visible one) with owned windows passed over; nil when only those are left, and `WindowModal.run` then shows the alert alone. `QuitConfirmationTests` covers each case. With no About or license window key, the result is the same as before the change. The importer's path (`CardImportModel.confirmQuit`, its own `window`) is untouched. Nothing in the tests ties `PhotoApplication` to `confirmationWindow`; M8 is the check |
+| Aside (three reads) | Fixed | 8fd9cd2 | `available` reads `LICENSE` once and the notices once; `text(for:)` gives what it gave (`AboutTests` unchanged and passing) |
+
+New findings from the fix commits:
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C6 | Should fix | `Sources/PhotoUI/QuitGuard.swift:42-46`, used at `Sources/PhotoApp/PhotoApplication.swift:114` | When the About or a license window is key and the library window has a sheet up, the host is the library window itself, and `WindowModal.run` asks `beginSheetModal(for:)` on a window that already shows a sheet. AppKit does not show a second sheet: it queues it until the first ends. | An export runs; the look-up table browser (or the preset manager, the Export sheet, a sidebar sheet) is open on the library window; About is opened (`status.md`: it opens with a sheet up) and is key; ⌘Q. No question appears and the quit is cancelled, so ⌘Q seems to do nothing. When the sheet is closed later, "Quit While Exporting?" drops on the library window by itself (and one more for each further ⌘Q, by the same rule). Before 8fd9cd2 the question showed on About; without About the key window is the sheet and the question shows on it, which is `WindowModal`'s stated rule ("the key window, which is the sheet when one is up"). Mechanism checked with a scratch AppKit program on macOS 27.2: with a sheet up, after `alert.beginSheetModal(for: parent)` the alert's window is not visible and `parent.sheets.count` is 2; it appears when the first sheet ends. Not run in the app. `about quithost` prints the library window in this state, so the script does not show it; the host's `attachedSheet` would be the window to name | Correctness; `WindowModal`'s rule |
+| C7 | Nit | `Tests/PhotoCoreTests/AcknowledgementConsistencyTests.swift:275-279`, `:304-306`, `:355`, `:361-365` | The mutation tests edit the real files by text, and depend on two facts that are not what they test: the exact line `.package(url: "…GRDB.swift.git", from: "7.9.0"),` (one test before, eight cases now), and Credits being the README's last section (the lines are appended to the file's end; six appends now). | Raise GRDB's minimum to `from: "7.11.0"`: `addingAPackageIsNamed` and all seven cases of `everyFormOfDependencyIsNamed` fail. Add a section after Credits in the README (the product manager edits it at Ship, without building): `addingToTheNoticesOrCreditsIsNamed` fails on `problems.count == 1` with nothing saying why. Both fail loudly, never pass wrongly. Inserting after `dependencies: [` and into the Credits section itself would not depend on either | Tests |
+
+For the designer (F4, through the main session): my second probe asked an alert as a sheet on
+a window covered by another window of the same app. On macOS 27.2 the covered window came in
+front of the other one when the sheet began (front to back before: about, library; after:
+library, about). The probe's app was not active and had no key window, so M8 in the real app
+still decides; but F4's premise did not hold there.
+
+For the product manager (RI-E2): the note says the Apache license's text is not reproduced.
+The Runtime Library Exception at the address the headers give (read today) waives sections
+4(a), 4(b) and 4(d) "if you use this Software to compile your source code and portions of
+this Software are embedded into the binary product as a result". GRDB's three files hold
+source copied from the Swift project, which is not that case as written. Whether a link is
+enough is the owner's and #172's call; I am not deciding it.
+
+For qa-tester, with M8: ⌘Q during an export with About key and (a) a sheet up on the library
+window (C6), (b) the library window minimized (by reading: no host, so the alert stands
+alone), (c) the library window on another Space or full screen (not checked by anyone).
+
+`/security-review`: still not needed. The fix commits add no parser of outside files (the
+manifest scanner is test code reading the repository's own `Package.swift`), no subprocess,
+no file writing and no network code.
