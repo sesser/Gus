@@ -7,20 +7,49 @@ Covers #171 (closed). PRD: the body of #170. Design: `design.md` (§12 is the
 engineer's list).
 
 **Status: Done** (2026-11-14). Every acceptance criterion is built and has its
-test or scripted check. Two rulings are asked for, neither of which holds up
-the reviews:
+test or scripted check. The design review's findings F1 to F3 and the code
+review's C2 to C7 are fixed (**Review findings**, below). Open, and not the
+engineer's to close:
 
+- **C1 (owner's ruling, through the main session):** how the Adobe DNG SDK is
+  acknowledged. Not touched, as told: `THIRD_PARTY_NOTICES.md` and the
+  disclosure comments in `ColorTemperature.swift`, `CameraColor.swift` and
+  `CameraProfile.swift` are as the reviewer read them.
 - **RI-E1 (owner, through the product manager):** AC5's closeness numbers. The
   PRD's A2 leaves them to a first measurement and the owner's confirmation.
   Measured: they hold for the X-E3's Kelvin and its picture at 5500 K, not for
   tint (off by up to 13 on every camera tried, against A2's 5), and not for
-  the X-T3's Kelvin (14% to 30% under the system decoder's).
-- **DQ-1 (designer):** on a raw that carries relative values from a #161
-  build, choosing Custom leaves the pop-up on As Shot (§5's rule 3), which
-  design check M6 expects to stay Custom.
+  the X-T3's Kelvin (14% to 30% under the system decoder's). QA records AC5
+  as measured, not as passed.
 
-Next: code-reviewer and the designer's review, then qa-tester, then the
-owner's sign-off (AC6's visual check is the owner's).
+DQ-1 is ruled (design §17.1) and built.
+
+Next: the second pass of code-reviewer and the designer (the fixes change
+source and the UI), then qa-tester, then the owner's sign-off (AC6's visual
+check is the owner's).
+
+## Review findings
+
+Design review (`review.md`, 2026-11-14):
+
+| # | Outcome |
+|---|---|
+| F1, DQ-1 | Fixed as design §17.1 reads. `WhiteBalanceControls.picking(.custom, from:)` for a raw by either decoder: `preset` custom, a missing `temperature` or `tint` becomes the as-shot value (unrounded), stored values are kept, relative values are untouched; `.relative` stores Custom beside what is stored; `.unavailable` returns nil. Tests: `customStoresTheNumbersShown` (from As Shot; from Tungsten, 2850 / 0 kept; a Kelvin without a tint gets the as-shot tint; `.relative`; `.unavailable`; the render moves by at most one level of 255 on both decoders; a paste carries the numbers), `relativeValuesOnARaw` (Custom on 60 / 30 stores the numbers beside them and shows Custom), `libRawPhotoHasARawsWhiteBalance`. Script below |
+| The step's ranges (the reviewer's question on §17.1, ruled by the main session: keep the clamp, show and store the clamped values) | The color step keeps a Kelvin within 2000 to 50000 and a tint within ±150, the sliders' ranges. A LibRaw photo's as-shot values are now shown and stored through the same function (`CameraColorStep.rendered`), so for a camera white beyond a range the slider, Custom's stored number and the render are one number. As Shot itself still renders the camera's own neutral, so on such a photo choosing Custom (or moving a slider) changes the picture to the range's end. System raws are as before: the system decoder takes the number as stored. Test: `asShotBeyondTheRanges` (1750 K; tint 190). In the user guide |
+| F2 | Fixed: `whiteBalanceCaption` has no top padding; the stack's 2 points are the gap, as under the machine learning check box. M9 is the check |
+| F3 | Fixed in `docs/USER_GUIDE.md`: "under **Profile**, a note stands in place of its pop-ups"; every mode name in bold. Added (the review's optional line): Custom keeps the numbers shown and a paste carries them; and the ranges |
+
+Code review (`code-review.md`, 2026-11-14):
+
+| # | Outcome |
+|---|---|
+| C1 | Not touched: waits for the owner's ruling |
+| C2 | Fixed. The fixture, not the decoder: `SyntheticDNG.mosaic(options:)` draws a picture's mosaic once and `write(to:options:mosaic:)` writes a file from it; `decodeIsOriented`, `insetCropIsDecoded` and `whiteLevelIsTheFiles` write both of their files from one mosaic, and the new tests that compare two files do the same. Soak: `swift test --skip-build --filter "LibRawDecoderTests\|LibRawFallbackPipelineTests"` 80 times in each of two processes at once: 160 runs, 0 failed (the reviewer had 7 of 80) |
+| C3 | Fixed. `SyntheticDNG.Color` writes `CameraCalibration1` and `2`; two camera kinds (`calibrated`, `calibratedForward`: two lights with daylight named first in the file, a calibration for each, an analog balance) run through `CameraColorTests` (math against the reference, which is now AB × CC × CM with the reference neutral for forward matrices), `calibrationAndAnalogBalance`, and `CameraColorStepTests.stepMatchesReference` (a LibRaw decode of the file). Checked by mutation: with `calibration(at:)` returning the identity, 4 tests fail; without the `swapAt`, `stepMatchesReference` fails for both kinds |
+| C4 | Fixed. `LibRawFallbackTests.theExposureTheCameraHeldBackIsAdded` reads the file's `RawExposureBias` from LibRaw apart from the decoder's use of it and requires that exposure of the camera color, the step and the transform (1 stop for `DSCF5123.RAF` and `DSCF5139.RAF`, both at −1.72). With the wiring removed it fails on those files. A file shot at 100% holds nothing back and cannot tell; the test prints that |
+| C5 | Fixed. `CameraColorStep.fileExposure` (`LibRawDecoder.fileExposure(of:)`: the Fujifilm held-back exposure, else a DNG's baseline exposure) is used when there is no camera color. Test: `exposureWithoutColorData` |
+| C6 | Fixed. `LibRawDecoder.dngExposure(baselineExposure:)`: finite and within 4 stops either way, else not used. Test: `dngBaselineExposure` (5000, 200 and −50 stops render as the file without the tag, every value a number) |
+| C7 | Fixed. When a rendition written since the cutoff cannot be removed, the folder is not renamed; the older renditions are moved under version 9 one by one, copied where a move is refused, and the one left behind stays under version 8 for `removeObsoletePipelineVersions`. Nothing written since the cutoff comes under version 9. Test: `carryOverSurvivesAFailedRemoval` (a folder made read-only) |
 
 ## What was built
 
@@ -238,7 +267,7 @@ that need LibRaw whatever the macOS call `LibRawDecoder` directly.
 | AC7 | Done | `LibRawDecoderTests.whiteLevelIsTheFiles`: a crop without the picture's brightest values decodes pixel for pixel as the whole |
 | AC8 | Done (tables carried, not applied) | `standInProfile` (other matrices, forward matrices, a tone curve, an exposure: the render is the reference's for them); `unknownProfileReference` (loads, written back as stored, renders as without it, kept through an edit) |
 | AC9 | Done | `decoderSwap`: one file as LibRaw and as the system decoder; same as-shot values, the white balance applies in both, the stack's bytes are unchanged. JPEG: Kelvin inert, relative applies |
-| AC10 | Done | `relativeValuesOnARaw`, `kelvinModeShown` (§5's six cases). Script: relative 60 / 30 on an X-E3 file keeps `"relativeTemperature":60,"relativeTint":30`, shows `'As Shot'` with as-shot sliders. `photocli`: the PNG is the unedited one's |
+| AC10 | Done | `relativeValuesOnARaw`, `kelvinModeShown` (§5's six cases). Script: relative 60 / 30 on an X-E3 file keeps `"relativeTemperature":60,"relativeTint":30`, shows `'As Shot'` with as-shot sliders. Choosing Custom there (§17.1) stores `"preset":"custom","relativeTemperature":60,"relativeTint":30,"temperature":5318.442815396026,"tint":1.740704475662509`, shows `'Custom'` with `5,318 K` and `+2`; one undo (`White Balance`) returns to As Shot and the relative values alone. `photocli`: the PNG with relative values is the unedited one's |
 | AC11 | Done | Full `swift test`, no golden updated. `photocli render` of the X-T3 file (unedited, 2500 K, +1 EV, full size) and of a JPEG (unedited, relative, Kelvin): the same SHA-256 as a build of `868f8f6` (`6c07dff3…`, `fc877d6d…`, `745b18a2…`, `66de99f7…`) |
 | AC12 | Done | `cachedPreviewsAreRegenerated` (version 9; a version 8 preview written since 2026-11-13 is not found; an older one is carried over) |
 | AC13 | Done | `pasteBetweenDecoders` (the stack and the render, both ways, and a preset). Script: Daylight copied from the X-T3 and pasted onto the X-E3 shows `'Daylight'`, `5,500 K`; one undo (`Paste Adjustments`) restores the empty stack; 4000 K from the X-E3 onto the X-T3 likewise |
@@ -246,6 +275,9 @@ that need LibRaw whatever the macOS call `LibRawDecoder` directly.
 
 Also: `ColorTemperatureTests` (known illuminants, round trip, the system
 decoder's own mapping), `fujifilmExposure`, `dngBaselineExposure`,
+`exposureWithoutColorData`, `customStoresTheNumbersShown`,
+`asShotBeyondTheRanges`, `carryOverSurvivesAFailedRemoval`,
+`calibrationAndAnalogBalance`,
 `LibRawFallbackPipelineTests.rendererAdjustsTheLibRawImage`,
 `decodeSettingsDoNotDecodeAgain` (a white balance changes the frame, not the
 decode count; the 100% renderer stays ready).
@@ -259,19 +291,20 @@ values and ignores Kelvin now say the reverse, which is the requirement.
 | | Before (`26843e4`) | Now |
 |---|---|---|
 | `swift build` | complete, no warning | complete, no warning |
-| `swift test` | 952 tests in 138 suites passed, 1 known issue (`LiveSessionTests`) | 982 tests in 144 suites passed, the same known issue |
+| `swift test` | 952 tests in 138 suites passed, 1 known issue (`LiveSessionTests`) | 988 tests in 144 suites passed, the same known issue (982 before the review fixes) |
 | `Scripts/build-app.sh all` | | both bundles built |
 
 The test target has two warnings from before (`SmartAlbumTests`,
 `VirtualCopiesTests`).
 
-With samples, all passing: `RAF_SAMPLE` on two X-E3 files (8 tests each),
-`RAW_LOOK_SAMPLES` (9 files), `RAW_BOTH_SAMPLES` (11 files).
+With samples, all passing after the review fixes: `RAF_SAMPLE` on two X-E3
+files (9 tests each), `RAW_LOOK_SAMPLES` (9 files), `RAW_BOTH_SAMPLES` (11
+files).
 
-**Seen once, not reproduced:** `LibRawDecoderTests.insetCropIsDecoded`
-failed in one run (a crop's pixels differed from the whole decode's) while
-another test process was decoding at the same time, and passed in the 40
-runs after. Named for the reviewer; proposed issue below.
+**The failure seen once before the reviews** (`insetCropIsDecoded`) was the
+fixture, as the code review found (C2): two drawings of one picture are not
+always the same bytes when other drawings run at once. Fixed; 160 runs under
+load, none failed.
 
 ## Debug-script checks
 
@@ -286,15 +319,21 @@ domain starts with the inspector hidden.
   the as-shot values and the caption, then the Mode pop-up (selected, enabled,
   tip, items), Temperature and Tint rows and the note.
 - X-E3: `kelvin asShot 5318 K tint 2` (5215 K / 3 and 5358 K / −2 for the
-  other two); Custom sticks; the Temperature field at 4000 stores Custom with
+  other two); the Temperature field at 4000 stores Custom with
   the as-shot tint, undo name `Temperature`; Shade is `7,500 K`, `+5`; turning
   the group off renders the as-shot hash.
+- Custom (§17.1, after the review fixes): on the X-E3 `adjust wb pick custom`
+  stores `"preset":"custom","temperature":5318.442815396026,"tint":1.740704475662509`
+  and shows `'Custom'`, `5,318 K`, `+2`; picking it again changes nothing;
+  from Tungsten it keeps `2850` / `0`. On the X-T3, from Daylight, it keeps
+  `5500` / `0`. On the JPEG it stores `"preset":"custom"` alone.
 - X-T3: `decoder system wb state kelvin asShot 6246 K tint 24`, unchanged.
 - JPEG: `wb state relative`, modes `[As Shot, Auto, Custom]`, sliders at 0.
 - AC1, AC3, AC10, AC13, AC14 as in the table.
 
-**For a person:** design §14 M1 to M8. M1 and M7 (the note's and the
-captions' look) cannot be scripted: snapshots leave the inspector blank.
+**For a person:** `review.md`'s M1 to M9. M1, M7 and M9 (the note's and the
+captions' look and spacing) cannot be scripted: snapshots leave the inspector
+blank.
 
 ## Requirements issues (for the product manager)
 
@@ -335,23 +374,9 @@ captions' look) cannot be scripted: snapshots leave the inspector blank.
 
 ## Design questions (for the designer)
 
-- **DQ-1. Custom on a raw with leftover relative values.** A photo whose
-  stack holds `relativeTemperature` 60, `relativeTint` 30 shows As Shot
-  (§5 rule 3, AC10). Choosing Custom stores `preset: custom` beside them,
-  as "Custom stores Custom" says, and the pop-up still shows As Shot: rule 2
-  needs both relative values at 0, and R10 with the owner's ruling on RI-W1
-  says they stay. M6 expects it to stay Custom. Built as §5 reads; the unit
-  test and the script record it.
-  - (a) Leave it: a few photos, and moving a slider gives Custom at once. No
-    cost.
-  - (b) Choosing Custom on a raw also stores the as-shot Kelvin and tint
-    (rule 1 then shows Custom; nothing is rewritten; it renders as shot to
-    within rounding). A few lines in `WhiteBalanceControls.picking`; Custom
-    then carries numbers on every raw, by either decoder.
-  - (c) Choosing Custom clears the relative values: RI-W1's option (b),
-    which the owner did not take.
-
-  Recommendation: (b).
+- **DQ-1. Custom on a raw with leftover relative values.** Ruled: design
+  §17.1 (option (b), on every raw). Built; see **Review findings**, F1.
+- None open.
 - **For the designer's review, not a question:** the user guide now says the
   Kelvin shown can differ from what macOS reads for the same camera (§7 puts
   accuracy notes in the guide).
@@ -407,10 +432,9 @@ For the product manager at Ship:
   Sony, Olympus or Canon opens 0.25 to 0.45 EV darker than the system decoder
   would show it. A small table by maker, measured with
   `BaselineLookMeasurementTests`.
-- **bug: "LibRaw inset crop test failed once under load".**
-  `LibRawDecoderTests.insetCropIsDecoded` failed in one run of about forty
-  (a default crop's decode differed from the whole decode's pixels) while a
-  second test process was decoding; not reproduced. Either the fixture or a
-  race in a decode: worth a soak run of concurrent cropped decodes.
+- (Withdrawn: "LibRaw inset crop test failed once under load". It was the
+  fixture, fixed on this branch as C2. The code review proposes a bug of its
+  own, on `develop`: a render of one HDR DNG that is not the same from run to
+  run.)
 - **enhancement: "`photocli --set whiteBalance.temperature` implies Custom"**
   (RI-E3).
