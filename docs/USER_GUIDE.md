@@ -347,35 +347,59 @@ judge fine detail without letting go. A heavy edit updates less often but keeps
 its detail. When you start a change, pan or zoom, part of the photo can look
 soft for a moment. On raw files, White Balance, Profile and Noise Reduction
 stay soft while the value moves, and the detail arrives once you hold still,
-even with the control still held. If that takes more than half a second, a
+even with the control still held (a raw the app decodes itself, below, keeps
+its detail while White Balance moves). If that takes more than half a second, a
 small spinner shows in the caption. The histogram always describes the whole
 photo, and at these zooms it can lag until you pause.
 
 **Raw files macOS can't decode**: when the macOS raw decoder has no image for a
 raw file (on macOS 27.2, the Fujifilm X-E3's lossless compressed files), the app decodes it with its own
-decoder (LibRaw) instead of showing nothing. Such a photo has the camera's white
-balance but not the macOS decoder's profile and contrast, so it starts out
-flatter and darker than a raw macOS decodes. A Fujifilm file gets the camera's
+decoder (LibRaw) instead of showing nothing. Such a photo is shown with a
+built-in profile and a baseline look (brightness and contrast) made to sit
+close to, not identical with, a raw macOS decodes, so the two kinds start from
+about the same place in one library. The look was matched on Fujifilm files;
+a photo from another maker's camera can open up to half a stop darker than
+macOS would show it. A Fujifilm photo shot with the camera's dynamic range at
+200% or 400% is brightened by the stop or two the camera held back, as the
+camera's own JPEG is; its brightest tones are then past white until Exposure or
+Highlights brings them down. A Fujifilm file gets the camera's
 own frame (6000 x 4000 for an X-E3) and the lens corrections the camera stored
 in it, as the macOS decoder applies them to the raws it reads: distortion
 (straight lines are straight), color fringing toward the corners, and corner
 shading. There is no control for them; they line up with the camera's own JPEG
 to within a pixel or two of the full-size photo, a little more in the far
-corners. Blown highlights stay white right to the corners. A file shot in a
+corners. Blown highlights stay white right to the corners, at any white
+balance. A file shot in a
 camera's 1.25x crop mode, or one from an old Super CCD camera, is shown
-uncorrected in the frame its decoder gives, as are files of other makers. You adjust it like any other photo; what differs is what differs for a
-JPEG. In the Adjust tab a note stands in place of **Profile**. White Balance
-offers **As Shot**, **Auto** and **Custom**, with Temperature and Tint relative
-to the camera's setting (no Kelvin scale and no Daylight to Flash). Noise
-Reduction has **Luminance** only, and **Use machine learning** is dimmed unless
-a paste or preset turned it on; it then says it isn't applied, and Luminance
-applies instead. Tone, Presence, Tone Curve, Color Mixer, Color Grading, masks,
-Lens, Effects, Sharpening and crop work as usual. Pasted adjustments or presets from a raw macOS decodes keep their Kelvin
-white balance, Profile and Color noise reduction, which do nothing here. These
+uncorrected in the frame its decoder gives, as are files of other makers. You adjust it like any other raw, with two differences. In the Adjust tab a
+note stands in place of **Profile** (the built-in profile can't be changed),
+and Noise Reduction has **Luminance** only: **Use machine learning** is dimmed
+unless a paste or preset turned it on; it then says it isn't applied, and
+Luminance applies instead. **White Balance** works as on any raw: the same
+entries under **Mode** (**As Shot**, Auto, Daylight to Flash, Custom),
+**Temperature** in Kelvin and **Tint**, so a white balance copied from a raw
+macOS decodes, or a preset's, applies here too, and Auto measures a Kelvin and
+tint. Two things to know about the numbers. The Kelvin shown comes from the
+app's own color data for the camera, which is not always what macOS reads for
+the same camera (close for a Fujifilm X-E3 on the one file that could be
+compared; about a fifth apart for an X-T3), so one Kelvin can give a somewhat
+different picture on the two kinds of raw. And a file that is not a DNG has color data for daylight only:
+neutral tones come out neutral at any **Temperature**, but under very warm or
+very cool light strong colors are a little less accurate than a raw macOS
+decodes. If the app has no usable color data for a camera, the photo is shown
+as shot and **Mode** says white balance is not available for it; a white
+balance pasted onto such a photo is kept, marked as not applied, and **As
+Shot** removes it. Temperature and Tint set on one of these photos by an
+earlier build (before the Kelvin scale) no longer apply: **Mode** shows **As
+Shot**, and you pick the white balance again. Tone, Presence, Tone Curve, Color Mixer, Color Grading, masks,
+Lens, Effects, Sharpening and crop work as usual. Pasted adjustments or presets
+from a raw macOS decodes keep their Profile and Color noise reduction, which
+do nothing here. These
 photos take longer to open, most of all at 100% or with a crop that needs the
-whole frame (several seconds for a 24-megapixel Fujifilm file). If a later macOS
+whole frame (several seconds for a 24-megapixel Fujifilm file); once open,
+changing White Balance does not decode them again. If a later macOS
 decodes the camera, macOS decodes these photos from then on: they look
-different, a Temperature or Tint set meanwhile no longer applies, and thumbnails
+a little different, their white balance still applies, and thumbnails
 made before keep the old look until the photo is edited or the cache is deleted.
 
 **Sharpening Map**: Masking (Details ▸ Sharpening) holds sharpening back where

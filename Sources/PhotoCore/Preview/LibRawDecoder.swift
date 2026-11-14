@@ -63,7 +63,7 @@ public enum LibRawDecoder {
 
     /// The part of the file's white level at which a channel counts as
     /// saturated. The sensors measured saturate a little under the level
-    /// their files state (56 Fujifilm X-E3 files: their clipped areas peak
+    /// their files state (54 Fujifilm X-E3 files: their clipped areas peak
     /// at 16322 to 16383 of 16383 over a black of about 1022, so at 0.996
     /// and up; an X-T3, a Sony, an Olympus and a Panasonic at 0.999 and up),
     /// and a channel clipped just under white would leave blown highlights

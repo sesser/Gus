@@ -1,5 +1,35 @@
 # Third-party notices
 
+Besides the projects below, some formulas come from published
+specifications and methods. They are no project's code, so they have no
+section of their own, but where each came from is on record here and in a
+comment at each place:
+
+- The color step after a LibRaw decode (white balance from a camera
+  neutral, the camera's color matrices read between two calibration lights
+  by reciprocal temperature, forward matrices, the linear Bradford adaptation
+  to D50) follows the Adobe DNG Specification 1.7.1, chapter 6, "Mapping
+  Camera Color Space to CIE XYZ Space", written from the specification's
+  text: `Sources/PhotoCore/CameraColor/CameraColor.swift` and
+  `CameraProfile.swift`.
+- Kelvin and tint against chromaticity use Robertson's method (A. R.
+  Robertson, "Computation of Correlated Color Temperature and Distribution
+  Temperature", Journal of the Optical Society of America 58, 1968; the
+  isotherm table as in Wyszecki and Stiles, "Color Science", 2nd edition).
+  The tint (the distance from the black body's color along the isotherm in
+  CIE 1960 (u, v), times 3000, positive toward green), the reading between
+  two isotherms and the temperatures taken for a DNG's calibration
+  illuminants are those of Adobe's DNG SDK 1.7.1 (`dng_temperature`,
+  `dng_camera_profile`), written again in Swift with nothing copied:
+  `Sources/PhotoCore/CameraColor/ColorTemperature.swift` and
+  `CameraProfile.kelvin(ofLightSource:)`. The system's RAW decoder reports
+  the same numbers for the same chromaticity (`ColorTemperatureTests`).
+- The fluorescent light sources' temperatures are the middles of the ranges
+  the EXIF specification (CIPA DC-008) gives them.
+- That a Fujifilm raw records the exposure its camera held back
+  (`RawExposureBias`) is from ExifTool's tag documentation; the value is read
+  by LibRaw (`Sources/PhotoCore/Preview/LibRawDecoder.swift`).
+
 ## LightCraft
 
 Some mask math follows LightCraft (https://github.com/storytold/lightcraft,
