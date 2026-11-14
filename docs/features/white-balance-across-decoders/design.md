@@ -152,7 +152,8 @@ of raw. Mode shows:
 Display only: the stack is never rewritten (R9, R10). The sliders show the
 as-shot values whenever Kelvin values are absent, which agrees with rule 3.
 Picking a mode from the pop-up then behaves as today: As Shot clears the
-white balance, a named mode stores its Kelvin and tint, Custom stores Custom.
+white balance, a named mode stores its Kelvin and tint, Custom stores Custom
+(on a raw, with the Kelvin and tint it shows: ruling §17.1).
 
 Rendered images keep D5's rule (`relativeDisplayPreset`) unchanged.
 
@@ -239,7 +240,8 @@ don't change what a person can do.
 
 - System raws: every control, value, mode list and string, except that §5's
   rule now also shows As Shot for a relative white balance pasted from a
-  rendered image (today it shows Custom or Auto while rendering as shot).
+  rendered image (today it shows Custom or Auto while rendering as shot),
+  and Custom picked from Mode stores the numbers it shows (§17.1).
 - Rendered images: the three modes, relative sliders and D5's rule.
 - The machine learning check box, caption and badge for LibRaw photos (D3,
   F3), and the missing Color row.
@@ -348,7 +350,10 @@ JPEG. None of these needs VoiceOver or another macOS.
 - **M6. A photo edited with a #161 build** (relative Temperature or Tint on
   an X-E3; the owner's library has a few): Mode shows As Shot, the sliders
   show as-shot values, the photo looks as shot. Choose Custom from Mode: it
-  stays Custom; ⌘Z returns to As Shot.
+  stays Custom, Temperature and Tint stay on the same as-shot numbers (no
+  fill from the slider's origin) and the photo does not visibly change
+  (§17.1); ⌘Z returns to As Shot in one step. Repeat on the X-T3 with no
+  earlier edit: the same.
 - **M7. Unavailable state** (only if a file that triggers it is at hand; QA
   can script the strings with the synthetic file of AC14): the dimmed pop-up,
   the caption's wrap and legibility in the dark window with Increase Contrast
@@ -376,3 +381,57 @@ JPEG. None of these needs VoiceOver or another macOS.
 
 None open. §4 (Auto's wait) and §6 (when availability is known) name the two
 points where the engineer returns a Design question instead of deciding.
+
+## 17. Rulings
+
+### 17.1 DQ-1: choosing Custom on a raw (2026-11-14)
+
+**Ruling: option (b), on every raw by either decoder.** Choosing **Custom**
+from Mode on a raw stores Custom *with the Kelvin and tint the sliders show*,
+so §5 rule 1 shows Custom and what is stored is what the person sees.
+
+Why: Custom means "these numbers". The sliders already show numbers when
+Custom is picked (the as-shot ones); storing them makes the pop-up, the
+sliders, the render and a later paste agree. Auto already stores numbers
+(AC3), so Custom now behaves like its neighbor. Option (a) leaves a pop-up
+that refuses the item just chosen, which D5 ruled looks broken; (c) is
+RI-W1(b), not taken.
+
+The rule, exactly (`WhiteBalanceControls.picking(.custom, from:)` for
+`.kelvin(asShot:)`):
+
+1. Start from the stored white balance; set `preset` to `.custom`.
+2. If `temperature` is nil, set it to `asShot.kelvin`; if `tint` is nil, set
+   it to `asShot.tint`. A value already stored is kept (a Tungsten turned
+   into Custom keeps 2,850 K and 0; a `photocli` Kelvin without a tint gets
+   the as-shot tint, as the sliders do).
+3. Store the as-shot values exactly as `asShot` holds them, **unrounded**, so
+   each slider sits on its default (no fill, double-click changes nothing)
+   and the field reads the same number as before the pick.
+4. Leave `relativeTemperature` and `relativeTint` as stored (R10, RI-W1(a)).
+5. One undo step, named "White Balance" (unchanged). If the result equals
+   the stored value (Custom already holding both numbers), nothing is
+   recorded (`change` already skips equal values).
+
+Unchanged: rendered images (`.relative`) store Custom alone, as D5 says;
+an unavailable photo (`.unavailable`) returns nil, as §6 says; §5's display
+rule is unchanged (rule 2 still shows Custom for a stack stored without
+numbers by an earlier build).
+
+Consequences, accepted:
+
+- §8's "system raws unchanged" gains one exception: Custom picked on a
+  system raw now carries its as-shot numbers. Pasting that Custom onto
+  another raw applies those numbers (WYSIWYG), where before it left the
+  target as shot. The render of the photo itself may differ from as shot by
+  the decoder's rounding only; nothing visible.
+- The stack hash changes when Custom is picked, so a new preview is made for
+  that photo. Expected for any edit.
+
+Tests: replace the `leftover` expectation in
+`WhiteBalanceAcrossDecodersTests` (Custom on 60/30 now gives Custom with the
+as-shot Kelvin and tint and the relative values kept, shown Custom), and add:
+Custom from As Shot on a `.kelvin` photo stores as-shot Kelvin and tint;
+Custom from Tungsten keeps 2,850 / 0; Custom with only `temperature` set
+fills the tint; `.relative` still stores `WhiteBalance(preset: .custom)`;
+`.unavailable` still returns nil. M6 is updated to match.
