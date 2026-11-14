@@ -8,25 +8,28 @@ engineer's list).
 
 **Status: Done** (2026-11-14). Every acceptance criterion is built and has its
 test or scripted check. The design review's findings F1 to F3 and the code
-review's C2 to C7 are fixed (**Review findings**, below). Open, and not the
-engineer's to close:
+review's C1 to C7 are fixed (**Review findings**, below). Two owner's rulings
+of 2026-11-14 are recorded here:
 
-- **C1 (owner's ruling, through the main session):** how the Adobe DNG SDK is
-  acknowledged. Not touched, as told: `THIRD_PARTY_NOTICES.md` and the
-  disclosure comments in `ColorTemperature.swift`, `CameraColor.swift` and
-  `CameraProfile.swift` are as the reviewer read them.
-- **RI-E1 (owner, through the product manager):** AC5's closeness numbers. The
-  PRD's A2 leaves them to a first measurement and the owner's confirmation.
-  Measured: they hold for the X-E3's Kelvin and its picture at 5500 K, not for
-  tint (off by up to 13 on every camera tried, against A2's 5), and not for
-  the X-T3's Kelvin (14% to 30% under the system decoder's). QA records AC5
-  as measured, not as passed.
+- **C1: option (b).** The three functions that followed Adobe's DNG SDK are
+  written again from the published sources and from measurement of the
+  system decoder, without the SDK's source (**C1: the rewrite**, below, says
+  what was consulted and what could not be).
+- **RI-E1 / AC5: accepted as measured, not met for the X-T3.** As-shot
+  Kelvin is 14% to 30% below the system decoder's for the X-T3, and part of
+  that gap is LibRaw's matrix against the camera itself (the code review's
+  calculation from the cameras' own files: X-T3 12% under D65, X-E3 1%).
+  AC5 is "measured, accepted by the owner 2026-11-14", not "passed". The
+  user guide says a Kelvin value can read differently between the two
+  decoders for the same camera.
 
 DQ-1 is ruled (design §17.1) and built.
 
-Next: the second pass of code-reviewer and the designer (the fixes change
-source and the UI), then qa-tester, then the owner's sign-off (AC6's visual
-check is the owner's).
+Next: the second pass of code-reviewer (the rewrite changes source; it is the
+reviewer who compares the three functions with the SDK), then qa-tester, then
+the owner's sign-off (AC6's visual check is the owner's). The designer's
+second pass covers the earlier review fixes; the rewrite changes no UI, and
+the user guide gained one sentence.
 
 ## Review findings
 
@@ -43,13 +46,135 @@ Code review (`code-review.md`, 2026-11-14):
 
 | # | Outcome |
 |---|---|
-| C1 | Not touched: waits for the owner's ruling |
+| C1 | Fixed by the owner's option (b): `ColorTemperature.init(_:)`, `ColorTemperature.chromaticity`, `CameraProfile.kelvin(ofLightSource:)` and `CameraColor.white(ofNeutral:)` written again; `THIRD_PARTY_NOTICES.md` and the three files' comments say where each formula and constant is from. See **C1: the rewrite** |
 | C2 | Fixed. The fixture, not the decoder: `SyntheticDNG.mosaic(options:)` draws a picture's mosaic once and `write(to:options:mosaic:)` writes a file from it; `decodeIsOriented`, `insetCropIsDecoded` and `whiteLevelIsTheFiles` write both of their files from one mosaic, and the new tests that compare two files do the same. Soak: `swift test --skip-build --filter "LibRawDecoderTests\|LibRawFallbackPipelineTests"` 80 times in each of two processes at once: 160 runs, 0 failed (the reviewer had 7 of 80) |
 | C3 | Fixed. `SyntheticDNG.Color` writes `CameraCalibration1` and `2`; two camera kinds (`calibrated`, `calibratedForward`: two lights with daylight named first in the file, a calibration for each, an analog balance) run through `CameraColorTests` (math against the reference, which is now AB × CC × CM with the reference neutral for forward matrices), `calibrationAndAnalogBalance`, and `CameraColorStepTests.stepMatchesReference` (a LibRaw decode of the file). Checked by mutation: with `calibration(at:)` returning the identity, 4 tests fail; without the `swapAt`, `stepMatchesReference` fails for both kinds |
 | C4 | Fixed. `LibRawFallbackTests.theExposureTheCameraHeldBackIsAdded` reads the file's `RawExposureBias` from LibRaw apart from the decoder's use of it and requires that exposure of the camera color, the step and the transform (1 stop for `DSCF5123.RAF` and `DSCF5139.RAF`, both at −1.72). With the wiring removed it fails on those files. A file shot at 100% holds nothing back and cannot tell; the test prints that |
 | C5 | Fixed. `CameraColorStep.fileExposure` (`LibRawDecoder.fileExposure(of:)`: the Fujifilm held-back exposure, else a DNG's baseline exposure) is used when there is no camera color. Test: `exposureWithoutColorData` |
 | C6 | Fixed. `LibRawDecoder.dngExposure(baselineExposure:)`: finite and within 4 stops either way, else not used. Test: `dngBaselineExposure` (5000, 200 and −50 stops render as the file without the tag, every value a number) |
 | C7 | Fixed. When a rendition written since the cutoff cannot be removed, the folder is not renamed; the older renditions are moved under version 9 one by one, copied where a move is refused, and the one left behind stays under version 8 for `removeObsoletePipelineVersions`. Nothing written since the cutoff comes under version 9. Test: `carryOverSurvivesAFailedRemoval` (a folder made read-only) |
+
+## C1: the rewrite (2026-11-14)
+
+The owner's ruling: the three functions the code review found following
+Adobe's DNG SDK are written again from primary sources, without the SDK.
+Commits `21498a7` (code and tests) and `6b362c6` (notices).
+
+**What each is written from**
+
+| Function | Source |
+|---|---|
+| `ColorTemperature.init(_:)` (chromaticity to Kelvin and tint) | Robertson's method: the distance of a color from each line of constant temperature, the two neighboring lines whose distances differ in sign, the reciprocal temperature read between them in the proportion dᵢ / (dᵢ − dᵢ₊₁). The tint and the limits (nothing hotter than 100,000 K or cooler than 1667 K) are measured against the system decoder |
+| `ColorTemperature.chromaticity` (Kelvin and tint to chromaticity) | Measured against the system decoder: between two lines the black body's color and the line's direction are read in proportion to reciprocal temperature (the directions as unit vectors, the result made a unit vector again); the tint is 1/3000 of the (u, v) diagram's unit along it, positive toward green; below 1667 K the last two lines are continued. (u, v) against (x, y) is the CIE 1960 diagram |
+| The 31 lines' figures | Measured against the system decoder (below). They are the table as the literature reprints it, misprint at 325 mired included, not Robertson's own Table II |
+| `CameraProfile.kelvin(ofLightSource:)` | Three tables by source: kinds of light EXIF only names take the White Balance mode's temperature of that name (`WhiteBalance.Preset`, on `develop` before this feature); fluorescent lamps the middle of the range Exif 2.3 gives each; standard lights the round number they are known by (the D illuminants' names; A, B and C the CIE's 2856, 4874 and 6774 K to the nearest 50 K); ISO studio tungsten 3200 K |
+| `CameraColor.white(ofNeutral:)` | The DNG specification's four steps ("guess an xy value … iterate until the xy values converge to a solution"). The rest is this project's: one step when there is one matrix; the guessing done on the temperature, kept between the two calibration lights, starting at the hotter; settled at one part in 10¹⁰; after 24 guesses that have not settled, a halving search for the temperature the guessing leaves in place (one always exists between the lights). A white point must have luminance (y above 0) |
+
+**The measurement.** A script set `CIRAWFilter.neutralTemperature` and
+`neutralTint` on a raw the system decoder reads (an X-T3 file) and read
+`neutralChromaticity`, and the other way round. macOS 27.2.1.
+
+- At each of the table's 31 temperatures (the first is infinite) the black
+  body's color came out as a five-decimal number in (u, v), to 3 × 10⁻⁸
+  (single precision), and the direction of tint as a slope of five figures.
+  All 31 rows are the table as reprinted, u at 325 mired being 0.24702.
+- Tint: 1/3000 of a (u, v) unit at every one of them, to six figures.
+- Between lines, four ways of reading the direction were compared at 26
+  temperatures and a tint of ±150: unit vectors in proportion and made unit
+  again fits to 2.6 × 10⁻⁸; the angle in proportion to 3.8 × 10⁻⁷; the
+  vectors without making them unit to 3.6 × 10⁻⁵; the slope in proportion to
+  1.9 × 10⁻⁴.
+- Below 1667 K (six temperatures from 1664 K down to 500 K): the last two
+  lines continued, direction included, fits to 7 × 10⁻⁸; stopping at the
+  last line is off by 0.0003 one mired below it and by more further down.
+- Reading 150 chromaticities back: Robertson's proportion and the tint as
+  the distance along the read line's direction give the system decoder's
+  Kelvin to 8 × 10⁻⁸ of its value and its tint to 0.0001 between 100,000 K
+  and 1667 K; hotter or cooler than that it reports the end line's
+  temperature and the tint against that line.
+
+`ColorTemperatureTests.linesAreTheSystemDecoders` repeats this wherever the
+system decoder reads the test DNG (every line at three tints, two
+temperatures below the table, twelve chromaticities beyond the ends).
+
+**Robertson's own table.** The paper's Table II, as the publisher's page
+lists it, has the same 31 temperatures but other last figures (up to 0.00011
+in u, 0.00003 in v, slopes to four figures and up to 2.3% apart). With it
+`matchesTheSystemDecoder` cannot pass (its limit is 10⁻⁶), so the figures
+could not be "the paper's data": they are the system decoder's, which are
+the later reprint's. The paper's 0.24787 at 325 mired, moved by what its
+neighbors moved, is 0.24792: the reprint's 0.24702 is that with one digit
+wrong.
+
+**What could not be consulted**, and what stood in for it:
+
+- Robertson's paper itself (behind the publisher's paywall). Its
+  interpolation formula is from Baxter, Royer and Smet (Leukos, 2023,
+  equation 1; a public copy on energy.gov) and the article "Correlated color
+  temperature" in Wikipedia (the distance dᵢ, the sign rule); its Table II
+  from the publisher's abstract page, read through a fetch tool that
+  summarizes pages (so its rows are not a first-hand reading).
+- The DNG Specification 1.7.1.0: Adobe's site refused the download (HTTP
+  403 to automated clients). Read instead: version 1.6.0.0 (December 2021),
+  a public copy, chapter 6 and the `CalibrationIlluminant` tags. The
+  comments and the notices say 1.6.0.0. Someone with a browser can check
+  that chapter 6's text on one and two calibrations is the same in 1.7.1.0.
+- Wyszecki and Stiles (a book). The notices say the reprint is cited from
+  the literature and was checked against the decoder, not the book.
+- The CIE's temperatures for its illuminants (2856, 4874, 6774, 5003, 5503,
+  6504, 7504 K) and the CIE 1960 formulas are from general knowledge and
+  the Wikipedia article; no CIE publication was fetched. The inverse
+  formulas were worked out from the forward ones.
+
+Not read or fetched: any DNG SDK source or mirror, darktable, RawTherapee,
+dcraw, or another converter's implementation.
+
+**What was seen of the earlier bodies**, so the record is exact. The
+bodies were removed by line number before anything was written, but:
+a search for declaration lines in `ColorTemperature.swift` also printed the
+`let` and `var` lines inside its two bodies (about fifteen lines, without
+the loops and conditions); the code review's C1 describes all three in a
+sentence each; and a diff printed the earlier `white(ofNeutral:)` after the
+new one was written and tested. One line was added after that: the white
+point must have y above 0 (the earlier body had the same condition; it is a
+property of a white point, and a test covers it). The earlier
+`kelvin(ofLightSource:)` body was never displayed.
+
+**Behavior against the earlier functions**, compared as black boxes after
+the new ones were committed (854 values):
+
+- Kelvin and tint against chromaticity: the same to 10⁻¹² in both
+  directions, inside the table and beyond both ends. The earlier code
+  followed the SDK statement for statement, and the system decoder behaves
+  as that code does; the new code is derived from the decoder's behavior,
+  so **the three behave alike. What changed is where the code comes from
+  and how it is written, not what it computes.** If "nothing derived from
+  Adobe's code" must also mean other behavior, it cannot be had together
+  with R1 (one Kelvin and tint is the same light to both decoders).
+- A neutral's white point: within 1.5 × 10⁻⁸ in x and y (the earlier one
+  stopped at 10⁻⁷). X-E3 `DSCF5123.RAF` as shot: 5318.442815396027 K,
+  tint 1.7407 (the last digit of the Kelvin moved).
+- Calibration lights: three EXIF values no test pins changed. 2
+  (fluorescent, no kind): 4150 to 3800 K, the Fluorescent mode's. 18
+  (standard light B): 5500 to 4850 K. 19 (standard light C): 6500 to
+  6750 K. Only a DNG calibrated for one of these lights is affected (the
+  one DNG among the samples uses 17 and 21). The eight values
+  `CameraColorTests.lightSources` pins are unchanged; 2850 K for standard
+  light A is pinned by that test, and is the CIE's 2856 K rounded as the D
+  illuminants' are.
+- An attempt to measure the system decoder's temperatures for lights 17 and
+  21 (two-matrix DNGs at six as-shot neutrals) settled nothing: its as-shot
+  white differs from the specification's method by about 10⁻⁴ in x and y
+  whatever temperatures are assumed.
+
+**Tests added** (`CameraColorTests.swift`; the existing ones are unchanged
+and pass): `linesAreTheSystemDecoders`, `beyondTheLines`, `table` (the
+misprint is pinned), `lightSourceTables`, `whitePointWithoutSettling` (two
+calibrations that send each guess to the other light), and a neutral without
+luminance in `unusableColor`. Each was seen to fail with its code changed:
+the halving search removed; a line's u, the first line's slope or the tint
+scale altered; 325 mired corrected; reading from the first line; the
+luminance condition removed.
 
 ## What was built
 
@@ -262,7 +387,7 @@ that need LibRaw whatever the macOS call `LibRawDecoder` directly.
 | AC2 | Done | `kelvinAppliesOnBothDecoders` (Daylight and 2500 K change both, in the same direction). `photocli render --long-edge 600 --set whiteBalance.preset=custom --set whiteBalance.temperature=2500`: the PNG's SHA-256 differs from the unedited one on the X-E3 file (`1d892cbe…` to `319a7815…`; on `develop` it does not) and on the X-T3. See RI-E3 for the command without `preset` |
 | AC3 | Done | `LibRawFallbackPipelineTests.autoWhiteBalanceFollowsTheDecoder` (Kelvin and tint, whole numbers, no relative values; a grey picture with a cast comes back to D65 within 2% and 3 of tint). Script: Auto on an X-E3 file stores `"preset":"auto","temperature":5332,"tint":-12` and shows them |
 | AC4 | Done | `CameraColorStepTests.stepMatchesReference` (one matrix, two, forward matrices; five white balances; with and without the look) against `Reference/CameraColorReference.swift`, tolerance derived from half-float roundings put through the reference. `CameraColorTests` checks the math alone to 10⁻⁶ |
-| AC5 | Built and measured; tolerances for the owner (RI-E1) | `LibRawAgainstSystemTests.compare` prints every number and asserts the measured limits per camera |
+| AC5 | Measured, accepted by the owner 2026-11-14 (not met for the X-T3: Kelvin 14% to 30% below the system decoder's) | `LibRawAgainstSystemTests.compare` prints every number and asserts the measured limits per camera |
 | AC6 | Done for Fujifilm; owner's visual check open | The same test: X-E3 +0.04 EV, tone spread +0.3%; X-T3 within 0.16 EV and 2%. Other makers: O4 above |
 | AC7 | Done | `LibRawDecoderTests.whiteLevelIsTheFiles`: a crop without the picture's brightest values decodes pixel for pixel as the whole |
 | AC8 | Done (tables carried, not applied) | `standInProfile` (other matrices, forward matrices, a tone curve, an exposure: the render is the reference's for them); `unknownProfileReference` (loads, written back as stored, renders as without it, kept through an edit) |
@@ -291,15 +416,33 @@ values and ignores Kelvin now say the reverse, which is the requirement.
 | | Before (`26843e4`) | Now |
 |---|---|---|
 | `swift build` | complete, no warning | complete, no warning |
-| `swift test` | 952 tests in 138 suites passed, 1 known issue (`LiveSessionTests`) | 988 tests in 144 suites passed, the same known issue (982 before the review fixes) |
+| `swift test` | 952 tests in 138 suites passed, 1 known issue (`LiveSessionTests`) | 993 tests in 144 suites passed, the same known issue (982 before the review fixes, 988 before the C1 rewrite) |
 | `Scripts/build-app.sh all` | | both bundles built |
 
 The test target has two warnings from before (`SmartAlbumTests`,
-`VirtualCopiesTests`).
+`VirtualCopiesTests`) and one of this branch's, left as it is because the
+C1 rewrite was to leave the existing tests unchanged: an unneeded `try` in
+`WhiteBalanceAcrossDecodersTests.swift:637` (the cache carry-over test, from
+the review fixes). Removing the word clears it.
 
 With samples, all passing after the review fixes: `RAF_SAMPLE` on two X-E3
 files (9 tests each), `RAW_LOOK_SAMPLES` (9 files), `RAW_BOTH_SAMPLES` (11
 files).
+
+After the C1 rewrite (`21498a7`), on macOS 27.2.1: `swift build` complete,
+no warning; `swift test` 993 passed, 1 known issue; `Scripts/build-app.sh
+all` built both bundles; `RAF_SAMPLE` on `DSCF5123.RAF` 9 tests passed;
+`RAW_BOTH_SAMPLES` on the same 11 files passed with every printed number as
+in the table above (X-E3 3864 K against 3923 K; X-T3 −14.1% to −29.7%);
+`RAW_LOOK_SAMPLES` passed on 9 files (the public X-E3 file, four X-T3
+files, the Sony, Canon, Olympus and Panasonic files; which four X-T3 files
+the earlier run used is not on record). `photocli render` of the X-T3 file
+`DSCF4583.RAF` from this branch and from a build of `develop` (`868f8f6`,
+exported to a scratch folder) gives the same SHA-256 for each of: full size
+(`66de99f7…`), `--long-edge 600` (`6c07dff3…`), 2500 K with
+`whiteBalance.preset=custom` (`b22f1021…`) and `exposure.ev=1`
+(`745b18a2…`). AC11's `fc877d6d…` for "2500 K" was made with arguments that
+are not on record; three of its four hashes are reproduced here.
 
 **The failure seen once before the reviews** (`insetCropIsDecoded`) was the
 fixture, as the code review found (C2): two drawings of one picture are not
@@ -337,7 +480,10 @@ blank.
 
 ## Requirements issues (for the product manager)
 
-- **RI-E1. AC5's tolerances (A2).** Proposed from the measurement, by what a
+- **RI-E1. AC5's tolerances (A2).** **Ruled by the owner, 2026-11-14:
+  accepted as measured, not met for the X-T3** (option (a) below, with the
+  user guide's sentence). Part of the X-T3's gap is LibRaw's matrix against
+  the camera itself. What was proposed from the measurement, by what a
   person would see:
   - As-shot Kelvin: within 5% holds for the X-E3 and the Sony, Olympus and
     Panasonic files, 7% for the Canon, not for the X-T3 (14% to 30%).
@@ -405,11 +551,11 @@ For the product manager at Ship:
   before 2026-11-13 are carried over at launch.
 - `THIRD_PARTY_NOTICES.md` opens with a paragraph on published
   specifications and methods (the Adobe DNG Specification, Robertson's
-  method, the DNG SDK's tint scale, EXIF). They are not projects, so they
-  have no section and no About entry (`AcknowledgementConsistencyTests` ties
-  sections to the About window's record). If the owner wants the DNG SDK
-  named in the About window, that is a record entry, a string and a README
-  Credits line.
+  method, the CIE 1960 diagram, EXIF, and measurement of the system
+  decoder). They are not projects, so they have no section and no About
+  entry (`AcknowledgementConsistencyTests` ties sections to the About
+  window's record). After the owner's ruling on C1 nothing follows the DNG
+  SDK, so it has no entry either.
 - `docs/PROFILING.md` has the new LibRaw-against-system look figures.
 
 ## Not done, and why

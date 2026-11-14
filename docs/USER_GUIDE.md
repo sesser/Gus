@@ -385,7 +385,9 @@ shot in light beyond the sliders' ends (under 2,000 K, say) shows the nearest
 end; choosing **Custom** or moving a slider then renders that number. Two things to know about the numbers. The Kelvin shown comes from the
 app's own color data for the camera, which is not always what macOS reads for
 the same camera (close for a Fujifilm X-E3 on the one file that could be
-compared; about a fifth apart for an X-T3), so one Kelvin can give a somewhat
+compared; about a fifth lower for an X-T3). So for the same camera and the
+same light, a Kelvin value can read differently on a raw the app decodes
+itself than on one macOS decodes, and one Kelvin can give a somewhat
 different picture on the two kinds of raw. And a file that is not a DNG has color data for daylight only:
 neutral tones come out neutral at any **Temperature**, but under very warm or
 very cool light strong colors are a little less accurate than a raw macOS
