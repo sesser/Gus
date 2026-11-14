@@ -10,7 +10,8 @@ on the owner's ruling of 2026-11-13: a Fujifilm RAF that LibRaw decodes gets
 the camera's own frame and the lens corrections the camera stored in the file
 (**Lens corrections and the frame**, below). Next: code review of that
 addition, then qa-tester again (with the reviewer's Q7), then the owner's
-sign-off.
+sign-off. The fourth code review's findings C16 to C22 and Q11 are answered
+under **Code review, fourth pass**.
 
 ## Bug
 
@@ -25,7 +26,10 @@ strip tiles.
 a local copy too. On this macOS `CIRAWFilter` is made for the file but has
 `nativeSize` 0x0, decoder versions `["None"]` and no output image, and ImageIO
 cannot decode it either, so `PreviewGenerator.decode` had nothing left and threw.
-(A 2020 X-T3 RAF, `DSCF4583.RAF`, decodes with the system decoder.)
+It is the X-E3's lossless compressed files the system decoder gives nothing
+for (all of the owner's folder by their headers: sensor 6048x4038), not every
+X-E3 file: the code reviewer found that it reads an uncompressed one (sensor
+6160x4032), and an X-T3's lossless compressed file (`DSCF4583.RAF`).
 
 **The fix.** `PreviewGenerator.decode` falls back to LibRaw
 (`Preview/LibRawDecoder.swift`) when, and only when, the system decoder gives
@@ -41,7 +45,7 @@ switched off it fails with `undecodable` (and five more of the suite with it).
 Where a macOS does read that DNG the test still passes, through the system
 decoder, and prints that its premise does not hold there; `LibRawDecoderTests`
 calls LibRaw directly and runs its code on every macOS. On a real file:
-`RAF_SAMPLE=path/to/X-E3.RAF swift test --filter LibRawFallbackTests` (5 tests).
+`RAF_SAMPLE=path/to/X-E3.RAF swift test --filter LibRawFallbackTests` (7 tests).
 
 ## Owner's rulings
 
@@ -245,10 +249,10 @@ the photo is edited or the preview cache folder is deleted. Crops and masks
 made on such photos with an earlier build of this branch sit a few pixels off
 (the frame moved by 2 and 3 pixels and the geometry changed).
 
-**Tests** (all in the default run unless noted): `FujifilmRAFTests` (6: both
-layouts, files without usable tables, frames, every truncation and 4,000
+**Tests** (all in the default run unless noted): `FujifilmRAFTests` (8: both
+layouts, an X-T3's real nine-knot values, the crop mode and tables for another frame, files without usable tables, frames, every truncation and 4,000
 random damages of a synthetic RAF, which found a crash on a short read while
-it was written; reading from disk), `EmbeddedLensTests` (11: the tables'
+it was written; reading from disk), `EmbeddedLensTests` (16: the tables'
 functions and their inverse, the scale rule, the lookup tables' reading error
 against the slope jumps at knots, the kernel against its CPU reference
 `Reference/EmbeddedLensReference.swift` in a float context with a bound from
@@ -260,6 +264,20 @@ the frame in LibRaw's image for all eight orientations). On a real file
 `theCorrectedRenderLinesUpWithTheCamerasJPEG` (median at most 0.5 JPEG pixels,
 90th percentile at most 1.5, uncorrected at least four times worse, light far
 from the center within half of what the lens's falloff would show).
+
+## Code review, fourth pass (`code-review.md`, 2026-11-13)
+
+| # | Outcome |
+|---|---|
+| C16 | Fixed. The order of decoders is a function of its own, `PreviewGenerator.rawImage` (the system decoder with the stack's settings, then without the stack's decoder choices, then LibRaw), which `decode` calls and `decoderOrder` tests with stand-ins for the decoders. |
+| C17 | Fixed. `LibRawDecoder.maximumSensorPixels` is 150,000,000 (raw width times raw height): above every camera's single frame, and about 3.3 GB for a full decode at 22 bytes a pixel. A larger file is refused after `libraw_open_file` (`Failure.tooLarge`, logged, then `undecodable`) and has no `frameSize`. **The number is the owner's to change.** Test: `sensorSizeLimit`. |
+| C18 | Fixed. A Super CCD's file (LibRaw's `fuji_width` set) gets no crop of either kind: its frame is LibRaw's own picture, whose size comes from `libraw_adjust_sizes_info_only` on a separate instance. A RAF's camera frame is used only when the file's records give the sensor size LibRaw reads (`LibRawDecoder.cameraFrame`). The public FinePix F700 sample now renders whole, 2035x1533 (was a 3511x755 strip). Tests on synthetic bytes: `cameraFrameAndSensorLayout`. |
+| C19 | Fixed. The corrected value ends at the decode's white (1): `min(sample × gain, 1)` in the kernel and in the reference. LibRaw's image ends at white, so a clipped area is white wherever it lies, and the camera and the system decoder clip after the gain as well; values the gain lifts past white are clipped, as in the camera's picture. Tests: `gainEndsAtWhite` (a white image stays exactly 1 everywhere; a flat 0.7 is lifted by the gain up to 1; a picture with clipped parts against the reference). |
+| C20 | Fixed. Tables whose knots start away from the center (the nine-knot layout: 0.35) get a knot at 0 with no distortion, no shift and all the light, as darktable's `_init_coeffs_md_v2` adds it. Test: `readsARealNineKnotLayout`, with an X-T3's own values (`DSCF4583.RAF`) in synthetic bytes. |
+| C21 | Fixed. What `decode` does with LibRaw's image is `LibRawDecoder.framed` (the cut, the tables, the half-pixel resample, `fullSize`) and `LibRawDecoder.lensTables` (which tables); `decodeFramesAndCorrects` and `whichTablesADecodeUses` run them by default on synthetic images and synthetic RAF bytes. |
+| C22 | Fixed: 7 tests with a sample; the scale rule's comment names the X-A5 exception; "the first one 0" is true since C20; the Bug section and the user guide say lossless compressed X-E3 files; a file whose tables are not used (its frame refused, a crop mode, tables for another frame) says so in the log. |
+| Q11 | `FujifilmRAF.cropMode` reads `CropMode` (0x104D) from the maker note of the embedded JPEG's Exif, and `LensTables.frameRadius` is the tags' leading value times the knots. Tables are used only when the mode is not 2 or 4 **and** that radius is the camera frame's half diagonal within 2 pixels (`FujifilmRAF.lensTables(for:)`); otherwise the file is shown uncorrected, in its frame, with a log line. **No file in a 1.25x crop mode was at hand**, so what darktable does for them (knots times 1.25) is not applied and not checked. Tests: `tablesForAnotherFrame`. The Exif parser is covered by the same truncation and damage tests as the rest. |
+| Q12, Q13, Q14 | The owner's. Q12 (the scale rule against an X-A5's JPEG) is noted in the correction's comment; Q14 (bilinear resampling, and the half-size frame read between two rows) is a choice made here. |
 
 ## Design review (`review.md`, 2026-11-13)
 
@@ -286,10 +304,10 @@ kind is known, so no layout of the wrong kind is drawn. M5 stays a manual check.
 
 - Baseline before this pass (`7957ed1`): `swift build` complete with one
   warning (C9); `swift test` 859 tests in 129 suites passed, 1 known issue.
-- Now: `swift build` complete, no warning. `swift test`: 898 tests in 133
+- Now: `swift build` complete, no warning. `swift test`: 906 tests in 133
   suites passed, the same 1 known issue (`LiveSessionTests`, values above
   white in the cached stages). `RAF_SAMPLE=… swift test --filter
-  LibRawFallbackTests`: 5 tests passed. `Scripts/build-app.sh all`: both
+  LibRawFallbackTests`: 7 tests passed. `Scripts/build-app.sh all`: both
   bundles built (SDK 27.2, minimum 15.0).
 - Two existing tests changed, neither loosened: `RAWDecodeGraphTests`' tripwire
   lists `SystemRAWDecoder.swift` as a place a RAW filter is made and never
