@@ -522,5 +522,67 @@ above.
 
 ## 13. Rulings
 
-None yet. Rulings on the engineer's design questions are added here as
-numbered sections (D-A1, D-A2, …) the engineer can cite.
+Rulings on the engineer's readings in `status.md` ("Where I read the design
+one way", D-1 to D-6), made at design review on 2026-11-13. Each is cited as
+D-A‹n›.
+
+### D-A1 Heights are the window's (status D-1): accepted
+
+400 pt minimum and 640 pt ideal are the window's outer heights, title bar
+included; the view's own limits subtract the title bar. The maximum is the
+content's height (691 pt in English without licence buttons, 734 with them),
+as §3.6 intends. No change.
+
+### D-A2 Lines within an entry are 3 pt apart (status D-2): accepted
+
+§3.4 gave only the space between entries (14 pt). 3 pt between an entry's
+lines keeps each entry reading as one block against the 14 pt between
+entries. No change.
+
+### D-A3 Header top (status D-3): accepted
+
+4 pt under the title bar (the icon's canvas about 36 pt from the window's
+top on macOS 27.2) replaces "about 28 pt". The icon is centered, so it never
+meets the window controls; the larger figure only follows from the title
+bar's real height. No change.
+
+### D-A4 "Can't Show the License" has no symbol (status D-4): accepted
+
+A `ContentUnavailableView` with a title and description and no image is
+right for a state that should never be seen in a healthy bundle. A symbol
+would add weight to a rare, non-actionable state. No change.
+
+### D-A5 Catalog keys with plain `%@` (status D-5): accepted; §8 amended
+
+`String(localized:)` builds the key from the interpolation with plain `%@`,
+so the keys are `Version %@ (build %@)` and `Copyright © %@ %@`, and the
+English values carry the positional `%1$@ … %2$@` so a translator can
+reorder. This is how the catalog's other two-argument strings work. Read
+§8's S-VERSION and S-COPYRIGHT key column as those plain-`%@` keys; the
+English text is unchanged.
+
+### D-A6 The app's licence window title in the importer (status D-6): accepted
+
+"Gus License" (the project's name, `AppBranding.displayName`) in both apps:
+the licence belongs to the project, which the importer is part of (RI-A1's
+ruling). The missing-file description names the running app ("this copy of
+‹importerDisplayName›") because it is that copy that is damaged. Both as §6.1
+and §8 say.
+
+### D-A7 Voice Control names for View License (amends §7)
+
+§7 gave the entry buttons the accessibility label "View ‹project› License"
+while the visible title stays "View License". That label doesn't contain the
+visible words in order, so a Voice Control user saying what they see ("click
+View License") isn't matched by name. Keep the label for VoiceOver, and add
+`accessibilityInputLabels` with the visible title first and the long form
+second (`["View License", "View ‹project› License"]`; for the footer,
+`["View License", "View ‹displayName› License"]`). Both strings are already
+in the catalog (S-VIEW, S-VIEW-AX).
+
+### D-A8 Catalog comments name the right argument (amends §8)
+
+S-DEDICATION's and S-GPL's arguments are the project's name
+(`AppBranding.displayName`) in both apps, not the running app's (RI-A1's
+ruling). Their translator comments say "the argument is the project's name",
+so a translator doesn't assume "Gus Importer" could appear there.
