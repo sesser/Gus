@@ -41,6 +41,23 @@ struct AcknowledgementConsistency {
         return lines[(start + 1)..<end].joined(separator: "\n")
     }
 
+    /// The Credits section's list items, each without its marker ("- ",
+    /// "* ", "1. "), at any indent. A credit is a list item.
+    static func creditItems(in credits: String) -> [String] {
+        let marker = try! NSRegularExpression(pattern: #"^\s*(?:[-*+]|\d+[.)])\s+(.*)$"#)
+        return credits.components(separatedBy: "\n").compactMap { line in
+            guard let match = marker.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)),
+                  let text = Range(match.range(at: 1), in: line)
+            else { return nil }
+            return String(line[text])
+        }
+    }
+
+    /// Whether a list item opens with a name in bold ("**LibRaw** decodes…").
+    static func startsWithABoldName(_ item: String) -> Bool {
+        item.range(of: #"^\*\*[^*\n]+\*\*"#, options: .regularExpression) != nil
+    }
+
     /// The names the Credits section credits: what it sets in bold.
     static func creditedNames(in credits: String) -> [String] {
         let bold = try! NSRegularExpression(pattern: #"\*\*([^*\n]+)\*\*"#)
@@ -50,16 +67,103 @@ struct AcknowledgementConsistency {
         }
     }
 
-    /// The `url:` or `path:` of every `.package(…)` outside comments.
-    static func packageLocations(in package: String) -> [String] {
-        let code = package.components(separatedBy: "\n")
-            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
-            .joined(separator: "\n")
-        let dependency = try! NSRegularExpression(pattern: #"\.package\(\s*(?:name:\s*"[^"]*"\s*,\s*)?(?:url|path):\s*"([^"]+)""#)
-        let range = NSRange(code.startIndex..., in: code)
-        return dependency.matches(in: code, range: range).compactMap { match in
-            Range(match.range(at: 1), in: code).map { String(code[$0]) }
+    /// Swift source without its comments. String literals are kept whole:
+    /// a URL has "//" in it.
+    static func strippingComments(_ source: String) -> String {
+        let characters = Array(source)
+        var result = ""
+        var index = 0
+        var inString = false
+        while index < characters.count {
+            let character = characters[index]
+            let next: Character? = index + 1 < characters.count ? characters[index + 1] : nil
+            if inString {
+                result.append(character)
+                if character == "\\", let next {
+                    result.append(next)
+                    index += 1
+                } else if character == "\"" {
+                    inString = false
+                }
+            } else if character == "\"" {
+                inString = true
+                result.append(character)
+            } else if character == "/", next == "/" {
+                while index < characters.count, characters[index] != "\n" { index += 1 }
+                continue
+            } else if character == "/", next == "*" {
+                index += 2
+                while index + 1 < characters.count, !(characters[index] == "*" && characters[index + 1] == "/") { index += 1 }
+                index += 1
+            } else {
+                result.append(character)
+            }
+            index += 1
         }
+        return result
+    }
+
+    /// Something `Package.swift` brings in from outside the repository.
+    struct Dependency: Equatable {
+        /// For the failure message: "GRDB.swift", a registry id, a binary target's name.
+        var name: String
+        /// What an entry's `packageURL` must equal: the `url:`, `path:` or `id:`.
+        var location: String
+    }
+
+    /// Every external dependency `Package.swift` declares, outside
+    /// comments: `.package(…)` by `url:`, `path:` or registry `id:`, and
+    /// `.binaryTarget(…)` by `url:` or `path:`. A call none of these can be
+    /// read from is listed with its own text, so it is never passed over.
+    static func dependencies(in package: String) -> [Dependency] {
+        let code = Array(strippingComments(package))
+        let argument = try! NSRegularExpression(pattern: #"\b(url|path|id|name)\s*:\s*"([^"]*)""#)
+        var found: [(offset: Int, dependency: Dependency)] = []
+        for (marker, isBinary) in [(".package(", false), (".binaryTarget(", true)] {
+            let pattern = Array(marker)
+            var index = 0
+            while index + pattern.count <= code.count {
+                guard Array(code[index..<(index + pattern.count)]) == pattern else {
+                    index += 1
+                    continue
+                }
+                // The call's arguments, to its closing parenthesis.
+                var end = index + pattern.count
+                var depth = 1
+                var inString = false
+                while end < code.count, depth > 0 {
+                    let character = code[end]
+                    if inString {
+                        if character == "\\" { end += 1 } else if character == "\"" { inString = false }
+                    } else if character == "\"" {
+                        inString = true
+                    } else if character == "(" {
+                        depth += 1
+                    } else if character == ")" {
+                        depth -= 1
+                    }
+                    end += 1
+                }
+                let call = String(code[index..<min(end, code.count)])
+                var values: [String: String] = [:]
+                for match in argument.matches(in: call, range: NSRange(call.startIndex..., in: call)) {
+                    if let label = Range(match.range(at: 1), in: call), let value = Range(match.range(at: 2), in: call),
+                       values[String(call[label])] == nil {
+                        values[String(call[label])] = String(call[value])
+                    }
+                }
+                let unread = call.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+                let location = values["url"] ?? values["path"] ?? (isBinary ? values["name"] : values["id"]) ?? unread
+                let name = isBinary ? (values["name"] ?? packageName(location)) : packageName(location)
+                found.append((index, Dependency(name: name, location: location)))
+                index = max(end, index + pattern.count)
+            }
+        }
+        return found.sorted { $0.offset < $1.offset }.map(\.dependency)
+    }
+
+    static func packageLocations(in package: String) -> [String] {
+        dependencies(in: package).map(\.location)
     }
 
     /// "GRDB.swift" for "https://github.com/groue/GRDB.swift.git".
@@ -111,11 +215,17 @@ struct AcknowledgementConsistency {
         for name in credited where !record.contains(where: { NoticesFile.heading(name, names: $0.name) }) {
             problems.append("The README's Credits name \(name), which the record lacks")
         }
+        // A credit without a bold name would not be read as one: every
+        // item of the list must open with its project's name in bold.
+        for item in credits.map(Self.creditItems) ?? [] where !Self.startsWithABoldName(item) {
+            problems.append("The README's Credits have an item that doesn't start with a project's name in bold: “\(item)”")
+        }
         // (c) Every package and every vendored folder has an entry, and no
         // entry claims one that isn't there.
-        let locations = Self.packageLocations(in: package)
-        for location in locations where !record.contains(where: { $0.packageURL == location }) {
-            problems.append("Package.swift depends on \(Self.packageName(location)) (\(location)), which the record lacks")
+        let dependencies = Self.dependencies(in: package)
+        let locations = dependencies.map(\.location)
+        for dependency in dependencies where !record.contains(where: { $0.packageURL == dependency.location }) {
+            problems.append("Package.swift depends on \(dependency.name) (\(dependency.location)), which the record lacks")
         }
         for folder in vendored where !record.contains(where: { $0.vendoredPath == folder }) {
             problems.append("\(folder) holds third-party source, which the record lacks")
@@ -180,6 +290,42 @@ struct AcknowledgementConsistencyTests {
         #expect(!more.contains { $0.contains("Out") })
     }
 
+    @Test("AC10: every form of outside dependency is seen: a registry id, a binary target, a named or wrapped package", arguments: [
+        (#".package(id: "groue.GRDB-extras", from: "1.0.0"),"#, "groue.GRDB-extras"),
+        (#".binaryTarget(name: "CWidgets", url: "https://example.org/CWidgets.xcframework.zip", checksum: "abc"),"#, "CWidgets"),
+        (#".binaryTarget(name: "LocalBlob", path: "Vendor/LocalBlob.xcframework"),"#, "LocalBlob"),
+        (#".package(name: "OldStyle", url: "https://example.org/someone/OldStyle.git", .upToNextMajor(from: "2.0.0")),"#, "OldStyle"),
+        (".package(\n            url: \"https://example.org/someone/Wrapped.git\",\n            from: \"1.0.0\"\n        ),", "Wrapped"),
+        (#".package(url: "https://example.org/someone/Trailing.git", branch: "main"), // .package(url: "https://example.org/x/Commented.git")"#, "Trailing"),
+        (#".package(someFunctionOf("x")),"#, ".package(someFunctionOf"),
+    ])
+    func everyFormOfDependencyIsNamed(declaration: String, name: String) throws {
+        var repository = try AcknowledgementConsistency.repository()
+        let declared = #".package(url: "https://github.com/groue/GRDB.swift.git", from: "7.9.0"),"#
+        #expect(repository.package.contains(declared))
+        repository.package = repository.package.replacingOccurrences(of: declared, with: declared + "\n        " + declaration)
+        let problems = repository.problems()
+        #expect(problems.count == 1, "\(problems)")
+        #expect(problems.first?.contains(name) == true && problems.first?.contains("Package.swift") == true, "\(problems)")
+        #expect(!problems.contains { $0.contains("Commented") })
+    }
+
+    @Test("Comments are taken out of Package.swift, and strings are not")
+    func commentsAreStripped() {
+        let source = """
+            let a = "https://example.org/a" // .package(url: "https://example.org/b")
+            /* .package(url: "https://example.org/c")
+               .binaryTarget(name: "D", path: "d") */ let e = "/* not a comment */ // nor this"
+            let f = "a \\"quoted\\" // word"
+            """
+        let code = AcknowledgementConsistency.strippingComments(source)
+        #expect(code.contains(#""https://example.org/a""#))
+        #expect(!code.contains("example.org/b") && !code.contains("example.org/c") && !code.contains("binaryTarget"))
+        #expect(code.contains(#""/* not a comment */ // nor this""#))
+        #expect(code.contains(#""a \"quoted\" // word""#))
+        #expect(AcknowledgementConsistency.dependencies(in: source).isEmpty)
+    }
+
     @Test("AC10: vendored source the record lacks fails with its folder")
     func addingVendoredSourceIsNamed() throws {
         var repository = try AcknowledgementConsistency.repository()
@@ -210,6 +356,16 @@ struct AcknowledgementConsistencyTests {
         problems = repository.problems()
         #expect(problems.count == 1)
         #expect(problems.first?.contains("OpenColorIO") == true && problems.first?.contains("Credits") == true, "\(problems)")
+
+        // A credit with no bold name is not passed over: the item itself fails.
+        for line in ["- OpenColorIO for the color transforms.", "* Thanks to OpenColorIO.", "  - OpenColorIO, nested.",
+                     "1. OpenColorIO", "- See **OpenColorIO**."] {
+            repository = try AcknowledgementConsistency.repository()
+            repository.readme += line + "\n"
+            problems = repository.problems()
+            #expect(!problems.isEmpty, "\(line)")
+            #expect(problems.allSatisfy { $0.contains("OpenColorIO") && $0.contains("Credits") }, "\(line): \(problems)")
+        }
     }
 
     @Test("R9 (a): a project dropped from the notices or the Credits fails with its name")
@@ -224,8 +380,9 @@ struct AcknowledgementConsistencyTests {
         repository = try AcknowledgementConsistency.repository()
         repository.readme = repository.readme.replacingOccurrences(of: "**GRDB**", with: "GRDB")
         problems = repository.problems()
-        #expect(problems.count == 1)
-        #expect(problems.first?.contains("GRDB") == true && problems.first?.contains("Credits") == true, "\(problems)")
+        // Twice: the record's project is no longer named, and its item no longer opens in bold.
+        #expect(problems.count == 2)
+        #expect(problems.allSatisfy { $0.contains("GRDB") && $0.contains("Credits") }, "\(problems)")
 
         repository = try AcknowledgementConsistency.repository()
         repository.readme = repository.readme.replacingOccurrences(of: "## Credits", with: "## Thanks")
@@ -250,6 +407,12 @@ struct AcknowledgementConsistencyTests {
         let readme = "## Building\n\n**Xcode** is needed.\n\n## Credits\n\n- **LibRaw** decodes.\n- **GRDB** stores.\n\n## After\n\n**Other**\n"
         let credits = AcknowledgementConsistency.creditsSection(of: readme)
         #expect(credits.map(AcknowledgementConsistency.creditedNames) == ["LibRaw", "GRDB"])
+        #expect(credits.map(AcknowledgementConsistency.creditItems) == ["**LibRaw** decodes.", "**GRDB** stores."])
+        #expect(AcknowledgementConsistency.creditItems(in: "Intro, not an item:\n\n- **A** one\n  wrapped line\n* b\n  - **C** nested\n2) d")
+            == ["**A** one", "b", "**C** nested", "d"])
+        #expect(AcknowledgementConsistency.startsWithABoldName("**A** one"))
+        #expect(!AcknowledgementConsistency.startsWithABoldName("b **A**"))
+        #expect(!AcknowledgementConsistency.startsWithABoldName("**unclosed"))
         #expect(AcknowledgementConsistency.creditsSection(of: "## Building\n") == nil)
     }
 
@@ -276,10 +439,30 @@ struct AcknowledgementConsistencyTests {
 
     @Test("R11: the window's free-software statement is the README's paragraph")
     func statementMatchesTheReadme() throws {
-        let key = "%@ is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License, version 3 or (at your option) any later version. It is distributed in the hope that it will be useful, but without any warranty; see the license for details."
-        #expect(try LocalizationTests.catalog()[key] != nil, "the statement is not in the String Catalog")
-        let statement = key.replacingOccurrences(of: "%@", with: AppBranding.displayName)
-        #expect(try Self.readmeLicenseSection().contains(statement))
+        // The literal `AboutText.freeSoftwareStatement` passes to
+        // `String(localized:)`, read from its source: the project's name,
+        // then the sentence.
+        let segments = try AboutWordingTests.literalSegments(after: #"String(localized: "\(projectName) is free software"#,
+                                                             startingAt: #"String(localized: ""#)
+        guard segments.count == 2, segments[0] == .interpolation, case .text(let sentence) = segments[1] else {
+            Issue.record("the statement should be the project's name followed by one plain sentence: \(segments)")
+            return
+        }
+        #expect(sentence.hasPrefix(" is free software"))
+        #expect(try LocalizationTests.catalog()["%@" + sentence] != nil, "the statement is not in the String Catalog")
+        #expect(try Self.readmeLicenseSection().contains(AppBranding.displayName + sentence))
+    }
+
+    @Test("R11: the window's copyright line is the README's")
+    func copyrightLineMatchesTheReadme() throws {
+        let segments = try AboutWordingTests.literalSegments(after: #"String(localized: "Copyright ©"#, startingAt: #"String(localized: ""#)
+        // "Copyright © ‹year› ‹holder›": the two values in that order.
+        var values = [AppCopyright.year, AppCopyright.holder].makeIterator()
+        let line = segments.map { segment -> String in
+            if case .text(let text) = segment { text } else { values.next() ?? "?" }
+        }.joined()
+        #expect(segments.filter { $0 == .interpolation }.count == 2)
+        #expect(try Self.readmeLicenseSection().contains(line + "."), "\(line)")
     }
 }
 

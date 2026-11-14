@@ -27,6 +27,17 @@ struct AboutWordingTests {
         return text
     }
 
+    /// The segments of the one string literal in `textFile` on the line
+    /// that contains `marker`; the literal opens at `opening` in the marker.
+    static func literalSegments(after marker: String, startingAt opening: String) throws -> [LocalizationTests.Segment] {
+        let source = try String(contentsOf: RepositoryFiles.url(textFile), encoding: .utf8)
+        let lines = source.components(separatedBy: "\n").filter { $0.contains(marker) }
+        #expect(lines.count == 1, "expected one line with \(marker) in \(textFile), found \(lines.count)")
+        let line = try #require(lines.first)
+        let start = try #require(line.range(of: opening)).upperBound
+        return try #require(LocalizationTests.parseLiteral(Array(line), from: line.distance(from: line.startIndex, to: start)))
+    }
+
     static func sentence(_ project: Acknowledgement.Project) throws -> String {
         try literal(forCase: project.rawValue)
     }
