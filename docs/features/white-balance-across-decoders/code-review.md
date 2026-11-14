@@ -151,8 +151,46 @@ not the decoder (C2), and the DNG calibration path has no test (C3).
 
 ## Follow-up
 
-Second pass: not yet. The engineer's fixes and ruling §17.1 (Custom stores
-its numbers), once built, come back here.
+### Second pass, 2026-11-14
+
+Reviewed `69c69e8`..`117f03c`: `074bc10`, `f94d5db`, `3aa74ce` (the design
+review's F1 to F3, C2 to C7), `21498a7`, `6b362c6`, `2263fdd` (C1 written
+again, the notices, the owner's ruling on AC5); `117f03c` is the design
+review's second pass, documents only. Owner's rulings: C1 option (b); AC5
+accepted as measured. On macOS 27.2.1: `swift build` complete; `swift test`
+993 tests in 144 suites passed, the same known issue; `Scripts/build-app.sh
+all` built both bundles; `RAF_SAMPLE` on two X-E3 files (9 tests each),
+`RAW_BOTH_SAMPLES` (11 files) and `RAW_LOOK_SAMPLES` (9 files) pass with the
+first pass's numbers to the last figure printed. The LibRaw suites repeated
+80 times in two processes at once: 80 of 80 passed (73 of 80 before).
+
+**Verdict: every finding is fixed; QA can start.** One nit is new (N1, a
+sentence in the notices).
+
+| # | State | What was checked |
+|---|---|---|
+| C1 | Fixed (`21498a7`, `6b362c6`) | Compared again with the SDK's public source (1.4). **`ColorTemperature`**: nothing of `dng_temperature`'s structure, names or comments is left. A `Line` holds its place on the black body's colors and a unit direction toward green; reading takes the distances of all lines and the first that is negative; one function (`toward`) reads between two lines for both directions; the (u, v) formulas are the CIE's own forms (4x / (−2x + 12y + 3)), not the SDK's; the tint's factor is +3000 along a direction toward green where the SDK has −3000 along the opposite one. What is the same is the table's 31 rows and the behavior, and both are accounted for: I read the table off the system decoder myself (at each of the 31 temperatures its black body color is the table's to 3 × 10⁻⁸ in u and v, its tint direction the table's slope to 2 × 10⁻⁵, its tint 1/3000 of the diagram's unit to 1.5 × 10⁻⁷), and `linesAreTheSystemDecoders` repeats that in the default run. **`CameraProfile.kelvin(ofLightSource:)`**: three tables by source instead of the SDK's switch. Three values differ from the SDK's and each is right by its stated source: EXIF 2 (fluorescent) is the Fluorescent mode's 3800 K (was 4150); 18 and 19 (standard lights B and C) are 4850 and 6750 K, the CIE's 4874 and 6774 K to the nearest 50 (were 5500 and 6500). The fluorescent ranges are Exif 2.3's, checked in CIPA DC-008-2012, page 61 (5700 to 7100, 4600 to 5500, 3800 to 4500, 3250 to 3800, 2600 to 3250 K). The other values equal the SDK's because the sources give them (the modes' temperatures, on `develop` before this feature; the D illuminants' names; the middles of those ranges). A DNG from Adobe's converter names lights 17 and 21, which did not change. **`CameraColor.white(ofNeutral:)`**: nothing of `NeutralToXY` is left (no start at D50, no 30 passes, no 0.0000001, no mean of the last two). It guesses on the temperature between the two calibration lights from the hotter one, stops at one part in 10¹⁰ within 24 guesses, and otherwise halves the range between the lights. Checked on 108 made-up cameras, cycling ones among them: every white point found gives itself back through the matrix its own temperature picks, to 2 × 10⁻¹¹; none was nil. No mention of the SDK is left in `Sources/` or `Tests/`. Renders of the X-E3 file are the first pass's to the byte, unedited and at 2500 K |
+| C1, the notices | Accurate, but for N1 | The paragraph names the three sources and the measurement, says the first versions followed the SDK and that these were written again, and says what the two have in common. The Exif ranges and the measurement I checked myself (above); the DNG specification's quotations (version 1.6.0.0) I did not check against the document in this pass. `status.md` records what the engineer of the rewrite saw of the earlier bodies (about fifteen `let` and `var` lines, this review's one-sentence descriptions, and the earlier `white(ofNeutral:)` in a diff after the new one was written and tested): the owner has that record; the code bears it out |
+| C2 | Fixed (`074bc10`) | `SyntheticDNG.mosaic(options:)` draws once, and `decodeIsOriented`, `insetCropIsDecoded`, `whiteLevelIsTheFiles` and `dngBaselineExposure` write both files of a pair from it. 80 of 80 runs under the load that failed 7 of 80 |
+| C3 | Fixed (`074bc10`) | The fixture writes `CameraCalibration1` and `2`; two camera kinds (daylight named first in the file, a calibration for each light, an analog balance; with and without forward matrices) go through the math against the reference and through the rendered step. Both mutations that survived are now caught (6,030 and 28 failed expectations) |
+| C4 | Fixed (`f94d5db`) | `theExposureTheCameraHeldBackIsAdded` requires the stop the file states (`RawExposureBias` read from LibRaw apart from the decoder). With the wiring removed, `RAF_SAMPLE` on `DSCF5123.RAF` fails |
+| C5 | Fixed (`f94d5db`) | `CameraColorStep.fileExposure`: a DNG without a color matrix and with 3.9 stops of `BaselineExposure` renders with them (factor 15.67); caught when set to 0 |
+| C6 | Fixed (`f94d5db`) | A `BaselineExposure` beyond 4 stops either way, or not finite, is not used: 5000, 200 and −90 stops render as the file without the tag, every sample a number |
+| C7 | Fixed (`f94d5db`) | With a rendition that cannot be removed, the older ones are moved under version 9 one by one, copied out of a folder that cannot be written to, and nothing written since the cutoff arrives there (my own check, and `carryOverSurvivesAFailedRemoval`). Two mutations (nothing carried in that case; a recent rendition carried) are caught |
+| Design F1, §17.1 | Built as ruled | `WhiteBalanceControls.picking(.custom, from:)` on a raw: Custom, a missing Kelvin or tint taken from the as-shot value unrounded, stored values and relative values kept, an unchanged value returned as it was; `.relative` stores Custom alone; `.unavailable` returns nil. One undo step, "White Balance" (`AdjustView.pick`). Caught when the numbers are not stored (24 failed expectations) |
+| The clamp (§17.1's amendment) | Built as ruled | `CameraColorStep.rendered` keeps a Kelvin within 2000 to 50000 and a tint within ±150; a LibRaw photo's as-shot values are shown and stored through it; As Shot itself renders the camera's own neutral. A system raw's as-shot values are the decoder's, as before. Caught when the step or the group leaves it out |
+
+Mutations in a scratch copy, second pass: 14 of 14 caught by the default
+tests (with `RAF_SAMPLE` for C4).
+
+Nothing else renders differently, checked again against a build of
+`868f8f6` (SHA-256 of `photocli render` PNGs): the X-T3 file unedited, +1 EV
+and Custom 2500 K at 600 pixels and full size, four other makers' raws with
+three edits each, a JPEG with three: 21 of 21 equal.
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| N1 | Nit | `THIRD_PARTY_NOTICES.md:21-28, 41-44` | The notices state as fact that the reprinted table "differs from Robertson's Table II in the last figures (by up to 0.0001 in u)" and that Table II was taken "as the publisher's page lists it". `status.md` says those rows came through a fetch tool that summarizes pages and are "not a first-hand reading" | A reader of the notices takes a comparison with the 1968 paper as checked when nobody here has seen the paper's table. Nothing in the code rests on it (the figures are the system decoder's, which I measured). Say "as far as could be read without the paper", or leave the comparison out | The notices say only what was checked |
 
 Issues for the main session to file or reword:
 
@@ -164,6 +202,5 @@ Issues for the main session to file or reword:
   13 times and `7c4166d1…` 3 times of 16 from a build of `868f8f6`; 10 and 6
   from this branch), differing in 19% of the samples by up to 4953 of 65535.
 - **The engineer's proposed bug "LibRaw inset crop test failed once under
-  load"** should not be filed as written: it is C2, a fixture that is not
-  the same under concurrent drawing, with no decode race behind it. Fix it
-  on this branch or file it with that cause.
+  load"** is not to be filed: it was C2, the fixture, fixed on this branch
+  (second pass).
