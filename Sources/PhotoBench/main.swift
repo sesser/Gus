@@ -10,7 +10,9 @@ let usage = """
 
       generate   --output DIR [--jpeg N] [--dng N] [--heic N] [--pairs N] [--videos N] [--per-folder N]
                  [--jpeg-size WxH] [--dng-size WxH] [--heic-size WxH] [--video-seconds N]
-                 Writes a synthetic library with unique pixels and EXIF dates.
+                 [--dng-without-color N]
+                 Writes a synthetic library with unique pixels and EXIF dates. The first
+                 --dng-without-color DNGs have no color matrix or as-shot neutral.
 
       import     --library-root ROOT --source DIR [--imageio] [--chunk N] [--hash-concurrency N]
                  Imports DIR into the catalog under ROOT and reports stage timings.

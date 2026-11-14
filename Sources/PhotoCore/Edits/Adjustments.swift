@@ -15,6 +15,9 @@ public struct Adjustments: Hashable, Sendable {
     /// carry it, copy and paste does.
     public var crop = Crop()
     public var decode = RawDecode()
+    /// Which camera profile the color step of a LibRaw decode uses. Not one
+    /// of the `Group`s, and no build writes it yet (`CameraProfileReference`).
+    public var cameraProfile = CameraProfileReference()
     /// Lateral color: red and blue lined up with green, before the crop.
     public var colorAlignment = ColorAlignment()
     /// Picked fringe colors turned gray near high-contrast edges, before the crop.
@@ -95,6 +98,11 @@ public struct Adjustments: Hashable, Sendable {
         }
         add(crop)
         add(decode)
+        if !cameraProfile.parameters.isEmpty {
+            operations.append(EditOperation(kind: CameraProfileReference.kind,
+                                            isEnabled: !disabled.contains(CameraProfileReference.kind),
+                                            parameters: cameraProfile.parameters))
+        }
         add(colorAlignment)
         add(colorFringes)
         add(whiteBalance)
@@ -125,6 +133,7 @@ public struct Adjustments: Hashable, Sendable {
         switch operation.kind {
         case Crop.kind: crop = Crop(values)
         case RawDecode.kind: decode = RawDecode(values)
+        case CameraProfileReference.kind: cameraProfile = CameraProfileReference(parameters: operation.parameters)
         case ColorAlignment.kind: colorAlignment = ColorAlignment(values)
         case ColorFringes.kind: colorFringes = ColorFringes(values)
         case WhiteBalance.kind: whiteBalance = WhiteBalance(values)
@@ -154,6 +163,7 @@ public struct Adjustments: Hashable, Sendable {
         switch kind {
         case Crop.kind: crop.parameters
         case RawDecode.kind: decode.parameters
+        case CameraProfileReference.kind: cameraProfile.parameters
         case ColorAlignment.kind: colorAlignment.parameters
         case ColorFringes.kind: colorFringes.parameters
         case WhiteBalance.kind: whiteBalance.parameters
@@ -178,6 +188,7 @@ public struct Adjustments: Hashable, Sendable {
         switch kind {
         case Crop.kind: crop = Crop()
         case RawDecode.kind: decode = RawDecode()
+        case CameraProfileReference.kind: cameraProfile = CameraProfileReference()
         case ColorAlignment.kind: colorAlignment = ColorAlignment()
         case ColorFringes.kind: colorFringes = ColorFringes()
         case WhiteBalance.kind: whiteBalance = WhiteBalance()
@@ -203,6 +214,7 @@ public struct Adjustments: Hashable, Sendable {
         switch kind {
         case Crop.kind: crop = source.crop
         case RawDecode.kind: decode = source.decode
+        case CameraProfileReference.kind: cameraProfile = source.cameraProfile
         case ColorAlignment.kind: colorAlignment = source.colorAlignment
         case ColorFringes.kind: colorFringes = source.colorFringes
         case WhiteBalance.kind: whiteBalance = source.whiteBalance
@@ -433,8 +445,39 @@ public struct RawDecode: AdjustmentModule {
     }
 }
 
-/// Neutral point. RAW files take an absolute Kelvin and tint, which the decoder
-/// applies; other files take relative shifts, applied after decoding.
+/// The camera profile a version asks for, by reference (issue #170, R8): the
+/// room an edit stack has for it, kept for #89 (Adobe `.dcp` profiles).
+///
+/// **No build writes this operation yet, and none resolves it**: a stack
+/// that holds one renders with the built-in profile
+/// (`PreviewGenerator.decodeWithLibRaw`). Its parameters are kept exactly as
+/// stored and written back as they were, also the ones this build has no
+/// name for, so a stack a later build wrote loses nothing here. A build
+/// from before this type existed keeps the operation too, as one of a kind
+/// it does not know (`Adjustments.preserved`).
+///
+/// Persisted as kind `cameraProfile`; the one parameter named so far is
+/// `identifier`, a string.
+public struct CameraProfileReference: Hashable, Sendable {
+    public static let kind: EditOperationKind = "cameraProfile"
+
+    /// The operation's parameters as stored; empty for no reference.
+    public var parameters: [String: EditParameter]
+
+    public init(parameters: [String: EditParameter] = [:]) {
+        self.parameters = parameters
+    }
+
+    /// The profile asked for; nil for the built-in one.
+    public var identifier: String? {
+        if case .string(let identifier)? = parameters["identifier"] { return identifier }
+        return nil
+    }
+}
+
+/// Neutral point. RAW files take an absolute Kelvin and tint, which their
+/// decode applies (the system decoder, or the color step after LibRaw's);
+/// other files take relative shifts, applied after decoding.
 public struct WhiteBalance: AdjustmentModule {
     public static let kind: EditOperationKind = "whiteBalance"
 
@@ -462,9 +505,11 @@ public struct WhiteBalance: AdjustmentModule {
     public static let tintRange: ClosedRange<Double> = -150...150
 
     public var preset = Preset.asShot
-    /// Kelvin of the scene's light (RAW). Nil keeps the camera's as-shot value.
+    /// Kelvin of the scene's light (RAW, by either decoder). Nil keeps the camera's as-shot value.
     public var temperature: Double?
-    /// Green (−) to magenta (+) of the scene's light (RAW). Nil keeps as shot.
+    /// Green (−) to magenta (+) of the picture, for light that lies that far
+    /// to the other side of the black body's color (RAW; `ColorTemperature`).
+    /// Nil keeps as shot.
     public var tint: Double?
     /// −100 (cooler) … +100 (warmer), for files that are not RAW.
     public var relativeTemperature: Double = 0
@@ -513,6 +558,27 @@ public struct WhiteBalance: AdjustmentModule {
     public var relativeDisplayPreset: Preset {
         if Preset.relativePresets.contains(preset), temperature == nil, tint == nil { return preset }
         return relativeTemperature == 0 && relativeTint == 0 ? .asShot : .custom
+    }
+
+    /// The mode to show for a raw, whichever decoder reads it
+    /// (white-balance-across-decoders design §5). Only the Kelvin values
+    /// reach a raw; the relative ones never render on it:
+    ///
+    /// 1. the stored mode, when the balance holds Kelvin values or the mode
+    ///    is a named light source: every mode this build writes on a raw;
+    /// 2. Custom, when it is stored without Kelvin values and both relative
+    ///    values are 0: the person chose it from the pop-up and it sticks
+    ///    (it renders as shot, as choosing Custom on a raw always has);
+    /// 3. otherwise As Shot, which is what renders: As Shot itself, an Auto
+    ///    without Kelvin values (measured on a rendered image, or by a
+    ///    build that gave LibRaw's photos relative values), a Custom that
+    ///    carries relative values.
+    ///
+    /// Display only: the stored preset and values are never rewritten.
+    public var kelvinDisplayPreset: Preset {
+        if temperature != nil || tint != nil || preset.neutral != nil { return preset }
+        if preset == .custom, relativeTemperature == 0, relativeTint == 0 { return .custom }
+        return .asShot
     }
 
     /// Picks a named preset for a RAW file.

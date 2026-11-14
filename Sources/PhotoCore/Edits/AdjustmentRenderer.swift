@@ -6,7 +6,7 @@ import CoreImage.CIFilterBuiltins
 /// The order is fixed, whatever the order of operations in the stack: color
 /// alignment and fringe removal (on the decoded image, `LensRenderer.swift`), the
 /// turns, straightening and crop, white
-/// balance (non-RAW; RAW files get it from the decoder), exposure, highlights and
+/// balance (non-RAW; RAW files get it from their decode, `RenderContext.balancedByDecoder`), exposure, highlights and
 /// shadows, dehaze, clarity, the tone table (contrast, whites, blacks, curves),
 /// the color mixer, vibrance and saturation, color grading, the masks (local
 /// adjustments, in list order), the look-up table, the vignette, noise
@@ -85,7 +85,7 @@ public struct AdjustmentRenderer: EditStackRenderer {
     func globalSteps(_ adjustments: Adjustments, _ input: CIImage, extent: CGRect, context: RenderContext,
                      estimates: LocalEstimates?) -> CIImage {
         var image = input
-        if !context.isRaw {
+        if !context.balancedByDecoder {
             image = Self.relativeWhiteBalance(image, adjustments.whiteBalance)
         }
         if adjustments.exposure.ev != 0 {

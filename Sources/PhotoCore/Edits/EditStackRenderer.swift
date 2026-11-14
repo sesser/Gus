@@ -8,15 +8,22 @@ public struct RenderContext: Sendable, Hashable {
     /// The image came from the RAW decoder, which already applied the stack's
     /// decode settings.
     public var isRaw: Bool
+    /// The decode applied the stack's white balance, its Kelvin and tint:
+    /// true for a raw by either decoder (the system's, or LibRaw's color
+    /// step). The relative Temperature and Tint, which are for files that
+    /// are not raw, do not render then, whatever the stack holds.
+    public var balancedByDecoder: Bool
     /// The camera's crop of the whole sensor (`CameraFrame`), when the decoder
     /// gave the whole sensor for a stack that asked for it and the file has
     /// one: a stack with masks but no crop of its own crops to it, so the
     /// photo keeps its frame.
     public var cameraFrame: CropRect?
 
-    public init(scale: Double = 1, isRaw: Bool = false, cameraFrame: CropRect? = nil) {
+    /// - Parameter balancedByDecoder: `isRaw` when not given: the system decoder always applies it.
+    public init(scale: Double = 1, isRaw: Bool = false, balancedByDecoder: Bool? = nil, cameraFrame: CropRect? = nil) {
         self.scale = scale
         self.isRaw = isRaw
+        self.balancedByDecoder = balancedByDecoder ?? isRaw
         self.cameraFrame = cameraFrame
     }
 }
@@ -71,6 +78,11 @@ public struct RAWDecodeSettings: Sendable, Hashable {
         copy.fullFrame = false
         copy.decoderVersion = nil
         return copy
+    }
+
+    /// The white balance alone: what reaches a raw LibRaw decodes (`SystemRAWDecoder`).
+    public var whiteBalanceOnly: RAWDecodeSettings {
+        RAWDecodeSettings(temperature: temperature, tint: tint)
     }
 
     /// These settings without the machine learning request: what renders

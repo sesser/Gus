@@ -10,7 +10,7 @@ import Testing
 /// with a Fujifilm X-E3 file on macOS 27.2.1. `LibRawDecoderTests` and
 /// `LibRawFallbackPipelineTests` cover the same code on synthetic files in
 /// every run; this suite checks a camera's own file (its compressed loader,
-/// its inset crop, its size and speed).
+/// its inset crop, its size and speed, its color data: issue #170).
 @Suite(.enabled(if: ProcessInfo.processInfo.environment["RAF_SAMPLE"] != nil,
                 "Set RAF_SAMPLE to a raw the system decoder cannot read and run this suite alone"))
 struct LibRawFallbackTests {
@@ -27,7 +27,9 @@ struct LibRawFallbackTests {
         let fullEdge = max(full.image.extent.width, full.image.extent.height)
         // Whichever way the camera was held.
         #expect(fullEdge > 4000)
-        #expect(!full.context.isRaw)
+        // Not the system decoder's image, and its white balance is its decode's (the color step's).
+        #expect(!full.context.isRaw && full.context.balancedByDecoder)
+        #expect(full.decoder == .libRaw && full.camera != nil)
         #expect(full.context.scale == 1)
         let size = try #require(PreviewGenerator.nativeSize(url))
         #expect(size == full.image.extent.size)
@@ -62,13 +64,39 @@ struct LibRawFallbackTests {
             return try #require(image.dataProvider?.data as Data?)
         }
         let plain = try render { _ in }
-        #expect(try render { $0.whiteBalance = WhiteBalance(preset: .custom, relativeTemperature: 60, relativeTint: 30) } != plain)
+        // A Kelvin white balance and the named light sources, as on any raw (issue #170, AC2).
+        #expect(try render { $0.whiteBalance = WhiteBalance(preset: .custom, temperature: 2500, tint: 0) } != plain)
+        #expect(try render { $0.whiteBalance = .raw(.daylight) } != plain)
+        // Relative values never render on a raw (AC10).
+        #expect(try render { $0.whiteBalance = WhiteBalance(preset: .custom, relativeTemperature: 60, relativeTint: 30) } == plain)
         #expect(try render { $0.exposure.ev = 1 } != plain)
         #expect(try render { $0.tone.highlights = -80 } != plain)
         #expect(try render { $0.noiseReduction.luminance = 80 } != plain)
         let balance = try AutoAdjuster(generator: generator).whiteBalance(source: url, adjustments: .none)
         #expect(balance.preset == .auto)
-        #expect(balance.temperature == nil)
+        // A Kelvin and tint, not relative values (AC3).
+        #expect(balance.temperature != nil && balance.tint != nil)
+        #expect(balance.relativeTemperature == 0 && balance.relativeTint == 0)
+        print("LibRawFallbackTests: Auto White Balance: \(balance.temperature ?? 0) K, tint \(balance.tint ?? 0)")
+    }
+
+    /// Issue #170: the White Balance group of a raw, with a believable as-shot Kelvin (R4).
+    @Test func theWhiteBalanceIsARaws() throws {
+        let color = try #require(LibRawDecoder.cameraColor(url), "LibRaw has no usable color data for this camera")
+        let controls = WhiteBalanceControls(systemDefaults: nil, usesFallbackDecoder: true, fallbackColor: color)
+        let asShot = try #require(controls.asShot)
+        // Any light a camera meets: candle light to deep shade.
+        #expect((1800...15000).contains(asShot.kelvin) && WhiteBalance.tintRange.contains(asShot.tint), "\(asShot)")
+        #expect(controls.mode(for: WhiteBalance()) == .offered(WhiteBalance.Preset.allCases, selected: .asShot))
+        // One matrix (the file is not a DNG), LibRaw's for the camera under D65; the built-in look.
+        #expect(color.profile.calibrations.map(\.illuminant) == [6500])
+        #expect(color.profile.toneCurve == BaselineLook.toneCurve)
+        // A Fujifilm raw says how much exposure its camera held back for the dynamic range setting.
+        #expect(color.baselineExposure >= 0 && color.baselineExposure <= 3)
+        print("LibRawFallbackTests: as shot \(asShot.kelvin) K, tint \(asShot.tint);",
+              "exposure held back by the camera: \(color.baselineExposure) EV")
+        // The decode's own color step says the same.
+        #expect(try LibRawDecoder.decode(url, halfSize: true).step.asShot == asShot)
     }
 
     // MARK: The camera's frame and lens corrections (Fujifilm RAF)
@@ -91,16 +119,15 @@ struct LibRawFallbackTests {
         return try #require(CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary))
     }
 
-    /// LibRaw's half-size decode as gray at the JPEG's size, two stops brighter
-    /// (the JPEG has the camera's tone curve; the decode is linear).
+    /// LibRaw's half-size decode through its color step (the built-in look
+    /// is near the camera's tone curve) as gray at the JPEG's size.
     private func gray(lensCorrections: Bool, width: Int, height: Int) throws -> [Float] {
         let output = try LibRawDecoder.decode(url, halfSize: true, lensCorrections: lensCorrections)
         // Tables that correct nothing (a lens without contacts) are not counted as corrections.
         let corrects = FujifilmRAF(contentsOf: url)?.lens.map { !$0.isIdentity } ?? false
         #expect(output.hasLensCorrections == (lensCorrections && corrects))
-        let brighter = output.image.applyingFilter("CIExposureAdjust", parameters: ["inputEV": 2.0])
         let image = try #require(RenderEngine(contextCount: 1, name: "raf-check")
-            .makeCGImage(brighter.scaledToFit(longEdge: max(width, height)), colorSpace: CGColorSpace(name: CGColorSpace.sRGB)))
+            .makeCGImage(output.image().scaledToFit(longEdge: max(width, height)), colorSpace: CGColorSpace(name: CGColorSpace.sRGB)))
         return BlockMatching.gray(image, width: width, height: height)
     }
 
@@ -116,7 +143,7 @@ struct LibRawFallbackTests {
         let half = try LibRawDecoder.decode(url, halfSize: true)
         #expect(half.fullSize == size)
         #expect(half.size == CGSize(width: size.width / 2, height: size.height / 2))
-        #expect(half.image.extent == CGRect(origin: .zero, size: half.size))
+        #expect(half.linear.extent == CGRect(origin: .zero, size: half.size))
         // With or without the corrections, the same frame.
         #expect(try LibRawDecoder.decode(url, halfSize: true, lensCorrections: false).size == half.size)
     }

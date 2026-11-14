@@ -1,10 +1,80 @@
 import CoreImage
 import Foundation
 
+/// What the White Balance group offers a photo, and the values its controls
+/// start from (white-balance-across-decoders design §2).
+public enum WhiteBalanceControls: Sendable, Hashable {
+    /// A raw by either decoder: the nine modes, Kelvin and tint, starting
+    /// from the as-shot values.
+    case kelvin(asShot: ColorTemperature)
+    /// A raw LibRaw decodes whose color data cannot be used (no matrix for
+    /// the camera, no white balance coefficients): it renders as shot and
+    /// white balance cannot be changed (design §6).
+    case unavailable
+    /// A file that is not a raw: As Shot, Auto and Custom, relative values.
+    case relative
+
+    /// - Parameters:
+    ///   - systemDefaults: The system decoder's defaults, for a raw it reads.
+    ///   - fallbackColor: `LibRawDecoder.cameraColor` of a raw it does not read.
+    public init(systemDefaults: RawDefaults?, usesFallbackDecoder: Bool, fallbackColor: CameraColor?) {
+        if let systemDefaults {
+            self = .kelvin(asShot: ColorTemperature(kelvin: systemDefaults.temperature, tint: systemDefaults.tint))
+        } else if usesFallbackDecoder {
+            self = fallbackColor?.asShot.map { .kelvin(asShot: $0) } ?? .unavailable
+        } else {
+            self = .relative
+        }
+    }
+
+    public var asShot: ColorTemperature? {
+        if case .kelvin(let asShot) = self { return asShot }
+        return nil
+    }
+
+    /// The Mode pop-up's state for a stored white balance.
+    public enum Mode: Sendable, Hashable {
+        /// The full list for the kind of file, `selected` chosen.
+        case offered([WhiteBalance.Preset], selected: WhiteBalance.Preset)
+        /// Dimmed on As Shot: nothing is stored and nothing can be (design §6, W1).
+        case unavailable
+        /// A white balance is stored and not applied: As Shot and the stored
+        /// mode are offered, so the person can see it and remove it (W2).
+        case notApplied(stored: WhiteBalance.Preset)
+    }
+
+    public func mode(for balance: WhiteBalance) -> Mode {
+        switch self {
+        case .kelvin: .offered(WhiteBalance.Preset.allCases, selected: balance.kelvinDisplayPreset)
+        case .relative: .offered(WhiteBalance.Preset.relativePresets, selected: balance.relativeDisplayPreset)
+        case .unavailable:
+            balance.kelvinDisplayPreset == .asShot ? .unavailable : .notApplied(stored: balance.kelvinDisplayPreset)
+        }
+    }
+
+    /// The white balance after `preset` is picked from the Mode pop-up, or
+    /// nil when picking it starts a measurement instead (Auto) or changes
+    /// nothing. As Shot clears the white balance; a named light source
+    /// stores its Kelvin and tint on a raw; Custom stores Custom.
+    public func picking(_ preset: WhiteBalance.Preset, from balance: WhiteBalance) -> WhiteBalance? {
+        switch (self, preset) {
+        case (_, .asShot): return WhiteBalance()
+        case (.unavailable, _), (_, .auto): return nil
+        case (_, .custom):
+            var custom = balance
+            custom.preset = .custom
+            return custom
+        case (.kelvin, _): return .raw(preset)
+        case (.relative, _): return nil
+        }
+    }
+}
+
 /// What the RAW decoder chose for a file before any edit: shown by controls
 /// whose value is "as shot" or "camera default". There are none for a raw the
-/// system decoder gives no image for (`SystemRAWDecoder`): nothing would
-/// apply them.
+/// system decoder gives no image for (`SystemRAWDecoder`): LibRaw's as-shot
+/// white balance comes from `LibRawDecoder.cameraColor`
+/// (`WhiteBalanceControls`), and it has no other decoder defaults.
 public struct RawDefaults: Sendable, Hashable {
     public var temperature: Double
     public var tint: Double
@@ -108,10 +178,16 @@ public struct AutoAdjuster: Sendable {
 
     // MARK: White balance
 
+    public enum Failure: Error, Equatable {
+        /// A raw LibRaw decodes whose color data cannot be used: there is no
+        /// white balance to measure, and nothing is stored for it.
+        case whiteBalanceUnavailable
+    }
+
     /// A white balance that renders the image's average color neutral (grey world,
-    /// ignoring clipped and very dark pixels). RAW files the system decoder reads
-    /// get a Kelvin and tint, other files (a raw LibRaw decodes among them)
-    /// relative shifts; the preset is `.auto`.
+    /// ignoring clipped and very dark pixels). RAW files get a Kelvin and tint,
+    /// whichever decoder reads them; other files relative shifts. The preset
+    /// is `.auto`.
     public func whiteBalance(source: URL, adjustments: Adjustments) throws -> WhiteBalance {
         let engine = generator.engine
         if SupportedFormats.isRaw(pathExtension: source.pathExtension), let raw = CIRAWFilter(imageURL: source),
@@ -139,6 +215,20 @@ public struct AutoAdjuster: Sendable {
         }
 
         let decoded = try PreviewGenerator.decode(source, longEdge: Self.measureSize, draft: true)
+        if decoded.decoder == .libRaw, let camera = decoded.camera {
+            // The search runs on the decode before its color step, reduced once (LibRaw's
+            // smallest decode is half the sensor): each step is the color step alone.
+            guard let asShot = camera.step.asShot else { throw Failure.whiteBalanceUnavailable }
+            let linear = Self.reducedOnce(camera.linear, engine: engine)
+            let solved = Self.neutralize(start: (1_000_000 / asShot.kelvin, asShot.tint), steps: (10, 4),
+                                         mired: 1_000_000 / WhiteBalance.temperatureRange.upperBound
+                                             ... 1_000_000 / WhiteBalance.temperatureRange.lowerBound,
+                                         tint: WhiteBalance.tintRange) { mired, tint in
+                PixelSample(camera.step.apply(to: linear, temperature: 1_000_000 / mired, tint: tint), engine: engine)?
+                    .neutralAverage()
+            }
+            return WhiteBalance(preset: .auto, temperature: (1_000_000 / solved.mired).rounded(), tint: solved.tint.rounded())
+        }
         let image = Self.reducedOnce(decoded.image, engine: engine)
         let solved = Self.neutralize(start: (0, 0), steps: (5, 5), mired: -100...100, tint: -100...100) { warmth, tint in
             let balanced = AdjustmentRenderer.relativeWhiteBalance(

@@ -30,8 +30,12 @@ public struct PreviewCacheKey: Hashable, Sendable, CustomStringConvertible {
     /// or when cached previews may be wrong (7: previews cached under an edit's
     /// hash before its catalog write landed, stale-preview-after-save; 8:
     /// previews of camera raws cached with their edges smeared, raw-edge-smear;
-    /// nothing else looks different).
-    public static let currentPipelineVersion = 8
+    /// nothing else looks different; 9: previews of raws LibRaw decodes,
+    /// cached before their color step and baseline look,
+    /// white-balance-across-decoders; no other file renders differently, but
+    /// a key cannot say which decoder a file gets: that takes reading the
+    /// file, which may be offline, and keys are made where nothing is read).
+    public static let currentPipelineVersion = 9
 
     public let contentHash: String
     public let editStackHash: String

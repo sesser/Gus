@@ -41,13 +41,22 @@ final class AdjustmentEditor {
     /// The photo being edited.
     private(set) var item: CatalogItem?
     /// The system's RAW decoder reads the photo's file, so the stack's decode
-    /// settings apply (`SystemRAWDecoder`): the Adjust tab offers a raw's
-    /// controls. False for a raw LibRaw decodes, which is adjusted as a file
-    /// that is not RAW.
+    /// settings apply (`SystemRAWDecoder`): the Adjust tab offers Profile,
+    /// Decoder and the decoder's noise reduction. False for a raw LibRaw
+    /// decodes, which has none of those.
     private(set) var isRaw = false
     /// A raw file the system's RAW decoder gives no image for, decoded by
     /// LibRaw (issue #161): the Adjust tab says what that leaves out.
     private(set) var usesFallbackDecoder = false
+    /// What the White Balance group offers this photo: Kelvin and tint from
+    /// the as-shot values for a raw by either decoder, relative values for
+    /// other files, nothing for a raw whose color data LibRaw cannot use
+    /// (`WhiteBalanceControls`, issue #170).
+    private(set) var whiteBalanceControls = WhiteBalanceControls.relative
+    /// The decode as the renderer sees it, for renders made without one (swatches).
+    var renderContextKind: RenderContext {
+        RenderContext(isRaw: isRaw, balancedByDecoder: isRaw || usesFallbackDecoder)
+    }
     /// What the decoder chose for a RAW file (as-shot white balance, defaults).
     /// Nil exactly when `isRaw` is false.
     private(set) var rawDefaults: RawDefaults?
@@ -368,6 +377,7 @@ final class AdjustmentEditor {
         // Known once the file's header is read, with the defaults below.
         isRaw = false
         usesFallbackDecoder = false
+        whiteBalanceControls = .relative
         let catalog = library.catalog
         let generator = library.previews.interactiveGenerator
         let colorSpace = library.previews.displayColorSpace
@@ -384,6 +394,10 @@ final class AdjustmentEditor {
             // The defaults exist exactly for a raw the system decoder reads
             // (`SystemRAWDecoder`): one read of the file answers both.
             let systemDecodes = defaults != nil
+            // A raw the system decoder does not read: its as-shot white balance from LibRaw's
+            // read of the header, before the tab lays out (design §12).
+            let fallbackColor = fileIsRaw && !systemDecodes
+                ? await Task.detached(priority: .userInitiated) { LibRawDecoder.cameraColor(url) }.value : nil
             // A camera frame is undone only by the system decoder's whole-sensor decode.
             let camera = systemDecodes
                 ? await Task.detached(priority: .userInitiated) { CameraFrame.rect(of: url) }.value : nil
@@ -405,6 +419,9 @@ final class AdjustmentEditor {
                     rawDefaults = defaults
                     isRaw = systemDecodes
                     usesFallbackDecoder = fileIsRaw && !systemDecodes
+                    whiteBalanceControls = WhiteBalanceControls(systemDefaults: defaults,
+                                                                usesFallbackDecoder: usesFallbackDecoder,
+                                                                fallbackColor: fallbackColor)
                     previewWasCached = cached
                     arrivedWithFailedFallback = fallback == .failed
                     if let fallback { learnUnavailability(fallback) }
@@ -484,6 +501,7 @@ final class AdjustmentEditor {
         rawDefaults = nil
         isRaw = false
         usesFallbackDecoder = false
+        whiteBalanceControls = .relative
         sourceURL = nil
         selectedMaskID = nil
         cameraRect = nil
@@ -1673,7 +1691,8 @@ final class AdjustmentEditor {
             if fringeSamplePixels != nil { fringeSamplePixels = nil }
             return
         }
-        var settings = isRaw ? adjustments.decodeSettings : .none
+        // What reaches the decode the samples are read from: a LibRaw photo's white balance too.
+        var settings = SystemRAWDecoder.settings(adjustments.decodeSettings, reaching: url, systemReads: isRaw)
         settings.fullFrame = isRaw
         let key = SamplePixelsKey(source: url, settings: settings, alignment: adjustments.effective.colorAlignment)
         guard key != samplePixelsKey else { return }
@@ -1781,14 +1800,14 @@ final class AdjustmentEditor {
             if !fringeSwatches.isEmpty { fringeSwatches = [:] }
             return
         }
-        let isRaw = isRaw
+        let context = renderContextKind
         let generator = library.previews.interactiveGenerator
         swatchTask = Task {
             try? await Task.sleep(for: .milliseconds(60))
             guard !Task.isCancelled else { return }
             let colors = await Task.detached(priority: .utility) {
                 Dictionary(uniqueKeysWithValues: slots.compactMap { number, color in
-                    FringePicker.swatch(color, values: values, isRaw: isRaw, generator: generator).map { (number, $0) }
+                    FringePicker.swatch(color, values: values, context: context, generator: generator).map { (number, $0) }
                 })
             }.value
             guard !Task.isCancelled, values == adjustments else { return }

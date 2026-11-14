@@ -41,9 +41,9 @@ public enum ColorAlignmentMeasurement {
     /// The values Align automatically stores for the master at `source`
     /// decoded with `adjustments`' decode settings.
     public static func measure(source: URL, adjustments: Adjustments, generator: PreviewGenerator) throws -> ColorAlignment {
-        // A raw LibRaw decodes takes no decode settings and has one frame only.
+        // A raw LibRaw decodes takes the white balance only and has one frame only.
         let isRaw = SystemRAWDecoder.reads(source)
-        var settings = isRaw ? adjustments.decodeSettings : .none
+        var settings = SystemRAWDecoder.settings(adjustments.decodeSettings, reaching: source, systemReads: isRaw)
         settings.fullFrame = isRaw
         let decoded: PreviewGenerator.Decoded
         do {
