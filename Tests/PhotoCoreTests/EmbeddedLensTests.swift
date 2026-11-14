@@ -312,6 +312,181 @@ struct EmbeddedLensTests {
         #expect(worst <= 1e-6, "\(worst)")
     }
 
+    /// Code review C19. LibRaw's image ends at white (1). The gain used to
+    /// multiply clipped values too: a blown sky was white at the center and
+    /// up to 100 / vignetting times brighter toward the corners (1.73 with
+    /// this lens), a ring that shows once Exposure or Highlights is pulled
+    /// down. The result ends at white, as the camera's own picture does.
+    @Test("A clipped area stays white wherever it lies; values under white are lifted up to it")
+    func gainEndsAtWhite() throws {
+        let correction = Self.correction(Self.lens35)
+        let white = Self.image(width: 336, height: 232) { _, _ in SIMD3(1, 1, 1) }
+        let whole = LensRenderingTests.renderFloat(try #require(correction.apply(to: white.ciImage, frame: Self.frame)))
+        #expect(whole.pixels.max() == 1 && whole.pixels.min() == 1)
+        #expect(EmbeddedLensReference.apply(correction, to: white, frame: Self.frame).pixels.allSatisfy { $0 == 1 })
+        // A flat 0.7: lifted by the gain where that stays under white, white beyond.
+        let gray = Self.image(width: 336, height: 232) { _, _ in SIMD3(0.7, 0.7, 0.7) }
+        let lifted = LensRenderingTests.renderFloat(try #require(correction.apply(to: gray.ciImage, frame: Self.frame)))
+        let center = lifted[156, 104], corner = lifted[1, 1], edge = lifted[156, 1]
+        #expect(abs(center.x - 0.7) < 1e-3)
+        // Near the middle of the top edge: that pixel's center is (0.5, 102.5) from the frame's
+        // center, of a half diagonal of 187.5; green there is taken from that radius times its multiplier.
+        let output = hypot(0.5, 102.5) / 187.5
+        let recorded = output * correction.multipliers(atOutputRadius: output).y
+        let expected = Float(min(0.7 * Correction.gain(Self.lens35, sourceRadius: recorded), 1))
+        #expect(expected < 1 && expected > 0.8)
+        #expect(abs(edge.y - expected) < 1e-3, "\(edge.y) against \(expected)")
+        #expect(corner.x == 1 && corner.y == 1 && corner.z == 1)
+        #expect(lifted.pixels.max() == 1)
+        // The reference clips the same way, in a picture with clipped and unclipped parts.
+        let mixed = Self.image(width: 336, height: 232) { x, y in
+            let v = min(1, 0.55 + 0.5 * (sin(x / 23) * cos(y / 17) + 0.5))
+            return SIMD3(v, min(1, v * 1.1), v * 0.9)
+        }
+        let rendered = LensRenderingTests.renderFloat(try #require(correction.apply(to: mixed.ciImage, frame: Self.frame)))
+        let reference = EmbeddedLensReference.apply(correction, to: mixed, frame: Self.frame)
+        let bound = Self.floatBound(largestStep: 0.5 * (1.0 / 23 + 1.0 / 17) * 1.1, gain: Float(1 + (correction.gainOffsets.max() ?? 0)))
+        var worst: Float = 0
+        for index in rendered.pixels.indices { worst = max(worst, abs(rendered.pixels[index] - reference.pixels[index])) }
+        #expect(worst <= bound, "worst \(worst), bound \(bound)")
+        #expect(rendered.pixels.max() == 1)
+    }
+
+    // MARK: What a decode does with LibRaw's image (code review C21)
+
+    /// An X-E3's frame in LibRaw's image, a twentieth of the size: 300 x 200 at (4, 3) of 310 x 208.
+    static func decodeFrame(flip: Int = 0) -> LibRawDecoder.Frame {
+        LibRawDecoder.Frame(visibleWidth: 310, visibleHeight: 208, leftMargin: 0, topMargin: 6,
+                            insetLeft: 0xffff, insetTop: 0xffff, insetWidth: 0, insetHeight: 0, flip: flip,
+                            cameraFrame: FujifilmRAF.PixelRect(left: 4, top: 9, width: 300, height: 200))
+    }
+
+    @Test("A decode cuts the camera's frame from LibRaw's image and applies the tables it is given")
+    func decodeFramesAndCorrects() throws {
+        let frame = Self.decodeFrame()
+        let source = Self.image(width: 310, height: 208, Self.smooth)
+        let size = CGSize(width: 310, height: 208)
+        // The frame in the image, from the bottom left: rows 3 … 203 from the top are y 5 … 205.
+        let window = try #require(frame.windowRect(inImageOf: size))
+        #expect(window == CGRect(x: 4, y: 5, width: 300, height: 200))
+
+        // With tables: corrected, the frame's size, as the reference computes it.
+        let corrected = LibRawDecoder.framed(source.ciImage, size: size, frame: frame, tables: Self.lens35)
+        #expect(corrected.corrected)
+        #expect(corrected.size == CGSize(width: 300, height: 200) && corrected.fullSize == CGSize(width: 300, height: 200))
+        #expect(corrected.image.extent == CGRect(x: 0, y: 0, width: 300, height: 200))
+        let correction = Correction(Self.lens35, shortSideRadius: 200 / hypot(300.0, 200.0))
+        let reference = EmbeddedLensReference.apply(correction, to: source, frame: window)
+        let rendered = LensRenderingTests.renderFloat(corrected.image)
+        let bound = Self.floatBound(largestStep: 0.2 * (1.0 / 9 + 1.0 / 7), gain: Float(1 + (correction.gainOffsets.max() ?? 0)))
+        var worst: Float = 0
+        for index in rendered.pixels.indices { worst = max(worst, abs(rendered.pixels[index] - reference.pixels[index])) }
+        #expect(worst <= bound, "worst \(worst), bound \(bound)")
+
+        // Without tables, or with tables that correct nothing: the frame's own pixels, not counted as corrected.
+        for tables in [nil, Self.flat] as [FujifilmRAF.LensTables?] {
+            let cut = LibRawDecoder.framed(source.ciImage, size: size, frame: frame, tables: tables)
+            #expect(!cut.corrected && cut.size == CGSize(width: 300, height: 200) && cut.fullSize == CGSize(width: 300, height: 200))
+            let pixels = LensRenderingTests.renderFloat(cut.image)
+            var different = 0
+            for row in 0..<200 {
+                for column in 0..<300 where pixels[column, row] != source[column + 4, row + 3] { different += 1 }
+            }
+            #expect(different == 0)
+        }
+
+        // A half-size image (155 x 104): the frame starts between two rows (y 2.5) and is
+        // read between them, with or without tables, so every size shows the same frame.
+        let halfSource = Self.image(width: 155, height: 104, Self.smooth)
+        let halfSize = CGSize(width: 155, height: 104)
+        let halfWindow = try #require(frame.windowRect(inImageOf: halfSize))
+        #expect(halfWindow == CGRect(x: 2, y: 2.5, width: 150, height: 100))
+        let half = LibRawDecoder.framed(halfSource.ciImage, size: halfSize, frame: frame, tables: nil)
+        #expect(!half.corrected && half.size == CGSize(width: 150, height: 100) && half.fullSize == CGSize(width: 300, height: 200))
+        let halfReference = EmbeddedLensReference.apply(Correction(.none, shortSideRadius: 0.55), to: halfSource, frame: halfWindow)
+        let halfRendered = LensRenderingTests.renderFloat(half.image)
+        worst = 0
+        for index in halfRendered.pixels.indices { worst = max(worst, abs(halfRendered.pixels[index] - halfReference.pixels[index])) }
+        #expect(worst <= 1e-5, "\(worst)")
+        // Each row is the mean of the two it lies between.
+        let mean = (halfSource[10, 11].x + halfSource[10, 12].x) / 2
+        #expect(abs(halfRendered[8, 10].x - mean) <= 1e-5)
+        let halfCorrected = LibRawDecoder.framed(halfSource.ciImage, size: halfSize, frame: frame, tables: Self.lens35)
+        #expect(halfCorrected.corrected && halfCorrected.size == half.size)
+
+        // A frame LibRaw cropped itself: the image as it is.
+        let inset = LibRawDecoder.Frame(visibleWidth: 310, visibleHeight: 208, leftMargin: 0, topMargin: 0,
+                                        insetLeft: 4, insetTop: 4, insetWidth: 300, insetHeight: 200, flip: 0)
+        let untouched = LibRawDecoder.framed(source.ciImage, size: size, frame: inset, tables: Self.lens35)
+        #expect(!untouched.corrected && untouched.fullSize == nil && untouched.size == size)
+        #expect(untouched.image.extent == source.ciImage.extent)
+    }
+
+    @Test("A decode uses a file's tables only for the camera's own frame, in no crop mode, and made for that frame")
+    func whichTablesADecodeUses() throws {
+        let frame = LibRawDecoder.Frame(visibleWidth: 6032, visibleHeight: 4028, leftMargin: 0, topMargin: 6,
+                                        insetLeft: 18, insetTop: 24, insetWidth: 5998, insetHeight: 3997, flip: 0,
+                                        cameraFrame: FujifilmRAF.PixelRect(left: 16, top: 21, width: 6000, height: 4000))
+        let file = try #require(FujifilmRAF(data: SyntheticRAF.xe3()))
+        #expect(LibRawDecoder.lensTables(file, frame: frame, file: "a.RAF") == file.lens)
+        #expect(LibRawDecoder.lensTables(nil, frame: frame, file: "a.RAF") == nil)
+        // The 1.25x crop mode; tables for another frame; tables that correct nothing.
+        #expect(LibRawDecoder.lensTables(FujifilmRAF(data: SyntheticRAF.xe3(cropMode: 2)), frame: frame, file: "a.RAF") == nil)
+        var tags = SyntheticRAF.elevenKnotTags()
+        tags[0].values[0] = SyntheticRAF.Rational(numerator: 2884, denominator: 11)
+        #expect(LibRawDecoder.lensTables(FujifilmRAF(data: SyntheticRAF.xe3(tags: tags)), frame: frame, file: "a.RAF") == nil)
+        let nothing = SyntheticRAF.elevenKnotTags(distortion: [Double](repeating: 0, count: 11), red: [Double](repeating: 0, count: 10),
+                                                  blue: [Double](repeating: 0, count: 10), vignetting: [Double](repeating: 100, count: 11))
+        #expect(LibRawDecoder.lensTables(FujifilmRAF(data: SyntheticRAF.xe3(tags: nothing)), frame: frame, file: "a.RAF") == nil)
+        // A frame that is not the camera's (LibRaw's inset crop): the tables are centered elsewhere.
+        let inset = LibRawDecoder.Frame(visibleWidth: 6032, visibleHeight: 4028, leftMargin: 0, topMargin: 6,
+                                        insetLeft: 18, insetTop: 24, insetWidth: 5998, insetHeight: 3997, flip: 0)
+        #expect(LibRawDecoder.lensTables(file, frame: inset, file: "a.RAF") == nil)
+    }
+
+    /// Code review C18. A Super CCD's file is read turned 45 degrees: its
+    /// records are no rectangle of LibRaw's image, and as a crop box they
+    /// gave a strip of the picture beside a magenta copy (FinePix F700).
+    @Test("A camera frame is used only when the file's records describe the sensor LibRaw reads; a Super CCD is never cropped")
+    func cameraFrameAndSensorLayout() throws {
+        let file = try #require(FujifilmRAF(data: SyntheticRAF.xe3()))
+        let frame = FujifilmRAF.PixelRect(left: 16, top: 21, width: 6000, height: 4000)
+        #expect(LibRawDecoder.cameraFrame(file, rawWidth: 6048, rawHeight: 4038, isDiagonal: false) == frame)
+        // LibRaw reads another sensor size than the records give, or the sensor is a Super CCD.
+        #expect(LibRawDecoder.cameraFrame(file, rawWidth: 6160, rawHeight: 4032, isDiagonal: false) == nil)
+        #expect(LibRawDecoder.cameraFrame(file, rawWidth: 4038, rawHeight: 6048, isDiagonal: false) == nil)
+        #expect(LibRawDecoder.cameraFrame(file, rawWidth: 6048, rawHeight: 4038, isDiagonal: true) == nil)
+        #expect(LibRawDecoder.cameraFrame(nil, rawWidth: 6048, rawHeight: 4038, isDiagonal: false) == nil)
+        // A FinePix F700 as LibRaw opens it: 2832 x 1064 visible with an inset crop, a 2035 x 1533 picture.
+        for flip in [0, 5, 6] {
+            let turned = flip & 4 != 0
+            let shown = turned ? CGSize(width: 1533, height: 2035) : CGSize(width: 2035, height: 1533)
+            let diagonal = LibRawDecoder.Frame(visibleWidth: 2832, visibleHeight: 1064, leftMargin: 0, topMargin: 0,
+                                               insetLeft: 100, insetTop: 50, insetWidth: 2600, insetHeight: 900, flip: flip,
+                                               cameraFrame: FujifilmRAF.PixelRect(left: 0, top: 0, width: 2000, height: 1000),
+                                               diagonalOutput: shown)
+            #expect(diagonal.cropBox == nil && diagonal.window == nil)
+            #expect(diagonal.orientedSize == shown)
+            #expect(diagonal.longEdge == 2035)
+            #expect(diagonal.windowRect(inImageOf: shown) == nil)
+        }
+    }
+
+    /// Code review C17 (security note S1): the bridge decoded whatever size a
+    /// file held, 10 GB for 192 megapixels, without the user asking.
+    @Test("A sensor over 150 megapixels is refused")
+    func sensorSizeLimit() {
+        #expect(LibRawDecoder.maximumSensorPixels == 150_000_000)
+        #expect(!LibRawDecoder.isTooLarge(rawWidth: 6048, rawHeight: 4038))
+        // The largest cameras: 11656 x 8742 (102 megapixels), 14204 x 10652 (151: refused; 150 megapixel backs are 14204 x 10652 only with their margins).
+        #expect(!LibRawDecoder.isTooLarge(rawWidth: 11656, rawHeight: 8742))
+        #expect(!LibRawDecoder.isTooLarge(rawWidth: 15000, rawHeight: 10000))
+        #expect(LibRawDecoder.isTooLarge(rawWidth: 15001, rawHeight: 10000))
+        #expect(LibRawDecoder.isTooLarge(rawWidth: 16000, rawHeight: 12000))
+        #expect(LibRawDecoder.isTooLarge(rawWidth: 65535, rawHeight: 65535))
+        #expect(LibRawDecoder.Failure.tooLarge(megapixels: 192).description.contains("192"))
+    }
+
     // MARK: The frame in LibRaw's image
 
     /// Where LibRaw puts a sensor pixel in its oriented image: for the pixel

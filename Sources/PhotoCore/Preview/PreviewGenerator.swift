@@ -192,31 +192,43 @@ public struct PreviewGenerator: Sendable {
                 fallback.context.isRaw ? .failed : MachineLearningNoiseReduction.reasonWithoutSystemDecoder)
             return fallback
         }
-        if isRaw, let decoded = decodeRAW(url, longEdge: longEdge, draft: draft, extendedRange: extendedRange,
-                                          settings: settings) {
-            return decoded
-        }
-        // Which decoder a raw gets is one test, the one `SystemRAWDecoder.reads`
-        // makes: the system decoder's image of the file as an untouched photo
-        // decodes. Where a choice of the stack's left it without an image (the
-        // whole-sensor copy, a decoder version), the decode is made without that
-        // choice rather than handed to LibRaw, whose image the editor, told the
-        // system reads the file, would offer a raw's controls for.
-        if isRaw, settings.choosesTheDecode,
-           let decoded = decodeRAW(url, longEdge: longEdge, draft: draft, extendedRange: extendedRange,
-                                   settings: settings.withoutDecodeChoices) {
+        if isRaw, let decoded = rawImage(settings: settings, system: {
+            decodeRAW(url, longEdge: longEdge, draft: draft, extendedRange: extendedRange, settings: $0)
+        }, libRaw: {
+            decodeWithLibRaw(url, longEdge: longEdge)
+        }, droppedChoices: {
             log.error("\(url.lastPathComponent, privacy: .private): no image for the stack's decoder choices; decoded without them")
-            return decoded
-        }
-        // A raw the system's RAW decoder gives no image for (Fujifilm X-E3 files
-        // on macOS 27.2.1, issue #161) goes to LibRaw, and only then: it is far
-        // slower than the system's. Its image takes none of the stack's decode
-        // settings, so it is a rendered image (`isRaw` false): the renderer
-        // applies relative white balance and its own noise reduction to it.
-        if isRaw, let decoded = decodeWithLibRaw(url, longEdge: longEdge) {
+        }) {
             return decoded
         }
         return try decodeWithImageIO(url, longEdge: longEdge)
+    }
+
+    /// Which decoder's image a raw gets, in order:
+    ///
+    /// 1. the system decoder's, with the stack's settings;
+    /// 2. the system decoder's without the stack's own decoder choices (the
+    ///    whole-sensor copy, a decoder version), where those left it without
+    ///    an image. Which decoder a raw gets is one test, the one
+    ///    `SystemRAWDecoder.reads` makes (the file as an untouched photo
+    ///    decodes), so a raw it says the system reads is never handed to
+    ///    LibRaw, whose image the editor would offer a raw's controls for;
+    /// 3. LibRaw's, for a raw the system decoder gives no image for
+    ///    (lossless-compressed Fujifilm X-E3 files on macOS 27.2.1, issue
+    ///    #161), and only then: it is far slower. Its image takes none of the
+    ///    stack's decode settings, so it is a rendered image (`isRaw` false):
+    ///    the renderer applies relative white balance and its own noise
+    ///    reduction to it.
+    ///
+    /// Nil when neither has one (ImageIO is tried next).
+    static func rawImage<Image>(settings: RAWDecodeSettings, system: (RAWDecodeSettings) -> Image?,
+                                libRaw: () -> Image?, droppedChoices: () -> Void = {}) -> Image? {
+        if let image = system(settings) { return image }
+        if settings.choosesTheDecode, let image = system(settings.withoutDecodeChoices) {
+            droppedChoices()
+            return image
+        }
+        return libRaw()
     }
 
     private static let log = Logger(subsystem: AppBranding.bundleIdentifier, category: "decode")

@@ -107,6 +107,8 @@ struct LibRawFallbackTests {
     @Test func theFrameIsTheCameras() throws {
         let file = try #require(FujifilmRAF(contentsOf: url), "not a Fujifilm RAF")
         let frame = try #require(file.cameraFrame)
+        // The file's tables, if it has any, are for this frame, and it is in no 1.25x crop mode.
+        #expect(file.lensTables(for: frame).refusal == nil, "crop mode \(String(describing: file.cropMode))")
         let size = try #require(LibRawDecoder.frameSize(url))
         // 6000 x 4000 for an X-E3, as its JPEG and as the system decoder gives where it reads these files.
         #expect([size.width, size.height].sorted() == [CGFloat(frame.height), CGFloat(frame.width)].sorted())

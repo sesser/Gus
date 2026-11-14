@@ -352,7 +352,7 @@ small spinner shows in the caption. The histogram always describes the whole
 photo, and at these zooms it can lag until you pause.
 
 **Raw files macOS can't decode**: when the macOS raw decoder has no image for a
-raw file (on macOS 27.2, the Fujifilm X-E3's), the app decodes it with its own
+raw file (on macOS 27.2, the Fujifilm X-E3's lossless compressed files), the app decodes it with its own
 decoder (LibRaw) instead of showing nothing. Such a photo has the camera's white
 balance but not the macOS decoder's profile and contrast, so it starts out
 flatter and darker than a raw macOS decodes. A Fujifilm file gets the camera's
@@ -361,8 +361,9 @@ in it, as the macOS decoder applies them to the raws it reads: distortion
 (straight lines are straight), color fringing toward the corners, and corner
 shading. There is no control for them; they line up with the camera's own JPEG
 to within a pixel or two of the full-size photo, a little more in the far
-corners. Files of other makers keep the frame their decoder gives and get no
-lens corrections. You adjust it like any other photo; what differs is what differs for a
+corners. Blown highlights stay white right to the corners. A file shot in a
+camera's 1.25x crop mode, or one from an old Super CCD camera, is shown
+uncorrected in the frame its decoder gives, as are files of other makers. You adjust it like any other photo; what differs is what differs for a
 JPEG. In the Adjust tab a note stands in place of **Profile**. White Balance
 offers **As Shot**, **Auto** and **Custom**, with Temperature and Tint relative
 to the camera's setting (no Kelvin scale and no Daylight to Flash). Noise

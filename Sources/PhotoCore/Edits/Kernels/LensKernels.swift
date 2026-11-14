@@ -179,7 +179,8 @@ enum LensKernels {
         }
 
         /// A camera's lens corrections (EmbeddedLensCorrection): each channel taken from
-        /// its own place in the recorded image and divided by the light that reached it.
+        /// its own place in the recorded image and divided by the light that reached it,
+        /// up to the decode's white (1): a clipped value stays white wherever it is.
         /// scales: table entries per pixel of destination radius, per pixel of source
         /// radius, and the last entry's index.
         [[stitchable]] float4 embeddedLens(sampler source, sampler table, float2 sourceCenter, float2 outputCenter,
@@ -193,7 +194,7 @@ enum LensKernels {
                 * (1.0f + lensTableValue(table, min(radii.g, scales.z), 1.0f).r);
             float b = bilinear(source, sourceCenter + d * m.b).b
                 * (1.0f + lensTableValue(table, min(radii.b, scales.z), 1.0f).r);
-            return float4(r, g, b, 1);
+            return float4(min(float3(r, g, b), 1.0f), 1);
         }
         """,
         "fringeMap": """

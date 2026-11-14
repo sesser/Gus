@@ -20,7 +20,15 @@ import Foundation
 ///   pixel at radius ρ takes green from the r with r / m(r) = ρ.
 /// - Red and blue are taken from r · (1 + shift(r)), their own tables' shift.
 /// - Every sample is divided by the share of light its place on the sensor
-///   got: vignetting(r) / 100, at the radius the sample is taken from.
+///   got: vignetting(r) / 100, at the radius the sample is taken from. The
+///   result ends at the decode's white, 1 (not darktable's: its pipeline
+///   keeps values above white). LibRaw's image ends there, so a clipped area
+///   is 1 wherever it lies; multiplied on, it would be white at the center
+///   and up to 100 / vignetting times brighter toward the corners, a ring
+///   that shows as soon as Exposure or Highlights is pulled down. The camera
+///   and the system decoder clip after the gain too. Values the gain lifts
+///   past white are highlights the recorded frame held and the corrected one
+///   has no room for, as in the camera's own picture.
 ///
 /// - The corrected picture is then scaled about its center by the largest
 ///   source-over-destination ratio any color has between the frame's short
@@ -29,11 +37,14 @@ import Foundation
 ///   for barrel distortion (the edges' middles stay where they were, the
 ///   corners come from further in), larger for pincushion.
 ///
-/// That last step is darktable's choice for filling its frame, and it is
-/// also what the camera does: with it the corrected render of an X-E3 file
-/// lines up with the JPEG the camera embedded in it to a third of that
-/// JPEG's pixels (`LibRawFallbackTests`); at the recorded scale it is off by
-/// 1.5% of the radius.
+/// That last step is darktable's choice for filling its frame. For the
+/// X-Trans files compared it is also what the camera does: with it the
+/// corrected render of an X-E3 file lines up with the JPEG the camera
+/// embedded in it to a third of that JPEG's pixels (`LibRawFallbackTests`),
+/// where at the recorded scale it is off by 1.5% of the radius. It is not
+/// every camera's rule: an X-A5's own JPEG keeps the recorded scale at the
+/// center (code review Q12; that camera's files are read by the system
+/// decoder, so none takes this path today).
 struct EmbeddedLensCorrection: Sendable, Equatable {
     /// Entries of each lookup table. Between two entries the kernel
     /// interpolates linearly. The functions are smooth between the camera's

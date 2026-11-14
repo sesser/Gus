@@ -7,7 +7,7 @@ import PhotoFixtures
 /// kernel (`LensKernels`, "embeddedLens") computes: each output pixel's
 /// channels are taken from their own places in the source, interpolated
 /// between the four nearest pixel centers (edges repeat), and multiplied by
-/// the gain of the place they were taken from. The tables are the
+/// the gain of the place they were taken from, up to white (1). The tables are the
 /// correction's own; the kernel only reads between their entries.
 enum EmbeddedLensReference {
     /// - Parameter frame: The camera's frame in `source`, in Core Image's
@@ -61,7 +61,8 @@ enum EmbeddedLensReference {
                     let factor = m[channel]
                     let value = sample(channel, at: sourceCenter + d * factor)
                     let position = min(length * factor * perSource, lastIndex)
-                    pixels[(row * width + column) * 4 + channel] = value * (1 + between(gainRow, position).x)
+                    // Up to the decode's white: a clipped value stays white.
+                    pixels[(row * width + column) * 4 + channel] = min(value * (1 + between(gainRow, position).x), 1)
                 }
             }
         }

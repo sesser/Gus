@@ -564,6 +564,41 @@ struct LibRawFallbackPipelineTests {
         }
     }
 
+    /// Code review Q6 and C16: which decoder a raw gets is one test, so a raw
+    /// the system decoder reads as an untouched photo is never handed to
+    /// LibRaw because one of the stack's own decoder choices left the system
+    /// decoder without an image. No file here takes that path; the order is
+    /// tested on its own.
+    @Test("A raw goes to LibRaw only when the system decoder has no image without the stack's decoder choices either")
+    func decoderOrder() {
+        var asked: [RAWDecodeSettings] = []
+        var librawAsked = 0, dropped = 0
+        func run(_ settings: RAWDecodeSettings, system: @escaping (RAWDecodeSettings) -> String?) -> String? {
+            asked = []
+            librawAsked = 0
+            dropped = 0
+            return PreviewGenerator.rawImage(settings: settings, system: { asked.append($0); return system($0) },
+                                             libRaw: { librawAsked += 1; return "libraw" }, droppedChoices: { dropped += 1 })
+        }
+        let plain = RAWDecodeSettings(temperature: 4000)
+        let chosen = RAWDecodeSettings(temperature: 4000, decoderVersion: "7", fullFrame: true)
+        // The system decoder has an image: nothing else is asked.
+        #expect(run(chosen) { _ in "system" } == "system")
+        #expect(asked == [chosen] && librawAsked == 0 && dropped == 0)
+        // No image with the stack's choices, one without them: the system's, with the stack's values kept.
+        #expect(run(chosen) { $0.choosesTheDecode ? nil : "system" } == "system")
+        #expect(asked == [chosen, chosen.withoutDecodeChoices] && librawAsked == 0 && dropped == 1)
+        #expect(chosen.withoutDecodeChoices == plain)
+        // No image either way: LibRaw.
+        #expect(run(chosen) { _ in nil } == "libraw")
+        #expect(asked.count == 2 && librawAsked == 1 && dropped == 0)
+        // Without choices there is nothing to drop: the system decoder is asked once.
+        #expect(run(plain) { _ in nil } == "libraw")
+        #expect(asked == [plain] && librawAsked == 1)
+        // Neither decoder has an image.
+        #expect(PreviewGenerator.rawImage(settings: plain, system: { _ in String?.none }, libRaw: { nil }) == nil)
+    }
+
     /// Code review C7: the reason was overwritten with "failed", for a file
     /// the system decoder does not read at all. Design review F3: the reason
     /// is the camera on every macOS, never "this Mac needs macOS 27": machine
