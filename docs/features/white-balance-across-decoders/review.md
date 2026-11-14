@@ -30,7 +30,7 @@ the same commit.
 | DR1 | LibRaw photo: nine modes, Kelvin Temperature, Tint −150 to 150; Tungsten 2,850 K / 0 | Pass | `.kelvin` → `Preset.allCases`, the same `AdjustSlider`s (`.kelvin`, `.reciprocal`, `temperatureRange`, `tintRange`) as a system raw; `.raw(.tungsten)`; AC1 script |
 | DR2 | As-shot values shown unedited, believable; double-click resets to them | Pass in code; believability needs M2 | `defaultValue: asShot.kelvin` / `asShot.tint`, value `balance.temperature ?? asShot.kelvin`; as-shot from the header before layout (`LibRawDecoder.cameraColor`), the same function the decode uses |
 | DR3 | Auto stores and shows Kelvin and tint | Pass; the wait needs M3 | `pick(.auto)` → `autoWhiteBalance()` while not unavailable; AC3 script stores 5332 / −12 |
-| DR4 | §5 rule on both raws; Custom sticks; relative values show As Shot | **Fail until F1** | `kelvinDisplayPreset` matches §5 exactly and serves both decoders; Custom does not stick on a photo with leftover relative values (DQ-1) |
+| DR4 | §5 rule on both raws; Custom sticks; relative values show As Shot | **Fail until F1** (pass after F1, see Second pass) | `kelvinDisplayPreset` matches §5 exactly and serves both decoders; Custom does not stick on a photo with leftover relative values (DQ-1) |
 | DR5 | Rendered images unchanged | Pass | `.relative` keeps `relativePresets`, −100 to 100 sliders, `relativeDisplayPreset` (D5) |
 | DR6 | Note copy exactly §3; old key gone | Pass | Catalog key and `FallbackDecoderText.note` match §3 to the character; "shown without a profile" and "relative to the camera" no longer in `Sources/` |
 | DR7 | W1 and W2 as drawn; no sliders; captions and help exact | Pass, one spacing fix (F2) | W1: one item, dimmed, help = caption, no triangle, no sliders. W2: `[As Shot, stored]`, enabled, triangle `accessibilityHidden`, help = caption; re-picking the stored mode returns nil; Auto and Custom refused for `.unavailable`. Both strings match §10 |
@@ -139,7 +139,74 @@ tab, in the loupe.
   photo's machine learning caption: both captions sit the same distance under
   their control.
 
+## Second pass (2026-11-14): F1 to F3 confirmed
+
+Read at `f94d5db`, `3aa74ce` and `2263fdd`: `PhotoCore/Edits/AutoAdjust.swift`
+(`WhiteBalanceControls`), `CameraColor/CameraColorStep.swift` (`rendered`),
+`PhotoApp/Views/AdjustView.swift` (`whiteBalanceCaption`),
+`docs/USER_GUIDE.md` 344 to 408.
+
+**Verdict: approved. No open findings.** DR4 now passes; every other row
+stands.
+
+| Finding | Result | Evidence |
+|---|---|---|
+| F1 | Fixed | `picking(.custom)` for `.kelvin(asShot:)`: `preset = .custom`, `temperature ?? asShot.kelvin`, `tint ?? asShot.tint`, unrounded, relative values untouched; `.relative` stores Custom beside the stored values; `.unavailable` and Auto return nil. Matches §17.1 steps 1 to 5 (step 5 relies on `change` skipping equal values, unchanged) |
+| F2 | Fixed | `.padding(.top, 2)` removed: the caption sits at the stack's 2 pt, as the machine learning caption does |
+| F3 | Fixed | "under **Profile**, a note stands in place of its pop-ups"; the mode names bolded alike; new sentences on Custom carrying its numbers and on the Kelvin reading differently between decoders are accurate and use the UI's terms |
+
+**The as-shot clamp (asked by the coordinator): acceptable.** For a LibRaw
+photo the as-shot Kelvin and tint go through `CameraColorStep.rendered`,
+which clamps them to 2,000 to 50,000 K and ±150. As Shot still renders the
+camera's own neutral. Custom, a slider move or a double-click reset then
+renders the clamped number, so on such a photo the picture shifts the first
+time White Balance is touched. That contradicts §17.1's "nothing visible"
+only for light beyond the sliders' ends (candle light under 2,000 K, a tint
+past ±150), and the alternatives are worse:
+- storing an out-of-range value gives a slider that can't show its own
+  number, or a range that differs per photo (HIG, Sliders: the range is a
+  property of the control, not the photo);
+- a separate "as shot" value the sliders can't reach hides what Custom
+  stores.
+
+Showing, storing and rendering one number keeps the pop-up, the sliders, the
+render and a paste in agreement, which is the point of §17.1, and As Shot
+remains the way back to the camera's own white. I record this as an
+amendment to §17.1: on a LibRaw photo "as-shot" in step 2 means
+`CameraColorStep.rendered(asShot)`.
+
+The guide's wording is right in substance. Two optional polish points, not
+blocking:
+- Line 384 to 385 "choosing **Custom** or moving a slider then renders that
+  number": "renders" is engineer's language. Suggest "…then changes the photo
+  to that end's color; **As Shot** brings back the camera's own."
+- The clamp sentence now sits before "Two things to know about the numbers",
+  so the paragraph reads as three. Move it after the second thing (the
+  daylight-only color data), or drop "Two".
+
+### Manual checks after the second pass
+
+M6 and M9 now apply as written (F1 and F2 are in). One check added:
+
+- **M10. Light beyond the sliders' ends** (only if such a file is at hand:
+  a LibRaw raw shot under candle light or similar, below 2,000 K). Unedited,
+  Temperature reads 2,000 K and the photo looks as the camera saw it. Choose
+  Custom: the photo shifts to 2,000 K once and stays; choose As Shot: the
+  camera's look returns. The shift should read as the slider's limit, not as
+  a fault. Skip if no such file exists; the unit tests cover the numbers.
+
 ## Summary for the issue
+
+Design review, second pass: **approved, no open findings.** F1 (Custom on a
+raw stores the Kelvin and tint shown, §17.1), F2 (caption spacing) and F3
+(user guide wording) are confirmed in code and docs. The clamp of a LibRaw
+photo's as-shot values to the sliders' ranges is accepted: As Shot keeps the
+camera's white, and Custom or a slider renders the number shown (recorded as
+an amendment to §17.1). Two optional guide polish points. Manual checks M1 to
+M10 for the owner (M10 only if a file shot below 2,000 K is at hand).
+Full review: docs/features/white-balance-across-decoders/review.md
+
+## Summary for the issue (first pass)
 
 Design review: **approved with one required fix.** The LibRaw photo's White
 Balance group is the system raw's (nine modes, Kelvin, Tint); the Profile note,

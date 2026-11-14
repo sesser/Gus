@@ -435,3 +435,14 @@ Custom from As Shot on a `.kelvin` photo stores as-shot Kelvin and tint;
 Custom from Tungsten keeps 2,850 / 0; Custom with only `temperature` set
 fills the tint; `.relative` still stores `WhiteBalance(preset: .custom)`;
 `.unavailable` still returns nil. M6 is updated to match.
+
+**Amendment (2026-11-14, second review pass): the as-shot clamp.** On a
+LibRaw photo, "as-shot" in steps 2 and 3 means
+`CameraColorStep.rendered(asShot)`: the camera's white clamped to
+`WhiteBalance.temperatureRange` and `tintRange`. The sliders show that
+number, Custom stores it and it renders; As Shot itself still renders the
+camera's own neutral. For light beyond the ranges (under 2,000 K, a tint past
+±150) the photo therefore shifts the first time Custom or a slider is used.
+Accepted: one number shown, stored and rendered keeps the controls and a
+paste in agreement, a range that differs per photo would be worse, and As
+Shot is the way back. Manual check M10 in `review.md`.
