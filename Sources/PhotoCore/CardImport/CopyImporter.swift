@@ -324,12 +324,9 @@ public final class CopyImporter: Sendable {
         var hasher = SHA256()
         do {
             defer { try? output.close() }
-            while true {
-                try Task.checkCancellation()
-                let chunk = try input.read(upToCount: 4 << 20) ?? Data()
-                if chunk.isEmpty { break }
-                hasher.update(data: chunk)
-                try output.write(contentsOf: chunk)
+            try FileChunks.forEach(in: input.fileDescriptor, chunkSize: copyChunkSize) { chunk in
+                hasher.update(bufferPointer: chunk)
+                try FileChunks.write(chunk, to: output.fileDescriptor)
                 progress(Int64(chunk.count))
             }
             try output.synchronize()
@@ -345,16 +342,17 @@ public final class CopyImporter: Sendable {
         return sourceHash
     }
 
+    /// How much of a file is read, and so held, at a time while copying and hashing.
+    static let copyChunkSize = 4 << 20
+
     /// SHA-256 of a file; `uncached` reads around the file cache, so a copy is
-    /// checked as stored rather than as still in memory.
+    /// checked as stored rather than as still in memory. Holds one chunk at a
+    /// time (`FileChunks`). Not cancellable, as before: a copy already moved
+    /// into place is verified to the end.
     static func hash(of url: URL, uncached: Bool) throws -> String {
         let handle = try FileHandle(forReadingFrom: url)
         defer { try? handle.close() }
         if uncached { _ = fcntl(handle.fileDescriptor, F_NOCACHE, 1) }
-        var hasher = SHA256()
-        while let chunk = try handle.read(upToCount: 4 << 20), !chunk.isEmpty {
-            hasher.update(data: chunk)
-        }
-        return hasher.finalize().hexString
+        return try FileChunks.sha256(of: handle.fileDescriptor, chunkSize: copyChunkSize, checksCancellation: false)
     }
 }
