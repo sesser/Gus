@@ -695,7 +695,14 @@ result). `noiseReduction.machineLearning=true` turns on machine learning noise
 reduction; `render` and `export` report in their JSON whether it was applied,
 and why not. `export --policy overwrite` replaces existing files but never an
 original in the library: such a photo is written under a numbered name and
-counted in the result's `protectedMasters`. `colorFringes.color1=purple` (or `green`, or OkLab `L,a,b`) fills a
+counted in the result's `protectedMasters`. `render --out` never writes over
+an original either: it refuses the file being rendered, any of the library's
+originals and any file with the same contents as one. The library is the one
+named by `--library-root` (or opened for `--version`); for a file rendered
+without one, `render` reads the standard library to ask, and changes nothing
+in it. It stops with the code `outputIsMaster` and writes nothing. If there
+is no library at all, only the file being rendered is refused; if the library
+is there but can't be read, `render` writes nothing and says so. `colorFringes.color1=purple` (or `green`, or OkLab `L,a,b`) fills a
 fringe slot, `colorFringes.tolerance1=40` sets its Tolerance, and
 `colorAlignment.automatic=true` measures the original and stores the
 correction (`colorAlignment.red` and `blue` set it by hand), and
