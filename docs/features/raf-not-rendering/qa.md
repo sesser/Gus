@@ -192,37 +192,39 @@ After the runs:
 
 ## For a person
 
+*Update 2026-11-15: the owner has checked all of these by eye (see Follow-up). Each item below keeps what the check was.*
+
 Build the bundle (`Scripts/build-app.sh`) and launch it with `--library-root` on a scratch library. Delete the
 preview cache first if the library was opened by an earlier build of this branch. Put in it `DSCF5124.RAF` (X-E3,
 which macOS can't decode), the X-T3 `DSCF4583.RAF` and a JPEG.
 
-- **P1. `DSCF5124`'s window frame (the owner's screenshot).** Open it in the loupe, fitted and at 100%. The
+- **P1. `DSCF5124`'s window frame (the owner's screenshot).** *(Checked by the owner, 2026-11-15.)* Open it in the loupe, fitted and at 100%. The
   window's vertical jambs, left and right, are straight lines from top to bottom with no bow. The window sits in
   the picture where the camera's JPEG has it (compare with that JPEG, or with `$S/r2/cmp-whole.png`). Nothing
   looks stretched near the edges.
-- **P2. The corners.** In `DSCF5124` and a brighter X-E3 photo with the 35mm (`DSCF5139`, `DSCF5134`), the
+- **P2. The corners.** *(Checked by the owner, 2026-11-15.)* In `DSCF5124` and a brighter X-E3 photo with the 35mm (`DSCF5139`, `DSCF5134`), the
   corners are not darker than the camera's JPEG shows them. There is no dark ring and no bright ring, and no
   color fringe on high-contrast edges near the corners. At Exposure −2, a blown sky in a corner stays an even
   grey.
-- **P3 (M1). The note's look.** X-E3, Adjust tab. Under "Profile" (no check box), the note wraps inside the
+- **P3 (M1). The note's look.** *(Checked by the owner, 2026-11-15.)* X-E3, Adjust tab. Under "Profile" (no check box), the note wraps inside the
   inspector at its narrowest width, in 3 or 4 lines, with clear space before White Balance. It is readable with
   Increase Contrast on. There are no pop-ups under Profile.
-- **P4 (M2, M3). White Balance and Noise Reduction by hand.**
+- **P4 (M2, M3). White Balance and Noise Reduction by hand.** *(Checked by the owner, 2026-11-15.)*
   - White Balance: Mode lists As Shot, Auto and Custom. Dragging Temperature and Tint warms and tints the photo,
     and Mode shows Custom. Auto changes the photo and shows Auto. As Shot puts both sliders back to 0.
   - Noise Reduction: Use machine learning is dimmed, with "Not available for this camera." under it and as its
     tooltip. There is Luminance only, with no Color row.
-- **P5 (M4). Paste from the X-T3.**
+- **P5 (M4). Paste from the X-T3.** *(Checked by the owner, 2026-11-15.)*
   - On the X-T3, set Daylight and turn on Use machine learning, then Copy Adjustments. Paste onto the X-E3 with
     the menu or the keyboard shortcut.
   - Mode shows As Shot, and the photo's color does not change.
   - The check box is on, with the triangle and its caption. The loupe caption shows the Machine Learning Not
     Applied badge, and its tooltip ends "…It's shown with Luminance instead."
   - Turning the check box off removes both.
-- **P6 (M5). Switching photos.** In the loupe, with the Adjust tab open, arrow between the X-T3 and the X-E3.
+- **P6 (M5). Switching photos.** *(Checked by the owner, 2026-11-15.)* In the loupe, with the Adjust tab open, arrow between the X-T3 and the X-E3.
   The Profile group and the note swap, the Kelvin and relative sliders swap, and no value or mode carries over.
   Note any visible jump while the X-E3 loads.
-- **P7 (M6). Custom sticks, with the pop-up.** On the JPEG and on the X-E3, with Temperature and Tint at 0,
+- **P7 (M6). Custom sticks, with the pop-up.** *(Checked by the owner, 2026-11-15.)* On the JPEG and on the X-E3, with Temperature and Tint at 0,
   choose Custom from the Mode pop-up with the mouse. It stays Custom, and ⌘Z returns it to As Shot. Choosing As
   Shot again leaves the sliders at 0.
 
@@ -257,6 +259,8 @@ Checks left open: P1 to P7, all of them. The owner named none as done.
 
 They stay in "For a person" above. Per `docs/WORKFLOW.md`, they also go to the standing manual-checks issue (#82)
 and are named in the pull request.
+
+**Manual checks done (2026-11-15).** The owner checked P1 to P7 by eye and reported: "Everything looks fine to my eye." No per-check results were given and no findings were reported, so nothing goes back to the engineer. The verdict above is unchanged. These checks (#161) can be cleared in the standing manual-checks issue (#82).
 
 ## Summary for the issue
 

@@ -723,10 +723,10 @@ on the frame's content (up to 0.4 EV between two frames of a scene); previews
 cached by earlier builds of this branch stay until the preview cache is
 deleted; the bundles carry no LGPL notices yet; no deflate or lossy DNGs (no
 zlib or JPEG support in LibRaw here); no decoder badge or `photocli` field says
-which decoder rendered. Shipped, checks pending: P1 to P7 (the window frame
-and corners by eye, the note's look, White Balance and Noise Reduction by
-hand, a paste from an X-T3, switching photos, Custom from the Mode pop-up) in
-#82 and `docs/features/raf-not-rendering/qa.md`.
+which decoder rendered. Shipped; the owner checked P1 to P7 (the window frame
+and corners, the note's look, White Balance and Noise Reduction by hand, a
+paste from an X-T3, switching photos, Custom from the Mode pop-up) by eye on
+2026-11-15, everything fine (#82, `docs/features/raf-not-rendering/qa.md`).
 
 About window (`docs/features/about-gus-dedication/`, issue #179, branch
 `feature/about-gus`): the app menu's About and Help ▸ About open one window of
@@ -753,12 +753,13 @@ second MIT notice and a note on three Swift.org-derived files whose Apache 2.0
 text is not reproduced: the owner's open question) and ExifTool, and the
 Credits an ExifTool line. No migration, no pipeline bump, no rendering changed.
 Known: LibRaw's View License shows its notice, not the LGPL text (RI-E1); the
-`Info.plist`s have no `NSHumanReadableCopyright`. Shipped, checks pending: P1 to
-P9 (look in light and with Increase Contrast, Keyboard Navigation, no network,
-a real link click, resizing, menus by eye, Esc, ⌘W and ⌘F with a real keyboard,
-a real ⌘Q during an export from About and with a sheet up, ⌘F on a non-Latin
-layout) in #82 and `docs/features/about-gus-dedication/qa.md`, and AC7's and
-AC13's packaging halves, which wait on #172.
+`Info.plist`s have no `NSHumanReadableCopyright`. Shipped; the owner checked P1
+to P9 (look in light and with Increase Contrast, Keyboard Navigation, no
+network, a real link click, resizing, menus by eye, Esc, ⌘W and ⌘F with a real
+keyboard, a real ⌘Q during an export from About and with a sheet up, ⌘F on a
+non-Latin layout) by eye on 2026-11-15, everything fine (#82,
+`docs/features/about-gus-dedication/qa.md`). AC7's and AC13's packaging halves
+still wait on #172.
 
 White balance and baseline look across decoders
 (`docs/features/white-balance-across-decoders/`, issue #170, covers #171,
@@ -796,13 +797,13 @@ storing the numbers shown, clamped to the sliders' ranges (DQ-1, design
 §17.1). The 150 million pixel cap is as recorded in the #161 entry. Known: one baseline
 exposure (the X-E3's) for every maker, so a Sony, Olympus or Canon raw opens
 0.25 to 0.45 EV darker than the system decoder shows it; hue/saturation and
-look tables are carried by the profile value and not applied. Shipped, checks
-pending: P1 to P10 (the X-E3 beside the X-T3 by eye, the note, White Balance
-by hand, Auto's wait, paste with real menus or keys, switching photos and
-Custom with no extra undo step, the unavailable and not-applied captions, a
-live drag with the mouse, light beyond the sliders' ends, the new look across
-a cached library) in #82 and
-`docs/features/white-balance-across-decoders/qa.md`.
+look tables are carried by the profile value and not applied. Shipped; the
+owner checked P1 to P10 (the X-E3 beside the X-T3, the note, White Balance by
+hand, Auto's wait, paste with real menus or keys, switching photos and Custom
+with no extra undo step, the unavailable and not-applied captions, a live drag
+with the mouse, light beyond the sliders' ends, the new look across a cached
+library) by eye on 2026-11-15, everything fine (#82,
+`docs/features/white-balance-across-decoders/qa.md`).
 
 Not yet: AI masks, healing, lens corrections (distortion, lens vignetting,
 profiles; only the camera's own tables in Fujifilm raws LibRaw decodes), DNG export, `.dcp` profiles
