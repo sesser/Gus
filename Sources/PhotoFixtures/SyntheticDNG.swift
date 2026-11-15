@@ -5,9 +5,60 @@ import Foundation
 /// (`CIRAWFilter` demosaic, white balance, color matrix) can be tested and
 /// profiled without real camera files.
 ///
-/// The fictitious camera has linear sRGB primaries: `ColorMatrix1` is the D65
-/// XYZ→linear-sRGB matrix and `AsShotNeutral` is (1, 1, 1).
+/// The fictitious camera has linear sRGB primaries unless `Options.color` says
+/// otherwise: `ColorMatrix1` is the D65 XYZ→linear-sRGB matrix and
+/// `AsShotNeutral` is (1, 1, 1).
 public enum SyntheticDNG {
+    /// The DNG color tags of the fictitious camera. Matrices are nine values
+    /// row by row and are written to four decimals, as are the neutral's.
+    public struct Color: Sendable {
+        /// `ColorMatrix1` (XYZ to camera) with `CalibrationIlluminant1` (an EXIF light source); nil writes neither.
+        public var matrix1: [Double]?
+        public var illuminant1: UInt16
+        /// `ColorMatrix2` with `CalibrationIlluminant2`; nil writes neither.
+        public var matrix2: [Double]?
+        public var illuminant2: UInt16
+        /// `ForwardMatrix1`, `ForwardMatrix2` (white-balanced camera to XYZ D50).
+        public var forward1: [Double]?
+        public var forward2: [Double]?
+        /// `AsShotNeutral`; nil writes none.
+        public var asShotNeutral: [Double]?
+        /// `BaselineExposure` in stops; nil writes none.
+        public var baselineExposure: Double?
+        /// `AnalogBalance`; nil writes none.
+        public var analogBalance: [Double]?
+        /// `CameraCalibration1`, `CameraCalibration2` (nine values each); nil writes none.
+        public var calibration1: [Double]?
+        public var calibration2: [Double]?
+
+        public init(matrix1: [Double]?, illuminant1: UInt16 = 21, matrix2: [Double]? = nil, illuminant2: UInt16 = 21,
+                    forward1: [Double]? = nil, forward2: [Double]? = nil, asShotNeutral: [Double]? = [1, 1, 1],
+                    baselineExposure: Double? = nil, analogBalance: [Double]? = nil,
+                    calibration1: [Double]? = nil, calibration2: [Double]? = nil) {
+            self.calibration1 = calibration1
+            self.calibration2 = calibration2
+            self.matrix1 = matrix1
+            self.illuminant1 = illuminant1
+            self.matrix2 = matrix2
+            self.illuminant2 = illuminant2
+            self.forward1 = forward1
+            self.forward2 = forward2
+            self.asShotNeutral = asShotNeutral
+            self.baselineExposure = baselineExposure
+            self.analogBalance = analogBalance
+        }
+
+        /// XYZ (D65) to linear sRGB.
+        public static let sRGBMatrix: [Double] = [
+            3.2406, -1.5372, -0.4986,
+            -0.9689, 1.8758, 0.0415,
+            0.0557, -0.2040, 1.0570,
+        ]
+
+        /// Linear sRGB primaries under D65 with a neutral as-shot white.
+        public static let sRGB = Color(matrix1: sRGBMatrix)
+    }
+
     public struct Options: Sendable {
         public var width: Int
         public var height: Int
@@ -28,10 +79,13 @@ public enum SyntheticDNG {
         /// Written as `DefaultCropOrigin` and `DefaultCropSize` (the part of the
         /// mosaic a reader should keep, in its pixels), nil for neither tag.
         public var defaultCrop: CGRect?
+        /// The camera's color tags.
+        public var color: Color
 
         public init(width: Int, height: Int, seed: UInt64, dateTimeOriginal: String? = nil, orientation: Int = 1,
                     noise: Double = 0, writesNoiseProfile: Bool = false, iso: Int? = nil, scene: Scene = .pattern,
-                    defaultCrop: CGRect? = nil) {
+                    defaultCrop: CGRect? = nil, color: Color = .sRGB) {
+            self.color = color
             self.width = width
             self.height = height
             self.seed = seed
@@ -76,17 +130,38 @@ public enum SyntheticDNG {
         }
     }
 
-    public static func write(to url: URL, options: Options) throws {
-        try data(options: options).write(to: url)
+    /// - Parameter mosaic: The mosaic to write (`mosaic(options:)` of options
+    ///   with the same size, scene, seed and noise) instead of drawing it.
+    public static func write(to url: URL, options: Options, mosaic: Data? = nil) throws {
+        try data(options: options, mosaic: mosaic).write(to: url)
     }
 
-    public static func data(options: Options) throws -> Data {
+    /// The mosaic `options` describe: the scene drawn and sampled through
+    /// the color filter array.
+    ///
+    /// The pattern and stripes scenes are drawn by Core Graphics, whose
+    /// pixels are not bit for bit the same every time when several drawings
+    /// run at once (measured: 15 to 20 of 720 concurrent drawings differed,
+    /// none of 2,000 one at a time). Files that are meant to hold one
+    /// picture (the same mosaic under another orientation, crop or color
+    /// tag) are therefore written from one mosaic, drawn once, and never by
+    /// drawing the scene again.
+    public static func mosaic(options: Options) throws -> Data {
         let width = options.width & ~1
         let height = options.height & ~1
         guard width >= 16, height >= 16,
               let scene = options.scene.image(width: width, height: height, seed: options.seed)
         else { throw CocoaError(.fileWriteInvalidFileName) }
-        let mosaic = try mosaic(scene, width: width, height: height, noise: options.noise, seed: options.seed)
+        return try mosaic(scene, width: width, height: height, noise: options.noise, seed: options.seed)
+    }
+
+    public static func data(options: Options, mosaic drawn: Data? = nil) throws -> Data {
+        let width = options.width & ~1
+        let height = options.height & ~1
+        guard width >= 16, height >= 16 else { throw CocoaError(.fileWriteInvalidFileName) }
+        let mosaic = try drawn ?? mosaic(options: options)
+        // A mosaic of another size is not this file's.
+        guard mosaic.count == width * height * 2 else { throw CocoaError(.fileWriteInvalidFileName) }
 
         var tiff = TIFFWriter()
         let date = options.dateTimeOriginal ?? "2024:01:01 00:00:00"
@@ -124,13 +199,36 @@ public enum SyntheticDNG {
             ifd.long(50719, [UInt32(crop.minX), UInt32(crop.minY)])   // DefaultCropOrigin
             ifd.long(50720, [UInt32(crop.width), UInt32(crop.height)]) // DefaultCropSize
         }
-        ifd.srational(50721, [                     // ColorMatrix1: XYZ (D65) -> camera (= linear sRGB)
-            3.2406, -1.5372, -0.4986,
-            -0.9689, 1.8758, 0.0415,
-            0.0557, -0.2040, 1.0570,
-        ])
-        ifd.rational(50728, [1, 1, 1])             // AsShotNeutral
-        ifd.short(50778, [21])                     // CalibrationIlluminant1: D65
+        let color = options.color
+        if let matrix = color.matrix1 {
+            ifd.srational(50721, matrix)           // ColorMatrix1: XYZ -> camera (linear sRGB under D65 by default)
+            ifd.short(50778, [color.illuminant1])  // CalibrationIlluminant1 (21: D65)
+        }
+        if let matrix = color.matrix2 {
+            ifd.srational(50722, matrix)           // ColorMatrix2
+            ifd.short(50779, [color.illuminant2])  // CalibrationIlluminant2
+        }
+        if let calibration = color.calibration1 {
+            ifd.srational(50723, calibration)      // CameraCalibration1
+        }
+        if let calibration = color.calibration2 {
+            ifd.srational(50724, calibration)      // CameraCalibration2
+        }
+        if let balance = color.analogBalance {
+            ifd.rational(50727, balance)           // AnalogBalance
+        }
+        if let neutral = color.asShotNeutral {
+            ifd.rational(50728, neutral)           // AsShotNeutral
+        }
+        if let exposure = color.baselineExposure {
+            ifd.srational(50730, [exposure])       // BaselineExposure
+        }
+        if let forward = color.forward1 {
+            ifd.srational(50964, forward)          // ForwardMatrix1
+        }
+        if let forward = color.forward2 {
+            ifd.srational(50965, forward)          // ForwardMatrix2
+        }
         if options.writesNoiseProfile {
             // NoiseProfile: variance = S·x + O per plane, x normalized to white.
             ifd.double(51041, [0, options.noise * options.noise])

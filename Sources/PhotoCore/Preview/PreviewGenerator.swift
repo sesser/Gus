@@ -153,12 +153,37 @@ public struct PreviewGenerator: Sendable {
         public var machineLearning: MachineLearningNoiseReduction.Outcome = .notRequested
         /// Which decoder made the image.
         public var decoder = Decoder.imageIO
+        /// LibRaw's decode before its color step, which `image` is the
+        /// result of: a caller that keeps a decode while white balance
+        /// changes keeps this, and makes each white balance's image from it.
+        public var camera: CameraDecode?
+    }
+
+    /// LibRaw's linear image and the color step that turns it into the
+    /// photo for a white balance (`CameraColorStep`).
+    public struct CameraDecode: @unchecked Sendable {
+        // @unchecked: CIImage is an immutable recipe, safe to share.
+        public var linear: CIImage
+        public var step: CameraColorStep
+
+        public init(linear: CIImage, step: CameraColorStep) {
+            self.linear = linear
+            self.step = step
+        }
+
+        /// The photo for the white balance of `settings`, over `linear` or
+        /// a copy of it the caller kept (rendered once, reduced).
+        public func image(for settings: RAWDecodeSettings, over kept: CIImage? = nil) -> CIImage {
+            step.apply(to: kept ?? linear, settings: settings)
+        }
     }
 
     public enum Decoder: Sendable, Hashable {
         /// The system's RAW decoder: the stack's decode settings are applied (`context.isRaw`).
         case systemRAW
-        /// LibRaw, for a raw the system decoder gives no image for.
+        /// LibRaw, for a raw the system decoder gives no image for: of the
+        /// stack's decode settings its color step applies the white balance
+        /// (`context.balancedByDecoder`), and nothing else.
         case libRaw
         case imageIO
     }
@@ -167,9 +192,11 @@ public struct PreviewGenerator: Sendable {
     ///
     /// RAW files go through `CIRAWFilter`, which can demosaic at a reduced scale
     /// (and in draft mode) for small targets, and applies the stack's decode
-    /// settings. A raw it gives no image for goes to LibRaw, which applies none
-    /// of them: `context.isRaw` is false for its image, as `SystemRAWDecoder.reads`
-    /// is for the file. Everything else is decoded by ImageIO, which downsamples
+    /// settings. A raw it gives no image for goes to LibRaw, whose color step
+    /// applies the settings' Kelvin and tint and none of the others:
+    /// `context.isRaw` is false for its image, as `SystemRAWDecoder.reads`
+    /// is for the file, and `context.balancedByDecoder` is true, as for any
+    /// raw. Everything else is decoded by ImageIO, which downsamples
     /// during decode when a size is given.
     ///
     /// A machine learning request that cannot apply, or whose decode gives
@@ -195,7 +222,7 @@ public struct PreviewGenerator: Sendable {
         if isRaw, let decoded = rawImage(settings: settings, system: {
             decodeRAW(url, longEdge: longEdge, draft: draft, extendedRange: extendedRange, settings: $0)
         }, libRaw: {
-            decodeWithLibRaw(url, longEdge: longEdge)
+            decodeWithLibRaw(url, longEdge: longEdge, settings: settings)
         }, droppedChoices: {
             log.error("\(url.lastPathComponent, privacy: .private): no image for the stack's decoder choices; decoded without them")
         }) {
@@ -215,10 +242,10 @@ public struct PreviewGenerator: Sendable {
     ///    LibRaw, whose image the editor would offer a raw's controls for;
     /// 3. LibRaw's, for a raw the system decoder gives no image for
     ///    (lossless-compressed Fujifilm X-E3 files on macOS 27.2.1, issue
-    ///    #161), and only then: it is far slower. Its image takes none of the
-    ///    stack's decode settings, so it is a rendered image (`isRaw` false):
-    ///    the renderer applies relative white balance and its own noise
-    ///    reduction to it.
+    ///    #161), and only then: it is far slower. Of the stack's decode
+    ///    settings its image takes the Kelvin and tint, in the color step
+    ///    after the decode (`CameraColorStep`, issue #170), and no other
+    ///    (`isRaw` false): the renderer applies its own noise reduction.
     ///
     /// Nil when neither has one (ImageIO is tried next).
     static func rawImage<Image>(settings: RAWDecodeSettings, system: (RAWDecodeSettings) -> Image?,
@@ -233,16 +260,23 @@ public struct PreviewGenerator: Sendable {
 
     private static let log = Logger(subsystem: AppBranding.bundleIdentifier, category: "decode")
 
-    /// LibRaw's decode, at half size when the target is at most half the frame.
-    /// Nil when LibRaw cannot decode the file either; its reason is logged, since
+    /// LibRaw's decode, at half size when the target is at most half the
+    /// frame, through its color step for the settings' white balance. Nil
+    /// when LibRaw cannot decode the file either; its reason is logged, since
     /// the caller then reports only that the file is undecodable.
-    private static func decodeWithLibRaw(_ url: URL, longEdge: Int?) -> Decoded? {
+    ///
+    /// The step's profile is the built-in one. A stack's profile reference
+    /// (`Adjustments.cameraProfile`) would be resolved here and given to the
+    /// step with `CameraColor.with(profile:)` (#89); no build has profiles
+    /// to resolve yet, so every reference renders with the built-in profile.
+    private static func decodeWithLibRaw(_ url: URL, longEdge: Int?, settings: RAWDecodeSettings) -> Decoded? {
         do {
             let output = try LibRawDecoder.decode(url, longEdge: longEdge)
-            guard !output.image.extent.isEmpty else { return nil }
-            return Decoded(image: output.image,
-                           context: RenderContext(scale: Self.scale(of: output.image, native: output.fullSize), isRaw: false),
-                           decoder: .libRaw)
+            guard !output.linear.extent.isEmpty else { return nil }
+            return Decoded(image: output.step.apply(to: output.linear, settings: settings),
+                           context: RenderContext(scale: Self.scale(of: output.linear, native: output.fullSize),
+                                                  isRaw: false, balancedByDecoder: true),
+                           decoder: .libRaw, camera: CameraDecode(linear: output.linear, step: output.step))
         } catch {
             log.error("\(url.lastPathComponent, privacy: .private): no image from the system RAW decoder, and \(String(describing: error), privacy: .public)")
             return nil
@@ -281,7 +315,7 @@ public struct PreviewGenerator: Sendable {
             // (`RAWDecodeGraph`).
             if let output = RAWDecodeGraph.output(of: raw), !output.extent.isEmpty {
                 return Decoded(image: output, context: RenderContext(scale: Self.scale(of: output, native: native),
-                                                                     isRaw: true,
+                                                                     isRaw: true, balancedByDecoder: true,
                                                                      cameraFrame: wholeSensor == nil ? nil : CameraFrame.rect(of: url)),
                                machineLearning: outcome, decoder: .systemRAW)
             }

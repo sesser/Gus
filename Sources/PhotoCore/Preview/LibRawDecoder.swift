@@ -8,16 +8,25 @@ import os
 /// `PreviewGenerator.decode` falls back to it) and for comparing the two
 /// decoders (`photobench rawcompare`).
 ///
-/// It demosaics to linear Rec. 2020 with the camera's white balance, no
-/// automatic brightening and no tone curve, oriented, 16 bits a channel, and
-/// crops to the frame the file records (`Frame`). It takes none of the stack's
-/// decode settings: its image is a rendered image, like a JPEG's
-/// (`SystemRAWDecoder`).
+/// It demosaics to linear camera RGB, balanced for the camera's own white
+/// but not clipped at it, with no color matrix, no automatic brightening and
+/// no tone curve, oriented, 16 bits a channel, and crops to the frame the
+/// file records (`Frame`). The color step that follows (`CameraColorStep`:
+/// white balance for the stack's Kelvin and tint, the camera's matrix, the
+/// baseline look) turns that into the working space, so another white
+/// balance never needs another decode (issue #170). A file whose color data
+/// cannot be used (no matrix for the camera, no white balance coefficients,
+/// a sensor that is not three colors) is rendered by LibRaw itself, to
+/// linear Rec. 2020 with the camera's white balance, and gets the baseline
+/// look only (`CameraColorStep.color` nil).
 ///
-/// LibRaw's defaults are otherwise kept. One of them makes a decode's level
-/// depend on its content: when the brightest value in the frame is over three
-/// quarters of the file's white level, that value becomes white
-/// (`adjust_maximum_thr`, against color casts in clipped highlights).
+/// **The white level is the file's.** LibRaw's default takes the brightest
+/// value in the frame as white when it is over three quarters of the file's
+/// white level (`adjust_maximum_thr`), which made two frames of one scene
+/// differ by up to 0.4 EV; that is turned off, so a decode's level never
+/// depends on its content. The default exists for sensors that saturate
+/// below the level their files state, whose blown highlights would
+/// otherwise keep a cast: `whiteMargin` covers what was measured here.
 ///
 /// Each call has a LibRaw instance of its own and LibRaw is built thread-safe
 /// (without `LIBRAW_NOTHREADS`), so decodes may run at the same time.
@@ -25,7 +34,13 @@ public enum LibRawDecoder {
     private static let log = Logger(subsystem: AppBranding.bundleIdentifier, category: "decode")
 
     public struct Output {
-        public var image: CIImage
+        /// The decode before its color step, cut to the frame and with the
+        /// camera's lens corrections: camera RGB when `step.color` is set,
+        /// else the working space. Its pixels pass through Core Image
+        /// unconverted (it is tagged as the working space either way).
+        public var linear: CIImage
+        /// What turns `linear` into the photo.
+        public var step: CameraColorStep
         /// LibRaw's own pixels (before a Fujifilm RAF's frame is cut from them
         /// and its lens corrections applied): red, green, blue and alpha, 16
         /// bits each in host order, rows from the top.
@@ -38,7 +53,24 @@ public enum LibRawDecoder {
         public var cameraModel: String
         /// The camera's lens corrections were read from the file and applied.
         public var hasLensCorrections = false
+
+        /// The photo in the working space, with the camera's own white
+        /// balance or the one given.
+        public func image(whiteBalance: ColorTemperature? = nil) -> CIImage {
+            step.apply(to: linear, temperature: whiteBalance?.kelvin, tint: whiteBalance?.tint)
+        }
     }
+
+    /// The part of the file's white level at which a channel counts as
+    /// saturated. The sensors measured saturate a little under the level
+    /// their files state (54 Fujifilm X-E3 files: their clipped areas peak
+    /// at 16322 to 16383 of 16383 over a black of about 1022, so at 0.996
+    /// and up; an X-T3, a Sony, an Olympus and a Panasonic at 0.999 and up),
+    /// and a channel clipped just under white would leave blown highlights
+    /// with a faint cast. At 0.99 every one of them is white, for 0.015 EV
+    /// of highlight range. A sensor that saturates further below its file's
+    /// white level than that keeps a cast in blown highlights (none here).
+    static let whiteMargin = 0.99
 
     public enum Failure: Error, CustomStringConvertible {
         case libraw(String, code: Int32)
@@ -242,6 +274,126 @@ public enum LibRawDecoder {
         return sizes.iwidth > 0 && sizes.iheight > 0 ? CGSize(width: Int(sizes.iwidth), height: Int(sizes.iheight)) : nil
     }
 
+    /// The camera's color as the file's header gives it (nothing is
+    /// unpacked, about 1 ms), or nil when LibRaw cannot read the file or its
+    /// color data cannot be used: the as-shot Kelvin and tint the White
+    /// Balance group shows before any decode, and whether it can offer any.
+    public static func cameraColor(_ url: URL) -> CameraColor? {
+        guard let processor = libraw_init(0) else { return nil }
+        defer { libraw_close(processor) }
+        guard libraw_open_file(processor, url.path) == LIBRAW_SUCCESS.rawValue else { return nil }
+        return cameraColor(of: processor)
+    }
+
+    /// The camera's color of an opened file, with the built-in profile:
+    ///
+    /// - the as-shot neutral is the reciprocal of the camera's white balance
+    ///   coefficients (LibRaw's `cam_mul`, which for a DNG are the
+    ///   reciprocal of `AsShotNeutral`);
+    /// - a DNG brings its own color matrices with their illuminants, its
+    ///   forward matrices, camera calibration, analog balance and baseline
+    ///   exposure; any other file has LibRaw's matrix for the camera, which
+    ///   is for D65 (Adobe's second matrix, as dcraw's table has it).
+    ///
+    /// Nil for a sensor that is not three colors, a file whose white balance
+    /// the camera already applied (LibRaw's `as_shot_wb_applied`), one
+    /// without coefficients or without a matrix, and color data that gives
+    /// no white point.
+    static func cameraColor(of processor: UnsafeMutablePointer<libraw_data_t>) -> CameraColor? {
+        guard processor.pointee.idata.colors == 3, processor.pointee.color.as_shot_wb_applied == 0 else { return nil }
+        let multipliers = processor.pointee.color.cam_mul
+        let coefficients = SIMD3(Double(multipliers.0), Double(multipliers.1), Double(multipliers.2))
+        guard coefficients.min() > 1e-5, coefficients.max().isFinite else { return nil }
+        var calibrations: [CameraProfile.Calibration] = []
+        var cameraCalibration: [Matrix3x3] = []
+        if processor.pointee.idata.dng_version != 0 {
+            let levels = processor.pointee.color.dng_levels
+            let balance = Matrix3x3.diagonal(SIMD3(Double(levels.analogbalance.0), Double(levels.analogbalance.1),
+                                                   Double(levels.analogbalance.2)))
+            for color in [processor.pointee.color.dng_color.0, processor.pointee.color.dng_color.1] {
+                let m = color.colormatrix
+                let matrix = Matrix3x3([m.0.0, m.0.1, m.0.2, m.1.0, m.1.1, m.1.2, m.2.0, m.2.1, m.2.2].map(Double.init))
+                guard let kelvin = CameraProfile.kelvin(ofLightSource: Int(color.illuminant)), matrix.inverse != nil else { continue }
+                let f = color.forwardmatrix
+                let forward = Matrix3x3([f.0.0, f.0.1, f.0.2, f.1.0, f.1.1, f.1.2, f.2.0, f.2.1, f.2.2].map(Double.init))
+                let c = color.calibration
+                let calibration = Matrix3x3([c.0.0, c.0.1, c.0.2, c.1.0, c.1.1, c.1.2, c.2.0, c.2.1, c.2.2].map(Double.init))
+                calibrations.append(.init(illuminant: kelvin, colorMatrix: matrix,
+                                          forwardMatrix: forward.inverse != nil ? forward : nil))
+                // A file without the tag leaves LibRaw's matrix at zero: identity.
+                cameraCalibration.append(balance * (calibration.inverse != nil ? calibration : .identity))
+            }
+            // The profile sorts its calibrations by temperature; keep each camera calibration with its own.
+            if calibrations.count == 2, calibrations[0].illuminant > calibrations[1].illuminant {
+                cameraCalibration.swapAt(0, 1)
+            }
+        }
+        if calibrations.isEmpty {
+            let m = processor.pointee.color.cam_xyz
+            let matrix = Matrix3x3([m.0.0, m.0.1, m.0.2, m.1.0, m.1.1, m.1.2, m.2.0, m.2.1, m.2.2].map(Double.init))
+            guard matrix.inverse != nil else { return nil }
+            calibrations = [.init(illuminant: 6500, colorMatrix: matrix)]
+            cameraCalibration = []
+        }
+        let color = CameraColor(profile: .builtIn(calibrations: calibrations), asShotNeutral: SIMD3(1, 1, 1) / coefficients,
+                                calibration: cameraCalibration, baselineExposure: fileExposure(of: processor))
+        return color.isUsable ? color : nil
+    }
+
+    /// The exposure the file itself asks for on top of the look's, in
+    /// stops: what a Fujifilm camera held back (`fujifilmExposureBias`), or a
+    /// DNG's `BaselineExposure`; 0 for a file that states neither. It does
+    /// not depend on the file's color data: a file whose color cannot be
+    /// used keeps it (`CameraColorStep.fileExposure`).
+    static func fileExposure(of processor: UnsafeMutablePointer<libraw_data_t>) -> Double {
+        if let held = fujifilmExposureBias(of: processor) { return held }
+        guard processor.pointee.idata.dng_version != 0 else { return 0 }
+        return dngExposure(baselineExposure: Double(processor.pointee.color.dng_levels.baseline_exposure)) ?? 0
+    }
+
+    /// A DNG's `BaselineExposure` as far as it is used: nil for a value
+    /// that is not finite or beyond `dngExposureLimit` stops either way,
+    /// LibRaw's −999 for "not in the file" among them. The value is a
+    /// file's: 5000 stops would be a factor of infinity and a frame of
+    /// values that are not numbers (code review C6). Such a file renders
+    /// without it.
+    static func dngExposure(baselineExposure value: Double) -> Double? {
+        value.isFinite && abs(value) <= dngExposureLimit ? value : nil
+    }
+
+    /// Stops. Adobe's converter writes values within about −1 … 2; four
+    /// either way is a factor of 16.
+    static let dngExposureLimit = 4.0
+
+    /// The exposure a Fujifilm camera held back from the raw data, in stops
+    /// over its normal amount; nil for other makers' files and for a file
+    /// that does not say.
+    ///
+    /// A RAF records how far below the camera's nominal exposure its raw
+    /// data sits (`RawExposureBias` in ExifTool's naming, LibRaw's
+    /// `ExpoMidPointShift`): −0.72 normally, −1.72 when the camera's dynamic
+    /// range setting was 200% and −2.72 at 400%, where it exposes the
+    /// sensor one or two stops less and brightens its own JPEG back. The
+    /// system decoder brightens such raws by the same amount: for six X-T3
+    /// files its `baselineExposure` was 0.12 at −0.72 and 1.12 at −1.72.
+    /// `BaselineLook.exposure` was measured on a file at −0.72, so this is
+    /// what a file adds to it.
+    static func fujifilmExposureBias(of processor: UnsafeMutablePointer<libraw_data_t>) -> Double? {
+        guard processor.pointee.idata.maker_index == LIBRAW_CAMERAMAKER_Fujifilm.rawValue else { return nil }
+        return fujifilmExposure(rawExposureBias: Double(processor.pointee.makernotes.fuji.ExpoMidPointShift))
+    }
+
+    /// The stops a Fujifilm raw with this `RawExposureBias` adds to the
+    /// baseline. LibRaw's value for "not in the file" is −999; nothing a
+    /// camera writes is outside −4 … 0, and such a value adds nothing.
+    static func fujifilmExposure(rawExposureBias shift: Double) -> Double? {
+        guard shift.isFinite, (-4.0...0.0).contains(shift) else { return nil }
+        return max(0, fujifilmNormalExposureBias - shift)
+    }
+
+    /// `RawExposureBias` of a Fujifilm raw shot at 100% dynamic range.
+    static let fujifilmNormalExposureBias = -0.72
+
     /// The raw's decode. `halfSize` asks for a binned decode whatever the
     /// target; otherwise `longEdge` decides (`usesHalfSize`).
     ///
@@ -254,12 +406,12 @@ public enum LibRawDecoder {
         guard let processor = libraw_init(0) else { throw Failure.noMemory }
         defer { libraw_close(processor) }
         libraw_set_output_bps(processor, 16)
-        // Rec. 2020 primaries, linear (gamma 1/1), as the working space.
-        libraw_set_output_color(processor, 8)
+        // Linear (gamma 1/1).
         libraw_set_gamma(processor, 0, 1)
         libraw_set_gamma(processor, 1, 1)
         libraw_set_no_auto_bright(processor, 1)
-        processor.pointee.params.use_camera_wb = 1
+        // White is the file's white level, whatever the frame holds.
+        libraw_set_adjust_maximum_thr(processor, 0)
 
         var code = libraw_open_file(processor, url.path)
         guard code == LIBRAW_SUCCESS.rawValue else { throw Failure.libraw("open", code: code) }
@@ -273,6 +425,27 @@ public enum LibRawDecoder {
         }
         let half = halfSize || usesHalfSize(longEdge: longEdge, frameLongEdge: frame.longEdge)
         processor.pointee.params.half_size = half ? 1 : 0
+        let color = cameraColor(of: processor)
+        var channelScale = SIMD3<Double>(1, 1, 1)
+        if let color {
+            // Camera RGB: no color matrix. Balanced for the camera's white with our own
+            // multipliers (the reciprocal of the neutral the color step works from), the
+            // largest 1, so no channel is clipped below its saturation (LibRaw's highlight
+            // mode 1): the color step clips, at white, after its own white balance.
+            libraw_set_output_color(processor, 0)
+            processor.pointee.params.highlight = 1
+            processor.pointee.params.use_camera_wb = 0
+            processor.pointee.params.use_auto_wb = 0
+            let multipliers = color.asShotNeutral.min() / color.asShotNeutral
+            processor.pointee.params.user_mul = (Float(multipliers.x), Float(multipliers.y), Float(multipliers.z),
+                                                 Float(multipliers.y))
+            channelScale = multipliers * whiteMargin
+        } else {
+            // Rec. 2020 primaries, as the working space, with the camera's white balance, clipped at white.
+            libraw_set_output_color(processor, 8)
+            processor.pointee.params.use_camera_wb = 1
+            log.notice("\(url.lastPathComponent, privacy: .private): no usable camera color data; white balance cannot be changed")
+        }
         code = libraw_unpack(processor)
         guard code == LIBRAW_SUCCESS.rawValue else { throw Failure.libraw("unpack", code: code) }
         code = libraw_dcraw_process(processor)
@@ -314,7 +487,9 @@ public enum LibRawDecoder {
         let decoded = CGSize(width: width, height: height)
         let framed = framed(image, size: decoded, frame: frame,
                             tables: lensCorrections ? lensTables(camera, frame: frame, file: url.lastPathComponent) : nil)
-        return Output(image: framed.image, rgba16: rgba, size: framed.size,
+        let step = CameraColorStep(color: color, channelScale: channelScale, fileExposure: fileExposure(of: processor))
+        return Output(linear: framed.image, step: step,
+                      rgba16: rgba, size: framed.size,
                       fullSize: framed.fullSize ?? (half ? CGSize(width: width * 2, height: height * 2) : decoded),
                       cameraMake: make, cameraModel: model, hasLensCorrections: framed.corrected)
     }

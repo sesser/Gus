@@ -82,11 +82,14 @@ I built this with Claude. AI did the work, I did the orchestration.
 - RAW files from the same camera come out the same whatever you looked at
   before them: no more smeared left and right edges on some photos
 - Raw files macOS can't decode (some Fujifilm X-E3 files on macOS 27.2) now
-  show up and can be edited and exported. They look flatter than ones macOS
-  decodes, with relative white balance and no raw profile. For Fujifilm files
-  Gus uses the camera's own frame and the lens corrections stored in the file
-  (distortion, color fringing, corner shading); it is about 9 s to sharpen
-  such a photo at 100%
+  show up and can be edited and exported. They get the same White Balance as
+  any raw (the nine modes, Kelvin, Tint and Auto) and a built-in profile and
+  baseline look measured against macOS's, so an unedited one comes out close
+  to a raw macOS decodes. A Kelvin value can read a little differently
+  between the two decoders for the same camera (Fujifilm X-T3 files read
+  14% to 30% lower). For Fujifilm files Gus uses the camera's own frame and
+  the lens corrections stored in the file (distortion, color fringing, corner
+  shading); it is about 9 s to sharpen such a photo at 100%
 - Before/after, copy and paste, and presets, including import of Lightroom
   presets (`.lrtemplate`, `.xmp`, `.dng`) with a report of anything that
   doesn't carry over
@@ -188,7 +191,7 @@ macOS raw decoder can't.
 
 | Path | Contents |
 |---|---|
-| `Sources/PhotoCore` | Catalog (GRDB), import, metadata, edits, masks and rendering, presets, previews, sidecars, export |
+| `Sources/PhotoCore` | Catalog (GRDB), import, metadata, edits, masks and rendering, camera color (`CameraColor/`), presets, previews, sidecars, export |
 | `Sources/PhotoUI` | UI shared by both apps: the import window, the About window, grid pieces, palette, String Catalog |
 | `Sources/PhotoApp` | The library app: window and toolbar, grid, loupe, inspector, sidebar, sheets |
 | `Sources/PhotoImporter` | The standalone importer |

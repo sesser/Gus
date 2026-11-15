@@ -288,40 +288,46 @@ private struct DevelopControls: View {
         }
     }
 
+    /// The White Balance group (white-balance-across-decoders design §2, §4 to §6):
+    /// a raw by either decoder has the nine modes with Kelvin and tint, a file
+    /// that is not a raw three modes with relative values, and a raw whose color
+    /// data the app's decoder can't use a pop-up and a caption that say so.
     @ViewBuilder
     private var whiteBalance: some View {
         let balance = editor.adjustments.whiteBalance
-        let presets = editor.isRaw ? WhiteBalance.Preset.allCases : WhiteBalance.Preset.relativePresets
-        LabeledPopUp(title: String(localized: "Mode", comment: "White balance: As Shot, Auto, Daylight…")) {
-            // The mode that renders: a pasted Daylight or Kelvin Custom changes nothing on a
-            // file that is not decoded as a raw, and is not among its modes.
-            AppKitPopUp(items: presets.map { .init(title: Self.presetTitle($0), tag: $0.rawValue) },
-                        selection: (editor.isRaw ? balance.preset : balance.relativeDisplayPreset).rawValue,
-                        isEnabled: !editor.isMeasuring) { tag in
-                pick(WhiteBalance.Preset(rawValue: tag) ?? .asShot)
-            }
+        let controls = editor.whiteBalanceControls
+        switch controls.mode(for: balance) {
+        case .offered(let presets, let selected):
+            // The mode that renders (`kelvinDisplayPreset`, `relativeDisplayPreset`), never rewritten.
+            modePopUp(presets, selected: selected, isEnabled: !editor.isMeasuring)
+        case .unavailable:
+            modePopUp([.asShot], selected: .asShot, isEnabled: false, help: WhiteBalanceText.unavailable)
+            whiteBalanceCaption(WhiteBalanceText.unavailable, showsTriangle: false)
+        case .notApplied(let stored):
+            // The stored setting can be seen and removed, nothing else: no other mode would show.
+            modePopUp([.asShot, stored], selected: stored, isEnabled: true, help: WhiteBalanceText.notApplied)
+            whiteBalanceCaption(WhiteBalanceText.notApplied, showsTriangle: true)
         }
-        if editor.isRaw {
-            let defaults = editor.rawDefaults
-            AdjustSlider(title: String(localized: "Temperature"),
-                         value: balance.temperature ?? defaults?.temperature ?? 5500,
-                         range: WhiteBalance.temperatureRange, defaultValue: defaults?.temperature ?? 5500,
+        switch controls {
+        case .kelvin(let asShot):
+            AdjustSlider(title: String(localized: "Temperature"), value: balance.temperature ?? asShot.kelvin,
+                         range: WhiteBalance.temperatureRange, defaultValue: asShot.kelvin,
                          format: .kelvin, scale: .reciprocal) { value, phase in
                 editor.change(String(localized: "Temperature"), phase: phase) {
                     $0.whiteBalance.temperature = value
-                    $0.whiteBalance.tint = $0.whiteBalance.tint ?? defaults?.tint
+                    $0.whiteBalance.tint = $0.whiteBalance.tint ?? asShot.tint
                     $0.whiteBalance.preset = .custom
                 }
             }
-            AdjustSlider(title: String(localized: "Tint"), value: balance.tint ?? defaults?.tint ?? 0,
-                         range: WhiteBalance.tintRange, defaultValue: defaults?.tint ?? 0) { value, phase in
+            AdjustSlider(title: String(localized: "Tint"), value: balance.tint ?? asShot.tint,
+                         range: WhiteBalance.tintRange, defaultValue: asShot.tint) { value, phase in
                 editor.change(String(localized: "Tint"), phase: phase) {
                     $0.whiteBalance.tint = value
-                    $0.whiteBalance.temperature = $0.whiteBalance.temperature ?? defaults?.temperature
+                    $0.whiteBalance.temperature = $0.whiteBalance.temperature ?? asShot.kelvin
                     $0.whiteBalance.preset = .custom
                 }
             }
-        } else {
+        case .relative:
             AdjustSlider(title: String(localized: "Temperature"), value: balance.relativeTemperature,
                          range: -100...100, defaultValue: 0) { value, phase in
                 editor.change(String(localized: "Temperature"), phase: phase) {
@@ -336,21 +342,53 @@ private struct DevelopControls: View {
                     $0.whiteBalance.preset = .custom
                 }
             }
+        case .unavailable:
+            // No sliders: there is no Kelvin to show, and a made-up one would be false (design §6).
+            EmptyView()
         }
     }
 
-    private func pick(_ preset: WhiteBalance.Preset) {
-        let name = String(localized: "White Balance")
-        switch preset {
-        case .auto:
-            editor.autoWhiteBalance()
-        case .asShot:
-            editor.change(name, phase: .committed) { $0.whiteBalance = WhiteBalance() }
-        case .custom:
-            editor.change(name, phase: .committed) { $0.whiteBalance.preset = .custom }
-        default:
-            editor.change(name, phase: .committed) { $0.whiteBalance = .raw(preset) }
+    private func modePopUp(_ presets: [WhiteBalance.Preset], selected: WhiteBalance.Preset, isEnabled: Bool,
+                           help: String? = nil) -> some View {
+        LabeledPopUp(title: String(localized: "Mode", comment: "White balance: As Shot, Auto, Daylight…")) {
+            AppKitPopUp(items: presets.map { .init(title: Self.presetTitle($0), tag: $0.rawValue) },
+                        selection: selected.rawValue, isEnabled: isEnabled, help: help) { tag in
+                pick(WhiteBalance.Preset(rawValue: tag) ?? .asShot)
+            }
+            // SwiftUI sets a hosted control's enabled state from its environment too.
+            .disabled(!isEnabled)
         }
+    }
+
+    /// Under the Mode pop-up, from its leading edge, the stack's spacing
+    /// below it (2 points, as the machine learning caption under its check
+    /// box): that caption's style and, for a setting that is not applied,
+    /// its triangle.
+    private func whiteBalanceCaption(_ text: String, showsTriangle: Bool) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
+            if showsTriangle {
+                Image(systemName: "exclamationmark.triangle")
+                    .foregroundStyle(.orange)
+                    .accessibilityHidden(true)
+            }
+            Text(text)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .padding(.leading, InspectorMetrics.labelWidth + InspectorMetrics.gap)
+        .padding(.bottom, 2)
+    }
+
+    private func pick(_ preset: WhiteBalance.Preset) {
+        let controls = editor.whiteBalanceControls
+        if preset == .auto, controls != .unavailable {
+            editor.autoWhiteBalance()
+            return
+        }
+        // Nil: the stored mode of a setting that is not applied was chosen again.
+        guard let picked = controls.picking(preset, from: editor.adjustments.whiteBalance) else { return }
+        editor.change(String(localized: "White Balance"), phase: .committed) { $0.whiteBalance = picked }
     }
 }
 

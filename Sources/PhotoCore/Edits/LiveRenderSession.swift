@@ -9,6 +9,10 @@ import Synchronization
 /// only costs the adjustments. Changing a decode setting (white balance, look or
 /// noise reduction of a RAW file) decodes again, at half size in draft mode while
 /// a control is being dragged.
+///
+/// A raw LibRaw decodes is kept before its color step (camera RGB), and every
+/// frame applies the step for its own white balance, so no setting of such a
+/// photo ever decodes again (`PreviewGenerator.Decoded.camera`).
 public actor LiveRenderSession {
     /// What a frame shows.
     public enum Content: Sendable, Equatable {
@@ -76,7 +80,7 @@ public actor LiveRenderSession {
     private var baseOrder: [BaseKey] = []
     /// The master's size, read once a crop needs it.
     private var nativeSize: CGSize??
-    /// Whether the stack's decode settings reach this master's decode: for a
+    /// Whether the stack's decode settings key this master's decode: for a
     /// raw LibRaw decodes they do not, so changing one never decodes again.
     private var decoder: SystemRAWDecoder.Memo
     /// How many times the master was decoded: for tests.
@@ -104,7 +108,24 @@ public actor LiveRenderSession {
         /// Distinguishes decodes, so the stage caches never mix two.
         var serial = 0
         var machineLearning = MachineLearningNoiseReduction.Outcome.notRequested
+        /// Set when `image` is LibRaw's decode before its color step: each frame applies it.
+        var colorStep: CameraColorStep?
         var longEdge: Int { max(image.width, image.height) }
+    }
+
+    /// The image a frame's adjustments start from: the base, reduced for a
+    /// draft, through LibRaw's color step for the frame's white balance
+    /// where the base is kept before it.
+    private func source(of base: Base, level: Int, settings: RAWDecodeSettings) throws -> (CIImage, RenderContext) {
+        var source = CIImage(cgImage: base.image)
+        var context = base.context
+        if level > 0 {
+            (source, context) = try draft(of: base, key: "\(base.serial)", factor: Self.draftScales[level])
+        }
+        if let step = base.colorStep {
+            source = step.apply(to: source, settings: settings)
+        }
+        return (source, context)
     }
 
     // MARK: Stages
@@ -259,17 +280,14 @@ public actor LiveRenderSession {
         let factor = Self.draftScales[level]
         let stack = adjustments.editStack
         let renderer = generator.renderer
-        let settings = decoder.decodeSettings(renderer.decodeSettings(for: stack))
-        let base = try self.base(for: BaseKey(settings: settings, draft: interactive,
+        let wanted = renderer.decodeSettings(for: stack)
+        let base = try self.base(for: BaseKey(settings: decoder.decodeKey(wanted), draft: interactive,
                                               longEdge: decodeLongEdge(renderer.geometry(for: stack))))
         // The decode itself identifies what the stages start from: a draft
-        // decode request served by the full decode shares its caches.
+        // decode request served by the full decode shares its caches. (The
+        // stages' own key holds the stack, and so a LibRaw photo's white balance.)
         let baseKey = "\(base.serial)"
-        var source = CIImage(cgImage: base.image)
-        var context = base.context
-        if level > 0 {
-            (source, context) = try draft(of: base, key: baseKey, factor: factor)
-        }
+        let (source, context) = try source(of: base, level: level, settings: wanted)
         var image: CIImage
         if content == .fringeMap {
             // The fringe map needs only the decoded image (chromatic-aberration design §6).
@@ -341,10 +359,11 @@ public actor LiveRenderSession {
     func linearFrame(_ adjustments: Adjustments) throws -> CGImage {
         let stack = adjustments.editStack
         let renderer = generator.renderer
-        let settings = decoder.decodeSettings(renderer.decodeSettings(for: stack))
-        let base = try self.base(for: BaseKey(settings: settings, draft: false,
+        let wanted = renderer.decodeSettings(for: stack)
+        let base = try self.base(for: BaseKey(settings: decoder.decodeKey(wanted), draft: false,
                                               longEdge: decodeLongEdge(renderer.geometry(for: stack))))
-        let image = try linear(adjustments, source: CIImage(cgImage: base.image), context: base.context, level: 0,
+        let (source, context) = try source(of: base, level: 0, settings: wanted)
+        let image = try linear(adjustments, source: source, context: context, level: 0,
                                baseKey: "\(base.serial)", cancellation: nil)
         guard let rendered = generator.engine.withContext({
             $0.createCGImage(image, from: image.extent, format: .RGBAf, colorSpace: RenderEngine.workingColorSpace)
@@ -365,16 +384,12 @@ public actor LiveRenderSession {
         // Where the mask sits among the rendered ones (a mask with no values yet renders nothing).
         let index = values.local.masks.prefix { $0.id != id }.filter { rendered.contains($0) }.count
         let stack = adjustments.editStack
-        let settings = decoder.decodeSettings(renderer.decodeSettings(for: stack))
-        let base = try self.base(for: BaseKey(settings: settings, draft: false,
+        let wanted = renderer.decodeSettings(for: stack)
+        let base = try self.base(for: BaseKey(settings: decoder.decodeKey(wanted), draft: false,
                                               longEdge: decodeLongEdge(renderer.geometry(for: stack))))
         let level = allowsDrafts ? draftLevel : 0
         let baseKey = "\(base.serial)"
-        var input = CIImage(cgImage: base.image)
-        var context = base.context
-        if level > 0 {
-            (input, context) = try draft(of: base, key: baseKey, factor: Self.draftScales[level])
-        }
+        let (input, context) = try source(of: base, level: level, settings: wanted)
         stages = stageCaches[level] ?? StageCache()
         defer { stageCaches[level] = stages }
         _ = try staged(adjustments, renderer: renderer, source: input, context: context, baseKey: baseKey,
@@ -493,15 +508,17 @@ public actor LiveRenderSession {
         // Kept by what made it, whatever was expected of the file.
         learn(from: decoded)
         key = decodeKey(request)
-        let extent = decoded.image.extent.integral
+        // LibRaw's decode is kept before its color step, which each frame applies for its white balance.
+        let kept = decoded.camera?.linear ?? decoded.image
+        let extent = kept.extent.integral
         guard !extent.isInfinite,
               let image = generator.engine.withContext({
-                  $0.createCGImage(decoded.image, from: extent, format: .RGBAh, colorSpace: RenderEngine.workingColorSpace)
+                  $0.createCGImage(kept, from: extent, format: .RGBAh, colorSpace: RenderEngine.workingColorSpace)
               })
         else { throw PreviewGenerator.Failure.renderFailed }
         nextSerial += 1
         return touch(key, Base(image: image, context: decoded.context, serial: nextSerial,
-                               machineLearning: decoded.machineLearning))
+                               machineLearning: decoded.machineLearning, colorStep: decoded.camera?.step))
     }
 
     /// Keeps the three most recently used bases (current settings, the original,

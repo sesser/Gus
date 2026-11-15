@@ -66,6 +66,13 @@ public actor LiveRegionRenderer {
         /// Keeps the texture the image reads for as long as it is shown.
         var texture: any MTLTexture
         var machineLearning: MachineLearningNoiseReduction.Outcome
+        /// Set when the texture holds LibRaw's decode before its color step: each frame applies it.
+        var colorStep: CameraColorStep?
+
+        /// The image a frame's adjustments start from, for the frame's white balance.
+        func source(for wanted: RAWDecodeSettings) -> CIImage {
+            colorStep.map { $0.apply(to: image, settings: wanted) } ?? image
+        }
     }
 
     /// - Parameters:
@@ -78,11 +85,13 @@ public actor LiveRegionRenderer {
         self.decoder = SystemRAWDecoder.Memo(source, known: systemDecodesRaw)
     }
 
-    /// The decode settings that reach this master's decode: none for a file
-    /// the system RAW decoder does not read (a raw LibRaw decodes among
-    /// them), so no change of values asks for the same decode again.
+    /// The decode settings a decode of this master is held for: none for a
+    /// file the system RAW decoder does not read, so no change of values
+    /// asks for the same decode again. A raw LibRaw decodes among them: its
+    /// texture holds the decode before the color step, and each frame
+    /// applies the step for its own white balance.
     private func settings(for values: Adjustments) -> RAWDecodeSettings {
-        decoder.decodeSettings(generator.renderer.decodeSettings(for: values.editStack))
+        decoder.decodeKey(generator.renderer.decodeSettings(for: values.editStack))
     }
 
     /// Whether `render` can draw `values` now, without a decode.
@@ -153,13 +162,14 @@ public actor LiveRegionRenderer {
                                cancellation: RenderCancellation?) throws -> Base {
         let decoded = try PreviewGenerator.decode(source, longEdge: nil, draft: false, settings: settings)
         try cancellation?.check()
-        let extent = decoded.image.extent.integral
+        let kept = decoded.camera?.linear ?? decoded.image
+        let extent = kept.extent.integral
         guard extent.width <= Double(Self.maximumTextureDimension), extent.height <= Double(Self.maximumTextureDimension) else {
             throw Failure.tooLarge
         }
-        let (image, texture) = try materialize(decoded.image, extent: extent, generator: generator)
+        let (image, texture) = try materialize(kept, extent: extent, generator: generator)
         return Base(settings: settings, image: image, context: decoded.context, texture: texture,
-                    machineLearning: decoded.machineLearning)
+                    machineLearning: decoded.machineLearning, colorStep: decoded.camera?.step)
     }
 
     /// Renders `image` over `extent` into a GPU-private half-float texture
@@ -217,12 +227,13 @@ public actor LiveRegionRenderer {
         let started = clock.now
         try cancellation?.check()
         guard let base, base.settings == settings(for: values) else { throw Failure.notReady }
-        var image = try generator.renderer.apply(values.editStack, to: base.image, context: base.context)
+        let source = base.source(for: generator.renderer.decodeSettings(for: values.editStack))
+        var image = try generator.renderer.apply(values.editStack, to: source, context: base.context)
         let extent = image.extent.integral
         guard !extent.isInfinite, extent.width >= 1, extent.height >= 1 else { throw Failure.renderFailed }
         var overlaid: UUID?
         if let overlayMask, let adjusting = generator.renderer as? AdjustmentRenderer,
-           let alpha = adjusting.maskAlpha(values, id: overlayMask, to: base.image, context: base.context) {
+           let alpha = adjusting.maskAlpha(values, id: overlayMask, to: source, context: base.context) {
             image = LiveRenderSession.withOverlay(image, alpha: alpha)
             overlaid = overlayMask
         }

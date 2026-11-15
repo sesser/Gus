@@ -40,7 +40,7 @@ Principles (drawn from `README.md` and `CLAUDE.md`):
 
 ## Now (maximum three)
 
-Empty. The owner decides what fills it. First candidate: the top of Next.
+Nothing in progress. #170 (`white-balance-across-decoders`) is built and signed off; it leaves this list and closes with its pull request.
 
 ## Next
 

@@ -422,9 +422,17 @@ How to read it:
   decode cached from an earlier process. Neither figure is a cold decode, and
   0.05 s for 20 MP and more should not be read as one. The earlier figures in
   `docs/features/raf-not-rendering/status.md` were the best of two.
-- The two decoders' pictures differ first in look: LibRaw's is linear with the
-  camera's white balance and no tone curve, 18 to 37 levels (of 255) darker
-  in mean luma on these files, with a mean absolute difference of 21 to 39.
+- The two decoders' pictures differed first in look: LibRaw's was linear with
+  the camera's white balance and no tone curve, 18 to 37 levels (of 255)
+  darker in mean luma on these files, with a mean absolute difference of 21
+  to 39. Since 2026-11-14 (white-balance-across-decoders) LibRaw's picture
+  goes through its color step and a baseline look measured against the
+  system decoder on Fujifilm files: mean luma is now +0.1 (X-T3), +0.6
+  (Panasonic), −6.6 (Sony), −13.2 (Olympus) and −15.0 (Canon) levels from
+  the system's, the mean absolute difference 1.0 to 15.2. The three that
+  stay darker are the cameras for which the system decoder has a higher
+  baseline exposure than the look's. The color step adds nothing that shows
+  in the timings (the half-size decodes are 0.15 to 0.65 s as before).
 - The app uses LibRaw only for raws the system gives no image for, so none of
   the system's figures changed with it.
 

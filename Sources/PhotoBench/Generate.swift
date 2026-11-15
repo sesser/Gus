@@ -18,6 +18,9 @@ enum Generate {
         let jpegSize = arguments.size("jpeg-size", default: (2048, 1365))
         let dngSize = arguments.size("dng-size", default: (6000, 4000))
         let heicSize = arguments.size("heic-size", default: (4032, 3024))
+        // The first N DNGs carry no color matrix and no as-shot neutral: no usable camera
+        // color data, so white balance is unavailable where LibRaw decodes them (issue #170, AC14).
+        let colorlessCount = arguments.int("dng-without-color", default: 0)
 
         enum Kind { case jpeg, dng, heic, pair }
         var plan: [(Kind, Int)] = []
@@ -53,8 +56,9 @@ enum Generate {
                                                       quality: 0.85)
                     case .dng:
                         let url = folder.appending(path: String(format: "RAW_%05d.DNG", index + 1))
-                        try SyntheticDNG.write(to: url, options: .init(width: dngSize.0, height: dngSize.1, seed: seed,
-                                                                       dateTimeOriginal: dates[index]))
+                        try SyntheticDNG.write(to: url, options: .init(
+                            width: dngSize.0, height: dngSize.1, seed: seed, dateTimeOriginal: dates[index],
+                            color: number < colorlessCount ? SyntheticDNG.Color(matrix1: nil, asShotNeutral: nil) : .sRGB))
                     case .heic:
                         let url = folder.appending(path: String(format: "IMG_%05d.HEIC", index + 1))
                         guard let image = SyntheticImages.makeImage(width: heicSize.0, height: heicSize.1, seed: seed) else {

@@ -55,13 +55,14 @@ enum RawCompareBenchmark {
             var libError: String?
             let full = time {
                 do {
-                    let decoded = try LibRawDecoder.decode(file)
-                    return context.createCGImage(decoded.image, from: decoded.image.extent, format: .RGBA8, colorSpace: srgb)
+                    // The photo as it opens: through the color step, with the camera's white balance.
+                    let image = try LibRawDecoder.decode(file).image()
+                    return context.createCGImage(image, from: image.extent, format: .RGBA8, colorSpace: srgb)
                 } catch { libError = "\(error)"; return nil }
             }
             let half = time {
-                guard let decoded = try? LibRawDecoder.decode(file, halfSize: true) else { return nil }
-                return context.createCGImage(decoded.image, from: decoded.image.extent, format: .RGBA8, colorSpace: srgb)
+                guard let image = try? LibRawDecoder.decode(file, halfSize: true).image() else { return nil }
+                return context.createCGImage(image, from: image.extent, format: .RGBA8, colorSpace: srgb)
             }
             row["system"] = describe(system) ?? "no image"
             row["libraw"] = describe(full) ?? "no image: \(libError ?? "?")"

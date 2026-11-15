@@ -212,9 +212,10 @@ public enum FringePicker {
     /// memory (one render when picking starts; R20, R30, R36).
     public static func samplePixels(source: URL, values: Adjustments, generator: PreviewGenerator) throws -> FringeSamplePixels {
         guard let renderer = generator.renderer as? AdjustmentRenderer else { throw PreviewGenerator.Failure.renderFailed }
-        // A raw LibRaw decodes takes no decode settings and has one frame only.
+        // A raw LibRaw decodes takes the white balance only and has one frame only.
         let isRaw = SystemRAWDecoder.reads(source)
-        var settings = isRaw ? renderer.decodeSettings(for: values.editStack) : .none
+        var settings = SystemRAWDecoder.settings(renderer.decodeSettings(for: values.editStack), reaching: source,
+                                                 systemReads: isRaw)
         // Mask-frame points are on the whole sensor, whatever the camera cropped.
         settings.fullFrame = isRaw
         let decoded = try PreviewGenerator.decode(source, longEdge: nil, draft: false, settings: settings)
@@ -235,10 +236,12 @@ public enum FringePicker {
     /// The slot's color as a pixel of it looks in the photo now, after the
     /// adjustments that follow the fringe step (design §14 OQ2, point 3), in
     /// linear Rec. 2020, for its swatch.
-    public static func swatch(_ okLab: SIMD3<Double>, values: Adjustments, isRaw: Bool,
+    ///
+    /// - Parameter context: The photo's decode as the renderer sees it (`isRaw`, `balancedByDecoder`).
+    public static func swatch(_ okLab: SIMD3<Double>, values: Adjustments, context: RenderContext,
                               generator: PreviewGenerator) -> SIMD3<Double>? {
         guard let renderer = generator.renderer as? AdjustmentRenderer else { return nil }
-        let image = renderer.swatch(okLab, values: values, context: RenderContext(isRaw: isRaw))
+        let image = renderer.swatch(okLab, values: values, context: context)
         var buffer = [Float](repeating: 0, count: 4)
         buffer.withUnsafeMutableBytes { bytes in
             generator.engine.withContext {

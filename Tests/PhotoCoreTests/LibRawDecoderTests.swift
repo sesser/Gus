@@ -14,11 +14,24 @@ struct LibRawDecoderTests {
     static let width = 256, height = 192
 
     static func dng(in folder: URL, _ name: String, width: Int = width, height: Int = height, seed: UInt64 = 7,
-                    orientation: Int = 1, scene: SyntheticDNG.Scene = .pattern, defaultCrop: CGRect? = nil) throws -> URL {
+                    orientation: Int = 1, scene: SyntheticDNG.Scene = .pattern, defaultCrop: CGRect? = nil,
+                    mosaic: Data? = nil) throws -> URL {
         let url = folder.appending(path: "\(name).dng")
         try SyntheticDNG.write(to: url, options: .init(width: width, height: height, seed: seed, orientation: orientation,
-                                                       scene: scene, defaultCrop: defaultCrop))
+                                                       scene: scene, defaultCrop: defaultCrop), mosaic: mosaic)
         return url
+    }
+
+    /// One picture's mosaic, drawn once. Tests that compare the decodes of
+    /// two files holding the same picture (another orientation, another
+    /// crop) write both from it: the scene's drawing is Core Graphics', and
+    /// two drawings of one scene are not always the same bytes when other
+    /// drawings run at the same time (`SyntheticDNG.mosaic(options:)`; code
+    /// review C2: such tests failed 7 times in 80 runs under load, each
+    /// reading as a decoder race that was not one).
+    static func mosaic(width: Int = width, height: Int = height, seed: UInt64 = 7,
+                       scene: SyntheticDNG.Scene = .pattern) throws -> Data {
+        try SyntheticDNG.mosaic(options: .init(width: width, height: height, seed: seed, scene: scene))
     }
 
     /// The decode's samples, four to a pixel, rows from the top.
@@ -34,20 +47,24 @@ struct LibRawDecoderTests {
     // MARK: The decode
 
     /// The mosaic holds linear values at 0.85 of the white level
-    /// (`SyntheticDNG.mosaic`), the camera's primaries are sRGB's with a
-    /// neutral as-shot white, and the decode is linear with no brightening:
-    /// a grey stays grey and keeps its level. (The stripes' brightest value
-    /// is under three quarters of the white level, so LibRaw's adjustment of
-    /// the maximum leaves it alone.)
-    @Test("A decode is linear, neutral and as bright as the file's values")
+    /// (`SyntheticDNG.mosaic`) and the camera's as-shot neutral is 1, 1, 1,
+    /// so LibRaw's multipliers are all 1: the decode, camera RGB before the
+    /// color step, keeps a grey grey and at the file's level, linear, with no
+    /// brightening. The white level is the file's whatever the picture holds
+    /// (`whiteLevelIsTheFiles`).
+    @Test("A decode is linear camera RGB, balanced for the camera's white, at the file's level")
     func decodeIsLinearAndNeutral() async throws {
         try await RepositoryFiles.withTemporaryDirectory { folder in
             let url = try Self.dng(in: folder, "stripes", scene: .stripes(period: 64))
             let output = try LibRawDecoder.decode(url)
             #expect(output.size == CGSize(width: Self.width, height: Self.height))
             #expect(output.fullSize == output.size)
-            #expect(output.image.extent == CGRect(x: 0, y: 0, width: Self.width, height: Self.height))
+            #expect(output.linear.extent == CGRect(x: 0, y: 0, width: Self.width, height: Self.height))
             #expect(output.cameraMake == "Synthetic")
+            // The file's color data is usable: the decode is in camera RGB, and the color step
+            // counts a channel as saturated at `whiteMargin` of the white level.
+            #expect(output.step.color != nil)
+            #expect(output.step.channelScale == SIMD3(repeating: LibRawDecoder.whiteMargin))
             let samples = Self.samples(output)
             #expect(samples.count == Self.width * Self.height * 4)
             func linear(_ srgb8: Double) -> Double {
@@ -58,12 +75,78 @@ struct LibRawDecoderTests {
             for (x, expected) in [(32, linear(64)), (96, linear(191))] {
                 let rgb = Self.pixel(samples, width: Self.width, x: x, y: Self.height / 2).map(Double.init)
                 for value in rgb {
-                    // 1%: the 8-bit table's rounding and LibRaw's 16-bit color matrix arithmetic.
+                    // 1%: the 8-bit table's rounding and LibRaw's 16-bit arithmetic.
                     #expect(abs(value - expected) <= expected * 0.01, "x \(x): \(rgb) against \(expected)")
                 }
             }
             // Opaque.
             #expect(samples[3] == .max)
+            // Through the color step without a look the camera (sRGB's primaries, under D65) is
+            // converted to the working space: a grey stays grey, 1 / 0.99 as bright (the margin).
+            var transform = output.step.transform(temperature: nil, tint: nil)
+            transform.exposure = 1
+            transform.toneCurve = nil
+            let rendered = ReferenceTests.renderLinear(transform.apply(to: output.linear))
+            for (x, expected) in [(32, linear(64)), (96, linear(191))] {
+                let pixel = rendered[x, Self.height / 2]
+                for value in [pixel.x, pixel.y, pixel.z] {
+                    #expect(abs(Double(value) - expected / 65535 / LibRawDecoder.whiteMargin) <= expected / 65535 * 0.012,
+                            "x \(x): \(pixel)")
+                }
+            }
+        }
+    }
+
+    /// Issue #170, R7 and AC7 (#161's requirements issue R2). LibRaw's
+    /// default takes the brightest value in the frame as white when it is
+    /// over three quarters of the file's white level, so two frames of one
+    /// scene, or a crop of a frame, decoded up to 0.4 EV apart. Here one
+    /// mosaic is decoded whole (its bar code is white: 0.85 of the white
+    /// level, the brightest value it holds) and through a default crop that
+    /// leaves the brightest parts out. With LibRaw's default on, the crop's
+    /// white is its own brightest value and its pixels come out brighter.
+    @Test("A decode's level is the file's white level, whatever the frame holds")
+    func whiteLevelIsTheFiles() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { folder in
+            let mosaic = try Self.mosaic(seed: .max)
+            let whole = try LibRawDecoder.decode(try Self.dng(in: folder, "whole", seed: .max, mosaic: mosaic))
+            let all = Self.samples(whole)
+            let brightest = stride(from: 0, to: all.count, by: 4).map { max(all[$0], all[$0 + 1], all[$0 + 2]) }.max() ?? 0
+            // A window of the mosaic whose brightest value is well under the whole picture's.
+            let size = 64
+            var crop: CGRect?, cropBrightest: UInt16 = 0
+            search: for top in stride(from: 8, through: Self.height - size - 8, by: 8) {
+                for left in stride(from: 8, through: Self.width - size - 8, by: 8) {
+                    var highest: UInt16 = 0
+                    for y in top..<(top + size) {
+                        for x in left..<(left + size) {
+                            highest = max(highest, Self.pixel(all, width: Self.width, x: x, y: y).max() ?? 0)
+                        }
+                    }
+                    if Double(highest) < 0.9 * Double(brightest) {
+                        (crop, cropBrightest) = (CGRect(x: left, y: top, width: size, height: size), highest)
+                        break search
+                    }
+                }
+            }
+            let window = try #require(crop, "no part of the picture is without its brightest values")
+            // The whole picture's brightest value is over three quarters of the white level: LibRaw's default acts on it.
+            #expect(Double(brightest) > 0.75 * 65535 && cropBrightest < brightest)
+            let cropped = try LibRawDecoder.decode(try Self.dng(in: folder, "cropped", seed: .max, defaultCrop: window,
+                                                                mosaic: mosaic))
+            #expect(cropped.size == window.size)
+            let part = Self.samples(cropped)
+            var differing = 0
+            let border = 8
+            for y in border..<(size - border) {
+                for x in border..<(size - border)
+                where Self.pixel(part, width: size, x: x, y: y)
+                    != Self.pixel(all, width: Self.width, x: x + Int(window.minX), y: y + Int(window.minY)) {
+                    differing += 1
+                }
+            }
+            // The same pixels at the same level: with LibRaw's default, every one of them is brighter in the crop.
+            #expect(differing == 0)
         }
     }
 
@@ -74,8 +157,9 @@ struct LibRawDecoderTests {
     @Test("A decode is oriented as the file says", arguments: [2, 3, 4, 5, 6, 7, 8])
     func decodeIsOriented(orientation: Int) async throws {
         try await RepositoryFiles.withTemporaryDirectory { folder in
-            let upright = try LibRawDecoder.decode(try Self.dng(in: folder, "upright"))
-            let turnedURL = try Self.dng(in: folder, "turned", orientation: orientation)
+            let mosaic = try Self.mosaic()
+            let upright = try LibRawDecoder.decode(try Self.dng(in: folder, "upright", mosaic: mosaic))
+            let turnedURL = try Self.dng(in: folder, "turned", orientation: orientation, mosaic: mosaic)
             let turned = try LibRawDecoder.decode(turnedURL)
             let w = Self.width, h = Self.height
             let swapsSides = orientation >= 5
@@ -167,16 +251,13 @@ struct LibRawDecoderTests {
     /// is that part of the mosaic, pixel for pixel away from its borders
     /// (where demosaicing has other neighbors).
     ///
-    /// LibRaw takes the brightest value in the frame as white when it is over
-    /// three quarters of the white level, so the frame holds the picture's
-    /// brightest values here (the seed's bar code, all white), as the whole
-    /// mosaic does: both decodes have the same white.
     @Test("A file's inset crop is the frame of its decode")
     func insetCropIsDecoded() async throws {
         try await RepositoryFiles.withTemporaryDirectory { folder in
             let crop = CGRect(x: 16, y: 20, width: 224, height: 168)
-            let whole = try LibRawDecoder.decode(try Self.dng(in: folder, "whole", seed: .max))
-            let croppedURL = try Self.dng(in: folder, "cropped", seed: .max, defaultCrop: crop)
+            let mosaic = try Self.mosaic(seed: .max)
+            let whole = try LibRawDecoder.decode(try Self.dng(in: folder, "whole", seed: .max, mosaic: mosaic))
+            let croppedURL = try Self.dng(in: folder, "cropped", seed: .max, defaultCrop: crop, mosaic: mosaic)
             let cropped = try LibRawDecoder.decode(croppedURL)
             #expect(cropped.size == crop.size)
             #expect(LibRawDecoder.frameSize(croppedURL) == crop.size)
@@ -378,9 +459,18 @@ struct LibRawFallbackPipelineTests {
                 #expect(remembered == reads)
                 #expect(chosen.choosesTheDecode && !chosen.withoutDecodeChoices.choosesTheDecode)
                 #expect(chosen.withoutDecodeChoices.temperature == 4200)
-                let asked = RAWDecodeSettings(temperature: 4000, fullFrame: true)
+                // What reaches the decode: everything for the system decoder, the white balance
+                // for LibRaw's color step, nothing for a file that is not a raw. What a new
+                // decode is needed for: the system decoder's settings only.
+                let asked = RAWDecodeSettings(temperature: 4000, tint: 12, boostAmount: 0.5, fullFrame: true)
                 let reaching = memo.decodeSettings(asked)
-                #expect(reaching == (reads ? asked : .none))
+                #expect(reaching == (reads ? asked : url == jpeg ? .none : RAWDecodeSettings(temperature: 4000, tint: 12)))
+                let keyed = memo.decodeKey(asked)
+                #expect(keyed == (reads ? asked : .none))
+                #expect(SystemRAWDecoder.settings(asked, reaching: url, systemReads: reads) == reaching)
+                // The renderer is told the decode applied the white balance for a raw by either decoder.
+                #expect(decoded.context.balancedByDecoder == (url != jpeg), "\(url.lastPathComponent)")
+                #expect((decoded.camera != nil) == (decoded.decoder == .libRaw), "\(url.lastPathComponent)")
             }
             // A caller that knows the answer is not contradicted by the file.
             var known = SystemRAWDecoder.Memo(large, known: false)
@@ -414,68 +504,122 @@ struct LibRawFallbackPipelineTests {
         }
     }
 
-    /// The owner's ruling on what the Adjust tab offers (code review C2, Q3):
-    /// a photo LibRaw decoded is adjusted like any rendered image. None of
-    /// this depends on the system decoder: LibRaw's image goes to the
-    /// renderer as `PreviewGenerator.decode` hands it over (`isRaw` false).
-    @Test("The renderer applies white balance, light, noise reduction and sharpening to LibRaw's image")
+    /// What reaches a photo LibRaw decoded (issue #161's code review C2 and
+    /// Q3, then issue #170): the stack's Kelvin and tint, in the color step
+    /// of its decode; the renderer's light, noise reduction and sharpening.
+    /// Not the relative Temperature and Tint, which are for files that are
+    /// not raw, nor the system decoder's profile and color noise reduction.
+    /// None of this depends on the system decoder: the image goes to the
+    /// renderer as `PreviewGenerator.decode` hands it over.
+    @Test("A LibRaw photo takes the stack's Kelvin white balance, and the renderer's light, noise reduction and sharpening")
     func rendererAdjustsTheLibRawImage() async throws {
         try await RepositoryFiles.withTemporaryDirectory { folder in
-            let output = try LibRawDecoder.decode(try Self.smallDNG(in: folder))
-            let context = RenderContext(scale: 1, isRaw: false)
-            let renderer = AdjustmentRenderer()
-            func means(_ edit: (inout Adjustments) -> Void) -> SIMD3<Double> {
+            let url = try Self.smallDNG(in: folder)
+            let generator = PreviewGenerator(engine: ReferenceTests.engine)
+            let systemReads = SystemRAWDecoder.reads(url)
+            /// The render as the pipeline makes it, forced through LibRaw where the system decoder reads the file.
+            func rendering(_ values: Adjustments) throws -> CIImage {
+                if !systemReads { return try generator.image(source: url, stack: values.editStack, longEdge: nil) }
+                let output = try LibRawDecoder.decode(url)
+                let image = output.step.apply(to: output.linear, settings: values.decodeSettings)
+                return AdjustmentRenderer().render(values, to: image, context: RenderContext(isRaw: false, balancedByDecoder: true))
+            }
+            func means(_ edit: (inout Adjustments) -> Void) throws -> SIMD3<Double> {
                 var values = Adjustments()
                 edit(&values)
-                return Self.means(renderer.render(values, to: output.image, context: context))
+                return Self.means(try rendering(values))
             }
-            let base = means { _ in }
+            let base = try means { _ in }
             #expect(base.x > 0.01 && base.y > 0.01 && base.z > 0.01)
-            // Warmer: more red against blue. More magenta: less green.
-            let warm = means { $0.whiteBalance = WhiteBalance(preset: .custom, relativeTemperature: 60) }
-            #expect(warm.x / warm.z > base.x / base.z * 1.1)
-            let magenta = means { $0.whiteBalance = WhiteBalance(preset: .custom, relativeTint: 60) }
-            #expect(magenta.y / (magenta.x + magenta.z) < base.y / (base.x + base.z) * 0.97)
+            // A lower Kelvin says the light was warmer, so the picture is rendered cooler: less red against blue.
+            let tungsten = try means { $0.whiteBalance = .raw(.tungsten) }
+            #expect(tungsten.x / tungsten.z < base.x / base.z * 0.8)
+            let shade = try means { $0.whiteBalance = .raw(.shade) }
+            #expect(shade.x / shade.z > base.x / base.z * 1.02)
+            // A higher tint says the light was greener, so the picture is rendered more magenta: less green.
+            let magenta = try means { $0.whiteBalance = WhiteBalance(preset: .custom, temperature: 6500, tint: 80) }
+            let neutral = try means { $0.whiteBalance = WhiteBalance(preset: .custom, temperature: 6500, tint: 0) }
+            #expect(magenta.y / (magenta.x + magenta.z) < neutral.y / (neutral.x + neutral.z) * 0.97)
             // One stop is a factor of two in linear light.
-            let brighter = means { $0.exposure.ev = 1 }
+            let brighter = try means { $0.exposure.ev = 1 }
             #expect(abs(brighter.y / base.y - 2) < 0.02)
-            let recovered = means { $0.tone.highlights = -80 }
+            let recovered = try means { $0.tone.highlights = -80 }
             #expect(recovered.y < base.y)
-            let lifted = means { $0.tone.shadows = 60 }
+            let lifted = try means { $0.tone.shadows = 60 }
             #expect(lifted.y > base.y)
             // Noise reduction and sharpening change pixels, not the mean: compare the renders.
-            func render(_ edit: (inout Adjustments) -> Void) -> [Float] {
+            func render(_ edit: (inout Adjustments) -> Void) throws -> [Float] {
                 var values = Adjustments()
                 edit(&values)
-                return ReferenceTests.renderLinear(renderer.render(values, to: output.image, context: context)).pixels
+                let image = try rendering(values)
+                return ReferenceTests.renderLinear(image.transformed(by: CGAffineTransform(translationX: -image.extent.minX,
+                                                                                           y: -image.extent.minY))).pixels
             }
-            let plain = render { _ in }
-            #expect(render { $0.noiseReduction.luminance = 80 } != plain)
-            #expect(render { $0.sharpen.amount = 100 } != plain)
-            // As for a JPEG, the decoder's own settings have nothing to act on.
-            #expect(render { $0.whiteBalance = WhiteBalance(preset: .custom, temperature: 2500, tint: 60) } == plain)
-            #expect(render { $0.decode.look = .flat } == plain)
-            #expect(render { $0.noiseReduction.color = 90 } == plain)
+            let plain = try render { _ in }
+            #expect(try render { $0.noiseReduction.luminance = 80 } != plain)
+            #expect(try render { $0.sharpen.amount = 100 } != plain)
+            // The relative values never render on a raw (R10): they stay in the stack and it renders as shot.
+            #expect(try render { $0.whiteBalance = WhiteBalance(preset: .custom, relativeTemperature: 60, relativeTint: 30) } == plain)
+            // The system decoder's own settings have nothing to act on.
+            #expect(try render { $0.decode.look = .flat } == plain)
+            #expect(try render { $0.noiseReduction.color = 90 } == plain)
+            // A white balance that is turned off is not applied.
+            #expect(try render {
+                $0.whiteBalance = .raw(.tungsten)
+                $0.setEnabled(.whiteBalance, false)
+            } == plain)
         }
     }
 
-    @Test("Auto White Balance gives a raw LibRaw decodes relative values, and one the system reads a Kelvin")
+    /// Issue #170, AC3: Auto stores a Kelvin and tint for a raw whichever
+    /// decoder reads it, never the relative values.
+    @Test("Auto White Balance gives a raw a Kelvin and tint by either decoder")
     func autoWhiteBalanceFollowsTheDecoder() async throws {
         try await RepositoryFiles.withTemporaryDirectory { folder in
             let adjuster = AutoAdjuster(generator: PreviewGenerator(engine: ReferenceTests.engine))
             for url in [try Self.smallDNG(in: folder), try LibRawDecoderTests.dng(in: folder, "large", width: 1536, height: 1152)] {
                 let balance = try adjuster.whiteBalance(source: url, adjustments: .none)
                 #expect(balance.preset == .auto)
-                if SystemRAWDecoder.reads(url) {
-                    #expect(balance.temperature != nil && balance.tint != nil, "\(url.lastPathComponent)")
-                    #expect(balance.relativeTemperature == 0 && balance.relativeTint == 0)
-                } else {
-                    #expect(balance.temperature == nil && balance.tint == nil, "\(url.lastPathComponent)")
-                    #expect((-100...100).contains(balance.relativeTemperature))
-                }
+                let kelvin = try #require(balance.temperature, "\(url.lastPathComponent)")
+                let tint = try #require(balance.tint, "\(url.lastPathComponent)")
+                #expect(WhiteBalance.temperatureRange.contains(kelvin) && WhiteBalance.tintRange.contains(tint))
+                #expect(kelvin == kelvin.rounded() && tint == tint.rounded())
+                #expect(balance.relativeTemperature == 0 && balance.relativeTint == 0)
+                #expect(balance.kelvinDisplayPreset == .auto)
                 // Exposure measures the rendered image, whichever decoder made it.
                 #expect((-4...4).contains(try adjuster.exposure(source: url, adjustments: .none)))
             }
+            // A grey picture (stripes of two greys) from a camera with sRGB's primaries whose
+            // as-shot neutral is off: every photosite holds the same value in the three colors, so
+            // the light that makes the picture neutral is the one whose camera neutral is 1, 1, 1,
+            // which for this camera is D65 (6504 K; its tint is +10, the D series lying that far
+            // from the black body's colors). Forced through LibRaw's color step whatever this macOS reads.
+            let cast = folder.appending(path: "cast.dng")
+            try SyntheticDNG.write(to: cast, options: .init(width: LibRawDecoderTests.width, height: LibRawDecoderTests.height, seed: 21,
+                                                            scene: .stripes(period: 16),
+                                                            color: .init(matrix1: SyntheticDNG.Color.sRGBMatrix,
+                                                                         asShotNeutral: [0.9, 1, 0.8])))
+            let output = try LibRawDecoder.decode(cast, halfSize: true)
+            func imbalance(_ balance: ColorTemperature?) throws -> Double {
+                let sample = try #require(PixelSample(output.image(whiteBalance: balance), engine: ReferenceTests.engine)?.neutralAverage())
+                return abs(log(sample.z / sample.x)) + abs(log(sample.y / (sample.x * sample.z).squareRoot()))
+            }
+            // As shot the greys have a cast (0.14 here, after the look's tone curve); at D65 they have none.
+            #expect(try imbalance(nil) > 0.1)
+            #expect(try imbalance(ColorTemperature(kelvin: 6504, tint: 10)) < 0.01)
+            if !SystemRAWDecoder.reads(cast) {
+                let measured = try adjuster.whiteBalance(source: cast, adjustments: .none)
+                let kelvin = try #require(measured.temperature), tint = try #require(measured.tint)
+                // The search stops within half a percent of neutral in each direction: about 1% in Kelvin, 2 of tint.
+                #expect(abs(kelvin / 6504 - 1) < 0.02, "\(kelvin) K")
+                #expect(abs(tint - 10) < 3, "tint \(tint)")
+                #expect(try imbalance(ColorTemperature(kelvin: kelvin, tint: tint)) < 0.02)
+            }
+            // A file that is not a raw still gets relative values.
+            let jpeg = folder.appending(path: "photo.jpg")
+            try SyntheticImages.writeJPEG(to: jpeg, width: 320, height: 240, seed: 5)
+            let relative = try adjuster.whiteBalance(source: jpeg, adjustments: .none)
+            #expect(relative.preset == .auto && relative.temperature == nil && relative.tint == nil)
         }
     }
 
@@ -505,8 +649,12 @@ struct LibRawFallbackPipelineTests {
                 var values = Adjustments()
                 _ = try await session.render(values)
                 #expect(await session.decodeCount == 1)
+                let asShot = try await session.linearFrame(values)
                 values.whiteBalance = WhiteBalance(preset: .custom, temperature: 3000, tint: 20)
                 _ = try await session.render(values)
+                // The white balance is applied after the kept decode: the frame changes, the count does not.
+                let balanced = try await session.linearFrame(values)
+                #expect(balanced.dataProvider?.data as Data? != asShot.dataProvider?.data as Data?, "known \(String(describing: known))")
                 values.decode.look = .flat
                 values.noiseReduction = NoiseReduction(luminance: 60, color: 40)
                 _ = try await session.render(values)
@@ -561,6 +709,15 @@ struct LibRawFallbackPipelineTests {
             values.noiseReduction = NoiseReduction(luminance: 60, color: 40)
             #expect(await region.isReady(for: values))
             #expect(await !region.shouldDecode(whileMoving: values))
+            // And its frames follow the white balance (design §4, live feedback at 100%).
+            if !SystemRAWDecoder.reads(url) {
+                let whole = CGRect(x: 0, y: 0, width: 1, height: 1)
+                let cool = try await region.render(values, unit: whole)
+                values.whiteBalance = WhiteBalance(preset: .custom, temperature: 9000, tint: 20)
+                #expect(await region.isReady(for: values))
+                let warm = try await region.render(values, unit: whole)
+                #expect(cool.image.cgImage.dataProvider?.data as Data? != warm.image.cgImage.dataProvider?.data as Data?)
+            }
         }
     }
 
@@ -623,7 +780,8 @@ struct LibRawFallbackPipelineTests {
     }
 
     /// Design review F2 and D5 (code review C14): the Mode pop-up of a file
-    /// that is not decoded as a raw offers As Shot, Auto and Custom. A stored
+    /// that is not a raw offers As Shot, Auto and Custom. (A raw LibRaw
+    /// decodes has had the raws' own rule since issue #170: `kelvinModeShown`.) A stored
     /// mode that is one of them, with no Kelvin values, is shown as it is, so
     /// a mode picked from the pop-up sticks. Any other (a paste or preset from
     /// a raw the system decodes) left a stale item; it shows what renders.

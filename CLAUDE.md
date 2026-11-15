@@ -760,8 +760,53 @@ a real ⌘Q during an export from About and with a sheet up, ⌘F on a non-Latin
 layout) in #82 and `docs/features/about-gus-dedication/qa.md`, and AC7's and
 AC13's packaging halves, which wait on #172.
 
+White balance and baseline look across decoders
+(`docs/features/white-balance-across-decoders/`, issue #170, covers #171,
+branch `feature/libraw-color-pipeline`): a raw the system decoder gives no
+image for now has the White Balance of any raw (the nine modes, Kelvin and
+Tint, Auto), and an unedited one comes out close to a raw the system decodes.
+This replaces #161's relative White Balance and flatter look above. LibRaw
+decodes to camera RGB (balanced for the camera's neutral, not clipped at it,
+no matrix, the file's white level), and a color step after the decode
+(`Sources/PhotoCore/CameraColor/`: `ColorTemperature`, `CameraColor`,
+`CameraProfile`, `CameraColorTransform`, `CameraColorStep`; Core Image
+filters, no custom kernel) turns that into the working space for the stack's
+Kelvin and Tint by the DNG specification's method (one or two matrices, forward
+matrices, Bradford to D50), with a built-in profile and a baseline look
+measured against the system decoder. A Kelvin or Tint alone takes the other
+from as shot; Custom keeps the numbers shown (sliders' ranges 2000 to 50000 K,
+±150); Kelvin pastes and presets work both ways between decoders and relative
+values never render on a raw (`RenderContext.balancedByDecoder`); a raw with
+no usable color data renders as shot and the tab says White Balance is
+unavailable. A white balance change re-runs the step over the kept decode, at
+fit and at 100%, never a new decode. Fujifilm's held-back exposure (dynamic
+range 200% and 400%) is added. The stack may name a `cameraProfile`
+(`Adjustments.cameraProfile`): kept and written back unchanged, not used yet.
+`PreviewCacheKey.currentPipelineVersion` is 9, with version 8's previews
+written before 2026-11-13 carried over at launch (`PreviewDiskCache.carryOver`),
+so the library's previews survive and no LibRaw photo shows its old look. No
+migration, no golden moved; photos the system decodes and JPEGs render byte for
+byte as before. AC5 is measured and accepted by the owner 2026-11-14, not met
+for the X-T3: as-shot Kelvin is 14% to 30% under the system decoder's (X-E3
+1.5% under), partly LibRaw's matrix against the camera itself, and the user
+guide says so. Rulings of 2026-11-14: the three functions that followed
+Adobe's DNG SDK were written again from published sources and measurement of
+the system decoder (C1, option b), AC5 accepted as measured, and Custom
+storing the numbers shown, clamped to the sliders' ranges (DQ-1, design
+§17.1). The 150 million pixel cap is as recorded in the #161 entry. Known: one baseline
+exposure (the X-E3's) for every maker, so a Sony, Olympus or Canon raw opens
+0.25 to 0.45 EV darker than the system decoder shows it; hue/saturation and
+look tables are carried by the profile value and not applied. Shipped, checks
+pending: P1 to P10 (the X-E3 beside the X-T3 by eye, the note, White Balance
+by hand, Auto's wait, paste with real menus or keys, switching photos and
+Custom with no extra undo step, the unavailable and not-applied captions, a
+live drag with the mouse, light beyond the sliders' ends, the new look across
+a cached library) in #82 and
+`docs/features/white-balance-across-decoders/qa.md`.
+
 Not yet: AI masks, healing, lens corrections (distortion, lens vignetting,
-profiles; only the camera's own tables in Fujifilm raws LibRaw decodes), DNG export, `.dcp` profiles,
+profiles; only the camera's own tables in Fujifilm raws LibRaw decodes), DNG export, `.dcp` profiles
+(a profile's hue/saturation and look tables are not applied, #89),
 general (hand-made or burst) stacks, hierarchical
 keywords, PTP cameras, a second backup destination. Writing metadata into
 originals was dropped (2026-11-04, `docs/roadmap.md`): originals are never
