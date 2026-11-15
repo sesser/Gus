@@ -205,6 +205,8 @@ After the runs:
 
 ## For a person
 
+*Update 2026-11-15: the owner has checked all of these by eye (see Follow-up). Each item below keeps what the check was.*
+
 Build the bundle in the worktree (`Scripts/build-app.sh`). Launch it with `--library-root` on a scratch library
 holding:
 
@@ -215,39 +217,39 @@ holding:
 
 Open the inspector, the Adjust tab, in the loupe.
 
-- **P1 (AC6). X-E3 beside X-T3.** Open an X-E3 photo and an X-T3 photo of similar scenes, unedited, side by side
+- **P1 (AC6). X-E3 beside X-T3.** *(Checked by the owner, 2026-11-15.)* Open an X-E3 photo and an X-T3 photo of similar scenes, unedited, side by side
   (View ▸ Compare Side by Side, or one after the other). They look comparable in brightness, contrast and color.
   Neither is clearly flat or dark against the other. This is the owner's check.
-- **P2 (M1). The note.** On the X-E3, under "Profile", the note wraps cleanly at the inspector's narrowest width,
+- **P2 (M1). The note.** *(Checked by the owner, 2026-11-15.)* On the X-E3, under "Profile", the note wraps cleanly at the inspector's narrowest width,
   with clear space before White Balance. There are no pop-ups under Profile.
-- **P3 (M2). White Balance on the X-E3, by hand.**
+- **P3 (M2). White Balance on the X-E3, by hand.** *(Checked by the owner, 2026-11-15.)*
   - The nine modes are listed.
   - Unedited, Temperature shows a plausible Kelvin.
   - Tungsten turns the photo clearly blue and shows 2,850 K, tint 0; Shade warms it.
   - Double-clicking Temperature returns it to the as-shot value.
-- **P4 (M3). Auto on the X-E3.** The pop-up dims briefly, then shows Auto with a Kelvin and tint, and the photo
+- **P4 (M3). Auto on the X-E3.** *(Checked by the owner, 2026-11-15.)* The pop-up dims briefly, then shows Auto with a Kelvin and tint, and the photo
   looks neutral. Note whether the wait reads as working or as a hang.
-- **P5 (M4). Paste both ways, with the real menus or keys.** Paste Daylight from the X-T3 onto the X-E3, then
+- **P5 (M4). Paste both ways, with the real menus or keys.** *(Checked by the owner, 2026-11-15.)* Paste Daylight from the X-T3 onto the X-E3, then
   4,000 K from the X-E3 onto the X-T3. Each changes the receiving photo, and ⌘Z undoes each paste in one step.
-- **P6 (M5, M6). Switching photos, and Custom with the mouse.**
+- **P6 (M5, M6). Switching photos, and Custom with the mouse.** *(Checked by the owner, 2026-11-15.)*
   - Arrow X-T3, X-E3, JPEG, X-E3. The raws show the same group; only the JPEG shows three modes and −100 to 100.
     Nothing carries over, and nothing visibly jumps while the X-E3 loads.
   - On an X-E3 edited with a #161 build (relative values), or after setting them: Mode shows As Shot. Choosing
     Custom keeps it Custom with the same numbers, and the photo does not visibly change. One ⌘Z returns As Shot.
   - Choosing Custom a second time leaves no extra ⌘Z step. The script cannot tell this; see Findings.
   - Repeat on an unedited X-T3.
-- **P7 (M7, M9). Unavailable and not applied, and caption spacing.**
+- **P7 (M7, M9). Unavailable and not applied, and caption spacing.** *(Checked by the owner, 2026-11-15.)*
   - On the colorless DNG: the dimmed pop-up on As Shot, with the caption under it starting at the pop-up's left
     edge. Check its wrap and legibility with Increase Contrast on and off. Hovering shows the same text.
   - Paste a Daylight onto it: the orange triangle caption and the two-item pop-up appear. As Shot brings the
     dimmed state back, and ⌘Z brings Daylight back.
   - The captions sit the same distance under their control as the machine learning caption does.
-- **P8 (M8). Live drag with the mouse.** Drag Temperature on the X-E3 at fit and at 100%. The loupe follows while
+- **P8 (M8). Live drag with the mouse.** *(Checked by the owner, 2026-11-15.)* Drag Temperature on the X-E3 at fit and at 100%. The loupe follows while
   the slider moves, not only on release. At 100% the first drag after opening a photo is soft for about 10 s while
   the full decode runs (S6).
-- **P9 (M10). Light beyond the sliders' ends.** Only if a LibRaw raw shot below 2,000 K is at hand: unedited, it
+- **P9 (M10). Light beyond the sliders' ends.** *(Checked by the owner, 2026-11-15.)* Only if a LibRaw raw shot below 2,000 K is at hand: unedited, it
   reads 2,000 K. Custom shifts the photo once; As Shot brings the camera's look back. Skip otherwise.
-- **P10. The look across the library.** After the first launch on a library holding X-E3 photos cached by a #161
+- **P10. The look across the library.** *(Checked by the owner, 2026-11-15.)* After the first launch on a library holding X-E3 photos cached by a #161
   build, their thumbnails come back with the new look (not #161's flat one), and other photos' thumbnails are not
   made again. S5 checked this on a scratch copy; this is a look at a real library, if the owner wants it.
 
@@ -272,6 +274,8 @@ Checks left open: P1 to P10, all of them. The owner named none as done on its ow
 
 AC5 stays "measured, accepted by the owner 2026-11-14". The open checks stay in "For a person" above. Per
 `docs/WORKFLOW.md`, they also go to the standing manual-checks issue (#82) and are named in the pull request.
+
+**Manual checks done (2026-11-15).** The owner checked P1 to P10 by eye and reported: "Everything looks fine to my eye." No per-check results were given and no findings were reported, so nothing goes back to the engineer. The verdict above is unchanged. AC5 stays "measured, accepted by the owner 2026-11-14". These checks (#170) can be cleared in the standing manual-checks issue (#82).
 
 ## Summary for the issue
 
