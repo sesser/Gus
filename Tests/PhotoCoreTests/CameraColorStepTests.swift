@@ -51,7 +51,12 @@ struct CameraColorStepTests {
         let linear = reference.render(decoded)
         var entering = [0.0, 0.0, 0.0]
         for signs in 0..<8 {
-            let rounded = (0..<3).map { decoded[$0] * (1 + (signs >> $0 & 1 == 0 ? rounding : -rounding)) }
+            var rounded = decoded
+            for channel in 0..<3 {
+                let down = (signs >> channel) & 1 == 1
+                let shift: Double = down ? -rounding : rounding
+                rounded[channel] = decoded[channel] * (1 + shift)
+            }
             let moved = reference.render(rounded, curve: curve)
             for channel in 0..<3 { entering[channel] = max(entering[channel], abs(moved[channel] - exact[channel])) }
         }
