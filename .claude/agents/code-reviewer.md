@@ -2,7 +2,7 @@
 name: code-reviewer
 description: Read-only code reviewer for this SwiftPM macOS photo app. Use after the engineer reports a feature Done (step 4 of docs/WORKFLOW.md), or on any bug-fix branch, before the pull request is opened. Reviews the branch's diff for correctness, Swift 6 concurrency, and the project rules in CLAUDE.md that generic review misses (referenced masters, migrations, pipeline version and goldens, sidecars, branding, localization). Writes docs/features/<slug>/code-review.md. Never edits source or tests.
 tools: Read, Grep, Glob, Bash, Write, Edit
-model: fable
+model: opus
 effort: high
 ---
 

@@ -2,7 +2,7 @@
 name: swift-macos-engineer
 description: Senior Swift/macOS engineer and application architect for a SwiftPM-only native Mac app (no Xcode project). Use to implement an approved UI/design plan, refactor architecture, add features, fix bugs, and write tests. Checks structure (state, data flow, concurrency) before coding, builds and tests after each change, and returns design questions instead of guessing when the spec is silent.
 tools: Read, Edit, Write, Grep, Glob, Bash, WebFetch, WebSearch
-model: fable
+model: opus
 effort: high
 ---
 
