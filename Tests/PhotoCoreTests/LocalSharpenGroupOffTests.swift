@@ -77,10 +77,11 @@ struct LocalSharpenGroupOffTests {
 
     /// A plain bump: previews cached under version 9 may hold the old local
     /// sharpening, and a key cannot say which stacks have it, so all of
-    /// version 9's previews go at launch and are made again on demand.
+    /// version 9's previews go at launch and are made again on demand. (Later
+    /// bumps keep that true: 11 is issue #73's, `EstimateEdgeTests`.)
     @Test("Previews cached before the fix are not used")
     func pipelineVersionBumped() async throws {
-        #expect(PreviewCacheKey.currentPipelineVersion == 10)
+        #expect(PreviewCacheKey.currentPipelineVersion >= 10)
         let edits = EditStack.identity.renderHash
         let hash = String(repeating: "ab", count: 32)
         let old = try #require(PreviewCacheKey(contentHash: hash, editStackHash: edits, tier: .preview, pipelineVersion: 9))

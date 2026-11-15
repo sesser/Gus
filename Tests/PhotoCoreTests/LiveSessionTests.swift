@@ -203,21 +203,27 @@ struct LiveSessionTests {
     /// entering the mask step. The cached stages are half-float images in the
     /// extended working space, so values above 1.0 must survive them, and
     /// cached and whole renders must agree. Tolerance: each of the three cached
-    /// stages may round once more (2⁻¹¹ relative), which the stages after them
-    /// enlarge by at most `gain(after:)`. Plus 2⁻²⁴ near zero.
+    /// stages may round once more to half float, off by at most 2⁻¹¹ of the
+    /// value, or by 2⁻²⁵ (half the spacing of the smallest half-float values,
+    /// 2⁻²⁴) near zero; the stages after them enlarge either by at most
+    /// `gain(after:)`.
     ///
-    /// Known issue (docs/archive/PHASE6_PLAN.md, finding 4): with masks that use
-    /// whole-frame estimates (dehaze, local tone) they do not agree. On
-    /// above-white input dehaze's haze estimate moved by up to 0.09, and local
-    /// tone's by 0.067, when their input moved by 0.002, so a different split of
-    /// the render into passes changes them (0.107 on the macOS 26 runner).
+    /// With masks that use whole-frame estimates (dehaze, local tone) they did
+    /// not agree before issue #73 (docs/archive/PHASE6_PLAN.md, finding 4;
+    /// docs/features/dehaze-above-white/status.md): the haze estimate's
+    /// reduced copy was partly transparent at the frame's edge, and its colors
+    /// were divided by that alpha or not depending on how Core Image split the
+    /// render (0.058 here, 0.107 on the macOS 26 runner). Values above white
+    /// were not the cause: the global Highlights that asks for the
+    /// extended-range decode also put local tone ahead of the masks.
     ///
     /// Known issue on macOS 26 only (finding 6): there `CIEdgePreserveUpsampleFilter`
-    /// (in global local tone's estimate, upstream of the masks) gives different
+    /// (in global local tone's estimate, upstream of the masks) gave different
     /// pixels at the frame's edge depending on the region rendered, and the
     /// blurs of clarity and sharpening read past the edge; macOS 15 and 27 give
-    /// identical pixels. So even the strict case differs. A standalone
-    /// reproduction for Apple: `docs/feedback/edge-preserve-upsample/`.
+    /// identical pixels. The estimate now has a margin of repeated edge pixels
+    /// (#73), which may avoid it; not yet seen on a macOS 26 runner. A
+    /// standalone reproduction for Apple: `docs/feedback/edge-preserve-upsample/`.
     @Test("Values above white survive the cached stages", arguments: [false, true])
     func aboveWhite(withEstimates: Bool) async throws {
         try await RepositoryFiles.withTemporaryDirectory { folder in
@@ -246,18 +252,16 @@ struct LiveSessionTests {
             values.local.masks[2].adjustments.contrast = 50
             let a = Self.floats(try await cached.linearFrame(values))
             let b = Self.floats(try await whole.linearFrame(values))
-            let relative = 3 * 0x1p-11 * Self.gain(after: values)
+            let gain = Self.gain(after: values)
+            let relative = Float(3 * 0x1p-11 * gain)
+            let floor = Float(3 * 0x1p-25 * gain)
             #expect(a.count == b.count)
             #expect((a.max() ?? 0) > 1 && (b.max() ?? 0) > 1, "above white: cached \(a.max() ?? 0), whole \(b.max() ?? 0)")
             var worst: Float = 0
             for i in a.indices where i % 4 != 3 {
-                worst = max(worst, abs(a[i] - b[i]) - (max(abs(a[i]), abs(b[i])) * Float(relative) + 0x1p-24))
+                worst = max(worst, abs(a[i] - b[i]) - (max(abs(a[i]), abs(b[i])) * relative + floor))
             }
-            if withEstimates {
-                withKnownIssue("Dehaze's and local tone's estimates are unstable on above-white input") {
-                    #expect(worst <= 0, "cached and whole differ beyond the tolerance by \(worst)")
-                }
-            } else if ProcessInfo.processInfo.operatingSystemVersion.majorVersion == 26 {
+            if ProcessInfo.processInfo.operatingSystemVersion.majorVersion == 26 {
                 // Intermittent: passes, rather than fails as an unexpected pass, once Apple fixes it.
                 withKnownIssue("macOS 26: CIEdgePreserveUpsampleFilter at the edge depends on the region rendered",
                                isIntermittent: true) {
