@@ -61,8 +61,10 @@ extension LibraryModel {
         guard let item = focusedItem else { return nil }
         if editor.item?.versionID == item.versionID, editor.state == .ready { return editor.adjustments }
         do {
-            let stack = try await catalog.version(id: item.versionID)?.decodedEditStack() ?? .identity
-            return Adjustments(stack: stack)
+            // After pending saves: right after a paste or preset, the catalog still has the values from before it.
+            return try await writes.savedAdjustments(ofVersion: item.versionID, in: catalog)
+        } catch is CancellationError {
+            return nil
         } catch {
             report(AdjustText.unreadableMessage(EditStack.ReadFailure(error)), action: ActivityTitle.saveAsPreset, warning: true)
             return nil

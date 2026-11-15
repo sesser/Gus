@@ -80,6 +80,7 @@ extension LibraryModel {
         }
         guard !sources.isEmpty else { return }
         let catalog = self.catalog
+        let writes = self.writes
         let adjuster = AutoAdjuster(generator: previews.interactiveGenerator)
         // Measured one photo at a time with progress in the Activity item;
         // Stop there writes nothing.
@@ -93,7 +94,8 @@ extension LibraryModel {
                     batchAutoTask = nil
                 }
             }
-            guard let stored = try? await catalog.editStacks(forVersions: sources.map(\.0)) else { return }
+            // After pending saves, so each photo is measured with the values it has now.
+            guard let stored = try? await writes.savedEditStacks(forVersions: sources.map(\.0), in: catalog) else { return }
             var measured: [Int64: Double] = [:]
             for (index, (id, url)) in sources.enumerated() {
                 guard !Task.isCancelled else { return }

@@ -66,8 +66,15 @@ final class PresetPreviewModel {
         guard let library else { return nil }
         let editor = library.editor
         if editor.state == .ready, editor.item?.versionID == item.versionID { return editor.savedAdjustments }
-        let stack = (try? await library.catalog.version(id: item.versionID)?.decodedEditStack()) ?? .identity
-        return Adjustments(stack: stack)
+        do {
+            // After pending saves: right after a paste or preset, the catalog still has the values from before it.
+            return try await library.writes.savedAdjustments(ofVersion: item.versionID, in: library.catalog)
+        } catch is CancellationError {
+            return nil
+        } catch {
+            // A stack this build can't read: the previews start from the defaults.
+            return Adjustments(stack: .identity)
+        }
     }
 
     /// Shows the preset in the loupe while the pointer is on its picture.
