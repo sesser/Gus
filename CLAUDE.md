@@ -723,10 +723,10 @@ on the frame's content (up to 0.4 EV between two frames of a scene); previews
 cached by earlier builds of this branch stay until the preview cache is
 deleted; the bundles carry no LGPL notices yet; no deflate or lossy DNGs (no
 zlib or JPEG support in LibRaw here); no decoder badge or `photocli` field says
-which decoder rendered. Shipped, checks pending: P1 to P7 (the window frame
-and corners by eye, the note's look, White Balance and Noise Reduction by
-hand, a paste from an X-T3, switching photos, Custom from the Mode pop-up) in
-#82 and `docs/features/raf-not-rendering/qa.md`.
+which decoder rendered. Shipped; the owner checked P1 to P7 (the window frame
+and corners, the note's look, White Balance and Noise Reduction by hand, a
+paste from an X-T3, switching photos, Custom from the Mode pop-up) by eye on
+2026-11-15, everything fine (#82, `docs/features/raf-not-rendering/qa.md`).
 
 About window (`docs/features/about-gus-dedication/`, issue #179, branch
 `feature/about-gus`): the app menu's About and Help ▸ About open one window of
@@ -796,13 +796,13 @@ storing the numbers shown, clamped to the sliders' ranges (DQ-1, design
 §17.1). The 150 million pixel cap is as recorded in the #161 entry. Known: one baseline
 exposure (the X-E3's) for every maker, so a Sony, Olympus or Canon raw opens
 0.25 to 0.45 EV darker than the system decoder shows it; hue/saturation and
-look tables are carried by the profile value and not applied. Shipped, checks
-pending: P1 to P10 (the X-E3 beside the X-T3 by eye, the note, White Balance
-by hand, Auto's wait, paste with real menus or keys, switching photos and
-Custom with no extra undo step, the unavailable and not-applied captions, a
-live drag with the mouse, light beyond the sliders' ends, the new look across
-a cached library) in #82 and
-`docs/features/white-balance-across-decoders/qa.md`.
+look tables are carried by the profile value and not applied. Shipped; the
+owner checked P1 to P10 (the X-E3 beside the X-T3, the note, White Balance by
+hand, Auto's wait, paste with real menus or keys, switching photos and Custom
+with no extra undo step, the unavailable and not-applied captions, a live drag
+with the mouse, light beyond the sliders' ends, the new look across a cached
+library) by eye on 2026-11-15, everything fine (#82,
+`docs/features/white-balance-across-decoders/qa.md`).
 
 Not yet: AI masks, healing, lens corrections (distortion, lens vignetting,
 profiles; only the camera's own tables in Fujifilm raws LibRaw decodes), DNG export, `.dcp` profiles
