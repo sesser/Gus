@@ -227,7 +227,8 @@ public struct CommandEnvironment: Sendable {
     }
 
     /// Opens the library `arguments` name (or the standard one) for reading
-    /// only, never migrating or creating anything (`Catalog.openForReading`).
+    /// only, never migrating, creating or writing the catalog
+    /// (`Catalog.openForReading`; SQLite may add its `-wal` and `-shm` files).
     /// Nil when there is no catalog there: no library, so nothing in it.
     public func openLibraryForReading(_ arguments: CommandArguments) throws(CommandError) -> OpenLibrary? {
         let locations = try libraryLocations(arguments)

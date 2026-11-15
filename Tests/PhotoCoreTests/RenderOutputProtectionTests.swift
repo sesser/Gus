@@ -68,8 +68,8 @@ struct RenderOutputProtectionTests {
 
     /// A command line whose standard library is `root` (none passes `--library-root`).
     static func cli(standardLibrary root: URL, in library: Library) -> CommandLineInterface {
-        CommandLineInterface(environment: CommandEnvironment(currentDirectory: library.root.deletingLastPathComponent(),
-                                                             defaultLibraryRoot: root))
+        CommandLineInterface(environment: .hermetic(currentDirectory: library.root.deletingLastPathComponent(),
+                                                     standardLibrary: root))
     }
 
     /// The catalog's files, to show nothing was written to them.
@@ -121,7 +121,7 @@ struct RenderOutputProtectionTests {
         }
     }
 
-    @Test("Opening a catalog for reading creates nothing, migrates nothing and refuses writes")
+    @Test("Opening a catalog for reading creates no catalog, migrates nothing and refuses writes")
     func catalogOpenForReading() async throws {
         try await CommandTests.withLibrary { library in
             let missing = library.root.deletingLastPathComponent().appending(path: "Missing/catalog.sqlite")
@@ -140,9 +140,9 @@ struct RenderOutputProtectionTests {
     func inputItselfWithoutLibrary() async throws {
         try await CommandTests.withLibrary { library in
             // A standard library location with no catalog: nothing is catalogued, so only the input is refused.
-            let cli = CommandLineInterface(environment: CommandEnvironment(
+            let cli = CommandLineInterface(environment: .hermetic(
                 currentDirectory: library.root.deletingLastPathComponent(),
-                defaultLibraryRoot: library.root.deletingLastPathComponent().appending(path: "NoLibrary")))
+                standardLibrary: library.root.deletingLastPathComponent().appending(path: "NoLibrary")))
             let input = library.photos.appending(path: "IMG_0001.jpg")
             let hardLink = library.root.deletingLastPathComponent().appending(path: "hard.jpg")
             try FileManager.default.linkItem(at: input, to: hardLink)

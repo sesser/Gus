@@ -248,7 +248,9 @@ enum RenderCommands {
     /// (`holdsContent(ofFileAt:)`), as export asks. The library is the one the
     /// command opened (`--version`, `--library-root`); otherwise the standard
     /// one (the environment's default), opened read-only for this question
-    /// alone: no migration, no lock, nothing written (owner's ruling on #166).
+    /// alone: no migration, no lock, nothing in the catalog written (owner's
+    /// ruling on #166). SQLite may create the catalog's `-wal` and `-shm`
+    /// files beside it if they are absent.
     /// Where no catalog exists nothing is catalogued, so only the input is
     /// refused. A catalog that exists but can't be read, or a standard
     /// location that can't be found, can't show `--out` safe: refused.

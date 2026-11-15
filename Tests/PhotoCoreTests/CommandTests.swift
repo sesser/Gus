@@ -38,7 +38,7 @@ struct CommandTests {
             let catalog = try Catalog.open(at: locations.catalogFileURL)
             _ = try await Importer(catalog: catalog, metadataReader: ImageIOMetadataReader()).importFolder(photos)
             let ids = try await catalog.libraryItems(matching: LibraryFilter(groupsPairs: false)).map(\.versionID)
-            let cli = CommandLineInterface(environment: CommandEnvironment(currentDirectory: root))
+            let cli = CommandLineInterface(environment: .hermetic(currentDirectory: root))
             try await body(TemporaryLibrary(root: root.appending(path: "Library"), photos: photos, locations: locations,
                                             versionIDs: ids, cli: cli))
         }
@@ -68,7 +68,7 @@ struct CommandTests {
 
     @Test("Help names the product from the branding and lists every command")
     func helpListsCommands() async throws {
-        let cli = CommandLineInterface(environment: CommandEnvironment(currentDirectory: URL(fileURLWithPath: "/")))
+        let cli = CommandLineInterface(environment: .hermetic(currentDirectory: URL(fileURLWithPath: "/")))
         let output = await cli.run(["help"])
         let json = try JSONValue.parse(output.standardOutput)
         #expect(json["product"] == .string(AppBranding.displayName))
@@ -341,7 +341,7 @@ struct CommandTests {
 
     @Test("adjustments lists every module and every parameter")
     func adjustmentsListsEveryModule() async throws {
-        let cli = CommandLineInterface(environment: CommandEnvironment(currentDirectory: URL(fileURLWithPath: "/")))
+        let cli = CommandLineInterface(environment: .hermetic(currentDirectory: URL(fileURLWithPath: "/")))
         let json = try JSONValue.parse(await cli.run(["adjustments"]).standardOutput)
         let modules = try #require(json["modules"]?.arrayValue)
         let kinds = Set(modules.compactMap { $0["kind"]?.stringValue })

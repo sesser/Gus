@@ -641,7 +641,7 @@ struct MachineLearningNoiseReductionTests {
 
         // The same through photocli render (16-bit TIFF, read back).
         try await RepositoryFiles.withTemporaryDirectory { folder in
-            let cli = CommandLineInterface(environment: CommandEnvironment(currentDirectory: folder))
+            let cli = CommandLineInterface(environment: .hermetic(currentDirectory: folder))
             func rendered(_ luminance: Int) async throws -> (flat: Double, applied: JSONValue?) {
                 let out = folder.appending(path: "flat-\(luminance).tif")
                 let output = await cli.run(["render", url.path, "--out", out.path,
@@ -705,7 +705,7 @@ struct MachineLearningCommandTests {
             let jpegID = try #require(items.first { $0.fileName.hasSuffix(".jpg") }?.versionID)
             try await body(Library(root: root.appending(path: "Library"), catalog: catalog, dng: (dngID, dng),
                                    jpeg: jpegID,
-                                   cli: CommandLineInterface(environment: CommandEnvironment(currentDirectory: root))))
+                                   cli: CommandLineInterface(environment: .hermetic(currentDirectory: root))))
         }
     }
 

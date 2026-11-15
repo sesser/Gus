@@ -6,8 +6,10 @@ Owner: swift-macos-engineer. Bug fix (no PRD or design, `docs/WORKFLOW.md`
 "Bug fixes"), from #170's code review. Branch `bug/squash-top-10`, on top of
 `cb0df4c` (the #64 fix).
 
-**Status: Done.** Next: code-reviewer, then qa-tester. No UI changed, so no
-design review. One open question for the owner (the preview cache, below).
+**Status: Done.** Code review's findings C1 and C2 are fixed (see Review
+fixes). Next: code-reviewer's second pass, then qa-tester. No UI changed, so
+no design review. The preview cache question is closed (moot on this branch,
+below).
 
 States: Not started · In progress · Done · Blocked · Deferred.
 
@@ -122,7 +124,9 @@ unedited previews, by far the most, stay as they were. Camera raws, JPEGs and
 every other file are untouched (the code path is linear DNGs only). No
 golden moved (the goldens have no linear DNG; full `GoldenTests` pass).
 
-**Not bumped:** `PreviewCacheKey.currentPipelineVersion` (see Open questions).
+**Pipeline version:** this commit did not bump
+`PreviewCacheKey.currentPipelineVersion`; on this branch #71's bump to 10
+(`8d87d90`) covers it (see Review fixes, C2).
 
 **Cost** (`photocli render`, the issue's stack, 4 runs each): render time
 0.45 s to 0.49 s, peak memory 216 MB to 347 MB (the bitmap is 8 bytes a
@@ -130,6 +134,17 @@ pixel, 127 MB for this file). Linear DNGs only. In the loupe a linear DNG is
 now rendered whole twice when the live session decodes it (once here, once
 into its own half-float copy), one more whole render than before (not timed
 in the app).
+
+That 127 MB is per decode, not a bound. `LinearRawDecode.engine` has one
+context, but `RenderEngine.withContext` does not serialize: concurrent
+decodes render on it at once, and each bitmap is held until its `Decoded`
+image is released. Scrolling the grid over a folder of 16 MP merges runs the
+generate lane (`min(8, max(4, cores / 2))` at once), the HDR lane (2), the
+full-size lane (1) and export (2): roughly 0.5 to 1.3 GB of these bitmaps in
+flight. Larger merges and panoramas scale up from there. It matters only with
+many or large linear DNGs at once. No cap or lock was added (a lock around
+the render would bound how many are made at once, not how many are held);
+one is the owner's call.
 
 ## Results
 
@@ -156,9 +171,28 @@ No debug-script checks: no UI change. The app paths share `PreviewGenerator.deco
 | Camera raws unchanged (still lazy) | `cameraRawDecodeStaysLazy`; full `GoldenTests` and `RAWDecodeTests` |
 | Which files count as linear | `PreviewTests.dngLayoutDescribesRawImages` |
 
+## Review fixes
+
+From `code-review.md` (2026-11-15, at `8d87d90`):
+
+| # | Finding | Fix |
+| --- | --- | --- |
+| C1 | The comment and Cost said one context makes the bitmaps one at a time, bounding their memory; `RenderEngine.withContext` doesn't serialize, and each bitmap is held until its `Decoded` is released | Comment in `Sources/PhotoCore/Preview/LinearRawDecode.swift` (the type's cost note and `engine`) and the Cost section above corrected: 127 MB per decode, no bound, roughly 0.5 to 1.3 GB with many 16 MP merges at once. Comments and docs only: no cap or lock added (owner's call) |
+| C2 | The pipeline-bump question was still open | Closed below: #71's `8d87d90` bumps to 10 on this branch, which covers #181; if the fixes are split, #181 needs its own bump |
+
+Results after the fixes: `swift build` clean, no new warnings; full
+`swift test` 1032 tests in 153 suites passed, 1 known issue
+(`LiveSessionTests`, as before).
+
 ## Open questions
 
-- **For the owner: bump the preview cache's pipeline version or not.**
+- **Closed (moot on this branch): bump the preview cache's pipeline version
+  or not.** #71's commit `8d87d90` bumps `currentPipelineVersion` to 10 and
+  removes the version 8 carry-over, so every version 9 preview, edited linear
+  DNGs included, is made again once the branch merges: option (c) below, in
+  effect. `WhiteBalanceAcrossDecodersTests` no longer pins 9. If these fixes
+  are ever split into separate pull requests, #181 needs its own bump. The
+  original question, for the record:
   `CLAUDE.md` asks for a bump when the rendering of an existing stack
   changes, and this changes edited linear DNGs (table above). I did not
   bump, because a plain bump does more than this needs: cache keys can't

@@ -6,10 +6,10 @@ Owner: swift-macos-engineer. Bug fix (no PRD or design, `docs/WORKFLOW.md`
 "Bug fixes"), a follow-up from #160's third code review. Branch
 `bug/squash-top-10`, from `develop` at `4cf2107`.
 
-**Status: Done.** Next: code-reviewer, then qa-tester. No UI changed, so no
-design review. This fix changes file writing outside the library
-(`photocli render --out`) and opens the standard library from `photocli`:
-code-reviewer to say whether `/security-review` should run.
+**Status: Done.** Code review's findings C1 and C2 are fixed (see Review
+fixes). Next: code-reviewer's second pass, then `/security-review` (the
+reviewer asks for it: file writing outside the library, the standard catalog
+opened from `photocli`), then qa-tester. No UI changed, so no design review.
 
 States: Not started · In progress · Done · Blocked · Deferred.
 
@@ -62,8 +62,8 @@ tests fail with 34 issues (exit 0, no `outputIsMaster` code, the file at
 These pass before and after the fix:
 - `ordinaryFilesStillReplaced`: an ordinary existing file at `--out` is still
   replaced with a library open.
-- `catalogOpenForReading`: `Catalog.openForReading` creates nothing for a
-  missing catalog, reads masters, and throws on a write.
+- `catalogOpenForReading`: `Catalog.openForReading` creates no catalog or
+  folder for a missing catalog, reads masters, and throws on a write.
 
 ## Owner's ruling (2026-11-15, relayed by the main session)
 
@@ -107,8 +107,9 @@ called in `runRender` after the source is found and before anything renders
   otherwise the standard one (the environment's `defaultLibraryRoot`, else
   `LibraryLocations.standard()`) through the new
   `CommandEnvironment.openLibraryForReading`, which opens it with the new
-  `Catalog.openForReading`: a read-only `DatabaseQueue`, no migration,
-  nothing created, no lock. `--out` is refused when
+  `Catalog.openForReading`: a read-only `DatabaseQueue`, no migration, no
+  catalog created and nothing in it written, no lock (SQLite may create the
+  catalog's `-wal` and `-shm` files if they are absent). `--out` is refused when
   `masterFiles(mounted: VolumeAvailability.mountedVolumes())` holds it by
   place (`contains`) or by content (`holdsContent(ofFileAt:)`). `mounted:` is
   passed explicitly. If the masters can't be read, the command fails
@@ -165,7 +166,7 @@ No debug-script checks: `photocli` only, no app change.
 | A master's bytes elsewhere refused | `masterByContent` |
 | No `--library-root`: the standard library asked, read-only, place and content | `standardLibraryAskedForAFileRender` |
 | A standard library that can't be read: refused, nothing written | `unreadableStandardLibraryRefuses` |
-| Read-only open creates, migrates and writes nothing | `catalogOpenForReading`, `standardLibraryAskedForAFileRender` (catalog bytes) |
+| Read-only open creates no catalog, migrates nothing and writes nothing in it | `catalogOpenForReading`, `standardLibraryAskedForAFileRender` (catalog bytes) |
 | No library anywhere: the input itself refused, other files written | `inputItselfWithoutLibrary` |
 | Ordinary files still replaced | `ordinaryFilesStillReplaced` |
 | `mounted:` passed explicitly | Code review (`refuseOriginal`) |
@@ -173,6 +174,19 @@ No debug-script checks: `photocli` only, no app change.
 For a person (optional; not scriptable without touching the real library):
 a `photocli render <file> --out <a master in the real standard library>`
 with the app open and closed, to see it refused and the library unchanged.
+
+## Review fixes
+
+From `code-review.md` (2026-11-15, at `8d87d90`):
+
+| # | Finding | Fix |
+| --- | --- | --- |
+| C1 | `MachineLearningNoiseReductionTests.flatAreasAreQuieter` ran `render --out` with no `--library-root` and no `defaultLibraryRoot`, so `swift test` opened the owner's real catalog (its `-shm` changed during a run) | Every command environment in the tests is now built by `CommandEnvironment.hermetic(currentDirectory:standardLibrary:)` (`Tests/PhotoCoreTests/Support/HermeticCommands.swift`), whose standard library is the given folder or, by default, a temporary folder that is never created. All seven constructions in the tests use it (`MachineLearningNoiseReductionTests` twice, `CommandTests` three times, `RenderOutputProtectionTests` twice); the other `photocli` calls in the tests already passed `--library-root` or need no library (`help`, `adjustments`). Guard against regressions: `HermeticCommandTests.onlyTheHelperBuildsEnvironments` scans `Tests/` and fails on any other construction (checked by adding one: it failed, then removed), and `defaultStandardLibraryIsAbsent` checks the default is not the real location and has no catalog. After the full run the real library's `catalog.sqlite-shm` kept its time (10:42:12, the reviewer's run) |
+| C2 | Comments said the read-only open creates nothing; SQLite creates `-wal`/`-shm` for a closed WAL database | Reworded in `Catalog.openForReading`, `CommandEnvironment.openLibraryForReading`, `RenderCommands.refuseOriginal`, this file, and `catalogOpenForReading`'s test name: no catalog or folder is created, nothing in the catalog is written, SQLite may create its `-wal` and `-shm` files. The user guide's "changes nothing in it" stays true (the reviewer agrees) |
+
+Results after the fixes: `swift build` clean, no new warnings; full
+`swift test` 1032 tests in 153 suites passed, 1 known issue
+(`LiveSessionTests`, as before).
 
 ## Open questions
 

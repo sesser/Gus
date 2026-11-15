@@ -34,11 +34,18 @@ import os
 ///
 /// **What it costs.** One more render of the whole decode, and 8 bytes per
 /// pixel held while the image is in use: for a 16-megapixel merge about
-/// 0.03 s and 130 MB, for linear DNGs only. They are decoded at full size
-/// already (`DNGLayout.hasReducedLinearRaw`), so no render got larger.
+/// 0.03 s and 130 MB each, for linear DNGs only. They are decoded at full
+/// size already (`DNGLayout.hasReducedLinearRaw`), so no render got larger.
+/// Nothing bounds how many are held at once: every decode makes its own
+/// bitmap, held until its `Decoded` image is released, and decodes run
+/// concurrently (the preview lanes, the HDR and full-size lanes, export). A
+/// grid scrolled over a folder of 16-megapixel merges can hold about 0.5 to
+/// 1.3 GB of them; larger merges and panoramas scale from there (#181's code
+/// review, C1; no cap, by the owner's call).
 enum LinearRawDecode {
-    /// One context: linear DNGs are rare, and one at a time bounds the
-    /// memory their bitmaps take while they are made.
+    /// One context, shared: `RenderEngine.withContext` does not serialize, so
+    /// concurrent callers render on it at once. It keeps these renders off the
+    /// shared engines' contexts; it does not limit how many run or are held.
     static let engine = RenderEngine(contextCount: 1, name: "linear-raw-decode")
 
     private static let log = Logger(subsystem: AppBranding.bundleIdentifier, category: "decode")
