@@ -49,6 +49,7 @@ No finding against #179's acceptance criteria. Two for the engineer, neither a r
 
 **Q1. A quit with a sheet up on the library window shows no question, on the branch and on
 `develop` (look into it; not blocking #179 unless P8 shows it with a real ⌘Q).**
+**Closed 2026-11-15: accepted by the owner as an edge case; no bug issue to file (see Follow-up).**
 Steps: start an export of 40 photos, close the export sheet, open the look-up table browser
 (a sheet), optionally open About, then run App ▸ Quit Gus (`menupress Quit Gus`), wait, close
 the sheet.
@@ -78,8 +79,8 @@ need another identifier or that key removed.
 
 Proposed follow-up issues (for the main session to file):
 
-- **bug: “Quit while a sheet is up on the library window shows no question”** (if P8 reproduces
-  Q1 with a real ⌘Q). Body: Q1's steps, expected, actual; seen on `develop` `e990152` and
+- **bug: “Quit while a sheet is up on the library window shows no question”** (not filed: the
+  owner accepted Q1 as an edge case on 2026-11-15). Body: Q1's steps, expected, actual; seen on `develop` `e990152` and
   `feature/about-gus` `a702501`, macOS 27.2.1.
 - **bug: “Launch crash restoring a customized library toolbar”**. Body: Q2; the toolbar item
   list above; `AppKitToolbarStrategy.applyItemCustomizations` traps; `develop` `e990152`,
@@ -209,31 +210,33 @@ Use a test copy with `THIRD_PARTY_NOTICES.md` and `LICENSE` copied into
 `--library-root` on a scratch library. Per the owner's standing rule, VoiceOver, Voice Control
 and macOS 15 and 26 are not listed (M7's VoiceOver part is out; its keyboard part is P7).
 
-- **P1 Look (M1).** About in light, dark and with Increase Contrast: header centered and clear
+- **P1 Look (M1).** *(Checked by the owner by eye, 2026-11-15; no per-check result reported.)* About in light, dark and with Increase Contrast: header centered and clear
   of the window buttons, divider under it, entries leading-aligned with the address at the
   trailing edge, footer text secondary, the four View License buttons alike. A license window
   in light and dark: monospaced text, inset, title shown. (Dark seen by script in S2; light and
   Increase Contrast never seen.)
-- **P2 Keyboard Navigation (M2, AC12).** With Keyboard Navigation on: Tab goes link, then View
+- **P2 Keyboard Navigation (M2, AC12).** *(Checked by the owner by eye, 2026-11-15; no per-check result reported.)* With Keyboard Navigation on: Tab goes link, then View
   License, entry by entry, then the footer's button; Space activates; no focus ring when the
   window opens; Return does nothing.
-- **P3 No network (M3, AC6).** With Wi-Fi off, About opens and shows everything.
-- **P4 A real click on a link (M4, AC6)** opens the default browser at that project's page.
-- **P5 Resizing and moving (M5).** The window drags taller up to its content and no wider; the
+- **P3 No network (M3, AC6).** *(Checked by the owner by eye, 2026-11-15; no per-check result reported.)* With Wi-Fi off, About opens and shows everything.
+- **P4 A real click on a link (M4, AC6)** *(Checked by the owner by eye, 2026-11-15; no per-check result reported.)* opens the default browser at that project's page.
+- **P5 Resizing and moving (M5).** *(Checked by the owner by eye, 2026-11-15; no per-check result reported.)* The window drags taller up to its content and no wider; the
   zoom button is dimmed; dragging the background moves it.
-- **P6 Menus by eye (M6).** App menu: About ‹name› first, alone above a separator. Help: the
+- **P6 Menus by eye (M6).** *(Checked by the owner by eye, 2026-11-15; no per-check result reported.)* App menu: About ‹name› first, alone above a separator. Help: the
   search field, then About ‹name›. In both apps.
-- **P7 Esc, ⌘W and ⌘F with a real keyboard (M7's keys, AC12).** Esc closes About; Esc in a
+- **P7 Esc, ⌘W and ⌘F with a real keyboard (M7's keys, AC12).** *(Checked by the owner by eye, 2026-11-15; no per-check result reported.)* Esc closes About; Esc in a
   license window does nothing, or closes its find bar; ⌘W closes either; ⌘F in a license
   window opens its find bar.
-- **P8 Quit during an export, from About (M8).** (a) Start an export, open About so it is key,
+- **P8 Quit during an export, from About (M8).** *(Checked by the owner by eye, 2026-11-15; (b) ruled fine by the owner 2026-11-15, see Follow-up.)* (a) Start an export, open About so it is key,
   ⌘Q: the library window comes in front of About and “Quit While Exporting?” is a sheet on it;
   Return and Esc keep exporting. The script saw the placement (S6, R7), not the keys.
   (b) Again with the look-up table browser open on the library window: the question should be on
   that sheet at once. The script saw no question at all here, on `develop` too (Q1): say what
   happens. Not checked by anyone: the library window on another Space or in full screen.
-- **P9 ⌘F on a non-Latin layout (M9).** With a Russian or Greek input source, ⌘F in a license
+- **P9 ⌘F on a non-Latin layout (M9).** *(Checked by the owner by eye, 2026-11-15; no per-check result reported.)* With a Russian or Greek input source, ⌘F in a license
   window opens its find bar.
+
+The owner's check of P1 to P9 is recorded in **Follow-up** (2026-11-15).
 
 Open until #172 lands (not a person's check now): AC7's and AC13's packaging halves, that the
 build puts `THIRD_PARTY_NOTICES.md` and `LICENSE` in both bundles and that the bundle's
@@ -256,3 +259,24 @@ build puts `THIRD_PARTY_NOTICES.md` and `LICENSE` in both bundles and that the b
 - **Q2** (launch crash from a saved toolbar configuration, also on `develop`) is unaffected by
   the sign-off. It is still a proposed follow-up issue.
 - **Still open until #172:** the packaging halves of AC7 and AC13.
+
+### Owner's check of P1 to P9 (2026-11-15)
+
+- **Who and when:** the owner, on 2026-11-15, by eye, together with their other checks,
+  as relayed by the main session. They said everything looks fine.
+- **Results:** no per-check results and no findings were reported. P1 to P9 are marked
+  **checked by the owner** in **For a person** above, each item's text kept; no verdict in this
+  file changed. Q1's P8(b) was not reported on its own, so Q1 stays an observation as recorded
+  under Sign-off.
+- **Still pending, #172:** the packaging halves of AC7 and AC13 (the build puts
+  `THIRD_PARTY_NOTICES.md` and `LICENSE` in both bundles; the bundle's `LICENSE` is the
+  repository's). They wait on #172 and are not closed by this check.
+
+### Owner's ruling on P8(b) and Q1 (2026-11-15)
+
+- **P8(b):** checked and **fine**, by the owner on 2026-11-15, as relayed by the main session.
+  The owner said: "P8(b) is fine. Close it as it's fine; it reads like an edge case (during an
+  import, open the About window, then quit in the middle): not concerned."
+- **Q1:** **closed as accepted by the owner**: an edge case, no bug issue to file. The proposed
+  bug issue (“Quit while a sheet is up on the library window shows no question”) is not filed.
+  No code on this branch changed and no verdict in this file changed.
