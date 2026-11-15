@@ -49,6 +49,7 @@ No finding against #179's acceptance criteria. Two for the engineer, neither a r
 
 **Q1. A quit with a sheet up on the library window shows no question, on the branch and on
 `develop` (look into it; not blocking #179 unless P8 shows it with a real ⌘Q).**
+**Closed 2026-11-15: accepted by the owner as an edge case; no bug issue to file (see Follow-up).**
 Steps: start an export of 40 photos, close the export sheet, open the look-up table browser
 (a sheet), optionally open About, then run App ▸ Quit Gus (`menupress Quit Gus`), wait, close
 the sheet.
@@ -78,8 +79,8 @@ need another identifier or that key removed.
 
 Proposed follow-up issues (for the main session to file):
 
-- **bug: “Quit while a sheet is up on the library window shows no question”** (if P8 reproduces
-  Q1 with a real ⌘Q). Body: Q1's steps, expected, actual; seen on `develop` `e990152` and
+- **bug: “Quit while a sheet is up on the library window shows no question”** (not filed: the
+  owner accepted Q1 as an edge case on 2026-11-15). Body: Q1's steps, expected, actual; seen on `develop` `e990152` and
   `feature/about-gus` `a702501`, macOS 27.2.1.
 - **bug: “Launch crash restoring a customized library toolbar”**. Body: Q2; the toolbar item
   list above; `AppKitToolbarStrategy.applyItemCustomizations` traps; `develop` `e990152`,
@@ -226,7 +227,7 @@ and macOS 15 and 26 are not listed (M7's VoiceOver part is out; its keyboard par
 - **P7 Esc, ⌘W and ⌘F with a real keyboard (M7's keys, AC12).** *(Checked by the owner by eye, 2026-11-15; no per-check result reported.)* Esc closes About; Esc in a
   license window does nothing, or closes its find bar; ⌘W closes either; ⌘F in a license
   window opens its find bar.
-- **P8 Quit during an export, from About (M8).** *(Checked by the owner by eye, 2026-11-15; no per-check result reported.)* (a) Start an export, open About so it is key,
+- **P8 Quit during an export, from About (M8).** *(Checked by the owner by eye, 2026-11-15; (b) ruled fine by the owner 2026-11-15, see Follow-up.)* (a) Start an export, open About so it is key,
   ⌘Q: the library window comes in front of About and “Quit While Exporting?” is a sheet on it;
   Return and Esc keep exporting. The script saw the placement (S6, R7), not the keys.
   (b) Again with the look-up table browser open on the library window: the question should be on
@@ -270,3 +271,12 @@ build puts `THIRD_PARTY_NOTICES.md` and `LICENSE` in both bundles and that the b
 - **Still pending, #172:** the packaging halves of AC7 and AC13 (the build puts
   `THIRD_PARTY_NOTICES.md` and `LICENSE` in both bundles; the bundle's `LICENSE` is the
   repository's). They wait on #172 and are not closed by this check.
+
+### Owner's ruling on P8(b) and Q1 (2026-11-15)
+
+- **P8(b):** checked and **fine**, by the owner on 2026-11-15, as relayed by the main session.
+  The owner said: "P8(b) is fine. Close it as it's fine; it reads like an edge case (during an
+  import, open the About window, then quit in the middle): not concerned."
+- **Q1:** **closed as accepted by the owner**: an edge case, no bug issue to file. The proposed
+  bug issue (“Quit while a sheet is up on the library window shows no question”) is not filed.
+  No code on this branch changed and no verdict in this file changed.
