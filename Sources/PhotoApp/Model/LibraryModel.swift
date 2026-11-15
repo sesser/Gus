@@ -751,9 +751,6 @@ final class LibraryModel {
         let generator = PreviewGenerator(renderer: AdjustmentRenderer(lookTables: lookTables))
         let previews = PreviewService(cacheDirectory: locations.previewCacheDirectory, catalog: catalog,
                                       generator: generator)
-        // Version 9 is for LibRaw's photos only: the earlier version's previews from before
-        // LibRaw decoded anything are kept (`PreviewCacheKey.versionCarriedOver`).
-        previews.cache.carryOver()
         previews.cache.removeObsoletePipelineVersions()
         let model = LibraryModel(locations: locations, catalog: catalog, importer: importer, previews: previews,
                                  lookTables: lookTables)

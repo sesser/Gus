@@ -32,7 +32,8 @@ public struct SharpeningMapStatus: Equatable, Sendable {
             reason = nil
         }
         // The masks the renderer draws: turned on, with shapes, values and an
-        // amount, and the Masks group itself not turned off.
+        // amount, and the Masks group itself not turned off. With the
+        // Sharpening group off their Sharpness is off too (issue #71).
         masksSharpen = values.effective.local.renderedMasks.contains { $0.adjustments.sharpen > 0 }
     }
 

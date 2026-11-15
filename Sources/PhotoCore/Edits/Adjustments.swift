@@ -267,11 +267,18 @@ public struct Adjustments: Hashable, Sendable {
         Set(Group.allCases.filter(isModified))
     }
 
-    /// What renders: these adjustments with the modules that are off at their defaults.
+    /// What renders: these adjustments with the modules that are off at their
+    /// defaults. Local Sharpness belongs to the Sharpening group: while the
+    /// group is off, every mask's Sharpness is 0 here too, so nothing at all is
+    /// sharpened; the stored amounts are kept and apply again when the group
+    /// is turned back on (owner ruling 2026-11-15, issue #71).
     public var effective: Adjustments {
         guard !disabled.isEmpty else { return self }
         var copy = self
         for kind in disabled { copy.resetModule(kind) }
+        if disabled.contains(Sharpen.kind) {
+            for index in copy.local.masks.indices { copy.local.masks[index].adjustments.sharpen = 0 }
+        }
         return copy
     }
 

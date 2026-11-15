@@ -420,8 +420,11 @@ of the full-size photo, which is what an export sharpens (a small spinner in the
 caption shows while that takes more than half a second). With Amount at 0 or
 Sharpening turned off, the map still shows where sharpening would go; the badge
 reads **Sharpening Map · Not Applied** when nothing at all is sharpened, and the
-text under the toggle says why. Masks with Sharpness still sharpen the areas they
-cover. Press Esc, click the toggle, or choose **Adjust ▸ Hide Sharpening Map** to see
+text under the toggle says why. With Amount at 0, masks with Sharpness still
+sharpen the areas they cover, with the Radius, Detail and Masking set here.
+Turning Sharpening off turns the masks' Sharpness off too, so nothing is
+sharpened; each mask keeps its Sharpness value, which applies again when you turn
+Sharpening back on. Press Esc, click the toggle, or choose **Adjust ▸ Hide Sharpening Map** to see
 the photo again. While the map is shown, hovering a preset or look-up table
 shows the map with it. The map is only a view: it is not saved, has no undo step, and never
 reaches thumbnails, previews or exports. It ends when you move to another photo,
