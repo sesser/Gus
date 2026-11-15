@@ -753,12 +753,13 @@ second MIT notice and a note on three Swift.org-derived files whose Apache 2.0
 text is not reproduced: the owner's open question) and ExifTool, and the
 Credits an ExifTool line. No migration, no pipeline bump, no rendering changed.
 Known: LibRaw's View License shows its notice, not the LGPL text (RI-E1); the
-`Info.plist`s have no `NSHumanReadableCopyright`. Shipped, checks pending: P1 to
-P9 (look in light and with Increase Contrast, Keyboard Navigation, no network,
-a real link click, resizing, menus by eye, Esc, ⌘W and ⌘F with a real keyboard,
-a real ⌘Q during an export from About and with a sheet up, ⌘F on a non-Latin
-layout) in #82 and `docs/features/about-gus-dedication/qa.md`, and AC7's and
-AC13's packaging halves, which wait on #172.
+`Info.plist`s have no `NSHumanReadableCopyright`. Shipped; the owner checked P1
+to P9 (look in light and with Increase Contrast, Keyboard Navigation, no
+network, a real link click, resizing, menus by eye, Esc, ⌘W and ⌘F with a real
+keyboard, a real ⌘Q during an export from About and with a sheet up, ⌘F on a
+non-Latin layout) by eye on 2026-11-15, everything fine (#82,
+`docs/features/about-gus-dedication/qa.md`). AC7's and AC13's packaging halves
+still wait on #172.
 
 White balance and baseline look across decoders
 (`docs/features/white-balance-across-decoders/`, issue #170, covers #171,
