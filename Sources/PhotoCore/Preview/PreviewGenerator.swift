@@ -299,11 +299,12 @@ public struct PreviewGenerator: Sendable {
             }
             let outcome = settings.apply(to: raw, source: url)
             let native = raw.nativeSize
+            let layout = DNGLayout(contentsOf: url)
             if let longEdge, native.width > 0, native.height > 0 {
                 let scale = Double(longEdge) / Double(max(native.width, native.height))
                 // Scaled decodes of DNGs with reduced linear raw copies come out
                 // cyan; those decode at full size and are scaled afterwards.
-                if scale < 1, DNGLayout(contentsOf: url)?.hasReducedLinearRaw != true {
+                if scale < 1, layout?.hasReducedLinearRaw != true {
                     // Ask for a little more than needed so the final resample is a downscale.
                     raw.scaleFactor = Float(min(1, scale * 1.25))
                 }
@@ -312,8 +313,13 @@ public struct PreviewGenerator: Sendable {
             // The decoder can give an empty image without an error (a small
             // synthetic DNG does): treat it as no output. The image has a
             // graph of its own, or the decode before it could smear its edges
-            // (`RAWDecodeGraph`).
-            if let output = RAWDecodeGraph.output(of: raw), !output.extent.isEmpty {
+            // (`RAWDecodeGraph`). A linear DNG's is rendered whole first, or
+            // parts of a render could differ from run to run (`LinearRawDecode`);
+            // if that render fails, the decoder's image is used as it is.
+            if var output = RAWDecodeGraph.output(of: raw), !output.extent.isEmpty {
+                if layout?.hasLinearRaw == true, let whole = LinearRawDecode.rendered(output) {
+                    output = whole
+                }
                 return Decoded(image: output, context: RenderContext(scale: Self.scale(of: output, native: native),
                                                                      isRaw: true, balancedByDecoder: true,
                                                                      cameraFrame: wholeSensor == nil ? nil : CameraFrame.rect(of: url)),

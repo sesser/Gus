@@ -11,7 +11,8 @@ import CoreImage.CIFilterBuiltins
 /// the color mixer, vibrance and saturation, color grading, the masks (local
 /// adjustments, in list order), the look-up table, the vignette, noise
 /// reduction (non-RAW), sharpening (then each mask's local sharpening) and
-/// grain. Modules that are turned off are rendered at their defaults.
+/// grain. Modules that are turned off are rendered at their defaults, and the
+/// masks' Sharpness is off with the Sharpening group (`Adjustments.effective`).
 public struct AdjustmentRenderer: EditStackRenderer {
     /// Encoding for tone curves and the grading cube: Rec. 2020 primaries with the
     /// sRGB transfer curve, so curve points are spaced the way tones are seen.

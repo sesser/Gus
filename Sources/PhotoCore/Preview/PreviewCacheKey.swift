@@ -36,19 +36,11 @@ public struct PreviewCacheKey: Hashable, Sendable, CustomStringConvertible {
     /// a key cannot say which decoder a file gets: that takes reading the
     /// file, which may be offline, and keys are made where nothing is read.
     /// So the version was bumped, and version 8's previews from before LibRaw
-    /// decoded anything are carried over: `versionCarriedOver`).
-    public static let currentPipelineVersion = 9
-
-    /// The earlier pipeline version whose previews are still right for
-    /// every file except the raws LibRaw decodes, and the moment before
-    /// which no preview can be one of those: LibRaw decoding first existed
-    /// in a build on 2026-11-13 (issue #161; midnight UTC, hours before its
-    /// first commit). `PreviewDiskCache.carryOver` moves version 8's
-    /// previews written before it under version 9, so a library's previews
-    /// (those of offline masters among them, which could not be made again)
-    /// survive the bump, and drops the rest, which are made again on demand.
-    public static let versionCarriedOver = 8
-    public static let libRawDecodingSince = Date(timeIntervalSince1970: 1_794_528_000)
+    /// decoded anything were carried over at launch; 10: a mask's Sharpness
+    /// no longer sharpens while the Sharpening group is off,
+    /// local-sharpen-group-off, issue #71; a plain bump, every preview is
+    /// made again, and the carry-over from version 8 went with it).
+    public static let currentPipelineVersion = 10
 
     public let contentHash: String
     public let editStackHash: String

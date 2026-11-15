@@ -14,6 +14,19 @@ public final class Catalog: Sendable {
         return try Catalog(database: pool)
     }
 
+    /// Opens an existing catalog for reading only: no catalog or folder is
+    /// created, no migration runs, nothing in the catalog is written, and any
+    /// write throws. SQLite may create the catalog's `-wal` and `-shm` files
+    /// if they are absent (a closed WAL database). For asking a library that the
+    /// caller must not change (`photocli render`'s check of the standard
+    /// library). Reads assume the schema this build knows; a catalog too old
+    /// or too new for a query makes that query throw.
+    public static func openForReading(at url: URL) throws -> Catalog {
+        var configuration = makeConfiguration()
+        configuration.readonly = true
+        return Catalog(unmigrated: try DatabaseQueue(path: url.path, configuration: configuration))
+    }
+
     /// A private in-memory catalog, for tests and previews.
     public static func makeInMemory() throws -> Catalog {
         try Catalog(database: DatabaseQueue(configuration: makeConfiguration()))
@@ -22,6 +35,10 @@ public final class Catalog: Sendable {
     init(database: any DatabaseWriter) throws {
         self.database = database
         try CatalogSchema.migrator.migrate(database)
+    }
+
+    private init(unmigrated database: any DatabaseWriter) {
+        self.database = database
     }
 
     private static func makeConfiguration() -> Configuration {

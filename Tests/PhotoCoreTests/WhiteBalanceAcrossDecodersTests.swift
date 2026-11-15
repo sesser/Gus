@@ -568,78 +568,6 @@ struct WhiteBalanceAcrossDecodersTests {
         #expect(stack.renderHash != Adjustments(stack: stack).resettingProfile.editStack.renderHash)
     }
 
-    // MARK: Previews cached before the change (AC12)
-
-    /// AC12 (R12), with R11's "their cached previews stay valid": a cache
-    /// key cannot say which decoder a file gets, so the version is bumped
-    /// for everything, and the earlier version's previews that cannot be
-    /// LibRaw's (written before LibRaw decoded anything) are carried over.
-    @Test("A preview cached since LibRaw decoding existed is made again; an older one is kept (AC12)")
-    func cachedPreviewsAreRegenerated() async throws {
-        // 8 was the version of the builds that showed LibRaw's photos without a color step or a look.
-        #expect(PreviewCacheKey.currentPipelineVersion == 9 && PreviewCacheKey.versionCarriedOver == 8)
-        let edits = EditStack.identity.renderHash
-        func key(_ byte: String, _ tier: PreviewTier, version: Int = PreviewCacheKey.currentPipelineVersion) throws -> PreviewCacheKey {
-            try #require(PreviewCacheKey(contentHash: String(repeating: byte, count: 32), editStackHash: edits, tier: tier,
-                                         pipelineVersion: version))
-        }
-        let current = try key("ab", .preview), earlier = try key("ab", .preview, version: 8)
-        #expect(current.pipelineVersion == 9 && current != earlier && current.relativePath != earlier.relativePath)
-        #expect(current.relativePath.hasPrefix("v9/") && earlier.relativePath.hasPrefix("v8/"))
-        // 2026-11-13, midnight UTC: the day LibRaw decoding first existed in a build (#161).
-        let cutoff = PreviewCacheKey.libRawDecodingSince
-        #expect(cutoff == ISO8601DateFormatter().date(from: "2026-11-13T00:00:00Z"))
-        func setDate(_ cache: PreviewDiskCache, _ key: PreviewCacheKey, _ date: Date) throws {
-            try FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: cache.url(for: key).path)
-        }
-
-        try await RepositoryFiles.withTemporaryDirectory { folder in
-            let cache = PreviewDiskCache(root: folder)
-            // Without the carry-over a version 8 preview is simply not found: a miss, rendered again.
-            try cache.store(Data([1, 2, 3]), for: earlier)
-            #expect(cache.contains(earlier) && !cache.contains(current))
-            #expect(cache.loadImage(for: current) == nil)
-
-            // Three photos' previews under version 8: one from before LibRaw decoded anything (a
-            // JPEG's, a raw's the system decoder read), with its thumbnail; one from the day after
-            // (possibly a LibRaw photo's old look); one written just now.
-            let old = try key("ab", .preview, version: 8), oldThumbnail = try key("ab", .thumbnail, version: 8)
-            let recent = try key("cd", .preview, version: 8), now = try key("ef", .thumbnail, version: 8)
-            try cache.store(Data([4, 5, 6]), for: oldThumbnail)
-            try cache.store(Data([7, 8]), for: recent)
-            try cache.store(Data([9]), for: now)
-            try setDate(cache, old, cutoff.addingTimeInterval(-1))
-            try setDate(cache, oldThumbnail, cutoff.addingTimeInterval(-90 * 86_400))
-            try setDate(cache, recent, cutoff.addingTimeInterval(86_400))
-            let moved = cache.carryOver()
-            #expect(moved.kept == 2 && moved.deleted == 2)
-            // The old ones are found under today's keys, byte for byte.
-            let carried = try key("ab", .preview), carriedThumbnail = try key("ab", .thumbnail)
-            #expect(cache.contains(carried) && cache.contains(carriedThumbnail))
-            #expect(try Data(contentsOf: cache.url(for: carried)) == Data([1, 2, 3]))
-            #expect(try Data(contentsOf: cache.url(for: carriedThumbnail)) == Data([4, 5, 6]))
-            // The ones a LibRaw photo's old look could be in are gone: made again on demand.
-            let dropped = try key("cd", .preview), droppedThumbnail = try key("ef", .thumbnail)
-            #expect(!cache.contains(dropped) && !cache.contains(droppedThumbnail))
-            #expect(!FileManager.default.fileExists(atPath: folder.appending(path: "v8").path))
-            // Once only: with version 9 in place, a version 8 folder that turns up later (an
-            // earlier build was run again) is not merged in, and goes with the obsolete versions.
-            let late = try key("12", .preview, version: 8), lateToday = try key("12", .preview)
-            try cache.store(Data([1]), for: late)
-            try setDate(cache, late, cutoff.addingTimeInterval(-1))
-            #expect(cache.carryOver() == (0, 0))
-            #expect(!cache.contains(lateToday))
-            cache.removeObsoletePipelineVersions()
-            #expect(!FileManager.default.fileExists(atPath: folder.appending(path: "v8").path))
-            #expect(cache.contains(carried))
-        }
-        // A new library, or a cache that was deleted: nothing to carry.
-        try await RepositoryFiles.withTemporaryDirectory { folder in
-            #expect(PreviewDiskCache(root: folder).carryOver() == (0, 0))
-            #expect(PreviewDiskCache(root: folder.appending(path: "missing")).carryOver() == (0, 0))
-        }
-    }
-
     // MARK: The exposure a Fujifilm camera held back
 
     @Test("A Fujifilm raw's exposure bias beyond the normal one is added to the baseline")
@@ -737,52 +665,6 @@ struct WhiteBalanceAcrossDecodersTests {
             tags.baselineExposure = 1
             let colored = try LibRawDecoder.decode(try Self.libRawDNG(in: folder, "colored", color: tags, mosaic: mosaic))
             #expect(colored.step.color?.baselineExposure == 1 && colored.step.fileExposure == 1)
-        }
-    }
-
-    /// Code review C7. One rendition written since the cutoff that cannot
-    /// be removed must not cost the older ones, which for an offline master
-    /// could not be made again, and must not come under the current version.
-    @Test("A rendition that cannot be removed does not stop the older ones from being carried over")
-    func carryOverSurvivesAFailedRemoval() async throws {
-        let edits = EditStack.identity.renderHash
-        func key(_ byte: String, _ tier: PreviewTier, version: Int = PreviewCacheKey.currentPipelineVersion) throws -> PreviewCacheKey {
-            try #require(PreviewCacheKey(contentHash: String(repeating: byte, count: 32), editStackHash: edits, tier: tier,
-                                         pipelineVersion: version))
-        }
-        let cutoff = PreviewCacheKey.libRawDecodingSince
-        try await RepositoryFiles.withTemporaryDirectory { folder in
-            let cache = PreviewDiskCache(root: folder)
-            // "ab" and "ac" share a folder ("a…"); "cd" has its own.
-            let old = try key("ab", .preview, version: 8), stuck = try key("ac", .preview, version: 8)
-            let oldElsewhere = try key("cd", .thumbnail, version: 8), recent = try key("ef", .preview, version: 8)
-            try cache.store(Data([1, 2, 3]), for: old)
-            try cache.store(Data([4]), for: stuck)
-            try cache.store(Data([5, 6]), for: oldElsewhere)
-            try cache.store(Data([7]), for: recent)
-            let manager = FileManager.default
-            try manager.setAttributes([.modificationDate: cutoff.addingTimeInterval(-3600)], ofItemAtPath: cache.url(for: old).path)
-            try manager.setAttributes([.modificationDate: cutoff.addingTimeInterval(-3600)], ofItemAtPath: cache.url(for: oldElsewhere).path)
-            try manager.setAttributes([.modificationDate: cutoff.addingTimeInterval(3600)], ofItemAtPath: cache.url(for: stuck).path)
-            // The folder that holds "ab" and "ac" cannot be written to: nothing in it can be removed or moved out.
-            let locked = cache.url(for: stuck).deletingLastPathComponent()
-            try manager.setAttributes([.posixPermissions: 0o555], ofItemAtPath: locked.path)
-            defer { try? manager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: locked.path) }
-            try #require(!manager.isDeletableFile(atPath: cache.url(for: stuck).path), "the test cannot make a file unremovable here")
-
-            let moved = cache.carryOver()
-            // Both older renditions arrived (one copied out of the locked folder); the removable recent one is gone.
-            #expect(moved.kept == 2 && moved.deleted == 1)
-            let carried = try key("ab", .preview), carriedElsewhere = try key("cd", .thumbnail)
-            #expect(try Data(contentsOf: cache.url(for: carried)) == Data([1, 2, 3]))
-            #expect(try Data(contentsOf: cache.url(for: carriedElsewhere)) == Data([5, 6]))
-            // The one that could not be removed is not found under the current version, nor is the recent one.
-            let stuckToday = try key("ac", .preview), recentToday = try key("ef", .preview)
-            #expect(!cache.contains(stuckToday) && !cache.contains(recentToday))
-            // What follows at launch leaves the carried ones alone.
-            cache.removeObsoletePipelineVersions()
-            #expect(cache.contains(carried) && cache.contains(carriedElsewhere))
-            #expect(!cache.contains(stuckToday))
         }
     }
 }

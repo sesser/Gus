@@ -1,9 +1,10 @@
 import CoreGraphics
 import Foundation
 
-/// Writes minimal uncompressed Bayer (RGGB) DNG files, so the RAW decode path
-/// (`CIRAWFilter` demosaic, white balance, color matrix) can be tested and
-/// profiled without real camera files.
+/// Writes minimal uncompressed Bayer (RGGB) DNG files, or linear raw ones
+/// (`Options.linearRaw`), so the RAW decode path (`CIRAWFilter` demosaic,
+/// white balance, color matrix) can be tested and profiled without real
+/// camera files.
 ///
 /// The fictitious camera has linear sRGB primaries unless `Options.color` says
 /// otherwise: `ColorMatrix1` is the D65 XYZ→linear-sRGB matrix and
@@ -81,11 +82,16 @@ public enum SyntheticDNG {
         public var defaultCrop: CGRect?
         /// The camera's color tags.
         public var color: Color
+        /// Writes the scene demosaiced, as a linear raw (three 16-bit samples
+        /// per pixel, PhotometricInterpretation 34892, as HDR merges and
+        /// panoramas are), instead of a color filter array.
+        public var linearRaw: Bool
 
         public init(width: Int, height: Int, seed: UInt64, dateTimeOriginal: String? = nil, orientation: Int = 1,
                     noise: Double = 0, writesNoiseProfile: Bool = false, iso: Int? = nil, scene: Scene = .pattern,
-                    defaultCrop: CGRect? = nil, color: Color = .sRGB) {
+                    defaultCrop: CGRect? = nil, color: Color = .sRGB, linearRaw: Bool = false) {
             self.color = color
+            self.linearRaw = linearRaw
             self.width = width
             self.height = height
             self.seed = seed
@@ -146,13 +152,17 @@ public enum SyntheticDNG {
     /// picture (the same mosaic under another orientation, crop or color
     /// tag) are therefore written from one mosaic, drawn once, and never by
     /// drawing the scene again.
+    ///
+    /// With `Options.linearRaw` the samples are the scene's three channels
+    /// at every pixel, not a mosaic.
     public static func mosaic(options: Options) throws -> Data {
         let width = options.width & ~1
         let height = options.height & ~1
         guard width >= 16, height >= 16,
               let scene = options.scene.image(width: width, height: height, seed: options.seed)
         else { throw CocoaError(.fileWriteInvalidFileName) }
-        return try mosaic(scene, width: width, height: height, noise: options.noise, seed: options.seed)
+        return try mosaic(scene, width: width, height: height, noise: options.noise, seed: options.seed,
+                          linearRaw: options.linearRaw)
     }
 
     public static func data(options: Options, mosaic drawn: Data? = nil) throws -> Data {
@@ -160,8 +170,9 @@ public enum SyntheticDNG {
         let height = options.height & ~1
         guard width >= 16, height >= 16 else { throw CocoaError(.fileWriteInvalidFileName) }
         let mosaic = try drawn ?? mosaic(options: options)
+        let samplesPerPixel = options.linearRaw ? 3 : 1
         // A mosaic of another size is not this file's.
-        guard mosaic.count == width * height * 2 else { throw CocoaError(.fileWriteInvalidFileName) }
+        guard mosaic.count == width * height * samplesPerPixel * 2 else { throw CocoaError(.fileWriteInvalidFileName) }
 
         var tiff = TIFFWriter()
         let date = options.dateTimeOriginal ?? "2024:01:01 00:00:00"
@@ -176,19 +187,21 @@ public enum SyntheticDNG {
         ifd.long(254, [0])                         // NewSubfileType: main image
         ifd.long(256, [UInt32(width)])
         ifd.long(257, [UInt32(height)])
-        ifd.short(258, [16])                       // BitsPerSample
+        ifd.short(258, [UInt16](repeating: 16, count: samplesPerPixel)) // BitsPerSample
         ifd.short(259, [1])                        // Compression: none
-        ifd.short(262, [32803])                    // PhotometricInterpretation: CFA
+        ifd.short(262, [options.linearRaw ? 34892 : 32803]) // PhotometricInterpretation: linear raw or CFA
         ifd.ascii(271, "Synthetic")                // Make
         ifd.ascii(272, "Bayer Generator")          // Model
         ifd.imageData(273, 279, mosaic)            // StripOffsets / StripByteCounts
         ifd.short(274, [UInt16(options.orientation)])
-        ifd.short(277, [1])                        // SamplesPerPixel
+        ifd.short(277, [UInt16(samplesPerPixel)])  // SamplesPerPixel
         ifd.long(278, [UInt32(height)])            // RowsPerStrip
-        ifd.short(284, [1])                        // PlanarConfiguration
+        ifd.short(284, [1])                        // PlanarConfiguration: chunky
         ifd.ascii(306, date)                       // DateTime
-        ifd.short(33421, [2, 2])                   // CFARepeatPatternDim
-        ifd.bytes(33422, [0, 1, 1, 2])             // CFAPattern: RGGB
+        if !options.linearRaw {
+            ifd.short(33421, [2, 2])               // CFARepeatPatternDim
+            ifd.bytes(33422, [0, 1, 1, 2])         // CFAPattern: RGGB
+        }
         ifd.subIFD(34665, exif)                    // ExifIFD
         ifd.bytes(50706, [1, 4, 0, 0])             // DNGVersion
         ifd.bytes(50707, [1, 1, 0, 0])             // DNGBackwardVersion
@@ -270,8 +283,10 @@ public enum SyntheticDNG {
         return tiff.write(ifd)
     }
 
-    /// Samples the scene through an RGGB color filter array as 16-bit linear values.
-    static func mosaic(_ scene: CGImage, width: Int, height: Int, noise: Double, seed: UInt64) throws -> Data {
+    /// Samples the scene through an RGGB color filter array as 16-bit linear
+    /// values, or every channel at every pixel for a linear raw.
+    static func mosaic(_ scene: CGImage, width: Int, height: Int, noise: Double, seed: UInt64,
+                       linearRaw: Bool = false) throws -> Data {
         var rgba = [UInt8](repeating: 0, count: width * height * 4)
         guard let context = CGContext(data: &rgba, width: width, height: height, bitsPerComponent: 8,
                                       bytesPerRow: width * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
@@ -292,17 +307,20 @@ public enum SyntheticDNG {
             let v = Double(random.next() >> 11) / Double(1 << 53)
             return (-2 * log(u)).squareRoot() * cos(2 * Double.pi * v)
         }
-        var output = Data(count: width * height * 2)
+        let samplesPerPixel = linearRaw ? 3 : 1
+        var output = Data(count: width * height * samplesPerPixel * 2)
         output.withUnsafeMutableBytes { raw in
             let samples = raw.bindMemory(to: UInt16.self)
             for y in 0..<height {
                 for x in 0..<width {
-                    let channel = (y & 1) == 0 ? ((x & 1) == 0 ? 0 : 1) : ((x & 1) == 0 ? 1 : 2)
-                    var value = linear[Int(rgba[(y * width + x) * 4 + channel])]
-                    if noise > 0 {
-                        value = UInt16(min(65535, max(0, (Double(value) + gaussian() * noise * 65535).rounded())))
+                    for sample in 0..<samplesPerPixel {
+                        let channel = linearRaw ? sample : (y & 1) == 0 ? ((x & 1) == 0 ? 0 : 1) : ((x & 1) == 0 ? 1 : 2)
+                        var value = linear[Int(rgba[(y * width + x) * 4 + channel])]
+                        if noise > 0 {
+                            value = UInt16(min(65535, max(0, (Double(value) + gaussian() * noise * 65535).rounded())))
+                        }
+                        samples[(y * width + x) * samplesPerPixel + sample] = value.littleEndian
                     }
-                    samples[y * width + x] = value.littleEndian
                 }
             }
         }

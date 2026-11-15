@@ -262,18 +262,6 @@ struct MasterContentTests {
         }
     }
 
-    /// The memory this process is charged with (`phys_footprint`, what Activity Monitor shows).
-    func footprint() -> Int64? {
-        var info = task_vm_info_data_t()
-        var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<natural_t>.size)
-        let result = withUnsafeMutablePointer(to: &info) { pointer in
-            pointer.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
-                task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count)
-            }
-        }
-        return result == KERN_SUCCESS ? Int64(info.phys_footprint) : nil
-    }
-
     /// C8: a read that fails after the file opened. A folder opens and then can't be
     /// read (EISDIR), which is the one such failure a test can make happen.
     @Test func aFileThatOpensAndCannotBeReadCountsAsAMaster() async throws {
@@ -313,9 +301,9 @@ struct MasterContentTests {
             let limit = size / 2
             var growth: [Int64] = []
             for _ in 0..<5 {
-                let before = try #require(footprint())
+                let before = try #require(processFootprint())
                 #expect(!masters.holdsContent(ofFileAt: file))
-                growth.append(try #require(footprint()) - before)
+                growth.append(try #require(processFootprint()) - before)
                 if growth.last! < limit { break }
             }
             #expect(try #require(growth.min()) < limit, "footprint grew by \(growth) bytes hashing \(size)")

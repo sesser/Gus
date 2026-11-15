@@ -1,4 +1,3 @@
-import CryptoKit
 import Foundation
 import GRDB
 
@@ -98,32 +97,16 @@ public struct MasterFiles: Sendable {
     /// SHA-256 of a file as the catalog stores it (`SHA256ContentHasher`: the
     /// whole file, lowercase hex), with a cancellation check between chunks.
     ///
-    /// Read with `read(2)` into one buffer that is used again for every chunk,
+    /// Read into one buffer that is used again for every chunk (`FileChunks`),
     /// so hashing holds `hashChunkSize` bytes however large the file is and
-    /// however many files one plan hashes. `FileHandle.read(upToCount:)`
-    /// hands back autoreleased data, and a plan is one synchronous call with
-    /// no autorelease pool of its own: every chunk of every file stayed in
-    /// memory until the plan returned (2 GiB held for a 2 GiB file).
+    /// however many files one plan hashes (a plan is one synchronous call).
     static func hash(of url: URL) throws -> String {
         let descriptor = url.withUnsafeFileSystemRepresentation { path in
             path.map { open($0, O_RDONLY) } ?? -1
         }
         guard descriptor >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
         defer { close(descriptor) }
-        let buffer = UnsafeMutableRawBufferPointer.allocate(byteCount: hashChunkSize, alignment: 16)
-        defer { buffer.deallocate() }
-        var hasher = SHA256()
-        while true {
-            try Task.checkCancellation()
-            let count = read(descriptor, buffer.baseAddress, buffer.count)
-            if count < 0 {
-                if errno == EINTR { continue }
-                throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
-            }
-            if count == 0 { break }
-            hasher.update(bufferPointer: UnsafeRawBufferPointer(rebasing: buffer[..<count]))
-        }
-        return hasher.finalize().hexString
+        return try FileChunks.sha256(of: descriptor, chunkSize: hashChunkSize)
     }
 
     public func contains(_ url: URL) -> Bool {

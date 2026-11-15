@@ -13,10 +13,13 @@ extension LibraryModel {
             return
         }
         let catalog = self.catalog
+        let writes = self.writes
         Task {
             do {
-                let stack = try await catalog.version(id: item.versionID)?.decodedEditStack() ?? .identity
-                copiedAdjustments = Adjustments(stack: stack)
+                // After pending saves: right after a paste, the catalog still has the values from before it.
+                copiedAdjustments = try await writes.savedAdjustments(ofVersion: item.versionID, in: catalog)
+            } catch is CancellationError {
+                return
             } catch {
                 report(AdjustText.unreadableMessage(EditStack.ReadFailure(error)),
                        action: String(localized: "Copy Adjustments"), warning: true)
@@ -54,6 +57,7 @@ extension LibraryModel {
         }
         guard !sources.isEmpty else { return }
         let catalog = self.catalog
+        let writes = self.writes
         let generator = previews.interactiveGenerator
         let inLoupe = mode == .loupe
         batchAutoTask?.cancel()
@@ -68,7 +72,8 @@ extension LibraryModel {
                     if inLoupe { editor.setMeasuringAlignment(false) }
                 }
             }
-            guard let stored = try? await catalog.editStacks(forVersions: sources.map(\.0)) else { return }
+            // After pending saves, so each photo is measured with the values it has now.
+            guard let stored = try? await writes.savedEditStacks(forVersions: sources.map(\.0), in: catalog) else { return }
             var measured = BatchEdit.AlignmentMeasurements()
             for (index, (id, url, name)) in sources.enumerated() {
                 guard !Task.isCancelled else { return }

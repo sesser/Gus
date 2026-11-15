@@ -17,6 +17,8 @@ import PhotoUI
 ///     export template <text>        (the file name template; also switches names to it)
 ///     export tokens …               (the sheet's template field, see TemplateFieldProbe)
 ///     export run [keepboth|overwrite|skip] [nowait]   (waits, then prints the summary; nowait returns at once)
+///     export run twice …            (two requests at once, as a double Return: prints how many started)
+///     export run cancel             (closes the sheet while the request counts: prints whether it started or asked)
 ///     export preset save|apply|delete <name>
 ///     export print                  (the targets, settings and destination)
 @MainActor
@@ -53,7 +55,30 @@ enum DebugExportCommands {
             if export.versionIDs.isEmpty { export.begin() }
             let policy = ExportConflictPolicy.allCases.first { $0.rawValue.lowercased() == words.dropFirst().first }
                 ?? .keepBoth
-            if await !export.requestExport() {
+            if words.contains("cancel") {
+                // Export, then the sheet closed while the files in the way are counted.
+                let request = Task { await export.requestExport() }
+                for _ in 0..<10_000 where !export.isRequesting { await Task.yield() }
+                let wasCounting = export.isRequesting
+                model.showsExportSheet = false
+                let started = await request.value
+                try? await Task.sleep(for: .milliseconds(300))
+                print("debug-script: export request closed while counting \(wasCounting):"
+                      + " started \(started) alert \(export.conflict != nil) exporting \(export.isExporting)")
+                return
+            }
+            let started: Bool
+            if words.contains("twice") {
+                // Return pressed twice: two requests before the first has counted.
+                async let first = export.requestExport()
+                async let second = export.requestExport()
+                let results = await [first, second]
+                print("debug-script: export requests started \(results.filter { $0 }.count) of 2")
+                started = results.contains(true)
+            } else {
+                started = await export.requestExport()
+            }
+            if !started {
                 if export.conflict != nil {
                     print("debug-script: export conflicts \(export.conflict?.count ?? 0)"
                           + " originals \(export.conflict?.masters ?? 0), using \(policy.rawValue)")

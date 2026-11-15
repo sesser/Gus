@@ -369,7 +369,7 @@ final class AdjustmentEditor {
         }
         guard let url = library.sourceURL(for: newItem) else {
             state = .offline
-            loadOfflineMachineLearning(newItem, catalog: library.catalog)
+            loadOfflineMachineLearning(newItem, catalog: library.catalog, writes: library.writes)
             return
         }
         state = .loading
@@ -1022,13 +1022,20 @@ final class AdjustmentEditor {
 
     /// An offline photo: the badge can still say "this Mac" (design §6),
     /// which needs only the stack.
-    private func loadOfflineMachineLearning(_ item: CatalogItem, catalog: Catalog) {
+    private func loadOfflineMachineLearning(_ item: CatalogItem, catalog: Catalog, writes: WriteChain) {
         guard item.fileKind == .raw, !MachineLearningNoiseReduction.systemSupportsMachineLearning else { return }
         let versionID = item.versionID
         loadTask = Task {
-            let stack = (try? await catalog.version(id: versionID)?.decodedEditStack()) ?? .identity
+            // After pending saves: a paste or preset on this photo can still be queued.
+            let values: Adjustments
+            do {
+                values = try await writes.savedAdjustments(ofVersion: versionID, in: catalog)
+            } catch is CancellationError {
+                return
+            } catch {
+                values = Adjustments(stack: .identity)
+            }
             guard !Task.isCancelled, self.item?.versionID == versionID, state == .offline else { return }
-            let values = Adjustments(stack: stack)
             offlineAsksMachineLearning = values.asksForMachineLearning && values.isEnabled(.noiseReduction)
             if offlineAsksMachineLearning { machineLearningNotApplied = .notOnThisMac }
         }

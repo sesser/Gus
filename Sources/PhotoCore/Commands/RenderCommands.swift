@@ -27,7 +27,11 @@ enum RenderCommands {
             CommandParameter("input", .path, "A master file to render (or --version).", positional: true),
             CommandParameter("version", .integer, "A version id from the library (or a file)."),
             CommandParameter("libraryRoot", .path, "The library folder; the app's standard library when left out."),
-            CommandParameter("out", .path, "Where to write the image.", required: true),
+            CommandParameter("out", .path, """
+                Where to write the image. Never an original: the file being rendered, or a master in the library \
+                (by place or by content; the standard library, read only, when no library is named), is refused \
+                (outputIsMaster).
+                """, required: true),
             CommandParameter("longEdge", .integer, "Largest side in pixels; full resolution when left out."),
             CommandParameter("stack", .path, "An edit stack (JSON) used instead of the version's own."),
             CommandParameter("set", .string, "kind.parameter=value, applied over the stack (see adjustments).",
@@ -165,6 +169,9 @@ enum RenderCommands {
         guard FileManager.default.fileExists(atPath: source.path) else {
             throw CommandError(.fileNotFound, "No file at \(source.path)")
         }
+        // Before rendering, which can take seconds: an output that is refused is refused at once.
+        try await refuseOriginal(out, source: source, library: library, environment: environment,
+                                 arguments: arguments)
         if let stackPath = arguments.string("stack") {
             do {
                 stack = try EditStack.decode(from: Data(contentsOf: environment.url(stackPath)))
@@ -226,6 +233,69 @@ enum RenderCommands {
             object["message"] = .string(reason.message)
         }
         return .object(object)
+    }
+
+    /// Originals are never written (#166). `--out` names one exact file, so
+    /// one that is an original is an error, never a numbered name as export
+    /// gives.
+    ///
+    /// The file being rendered is refused always: by place (the same folder
+    /// and a name the file system takes for the same, `MasterFiles`) or by
+    /// identity (a hard link, or a link to it).
+    ///
+    /// Every master in a library's catalog is refused too, by place (at its
+    /// recorded mount and where its volume is mounted now) or by content
+    /// (`holdsContent(ofFileAt:)`), as export asks. The library is the one the
+    /// command opened (`--version`, `--library-root`); otherwise the standard
+    /// one (the environment's default), opened read-only for this question
+    /// alone: no migration, no lock, nothing in the catalog written (owner's
+    /// ruling on #166). SQLite may create the catalog's `-wal` and `-shm`
+    /// files beside it if they are absent.
+    /// Where no catalog exists nothing is catalogued, so only the input is
+    /// refused. A catalog that exists but can't be read, or a standard
+    /// location that can't be found, can't show `--out` safe: refused.
+    static func refuseOriginal(_ out: URL, source: URL, library: OpenLibrary?,
+                               environment: CommandEnvironment, arguments: CommandArguments) async throws(CommandError) {
+        if MasterFiles([source]).contains(out) || isSameFile(out, source) {
+            throw CommandError(.outputIsMaster, """
+                --out is the file being rendered, \(source.path); originals are never written. Choose another file.
+                """)
+        }
+        let checked: OpenLibrary
+        if let library {
+            checked = library
+        } else {
+            do throws(CommandError) {
+                guard let standard = try environment.openLibraryForReading(arguments) else { return }
+                checked = standard
+            } catch {
+                throw CommandError(.failed, """
+                    Could not tell whether --out is an original in the library, so nothing was written: \(error.message)
+                    """)
+            }
+        }
+        let masters: MasterFiles
+        do {
+            masters = try await checked.catalog.masterFiles(mounted: VolumeAvailability.mountedVolumes())
+        } catch {
+            throw CommandError(.failed, "Could not read the library's masters, so nothing was written: \(error)")
+        }
+        if masters.contains(out) || masters.holdsContent(ofFileAt: out) {
+            throw CommandError(.outputIsMaster, """
+                --out is \(out.path), an original in the library (or a copy of one); originals are never written. \
+                Choose another file.
+                """)
+        }
+    }
+
+    /// Whether two paths reach the same file (links followed, hard links
+    /// included). False when either is missing.
+    static func isSameFile(_ first: URL, _ second: URL) -> Bool {
+        let key: Set<URLResourceKey> = [.fileResourceIdentifierKey]
+        guard let one = try? first.resolvingSymlinksInPath().resourceValues(forKeys: key).fileResourceIdentifier,
+              let other = try? second.resolvingSymlinksInPath().resourceValues(forKeys: key).fileResourceIdentifier
+        else { return false }
+        return one.isEqual(other)
     }
 
     /// Writes next to the target, then moves into place: the file appears complete or not at all.

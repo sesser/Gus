@@ -249,12 +249,14 @@ struct SharpeningMapTests {
         let b = SharpeningMapStatus(Self.values(amount: 40, groupOn: false))
         #expect(b.reason == .turnedOff && b.isNotApplied)
         #expect(SharpeningMapStatus(Self.values(amount: 0, groupOn: false)).reason == .turnedOff)
-        // (c) Amount 0, and separately group off, each with a mask in effect at Sharpness 50.
-        for status in [SharpeningMapStatus(Self.values(amount: 0, maskSharpness: 50)),
-                       SharpeningMapStatus(Self.values(amount: 40, groupOn: false, maskSharpness: 50))] {
-            #expect(!status.isNotApplied)
-            #expect(status.notesMaskSharpening)
-        }
+        // (c) Amount 0 with a mask in effect at Sharpness 50: the mask sharpens.
+        let c = SharpeningMapStatus(Self.values(amount: 0, maskSharpness: 50))
+        #expect(!c.isNotApplied)
+        #expect(c.notesMaskSharpening)
+        // Group off with that mask: local Sharpness is off with the group (issue #71,
+        // owner ruling 2026-11-15), so nothing is sharpened and there is no note.
+        let offWithMask = SharpeningMapStatus(Self.values(amount: 40, groupOn: false, maskSharpness: 50))
+        #expect(offWithMask.reason == .turnedOff && offWithMask.isNotApplied && !offWithMask.notesMaskSharpening)
         // (d) The same with that mask turned off.
         #expect(SharpeningMapStatus(Self.values(amount: 0, maskSharpness: 50, maskOn: false)).isNotApplied)
         #expect(SharpeningMapStatus(Self.values(amount: 40, groupOn: false, maskSharpness: 50, maskOn: false))

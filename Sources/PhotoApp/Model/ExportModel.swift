@@ -81,6 +81,11 @@ final class ExportModel {
     private(set) var lastSummary: ExportSummary?
     @ObservationIgnored private var task: Task<Void, Never>?
     @ObservationIgnored private var previewTask: Task<Void, Never>?
+    /// Export pressed: the photos being read and the files in the way counted.
+    @ObservationIgnored private var requests = ExportRequestGate()
+    @ObservationIgnored private var requestTask: Task<Bool, Never>?
+    /// A request is reading or counting (debug script; not observed).
+    var isRequesting: Bool { requests.isPending }
 
     private static let log = Logger(subsystem: AppBranding.bundleIdentifier, category: "export")
 
@@ -111,6 +116,7 @@ final class ExportModel {
     /// Takes the library's action targets and asks for the window.
     func begin() {
         guard let library else { return }
+        cancelRequest()
         let targets = library.actionTargets.map { library.items[$0] }
         let resolved = ExportTargets.resolve(targets)
         versionIDs = resolved.versionIDs
@@ -279,37 +285,68 @@ final class ExportModel {
     // MARK: Exporting
 
     /// Starts the export, or asks first when names are taken. Returns true
-    /// when the export started (the window can close).
+    /// when the export started (the window can close). Refused while another
+    /// request reads or an export runs (a second Return); `cancelRequest`
+    /// stops it, and then it neither asks nor starts (issue #163).
     func requestExport() async -> Bool {
-        guard let job, !isExporting else { return false }
-        guard !versionIDs.isEmpty else {
-            issue = Issue(place: .general, text: String(localized: "There is nothing to export."))
+        guard let job, let request = requests.begin(isExporting: isExporting) else { return false }
+        let check = Task { await self.check(request, job: job) }
+        requestTask = check
+        return await check.value
+    }
+
+    /// Stops the request still reading the photos or counting the files in
+    /// the way, when the sheet closes or opens again: its alert never shows
+    /// and its export never starts.
+    func cancelRequest() {
+        requestTask?.cancel()
+        requestTask = nil
+        requests.cancel()
+    }
+
+    private enum Answer {
+        case issue(Issue)
+        case conflict(Conflict)
+        case start([ExportItem])
+    }
+
+    private func check(_ request: ExportRequestGate.Request, job: ExportJob) async -> Bool {
+        let answer = await answer(job)
+        // Cancelled while it read: the sheet that asked is gone.
+        guard requests.end(request) else { return false }
+        requestTask = nil
+        switch answer {
+        case .issue(let issue):
+            self.issue = issue
             return false
+        case .conflict(let conflict):
+            self.conflict = conflict
+            return false
+        case .start(let items):
+            start(items: items, policy: .keepBoth)
+            return true
+        }
+    }
+
+    private func answer(_ job: ExportJob) async -> Answer {
+        guard !versionIDs.isEmpty else {
+            return .issue(Issue(place: .general, text: String(localized: "There is nothing to export.")))
         }
         if let watermark = settings.activeWatermark, watermarks?.contains(watermark.identifier) != true {
-            issue = Issue(place: .watermark, text: String(localized: "The watermark image is missing. Choose it again."))
-            return false
+            return .issue(Issue(place: .watermark, text: String(localized: "The watermark image is missing. Choose it again.")))
         }
         let items: [ExportItem]
-        do {
-            items = try await job.items(for: versionIDs)
-        } catch {
-            issue = Issue(place: .general, text: String(localized: "Could not read the photos to export: \(error.localizedDescription)"))
-            return false
-        }
         let clashes: ExportClashes
         do {
+            items = try await job.items(for: versionIDs)
             clashes = try await job.clashes(for: items, settings: settings, in: destination)
         } catch {
-            issue = Issue(place: .general, text: String(localized: "Could not read the photos to export: \(error.localizedDescription)"))
-            return false
+            return .issue(Issue(place: .general, text: String(localized: "Could not read the photos to export: \(error.localizedDescription)")))
         }
         if clashes.existing > 0 {
-            conflict = Conflict(count: clashes.existing, masters: clashes.masters, items: items)
-            return false
+            return .conflict(Conflict(count: clashes.existing, masters: clashes.masters, items: items))
         }
-        start(items: items, policy: .keepBoth)
-        return true
+        return .start(items)
     }
 
     /// The existing-files alert's message for `count` files in the way,

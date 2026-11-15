@@ -1,4 +1,3 @@
-import CryptoKit
 import Foundation
 
 /// Computes the content hash that identifies a master for de-duplication and
@@ -8,7 +7,7 @@ public protocol ContentHasher: Sendable {
 }
 
 /// Streaming SHA-256 of the whole file, read in fixed-size chunks with a
-/// cancellation check between chunks.
+/// cancellation check between chunks. Holds one chunk at a time (`FileChunks`).
 public struct SHA256ContentHasher: ContentHasher {
     public var chunkSize: Int
 
@@ -19,12 +18,6 @@ public struct SHA256ContentHasher: ContentHasher {
     public func contentHash(of url: URL) async throws -> String {
         let handle = try FileHandle(forReadingFrom: url)
         defer { try? handle.close() }
-        var hasher = SHA256()
-        while true {
-            try Task.checkCancellation()
-            guard let chunk = try handle.read(upToCount: chunkSize), !chunk.isEmpty else { break }
-            hasher.update(data: chunk)
-        }
-        return hasher.finalize().hexString
+        return try FileChunks.sha256(of: handle.fileDescriptor, chunkSize: chunkSize)
     }
 }

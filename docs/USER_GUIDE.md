@@ -420,8 +420,11 @@ of the full-size photo, which is what an export sharpens (a small spinner in the
 caption shows while that takes more than half a second). With Amount at 0 or
 Sharpening turned off, the map still shows where sharpening would go; the badge
 reads **Sharpening Map · Not Applied** when nothing at all is sharpened, and the
-text under the toggle says why. Masks with Sharpness still sharpen the areas they
-cover. Press Esc, click the toggle, or choose **Adjust ▸ Hide Sharpening Map** to see
+text under the toggle says why. With Amount at 0, masks with Sharpness still
+sharpen the areas they cover, with the Radius, Detail and Masking set here.
+Turning Sharpening off turns the masks' Sharpness off too, so nothing is
+sharpened; each mask keeps its Sharpness value, which applies again when you turn
+Sharpening back on. Press Esc, click the toggle, or choose **Adjust ▸ Hide Sharpening Map** to see
 the photo again. While the map is shown, hovering a preset or look-up table
 shows the map with it. The map is only a view: it is not saved, has no undo step, and never
 reaches thumbnails, previews or exports. It ends when you move to another photo,
@@ -584,7 +587,10 @@ original's volume is mounted at another place than last time. A file that is
 byte for byte an original in the library is not replaced either, wherever it is
 and whatever it is called: that is how an original is known on a disk the
 library no longer recognizes, and it means an exact copy of an original (a
-backup) is left alone too and counted with the originals. The export runs
+backup) is left alone too and counted with the originals. Checking the folder
+can take a moment when it holds large files; pressing Export or Return again
+meanwhile starts nothing more, and **Cancel** stops the check: nothing is
+exported and the sheet does not ask. The export runs
 in the background, with progress and Stop in the toolbar's Activity item. When it
 ends, Activity reports the result; there is no alert. If any photos could not
 be exported (an offline volume, for instance), the report is a warning that
@@ -695,7 +701,14 @@ result). `noiseReduction.machineLearning=true` turns on machine learning noise
 reduction; `render` and `export` report in their JSON whether it was applied,
 and why not. `export --policy overwrite` replaces existing files but never an
 original in the library: such a photo is written under a numbered name and
-counted in the result's `protectedMasters`. `colorFringes.color1=purple` (or `green`, or OkLab `L,a,b`) fills a
+counted in the result's `protectedMasters`. `render --out` never writes over
+an original either: it refuses the file being rendered, any of the library's
+originals and any file with the same contents as one. The library is the one
+named by `--library-root` (or opened for `--version`); for a file rendered
+without one, `render` reads the standard library to ask, and changes nothing
+in it. It stops with the code `outputIsMaster` and writes nothing. If there
+is no library at all, only the file being rendered is refused; if the library
+is there but can't be read, `render` writes nothing and says so. `colorFringes.color1=purple` (or `green`, or OkLab `L,a,b`) fills a
 fringe slot, `colorFringes.tolerance1=40` sets its Tolerance, and
 `colorAlignment.automatic=true` measures the original and stores the
 correction (`colorAlignment.red` and `blue` set it by hand), and

@@ -193,13 +193,13 @@ struct PreviewPipelineTests {
             let merge = try #require(try layout("merge.dng", [Image(0, 34892, sampleFormat: 3), Image(4, 32844),
                                                               Image(1, 2), Image(1, 34892, sampleFormat: 3)]))
             #expect(merge.images.count == 5)
-            #expect(merge.hasReducedLinearRaw && merge.hasFloatingPointRaw)
+            #expect(merge.hasReducedLinearRaw && merge.hasFloatingPointRaw && merge.hasLinearRaw)
             let reducedOnly = try #require(try layout("single.dng", [Image(1, 34892)]))
-            #expect(reducedOnly.hasReducedLinearRaw && !reducedOnly.hasFloatingPointRaw)
+            #expect(reducedOnly.hasReducedLinearRaw && !reducedOnly.hasFloatingPointRaw && !reducedOnly.hasLinearRaw)
             let linear = try #require(try layout("linear.dng", [Image(0, 34892), Image(1, 2)]))
-            #expect(!linear.hasReducedLinearRaw && !linear.hasFloatingPointRaw)
+            #expect(!linear.hasReducedLinearRaw && !linear.hasFloatingPointRaw && linear.hasLinearRaw)
             let floatBayer = try #require(try layout("float-bayer.dng", [Image(0, 32803, sampleFormat: 3), Image(1, 6)]))
-            #expect(!floatBayer.hasReducedLinearRaw && floatBayer.hasFloatingPointRaw)
+            #expect(!floatBayer.hasReducedLinearRaw && floatBayer.hasFloatingPointRaw && !floatBayer.hasLinearRaw)
             // A floating-point preview does not make the raw an HDR one.
             let floatPreview = try #require(try layout("float-preview.dng", [Image(0, 32803), Image(1, 2, sampleFormat: 3)]))
             #expect(!floatPreview.hasFloatingPointRaw)
@@ -208,7 +208,8 @@ struct PreviewPipelineTests {
             let bayer = root.appending(path: "synthetic.dng")
             try SyntheticDNG.write(to: bayer, options: .init(width: 64, height: 64, seed: 1))
             let camera = try #require(DNGLayout(contentsOf: bayer))
-            #expect(camera.images.count == 1 && !camera.hasReducedLinearRaw && !camera.hasFloatingPointRaw)
+            #expect(camera.images.count == 1 && !camera.hasReducedLinearRaw && !camera.hasFloatingPointRaw
+                        && !camera.hasLinearRaw)
             let truncated = root.appending(path: "truncated.dng")
             try Data(SyntheticDNG.structureData(subIFDs: [Image(0, 34892), Image(1, 34892)]).prefix(20)).write(to: truncated)
             #expect(DNGLayout(contentsOf: truncated) == nil)
