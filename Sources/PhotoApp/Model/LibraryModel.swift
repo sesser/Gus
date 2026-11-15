@@ -201,8 +201,12 @@ final class LibraryModel {
     /// The preset manager sheet is up on the library window.
     var showsPresetSheet = false
     /// Set to open the export window (the menu command and debug scripts).
-    /// The Export sheet is up on the library window.
-    var showsExportSheet = false
+    /// The Export sheet is up on the library window. However it closes
+    /// (Cancel, Esc, a script), a request it made that is still counting the
+    /// files in the way is stopped and never answers (issue #163).
+    var showsExportSheet = false {
+        didSet { if !showsExportSheet { export.cancelRequest() } }
+    }
     /// What the last preset import did, shown in an alert.
     var presetImportSummary: PresetImportSummary?
     /// Open the import window when a card is inserted (Settings).

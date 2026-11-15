@@ -141,9 +141,18 @@ public struct ExportJob: Sendable {
         let masters = try await catalog.masterFiles(mounted: mountedVolumes())
         let contexts = items.filter { !$0.isVideo }.enumerated()
             .map { $1.templateContext(sequence: $0 + 1, exportDate: date) }
-        let clashes = ExportNaming.clashes(contexts, settings: settings, in: destination, masters: masters)
-        // A file being read for its content when the task was cancelled counts as a
-        // master (`MasterFiles.holdsContent`); such a count is not an answer.
+        return try Self.clashes(contexts, settings: settings, in: destination, masters: masters)
+    }
+
+    /// The count itself (`ExportNaming.clashes`), unless the task was cancelled
+    /// while it was made: a file being read for its content then counts as a
+    /// master (`MasterFiles.holdsContent`), so such a count is not an answer.
+    static func clashes(_ contexts: [TemplateContext], settings: ExportSettings, in destination: URL,
+                        masters: MasterFiles, holdsMasterContent: ((URL) -> Bool)? = nil,
+                        fileExists: (URL) -> Bool = { FileManager.default.fileExists(atPath: $0.path) })
+        throws -> ExportClashes {
+        let clashes = ExportNaming.clashes(contexts, settings: settings, in: destination, masters: masters,
+                                           holdsMasterContent: holdsMasterContent, fileExists: fileExists)
         try Task.checkCancellation()
         return clashes
     }

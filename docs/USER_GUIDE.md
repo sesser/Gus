@@ -584,7 +584,10 @@ original's volume is mounted at another place than last time. A file that is
 byte for byte an original in the library is not replaced either, wherever it is
 and whatever it is called: that is how an original is known on a disk the
 library no longer recognizes, and it means an exact copy of an original (a
-backup) is left alone too and counted with the originals. The export runs
+backup) is left alone too and counted with the originals. Checking the folder
+can take a moment when it holds large files; pressing Export or Return again
+meanwhile starts nothing more, and **Cancel** stops the check: nothing is
+exported and the sheet does not ask. The export runs
 in the background, with progress and Stop in the toolbar's Activity item. When it
 ends, Activity reports the result; there is no alert. If any photos could not
 be exported (an offline volume, for instance), the report is a warning that
