@@ -38,6 +38,13 @@ struct DNGLayout {
         images.dropFirst().contains { $0.subfileType & 1 != 0 && $0.photometric == Tag.linearRaw }
     }
 
+    /// The main raw image is a linear (demosaiced) raw, as in HDR merges and
+    /// panoramas, not a camera's color filter array. Its decode is rendered
+    /// whole before anything reads it (`LinearRawDecode`).
+    var hasLinearRaw: Bool {
+        images.contains { $0.subfileType == 0 && $0.photometric == Tag.linearRaw }
+    }
+
     /// The main raw image holds floating-point samples: an HDR merge, whose
     /// highlights are meant to go above white, unlike a camera's integer raw.
     var hasFloatingPointRaw: Bool {
