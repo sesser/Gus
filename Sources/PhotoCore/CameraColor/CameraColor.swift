@@ -7,7 +7,7 @@ import Foundation
 ///
 /// The method is the DNG specification's (Adobe, "Digital Negative (DNG)
 /// Specification", chapter 6, "Mapping Camera Color Space to CIE XYZ Space";
-/// read in version 1.6.0.0), written from the specification's text
+/// read in version 1.6.0.0, checked against 1.7.1.0), written from the specification's text
 /// (`THIRD_PARTY_NOTICES.md`). Where the text leaves something open (how
 /// the guessing in `white(ofNeutral:)` starts, stops and is kept from going
 /// on for ever), the choice is this file's and its comment says so:

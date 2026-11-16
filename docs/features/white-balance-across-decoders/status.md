@@ -117,8 +117,9 @@ wrong.
 - The DNG Specification 1.7.1.0: Adobe's site refused the download (HTTP
   403 to automated clients). Read instead: version 1.6.0.0 (December 2021),
   a public copy, chapter 6 and the `CalibrationIlluminant` tags. The
-  comments and the notices say 1.6.0.0. Someone with a browser can check
-  that chapter 6's text on one and two calibrations is the same in 1.7.1.0.
+  comments and the notices said 1.6.0.0. Checked against 1.7.1.0 in issue
+  #184 (2026-11-16): the text on one and two calibrations is the same; a third
+  calibration (new in 1.6.0.0) is described and not read by this code.
 - Wyszecki and Stiles (a book). The notices say the reprint is cited from
   the literature and was checked against the decoder, not the book.
 - The CIE's temperatures for its illuminants (2856, 4874, 6774, 5003, 5503,

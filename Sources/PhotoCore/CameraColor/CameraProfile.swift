@@ -5,7 +5,7 @@ import Foundation
 ///
 /// The fields are those of a DNG camera profile (Adobe, "Digital Negative
 /// (DNG) Specification", the camera profile tags and chapter 6, "Mapping
-/// Camera Color Space to CIE XYZ Space"; read in version 1.6.0.0), so an
+/// Camera Color Space to CIE XYZ Space"; read in version 1.6.0.0, checked against 1.7.1.0), so an
 /// Adobe `.dcp` file can be read into one later (#89). The specification
 /// gives no temperatures for calibration lights; those are this file's own,
 /// and `kelvin(ofLightSource:)` says where each is from
@@ -106,6 +106,10 @@ public struct CameraProfile: Sendable, Hashable {
         }
     }
 
+    /// A profile with three calibrations (DNG 1.6 and later, a third light for
+    /// the "as shot" illuminant) is read by its lowest and highest only; the
+    /// specification's text names no weights for three (issue #184).
+    ///
     /// The weight of the cooler-light calibration (the first) for a white
     /// point of `kelvin`: linear in reciprocal temperature between the two
     /// lights, and all of the nearer one outside them (DNG Specification,
