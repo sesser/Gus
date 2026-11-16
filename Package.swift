@@ -61,9 +61,11 @@ let package = Package(
             name: "PhotoImporter",
             dependencies: ["PhotoCore", "PhotoUI"]
         ),
+        // CLibRaw only for the decode pipeline spike (#194, `DecodeSpike/`):
+        // LibRaw's unpack without its demosaic. Remove with the spike.
         .executableTarget(
             name: "PhotoBench",
-            dependencies: ["PhotoCore", "PhotoFixtures"]
+            dependencies: ["PhotoCore", "PhotoFixtures", "CLibRaw"]
         ),
         // The headless command line: a thin dispatcher over PhotoCore's command
         // registry, with no AppKit or SwiftUI.

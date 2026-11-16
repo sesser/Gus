@@ -83,6 +83,10 @@ let usage = """
                  Grows the catalog to N versions by cloning existing rows with new content
                  hashes and hard-linking their cached thumbnails (grid-scale testing).
 
+      decodespike --mode stages|bands|verify|quality|real|timing|lens|color|budget --files FILE[:FILE...]
+                 SPIKE (#194, throwaway): LibRaw's stages, our Metal demosaic and lens corrections.
+                 See docs/features/decode-pipeline-spike/status.md for each mode's options.
+
       --json FILE  also write the results as JSON
     """
 
@@ -152,6 +156,7 @@ do {
     case "denoise": report = try await DenoiseBenchmark.run(arguments)
     case "rawcompare": report = try await RawCompareBenchmark.run(arguments)
     case "scenes": report = try await SceneFiles.run(arguments)
+    case "decodespike": report = try await DecodeSpike.run(arguments)
     default:
         print(usage)
         exit(arguments.command == "help" || arguments.flags.contains("help") ? 0 : 64)
