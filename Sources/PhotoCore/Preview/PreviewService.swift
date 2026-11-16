@@ -84,6 +84,10 @@ public final class PreviewService: Sendable {
     private let hdrLane: WorkLane<DecodedImage?>
     /// HDR requests whose master turned out to have no HDR content.
     private let standardRange = Mutex<Set<String>>([])
+    /// The full-resolution rendition's size per request (`outputSize(for:)`),
+    /// a few bytes each; emptied when it reaches `outputSizeLimit`.
+    private let outputSizes = Mutex<[String: CGSize]>([:])
+    static let outputSizeLimit = 4096
     private static let log = Logger(subsystem: AppBranding.bundleIdentifier, category: "previews")
 
     /// - Parameters:
@@ -237,7 +241,50 @@ public final class PreviewService: Sendable {
             return DecodedImage(cgImage: image)
         }
         memory.insertFullResolution(decoded, forKey: memoryKey)
+        if FileKind(pathExtension: source.pathExtension) != .video {
+            remember(CGSize(width: decoded.cgImage.width, height: decoded.cgImage.height), for: request)
+        }
         return decoded.cgImage
+    }
+
+    /// The size of `fullResolutionImage(for:)`'s rendition, if it is known
+    /// without waiting: asked before (`outputSize(for:)`) or rendered.
+    public func memoryCachedOutputSize(for request: PreviewRequest) -> CGSize? {
+        outputSizes.withLock { $0[Self.outputSizeKey(request)] }
+    }
+
+    /// The size in pixels the full-resolution rendition will have, learned
+    /// without rendering it (`PreviewGenerator.outputSize`) and kept, so the
+    /// loupe can size the photo before the rendition is there and the photo
+    /// doesn't move when it lands. Nil when it can't be known that way (a
+    /// video, a raw only LibRaw decodes, an offline master, a stack not saved
+    /// yet): the loupe then corrects the size when the rendition lands.
+    public func outputSize(for request: PreviewRequest) async -> CGSize? {
+        if let size = memoryCachedOutputSize(for: request) { return size }
+        guard let source = request.sourceURL else { return nil }
+        let generator = interactiveGenerator
+        let loadStack = self.editStack
+        let versionID = request.versionID
+        let key = request.key
+        // A header read and a graph, off the caller's executor (the loupe's is the main actor).
+        let size = await Task.detached(priority: .userInitiated) { () -> CGSize? in
+            guard let stack = try? await Self.stack(loadStack, versionID: versionID, for: key) else { return nil }
+            return try? generator.outputSize(source: source, stack: stack)
+        }.value
+        if let size { remember(size, for: request) }
+        return size
+    }
+
+    private func remember(_ size: CGSize, for request: PreviewRequest) {
+        outputSizes.withLock { sizes in
+            if sizes.count >= Self.outputSizeLimit { sizes.removeAll(keepingCapacity: true) }
+            sizes[Self.outputSizeKey(request)] = size
+        }
+    }
+
+    /// The tier doesn't change the full rendition: keyed by content and stack.
+    private static func outputSizeKey(_ request: PreviewRequest) -> String {
+        "\(request.key.contentHash)|\(request.key.editStackHash)|\(request.key.pipelineVersion)"
     }
 
     /// The HDR rendition at the request's tier size, if one is in memory.

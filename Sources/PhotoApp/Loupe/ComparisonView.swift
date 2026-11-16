@@ -713,6 +713,8 @@ final class ComparisonPane: NSObject {
     private var loadTask: Task<Void, Never>?
     private var hdrTask: Task<Void, Never>?
     private var fullTask: Task<Void, Never>?
+    /// Learns the full rendition's size when it wasn't known on arrival.
+    private var sizeTask: Task<Void, Never>?
     /// The model's HDR setting as last applied; changing it reloads the photo.
     var hdrSetting = true {
         didSet { if hdrSetting != oldValue { reload() } }
@@ -763,6 +765,7 @@ final class ComparisonPane: NSObject {
         loadTask?.cancel()
         hdrTask?.cancel()
         fullTask?.cancel()
+        sizeTask?.cancel()
         NotificationCenter.default.removeObserver(self)
     }
 
@@ -794,9 +797,22 @@ final class ComparisonPane: NSObject {
         hdrTask?.cancel()
         fullTask?.cancel()
 
+        sizeTask?.cancel()
         let backing = view.window?.backingScaleFactor ?? 2
-        if let size = newItem.orientedSize, !sameVersion {
+        // The full rendition's size when known, as in the single loupe: the
+        // catalog's size leaves out the decoder's frame and the crop.
+        let sizeRequest = model.previewRequest(for: newItem, tier: .preview)
+        let knownSize = sizeRequest.flatMap { model.previews.memoryCachedOutputSize(for: $0) }
+        if let size = LoupeArrivalSize.size(knownOutput: knownSize, catalog: newItem.orientedSize), !sameVersion {
             imageView.setFrameSize(NSSize(width: size.width / backing, height: size.height / backing))
+        }
+        if !sameVersion, knownSize == nil, let sizeRequest, sizeRequest.sourceURL != nil {
+            let previews = model.previews
+            sizeTask = Task { [weak self] in
+                guard let size = await previews.outputSize(for: sizeRequest), !Task.isCancelled,
+                      let self, self.shownKey == key, self.rendition < .full else { return }
+                self.resizeDocument(to: NSSize(width: size.width / backing, height: size.height / backing))
+            }
         }
         rendition = .placeholder
         let immediate = immediateImage(for: newItem)
@@ -816,7 +832,7 @@ final class ComparisonPane: NSObject {
             loadTask = Task { [weak self] in
                 guard let image = try? await previews.image(for: request, priority: .visible),
                       let self, self.shownKey == key, self.rendition <= .preview else { return }
-                if newItem.orientedSize == nil {
+                if newItem.orientedSize == nil, previews.memoryCachedOutputSize(for: request) == nil {
                     self.resizeDocument(to: NSSize(width: CGFloat(image.width) / backing, height: CGFloat(image.height) / backing))
                 }
                 self.display(image, as: .preview)

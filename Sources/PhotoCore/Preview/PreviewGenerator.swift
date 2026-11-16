@@ -122,6 +122,25 @@ public struct PreviewGenerator: Sendable {
         return cgImage
     }
 
+    /// The size in pixels of `cgImage(source:stack:)`'s rendition, read from
+    /// the same lazy graph with nothing decoded or rendered (a header read,
+    /// 20 to 100 ms), so the loupe can take the photo's size before the
+    /// rendition is there. Turns, straightening, the crop and the decoder's own
+    /// frame (an in-camera aspect crop, a raw's active area) are all in it; the
+    /// catalog's pixel size, read from the file's metadata, has none of them.
+    ///
+    /// Nil where only a decode would tell: a video, a raw only LibRaw decodes,
+    /// a linear DNG (rendered whole as it decodes).
+    public func outputSize(source: URL, stack: EditStack) throws -> CGSize? {
+        if FileKind(pathExtension: source.pathExtension) == .video { return nil }
+        if SupportedFormats.isRaw(pathExtension: source.pathExtension) {
+            guard SystemRAWDecoder.reads(source), DNGLayout(contentsOf: source)?.hasLinearRaw != true else { return nil }
+        }
+        let extent = try image(source: source, stack: stack, longEdge: nil).extent.integral
+        guard !extent.isInfinite, extent.width >= 1, extent.height >= 1 else { return nil }
+        return extent.size
+    }
+
     // MARK: Decoding
 
     /// The decode size for an output of `longEdge`: larger when the stack
