@@ -10,7 +10,7 @@ import Testing
 
 /// The loupe's full-resolution rendition is rendered where it is made, not by
 /// Core Animation at its first draw on the main thread, and shows the pixels
-/// that first draw showed (docs/features/full-render-main-thread-stall/status.md,
+/// that first draw showed, within one level (docs/features/full-render-main-thread-stall/status.md,
 /// issue #65).
 ///
 /// Core Image's short `createCGImage` defers an image with a side over 4096
@@ -75,15 +75,26 @@ struct DeferredRenderTests {
         return bytes
     }
 
-    /// Rows of differing bytes between two BGRA buffers of `width` pixels.
-    static func differingRows(_ lhs: [UInt8], _ rhs: [UInt8], width: Int) -> Int {
+    /// The largest per-byte difference between two BGRA buffers of `width`
+    /// pixels, and how many rows differ at all. Only differing rows are read
+    /// byte by byte; with `stopAbove`, the scan ends at the first byte over it.
+    static func difference(_ lhs: [UInt8], _ rhs: [UInt8], width: Int, stopAbove: Int? = nil) -> (worst: Int, rows: Int) {
         let rowBytes = width * 4
-        guard lhs.count == rhs.count else { return Int.max }
-        return lhs.withUnsafeBytes { l in
+        guard lhs.count == rhs.count else { return (Int.max, Int.max) }
+        var worst = 0, rows = 0
+        lhs.withUnsafeBytes { l in
             rhs.withUnsafeBytes { r in
-                (0..<lhs.count / rowBytes).filter { memcmp(l.baseAddress! + $0 * rowBytes, r.baseAddress! + $0 * rowBytes, rowBytes) != 0 }.count
+                for row in 0..<lhs.count / rowBytes
+                where memcmp(l.baseAddress! + row * rowBytes, r.baseAddress! + row * rowBytes, rowBytes) != 0 {
+                    rows += 1
+                    for offset in row * rowBytes..<(row + 1) * rowBytes {
+                        worst = max(worst, abs(Int(l[offset]) - Int(r[offset])))
+                        if let stopAbove, worst > stopAbove { return }
+                    }
+                }
             }
         }
+        return (worst, rows)
     }
 
     @Test("The full-resolution rendition is rendered before it is returned")
@@ -147,13 +158,17 @@ struct DeferredRenderTests {
         #expect(extended.calls.withLock { $0 } == hdrPulled, "Core Animation rendered the HDR rendition again")
     }
 
-    /// The pixels on screen are the ones Core Animation's own render of the
-    /// deferred image gave: a 24 MP raw with a typical stack, a mask and a
-    /// vignette, drawn both ways through Core Animation. At this size a render
-    /// into a bitmap (`deferred: false`) differs from Core Animation's in
-    /// about 3,100 of the 4,000 rows, so the test tells the two routes apart;
-    /// at 4400 × 2934 it did not.
-    @Test("The rendition shows what Core Animation's render of the deferred image showed")
+    /// The pixels on screen are, within one level, the ones Core Animation's
+    /// own render of the deferred image gave: a 24 MP raw with a typical stack,
+    /// a mask and a vignette, drawn both ways through Core Animation.
+    ///
+    /// Within one level, not byte for byte: Core Image's 8-bit output varies by
+    /// one level between two renders of the same graph on either route (code
+    /// review C1: up to 486 rows, never more than 1). A render into a bitmap
+    /// (`deferred: false`) differs by far more (up to 52 levels on this stack),
+    /// and the control checks the test still tells that route apart; at
+    /// 4400 × 2934 it did not, hence the size.
+    @Test("The rendition shows what Core Animation's render of the deferred image showed, within one level")
     func matchesCoreAnimationsRender() async throws {
         try await RepositoryFiles.withTemporaryDirectory { folder in
             let url = folder.appending(path: "wide.dng")
@@ -179,8 +194,17 @@ struct DeferredRenderTests {
                 let rendition = try generator.cgImage(source: url, stack: values.editStack, colorSpace: colorSpace)
                 #expect(rendition.width == deferred.width && rendition.height == deferred.height)
                 let after = try Self.drawnByCoreAnimation(rendition)
-                let rows = Self.differingRows(before, after, width: rendition.width)
-                #expect(rows == 0, "\(name): \(rows) rows differ from Core Animation's render of the deferred image")
+                let drawn = Self.difference(before, after, width: rendition.width)
+                #expect(drawn.worst <= 1, "\(name): \(drawn.rows) rows differ from Core Animation's render of the deferred image, by up to \(drawn.worst) levels")
+
+                // The control: the bitmap route, drawn the same way, is told apart.
+                let bitmap = try #require(engine.withContext {
+                    $0.createCGImage(image, from: image.extent.integral, format: .BGRA8, colorSpace: colorSpace, deferred: false)
+                })
+                let bitmapDrawn = Self.difference(before, try Self.drawnByCoreAnimation(bitmap), width: rendition.width,
+                                                  stopAbove: 1)
+                #expect(bitmapDrawn.worst > 1,
+                        "a bitmap render now matches Core Animation's within one level: this test can't tell the routes apart and needs revisiting")
 
                 // Core Animation passes the rendition's own pixels through
                 // unchanged (its rows top to bottom, the texture's bottom to top).
@@ -195,7 +219,7 @@ struct DeferredRenderTests {
                         }
                     }
                 }
-                #expect(Self.differingRows(own, after, width: rendition.width) == 0, "\(name): not drawn as rendered")
+                #expect(Self.difference(own, after, width: rendition.width).rows == 0, "\(name): not drawn as rendered")
             }
         }
     }

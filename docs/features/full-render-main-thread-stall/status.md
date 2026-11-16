@@ -31,8 +31,8 @@ Core Animation at the commit after `LoupeImageView.setImage`, on the main thread
 
 **Tests that fail without the fix** (`Tests/PhotoCoreTests/DeferredRenderTests.swift`):
 `renderedWhereMade` (with the old deferred call: `pulled > 0` and the re-read both fail)
-and `matchesCoreAnimationsRender` (with a bitmap render, the first attempt below: 3116
-rows differ).
+and `matchesCoreAnimationsRender` (with a bitmap render, the first attempt below: 3146
+rows differ, by up to 24 levels).
 
 ## Ruling
 
@@ -50,7 +50,8 @@ keeping today's time to sharp. The bitmap route is reverted.
   waits for the GPU, and returns a `CGImage` over the surface's pixels (locked for
   reading for the image's life; the data provider's release unlocks and frees it). It is
   the same Core Image call Core Animation made from its commit, so the pixels are the ones
-  it showed, and it is as fast.
+  it showed, within the one level Core Image varies by between any two renders, and it is
+  as fast.
 - `Sources/PhotoCore/Preview/PreviewGenerator.swift`: `cgImage(source:…)`, the 1:1
   rendition, uses it. It runs in `PreviewService`'s full-resolution lane (a background
   task), so the decode and render are off the main thread; the main thread only commits a
@@ -79,10 +80,15 @@ command queue of the test's so its work is awaited, not slept on):
   does not render one again whose pixels were read, nor the HDR rendition.
 - `matchesCoreAnimationsRender`: a 24 MP synthetic raw, typical stack, a radial mask and a
   vignette. Core Animation's own render of the deferred image (the old screen) and its
-  draw of the new rendition are equal byte for byte, and the latter equals the
-  rendition's own pixels. This is the GPU-surface output of the same Core Image call
-  compared with the old lazy path, headless. Shown sensitive: the bitmap route fails it
-  (3116 of 4000 rows); at 4400 × 2934 it did not, hence the size.
+  draw of the new rendition are equal within one level per byte, and the latter equals
+  the rendition's own pixels byte for byte (Core Animation passes them through). This is
+  the GPU-surface output of the same Core Image call compared with the old lazy path,
+  headless. Within one level, not exactly: Core Image's 8-bit output varies by one level
+  between two renders of the same graph on either route (code review C1: up to 486 rows,
+  never more than 1). A control in the test requires a bitmap render to differ by more
+  than one level, so it still tells the routes apart; and with the bitmap route in
+  `PreviewGenerator.cgImage` the test fails (3146 of 4000 rows, up to 24 levels). At
+  4400 × 2934 the routes weren't told apart, hence the size.
 
 No pipeline bump, no golden changed, `UPDATE_GOLDENS` not run.
 
@@ -149,6 +155,22 @@ The draw of B's IOSurface-backed image costs Core Animation 10–15 ms against a
 for an image in ordinary memory (headless). A copy out of the surface would trade that
 for a 96 MB copy before the image is ready; not done.
 
+## Memory at 100% (code review's question)
+
+The app process's `footprint` (physical footprint), 30 s after arriving at a 24 MP raw
+at 100% with the typical stack, same release bundles and scratch library as above (display
+asleep, screen locked, no `caffeinate`), alternating builds:
+
+| Build | Physical footprint | IOSurface, dirty |
+|---|---|---|
+| Before (`476d6a9`), 3 runs | 619, 694, 716 MB | 92 MB each |
+| This fix, 2 runs | 628, 629 MB | 92 MB each |
+
+So the app holds no second 96 MB copy: before, the 92 MB of IOSurface was the surface
+Core Animation had Core Image render into; now it is the rendition's own, which Core
+Animation draws from. The footprint is within the runs' spread (before varies by about
+100 MB between runs). The window server's side is not measured here.
+
 ## Checks for a person
 
 The scripted runs time the main thread and the wait, but not what the screen looks like.
@@ -160,6 +182,9 @@ The scripted runs time the main thread and the wait, but not what the screen loo
   until the full rendition replaces it, with no visible change.
 - The same with machine learning noise reduction on (macOS 27): the window keeps
   responding during the 1.3–2 s wait.
+- With machine learning on, at 100%, press → several times quickly (or hold it) and stop:
+  the window keeps responding, and the photo you stop on may stay soft for up to one
+  extra render (1.3–2 s) before it turns sharp (C2). Say whether that is objectionable.
 
 ## Not fixed here (noted, not filed, per the ruling)
 
@@ -178,6 +203,11 @@ The scripted runs time the main thread and the wait, but not what the screen loo
   looks like a tile seam; identical with no adjustments). Exports and the live region
   frames use the bitmap route, the loupe's full rendition the surface route, as before
   this fix, so the swap from a sharp tile to the full rendition can shift values slightly.
+- **A full render can't be cancelled once it has started**, and the full-resolution lane
+  has one slot (code review C2). Arrowing quickly through photos at 100% with machine
+  learning on, the photo you stop on starts rendering only when the previous photo's
+  render ends, so it can stay soft up to one more 1.3–2 s render. Before this fix each of
+  those arrivals froze the window for as long instead.
 - **Scripted first `Z`** after `windowsize`, with the display asleep or on first launch:
   the magnification stays at fit while the editor treats the view as at 100%; the next
   arrow key applies it. Possibly related to #153.
@@ -185,11 +215,20 @@ The scripted runs time the main thread and the wait, but not what the screen loo
 ## Build and test
 
 - Baseline: `swift build` clean at `476d6a9` before any edit.
-- Latest: `swift build` clean, no new warnings. `swift test`: **1040 tests in 155 suites
-  passed** (3 new in `DeferredRenderTests`). `UPDATE_GOLDENS` not run; no golden or
+- Fix commit `23c71f4`: `swift build` clean, `swift test` 1040 tests in 155 suites passed.
+- Review fixes (C1, C2, memory): `swift build` clean, no new warnings. `swift test`,
+  five full runs in a row: **1040 tests in 155 suites passed, 5 of 5** (65.9–70.2 s each). `UPDATE_GOLDENS` not run; no golden or
   pipeline version touched.
 - Shown failing without the fix: `renderedWhereMade` with the old deferred call (2
-  issues); `matchesCoreAnimationsRender` with the bitmap route (3116 rows).
+  issues); `matchesCoreAnimationsRender` with the bitmap route (3146 rows, up to 24 levels).
+
+## Review findings
+
+| # | Finding | Answer |
+|---|---|---|
+| C1 (Blocker) | `matchesCoreAnimationsRender` compared two Core Image renders byte for byte; Core Image varies by one level between renders (2 of 5 full runs failed) | Fixed: one level per byte allowed, worst and row count in the message; a control requires the bitmap route to differ by more than one level; with the bitmap route in the product code the test fails (3146 rows, up to 24 levels). "Byte for byte" claims about the on-screen render reworded here, in the test and in `makeSurfaceImage`'s comment (the user guide made none). Five full runs pass |
+| C2 (Nit) | A started full render can't be cancelled; one lane slot | Noted under "Not fixed here" and added to the checks for a person; no code change, as asked |
+| Question: memory | Two 96 MB copies at 100%? | Measured: no; see "Memory at 100%" |
 
 ## Open questions
 

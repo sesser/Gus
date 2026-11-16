@@ -115,8 +115,9 @@ public final class RenderEngine: @unchecked Sendable {
     /// an IOSurface: the loupe froze for the whole render
     /// (docs/features/full-render-main-thread-stall/status.md). This makes the
     /// same render into a surface of its own, on the caller's thread, so the
-    /// pixels are the ones Core Animation made before (`DeferredRenderTests`)
-    /// and arrive as fast. Rendering into a bitmap instead (`deferred: false`)
+    /// pixels are the ones Core Animation made before, within the one level
+    /// Core Image varies by between renders (`DeferredRenderTests`), and arrive
+    /// as fast. Rendering into a bitmap instead (`deferred: false`)
     /// took about 2.5 times as long for a typical stack and gave other values.
     public func makeSurfaceImage(_ image: CIImage, colorSpace: CGColorSpace? = nil) -> CGImage? {
         let space = colorSpace.flatMap { $0.model == .rgb ? $0 : nil } ?? Self.outputColorSpace
