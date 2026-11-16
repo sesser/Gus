@@ -1,7 +1,9 @@
 import Accelerate
 import CoreImage
 import CoreImage.CIFilterBuiltins
+import CoreVideo
 import ImageIO
+import IOSurface
 import Metal
 import Synchronization
 
@@ -101,6 +103,58 @@ public final class RenderEngine: @unchecked Sendable {
     public func makeCGImage(_ image: CIImage, colorSpace: CGColorSpace? = nil) -> CGImage? {
         let space = colorSpace.flatMap { $0.model == .rgb ? $0 : nil } ?? Self.outputColorSpace
         return withContext { $0.createCGImage(image, from: image.extent.integral, format: .BGRA8, colorSpace: space) }
+    }
+
+    /// Renders on the GPU into an IOSurface, here and now, and returns an 8-bit
+    /// BGRA `CGImage` over the surface's pixels in `colorSpace` (Display P3 by
+    /// default): for an image larger than 4096 pixels headed to a layer (the
+    /// loupe's full-resolution rendition). Nil if the render fails.
+    ///
+    /// `makeCGImage` would hand Core Animation a deferred image, which it then
+    /// renders at its first commit on the main thread, through Core Image into
+    /// an IOSurface: the loupe froze for the whole render
+    /// (docs/features/full-render-main-thread-stall/status.md). This makes the
+    /// same render into a surface of its own, on the caller's thread, so the
+    /// pixels are the ones Core Animation made before (`DeferredRenderTests`)
+    /// and arrive as fast. Rendering into a bitmap instead (`deferred: false`)
+    /// took about 2.5 times as long for a typical stack and gave other values.
+    public func makeSurfaceImage(_ image: CIImage, colorSpace: CGColorSpace? = nil) -> CGImage? {
+        let space = colorSpace.flatMap { $0.model == .rgb ? $0 : nil } ?? Self.outputColorSpace
+        let extent = image.extent.integral
+        guard !extent.isInfinite, extent.width >= 1, extent.height >= 1,
+              let surface = IOSurface(properties: [
+                  .width: Int(extent.width), .height: Int(extent.height), .bytesPerElement: 4,
+                  .pixelFormat: kCVPixelFormatType_32BGRA,
+              ])
+        else { return nil }
+        let destination = CIRenderDestination(ioSurface: surface)
+        destination.colorSpace = space
+        do {
+            _ = try withContext { try $0.startTask(toRender: image, from: extent, to: destination, at: .zero).waitUntilCompleted() }
+        } catch {
+            return nil
+        }
+        // Locked for reading for as long as the image lives, so the CPU sees the
+        // GPU's writes; the provider's release unlocks and lets the surface go.
+        guard surface.lock(options: .readOnly, seed: nil) == KERN_SUCCESS else { return nil }
+        let info = Unmanaged.passRetained(surface).toOpaque()
+        guard let provider = CGDataProvider(dataInfo: info, data: surface.baseAddress,
+                                            size: surface.bytesPerRow * surface.height,
+                                            releaseData: { info, _, _ in
+                                                guard let info else { return }
+                                                let surface = Unmanaged<IOSurface>.fromOpaque(info).takeRetainedValue()
+                                                surface.unlock(options: .readOnly, seed: nil)
+                                            })
+        else {
+            let surface = Unmanaged<IOSurface>.fromOpaque(info).takeRetainedValue()
+            surface.unlock(options: .readOnly, seed: nil)
+            return nil
+        }
+        return CGImage(width: surface.width, height: surface.height, bitsPerComponent: 8, bitsPerPixel: 32,
+                       bytesPerRow: surface.bytesPerRow, space: space,
+                       bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedFirst.rawValue
+                           | CGImageByteOrderInfo.order32Little.rawValue),
+                       provider: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent)
     }
 
     /// Renders to an RGBA `CGImage` with 8 or 16 bits per component in

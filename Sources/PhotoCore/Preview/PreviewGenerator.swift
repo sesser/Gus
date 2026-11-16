@@ -113,11 +113,12 @@ public struct PreviewGenerator: Sendable {
     }
 
     /// Full-resolution (or capped) rendition for 1:1 viewing, in `colorSpace`
-    /// (Display P3 when nil).
+    /// (Display P3 when nil), rendered before it returns (`makeSurfaceImage`):
+    /// never by its first draw on the main thread.
     public func cgImage(source: URL, stack: EditStack, longEdge: Int? = nil,
                         colorSpace: CGColorSpace? = nil) throws -> CGImage {
         let image = try image(source: source, stack: stack, longEdge: longEdge)
-        guard let cgImage = engine.makeCGImage(image, colorSpace: colorSpace) else { throw Failure.renderFailed }
+        guard let cgImage = engine.makeSurfaceImage(image, colorSpace: colorSpace) else { throw Failure.renderFailed }
         return cgImage
     }
 
