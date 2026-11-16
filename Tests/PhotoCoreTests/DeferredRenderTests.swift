@@ -158,18 +158,89 @@ struct DeferredRenderTests {
         #expect(extended.calls.withLock { $0 } == hdrPulled, "Core Animation rendered the HDR rendition again")
     }
 
-    /// The pixels on screen are, within one level, the ones Core Animation's
-    /// own render of the deferred image gave: a 24 MP raw with a typical stack,
-    /// a mask and a vignette, drawn both ways through Core Animation.
+    /// Whether a run asked for the large renders (`LARGE_RENDER_TESTS=1`), as
+    /// `LargeRenderTests` does: the CI runners' paravirtual GPU fails the
+    /// 24 MP render below ("command buffer exited with error status").
+    static let largeRenders = ProcessInfo.processInfo.environment["LARGE_RENDER_TESTS"] == "1"
+
+    /// Core Animation's render of the deferred image (the old screen) against
+    /// its draw of the rendition, within one level per byte, and the
+    /// rendition's own pixels passed through unchanged. With `control`, a
+    /// render into a bitmap (`deferred: false`) must differ by more than one
+    /// level, so the comparison can tell the routes apart.
     ///
     /// Within one level, not byte for byte: Core Image's 8-bit output varies by
     /// one level between two renders of the same graph on either route (code
-    /// review C1: up to 486 rows, never more than 1). A render into a bitmap
-    /// (`deferred: false`) differs by far more (up to 52 levels on this stack),
-    /// and the control checks the test still tells that route apart; at
-    /// 4400 × 2934 it did not, hence the size.
-    @Test("The rendition shows what Core Animation's render of the deferred image showed, within one level")
+    /// review C1: up to 486 rows, never more than 1).
+    static func expectRenditionMatchesCoreAnimation(_ url: URL, stack: EditStack, control: Bool) throws {
+        let engine = RenderEngine(contextCount: 1, name: "deferred-test")
+        let generator = PreviewGenerator(engine: engine)
+        let colorSpace = RenderEngine.outputColorSpace
+        let image = try generator.image(source: url, stack: stack, longEdge: nil)
+        // Over 4096 on a side, so the short call defers and Core Animation renders it.
+        #expect(max(image.extent.width, image.extent.height) > 4096)
+        let deferred = try #require(engine.withContext {
+            $0.createCGImage(image, from: image.extent.integral, format: .BGRA8, colorSpace: colorSpace)
+        })
+        let before = try drawnByCoreAnimation(deferred)
+        let rendition = try generator.cgImage(source: url, stack: stack, colorSpace: colorSpace)
+        #expect(rendition.width == deferred.width && rendition.height == deferred.height)
+        let after = try drawnByCoreAnimation(rendition)
+        let drawn = difference(before, after, width: rendition.width)
+        #expect(drawn.worst <= 1,
+                "\(drawn.rows) rows differ from Core Animation's render of the deferred image, by up to \(drawn.worst) levels")
+
+        if control {
+            let bitmap = try #require(engine.withContext {
+                $0.createCGImage(image, from: image.extent.integral, format: .BGRA8, colorSpace: colorSpace, deferred: false)
+            })
+            let bitmapDrawn = difference(before, try drawnByCoreAnimation(bitmap), width: rendition.width, stopAbove: 1)
+            #expect(bitmapDrawn.worst > 1,
+                    "a bitmap render now matches Core Animation's within one level: this test can't tell the routes apart and needs revisiting")
+        }
+
+        // Core Animation passes the rendition's own pixels through unchanged
+        // (its rows top to bottom, the texture's bottom to top).
+        let data = try #require(rendition.dataProvider?.data as Data?)
+        let rowBytes = rendition.width * 4
+        var own = [UInt8](repeating: 0, count: rowBytes * rendition.height)
+        data.withUnsafeBytes { source in
+            own.withUnsafeMutableBytes { destination in
+                for row in 0..<rendition.height {
+                    memcpy(destination.baseAddress! + (rendition.height - 1 - row) * rowBytes,
+                           source.baseAddress! + row * rendition.bytesPerRow, rowBytes)
+                }
+            }
+        }
+        #expect(difference(own, after, width: rendition.width).rows == 0, "not drawn as rendered")
+    }
+
+    /// At a size and stack the CI runners' GPU renders: one side over 4096,
+    /// so the old route was Core Animation's own deferred render, but about
+    /// 5 MP, with pointwise adjustments only. Runs everywhere; the stack is too
+    /// light for the bitmap route to differ, so it has no control (the 24 MP
+    /// test has it).
+    @Test("The rendition shows what Core Animation's render of the deferred image showed, within one level (4400 x 1100)")
     func matchesCoreAnimationsRender() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { folder in
+            let url = folder.appending(path: "wide.dng")
+            try SyntheticDNG.write(to: url, options: .init(width: 4400, height: 1100, seed: 65, noise: 0.01))
+            var values = Adjustments()
+            values.exposure.ev = 0.4
+            values.vignette.amount = -30
+            try Self.expectRenditionMatchesCoreAnimation(url, stack: values.editStack, control: false)
+        }
+    }
+
+    /// A 24 MP raw with a typical stack, a mask and a vignette: there a bitmap
+    /// render differs from Core Animation's (up to 52 levels), so the control
+    /// shows the comparison tells the routes apart; at 4400 x 2934 it did not.
+    /// Gated like `LargeRenderTests`: the CI runners' paravirtual GPU can't
+    /// render it (`renderFailed`, run 43807422336).
+    /// `LARGE_RENDER_TESTS=1 swift test --filter DeferredRenderTests`.
+    @Test("At 24 MP with a typical stack, the rendition shows Core Animation's render and the bitmap route is told apart",
+          .enabled(if: largeRenders, "Set LARGE_RENDER_TESTS=1 to run: a 24 MP render the CI runners' GPU can't do"))
+    func matchesCoreAnimationsRenderLarge() async throws {
         try await RepositoryFiles.withTemporaryDirectory { folder in
             let url = folder.appending(path: "wide.dng")
             try SyntheticDNG.write(to: url, options: .init(width: 6000, height: 4000, seed: 65, noise: 0.01))
@@ -181,46 +252,23 @@ struct DeferredRenderTests {
                 },
             ]
             values.vignette.amount = -30
-            let engine = RenderEngine(contextCount: 1, name: "deferred-test")
-            let generator = PreviewGenerator(engine: engine)
-            for colorSpace in [RenderEngine.outputColorSpace] {
-                let name = colorSpace.name.map { $0 as String } ?? "?"
-                let image = try generator.image(source: url, stack: values.editStack, longEdge: nil)
-                #expect(max(image.extent.width, image.extent.height) > 4096)
-                let deferred = try #require(engine.withContext {
-                    $0.createCGImage(image, from: image.extent.integral, format: .BGRA8, colorSpace: colorSpace)
-                })
-                let before = try Self.drawnByCoreAnimation(deferred)
-                let rendition = try generator.cgImage(source: url, stack: values.editStack, colorSpace: colorSpace)
-                #expect(rendition.width == deferred.width && rendition.height == deferred.height)
-                let after = try Self.drawnByCoreAnimation(rendition)
-                let drawn = Self.difference(before, after, width: rendition.width)
-                #expect(drawn.worst <= 1, "\(name): \(drawn.rows) rows differ from Core Animation's render of the deferred image, by up to \(drawn.worst) levels")
+            try Self.expectRenditionMatchesCoreAnimation(url, stack: values.editStack, control: true)
+        }
+    }
 
-                // The control: the bitmap route, drawn the same way, is told apart.
-                let bitmap = try #require(engine.withContext {
-                    $0.createCGImage(image, from: image.extent.integral, format: .BGRA8, colorSpace: colorSpace, deferred: false)
-                })
-                let bitmapDrawn = Self.difference(before, try Self.drawnByCoreAnimation(bitmap), width: rendition.width,
-                                                  stopAbove: 1)
-                #expect(bitmapDrawn.worst > 1,
-                        "a bitmap render now matches Core Animation's within one level: this test can't tell the routes apart and needs revisiting")
-
-                // Core Animation passes the rendition's own pixels through
-                // unchanged (its rows top to bottom, the texture's bottom to top).
-                let data = try #require(rendition.dataProvider?.data as Data?)
-                let rowBytes = rendition.width * 4
-                var own = [UInt8](repeating: 0, count: rowBytes * rendition.height)
-                data.withUnsafeBytes { source in
-                    own.withUnsafeMutableBytes { destination in
-                        for row in 0..<rendition.height {
-                            memcpy(destination.baseAddress! + (rendition.height - 1 - row) * rowBytes,
-                                   source.baseAddress! + row * rendition.bytesPerRow, rowBytes)
-                        }
-                    }
-                }
-                #expect(Self.difference(own, after, width: rendition.width).rows == 0, "\(name): not drawn as rendered")
-            }
+    /// The product path when the GPU can't render: no image, so the preview
+    /// service throws `renderFailed` and the loupe keeps the preview it shows
+    /// (`LoupeView.loadFullResolution`). Runs everywhere.
+    @Test("A surface render that can't be made gives no image, and the generator throws")
+    func failedSurfaceRenderGivesNoImage() throws {
+        let engine = RenderEngine(contextCount: 1, name: "deferred-test")
+        #expect(engine.makeSurfaceImage(CIImage(color: CIColor(red: 0.5, green: 0.5, blue: 0.5))) == nil, "infinite extent")
+        #expect(engine.makeSurfaceImage(CIImage.empty()) == nil, "empty extent")
+        let small = try #require(engine.makeSurfaceImage(
+            CIImage(color: CIColor(red: 0.5, green: 0.5, blue: 0.5)).cropped(to: CGRect(x: 0, y: 0, width: 64, height: 48))))
+        #expect(small.width == 64 && small.height == 48)
+        #expect(throws: PreviewGenerator.Failure.undecodable(URL(fileURLWithPath: "/nonexistent/photo.jpg"))) {
+            try PreviewGenerator(engine: engine).cgImage(source: URL(fileURLWithPath: "/nonexistent/photo.jpg"), stack: .identity)
         }
     }
 }

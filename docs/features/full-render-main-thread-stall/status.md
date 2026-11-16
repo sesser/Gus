@@ -88,7 +88,19 @@ command queue of the test's so its work is awaited, not slept on):
   never more than 1). A control in the test requires a bitmap render to differ by more
   than one level, so it still tells the routes apart; and with the bitmap route in
   `PreviewGenerator.cgImage` the test fails (3146 of 4000 rows, up to 24 levels). At
-  4400 × 2934 the routes weren't told apart, hence the size.
+  4400 × 2934 the routes weren't told apart, hence the size. **Opt-in since CI run
+  43807422336:** the CI runners' paravirtual GPU can't make this 24 MP render ("command
+  buffer exited with error status", `renderFailed` on macOS 15 and 26), so it is
+  `matchesCoreAnimationsRenderLarge`, gated like `LargeRenderTests`:
+  `LARGE_RENDER_TESTS=1 swift test --filter DeferredRenderTests`.
+- `matchesCoreAnimationsRender` (runs everywhere, CI included): the same comparison on a
+  4400 × 1100 synthetic raw (one side over 4096, so the old route is still Core Animation's
+  deferred render; about 5 MP) with exposure and a vignette, without the control (the
+  stack is too light for the bitmap route to differ).
+- `failedSurfaceRenderGivesNoImage` (runs everywhere): a surface render that can't be made
+  (an infinite or empty image) gives no image, a small one gives its size, and the
+  generator throws, so the preview service fails the request and the loupe keeps the
+  preview it shows.
 
 No pipeline bump, no golden changed, `UPDATE_GOLDENS` not run.
 
@@ -315,8 +327,10 @@ The scripted runs time the main thread and the wait, but not what the screen loo
   pipeline version touched.
 - Arrival size fix: `swift build` clean, no new warnings. `swift test` twice: **1044 tests in 156 suites passed, 2 of 2** (the real-raw case skipped without `CAMERA_RAW_SAMPLE`; run by hand on the ARW and the ORF, both pass).
 - Review fixes C3, C4: `swift build` clean, no new warnings. `swift test` twice: **1045 tests in 156 suites passed, 2 of 2**.
+- CI fix (run 43807422336 failed on both runners on the 24 MP comparison only, 1 of 1045):
+  `swift build` clean, no new warnings. `swift test` twice: **1047 tests in 156 suites passed, 2 of 2** (the 24 MP comparison skipped). `LARGE_RENDER_TESTS=1 swift test --filter DeferredRenderTests`: 5 of 5 passed, the 24 MP comparison in 14.9 s.
 - Shown failing without the fix: `renderedWhereMade` with the old deferred call (2
-  issues); `matchesCoreAnimationsRender` with the bitmap route (3146 rows, up to 24 levels).
+  issues); the 24 MP comparison (now `matchesCoreAnimationsRenderLarge`) with the bitmap route (3146 rows, up to 24 levels).
 
 ## Review findings
 
@@ -327,6 +341,7 @@ The scripted runs time the main thread and the wait, but not what the screen loo
 | Question: memory | Two 96 MB copies at 100%? | Measured: no; see "Memory at 100%" |
 | C3 (Should fix, second pass) | A cancelled neighbour prefetch still started a size read (`try?` swallowed the cancellation; the detached read didn't inherit it), so a held arrow key started unbounded reads | Fixed: the prefetch stops when cancelled before the size read and before the HDR one; `outputSize` returns nil without starting a read for a cancelled caller, and cancelling it while the stack loads stops the read before it starts (`withTaskCancellationHandler`). Test `cancelledCallerStartsNoRead` (fails 3 of 3 without the entry guard) |
 | C4 (Nit, second pass) | No coalescing of identical size requests; always `.userInitiated` | Noted under "Not fixed here", as asked |
+| CI (run 43807422336) | The 24 MP comparison failed with `renderFailed` on both runners: their paravirtual GPU can't render it | Gated like `LargeRenderTests` (`LARGE_RENDER_TESTS=1`) with its bitmap-route control; an ungated 4400 × 1100 comparison and a failed-render test run everywhere. The other new tests on this branch passed on both runners in that run |
 | Owner (sign-off check) | At 100% the photo jumps 25–50 px on each arrow key (Sony ARW) | Also on `develop`, more visible since the window no longer freezes. Fixed: the photo is sized on arrival from the rendition's size, learned without rendering; see "Owner's finding" |
 
 ## Open questions
