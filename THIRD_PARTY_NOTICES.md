@@ -9,8 +9,12 @@ comment at each place:
   neutral, the camera's color matrices read between two calibration lights
   by reciprocal temperature, forward matrices, the linear Bradford adaptation
   to D50) follows Adobe's "Digital Negative (DNG) Specification", chapter 6,
-  "Mapping Camera Color Space to CIE XYZ Space" (read in version 1.6.0.0,
-  December 2021), written from the specification's text:
+  "Mapping Camera Color Space to CIE XYZ Space" (written from version 1.6.0.0,
+  December 2021, and checked against 1.7.1.0, September 2023: the text on
+  one and two calibrations, the interpolation by inverse temperature, the
+  iteration from a camera neutral, forward matrices and the Bradford
+  adaptation is the same; 1.7.1.0 also describes a third calibration, which
+  this code does not read):
   `Sources/PhotoCore/CameraColor/CameraColor.swift` and `CameraProfile.swift`.
   Of a camera neutral's white point the specification says only to guess one
   and "iterate until the xy values converge to a solution": how
