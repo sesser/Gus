@@ -37,6 +37,12 @@ let package = Package(
             cxxSettings: [
                 .headerSearchPath("."),
                 .unsafeFlags(["-w"]),
+                // Release builds would otherwise compile LibRaw at SwiftPM's -Os; at -O3
+                // its full-size decodes are about twice as fast for Bayer raws and 13%
+                // faster for X-Trans, with the same output bit for bit (issue #195).
+                // The flag comes after -Os on clang's command line, so it wins. Debug
+                // builds keep -O0.
+                .unsafeFlags(["-O3"], .when(configuration: .release)),
             ]
         ),
         .target(
