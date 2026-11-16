@@ -172,10 +172,162 @@ also the part I could not reach, so I don't ask for more.
 designer's confirmation on L1 if the main session asks for it). No new
 findings. `/security-review` still not needed.
 
+## Second pass (d29424f)
+
+Date: 2026-11-15. Reviewed: commit `d29424f` only (the owner's finding at
+sign-off: at 100% the photo jumps when the full rendition lands).
+Files: `PreviewGenerator.outputSize`, `PreviewService.outputSize(for:)`,
+`memoryCachedOutputSize(for:)` and their cache, `LoupeArrivalSize`,
+`LoupeView` (arrival, `resizeImageView(toPixels:)`, the `matchFrame(to:exact:)`
+change, neighbor prefetch), `ComparisonPane.show`, `OutputSizeTests`,
+`status.md`. Build and tests: `swift build` clean. Full `swift test` at
+`d29424f`, three logged runs in a row: 1044 tests in 156 suites passed, 3 of
+3 (70.0, 67.3, 66.5 s). `OutputSizeTests` passed in each, and its real-raw
+case was skipped (no `CAMERA_RAW_SAMPLE` set). Two earlier full runs exited 0
+as well, but I didn't capture their summaries. I didn't launch the app.
+
+**Verdict, second pass.** Ready for the next step. The arrival size is
+computed from the same graph that renders, keyed so that an edit can't
+serve an old size, and nothing new reaches the main thread. Two small
+findings about the neighbor prefetch's extra work (C3, C4); neither is a
+correctness problem and neither blocks QA.
+
+### Findings
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C3 | Should fix | `Sources/PhotoApp/Loupe/LoupeView.swift:623-626`, `Sources/PhotoCore/Preview/PreviewService.swift:270` | A neighbor task that has been cancelled still starts `outputSize`. `WorkLane.run` throws `CancellationError` at once for a cancelled task, `try?` swallows it, and the next line calls `previews.outputSize(for:)` without checking `Task.isCancelled`. Its `Task.detached` doesn't inherit the cancellation, so the work always runs to the end. Cancelling `sizeTask` doesn't stop its inner detached task either. | Hold → at 100% (the owner's check) or at fit. Each step cancels up to three neighbor tasks, and each cancelled one starts a header read for a photo the person is already past: two `CIRAWFilter(imageURL:)`, two `DNGLayout` reads, and, for a cropped Olympus or Panasonic raw, `CameraFrame.fullFrameData` reading the whole file. Each is 20–100 ms by `status.md`, they run at `.userInitiated` alongside the full lane's render, and nothing limits how many run at once. Before this commit a cancelled neighbor did nothing more. Fix: `guard !Task.isCancelled else { return }` before the `outputSize` call. | Concurrency: cancellation honored |
+| C4 | Nit | `Sources/PhotoCore/Preview/PreviewService.swift:262-276` | `outputSize(for:)` doesn't share work with a request already in flight for the same key, and always runs at `.userInitiated`, even when a prefetch asks. | Arrow from n to n+1 before n+2's size is known: the new step asks for n+2's size again (now index+1) while the first request is still running, so the same work runs twice. A prefetch read competes with the visible full render at the same priority. The lanes avoid both through their key and priority. Fix: run it in a lane, or pass a priority and keep a map of in-flight requests. | Concurrency (efficiency); no rule broken |
+
+### Checked and fine
+
+- **Main thread.** On the main actor, `show` only calls
+  `memoryCachedOutputSize` (a `Mutex` dictionary lookup) and
+  `previewRequest` (as before). Loading the stack (the catalog read), the
+  `SystemRAWDecoder.reads` probe, `DNGLayout`, the decode graph and any
+  `CameraFrame` copy all run inside `outputSize`'s `Task.detached`. `remember`
+  is a lock. `PreviewService` stays `Sendable` with `Mutex` state, and the
+  detached closure captures only `Sendable` values (`PreviewGenerator`, the
+  `@Sendable` loader, `PreviewCacheKey`, `URL`).
+- **Same graph as the render.** `outputSize` takes
+  `image(source:stack:longEdge: nil)`'s `extent.integral`, the call
+  `cgImage(source:stack:colorSpace:)` makes before `makeSurfaceImage`, which
+  sizes its surface by the same `extent.integral`. It uses the same
+  `interactiveGenerator`, no draft, scale 1. So the frame
+  (`RAWDecodeGraph`, `CameraFrame` when the stack asks for the whole sensor,
+  and the fallback without decoder choices), orientation, lens corrections,
+  straightening, turns and crop all come from the code that renders. The
+  color space doesn't change the size. The graph is lazy (the renderer's
+  local estimates are filters, not renders), so nothing is decoded. The
+  cases left out are left out correctly: videos; raws
+  `SystemRAWDecoder.reads` refuses (LibRaw would decode in full, about 9 s);
+  linear DNGs (`LinearRawDecode.rendered` renders the whole image). Raws the
+  system reads never reach LibRaw (`rawImage`'s order), so a size from the
+  system graph can't disagree with a LibRaw rendition. HDR full renditions
+  are not recorded, and floating-point DNGs are linear and so return nil
+  anyway.
+- **Stale sizes.** The key is content hash, render hash and pipeline
+  version. Crop, rotate, straighten, undo, redo and a history revert each
+  change the render hash, so each gets its own entry, and returning to an
+  earlier stack gets that stack's own size, which is still right. A stack not
+  saved yet fails `Self.stack`'s hash check and gives nil, not a wrong size.
+  At the same version (an edit), `show` sizes nothing on arrival and starts
+  no size task, as before. `rendition < .full` keeps a late size from
+  touching a full rendition or a live frame (`.live` sorts above `.full`).
+  `shownKey` is checked as for the other tasks.
+- **Memory.** At most 4096 entries of about 150 bytes (key plus `CGSize`),
+  about 0.6 MB, emptied all at once at the limit. Fine.
+- **The `matchFrame(to:exact:)` change.** At 100%, a full rendition whose
+  size differs now keeps the same relative center instead of re-centering.
+  Magnification is the same either way (`applyZoom` sets 1 at
+  `.actualSize`). After a crop or turn at 100%, the preview step
+  (`exact: false`) still re-centers when the aspect changes, so in practice
+  this only applies to an arrival whose size was wrong. That is the case it
+  was made for.
+- **Compare (#63).** `ComparisonPane.show` uses the same rule, and its
+  late correction goes through `resizeDocument`, which runs under
+  `performWithoutFollowing` and keeps the unit center, so a linked pane
+  doesn't move with it. Compare doesn't prefetch, so a pane uses a size the
+  loupe learned or corrects once.
+- **Film strip (#25), videos, offline.** The film strip still uses the
+  catalog's proportions (unchanged and named in `status.md`). Videos: nil
+  from `outputSize`, and `fullResolutionImage` doesn't record a poster's
+  size. Offline: no task (`sourceURL` nil), and a size already learned is
+  still used.
+- **Rendering unchanged.** No change to the renderer, `PreviewCacheKey`,
+  pipeline version or goldens. `cgImage` and `fullResolutionImage` render
+  exactly as before; the only addition is `remember`, after the render.
+- **Tests.** `OutputSizeTests` checks the predicted size against the
+  rendered one, the cache, the rendition recording its own size, and the
+  arrival rule. Cases: a cropped and turned DNG where the catalog's size is
+  wrong (asserted, so the case can't pass trivially), an orientation-6 JPEG,
+  a plain DNG, and a real raw behind `CAMERA_RAW_SAMPLE`. Swift Testing,
+  deterministic, no sleeps. The video case only exercises the early return.
+  No straightened case, but straightening goes through the same `extent` by
+  construction.
+- No new UI strings, brand values, dependencies, migrations or persisted
+  names.
+
+### Follow-up (second pass)
+
+| # | Result | Commit |
+|---|---|---|
+| C3 | Open | |
+| C4 | Open (Nit; the engineer may leave it with a line in `status.md`) | |
+
+## Third pass (bb27fda)
+
+Date: 2026-11-15. Reviewed: commit `bb27fda` only (`LoupeView.preloadNeighbors`,
+`PreviewService.outputSize(for:)`, `OutputSizeTests.cancelledCallerStartsNoRead`,
+`status.md`). Build and tests: `swift build` clean. Full `swift test` at
+`bb27fda` twice in a row: 1045 tests in 156 suites passed, 2 of 2 (67.1 and
+65.5 s), the new test passing in each.
+
+**C3, closed.**
+- **The prefetch.** `guard !Task.isCancelled` comes after the swallowed
+  `try?` of the preview prefetch and before `outputSize`, and again after
+  `outputSize` and before the HDR prefetch. A cancelled neighbor now does no
+  more work than it did before `d29424f`.
+- **`outputSize(for:)`.** A cancelled caller still gets a size the cache
+  already has, which needs no read. Otherwise it returns nil before it makes
+  the detached task. The detached read now checks `Task.isCancelled` after
+  loading the stack and before `generator.outputSize`, and
+  `withTaskCancellationHandler` passes the caller's cancellation on to it. If
+  the caller is cancelled between the guard and the handler, `onCancel` runs
+  at once, so that race is covered too. The catalog read for the stack still
+  runs to the end; it is small and was never the cost.
+- **Nothing cached for a cancelled caller.** A cancelled read returns nil, so
+  `remember` is skipped. If cancellation arrives after the recheck, the read
+  finishes and its size is cached. That size is right for its key, so it
+  does no harm.
+- **Non-cancelled calls.** The size, the cache and the priority are as
+  before; the test's second half checks one read and the right size. The
+  other two callers (`LoupeView:362`, `ComparisonView:812`) already ignored a
+  result once cancelled, so a nil there changes nothing.
+- **The test catches it.** In a scratch clone (the repository was not
+  touched), removing only the entry guard makes `cancelledCallerStartsNoRead`
+  fail on `loads == 0` (the stack loader runs). Removing the recheck as well
+  makes it fail on `cancelled == nil` and on the cache being empty too. So the
+  test covers the guard directly and the handler plus recheck indirectly.
+  Swift Testing, deterministic, no sleeps.
+
+**C4, closed as Not fixed by agreement.** `status.md` names it under "Not
+fixed here" (no coalescing, always `.userInitiated`), which is what was asked.
+
+No new findings. `/security-review` still not needed.
+
+### Follow-up (third pass)
+
+| # | Result | Commit |
+|---|---|---|
+| C3 | Fixed | `bb27fda` |
+| C4 | Not fixed, as agreed: noted in `status.md` ("Not fixed here") | `bb27fda` |
+
 ## Security review
 
 Not needed. The change adds no parser, subprocess, file writing outside the
-library, or network code.
+library, or network code. `d29424f` reads only headers of masters the app
+already reads, so it doesn't change that.
 
 ## Summary for the issue
 

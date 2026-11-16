@@ -151,3 +151,13 @@ the cause is my `photocli render <file> --out ...` runs (Scripts 1 and 3), which
 `--library-root`: with no library named, `render` opens the standard library read-only to refuse
 an output that is a master, and that touches the shared-memory index. The app was only ever
 launched with `--library-root`.
+
+### Second pass: bb27fda
+
+Date: 2026-11-15. The branch has moved from 072518d to `bb27fda` (more of #65: `d29424f`, `bb27fda`;
+nothing of #73's code changed: `476d6a9`). Rerun on the checkout: `swift test` twice, 1045 tests in 156
+suites passed both times (71.1 and 70.6 s); `EstimateEdgeTests` ("Whole-frame estimates at the frame's
+edge") passed in both, and the goldens are unchanged (no file under `Tests/PhotoCoreTests/Goldens` differs from
+476d6a9; `UPDATE_GOLDENS` not run; the `Goldens` and `Golden harness` suites passed). `Scripts/build-app.sh
+all` succeeded. My earlier results for #73 stand; P1 (optional) is as before. No sign-off for #73 has been
+relayed to me yet. Logs and the rest of the run: `docs/features/full-render-main-thread-stall/qa.md`.
