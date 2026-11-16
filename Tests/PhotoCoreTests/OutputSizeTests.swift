@@ -102,6 +102,35 @@ struct OutputSizeTests {
         }
     }
 
+    /// A held arrow key cancels each neighbor's prefetch: a cancelled caller
+    /// gets nil and starts no read (code review C3). The read's first step
+    /// loads the version's stack, so the loader's calls count the reads.
+    @Test("A cancelled caller starts no size read")
+    func cancelledCallerStartsNoRead() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let url = root.appending(path: "photo.dng")
+            try SyntheticDNG.write(to: url, options: .init(width: 1200, height: 800, seed: 4))
+            let loads = Locked(0)
+            let service = PreviewService(cache: PreviewDiskCache(root: root.appending(path: "cache")),
+                                         editStack: { _ in loads.withLock { $0 += 1 }; return .identity })
+            let key = try #require(PreviewCacheKey(contentHash: contentHash, editStackHash: EditStack.identity.renderHash,
+                                                   tier: .preview))
+            let request = PreviewRequest(versionID: 1, key: key, sourceURL: url)
+
+            let cancelled = await Task {
+                withUnsafeCurrentTask { $0?.cancel() }
+                return await service.outputSize(for: request)
+            }.value
+            #expect(cancelled == nil)
+            #expect(loads.withLock { $0 } == 0, "a cancelled caller started a size read")
+            #expect(service.memoryCachedOutputSize(for: request) == nil)
+
+            let size = await service.outputSize(for: request)
+            #expect(size == CGSize(width: 1200, height: 800))
+            #expect(loads.withLock { $0 } == 1)
+        }
+    }
+
     @Test("No size is promised where only a decode would tell")
     func noSizeForVideos() throws {
         let generator = PreviewGenerator()

@@ -259,18 +259,24 @@ public final class PreviewService: Sendable {
     /// doesn't move when it lands. Nil when it can't be known that way (a
     /// video, a raw only LibRaw decodes, an offline master, a stack not saved
     /// yet): the loupe then corrects the size when the rendition lands.
+    ///
+    /// A cancelled caller gets nil and starts no read, and cancelling it while
+    /// the stack loads stops the read before it starts (a held arrow key
+    /// cancels each neighbor's prefetch in turn).
     public func outputSize(for request: PreviewRequest) async -> CGSize? {
         if let size = memoryCachedOutputSize(for: request) { return size }
-        guard let source = request.sourceURL else { return nil }
+        guard !Task.isCancelled, let source = request.sourceURL else { return nil }
         let generator = interactiveGenerator
         let loadStack = self.editStack
         let versionID = request.versionID
         let key = request.key
         // A header read and a graph, off the caller's executor (the loupe's is the main actor).
-        let size = await Task.detached(priority: .userInitiated) { () -> CGSize? in
-            guard let stack = try? await Self.stack(loadStack, versionID: versionID, for: key) else { return nil }
+        let work = Task.detached(priority: .userInitiated) { () -> CGSize? in
+            guard let stack = try? await Self.stack(loadStack, versionID: versionID, for: key),
+                  !Task.isCancelled else { return nil }
             return try? generator.outputSize(source: source, stack: stack)
-        }.value
+        }
+        let size = await withTaskCancellationHandler { await work.value } onCancel: { work.cancel() }
         if let size { remember(size, for: request) }
         return size
     }

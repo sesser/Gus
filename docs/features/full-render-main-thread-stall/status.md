@@ -298,6 +298,10 @@ The scripted runs time the main thread and the wait, but not what the screen loo
 - **A jump to a photo whose size isn't known** (not visited, not a neighbor) still
   corrects once, about 0.1 s after arriving, before it turns sharp. Prefetching sizes
   further (the film strip's visible cells) would remove that.
+- **`PreviewService.outputSize` doesn't coalesce** two identical requests running at once
+  (each reads the header), and always runs at `.userInitiated`, prefetches included (code
+  review C4). Each read is 20–100 ms and a held arrow key now cancels them (C3); no lane or
+  in-flight map was added.
 - **Scripted first `Z`** after `windowsize`, with the display asleep or on first launch:
   the magnification stays at fit while the editor treats the view as at 100%; the next
   arrow key applies it. Possibly related to #153.
@@ -310,6 +314,7 @@ The scripted runs time the main thread and the wait, but not what the screen loo
   five full runs in a row: **1040 tests in 155 suites passed, 5 of 5** (65.9–70.2 s each). `UPDATE_GOLDENS` not run; no golden or
   pipeline version touched.
 - Arrival size fix: `swift build` clean, no new warnings. `swift test` twice: **1044 tests in 156 suites passed, 2 of 2** (the real-raw case skipped without `CAMERA_RAW_SAMPLE`; run by hand on the ARW and the ORF, both pass).
+- Review fixes C3, C4: `swift build` clean, no new warnings. `swift test` twice: **1045 tests in 156 suites passed, 2 of 2**.
 - Shown failing without the fix: `renderedWhereMade` with the old deferred call (2
   issues); `matchesCoreAnimationsRender` with the bitmap route (3146 rows, up to 24 levels).
 
@@ -320,6 +325,8 @@ The scripted runs time the main thread and the wait, but not what the screen loo
 | C1 (Blocker) | `matchesCoreAnimationsRender` compared two Core Image renders byte for byte; Core Image varies by one level between renders (2 of 5 full runs failed) | Fixed: one level per byte allowed, worst and row count in the message; a control requires the bitmap route to differ by more than one level; with the bitmap route in the product code the test fails (3146 rows, up to 24 levels). "Byte for byte" claims about the on-screen render reworded here, in the test and in `makeSurfaceImage`'s comment (the user guide made none). Five full runs pass |
 | C2 (Nit) | A started full render can't be cancelled; one lane slot | Noted under "Not fixed here" and added to the checks for a person; no code change, as asked |
 | Question: memory | Two 96 MB copies at 100%? | Measured: no; see "Memory at 100%" |
+| C3 (Should fix, second pass) | A cancelled neighbour prefetch still started a size read (`try?` swallowed the cancellation; the detached read didn't inherit it), so a held arrow key started unbounded reads | Fixed: the prefetch stops when cancelled before the size read and before the HDR one; `outputSize` returns nil without starting a read for a cancelled caller, and cancelling it while the stack loads stops the read before it starts (`withTaskCancellationHandler`). Test `cancelledCallerStartsNoRead` (fails 3 of 3 without the entry guard) |
+| C4 (Nit, second pass) | No coalescing of identical size requests; always `.userInitiated` | Noted under "Not fixed here", as asked |
 | Owner (sign-off check) | At 100% the photo jumps 25–50 px on each arrow key (Sony ARW) | Also on `develop`, more visible since the window no longer freezes. Fixed: the photo is sized on arrival from the rendition's size, learned without rendering; see "Owner's finding" |
 
 ## Open questions

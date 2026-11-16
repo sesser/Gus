@@ -622,8 +622,12 @@ final class LoupeController: NSObject {
             let rendersHDR = hdr && neighbor != index + 2
             neighborTasks.append(Task {
                 _ = try? await previews.image(for: request, priority: .prefetch)
+                // A cancelled prefetch (the loupe moved on) stops here: `try?`
+                // swallowed the cancellation.
+                guard !Task.isCancelled else { return }
                 // Its size too, so arriving there sizes the photo right away.
                 _ = await previews.outputSize(for: request)
+                guard !Task.isCancelled else { return }
                 if rendersHDR { _ = try? await previews.hdrImage(for: request, priority: .prefetch) }
             })
         }
