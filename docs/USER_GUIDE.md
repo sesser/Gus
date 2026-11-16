@@ -349,7 +349,9 @@ soft for a moment. On raw files, White Balance, Profile and Noise Reduction
 stay soft while the value moves, and the detail arrives once you hold still,
 even with the control still held (a raw the app decodes itself, below, keeps
 its detail while White Balance moves). If that takes more than half a second, a
-small spinner shows in the caption. The histogram always describes the whole
+small spinner shows in the caption, and the same after you let go while the
+photo's full detail arrives. The window keeps responding meanwhile, and moving
+to another photo at 100% doesn't pause it. The histogram always describes the whole
 photo, and at these zooms it can lag until you pause.
 
 **Raw files macOS can't decode**: when the macOS raw decoder has no image for a

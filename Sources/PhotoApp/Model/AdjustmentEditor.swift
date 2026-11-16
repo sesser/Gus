@@ -92,7 +92,7 @@ final class AdjustmentEditor {
         }
     }
     /// A full rendition is loading. The texture's decode waits for it: on the
-    /// same GPU it lengthens the rendition's first draw on the main thread.
+    /// same GPU it lengthens the rendition's render.
     @ObservationIgnored var loupeLoadsFullRendition = false {
         didSet { if oldValue, !loupeLoadsFullRendition { scheduleRegionPrepare() } }
     }

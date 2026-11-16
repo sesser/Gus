@@ -161,6 +161,8 @@ final class LoupeController: NSObject {
     private var loadTask: Task<Void, Never>?
     private var hdrTask: Task<Void, Never>?
     private var fullTask: Task<Void, Never>?
+    /// Learns the full rendition's size when it wasn't known on arrival.
+    private var sizeTask: Task<Void, Never>?
     /// Tells the latest full-rendition load from one it replaced.
     private var fullLoadGeneration = 0
     /// The model's HDR setting as last applied; changing it reloads the photo.
@@ -288,6 +290,7 @@ final class LoupeController: NSObject {
         loadTask?.cancel()
         hdrTask?.cancel()
         fullTask?.cancel()
+        sizeTask?.cancel()
         model.loupeHDRHeadroom = nil
         model.editor.follow(nil)
         if let escapeMonitor { NSEvent.removeMonitor(escapeMonitor) }
@@ -340,10 +343,26 @@ final class LoupeController: NSObject {
         loadTask?.cancel()
         hdrTask?.cancel()
         fullTask?.cancel()
+        sizeTask?.cancel()
 
         let backing = hostView.window?.backingScaleFactor ?? 2
-        if let size = item.orientedSize, !sameVersion {
+        // The size the full rendition will have, when it is known (asked for
+        // a neighbor, or rendered before): the photo then doesn't move when
+        // it lands. The catalog's size is the file's metadata, which leaves
+        // out the decoder's frame and the crop (ORF: 4640 x 3472 against
+        // 4608 x 3072 rendered).
+        let sizeRequest = model.previewRequest(for: item, tier: .preview)
+        let knownSize = sizeRequest.flatMap { model.previews.memoryCachedOutputSize(for: $0) }
+        if let size = LoupeArrivalSize.size(knownOutput: knownSize, catalog: item.orientedSize), !sameVersion {
             imageView.setFrameSize(NSSize(width: size.width / backing, height: size.height / backing))
+        }
+        if !sameVersion, knownSize == nil, let sizeRequest, sizeRequest.sourceURL != nil {
+            let previews = model.previews
+            sizeTask = Task { [weak self] in
+                guard let size = await previews.outputSize(for: sizeRequest), !Task.isCancelled,
+                      let self, self.shownKey == key, self.rendition < .full else { return }
+                self.resizeImageView(toPixels: size)
+            }
         }
         if rendition == .live, sameVersion {
             // The edit being shown live was saved; its frame stays until the
@@ -369,7 +388,7 @@ final class LoupeController: NSObject {
             loadTask = Task { [weak self] in
                 guard let image = try? await previews.image(for: request, priority: .visible),
                       let self, self.shownKey == key, self.rendition <= .preview else { return }
-                if item.orientedSize == nil {
+                if item.orientedSize == nil, previews.memoryCachedOutputSize(for: request) == nil {
                     self.imageView.setFrameSize(NSSize(width: CGFloat(image.width) / backing,
                                                        height: CGFloat(image.height) / backing))
                     self.applyZoom(animated: false)
@@ -518,8 +537,29 @@ final class LoupeController: NSObject {
             size = aspect >= 1 ? NSSize(width: long, height: long / aspect) : NSSize(width: long * aspect, height: long)
         }
         guard abs(size.width - current.width) > 0.5 || abs(size.height - current.height) > 0.5 else { return }
+        if exact, zoom != .fit {
+            // A rendition of another size than the photo was given: the same
+            // place stays in the middle (design §3).
+            matchFrame(toOutput: CGSize(width: image.width, height: image.height))
+            return
+        }
         imageView.setFrameSize(size)
         applyZoom(animated: false)
+    }
+
+    /// The photo's size in pixels is now known: at fit it fits again, at
+    /// other zooms the same place stays in the middle.
+    private func resizeImageView(toPixels size: CGSize) {
+        guard zoom != .fit else {
+            let backing = hostView.window?.backingScaleFactor ?? 2
+            let target = NSSize(width: size.width / backing, height: size.height / backing)
+            let current = imageView.frame.size
+            guard abs(target.width - current.width) > 0.5 || abs(target.height - current.height) > 0.5 else { return }
+            imageView.setFrameSize(target)
+            applyZoom(animated: false)
+            return
+        }
+        matchFrame(toOutput: size)
     }
 
     /// Keeps the view at one output pixel per view pixel at 100% (a region
@@ -582,6 +622,12 @@ final class LoupeController: NSObject {
             let rendersHDR = hdr && neighbor != index + 2
             neighborTasks.append(Task {
                 _ = try? await previews.image(for: request, priority: .prefetch)
+                // A cancelled prefetch (the loupe moved on) stops here: `try?`
+                // swallowed the cancellation.
+                guard !Task.isCancelled else { return }
+                // Its size too, so arriving there sizes the photo right away.
+                _ = await previews.outputSize(for: request)
+                guard !Task.isCancelled else { return }
                 if rendersHDR { _ = try? await previews.hdrImage(for: request, priority: .prefetch) }
             })
         }

@@ -39,8 +39,12 @@ public struct PreviewCacheKey: Hashable, Sendable, CustomStringConvertible {
     /// decoded anything were carried over at launch; 10: a mask's Sharpness
     /// no longer sharpens while the Sharpening group is off,
     /// local-sharpen-group-off, issue #71; a plain bump, every preview is
-    /// made again, and the carry-over from version 8 went with it).
-    public static let currentPipelineVersion = 10
+    /// made again, and the carry-over from version 8 went with it; 11: the
+    /// dehaze and local tone estimates are measured on the image with its
+    /// edge pixels repeated, so the frame's edge no longer darkens with
+    /// Shadows or Highlights or jumps with Dehaze, dehaze-above-white, issue
+    /// #73; a plain bump, every preview is made again).
+    public static let currentPipelineVersion = 11
 
     public let contentHash: String
     public let editStackHash: String

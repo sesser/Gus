@@ -113,12 +113,32 @@ public struct PreviewGenerator: Sendable {
     }
 
     /// Full-resolution (or capped) rendition for 1:1 viewing, in `colorSpace`
-    /// (Display P3 when nil).
+    /// (Display P3 when nil), rendered before it returns (`makeSurfaceImage`):
+    /// never by its first draw on the main thread.
     public func cgImage(source: URL, stack: EditStack, longEdge: Int? = nil,
                         colorSpace: CGColorSpace? = nil) throws -> CGImage {
         let image = try image(source: source, stack: stack, longEdge: longEdge)
-        guard let cgImage = engine.makeCGImage(image, colorSpace: colorSpace) else { throw Failure.renderFailed }
+        guard let cgImage = engine.makeSurfaceImage(image, colorSpace: colorSpace) else { throw Failure.renderFailed }
         return cgImage
+    }
+
+    /// The size in pixels of `cgImage(source:stack:)`'s rendition, read from
+    /// the same lazy graph with nothing decoded or rendered (a header read,
+    /// 20 to 100 ms), so the loupe can take the photo's size before the
+    /// rendition is there. Turns, straightening, the crop and the decoder's own
+    /// frame (an in-camera aspect crop, a raw's active area) are all in it; the
+    /// catalog's pixel size, read from the file's metadata, has none of them.
+    ///
+    /// Nil where only a decode would tell: a video, a raw only LibRaw decodes,
+    /// a linear DNG (rendered whole as it decodes).
+    public func outputSize(source: URL, stack: EditStack) throws -> CGSize? {
+        if FileKind(pathExtension: source.pathExtension) == .video { return nil }
+        if SupportedFormats.isRaw(pathExtension: source.pathExtension) {
+            guard SystemRAWDecoder.reads(source), DNGLayout(contentsOf: source)?.hasLinearRaw != true else { return nil }
+        }
+        let extent = try image(source: source, stack: stack, longEdge: nil).extent.integral
+        guard !extent.isInfinite, extent.width >= 1, extent.height >= 1 else { return nil }
+        return extent.size
     }
 
     // MARK: Decoding

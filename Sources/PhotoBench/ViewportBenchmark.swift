@@ -119,8 +119,8 @@ enum ViewportBenchmark {
         await renderer.purge()
 
         // E4: letting go, today. The loupe's sharp render after a save: a
-        // whole 24 MP frame through the generator, then its first read
-        // (Core Animation pays for the deferred render when it draws it).
+        // whole 24 MP frame through the generator (rendered into an IOSurface
+        // before it returns, `makeSurfaceImage`), then its first read.
         print("\nToday's full-resolution render of the whole photo, with its pixels read (E4's baseline):")
         var fulls: [Double] = []
         for _ in 0..<5 {

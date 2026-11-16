@@ -147,12 +147,7 @@ public struct AdjustmentRenderer: EditStackRenderer {
         var estimates = LocalEstimates()
         if masks.contains(where: { !LocalToneCurve(shadows: $0.adjustments.shadows / 100,
                                                     recovery: max(-$0.adjustments.highlights, 0) / 100).isIdentity }) {
-            // Measured with a margin of repeated edge pixels, then cropped: unpadded,
-            // macOS 26 and 27 gave the frame's outermost columns a step (0.209 → 0.223
-            // in golden mask-combined-hazyLandscape) where macOS 15 did not.
-            let padded = extent.insetBy(dx: -16, dy: -16)
-            estimates.luminance = Self.smoothedLuminance(selection.clampedToExtent().cropped(to: padded), extent: padded,
-                                                         scaleFrom: extent)?.cropped(to: extent)
+            estimates.luminance = Self.smoothedLuminance(selection, extent: extent)
         }
         if masks.contains(where: { $0.adjustments.dehaze > 0 }) {
             estimates.haze = Self.hazeMap(selection, extent: extent)
@@ -348,16 +343,42 @@ public struct AdjustmentRenderer: EditStackRenderer {
         return multiply.outputImage?.settingAlphaOne(in: extent).cropped(to: extent) ?? image
     }
 
+    /// Width of the margin of repeated edge pixels the luminance estimate is
+    /// measured with, in pixels of the reduced copy (so 16 pixels of a frame
+    /// 256 pixels long or smaller, 75 of a 1200-pixel frame).
+    ///
+    /// Outside the frame the image is transparent. Without a margin, the
+    /// reduction and the edge-preserving upsample read past the edge, so the
+    /// estimate came out partly transparent over the frame's outer pixels
+    /// (alpha 0.908 at a corner of a 1200-pixel frame). The gain is
+    /// multiplied in premultiplied, so any Shadows or negative Highlights
+    /// darkened the border by up to 9% (issue #73). The margin also kept
+    /// macOS 26 and 27 from giving the outermost columns a step that macOS 15
+    /// did not give (finding 5 of docs/archive/PHASE6_PLAN.md; 16 pixels then,
+    /// at every size).
+    ///
+    /// At 12 reduced pixels and more, the estimate's alpha at the edge is
+    /// what it is inside: 0.99999994 for frames up to 1200 pixels, within
+    /// 3 × 10⁻⁴ of the inside for 3000 and 6000 (where the upsample leaves
+    /// it at 0.9996 everywhere). Below 8 pixels it was erratic.
+    static let luminanceMargin = 16.0
+
     /// The luminance guide smoothed on a fixed-size copy and upsampled along
-    /// the image's edges, so every tier looks the same.
-    /// `scaleFrom` sets the reduced copy's scale (the frame without a margin
-    /// added around it), so a margin changes nothing else.
-    static func smoothedLuminance(_ image: CIImage, extent: CGRect, scaleFrom reference: CGRect? = nil) -> CIImage? {
-        let longest = max((reference ?? extent).width, (reference ?? extent).height)
-        guard longest > 0, let guide = luminanceGuide(image, extent: extent) else { return nil }
+    /// the image's edges, so every tier looks the same: measured on the frame
+    /// with a margin of its edge pixels repeated (`luminanceMargin`), and
+    /// cropped to the frame. The reduced copy's scale is the frame's, so the
+    /// margin changes nothing inside it.
+    static func smoothedLuminance(_ image: CIImage, extent: CGRect) -> CIImage? {
+        let longest = max(extent.width, extent.height)
+        guard longest > 0 else { return nil }
+        let scale = min(1, 256 / longest)
+        let margin = (luminanceMargin / scale).rounded(.up)
+        let padded = extent.insetBy(dx: -margin, dy: -margin)
+        guard let guide = luminanceGuide(image.cropped(to: extent).clampedToExtent().cropped(to: padded), extent: padded)
+        else { return nil }
         let reduce = CIFilter.lanczosScaleTransform()
         reduce.inputImage = guide
-        reduce.scale = Float(min(1, 256 / longest))
+        reduce.scale = Float(scale)
         reduce.aspectRatio = 1
         guard let small = reduce.outputImage else { return nil }
         let upsample = CIFilter.edgePreserveUpsample()
@@ -365,7 +386,7 @@ public struct AdjustmentRenderer: EditStackRenderer {
         upsample.smallImage = small
         upsample.spatialSigma = 3
         upsample.lumaSigma = 0.12
-        return upsample.outputImage
+        return upsample.outputImage?.cropped(to: extent)
     }
 
     /// Luminance to a low power, as a grey image: the guide for edge-aware upsampling.
@@ -463,15 +484,28 @@ public struct AdjustmentRenderer: EditStackRenderer {
 
     /// The dark channel relative to the airlight (0 … 1) on a reduced copy, and the
     /// airlight as an infinite grey image.
+    ///
+    /// The reduced copy is made from the image with its edge pixels repeated
+    /// outward, so it is opaque up to its edge. Reduced from the image alone,
+    /// it read the transparent pixels past the frame and its outermost pixels
+    /// came out partly transparent (alpha 0.88). The clamp below, whose alpha
+    /// floor is one, then divided their colors by that alpha where Core Image
+    /// computed it, and left them premultiplied where it took the image for
+    /// opaque (in one graph after a step that sets alpha to one, such as local
+    /// tone). So the haze at the frame's edge differed by up to 0.09 between a
+    /// whole render and the live session's cached stages, and jumped when
+    /// Shadows or Highlights left zero (issue #73).
     static func hazeEstimate(_ image: CIImage, extent: CGRect) -> (haze: CIImage, airlight: CIImage)? {
         let longest = max(extent.width, extent.height)
         guard longest > 0 else { return nil }
         let reduce = CIFilter.lanczosScaleTransform()
-        reduce.inputImage = image
         reduce.scale = Float(min(1, 256 / longest))
         reduce.aspectRatio = 1
-        guard let small = reduce.outputImage else { return nil }
-        let smallExtent = small.extent
+        // The reduced frame, as the filter gives it for the frame alone (nothing is rendered for it).
+        reduce.inputImage = image.cropped(to: extent)
+        guard let smallExtent = reduce.outputImage?.extent, !smallExtent.isInfinite else { return nil }
+        reduce.inputImage = image.cropped(to: extent).clampedToExtent()
+        guard let small = reduce.outputImage?.cropped(to: smallExtent) else { return nil }
 
         // The lowest of the three components, never below zero (resampling rings).
         func component(_ vector: CIVector) -> CIImage? {
