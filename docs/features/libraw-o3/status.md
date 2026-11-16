@@ -134,23 +134,45 @@ One clean build each, so the build time difference is within noise.
 ## Observations (not changed here)
 
 - **`LibRawAgainstSystemTests` fails with these samples** on `develop` as on
-  this branch, identically: the 5D II at −1.232 EV, tone spread −22.6%, ΔE
-  19.5 unedited (the suite's table says −0.45 EV, −12%, 7.4 for its 5D II
-  file); the E-M5 III at ΔE 10.6 (table 9.5) and 11.3 at 5500 K (table 6.7);
-  the GX85 (a DMC-GX7MK2, not in the table) on Kelvin −12.8% and ΔE 5.7 at
-  5500 K; the X-T3 file on ΔE 10.0 at 5500 K. These may be other files than
-  the ones the limits were measured on, or a change since #170; not looked
+  this branch, identically, with 8 failed expectations (limits from
+  `LibRawAgainstSystemLimits`): the GX85 (a DMC-GX7MK2) on Kelvin, −12.8%
+  against 8%; the 5D II on Kelvin (−8.7% against 8%), ΔE 18.9 at 5500 K
+  (limit 10), −1.232 EV (limit 0.6), tone spread −22.6% (limit 15%) and ΔE
+  19.5 unedited (limit 10); the E-M5 III on ΔE 10.6 unedited and 11.3 at
+  5500 K (limits 10). The X-T3 file (ΔE 10.0 at 5500 K, under the Fujifilm
+  limit of 20) and the GX85's ΔE 5.7 at 5500 K (limit 10) pass. The suite's
+  table gives its own 5D II file −0.45 EV, −12% and ΔE 7.4, so these may be
+  other files than the ones measured, or a change since #170; not looked
   into.
 - **One unreproduced render difference** of `DSCF5123.RAF`, above.
 
 ## README
 
-No change to requirements, build commands or the repository layout. Two
-timing statements become a little high (product manager, at Ship): the
-README's "about 9 s to sharpen such a photo at 100%" (now about 8 s for an
-X-E3 or X-T3 file) and `CLAUDE.md`'s #161 entry, "takes about 9 s for an X-E3
-file". `docs/PROFILING.md`'s LibRaw table (1.09 to 1.32 s for Bayer files at
-full size) predates this and is now about half for the Bayer rows.
+No change to requirements, build commands or the repository layout. For the
+product manager at Ship, timing statements that become a little high:
+
+- `README.md`: "about 9 s to sharpen such a photo at 100%" (now about 8 s
+  for an X-E3 or X-T3 file).
+- `CLAUDE.md`, the #161 entry in "Scope so far": "takes about 9 s for an
+  X-E3 file".
+- `docs/features/_inventory.md:253`, LibRaw fallback decoder: "full decode
+  about 9 s (X-E3)".
+
+`docs/PROFILING.md`'s LibRaw table (2026-11-13, at `-Os`) is kept as it was;
+a dated note under it (2026-11-16) gives the `-O3` figures from
+`photobench rawcompare`, run back to back with an `-Os` build on the same
+files, and the decode-only figures from this file.
+
+## Review fixes
+
+Code review (`code-review.md`, first pass):
+
+- **C1, fixed.** Observations named the wrong `LibRawAgainstSystemTests`
+  failures; the list now matches the 8 failed expectations and the limits.
+- **C2, fixed.** `docs/features/_inventory.md:253` added to the README
+  hand-off; a dated note added to `docs/PROFILING.md` with `photobench
+  rawcompare` figures at `-Os` and `-O3` (same Mac, same files, back to back)
+  and the decode-only figures, the 2026-11-13 table left as it was.
 
 ## Open questions
 

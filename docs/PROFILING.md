@@ -415,6 +415,16 @@ How to read it:
 - LibRaw runs on one CPU thread and its two figures agree; they are its cost.
   X-Trans files (Fujifilm) cost about 9 s at full size, Bayer files a little
   over 1 s. The half-size decode is what thumbnails and fitted previews use.
+- **2026-11-16, LibRaw built at `-O3` (#195,
+  `docs/features/libraw-o3/status.md`):** the figures above are from LibRaw
+  at SwiftPM's `-Os`. The same command (decode plus render, best of 3), on the
+  same Mac with the same files run back to back, `-Os` → `-O3`: Canon 5D II CR2
+  1.17 → 0.61 s, Olympus E-M5 III ORF 1.19 → 0.62 s, Panasonic GX85 RW2 (16
+  MP, not the RW2 above) 0.90 → 0.40 s, X-E3 RAF 8.96 → 7.89 s, X-T3 RAF
+  9.52 → 8.36 s; half size unchanged within 0.02 s. LibRaw's decode alone
+  (`LibRawDecoder.decode`, median of 4) goes from 0.9 to 1.2 s to 0.40 to
+  0.62 s for Bayer files and from 9.1 to 9.7 s to 7.9 to 8.3 s for X-Trans.
+  The output is the same bit for bit. The Sony was not measured again.
 - The system's best of three is a warm run: the context reuses what it
   prepared for the file. Its first run is the first use of that file in the
   process, but only the first file of a run (the Sony here) also pays for
