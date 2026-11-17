@@ -339,7 +339,7 @@ pass.
 | AC1 | Done | as R1, R4 |
 | AC2 | Done for GX85 and 5D II; E-M5 III edge chroma error 2.04 against 1.97 (1.04x), see Q2 | `DemosaicTruthTests` (`BAYER_SAMPLES`; it expects AC2, so it reports the E-M5 III) |
 | AC3 | Accepted as measured (owner, RI-1, PRD rev 2; follow-up #199) | synthetic −0.26 to −1.09 dB; real files both bounds on 15 of 28. `DemosaicTruthTests` and `DemosaicXTransSampleTests` print it, they don't expect it |
-| AC4 | Done at ISO ≤ 800 as ruled (RI-2): X-E3 `DSCF5123` ✓; 7 of 10 files at ISO ≤ 400 ✓, three just outside, accepted in rev 2 | `DemosaicXTransSampleTests` expects it for files at ISO ≤ 800 (the file's ISO from LibRaw), so it reports those three when they are among the samples |
+| AC4 | Done at ISO ≤ 800 as ruled (RI-2): X-E3 `DSCF5123` ✓; 7 of 10 files at ISO ≤ 400 ✓, three just outside, accepted in rev 2 | `DemosaicXTransSampleTests` expects it for files at ISO ≤ 800 (the file's ISO from LibRaw), except the three accepted files (`DSCF4179`, X-E3 ISO 200; `X1009619` and `X1009802`, X100S), for which it records and lists the numbers, as for AC6's detail (code review Q3) |
 | AC5 | Done | 10.4 against 10.0 |
 | AC6 | Accepted as a whole (owner, rev 2): false color ≤ 1.0x on 28 of 28, detail ≥ 0.95x on 23 of 28 (five at 0.92x to 0.94x, both named files ✓); Should on 16 of 28; flat patches ✓ | `DemosaicXTransSampleTests` expects false color and records detail, listing the files under 0.95x (code review Q1, answered); `ColorNoiseReductionTests.flatColorNoise` |
 | AC7 | Done | `ColorNoiseReductionTests.keepsLinesAndEdges` |
@@ -384,6 +384,13 @@ history of this file.
   reports the E-M5 III when it is among `BAYER_SAMPLES`. Options: accept it as
   measured, or restrict AC2's edge chroma bound to the files the spike gave
   figures for. Nothing was loosened here.
+
+## Code review, second pass
+
+| # | Finding | Fix |
+|---|---|---|
+| C10 | `Test.cancel` (three tests in `GPUDemosaicDecodeTests`) is in Swift Testing only from Swift 6.3; the macOS 15 CI job builds with Swift 6.2.4, so the test target would not compile there | Each condition is decided before the tests run: `GPUDemosaicDecodeTests.systemReadsSmallXTrans` writes the small X-Trans DNG to a temporary folder once and asks `SystemRAWDecoder.reads`; the AC10, export and render tests are `.enabled(if: !systemReadsSmallXTrans, "…")`. The export test's tally checks, which need no decode, are a test of their own (`stoppedPhotoTally`) that always runs. No other Swift 6.3 API is in the test target (searched for `Test.cancel`, `Test.current`, attachments, exit tests, `timeLimit`, issue severities). No Swift 6.2 toolchain is on this Mac, so the macOS 15 job of the pull request is the check |
+| Q3 | AC4's three accepted files would be reported by the sample suite | Recorded and listed, not expected (see the AC4 row); AC4 stays expected for every other file at ISO ≤ 800 |
 
 ## Code review (first pass) and the fixes
 

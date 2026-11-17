@@ -67,11 +67,17 @@ struct DemosaicXTransSampleTests {
     /// (the owner accepted five of 28 files at 0.92x to 0.94x), and the files
     /// under 0.95x are listed at the end. Rev 2 also records three files at
     /// ISO 400 or lower just outside AC4 (an X-E3 at ISO 200 with block p95
-    /// 2.08, two X100S files with dense fine detail): with those among the
-    /// samples, AC4 reports them.
+    /// 2.08, two X100S files with dense fine detail), accepted with the issue
+    /// as a whole: for those three AC4 is recorded and listed, as AC6's detail
+    /// is (code review Q3); for every other file at ISO 800 or lower it is
+    /// expected.
+    /// The three files of the owner's samples PRD rev 2 accepts just outside
+    /// AC4, by file name (the sample copies may carry a prefix).
+    static let acceptedOutsideAC4 = ["DSCF4179.RAF", "X1009619.RAF", "X1009802.RAF"]
+
     @Test("Real X-Trans raws against LibRaw's own demosaic: false color, detail, ΔE (AC3, AC4, AC6)")
     func quality() throws {
-        var underDetail: [String] = []
+        var underDetail: [String] = [], acceptedAC4: [String] = []
         for url in DemosaicSamples.files("XTRANS_SAMPLES") {
             let (libRaw, lib) = try DemosaicSamples.linear(url, .libRaw)
             let (kernel, kernelOutput) = try DemosaicSamples.linear(url, .automatic, noiseReduction: nil)
@@ -97,12 +103,19 @@ struct DemosaicXTransSampleTests {
             }
             // AC4: at ISO 800 or lower, at block scale and at edges the two agree.
             if lib.iso > 0, lib.iso <= 800 {
-                #expect(reduced.blockMedian <= 1.0 && reduced.blockP95 <= 2.0, "\(url.lastPathComponent): AC4 blocks")
-                #expect(reduced.edgeMedian <= 5, "\(url.lastPathComponent): AC4 edges")
+                if Self.acceptedOutsideAC4.contains(where: { url.lastPathComponent.hasSuffix($0) }) {
+                    acceptedAC4.append(String(format: "%@ blocks %.2f / %.2f, edges %.2f", url.lastPathComponent,
+                                              reduced.blockMedian, reduced.blockP95, reduced.edgeMedian))
+                } else {
+                    #expect(reduced.blockMedian <= 1.0 && reduced.blockP95 <= 2.0, "\(url.lastPathComponent): AC4 blocks")
+                    #expect(reduced.edgeMedian <= 5, "\(url.lastPathComponent): AC4 edges")
+                }
             }
         }
         print("XTRANS_SAMPLES: AC6 detail under 0.95x with the noise reduction (recorded, accepted in rev 2): "
               + (underDetail.isEmpty ? "none" : underDetail.joined(separator: ", ")))
+        print("XTRANS_SAMPLES: AC4 recorded, not expected, for the files rev 2 accepts just outside it: "
+              + (acceptedAC4.isEmpty ? "none among these samples" : acceptedAC4.joined(separator: "; ")))
     }
 
     @Test("An X-E3's frame is the camera's and its lens corrections apply; a GPU failure gives LibRaw's pixels (AC9, AC12)")

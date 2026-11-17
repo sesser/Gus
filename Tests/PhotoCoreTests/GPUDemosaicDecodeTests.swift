@@ -28,6 +28,20 @@ struct GPUDemosaicDecodeTests {
     }
 
 
+    /// Whether this macOS's system decoder reads the small X-Trans DNG the
+    /// tests below use as "a raw only LibRaw decodes" (on macOS 27.2 it gives
+    /// no image for it). Decided before the tests run, so they are skipped
+    /// with the reason where it reads it (code review C10: `Test.cancel` is
+    /// not in the Swift 6.2 that the macOS 15 job builds with).
+    static let systemReadsSmallXTrans: Bool = {
+        let folder = FileManager.default.temporaryDirectory.appending(path: "gpu-demosaic-probe-\(UUID().uuidString)",
+                                                                     directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        guard (try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)) != nil,
+              let url = try? dng(in: folder, "probe", pattern: .xTransSample, width: 252, height: 192) else { return true }
+        return SystemRAWDecoder.reads(url)
+    }()
+
     // MARK: AC1
 
     @Test("A raw whose pattern the kernels demosaic gets ours; one they don't keeps LibRaw's, pixel for pixel (AC1)",
@@ -79,13 +93,12 @@ struct GPUDemosaicDecodeTests {
     /// LibRaw's decodes, which demosaic ran; `--demosaic` takes automatic or
     /// libraw and refuses anything else.
     @Test("photocli render reports the decoder and the demosaic, and takes --demosaic (R20)",
-          .enabled(if: hasMetalDevice, "No Metal device: the demosaic kernels need one"))
+          .enabled(if: hasMetalDevice, "No Metal device: the demosaic kernels need one"),
+          .enabled(if: !systemReadsSmallXTrans, "The system decoder reads the small X-Trans DNG on this macOS: no LibRaw decode to report"))
     func renderReportsTheDemosaic() async throws {
         try await CommandTests.withLibrary { library in
             let url = try Self.dng(in: library.photos, "render", pattern: .xTransSample, width: 252, height: 192)
-            if SystemRAWDecoder.reads(url) {
-                try Test.cancel("The system decoder reads the small X-Trans DNG on this macOS: no LibRaw decode to report")
-            }
+            #expect(!SystemRAWDecoder.reads(url))
             let out = library.photos.appending(path: "render.png").path
             let ours = await library.run("render", url.path, "--out", out, "--long-edge", "100")
             #expect(ours.output.exitCode == 0)
@@ -109,14 +122,13 @@ struct GPUDemosaicDecodeTests {
 
     // MARK: AC10
 
-    @Test("A white balance change runs no new unpack or demosaic, and renders as a fresh decode would (AC10)")
+    @Test("A white balance change runs no new unpack or demosaic, and renders as a fresh decode would (AC10)",
+          .enabled(if: !systemReadsSmallXTrans, "The system decoder reads the small X-Trans DNG on this macOS: AC10 needs a raw only LibRaw decodes"))
     func whiteBalanceRunsNoDemosaic() async throws {
         try await RepositoryFiles.withTemporaryDirectory { folder in
             // Small enough that the system decoder gives no image for it (macOS 27.2), as for the X-E3's files.
             let url = try Self.dng(in: folder, "balance", pattern: .xTransSample, width: 252, height: 192)
-            if SystemRAWDecoder.reads(url) {
-                try Test.cancel("The system decoder reads the small X-Trans DNG on this macOS: AC10 needs a raw only LibRaw decodes")
-            }
+            #expect(!SystemRAWDecoder.reads(url))
             let generator = PreviewGenerator(engine: ReferenceTests.engine)
             let counter = GPUDemosaic.RunCounter()
             try await GPUDemosaic.$runCounter.withValue(counter) {
@@ -250,25 +262,28 @@ struct GPUDemosaicDecodeTests {
     /// Code review C2: an export stopped while a raw LibRaw decodes is
     /// rendering gets `CancellationError` from the decode; that photo is
     /// neither written nor failed, and the export reads as stopped.
-    @Test("A raw stopped while it renders for an export is not a failure, and the export reads as stopped")
+    @Test("A stopped photo is not done and adds no failure; a write error is a failure")
+    func stoppedPhotoTally() {
+        // The tally: a stopped photo is not done and adds no failure; the others count.
+        var summary = ExportSummary(destination: FileManager.default.temporaryDirectory)
+        #expect(!ExportJob.tally(.cancelled, into: &summary))
+        #expect(summary.failures.isEmpty && summary.written.isEmpty && summary.skippedExisting == 0)
+        #expect(ExportJob.tally(.skipped, into: &summary))
+        #expect(summary.skippedExisting == 1)
+        guard case .failed(let failure) = ExportJob.outcome(of: CocoaError(.fileWriteNoPermission), name: "b.RAF") else {
+            Issue.record("a write error is a failure")
+            return
+        }
+        #expect(failure.fileName == "b.RAF")
+    }
+
+    @Test("A raw stopped while it renders for an export is not a failure, and the export reads as stopped",
+          .enabled(if: !systemReadsSmallXTrans,
+                   "The system decoder reads the small X-Trans DNG on this macOS, and it does not stop: nothing here is LibRaw's"))
     func stoppedExportIsNotAFailure() async throws {
         try await RepositoryFiles.withTemporaryDirectory { folder in
-            // The tally: a stopped photo is not done and adds no failure; the others count.
-            var summary = ExportSummary(destination: folder)
-            #expect(!ExportJob.tally(.cancelled, into: &summary))
-            #expect(summary.failures.isEmpty && summary.written.isEmpty && summary.skippedExisting == 0)
-            #expect(ExportJob.tally(.skipped, into: &summary))
-            #expect(summary.skippedExisting == 1)
-            guard case .failed(let failure) = ExportJob.outcome(of: CocoaError(.fileWriteNoPermission), name: "b.RAF") else {
-                Issue.record("a write error is a failure")
-                return
-            }
-            #expect(failure.fileName == "b.RAF")
-
             let url = try Self.dng(in: folder, "export", pattern: .xTransSample, width: 252, height: 192)
-            if SystemRAWDecoder.reads(url) {
-                try Test.cancel("The system decoder reads the small X-Trans DNG on this macOS, and it does not stop: nothing here is LibRaw's")
-            }
+            #expect(!SystemRAWDecoder.reads(url))
             let output = folder.appending(path: "out.jpg")
             // The render, in a task stopped before it starts (its stream ends when the task is cancelled).
             let gate = AsyncStream<Void>.makeStream()
