@@ -41,7 +41,7 @@ struct LibRawDecoderTests {
     /// demosaic's half floats; LibRaw's 16-bit values are rounded to half
     /// float, the same way every time.
     static func samples(_ output: LibRawDecoder.Output) -> [Float] {
-        ReferenceTests.renderLinear(output.linear).pixels.map { $0 * 65535 }
+        ReferenceTests.renderLinear(output.linear).pixels.map { (value: Float) -> Float in value * 65535 }
     }
 
     /// One pixel's red, green and blue.

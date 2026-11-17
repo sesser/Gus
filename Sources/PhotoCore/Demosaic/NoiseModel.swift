@@ -49,11 +49,15 @@ public struct NoiseModel: Sendable, Hashable {
         // The nearest green neighbour every green site of the pattern has in one direction:
         // to the right (X-Trans' 2 x 2 greens), else diagonally (Bayer).
         let offsets = [(1, 0), (1, 1), (0, 1), (1, -1)]
-        guard let offset = offsets.first(where: { o in
-            (0..<(p * p)).contains { site in
-                pattern.colors[site] == 1 && pattern.color(x: (site % p + o.0 + p) % p, y: (site / p + o.1 + p) % p) == 1
+        func pairsGreens(_ o: (Int, Int)) -> Bool {
+            for site in 0..<(p * p) where pattern.colors[site] == 1 {
+                let x: Int = (site % p + o.0 + p) % p
+                let y: Int = (site / p + o.1 + p) % p
+                if pattern.color(x: x, y: y) == 1 { return true }
             }
-        }) else { return .none }
+            return false
+        }
+        guard let offset = offsets.first(where: pairsGreens) else { return .none }
         let values = mosaic.values, w = mosaic.width, h = mosaic.height
         let black = mosaic.blackPerSite, span = Double(mosaic.whiteSpan)
         // Per level bin, a histogram of log2 |difference| in 1/64 octave steps from 2⁻²⁴.
@@ -94,10 +98,14 @@ public struct NoiseModel: Sendable, Hashable {
         }
         guard points.count >= 2 else { return .none }
         // Weighted least squares of variance = a·level + b.
-        let sw = points.reduce(0) { $0 + $1.weight }
-        let sx = points.reduce(0) { $0 + $1.weight * $1.level }, sy = points.reduce(0) { $0 + $1.weight * $1.variance }
-        let sxx = points.reduce(0) { $0 + $1.weight * $1.level * $1.level }
-        let sxy = points.reduce(0) { $0 + $1.weight * $1.level * $1.variance }
+        var sw = 0.0, sx = 0.0, sy = 0.0, sxx = 0.0, sxy = 0.0
+        for point in points {
+            sw += point.weight
+            sx += point.weight * point.level
+            sy += point.weight * point.variance
+            sxx += point.weight * point.level * point.level
+            sxy += point.weight * point.level * point.variance
+        }
         let determinant = sw * sxx - sx * sx
         guard determinant > 0 else { return .none }
         var a = (sw * sxy - sx * sy) / determinant

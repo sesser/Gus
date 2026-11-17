@@ -387,6 +387,26 @@ history of this file.
   (matched by file name) and still expects its CPSNR; the edge chroma bound
   stays expected for every other Bayer file. No tolerance changed.
 
+## CI on macOS 15 (Swift 6.2.4): type-checker time
+
+PR #200's macOS 15 job could not type-check two index expressions inside
+`map` closures (`CFAPattern.shifted`, `SensorMosaic.cropped`). Both are plain
+loops with typed `Int` locals now. The rest of the branch's new code was
+searched for the same shapes and rewritten the same way, with the same
+operations in the same order: closures mixing `$0` with arithmetic (the X-Trans
+tables, the noise model's sums, the pattern checks, the noise reduction's band
+radii), generic `SIMD3(...)` and `min`/`max` over literal arithmetic, the crop
+box's mixed `Double`/`CGFloat` arithmetic (now `CGFloat` throughout, the same
+type on 64-bit Macs), the measures in `PhotoFixtures/DemosaicMeasure.swift`
+(a shared `Measure.quantized16`), `photobench demosaic`, and the tests' long
+bound formulas and JSON comparisons. Swift 6.2.4 isn't on this Mac; on Swift 6.4
+`-warn-long-expression-type-checking=10` lists none of this branch's new
+production code (before or after: the two expressions CI rejected were fast
+here, so this was done by shape, not by timing). Outputs are unchanged: the
+kernel tests are still identical to their references, and `photocli render` of
+an X-E3 and an X100S RAF, full size and at 3000 px, gives byte-identical TIFFs
+before and after.
+
 ## QA (qa.md) Q1
 
 | # | Finding | Fix |

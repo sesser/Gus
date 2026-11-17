@@ -400,9 +400,14 @@ public final class GPUDemosaic: @unchecked Sendable {
         guard !steps.isEmpty else { return [] }
         // One level in place would read what it writes.
         guard steps.count > 1 || source !== destination else { throw .encoding("a one-level noise reduction in place") }
-        let radii = steps.map { 2 * $0 }
+        let radii: [Int] = steps.map { (step: Int) -> Int in 2 * step }
         // What each level must leave valid around the band: the radii of the levels after it.
-        let remaining = radii.indices.map { i in radii[(i + 1)...].reduce(0, +) }
+        var remaining: [Int] = []
+        for i in radii.indices {
+            var after = 0
+            for j in (i + 1)..<radii.count { after += radii[j] }
+            remaining.append(after)
+        }
         let band = max(bandHeight, radii.reduce(0, +))
         if Self.injectedFault == .scratchAllocation { throw .allocation("noise reduction scratch") }
         var sets: [[any MTLTexture]] = []

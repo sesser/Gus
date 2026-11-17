@@ -51,10 +51,15 @@ struct ColorNoiseReductionTests {
         }
         let i = (y * w + x) * 4
         let weightError = 28 * u
-        let c1 = 2 * weightError * (high1 - low1) + 50 * u * largest + 3 * u * largest + ulp(largest)
-        let c2 = 2 * weightError * (high2 - low2) + 50 * u * largest + 3 * u * largest + ulp(largest)
-        let g = 0.25 * (c1 + c2) + ulp(out[i + 1]) + ulp(input[i] + input[i + 1] + input[i + 2])
-        return SIMD3(g + c1 + ulp(out[i]), g, g + c2 + ulp(out[i + 2]))
+        let sums: Float = 50 * u * largest
+        let division: Float = 3 * u * largest
+        let blend1: Float = 2 * weightError * (high1 - low1), blend2: Float = 2 * weightError * (high2 - low2)
+        let c1: Float = blend1 + sums + division + ulp(largest)
+        let c2: Float = blend2 + sums + division + ulp(largest)
+        let luminance: Float = input[i] + input[i + 1] + input[i + 2]
+        let g: Float = 0.25 * (c1 + c2) + ulp(out[i + 1]) + ulp(luminance)
+        let red: Float = g + c1 + ulp(out[i]), blue: Float = g + c2 + ulp(out[i + 2])
+        return SIMD3<Float>(red, g, blue)
     }
 
     @Test("One level of the kernel is its CPU reference's within the derived bound", arguments: [1, 2, 4])
@@ -125,11 +130,18 @@ struct ColorNoiseReductionTests {
     /// CIELAB of linear sRGB (the synthetic camera's space).
     static func lab(_ c: SIMD3<Float>) -> SIMD3<Float> {
         let p = pointwiseMax(c, .zero)
-        let x = (0.4124 * p.x + 0.3576 * p.y + 0.1805 * p.z) / 0.95047
-        let y = 0.2126 * p.x + 0.7152 * p.y + 0.0722 * p.z
-        let z = (0.0193 * p.x + 0.1192 * p.y + 0.9505 * p.z) / 1.08883
-        func f(_ t: Float) -> Float { t > 216.0 / 24389 ? cbrt(t) : (24389.0 / 27 * t + 16) / 116 }
-        return SIMD3(116 * f(y) - 16, 500 * (f(x) - f(y)), 200 * (f(y) - f(z)))
+        let xSum: Float = 0.4124 * p.x + 0.3576 * p.y + 0.1805 * p.z
+        let ySum: Float = 0.2126 * p.x + 0.7152 * p.y + 0.0722 * p.z
+        let zSum: Float = 0.0193 * p.x + 0.1192 * p.y + 0.9505 * p.z
+        let x: Float = xSum / 0.95047, y: Float = ySum, z: Float = zSum / 1.08883
+        let threshold: Float = 216.0 / 24389, slope: Float = 24389.0 / 27
+        func f(_ t: Float) -> Float {
+            if t > threshold { return cbrt(t) }
+            let linear: Float = slope * t + 16
+            return linear / 116
+        }
+        let lightness: Float = 116 * f(y) - 16, a: Float = 500 * (f(x) - f(y)), b: Float = 200 * (f(y) - f(z))
+        return SIMD3<Float>(lightness, a, b)
     }
 
     static func pixel(_ rgba: [Float], _ x: Int, _ y: Int, width: Int) -> SIMD3<Float> {
@@ -162,7 +174,8 @@ struct ColorNoiseReductionTests {
         let clean = try demosaic(noise: 0, nil), cleanReduced = try demosaic(noise: 0, reduction)
         let noisy = try demosaic(noise: sigma, nil), reduced = try demosaic(noise: sigma, reduction)
         // Edges: the clean picture's top 10% of L* gradient, 8 pixels from the border.
-        let cleanLab = (0..<(n * n)).map { Self.lab(Self.pixel(clean, $0 % n, $0 / n, width: n)) }
+        var cleanLab: [SIMD3<Float>] = []
+        for i in 0..<(n * n) { cleanLab.append(Self.lab(Self.pixel(clean, i % n, i / n, width: n))) }
         var gradients: [(Float, Int)] = []
         for y in 8..<(n - 8) {
             for x in 8..<(n - 8) {
@@ -193,8 +206,11 @@ struct ColorNoiseReductionTests {
             return total / Float(line.count)
         }
         // The scene's lines: x = n/2 + 3 for y < n/2 (green, one pixel); y = n/2 and n/2 + 1 (magenta, two pixels).
-        let green = (12..<(n / 2 - 12)).map { (n / 2 + 3, $0) }.filter { abs($0.1 - Int(Double(n) * 0.35)) > 30 }
-        let magenta = stride(from: 12, to: n - 12, by: 1).map { ($0, n / 2) }
+        let diskRow: Int = Int(Double(n) * 0.35)
+        var green: [(Int, Int)] = []
+        for y in 12..<(n / 2 - 12) where abs(y - diskRow) > 30 { green.append((n / 2 + 3, y)) }
+        var magenta: [(Int, Int)] = []
+        for x in 12..<(n - 12) { magenta.append((x, n / 2)) }
         for (label, line, side) in [("green 1 px", green, (3, 0)), ("magenta 2 px", magenta, (0, 3))] {
             let before = contrast(noisy, line: line, side: side), after = contrast(reduced, line: line, side: side)
             let cleanBefore = contrast(clean, line: line, side: side), cleanAfter = contrast(cleanReduced, line: line, side: side)
@@ -232,7 +248,8 @@ struct ColorNoiseReductionTests {
                 for x in 0..<n {
                     let level = 0.05 + 0.5 * Double(x) / Double(n)
                     let v = level + random.gaussian() * sigma
-                    out[y * n + x] = UInt16(min(max(v * 65535, 0), 65535).rounded()).littleEndian
+                    let clipped: Double = min(max(v * 65535, 0), 65535)
+                    out[y * n + x] = UInt16(clipped.rounded()).littleEndian
                 }
             }
         }
@@ -263,7 +280,9 @@ struct ColorNoiseReductionTests {
                     }
                     for c in [c1, c2] {
                         let mean = c.reduce(0, +) / Float(c.count)
-                        total += (c.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / Float(c.count)).squareRoot()
+                        var squares: Float = 0
+                        for value in c { squares = squares + (value - mean) * (value - mean) }
+                        total += (squares / Float(c.count)).squareRoot()
                         count += 1
                     }
                 }

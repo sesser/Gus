@@ -49,7 +49,8 @@ struct DemosaicXTransSampleTests {
     static func measure(_ url: URL, ours: RGBPicture, libRaw: RGBPicture, step: Measure.ColorStep, size: Int = 2048) -> Row {
         let a = ours.middle(size), b = libRaw.middle(size)
         let w = b.width, h = b.height
-        let oursLab = a.pixels.map { Measure.lab(step.apply($0)) }, libLab = b.pixels.map { Measure.lab(step.apply($0)) }
+        let oursLab: [SIMD3<Float>] = a.pixels.map { (c: SIMD3<Float>) -> SIMD3<Float> in Measure.lab(step.apply(c)) }
+        let libLab: [SIMD3<Float>] = b.pixels.map { (c: SIMD3<Float>) -> SIMD3<Float> in Measure.lab(step.apply(c)) }
         let libEdges = Measure.edgeMask(libLab, width: w, height: h), ourEdges = Measure.edgeMask(oursLab, width: w, height: h)
         let fcOurs = Measure.falseColor(oursLab, edges: ourEdges, width: w, height: h)
         let fcLib = Measure.falseColor(libLab, edges: libEdges, width: w, height: h)
@@ -160,7 +161,7 @@ struct DemosaicTruthTests {
             let w = binned.width / 6 * 6, h = binned.height / 6 * 6
             let whole = RGBPicture(rgba: binned.floats(), width: binned.width, height: binned.height)
             let truth = whole.cropped(x: 0, y: 0, width: w, height: h)
-                .map { (pointwiseMin(pointwiseMax($0, .zero), SIMD3(repeating: 1)) * 65535).rounded(.toNearestOrEven) / 65535 }
+                .map(Measure.quantized16)
             let truthLab = truth.pixels.map(Measure.labSRGB)
             let edges = Measure.edgeMask(truthLab, width: w, height: h)
             try await RepositoryFiles.withTemporaryDirectory { folder in

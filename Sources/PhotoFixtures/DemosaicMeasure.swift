@@ -23,7 +23,13 @@ public struct RGBPicture: Sendable {
     public init(rgba: [Float], width: Int, height: Int) {
         self.width = width
         self.height = height
-        pixels = (0..<(width * height)).map { SIMD3(rgba[$0 * 4], rgba[$0 * 4 + 1], rgba[$0 * 4 + 2]) }
+        var made: [SIMD3<Float>] = []
+        made.reserveCapacity(width * height)
+        for i in 0..<(width * height) {
+            let base: Int = i * 4
+            made.append(SIMD3<Float>(rgba[base], rgba[base + 1], rgba[base + 2]))
+        }
+        pixels = made
     }
 
     public subscript(x: Int, y: Int) -> SIMD3<Float> { pixels[y * width + x] }
@@ -79,7 +85,7 @@ public enum Measure {
     }
 
     public static let srgbToXYZ: (SIMD3<Float>, SIMD3<Float>, SIMD3<Float>) = (
-        SIMD3(0.4124, 0.3576, 0.1805), SIMD3(0.2126, 0.7152, 0.0722), SIMD3(0.0193, 0.1192, 0.9505))
+        SIMD3<Float>(0.4124, 0.3576, 0.1805), SIMD3<Float>(0.2126, 0.7152, 0.0722), SIMD3<Float>(0.0193, 0.1192, 0.9505))
 
     /// CIELAB of linear sRGB (a synthetic truth's camera space).
     @inline(__always) public static func labSRGB(_ c: SIMD3<Float>) -> SIMD3<Float> {
@@ -87,11 +93,28 @@ public enum Measure {
     }
 
     @inline(__always) public static func labOf(_ c: SIMD3<Float>, _ m: (SIMD3<Float>, SIMD3<Float>, SIMD3<Float>)) -> SIMD3<Float> {
-        let p = pointwiseMax(c, .zero)
-        let xyz = SIMD3((p * m.0).sum(), (p * m.1).sum(), (p * m.2).sum()) / d65
-        @inline(__always) func f(_ t: Float) -> Float { t > 216.0 / 24389 ? cbrt(t) : (24389.0 / 27 * t + 16) / 116 }
-        let fx = f(xyz.x), fy = f(xyz.y), fz = f(xyz.z)
-        return SIMD3(116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz))
+        let p: SIMD3<Float> = pointwiseMax(c, SIMD3<Float>.zero)
+        let x: Float = (p * m.0).sum(), y: Float = (p * m.1).sum(), z: Float = (p * m.2).sum()
+        let xyz: SIMD3<Float> = SIMD3<Float>(x, y, z) / d65
+        let threshold: Float = 216.0 / 24389
+        let slope: Float = 24389.0 / 27
+        @inline(__always) func f(_ t: Float) -> Float {
+            if t > threshold { return cbrt(t) }
+            let linear: Float = slope * t + 16
+            return linear / 116
+        }
+        let fx: Float = f(xyz.x), fy: Float = f(xyz.y), fz: Float = f(xyz.z)
+        let lightness: Float = 116 * fy - 16
+        let a: Float = 500 * (fx - fy)
+        let b: Float = 200 * (fy - fz)
+        return SIMD3<Float>(lightness, a, b)
+    }
+
+    /// A color as a 16-bit file holds it: clipped to 0 … 1 and rounded to 1/65535.
+    public static func quantized16(_ c: SIMD3<Float>) -> SIMD3<Float> {
+        let clipped: SIMD3<Float> = pointwiseMin(pointwiseMax(c, SIMD3<Float>.zero), SIMD3<Float>(repeating: 1))
+        let steps: SIMD3<Float> = (clipped * 65535).rounded(.toNearestOrEven)
+        return steps / 65535
     }
 
     public static func encode(_ v: Float) -> Float {
@@ -114,21 +137,29 @@ public enum Measure {
             let m = transform.exposure * matrix
             rows = (SIMD3<Float>(m.r0), SIMD3<Float>(m.r1), SIMD3<Float>(m.r2))
             let points = transform.toneCurve ?? []
-            curve = (0..<4096).map {
-                Float(points.isEmpty ? Double($0) / 4095 : CameraColorTransform.toneValue(points, at: Double($0) / 4095))
+            var table: [Float] = []
+            table.reserveCapacity(4096)
+            for index in 0..<4096 {
+                let value: Double = Double(index) / 4095
+                table.append(Float(points.isEmpty ? value : CameraColorTransform.toneValue(points, at: value)))
             }
+            curve = table
         }
 
         @inline(__always) public func apply(_ camera: SIMD3<Float>) -> SIMD3<Float> {
-            let balanced = pointwiseMin(pointwiseMax(camera * gain, .zero), SIMD3(repeating: 1))
+            let scaled: SIMD3<Float> = camera * gain
+            let balanced: SIMD3<Float> = pointwiseMin(pointwiseMax(scaled, SIMD3<Float>.zero), SIMD3<Float>(repeating: 1))
             let (a, b, c) = rows
-            let linear = SIMD3((balanced * a).sum(), (balanced * b).sum(), (balanced * c).sum())
+            let r: Float = (balanced * a).sum(), g: Float = (balanced * b).sum(), bl: Float = (balanced * c).sum()
             @inline(__always) func tone(_ v: Float) -> Float {
-                let p = min(max(v, 0), 1) * 4095
-                let i = min(Int(p), 4094), f = p - Float(i)
-                return curve[i] * (1 - f) + curve[i + 1] * f
+                let clipped: Float = min(max(v, 0), 1)
+                let p: Float = clipped * 4095
+                let i: Int = min(Int(p), 4094)
+                let f: Float = p - Float(i)
+                let low: Float = curve[i] * (1 - f)
+                return low + curve[i + 1] * f
             }
-            return SIMD3(tone(linear.x), tone(linear.y), tone(linear.z))
+            return SIMD3<Float>(tone(r), tone(g), tone(bl))
         }
     }
 
@@ -162,7 +193,13 @@ public enum Measure {
     }
 
     public static func deltaE(_ a: [SIMD3<Float>], _ b: [SIMD3<Float>]) -> [Float] {
-        zip(a, b).map { (($0 - $1) * ($0 - $1)).sum().squareRoot() }
+        var out: [Float] = []
+        out.reserveCapacity(min(a.count, b.count))
+        for (p, q) in zip(a, b) {
+            let d: SIMD3<Float> = p - q
+            out.append((d * d).sum().squareRoot())
+        }
+        return out
     }
 
     /// Edge pixels: the top `fraction` of the L* gradient (central differences), a border left out.
@@ -177,7 +214,7 @@ public enum Measure {
         }
         let valid = gradient.filter { $0 >= 0 }.sorted()
         let threshold = valid[Int(Double(valid.count) * (1 - fraction))]
-        return gradient.map { $0 >= threshold }
+        return gradient.map { (value: Float) -> Bool in value >= threshold }
     }
 
     /// Per pixel ΔE76 of `a` against `reference`, over all pixels, at edges,

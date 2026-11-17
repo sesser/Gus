@@ -89,7 +89,9 @@ public struct SensorMosaic: Sendable {
     /// taken off and it is clipped to the white span: its color's
     /// multiplier over the span.
     public var scalePerSite: [Float] {
-        pattern.colors.map { multipliers[Int($0)] / whiteSpan }
+        var scales: [Float] = []
+        for color in pattern.colors { scales.append(multipliers[Int(color)] / whiteSpan) }
+        return scales
     }
 
     /// The mosaic normalized as the kernels read it: (value − black),
@@ -121,7 +123,13 @@ public struct SensorMosaic: Sendable {
             for column in 0..<w { target[row * w + column] = source[(y + row) * width + x + column] }
         }
         let p = pattern.period
-        let black = (0..<(p * p)).map { blackPerSite[((($0 / p) + y) % p) * p + (($0 % p) + x) % p] }
+        var black: [Float] = []
+        black.reserveCapacity(p * p)
+        for site in 0..<(p * p) {
+            let row: Int = (site / p + y) % p
+            let column: Int = (site % p + x) % p
+            black.append(blackPerSite[row * p + column])
+        }
         return SensorMosaic(width: w, height: h, pattern: pattern.shifted(x: x, y: y), blackPerSite: black,
                             whiteSpan: whiteSpan, multipliers: multipliers, storage: storage)
     }
@@ -172,14 +180,24 @@ extension SensorMosaic {
                 grid.append(color)
             }
         }
-        let text = (0..<period).map { r in (0..<period).map { String(grid[r * 12 + $0]) }.joined() }.joined(separator: "/")
+        var rows: [String] = []
+        for r in 0..<period {
+            var row = ""
+            for c in 0..<period { row += String(grid[r * 12 + c]) }
+            rows.append(row)
+        }
+        let text = rows.joined(separator: "/")
         guard seen == [0, 1, 2] else { return .failure(.pattern(text)) }
         for row in 0..<12 {
             for column in 0..<12 where grid[row * 12 + column] != grid[(row % period) * 12 + column % period] {
                 return .failure(.pattern(text))
             }
         }
-        let tile = (0..<(period * period)).map { grid[($0 / period) * 12 + $0 % period] }
+        var tile: [Int32] = []
+        for site in 0..<(period * period) {
+            let row: Int = site / period, column: Int = site % period
+            tile.append(grid[row * 12 + column])
+        }
         guard let pattern = CFAPattern(period: period, colors: tile) else { return .failure(.pattern(text)) }
         return .success(pattern)
     }
@@ -193,10 +211,11 @@ extension SensorMosaic {
     static let blackLayoutHolds: Bool = {
         // `curve` is not imported either (65,536 values); its size and `cblack`'s put `black` here, and
         // `data_maximum` follows it.
-        let black = MemoryLayout<libraw_colordata_t>.offset(of: \.black)
-        let next = MemoryLayout<libraw_colordata_t>.offset(of: \.data_maximum)
-        return black == 0x10000 * MemoryLayout<UInt16>.size + Int(LIBRAW_CBLACK_SIZE) * MemoryLayout<UInt32>.size
-            && next == black.map { $0 + MemoryLayout<UInt32>.size }
+        guard let black = MemoryLayout<libraw_colordata_t>.offset(of: \.black),
+              let next = MemoryLayout<libraw_colordata_t>.offset(of: \.data_maximum) else { return false }
+        let curveBytes: Int = 0x10000 * MemoryLayout<UInt16>.size
+        let cblackBytes: Int = Int(LIBRAW_CBLACK_SIZE) * MemoryLayout<UInt32>.size
+        return black == curveBytes + cblackBytes && next == black + MemoryLayout<UInt32>.size
     }()
 
     /// The visible area of an unpacked file, copied out of LibRaw's buffer,

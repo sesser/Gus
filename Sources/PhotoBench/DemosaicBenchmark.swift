@@ -79,8 +79,9 @@ enum DemosaicBenchmark {
             if crop > 0 { w = min(w, crop / 6 * 6); h = min(h, crop / 6 * 6) }
             let whole = RGBPicture(rgba: binned.floats(), width: binned.width, height: binned.height)
             // The truth is what a 16-bit file holds: quantized, at most white.
-            let truth = whole.cropped(x: (whole.width - w) / 2 / 6 * 6, y: (whole.height - h) / 2 / 6 * 6, width: w, height: h)
-                .map { (pointwiseMin(pointwiseMax($0, .zero), SIMD3(repeating: 1)) * 65535).rounded(.toNearestOrEven) / 65535 }
+            let left: Int = (whole.width - w) / 2 / 6 * 6, top: Int = (whole.height - h) / 2 / 6 * 6
+            let truth = whole.cropped(x: left, y: top, width: w, height: h)
+                .map(Measure.quantized16)
             let truthLab = truth.pixels.map(Measure.labSRGB)
             let edges = Measure.edgeMask(truthLab, width: w, height: h)
             print("\n\(url.lastPathComponent): truth \(w)x\(h)")
@@ -120,7 +121,11 @@ enum DemosaicBenchmark {
                         }
                     }
                     let count = Double((w - 16) * (h - 16))
-                    let perChannel = (0..<3).map { 10 * log10(1 / (channel[$0] / count)) }
+                    var perChannel: [Double] = []
+                    for c in 0..<3 {
+                        let meanSquare: Double = channel[c] / count
+                        perChannel.append(10 * log10(1 / meanSquare))
+                    }
                     print(String(format: "      PSNR R %.2f G %.2f B %.2f; ΔE flat median %.2f p95 %.2f, edges median %.2f p95 %.2f", perChannel[0], perChannel[1], perChannel[2],
                                  comparison.flat.median, comparison.flat.p95, comparison.edges.median, comparison.edges.p95))
                     let label = "\(name) \(output.demosaic)"
@@ -133,10 +138,14 @@ enum DemosaicBenchmark {
                         try writePNG(picture, to: URL(fileURLWithPath: folder).appending(path: stem + ".png"))
                         try writePNG(truth, to: URL(fileURLWithPath: folder).appending(path: "\(url.deletingPathExtension().lastPathComponent)-truth.png"))
                         // Error, ×8, on a grey background.
-                        let error = RGBPicture(width: w, height: h, pixels: (0..<(w * h)).map { i in
-                            let d = SIMD3<Float>((0..<3).map { Measure.encode(picture.pixels[i][$0]) - Measure.encode(truth.pixels[i][$0]) })
-                            return pointwiseMin(pointwiseMax(SIMD3(repeating: 0.5) + d * 8, .zero), SIMD3(repeating: 1))
-                        })
+                        var errorPixels: [SIMD3<Float>] = []
+                        for i in 0..<(w * h) {
+                            var d = SIMD3<Float>.zero
+                            for c in 0..<3 { d[c] = Measure.encode(picture.pixels[i][c]) - Measure.encode(truth.pixels[i][c]) }
+                            let shown: SIMD3<Float> = SIMD3<Float>(repeating: 0.5) + d * 8
+                            errorPixels.append(pointwiseMin(pointwiseMax(shown, SIMD3<Float>.zero), SIMD3<Float>(repeating: 1)))
+                        }
+                        let error = RGBPicture(width: w, height: h, pixels: errorPixels)
                         try writePNG(error, to: URL(fileURLWithPath: folder).appending(path: stem + "-error.png"), encoded: true)
                     }
                     rows.append(["file": url.lastPathComponent, "pattern": name, "demosaic": "\(output.demosaic)",
@@ -180,8 +189,8 @@ enum DemosaicBenchmark {
             }
             let oursMiddle = oursPicture.middle(size), libMiddle = libPicture.middle(size)
             let w = libMiddle.width, h = libMiddle.height
-            let oursLab = oursMiddle.pixels.map { Measure.lab(step.apply($0)) }
-            let libLab = libMiddle.pixels.map { Measure.lab(step.apply($0)) }
+            let oursLab: [SIMD3<Float>] = oursMiddle.pixels.map { (c: SIMD3<Float>) -> SIMD3<Float> in Measure.lab(step.apply(c)) }
+            let libLab: [SIMD3<Float>] = libMiddle.pixels.map { (c: SIMD3<Float>) -> SIMD3<Float> in Measure.lab(step.apply(c)) }
             let libEdges = Measure.edgeMask(libLab, width: w, height: h)
             let oursEdges = Measure.edgeMask(oursLab, width: w, height: h)
             let fcLib = Measure.falseColor(libLab, edges: libEdges, width: w, height: h)
@@ -298,7 +307,8 @@ enum DemosaicBenchmark {
             try await region.prepare(values)
             let decode = ms(start)
             let size = PreviewGenerator.nativeSize(url) ?? CGSize(width: 6000, height: 4000)
-            let unit = CGRect(x: 0.5 - 1512 / size.width, y: 0.5 - 900 / size.height, width: 3024 / size.width, height: 1800 / size.height)
+            let unitWidth: CGFloat = 3024 / size.width, unitHeight: CGFloat = 1800 / size.height
+            let unit = CGRect(x: 0.5 - unitWidth / 2, y: 0.5 - unitHeight / 2, width: unitWidth, height: unitHeight)
             start = .now
             _ = try await region.render(values, unit: unit)
             let firstRegion = ms(start)

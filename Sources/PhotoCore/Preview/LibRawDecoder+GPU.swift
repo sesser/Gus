@@ -132,11 +132,15 @@ extension LibRawDecoder {
         // LibRaw's crop box, which its own decode crops to before demosaicing: here cut afterwards, so its
         // edge pixels have their neighbours.
         if let box = frame.cropBox {
-            let scale = half ? 0.5 : 1.0
-            let left = (Double(box.left) * scale).rounded(.down), top = (Double(box.top) * scale).rounded(.down)
-            let width = min((Double(box.width) * scale).rounded(.down), decodedSize.width - left)
-            let height = min((Double(box.height) * scale).rounded(.down), decodedSize.height - top)
-            let rect = CGRect(x: left, y: decodedSize.height - top - height, width: width, height: height)
+            let scale: CGFloat = half ? 0.5 : 1.0
+            let left: CGFloat = (CGFloat(box.left) * scale).rounded(.down)
+            let top: CGFloat = (CGFloat(box.top) * scale).rounded(.down)
+            let boxWidth: CGFloat = (CGFloat(box.width) * scale).rounded(.down)
+            let boxHeight: CGFloat = (CGFloat(box.height) * scale).rounded(.down)
+            let width: CGFloat = min(boxWidth, decodedSize.width - left)
+            let height: CGFloat = min(boxHeight, decodedSize.height - top)
+            let bottom: CGFloat = decodedSize.height - top - height
+            let rect = CGRect(x: left, y: bottom, width: width, height: height)
             image = image.cropped(to: rect).transformed(by: CGAffineTransform(translationX: -rect.minX, y: -rect.minY))
         }
         image = oriented(image, flip: frame.flip)

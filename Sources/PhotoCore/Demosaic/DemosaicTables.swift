@@ -131,7 +131,7 @@ public struct DemosaicTables: Sendable, Hashable {
     static func centered(_ taps: [Tap]) -> [Tap] {
         guard taps.count >= 3 else { return taps }
         let s = taps.map { Double($0.weight) }
-        let o = taps.map { SIMD2(Double($0.dx), Double($0.dy)) }
+        let o = taps.map { (tap: Tap) -> SIMD2<Double> in SIMD2<Double>(Double(tap.dx), Double(tap.dy)) }
         let total = s.reduce(0, +)
         var m = SIMD2<Double>.zero
         var mxx = 0.0, mxy = 0.0, myy = 0.0
@@ -145,9 +145,15 @@ public struct DemosaicTables: Sendable, Hashable {
         let a = mxx - m.x * m.x / total, b = mxy - m.x * m.y / total, d = myy - m.y * m.y / total
         let determinant = a * d - b * b
         guard abs(determinant) > 1e-12 else { return taps }
-        let lambda = SIMD2((-m.x * d + m.y * b) / determinant, (m.x * b - m.y * a) / determinant)
-        let mu = -(lambda * m).sum() / total
-        let weights = zip(s, o).map { $0 * (1 + mu + (lambda * $1).sum()) }
+        let lambdaX: Double = (-m.x * d + m.y * b) / determinant
+        let lambdaY: Double = (m.x * b - m.y * a) / determinant
+        let lambda = SIMD2<Double>(lambdaX, lambdaY)
+        let mu: Double = -(lambda * m).sum() / total
+        var weights: [Double] = []
+        for (si, oi) in zip(s, o) {
+            let shift: Double = (lambda * oi).sum()
+            weights.append(si * (1 + mu + shift))
+        }
         guard weights.allSatisfy({ $0 > 0 }) else { return taps }
         return zip(taps, weights).map { Tap(dx: $0.dx, dy: $0.dy, weight: Float($1)) }
     }
@@ -165,8 +171,9 @@ public struct DemosaicTables: Sendable, Hashable {
             weights[position, default: 0] += weight
             // The own color at the green: linear between its nearest samples on the line either side
             // (0, the site itself, is one of them), or the nearer one alone.
-            let below = stride(from: position, through: -colorReach, by: -1).first { $0 != position && at($0) == own }
-            let above = stride(from: position, through: colorReach, by: 1).first { $0 != position && at($0) == own }
+            let isOwn = { (t: Int) -> Bool in t != position && at(t) == own }
+            let below = stride(from: position, through: -colorReach, by: -1).first(where: isOwn)
+            let above = stride(from: position, through: colorReach, by: 1).first(where: isOwn)
             switch (below, above) {
             case let (a?, b?):
                 let gap = Double(b - a)
@@ -181,7 +188,10 @@ public struct DemosaicTables: Sendable, Hashable {
             }
         }
         return weights.filter { $0.value != 0 }.sorted { $0.key < $1.key }
-            .map { Tap(dx: Int32($0.key * dx), dy: Int32($0.key * dy), weight: Float($0.value)) }
+            .map { (entry: (key: Int, value: Double)) -> Tap in
+                let tx: Int = entry.key * dx, ty: Int = entry.key * dy
+                return Tap(dx: Int32(tx), dy: Int32(ty), weight: Float(entry.value))
+            }
     }
 
     /// The variation along (dx, dy): consecutive same-color samples within
@@ -197,14 +207,22 @@ public struct DemosaicTables: Sendable, Hashable {
             for t in -2...1 {
                 let c = color(ox + t * dx, oy + t * dy)
                 // The next sample of the same color: nothing of that color lies between the two.
-                guard let next = ((t + 1)...2).first(where: { color(ox + $0 * dx, oy + $0 * dy) == c }) else { continue }
+                guard let next = ((t + 1)...2).first(where: { (u: Int) -> Bool in
+                    color(ox + u * dx, oy + u * dy) == c
+                }) else { continue }
                 raw.append((ox + t * dx, oy + t * dy, ox + next * dx, oy + next * dy, lineWeight, next - t))
             }
         }
         // A weighted mean of the differences per step.
-        let total = raw.reduce(0) { $0 + $1.lineWeight }
+        var total = 0.0
+        for entry in raw { total += entry.lineWeight }
         guard total > 0 else { return [] }
-        return raw.map { Pair(ax: Int32($0.ax), ay: Int32($0.ay), bx: Int32($0.bx), by: Int32($0.by),
-                              weight: Float($0.lineWeight / Double($0.distance) / total)) }
+        var pairs: [Pair] = []
+        for entry in raw {
+            let weight: Double = entry.lineWeight / Double(entry.distance) / total
+            pairs.append(Pair(ax: Int32(entry.ax), ay: Int32(entry.ay), bx: Int32(entry.bx), by: Int32(entry.by),
+                              weight: Float(weight)))
+        }
+        return pairs
     }
 }

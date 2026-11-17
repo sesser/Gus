@@ -64,8 +64,10 @@ struct GPUDemosaicDecodeTests {
             #expect(automatic.pixels.data == forced.pixels.data)
             // The switch keeps LibRaw's demosaic for a file ours would take.
             #expect(try LibRawDecoder.decode(bayer, demosaic: .libRaw).demosaic == .libRaw(reason: "chosen"))
-            #expect(try LibRawDecoder.$demosaicOverride.withValue(.libRaw) { try LibRawDecoder.decode(xTrans) }.demosaic
-                    == .libRaw(reason: "chosen"))
+            let overridden: LibRawDecoder.Output = try LibRawDecoder.$demosaicOverride.withValue(.libRaw) {
+                try LibRawDecoder.decode(xTrans)
+            }
+            #expect(overridden.demosaic == LibRawDecoder.Demosaic.libRaw(reason: "chosen"))
         }
     }
 
@@ -83,7 +85,8 @@ struct GPUDemosaicDecodeTests {
                     #expect(decoded.demosaic == nil)
                 } else {
                     #expect(decoded.decoder == .libRaw)
-                    #expect(decoded.demosaic == (hasMetalDevice ? .gpu(.xTrans) : decoded.demosaic))
+                    let expected: LibRawDecoder.Demosaic? = hasMetalDevice ? LibRawDecoder.Demosaic.gpu(.xTrans) : decoded.demosaic
+                    #expect(decoded.demosaic == expected)
                 }
             }
         }
@@ -102,21 +105,22 @@ struct GPUDemosaicDecodeTests {
             let out = library.photos.appending(path: "render.png").path
             let ours = await library.run("render", url.path, "--out", out, "--long-edge", "100")
             #expect(ours.output.exitCode == 0)
-            #expect(ours.json["decoder"] == "libRaw")
-            #expect(ours.json["demosaic"]?["method"] == "gpu")
-            #expect(ours.json["demosaic"]?["pattern"] == "xTrans")
+            #expect(ours.json["decoder"]?.stringValue == "libRaw")
+            #expect(ours.json["demosaic"]?["method"]?.stringValue == "gpu")
+            #expect(ours.json["demosaic"]?["pattern"]?.stringValue == "xTrans")
             let libRaw = await library.run("render", url.path, "--out", out, "--long-edge", "100", "--demosaic", "libraw")
-            #expect(libRaw.json["demosaic"]?["method"] == "libraw")
-            #expect(libRaw.json["demosaic"]?["reason"] == "chosen")
+            #expect(libRaw.json["demosaic"]?["method"]?.stringValue == "libraw")
+            #expect(libRaw.json["demosaic"]?["reason"]?.stringValue == "chosen")
             let automatic = await library.run("render", url.path, "--out", out, "--long-edge", "100", "--demosaic", "Automatic")
-            #expect(automatic.json["demosaic"]?["method"] == "gpu")
+            #expect(automatic.json["demosaic"]?["method"]?.stringValue == "gpu")
             let refused = await library.run("render", url.path, "--out", out, "--demosaic", "ahd")
             #expect(refused.output.exitCode != 0)
-            #expect(refused.json["code"] == "invalidValue")
+            #expect(refused.json["code"]?.stringValue == "invalidValue")
             // A JPEG has no demosaic.
             let jpeg = await library.run("render", library.photos.appending(path: "IMG_0001.jpg").path, "--out", out)
-            #expect(jpeg.json["decoder"] == "imageIO")
-            #expect(jpeg.json["demosaic"] == nil)
+            #expect(jpeg.json["decoder"]?.stringValue == "imageIO")
+            let jpegKeys: [String] = jpeg.json.objectValue.map { Array($0.keys) } ?? []
+            #expect(!jpegKeys.contains("demosaic"))
         }
     }
 

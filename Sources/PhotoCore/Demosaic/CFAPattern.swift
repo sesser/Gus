@@ -33,8 +33,11 @@ public struct CFAPattern: Sendable, Hashable, CustomStringConvertible {
             guard count(0) == 8, count(1) == 20, count(2) == 8 else { return nil }
             // Every row and every column has all three colors.
             for i in 0..<6 {
-                let row = Set((0..<6).map { colors[i * 6 + $0] })
-                let column = Set((0..<6).map { colors[$0 * 6 + i] })
+                var row = Set<Int32>(), column = Set<Int32>()
+                for j in 0..<6 {
+                    row.insert(colors[i * 6 + j])
+                    column.insert(colors[j * 6 + i])
+                }
                 guard row.count == 3, column.count == 3 else { return nil }
             }
             kind = .xTrans
@@ -52,7 +55,13 @@ public struct CFAPattern: Sendable, Hashable, CustomStringConvertible {
     /// starting there has at its top left.
     public func shifted(x: Int, y: Int) -> CFAPattern {
         let p = period
-        let moved = (0..<(p * p)).map { colors[((($0 / p) + y) % p) * p + (($0 % p) + x) % p] }
+        var moved: [Int32] = []
+        moved.reserveCapacity(p * p)
+        for site in 0..<(p * p) {
+            let row: Int = (site / p + y) % p
+            let column: Int = (site % p + x) % p
+            moved.append(colors[row * p + column])
+        }
         return CFAPattern(period: p, colors: moved)!
     }
 

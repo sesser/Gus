@@ -22,18 +22,26 @@ enum DemosaicScene {
             for x in 0..<width {
                 let fx = Float(x) / Float(width), fy = Float(y) / Float(height)
                 // A smooth gradient behind everything.
-                var c = SIMD3<Float>(0.15 + 0.3 * fx, 0.2 + 0.25 * fy, 0.35 - 0.2 * fx)
+                let r0: Float = 0.15 + 0.3 * fx, g0: Float = 0.2 + 0.25 * fy, b0: Float = 0.35 - 0.2 * fx
+                var c = SIMD3<Float>(r0, g0, b0)
                 // A saturated red disk and a blue square: edges in every direction.
                 let dx = Float(x) - Float(width) * 0.3, dy = Float(y) - Float(height) * 0.35
-                if dx * dx + dy * dy < Float(width * width) * 0.03 { c = SIMD3(0.8, 0.08, 0.05) }
-                if x > width * 6 / 10, x < width * 9 / 10, y > height / 10, y < height * 4 / 10 { c = SIMD3(0.05, 0.1, 0.7) }
+                let radiusSquared: Float = Float(width * width) * 0.03
+                if dx * dx + dy * dy < radiusSquared { c = SIMD3<Float>(0.8, 0.08, 0.05) }
+                let squareLeft: Int = width * 6 / 10, squareRight: Int = width * 9 / 10
+                let squareTop: Int = height / 10, squareBottom: Int = height * 4 / 10
+                if x > squareLeft, x < squareRight, y > squareTop, y < squareBottom { c = SIMD3<Float>(0.05, 0.1, 0.7) }
                 // Fine vertical stripes, two pixels wide, and a diagonal edge.
-                if y > height * 6 / 10, x < width / 2 { c = (x / 2) % 2 == 0 ? SIMD3(0.7, 0.7, 0.7) : SIMD3(0.1, 0.1, 0.1) }
-                if y > height * 6 / 10, x >= width / 2, x - width / 2 > y - height * 6 / 10 { c = SIMD3(0.6, 0.5, 0.1) }
+                let lowerTop: Int = height * 6 / 10, middle: Int = width / 2
+                if y > lowerTop, x < middle { c = (x / 2) % 2 == 0 ? SIMD3<Float>(0.7, 0.7, 0.7) : SIMD3<Float>(0.1, 0.1, 0.1) }
+                if y > lowerTop, x >= middle, x - middle > y - lowerTop { c = SIMD3<Float>(0.6, 0.5, 0.1) }
                 // Thin colored lines: one pixel green, two pixels magenta.
-                if x == width / 2 + 3, y < height / 2 { c = SIMD3(0.1, 0.6, 0.1) }
-                if y == height / 2 || y == height / 2 + 1 { c = SIMD3(0.6, 0.1, 0.55) }
-                if noise > 0 { c += SIMD3(gaussian(), gaussian(), gaussian()) * noise }
+                if x == middle + 3, y < height / 2 { c = SIMD3<Float>(0.1, 0.6, 0.1) }
+                if y == height / 2 || y == height / 2 + 1 { c = SIMD3<Float>(0.6, 0.1, 0.55) }
+                if noise > 0 {
+                    let deviates = SIMD3<Float>(gaussian(), gaussian(), gaussian())
+                    c += deviates * noise
+                }
                 pixels[y * width + x] = c
             }
         }
@@ -52,7 +60,9 @@ enum DemosaicScene {
             for x in 0..<width {
                 let c = pattern.color(x: x, y: y)
                 let v = truth[y * width + x][c] / multipliers[c]
-                values[y * width + x] = UInt16(min(max(v * span + black, 0), 65535).rounded())
+                let level: Float = v * span + black
+                let clipped: Float = min(max(level, 0), 65535)
+                values[y * width + x] = UInt16(clipped.rounded())
             }
         }
         return SensorMosaic(width: width, height: height, pattern: pattern, values: values,
@@ -181,11 +191,19 @@ struct DemosaicKernelTests {
                         continue
                     }
                     let site = (y % p) * p + x % p
-                    let estimates = tables.greenTaps[site].filter { !$0.isEmpty }.map { taps in
-                        taps.reduce(Float(0)) { $0 + $1.weight * input.value(x + Int($1.dx), y + Int($1.dy)) }
+                    var estimates: [Float] = []
+                    for taps in tables.greenTaps[site] where !taps.isEmpty {
+                        var estimate: Float = 0
+                        for tap in taps {
+                            let value: Float = input.value(x + Int(tap.dx), y + Int(tap.dy))
+                            estimate = estimate + tap.weight * value
+                        }
+                        estimates.append(estimate)
                     }
-                    let spread = (estimates.max() ?? 0) - (estimates.min() ?? 0)
-                    greenBound[y * n + x] = 2 * delta * spread + 12 * u * abs(g) + ulp(g)
+                    let spread: Float = (estimates.max() ?? 0) - (estimates.min() ?? 0)
+                    let blend: Float = 2 * delta * spread
+                    let sums: Float = 12 * u * abs(g)
+                    greenBound[y * n + x] = blend + sums + ulp(g)
                 }
             }
             for y in 0..<h {
@@ -201,14 +219,18 @@ struct DemosaicKernelTests {
                     out[(y * n + x) * 3 + 1] = greenBound[y * n + x]
                     for c in [0, 2] where c != input.color(x, y) {
                         if inBorder { out[(y * n + x) * 3 + c] = 3 * ulp(cpu[x, y, c]); continue }
-                        let ks = tables.neighbours[site][c].map {
-                            green[(y + Int($0.dy)) * n + x + Int($0.dx)] - input.value(x + Int($0.dx), y + Int($0.dy))
+                        var ks: [Float] = []
+                        for tap in tables.neighbours[site][c] {
+                            let qx: Int = x + Int(tap.dx), qy: Int = y + Int(tap.dy)
+                            ks.append(green[qy * n + qx] - input.value(qx, qy))
                         }
-                        let spread = (ks.max() ?? 0) - (ks.min() ?? 0)
-                        let g = green[y * n + x]
-                        let k = g - cpu[x, y, c]
-                        out[(y * n + x) * 3 + c] = gb * (2 + 4 * spread / GPUDemosaic.epsilon)
-                            + 2 * delta * spread + 12 * u * (abs(k) + abs(g)) + ulp(cpu[x, y, c])
+                        let spread: Float = (ks.max() ?? 0) - (ks.min() ?? 0)
+                        let g: Float = green[y * n + x]
+                        let k: Float = g - cpu[x, y, c]
+                        let throughGreen: Float = gb * (2 + 4 * spread / GPUDemosaic.epsilon)
+                        let blend: Float = 2 * delta * spread
+                        let sums: Float = 12 * u * (abs(k) + abs(g))
+                        out[(y * n + x) * 3 + c] = throughGreen + blend + sums + ulp(cpu[x, y, c])
                     }
                 }
             }
@@ -264,7 +286,8 @@ struct DemosaicKernelTests {
         var truth = [SIMD3<Float>](repeating: .zero, count: n * n)
         for y in 0..<n {
             for x in 0..<n {
-                truth[y * n + x] = SIMD3(0.1 + 0.003 * Float(x), 0.3 + 0.002 * Float(y), 0.25 + 0.001 * Float(x + y))
+                let r: Float = 0.1 + 0.003 * Float(x), g: Float = 0.3 + 0.002 * Float(y), b: Float = 0.25 + 0.001 * Float(x + y)
+                truth[y * n + x] = SIMD3<Float>(r, g, b)
             }
         }
         let mosaic = DemosaicScene.mosaic(truth, width: n, height: n, pattern: pattern, multipliers: SIMD3(0.5, 1, 0.8))
@@ -293,7 +316,8 @@ struct DemosaicKernelTests {
             // slope they lean to one side and the mean lies within the differences' spread over the
             // window: at most |∇(G − C)| times the farthest site, 2√2. A known bias of the method on
             // shaded surfaces, measured in status.md.
-            let gradients: [Float] = [(0.002 * 0.002 + 0.003 * 0.003).squareRoot(), (0.001 * 0.001 + 0.001 * 0.001).squareRoot()]
+            let redSlope: Float = 0.002 * 0.002 + 0.003 * 0.003, blueSlope: Float = 0.001 * 0.001 + 0.001 * 0.001
+            let gradients: [Float] = [redSlope.squareRoot(), blueSlope.squareRoot()]
             #expect(perChannel[0] <= gradients[0] * Float(8).squareRoot() + 1e-4, "\(perChannel)")
             #expect(perChannel[2] <= gradients[1] * Float(8).squareRoot() + 1e-4, "\(perChannel)")
         }
