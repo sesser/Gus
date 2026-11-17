@@ -387,6 +387,12 @@ history of this file.
   measured, or restrict AC2's edge chroma bound to the files the spike gave
   figures for. Nothing was loosened here.
 
+## QA (qa.md) Q1
+
+| # | Finding | Fix |
+|---|---|---|
+| Q1 | No always-run test failed with the baseline noise step switched off in decodes (mutation M3: `decodeNoiseReduction` defaulting to nil) | `ColorNoiseReductionTests.flatColorNoise` also decodes with the step off and expects the default decode quieter than that, and at most 0.5x LibRaw's: measured 0.25x (RGGB) and 0.20x (X-Trans) with the step, 0.85x and 0.69x without, so 0.5x lies between. Mutation M3 re-run in a scratch copy: the test now fails on both patterns (4 issues) |
+
 ## Code review, second pass
 
 | # | Finding | Fix |

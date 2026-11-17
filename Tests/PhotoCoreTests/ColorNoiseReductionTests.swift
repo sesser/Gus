@@ -214,7 +214,7 @@ struct ColorNoiseReductionTests {
     /// through our decode and LibRaw's: the color difference noise of ours,
     /// in the flat interior, is at most LibRaw's. The model is estimated
     /// from the file, as for a real raw.
-    @Test("Color noise in flat areas is at most LibRaw's", arguments: ["RGGB", "X-Trans"])
+    @Test("Color noise in flat areas is at most LibRaw's, and a decode runs the baseline step", arguments: ["RGGB", "X-Trans"])
     func flatColorNoise(name: String) async throws {
         _ = try DemosaicKernelTests.engine()
         let pattern: CFAPattern = name == "RGGB" ? .rggb : .xTransSample
@@ -239,8 +239,12 @@ struct ColorNoiseReductionTests {
             options.cfaPeriod = pattern.period
             options.cfaColors = pattern.colors.map(UInt8.init)
             try SyntheticDNG.write(to: url, options: options, mosaic: values)
-            func spread(_ choice: LibRawDecoder.DemosaicChoice) throws -> (Float, LibRawDecoder.Demosaic) {
-                let output = try LibRawDecoder.decode(url, lensCorrections: false, demosaic: choice)
+            func spread(_ choice: LibRawDecoder.DemosaicChoice, stepOff: Bool = false) throws -> (Float, LibRawDecoder.Demosaic) {
+                let output = try stepOff
+                    ? GPUDemosaic.$decodeNoiseReduction.withValue(nil) {
+                        try LibRawDecoder.decode(url, lensCorrections: false, demosaic: choice)
+                    }
+                    : LibRawDecoder.decode(url, lensCorrections: false, demosaic: choice)
                 let rgba = ReferenceTests.renderLinear(output.linear).pixels
                 // Each 16-pixel column of the interior is close to one level: its color differences' deviation.
                 var total: Float = 0, count: Float = 0
@@ -263,10 +267,17 @@ struct ColorNoiseReductionTests {
             }
             let (ours, method) = try spread(.automatic)
             let (libRaw, _) = try spread(.libRaw)
-            print(String(format: "%@: color difference noise, ours (%@) %.5f, LibRaw's %.5f (%.2fx)", name, "\(method)" as NSString,
-                         ours, libRaw, ours / libRaw))
+            let (kernelAlone, _) = try spread(.automatic, stepOff: true)
+            print(String(format: "%@: color difference noise, ours (%@) %.5f, kernel alone %.5f, LibRaw's %.5f (%.2fx, %.2fx)",
+                         name, "\(method)" as NSString, ours, kernelAlone, libRaw, ours / libRaw, kernelAlone / libRaw))
             #expect(method == .gpu(pattern.kind))
+            // AC6's flat patches: at most LibRaw's.
             #expect(ours <= libRaw)
+            // And the decode runs the baseline step (R9; QA Q1): the kernel alone measures 0.85x (RGGB) and
+            // 0.69x (X-Trans) of LibRaw's here, with the step 0.25x and 0.20x, so a decode without it can't
+            // reach half of LibRaw's, and the default decode is quieter than one with the step off.
+            #expect(ours <= 0.5 * libRaw)
+            #expect(ours < kernelAlone)
         }
     }
 }
