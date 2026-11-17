@@ -12,13 +12,15 @@ keeps LibRaw's demosaic selectable; Q7 the owner's RAFs through environment
 variables, never committed). There is no `design.md`: the PRD has no UI
 change, and none was needed.
 
-**Status: Blocked** on two Requirements issues (RI-1, RI-2 below): every
-requirement is built and tested, and every criterion is measured, but AC3
-(the X-Trans kernel alone against LibRaw's three passes) and AC4 (ΔE against
-LibRaw at high ISO) are not met as written, and five of 28 files miss AC6's
-detail bound by 0.01 to 0.03. The product manager's ruling decides whether the
-feature ships as measured (with a follow-up issue for the kernel) or waits for
-a better X-Trans kernel. Everything else is Done.
+**Status: Done** (2026-11-16). Every requirement is built and tested and
+every criterion measured. The owner ruled on both Requirements issues the
+same day (PRD rev 2): AC3 is accepted as measured (follow-up #199, a sharper
+X-Trans demosaic), AC4 applies only to files at ISO 800 or lower (high ISO is
+judged by AC5 and AC6), and AC6 is accepted as a whole (five of 28 files at
+detail 0.92x to 0.94x). The code review's findings C1 to C9 are fixed (below).
+One open question for the product manager, Q2 below (AC2's edge chroma error
+on the E-M5 III), does not block. Next: code review's second pass, the
+designer is not needed (no UI change), then qa-tester.
 
 ## What was built
 
@@ -137,9 +139,16 @@ Machine: Apple M4 Pro (14 cores), 24 GB, macOS 27.2.1, Xcode 26 toolchain
 | When | `swift build` | `swift test` |
 |---|---|---|
 | Baseline, `develop` at `34738c2` (2026-11-16) | green, no warnings | 1047 tests in 156 suites passed (one unnamed failure in the first of three runs, not reproduced in the next two: flaky, not this feature's) |
-| Latest | green, no warnings (debug, and `-c release` for `photobench` and `photocli`) | 1067 tests in 161 suites passed |
+| After the first pass | green, no warnings (debug, and `-c release` for `photobench` and `photocli`) | 1067 tests in 161 suites passed |
+| After the code review's fixes, `522f41f` | green, no warnings | **1071 tests in 161 suites passed** (68 s) |
 
-Latest full run (2026-11-16, at `5003d8a`): **1067 tests in 161 suites passed** (`swift test`, 68 s); `swift build` with no warnings.
+Latest full run: 2026-11-16, at `522f41f` (the review fixes; the commits
+after it change only this file): 1071 tests in 161 suites passed. (An earlier
+line here named `5003d8a`, a commit since rewritten; code review C4.)
+At `522f41f`, `XTRANS_SAMPLES` with the X-E3 `DSCF5123` (ISO 400), an X-T3 at
+ISO 160 and the X-T3 `DSCF4583` (ISO 6400): `DemosaicXTransSampleTests` passed
+(2 tests, 317 s in a debug build; AC4 checked on the first two, recorded on the
+third; no file under AC6's detail bound).
 
 New suites, run in every `swift test` on small synthetic mosaics and DNGs
 (they skip, saying so, where there is no Metal device):
@@ -311,7 +320,7 @@ pass.
 | R5 Fujifilm frame and lens corrections | Done | `LibRawFallbackTests` (RAF_SAMPLE) and `DemosaicXTransSampleTests.frameAndFallback`: 6000 x 4000, corrections on; alignment with the camera's JPEG median 0.30 px, p90 0.76 (LibRaw's demosaic: 0.31, 0.83) |
 | R6 white balance re-runs only the color step | Done | `GPUDemosaicDecodeTests.whiteBalanceRunsNoDemosaic`; `LibRawDecoderTests.decodeSettingsDoNotDecodeAgain` |
 | R7 directional X-Trans kernel | Done | four directions, `DemosaicTables` |
-| R8 quality bar | **Blocked (RI-1, RI-2)** | Measurements above |
+| R8 quality bar | Done, as ruled (PRD rev 2: AC3 accepted as measured, AC4 at ISO ≤ 800) | Measurements above |
 | R9 baseline color noise reduction | Done | `ColorNoiseReductionTests`; real files above |
 | R10 CPU references, safe math, fp contract off, 2⁻¹⁰ | Done | `DemosaicKernelTests`, `ColorNoiseReductionTests` |
 | R11 clean room | Done | Published sources above; for code review |
@@ -323,59 +332,72 @@ pass.
 | R17 GPU < 100 ms (Should) | Done | 78 to 85 ms X-Trans, 24 to 32 Bayer |
 | R18 live frames no slower | Done | above |
 | R19 fallback per decode | Done | `GPUDemosaicDecodeTests.fallbackOnFailure` (execution failure, no device; Bayer and X-Trans); X-E3 in `DemosaicXTransSampleTests.frameAndFallback` |
-| R20 logged; `photocli` names the demosaic | Done | the same test reads the log line back (`OSLogStore`); `photocli render` JSON `decoder`, `demosaic` (checked by hand on the X-E3: `{"method":"gpu","pattern":"xTrans"}` and `{"method":"libraw","reason":"chosen"}`) |
+| R20 logged; `photocli` names the demosaic | Done | `fallbackOnFailure` reads the log line back (`OSLogStore`); `renderReportsTheDemosaic` checks the `decoder` and `demosaic` keys and `--demosaic` (code review C6) |
 | R21 cancellable, off the main thread, ≤ 400 MB | Done | `GPUDemosaicDecodeTests.cancellation`; 295 / 315 MB |
 | R22 macOS 15 | Done | APIs: `MTLCompileOptions.mathMode` (15), linear textures, `makeBuffer(bytesNoCopy:)`; no `Float16` |
 | R23 version 12, plain bump | Done | `GPUDemosaicDecodeTests.pipelineVersion` |
 | AC1 | Done | as R1, R4 |
-| AC2 | Done for GX85 and 5D II; E-M5 III edge chroma 1.04x (no PRD figure) | `DemosaicTruthTests` |
-| AC3 | **Not met** (RI-1) | synthetic: −0.26 to −1.09 dB; real: both measures on 15 of 28 |
-| AC4 | **Not met at high ISO** (RI-2) | X-E3 DSCF5123 ✓; X-T3 DSCF4583 ✗ |
+| AC2 | Done for GX85 and 5D II; E-M5 III edge chroma error 2.04 against 1.97 (1.04x), see Q2 | `DemosaicTruthTests` (`BAYER_SAMPLES`; it expects AC2, so it reports the E-M5 III) |
+| AC3 | Accepted as measured (owner, RI-1, PRD rev 2; follow-up #199) | synthetic −0.26 to −1.09 dB; real files both bounds on 15 of 28. `DemosaicTruthTests` and `DemosaicXTransSampleTests` print it, they don't expect it |
+| AC4 | Done at ISO ≤ 800 as ruled (RI-2): X-E3 `DSCF5123` ✓; 7 of 10 files at ISO ≤ 400 ✓, three just outside, accepted in rev 2 | `DemosaicXTransSampleTests` expects it for files at ISO ≤ 800 (the file's ISO from LibRaw), so it reports those three when they are among the samples |
 | AC5 | Done | 10.4 against 10.0 |
-| AC6 | Must met for false color on 28 of 28, detail on 23 of 28 (the two named files ✓); Should on 16 of 28 | above |
+| AC6 | Accepted as a whole (owner, rev 2): false color ≤ 1.0x on 28 of 28, detail ≥ 0.95x on 23 of 28 (five at 0.92x to 0.94x, both named files ✓); Should on 16 of 28; flat patches ✓ | `DemosaicXTransSampleTests` expects false color and records detail, listing the files under 0.95x (code review Q1, answered); `ColorNoiseReductionTests.flatColorNoise` |
 | AC7 | Done | `ColorNoiseReductionTests.keepsLinesAndEdges` |
 | AC8a | Done | above |
-| AC8 | For code review | sources above |
+| AC8 | Done (code review found no copied code) | sources above |
 | AC9 | Done | as R5 |
 | AC10 | Done | as R6 |
 | AC11 | Done | as R12, R13 (no UI or stack code changed) |
-| AC12 | Done | as R19, R20 |
+| AC12 | Done | as R19, R20; also a scratch allocation failure after the demosaic is encoded (`scratchAllocationFallsBack`, code review C1) |
 | AC13 | Done | as R21 |
 | AC14 | Done | `GPUDemosaicDecodeTests.pipelineVersion`; `docs/USER_GUIDE.md` says previews are made again once |
 | AC15 | Done | tables above and in `docs/PROFILING.md` |
 | AC16 | Done | the three new suites run everywhere on small mosaics; 24 MP only behind the sample variables |
 
-## Requirements issues (for the product manager)
+## Requirements issues: ruled
 
-**RI-1. AC3 is not met by the X-Trans kernel alone.** Against binned truths
-it is 0.26 to 1.09 dB under LibRaw's three passes (the criterion: −0.1) with
-1.03x to 1.25x its edge chroma error (≤ 1.0x); on 28 real files its false color
-is 0.52x to 1.01x LibRaw's, but its detail measure is under 0.95x on 11 (0.82
-to 0.94). It is 100 times faster (78 ms on the GPU against 7.9 s). With the
-baseline noise step (what the app shows), false color is 0.17x to 0.82x on all
-28 and detail ≥ 0.95x on 23. Tried and measured without closing the gap
-(details above): homogeneity selection over full-color candidates, eight
-directions, directional least-squares filters trained on truths (in-sample
-too), successive approximation, steering kernel regression, robust and
-directional color differences, weaker and stronger corrections. Options:
-(a) accept AC3 as measured and ship, with a follow-up issue for the kernel
-(below); (b) hold the feature until a homogeneity-directed kernel over
-full-color candidates in bands of rows exists (the approach closest to LibRaw's,
-several days, more GPU memory per band); (c) loosen AC3 to the end-to-end
-picture (kernel and noise step), as AC6 already measures. Recommendation: (a)
-— the owner gets 8 s → 0.6 s and far less false color now, and the gap is a
-measured one for a follow-up.
+Both were ruled by the owner on 2026-11-16 and recorded in the PRD (rev 2);
+the reasoning that went to them stays in the PRD's Revisions and the commit
+history of this file.
 
-**RI-2. AC4 cannot hold at high ISO by construction.** Per-pixel and 16-pixel
-block ΔE against LibRaw's own output measure LibRaw's color noise once the
-noise step (R9, which the PRD asks for) removes ours: the X-T3 at ISO 6400
-has blocks 0.95 / 2.33 and edges 8.42; without the noise step its flat areas
-already differ from LibRaw's by a median ΔE of 5.3. Low-ISO files mostly meet AC4
-(X-E3 `DSCF5123`, and 7 of the 10 files at ISO 400 or lower; the other three
-are an X-E3 at ISO 200 with block p95 2.08 and two X100S files with dense
-fine detail). Proposal:
-measure AC4 on files at ISO 800 or lower, and judge high ISO by AC5 (against
-the system decoder) and AC6.
+- **RI-1 (AC3): accepted as measured.** The X-Trans kernel alone is 0.26 to
+  1.09 dB under LibRaw's three passes against binned truths, with 1.03x to
+  1.25x its edge chroma error, and on 11 of 28 real files under 0.95x of its
+  detail (0.82x to 0.94x). The feature ships with it; the sharper kernel is
+  #199. With the noise step, false color is 0.17x to 0.82x on all 28.
+- **RI-2 (AC4): applies at ISO 800 or lower.** At high ISO per-pixel and block
+  ΔE against LibRaw's output measure LibRaw's color noise once ours is removed
+  (X-T3 at ISO 6400: blocks 0.95 / 2.33, edges 8.42); high ISO is judged by AC5
+  and AC6. At low ISO 7 of 10 files meet it; the three just outside are part of
+  what the owner accepted.
+- **AC6: accepted as a whole**, with five files at detail 0.92x to 0.94x
+  (code review Q1: the sample suite records detail and lists those files; it
+  expects false color).
+
+## Questions for the product manager
+
+- **Q2 (AC2, E-M5 III).** AC2 asks the Bayer kernel's edge chroma error p95 to
+  be at most LibRaw AHD's; on the E-M5 III truth it is 2.04 against 1.97
+  (1.04x). The PRD's spike figures leave that file out ("smooth E-M5 III not
+  given"), and its CPSNR passes (47.99 against 47.92). The kernel is the #194
+  spike's, unchanged. `DemosaicTruthTests` expects AC2 as written and so
+  reports the E-M5 III when it is among `BAYER_SAMPLES`. Options: accept it as
+  measured, or restrict AC2's edge chroma bound to the files the spike gave
+  figures for. Nothing was loosened here.
+
+## Code review (first pass) and the fixes
+
+| # | Finding | Fix |
+|---|---|---|
+| C1 | An allocation failure of the noise reduction's scratch, after the demosaic was encoded, released a compute encoder without `endEncoding`: Metal aborts the process | `run` and `denoise` end the encoder on every throw (`do`/`catch` around the encoding). New fault `GPUDemosaic.InjectedFault.scratchAllocation` and test `scratchAllocationFallsBack`: Bayer and X-Trans decodes fall back to LibRaw's pixels, byte for byte, and the next decode is ours; `denoise` throws the failure. With the fix removed, the test aborts with `Command encoder released without endEncoding` (checked) |
+| C2 | A raw stopped while it rendered for an export came back as `.writeFailed` and could make the export read as finished with failures | `ExportJob.outcome(of:name:)` maps `CancellationError` to a new `Outcome.cancelled`, and `ExportJob.tally` counts it neither done nor failed, so `summary.cancelled` holds and no failure is listed. Test `stoppedExportIsNotAFailure`: an export render of a raw only LibRaw decodes, in a stopped task, is `cancelled` and writes nothing; the tally's rules |
+| C3 | The X-Trans sample suite still expected AC3 and AC4 as first written | AC4 expected only at ISO ≤ 800 (`LibRawDecoder.Output.iso`, new, from LibRaw's `iso_speed`); AC3 printed; AC6 false color expected, detail recorded and the files under 0.95x listed. The truth suite expects AC2 and prints the X-Trans half (AC3). No tolerance changed |
+| C4 | `status.md` said Blocked and named a rewritten commit | This file: Done, the rulings, the AC rows, the last full run at `522f41f` |
+| C5 | GPU tests returned and passed with no device; a compile failure did too | The three GPU suites (and the GPU tests of `GPUDemosaicDecodeTests`) are `.enabled(if: hasMetalDevice, "No Metal device: …")`; they call `GPUDemosaic.shared()` directly, so a compile failure fails them. Where the system decoder reads the small DNG (AC10, the export and render tests) they skip with `Test.cancel("…")`, saying why |
+| C6 | `photocli render`'s `decoder` and `demosaic` keys and `--demosaic` had no test | `renderReportsTheDemosaic`: ours (`gpu`, `xTrans`), `--demosaic libraw` (`libraw`, `chosen`), `Automatic` accepted, `ahd` refused (`invalidValue`), a JPEG `imageIO` with no `demosaic` |
+| C7 | The per-color blacks are read at an unchecked offset in LibRaw's struct | `SensorMosaic.blackLayoutHolds` checks `black`'s and `data_maximum`'s offsets against the header's layout (`curve` and `cblack` are too large for Swift to import); a mismatch makes the decode LibRaw's own (`Unsupported.blackLayout`). Test `blackLayout` |
+| C8 | Row padding of GPU outputs was never written, so two decodes' data could differ | The padding is zeroed when the output is allocated (`PageAlignedStorage.zeroPadding`) |
+| C9 | `Pixels` was `@unchecked Sendable` with only `Sendable` members | Plain `Sendable` |
 
 ## Design questions
 
@@ -391,7 +413,7 @@ option. No build command or layout change beyond `Sources/PhotoCore/Demosaic/`.
 
 ## Proposed follow-up issues
 
-- **enhancement: A sharper X-Trans demosaic (homogeneity-directed).** Body:
+- Filed as #199: **enhancement: A sharper X-Trans demosaic (homogeneity-directed).** Body:
   #196's kernel is 0.3 to 1.1 dB under LibRaw's three passes against binned
   truths, with thin color fringes along strong edges at angles its four
   directions don't follow, and a little softer on real files (detail 0.82x to
