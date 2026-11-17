@@ -227,3 +227,55 @@ enum DemosaicReference {
         return Picture(width: ow, height: oh, values: out)
     }
 }
+
+extension DemosaicReference {
+    /// One level of the color noise reduction (`denoise` in the Metal
+    /// source), on an RGBA image (four values a pixel), over the whole image.
+    static func denoiseLevel(_ rgba: [Float], width w: Int, height h: Int, a: SIMD3<Float>, b: SIMD3<Float>,
+                             luminanceStrength: Float, colorStrength: Float, step: Int) -> [Float] {
+        let taps = GPUDemosaic.ColorNoiseReduction.taps
+        let floor = GPUDemosaic.ColorNoiseReduction.varianceFloor
+        let hY2 = luminanceStrength * luminanceStrength, hC2 = colorStrength * colorStrength
+        var out = [Float](repeating: 0, count: w * h * 4)
+        for y in 0..<h {
+            for x in 0..<w {
+                let i = (y * w + x) * 4
+                let r0 = rgba[i], g0 = rgba[i + 1], b0 = rgba[i + 2]
+                let y0 = ((r0 + 2 * g0) + b0) * 0.25
+                let k1 = r0 - g0, k2 = b0 - g0
+                let vr = max(a.x * max(r0, 0) + b.x, floor)
+                let vg = max(a.y * max(g0, 0) + b.y, floor)
+                let vb = max(a.z * max(b0, 0) + b.z, floor)
+                let vy = ((vr + 4 * vg) + vb) * 0.0625
+                let iy = 1 / ((2 * vy) * hY2)
+                let i1 = 1 / ((2 * (vr + vg)) * hC2)
+                let i2 = 1 / ((2 * (vb + vg)) * hC2)
+                var n1: Float = 0, n2: Float = 0, den: Float = 0
+                for dy in -2...2 {
+                    let qy = mirror(y + dy * step, h)
+                    for dx in -2...2 {
+                        let qx = mirror(x + dx * step, w)
+                        let j = (qy * w + qx) * 4
+                        let yq = ((rgba[j] + 2 * rgba[j + 1]) + rgba[j + 2]) * 0.25
+                        let q1 = rgba[j] - rgba[j + 1], q2 = rgba[j + 2] - rgba[j + 1]
+                        let dl = yq - y0
+                        let d1 = q1 - k1, d2 = q2 - k2
+                        let ry = 1 + (dl * dl) * iy
+                        let rc = 1 + ((d1 * d1) * i1 + (d2 * d2) * i2)
+                        let weight = (taps[dy + 2] * taps[dx + 2]) / ((ry * ry) * (rc * rc))
+                        n1 = n1 + weight * q1
+                        n2 = n2 + weight * q2
+                        den = den + weight
+                    }
+                }
+                let c1 = n1 / den, c2 = n2 / den
+                let g = y0 - (c1 + c2) * 0.25
+                out[i] = max(g + c1, 0)
+                out[i + 1] = max(g, 0)
+                out[i + 2] = max(g + c2, 0)
+                out[i + 3] = 1
+            }
+        }
+        return out
+    }
+}

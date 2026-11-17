@@ -26,6 +26,15 @@ import PhotoFixtures
 ///   above what the process held before.
 enum DemosaicBenchmark {
     static func run(_ arguments: Arguments) async throws -> [String: any Sendable] {
+        // `--nr off` or `--nr hY,hC`: the noise reduction the decodes use (measuring and tuning).
+        if let nr = arguments.values["nr"] {
+            var arguments = arguments
+            arguments.values["nr"] = nil
+            let values = nr.split(separator: ",").compactMap { Float(String($0)) }
+            let reduction: GPUDemosaic.ColorNoiseReduction? = values.count >= 2
+                ? GPUDemosaic.ColorNoiseReduction(luminanceStrength: values[0], colorStrength: values[1]) : nil
+            return try await GPUDemosaic.$decodeNoiseReduction.withValue(reduction) { try await run(arguments) }
+        }
         let files = (arguments.values["files"] ?? arguments.values["file"] ?? "").split(separator: ":")
             .map { URL(fileURLWithPath: (String($0) as NSString).expandingTildeInPath) }
         guard !files.isEmpty else { throw BenchError("demosaic needs --files a.RAF:b.RW2") }
@@ -37,7 +46,7 @@ enum DemosaicBenchmark {
         case "pattern":
             for url in files {
                 let m = try LibRawDecoder.sensorMosaic(url)
-                print("\(url.lastPathComponent): \(m.pattern) \(m.width)x\(m.height) black \(m.blackPerSite.min() ?? 0)…\(m.blackPerSite.max() ?? 0) span \(m.whiteSpan) multipliers \(m.multipliers)")
+                let noise = NoiseModel.estimate(m); print("\(url.lastPathComponent): noise a \(noise.a) b \(noise.b) (σ at 0.18: \((noise.variance(at: 0.18)).squareRoot())) \(m.pattern) \(m.width)x\(m.height) black \(m.blackPerSite.min() ?? 0)…\(m.blackPerSite.max() ?? 0) span \(m.whiteSpan) multipliers \(m.multipliers)")
             }
             return [:]
         default: throw BenchError("--mode is truth, real, timing or memory")

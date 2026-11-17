@@ -123,7 +123,7 @@ extension LibRawDecoder {
         libraw_recycle(processor)
         try Task.checkCancellation()
 
-        let demosaiced = try GPUDemosaic.shared().run(mosaic, halfSize: half)
+        let demosaiced = try GPUDemosaic.shared().run(mosaic, halfSize: half, noiseReduction: GPUDemosaic.decodeNoiseReduction)
         guard let space = CGColorSpace(name: CGColorSpace.extendedLinearITUR_2020) else { throw Failure.noMemory }
         let decodedSize = CGSize(width: demosaiced.width, height: demosaiced.height)
         let data = demosaiced.data

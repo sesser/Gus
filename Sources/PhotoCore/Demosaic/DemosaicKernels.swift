@@ -269,5 +269,67 @@ enum DemosaicKernels {
         }
         out.write(float4(rgb[0], rgb[1], rgb[2], 1.0f), gid);
     }
+    // MARK: Color noise reduction
+
+    struct DenoiseParams {
+        uint width;
+        uint height;
+        int inTop;
+        int inRows;
+        int outTop;
+        int rowBegin;
+        int rowEnd;
+        int step;
+        float hY2;
+        float hC2;
+        float floor;
+        float aR; float aG; float aB;
+        float bR; float bG; float bB;
+    };
+
+    // One level of the edge-avoiding smoothing of the color differences: a 5 x 5 B3-spline
+    // window `step` pixels apart, each neighbour weighted down by its luminance and color
+    // difference from the center over what noise would make them differ. Luminance, the
+    // center's (R + 2G + B) / 4, is kept.
+    kernel void denoise(texture2d<float, access::read> src [[texture(0)]],
+                        texture2d<float, access::write> dst [[texture(1)]],
+                        constant DenoiseParams &p [[buffer(0)]], constant float *taps [[buffer(1)]],
+                        uint2 gid [[thread_position_in_grid]]) {
+        int x = int(gid.x), y = p.rowBegin + int(gid.y);
+        int w = int(p.width), h = int(p.height);
+        if (x >= w || y >= p.rowEnd) return;
+        float4 c0 = src.read(uint2(x, y - p.inTop));
+        float y0 = ((c0.r + 2.0f * c0.g) + c0.b) * 0.25f;
+        float k1 = c0.r - c0.g, k2 = c0.b - c0.g;
+        float vr = max(p.aR * max(c0.r, 0.0f) + p.bR, p.floor);
+        float vg = max(p.aG * max(c0.g, 0.0f) + p.bG, p.floor);
+        float vb = max(p.aB * max(c0.b, 0.0f) + p.bB, p.floor);
+        float vy = ((vr + 4.0f * vg) + vb) * 0.0625f;
+        float iy = 1.0f / ((2.0f * vy) * p.hY2);
+        float i1 = 1.0f / ((2.0f * (vr + vg)) * p.hC2);
+        float i2 = 1.0f / ((2.0f * (vb + vg)) * p.hC2);
+        float n1 = 0.0f, n2 = 0.0f, den = 0.0f;
+        int lowest = p.inTop, highest = p.inTop + p.inRows - 1;
+        for (int dy = -2; dy <= 2; dy++) {
+            int qy = clamp(mirror(y + dy * p.step, h), lowest, highest);
+            for (int dx = -2; dx <= 2; dx++) {
+                int qx = mirror(x + dx * p.step, w);
+                float4 q = src.read(uint2(qx, qy - p.inTop));
+                float yq = ((q.r + 2.0f * q.g) + q.b) * 0.25f;
+                float q1 = q.r - q.g, q2 = q.b - q.g;
+                float dl = yq - y0;
+                float d1 = q1 - k1, d2 = q2 - k2;
+                float ry = 1.0f + (dl * dl) * iy;
+                float rc = 1.0f + ((d1 * d1) * i1 + (d2 * d2) * i2);
+                float weight = (taps[dy + 2] * taps[dx + 2]) / ((ry * ry) * (rc * rc));
+                n1 = n1 + weight * q1;
+                n2 = n2 + weight * q2;
+                den = den + weight;
+            }
+        }
+        float c1 = n1 / den, c2 = n2 / den;
+        float g = y0 - (c1 + c2) * 0.25f;
+        dst.write(float4(max(g + c1, 0.0f), max(g, 0.0f), max(g + c2, 0.0f), 1.0f), uint2(x, y - p.outTop));
+    }
     """
 }
