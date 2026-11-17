@@ -18,8 +18,8 @@ same day (PRD rev 2): AC3 is accepted as measured (follow-up #199, a sharper
 X-Trans demosaic), AC4 applies only to files at ISO 800 or lower (high ISO is
 judged by AC5 and AC6), and AC6 is accepted as a whole (five of 28 files at
 detail 0.92x to 0.94x). The code review's findings C1 to C9 are fixed (below).
-One open question for the product manager, Q2 below (AC2's edge chroma error
-on the E-M5 III), does not block. Next: code review's second pass, the
+The owner also accepted AC2's edge chroma error on the E-M5 III as measured
+(Q2, closed). Next: code review's second pass, the
 designer is not needed (no UI change), then qa-tester.
 
 ## What was built
@@ -242,11 +242,12 @@ linear sRGB at the truth's top 10% of L* gradient.
 |---|---|---|---|---|
 | GX85 | **33.83** / 33.23 ✓ | **16.73** / 17.93 ✓ | 33.12 / 33.38 (−0.26) ✗ | 18.94 / 18.38 (1.03x) ✗ |
 | 5D II | **41.95** / 41.96 ✓ | **8.28** / 8.34 ✓ | 41.52 / 42.61 (−1.09) ✗ | 8.81 / 7.93 (1.11x) ✗ |
-| E-M5 III | **47.99** / 47.92 ✓ | 2.04 / 1.97 (1.04x; the PRD gives no figure for this smooth subject) | 47.58 / 47.91 (−0.33) ✗ | 2.54 / 2.03 (1.25x) ✗ |
+| E-M5 III | **47.99** / 47.92 ✓ | 2.04 / 1.97 (1.04x; accepted as measured, Q2) | 47.58 / 47.91 (−0.33) ✗ | 2.54 / 2.03 (1.25x) ✗ |
 
 AC2 (Bayer) is met for the files the PRD names; the E-M5 III's edge chroma
-error is 4% over LibRaw's (2.04 against 1.97), where the PRD gives no spike
-figure. AC3's synthetic half is **not met** (RI-1). The errors are thin
+error is 4% over LibRaw's (2.04 against 1.97), accepted as measured by the
+owner (Q2). AC3's synthetic half is not met as first written, and was accepted
+as measured (RI-1). The errors are thin
 colored fringes along strong straight edges at angles none of the four
 directions follows (error maps in the session's scratch folder; LibRaw's
 homogeneity choice handles them better).
@@ -339,7 +340,7 @@ pass.
 | R22 macOS 15 | Done | APIs: `MTLCompileOptions.mathMode` (15), linear textures, `makeBuffer(bytesNoCopy:)`; no `Float16` |
 | R23 version 12, plain bump | Done | `GPUDemosaicDecodeTests.pipelineVersion` |
 | AC1 | Done | as R1, R4 |
-| AC2 | Done for GX85 and 5D II; E-M5 III edge chroma error 2.04 against 1.97 (1.04x), see Q2 | `DemosaicTruthTests` (`BAYER_SAMPLES`; it expects AC2, so it reports the E-M5 III) |
+| AC2 | Done: GX85 and 5D II meet it; the E-M5 III's edge chroma error (2.04 against 1.97, 1.04x) accepted as measured (owner, Q2, 2026-11-16) | `DemosaicTruthTests` (`BAYER_SAMPLES`): CPSNR expected for every file, edge chroma expected for every file but the E-M5 III, whose value it records and lists |
 | AC3 | Accepted as measured (owner, RI-1, PRD rev 2; follow-up #199) | synthetic −0.26 to −1.09 dB; real files both bounds on 15 of 28. `DemosaicTruthTests` and `DemosaicXTransSampleTests` print it, they don't expect it |
 | AC4 | Done at ISO ≤ 800 as ruled (RI-2): X-E3 `DSCF5123` ✓; 7 of 10 files at ISO ≤ 400 ✓, three just outside, accepted in rev 2 | `DemosaicXTransSampleTests` expects it for files at ISO ≤ 800 (the file's ISO from LibRaw), except the three accepted files (`DSCF4179`, X-E3 ISO 200; `X1009619` and `X1009802`, X100S), for which it records and lists the numbers, as for AC6's detail (code review Q3) |
 | AC5 | Done | 10.4 against 10.0 |
@@ -378,14 +379,12 @@ history of this file.
 
 ## Questions for the product manager
 
-- **Q2 (AC2, E-M5 III).** AC2 asks the Bayer kernel's edge chroma error p95 to
-  be at most LibRaw AHD's; on the E-M5 III truth it is 2.04 against 1.97
-  (1.04x). The PRD's spike figures leave that file out ("smooth E-M5 III not
-  given"), and its CPSNR passes (47.99 against 47.92). The kernel is the #194
-  spike's, unchanged. `DemosaicTruthTests` expects AC2 as written and so
-  reports the E-M5 III when it is among `BAYER_SAMPLES`. Options: accept it as
-  measured, or restrict AC2's edge chroma bound to the files the spike gave
-  figures for. Nothing was loosened here.
+- **Q2 (AC2, E-M5 III): closed, owner's ruling 2026-11-16: accepted as
+  measured.** The Bayer kernel's edge chroma error p95 on the E-M5 III truth
+  is 2.04 against AHD's 1.97 (1.04x); its CPSNR passes (47.99 against 47.92).
+  `DemosaicTruthTests` records and lists that file's edge chroma error
+  (matched by file name) and still expects its CPSNR; the edge chroma bound
+  stays expected for every other Bayer file. No tolerance changed.
 
 ## QA (qa.md) Q1
 

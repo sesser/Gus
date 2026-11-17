@@ -144,8 +144,15 @@ struct DemosaicXTransSampleTests {
                 "Set BAYER_SAMPLES to Bayer raws (a list or a folder) to check AC2 and AC3 against a known truth"),
        .serialized)
 struct DemosaicTruthTests {
+    /// The owner accepted AC2's edge chroma bound on the E-M5 III's truth as
+    /// measured (2026-11-16, PRD Q2: 2.04 against AHD's 1.97, 1.04x; its
+    /// CPSNR passes): for it the edge chroma error is recorded and listed, as
+    /// AC4's and AC6's accepted files are. Matched by file-name suffix.
+    static let acceptedEdgeChroma = ["EM5MarkIII.ORF"]
+
     @Test("Against a known truth, the Bayer kernel is within 0.1 dB of AHD's CPSNR and at most its edge chroma error (AC2); X-Trans recorded (AC3)")
     func truth() async throws {
+        var accepted: [String] = []
         for url in DemosaicSamples.files("BAYER_SAMPLES") {
             let mosaic = try LibRawDecoder.sensorMosaic(url)
             guard mosaic.pattern.kind == .bayer else { continue }
@@ -181,10 +188,17 @@ struct DemosaicTruthTests {
                     // AC2 for Bayer. AC3's X-Trans half was accepted as measured (PRD rev 2): printed only.
                     if pattern.kind == .bayer {
                         #expect(scores[0].cpsnr >= scores[1].cpsnr - 0.1, "\(url.lastPathComponent): AC2 CPSNR")
-                        #expect(scores[0].chroma <= scores[1].chroma, "\(url.lastPathComponent): AC2 edge chroma error")
+                        if Self.acceptedEdgeChroma.contains(where: { url.lastPathComponent.hasSuffix($0) }) {
+                            accepted.append(String(format: "%@ %.2f against %.2f (%.2fx)", url.lastPathComponent,
+                                                   scores[0].chroma, scores[1].chroma, scores[0].chroma / scores[1].chroma))
+                        } else {
+                            #expect(scores[0].chroma <= scores[1].chroma, "\(url.lastPathComponent): AC2 edge chroma error")
+                        }
                     }
                 }
             }
         }
+        print("BAYER_SAMPLES: AC2 edge chroma error recorded, not expected, for the file the owner accepted: "
+              + (accepted.isEmpty ? "none among these samples" : accepted.joined(separator: "; ")))
     }
 }

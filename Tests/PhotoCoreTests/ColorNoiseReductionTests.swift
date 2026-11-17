@@ -210,10 +210,14 @@ struct ColorNoiseReductionTests {
         #expect(cleanEdges[cleanEdges.count * 95 / 100] <= 3)
     }
 
-    /// AC6's flat patches: a grey ramp with noise of a known level, as a DNG,
-    /// through our decode and LibRaw's: the color difference noise of ours,
-    /// in the flat interior, is at most LibRaw's. The model is estimated
-    /// from the file, as for a real raw.
+    /// AC6's flat patches and R9: a grey ramp with noise of a known level,
+    /// as a DNG, through our decode (with the baseline color noise step, and
+    /// once with it off) and LibRaw's. In the flat interior our color
+    /// difference noise is at most LibRaw's (AC6), at most half of it, and
+    /// below the same decode's with the step off: measured 0.25x (RGGB) and
+    /// 0.20x (X-Trans) of LibRaw's with the step, 0.85x and 0.69x without, so a
+    /// decode that skipped the step fails (QA Q1). The noise model is
+    /// estimated from the file, as for a real raw.
     @Test("Color noise in flat areas is at most LibRaw's, and a decode runs the baseline step", arguments: ["RGGB", "X-Trans"])
     func flatColorNoise(name: String) async throws {
         _ = try DemosaicKernelTests.engine()
