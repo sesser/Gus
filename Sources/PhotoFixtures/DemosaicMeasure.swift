@@ -2,37 +2,37 @@ import CoreImage
 import Foundation
 import PhotoCore
 
-// The measures of the #194 spike (`spike.md`, Question 2), used by name in
+// Shared by `photobench demosaic` and the tests. The measures of the #194 spike (`spike.md`, Question 2), used by name in
 // issue #196's acceptance criteria: false color and detail, block and edge
 // ΔE76, CPSNR and edge chroma error against a known truth. Taken over from
 // the spike's own measurement code (ours), tidied.
 
 /// Linear RGB pixels, row by row from the top.
-struct RGBPicture {
-    var width: Int
-    var height: Int
-    var pixels: [SIMD3<Float>]
+public struct RGBPicture: Sendable {
+    public var width: Int
+    public var height: Int
+    public var pixels: [SIMD3<Float>]
 
-    init(width: Int, height: Int, pixels: [SIMD3<Float>]) {
+    public init(width: Int, height: Int, pixels: [SIMD3<Float>]) {
         self.width = width
         self.height = height
         self.pixels = pixels
     }
 
     /// From RGBA floats.
-    init(rgba: [Float], width: Int, height: Int) {
+    public init(rgba: [Float], width: Int, height: Int) {
         self.width = width
         self.height = height
         pixels = (0..<(width * height)).map { SIMD3(rgba[$0 * 4], rgba[$0 * 4 + 1], rgba[$0 * 4 + 2]) }
     }
 
-    subscript(x: Int, y: Int) -> SIMD3<Float> { pixels[y * width + x] }
+    public subscript(x: Int, y: Int) -> SIMD3<Float> { pixels[y * width + x] }
 
-    func map(_ body: (SIMD3<Float>) -> SIMD3<Float>) -> RGBPicture {
+    public func map(_ body: (SIMD3<Float>) -> SIMD3<Float>) -> RGBPicture {
         RGBPicture(width: width, height: height, pixels: pixels.map(body))
     }
 
-    func cropped(x: Int, y: Int, width w: Int, height h: Int) -> RGBPicture {
+    public func cropped(x: Int, y: Int, width w: Int, height h: Int) -> RGBPicture {
         var out: [SIMD3<Float>] = []
         out.reserveCapacity(w * h)
         for row in y..<(y + h) { out.append(contentsOf: pixels[(row * width + x)..<(row * width + x + w)]) }
@@ -40,21 +40,21 @@ struct RGBPicture {
     }
 
     /// The middle `size` x `size` (or less, if the picture is smaller).
-    func middle(_ size: Int) -> RGBPicture {
+    public func middle(_ size: Int) -> RGBPicture {
         let w = min(size, width), h = min(size, height)
         return cropped(x: (width - w) / 2, y: (height - h) / 2, width: w, height: h)
     }
 }
 
-enum Measure {
-    static let working = CGColorSpace(name: CGColorSpace.extendedLinearITUR_2020)!
+public enum Measure {
+    public static let working = CGColorSpace(name: CGColorSpace.extendedLinearITUR_2020)!
 
     /// A 32-bit float context in the working space: renders a decode's
     /// values as they are (half floats exactly, 16-bit integers to Float).
-    static let context = CIContext(options: [.workingColorSpace: working, .workingFormat: CIFormat.RGBAf,
+    public static let context = CIContext(options: [.workingColorSpace: working, .workingFormat: CIFormat.RGBAf,
                                              .cacheIntermediates: false])
 
-    static func render(_ image: CIImage) -> RGBPicture {
+    public static func render(_ image: CIImage) -> RGBPicture {
         let extent = image.extent.integral
         let w = Int(extent.width), h = Int(extent.height)
         var floats = [Float](repeating: 0, count: w * h * 4)
@@ -67,26 +67,26 @@ enum Measure {
 
     // MARK: Color
 
-    static let rec2020ToXYZ: (SIMD3<Float>, SIMD3<Float>, SIMD3<Float>) = {
+    public static let rec2020ToXYZ: (SIMD3<Float>, SIMD3<Float>, SIMD3<Float>) = {
         let m = WorkingSpace.toXYZ
         return (SIMD3<Float>(m.r0), SIMD3<Float>(m.r1), SIMD3<Float>(m.r2))
     }()
-    static let d65 = SIMD3<Float>(Chromaticity.d65.xyz)
+    public static let d65 = SIMD3<Float>(Chromaticity.d65.xyz)
 
     /// CIELAB (D65 white) of linear Rec. 2020, negative values clipped to 0.
-    @inline(__always) static func lab(_ c: SIMD3<Float>) -> SIMD3<Float> {
+    @inline(__always) public static func lab(_ c: SIMD3<Float>) -> SIMD3<Float> {
         labOf(c, rec2020ToXYZ)
     }
 
-    static let srgbToXYZ: (SIMD3<Float>, SIMD3<Float>, SIMD3<Float>) = (
+    public static let srgbToXYZ: (SIMD3<Float>, SIMD3<Float>, SIMD3<Float>) = (
         SIMD3(0.4124, 0.3576, 0.1805), SIMD3(0.2126, 0.7152, 0.0722), SIMD3(0.0193, 0.1192, 0.9505))
 
     /// CIELAB of linear sRGB (a synthetic truth's camera space).
-    @inline(__always) static func labSRGB(_ c: SIMD3<Float>) -> SIMD3<Float> {
+    @inline(__always) public static func labSRGB(_ c: SIMD3<Float>) -> SIMD3<Float> {
         labOf(c, srgbToXYZ)
     }
 
-    @inline(__always) static func labOf(_ c: SIMD3<Float>, _ m: (SIMD3<Float>, SIMD3<Float>, SIMD3<Float>)) -> SIMD3<Float> {
+    @inline(__always) public static func labOf(_ c: SIMD3<Float>, _ m: (SIMD3<Float>, SIMD3<Float>, SIMD3<Float>)) -> SIMD3<Float> {
         let p = pointwiseMax(c, .zero)
         let xyz = SIMD3((p * m.0).sum(), (p * m.1).sum(), (p * m.2).sum()) / d65
         @inline(__always) func f(_ t: Float) -> Float { t > 216.0 / 24389 ? cbrt(t) : (24389.0 / 27 * t + 16) / 116 }
@@ -94,7 +94,7 @@ enum Measure {
         return SIMD3(116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz))
     }
 
-    static func encode(_ v: Float) -> Float {
+    public static func encode(_ v: Float) -> Float {
         let x = min(max(v, 0), 1)
         return x <= 0.0031308 ? 12.92 * x : 1.055 * pow(x, 1 / 2.4) - 0.055
     }
@@ -102,12 +102,12 @@ enum Measure {
     /// The camera RGB of a decode through the color step's numbers on the
     /// CPU (white balance gain, clip, matrix and exposure, the tone curve
     /// by table), so a ΔE is of the photo as it is shown.
-    struct ColorStep {
+    public struct ColorStep {
         var gain: SIMD3<Float>
         var rows: (SIMD3<Float>, SIMD3<Float>, SIMD3<Float>)
         var curve: [Float]
 
-        init?(_ step: CameraColorStep, temperature: Double? = nil) {
+        public init?(_ step: CameraColorStep, temperature: Double? = nil) {
             let transform = step.transform(temperature: temperature, tint: nil)
             guard let gain = transform.gain, let matrix = transform.matrix else { return nil }
             self.gain = SIMD3<Float>(gain)
@@ -119,7 +119,7 @@ enum Measure {
             }
         }
 
-        @inline(__always) func apply(_ camera: SIMD3<Float>) -> SIMD3<Float> {
+        @inline(__always) public func apply(_ camera: SIMD3<Float>) -> SIMD3<Float> {
             let balanced = pointwiseMin(pointwiseMax(camera * gain, .zero), SIMD3(repeating: 1))
             let (a, b, c) = rows
             let linear = SIMD3((balanced * a).sum(), (balanced * b).sum(), (balanced * c).sum())
@@ -134,9 +134,9 @@ enum Measure {
 
     // MARK: Differences
 
-    struct Summary: CustomStringConvertible {
-        var median: Double, p95: Double, p99: Double, mean: Double, count: Int
-        init(_ values: [Float]) {
+    public struct Summary: CustomStringConvertible, Sendable {
+        public var median: Double, p95: Double, p99: Double, mean: Double, count: Int
+        public init(_ values: [Float]) {
             let s = values.sorted()
             count = s.count
             func q(_ p: Double) -> Double { s.isEmpty ? .nan : Double(s[min(s.count - 1, Int(Double(s.count) * p))]) }
@@ -145,11 +145,11 @@ enum Measure {
             p99 = q(0.99)
             mean = s.isEmpty ? .nan : Double(s.reduce(0, +)) / Double(s.count)
         }
-        var description: String { String(format: "median %.2f, p95 %.2f, p99 %.2f (mean %.2f, n %d)", median, p95, p99, mean, count) }
+        public var description: String { String(format: "median %.2f, p95 %.2f, p99 %.2f (mean %.2f, n %d)", median, p95, p99, mean, count) }
     }
 
     /// Lab of each 16-pixel block's mean (a `border` left out).
-    static func blockLab(_ p: RGBPicture, block: Int = 16, border: Int = 16) -> [SIMD3<Float>] {
+    public static func blockLab(_ p: RGBPicture, block: Int = 16, border: Int = 16) -> [SIMD3<Float>] {
         var out: [SIMD3<Float>] = []
         for top in stride(from: border, through: p.height - border - block, by: block) {
             for left in stride(from: border, through: p.width - border - block, by: block) {
@@ -161,12 +161,12 @@ enum Measure {
         return out
     }
 
-    static func deltaE(_ a: [SIMD3<Float>], _ b: [SIMD3<Float>]) -> [Float] {
+    public static func deltaE(_ a: [SIMD3<Float>], _ b: [SIMD3<Float>]) -> [Float] {
         zip(a, b).map { (($0 - $1) * ($0 - $1)).sum().squareRoot() }
     }
 
     /// Edge pixels: the top `fraction` of the L* gradient (central differences), a border left out.
-    static func edgeMask(_ labs: [SIMD3<Float>], width: Int, height: Int, fraction: Double = 0.1, border: Int = 8) -> [Bool] {
+    public static func edgeMask(_ labs: [SIMD3<Float>], width: Int, height: Int, fraction: Double = 0.1, border: Int = 8) -> [Bool] {
         var gradient = [Float](repeating: -1, count: width * height)
         for y in border..<(height - border) {
             for x in border..<(width - border) {
@@ -182,15 +182,15 @@ enum Measure {
 
     /// Per pixel ΔE76 of `a` against `reference`, over all pixels, at edges,
     /// the edges' chroma part (Δa, Δb) and away from edges.
-    struct PixelComparison: CustomStringConvertible {
-        var all: Summary, edges: Summary, edgeChroma: Summary, flat: Summary
-        var description: String {
+    public struct PixelComparison: CustomStringConvertible, Sendable {
+        public var all: Summary, edges: Summary, edgeChroma: Summary, flat: Summary
+        public var description: String {
             String(format: "ΔE all %.2f/%.2f, flat %.2f/%.2f, edges %.2f/%.2f; edge chroma %.2f/%.2f (median/p95)",
                    all.median, all.p95, flat.median, flat.p95, edges.median, edges.p95, edgeChroma.median, edgeChroma.p95)
         }
     }
 
-    static func compare(_ a: [SIMD3<Float>], _ reference: [SIMD3<Float>], edges: [Bool], width: Int, height: Int,
+    public static func compare(_ a: [SIMD3<Float>], _ reference: [SIMD3<Float>], edges: [Bool], width: Int, height: Int,
                         border: Int = 8) -> PixelComparison {
         var all: [Float] = [], edge: [Float] = [], chroma: [Float] = [], flat: [Float] = []
         for y in border..<(height - border) {
@@ -213,7 +213,7 @@ enum Measure {
     /// No-reference measures of one picture at its edges: the high-pass of
     /// a* and b* (the picture less its 5 x 5 box mean; false color) and of
     /// L* (detail, which blur lowers). Means over the edge pixels.
-    static func falseColor(_ labs: [SIMD3<Float>], edges: [Bool], width: Int, height: Int) -> (chroma: Double, detail: Double) {
+    public static func falseColor(_ labs: [SIMD3<Float>], edges: [Bool], width: Int, height: Int) -> (chroma: Double, detail: Double) {
         var chroma = 0.0, detail = 0.0, n = 0.0
         for y in 8..<(height - 8) {
             for x in 8..<(width - 8) where edges[y * width + x] {
@@ -229,7 +229,7 @@ enum Measure {
     }
 
     /// Color PSNR over the sRGB-encoded values (dB), a border left out.
-    static func cpsnr(_ a: RGBPicture, _ truth: RGBPicture, border: Int = 8) -> Double {
+    public static func cpsnr(_ a: RGBPicture, _ truth: RGBPicture, border: Int = 8) -> Double {
         var sum = 0.0, n = 0.0
         for y in border..<(truth.height - border) {
             for x in border..<(truth.width - border) {

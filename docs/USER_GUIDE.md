@@ -356,7 +356,16 @@ photo, and at these zooms it can lag until you pause.
 
 **Raw files macOS can't decode**: when the macOS raw decoder has no image for a
 raw file (on macOS 27.2, the Fujifilm X-E3's lossless compressed files), the app decodes it with its own
-decoder (LibRaw) instead of showing nothing. Such a photo is shown with a
+decoder (LibRaw) instead of showing nothing. The app turns the sensor's
+mosaic into a picture itself, on the graphics processor, for Fujifilm X-Trans
+and ordinary (Bayer) sensors: a full-size X-E3 photo, at 100% or in an export,
+is ready in well under a second (it took about eight). It also cleans up the
+color speckles of high ISO photos and false color along fine edges, with a
+fixed amount suited to each file's own noise; there is no control for it, and
+**Luminance** under Noise Reduction works on top of it as before. Edges and
+small colored details keep their color. Other sensors (and any file the
+graphics processor can't handle) are decoded the slower way, as before.
+Such a photo is shown with a
 built-in profile and a baseline look (brightness and contrast) made to sit
 close to, not identical with, a raw macOS decodes, so the two kinds start from
 about the same place in one library. The look was matched on Fujifilm files;
@@ -665,6 +674,12 @@ same window under its own name.
 - Catalog: `~/Library/Application Support/<app folder>/Library/catalog.sqlite`
 - Previews: `~/Library/Caches/<bundle id>/Previews/` (safe to delete; regenerated on demand)
 
+After an update that changes how photos are drawn, every preview and
+thumbnail in the library is made again once, as you browse: the grid and the
+loupe fill in as they do after an import. The version that draws raws macOS
+can't decode with the app's own demosaic (above) is one such update. Your edits
+are not touched.
+
 ## Development options
 
 Every launch option takes exactly one value (AppKit treats a stray argument as a
@@ -675,6 +690,7 @@ document to open, which keeps the main window from appearing).
 | `--library-root <folder>` | use a self-contained catalog and cache in `<folder>` |
 | `--benchmark-scroll <report.json>` | run the grid scroll benchmark, write the report, quit |
 | `--debug-script "<commands>"` | drive the UI and take window snapshots (see `DebugScript.swift`) |
+| `--demosaic libraw` | decode raws macOS can't decode with LibRaw's own demosaic, as before the app's (for comparing; `RAW_DEMOSAIC=libraw` in the environment does the same for `photocli` and the tests, and `photocli render --demosaic libraw` for one render) |
 
 A test launch must name its library with `--library-root`: a copy of the app
 with a bundle identifier other than the release one (such as

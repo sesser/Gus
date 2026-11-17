@@ -84,11 +84,23 @@ public final class GPUDemosaic: @unchecked Sendable {
                 let row = storage.pointer.advanced(by: y * bytesPerRow)
                 for i in 0..<(width * 4) {
                     out[y * width * 4 + i] = precision == .half
-                        ? Float(row.load(fromByteOffset: i * 2, as: Float16.self))
+                        ? GPUDemosaic.float(half: row.load(fromByteOffset: i * 2, as: UInt16.self))
                         : row.load(fromByteOffset: i * 4, as: Float.self)
                 }
             }
             return out
+        }
+    }
+
+    /// An IEEE half float's value (Swift's `Float16` is not available on
+    /// every Mac the package builds for).
+    public static func float(half bits: UInt16) -> Float {
+        let sign: Float = bits & 0x8000 != 0 ? -1 : 1
+        let exponent = Int((bits >> 10) & 0x1f), fraction = Float(bits & 0x3ff)
+        switch exponent {
+        case 0: return sign * fraction * 0x1p-24
+        case 31: return fraction == 0 ? sign * .infinity : .nan
+        default: return sign * (1 + fraction / 1024) * Float(sign: .plus, exponent: exponent - 15, significand: 1)
         }
     }
 
@@ -114,9 +126,16 @@ public final class GPUDemosaic: @unchecked Sendable {
         var neighbours: any MTLBuffer
     }
 
-    /// Demosaics run, for tests that check a white balance change runs none (AC10).
-    public static var runCount: Int { counter.withLock { $0 } }
-    private static let counter = Mutex(0)
+    /// Counts the demosaics run in the work of a task (tests: a white
+    /// balance change runs none, AC10; a cancelled decode runs none, AC13).
+    public final class RunCounter: Sendable {
+        private let count = Mutex(0)
+        public init() {}
+        public var value: Int { count.withLock { $0 } }
+        func increment() { count.withLock { $0 += 1 } }
+    }
+
+    @TaskLocal public static var runCounter: RunCounter?
 
     init(device: any MTLDevice) throws(Failure) {
         guard let queue = device.makeCommandQueue() else { throw .allocation("a command queue") }
@@ -263,7 +282,7 @@ public final class GPUDemosaic: @unchecked Sendable {
         withExtendedLifetime((rawStorage, raw, green, outputBuffer, scratch)) {}
         if let error = commands.error { throw .execution(String(describing: error)) }
         guard commands.status == .completed else { throw .execution("command buffer status \(commands.status.rawValue)") }
-        Self.counter.withLock { $0 += 1 }
+        Self.runCounter?.increment()
         return Image(width: width, height: height, bytesPerRow: bytesPerRow, precision: precision, storage: storage,
                      gpuSeconds: commands.gpuEndTime - commands.gpuStartTime)
     }

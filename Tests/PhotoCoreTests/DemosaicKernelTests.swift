@@ -301,6 +301,14 @@ struct DemosaicKernelTests {
         }
     }
 
+    @Test("Half floats read back as their values")
+    func halfFloats() {
+        let cases: [(UInt16, Float)] = [(0x0000, 0), (0x3C00, 1), (0xC000, -2), (0x0001, 0x1p-24), (0x0400, 0x1p-14),
+                                        (0x7BFF, 65504), (0x3555, 0.333251953125), (0x7C00, .infinity)]
+        for (bits, value) in cases { #expect(GPUDemosaic.float(half: bits) == value, "\(bits)") }
+        #expect(GPUDemosaic.float(half: 0x7E00).isNaN)
+    }
+
     @Test("The X-Trans tables exist for every phase of the pattern, and no other 6 x 6 is taken for X-Trans")
     func tablesForEveryPhase() {
         for y in 0..<6 {

@@ -63,7 +63,7 @@ extension LibRawDecoder {
                 for y in 0..<height {
                     for i in 0..<(width * 4) {
                         out[y * width * 4 + i] = isHalfFloat
-                            ? Float(raw.load(fromByteOffset: y * bytesPerRow + i * 2, as: Float16.self)) * 65535
+                            ? GPUDemosaic.float(half: raw.load(fromByteOffset: y * bytesPerRow + i * 2, as: UInt16.self)) * 65535
                             : Float(raw.load(fromByteOffset: y * bytesPerRow + i * 2, as: UInt16.self))
                     }
                 }

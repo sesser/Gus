@@ -1,0 +1,159 @@
+import CoreImage
+import Foundation
+import PhotoFixtures
+import Testing
+@testable import PhotoCore
+
+/// Issue #196's quality criteria on real raws, which are never committed:
+///
+///     XTRANS_SAMPLES=a.RAF:b.RAF (or a folder) swift test --filter DemosaicXTransSampleTests
+///     BAYER_SAMPLES=a.RW2:b.CR2 swift test --filter DemosaicTruthTests
+///
+/// Each is skipped, saying why, when its variable is not set. The measures
+/// are the #194 spike's (`Measure`, in PhotoFixtures, shared with
+/// `photobench demosaic`), on the middle 2048 x 2048 of each frame.
+enum DemosaicSamples {
+    static func files(_ variable: String) -> [URL] {
+        guard let value = ProcessInfo.processInfo.environment[variable], !value.isEmpty else { return [] }
+        var isFolder: ObjCBool = false
+        if !value.contains(":"), FileManager.default.fileExists(atPath: value, isDirectory: &isFolder), isFolder.boolValue {
+            let folder = URL(fileURLWithPath: value)
+            return ((try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? [])
+                .filter { ["raf", "rw2", "cr2", "orf", "dng", "nef", "arw"].contains($0.pathExtension.lowercased()) }
+                .sorted { $0.lastPathComponent < $1.lastPathComponent }
+        }
+        return value.split(separator: ":").map { URL(fileURLWithPath: String($0)) }
+    }
+
+    /// A decode's image before its color step, as floats.
+    static func linear(_ url: URL, _ choice: LibRawDecoder.DemosaicChoice,
+                       noiseReduction: GPUDemosaic.ColorNoiseReduction? = .baseline) throws -> (RGBPicture, LibRawDecoder.Output) {
+        let output = try GPUDemosaic.$decodeNoiseReduction.withValue(noiseReduction) {
+            try LibRawDecoder.decode(url, lensCorrections: false, demosaic: choice)
+        }
+        return (Measure.render(output.linear), output)
+    }
+}
+
+@Suite(.enabled(if: !DemosaicSamples.files("XTRANS_SAMPLES").isEmpty,
+                "Set XTRANS_SAMPLES to X-Trans raws (a list or a folder) to check AC3, AC4, AC6, AC9 and AC12 on them"),
+       .serialized)
+struct DemosaicXTransSampleTests {
+    struct Row {
+        var falseColor: Double, detail: Double, libRawFalseColor: Double, libRawDetail: Double
+        var blockMedian: Double, blockP95: Double, edgeMedian: Double
+        var falseColorRatio: Double { falseColor / libRawFalseColor }
+        var detailRatio: Double { detail / libRawDetail }
+    }
+
+    static func measure(_ url: URL, ours: RGBPicture, libRaw: RGBPicture, step: Measure.ColorStep, size: Int = 2048) -> Row {
+        let a = ours.middle(size), b = libRaw.middle(size)
+        let w = b.width, h = b.height
+        let oursLab = a.pixels.map { Measure.lab(step.apply($0)) }, libLab = b.pixels.map { Measure.lab(step.apply($0)) }
+        let libEdges = Measure.edgeMask(libLab, width: w, height: h), ourEdges = Measure.edgeMask(oursLab, width: w, height: h)
+        let fcOurs = Measure.falseColor(oursLab, edges: ourEdges, width: w, height: h)
+        let fcLib = Measure.falseColor(libLab, edges: libEdges, width: w, height: h)
+        let blocks = Measure.Summary(Measure.deltaE(Measure.blockLab(a.map(step.apply)), Measure.blockLab(b.map(step.apply))))
+        let pixels = Measure.compare(oursLab, libLab, edges: libEdges, width: w, height: h)
+        return Row(falseColor: fcOurs.chroma, detail: fcOurs.detail, libRawFalseColor: fcLib.chroma, libRawDetail: fcLib.detail,
+                   blockMedian: blocks.median, blockP95: blocks.p95, edgeMedian: pixels.edges.median)
+    }
+
+    @Test("Real X-Trans raws against LibRaw's own demosaic: false color, detail, ΔE (AC3, AC4, AC6)")
+    func quality() throws {
+        for url in DemosaicSamples.files("XTRANS_SAMPLES") {
+            let (libRaw, lib) = try DemosaicSamples.linear(url, .libRaw)
+            let (kernel, kernelOutput) = try DemosaicSamples.linear(url, .automatic, noiseReduction: nil)
+            let (ours, _) = try DemosaicSamples.linear(url, .automatic)
+            guard case .gpu(.xTrans) = kernelOutput.demosaic else {
+                print("XTRANS_SAMPLES: \(url.lastPathComponent): not demosaiced by the X-Trans kernel (\(kernelOutput.demosaic))")
+                continue
+            }
+            let step = try #require(Measure.ColorStep(lib.step), "\(url.lastPathComponent): no usable color")
+            let alone = Self.measure(url, ours: kernel, libRaw: libRaw, step: step)
+            let reduced = Self.measure(url, ours: ours, libRaw: libRaw, step: step)
+            let decoder = SystemRAWDecoder.reads(url) ? "system decoder reads it" : "LibRaw only"
+            print(String(format: "XTRANS_SAMPLES: %@ (%@ %@, %@): LibRaw false color %.2f, detail %.2f; kernel %.2fx at detail %.2fx; "
+                         + "with noise reduction %.2fx at %.2fx; blocks ΔE %.2f / %.2f, edge ΔE median %.2f",
+                         url.lastPathComponent, lib.cameraMake, lib.cameraModel, decoder, alone.libRawFalseColor, alone.libRawDetail,
+                         alone.falseColorRatio, alone.detailRatio, reduced.falseColorRatio, reduced.detailRatio,
+                         reduced.blockMedian, reduced.blockP95, reduced.edgeMedian))
+            // AC6 (Must): with the noise reduction, false color at most LibRaw's at detail at least 0.95 of its.
+            #expect(reduced.falseColorRatio <= 1.0, "\(url.lastPathComponent): AC6 false color")
+            #expect(reduced.detailRatio >= 0.95, "\(url.lastPathComponent): AC6 detail")
+            // AC3: the kernel alone.
+            #expect(alone.falseColorRatio <= 1.0, "\(url.lastPathComponent): AC3 false color")
+            #expect(alone.detailRatio >= 0.95, "\(url.lastPathComponent): AC3 detail")
+            // AC4: at block scale the two agree.
+            #expect(reduced.blockMedian <= 1.0 && reduced.blockP95 <= 2.0, "\(url.lastPathComponent): AC4 blocks")
+            #expect(reduced.edgeMedian <= 5, "\(url.lastPathComponent): AC4 edges")
+        }
+    }
+
+    @Test("An X-E3's frame is the camera's and its lens corrections apply; a GPU failure gives LibRaw's pixels (AC9, AC12)")
+    func frameAndFallback() throws {
+        for url in DemosaicSamples.files("XTRANS_SAMPLES") {
+            let output = try LibRawDecoder.decode(url)
+            guard output.cameraModel == "X-E3" else { continue }
+            #expect(output.demosaic == .gpu(.xTrans))
+            #expect(output.size == CGSize(width: 6000, height: 4000))
+            #expect(output.hasLensCorrections)
+            let failed = try GPUDemosaic.$injectedFault.withValue(.execution) { try LibRawDecoder.decode(url, longEdge: 1500) }
+            let libRaw = try LibRawDecoder.decode(url, longEdge: 1500, demosaic: .libRaw)
+            #expect(failed.demosaic == .libRaw(reason: GPUDemosaic.Failure.injected.description))
+            #expect(failed.pixels.data == libRaw.pixels.data)
+            #expect(try LibRawDecoder.decode(url, longEdge: 1500).demosaic == .gpu(.xTrans))
+        }
+    }
+}
+
+/// AC2 and AC3's synthetic half: a Bayer raw binned 2 x 2 (each color from
+/// its own sites, nothing interpolated) is a full-color picture of real
+/// detail; sampled through RGGB and X-Trans into DNGs, it is demosaiced by
+/// ours and by LibRaw's own (AHD, three-pass X-Trans), each compared with
+/// the truth.
+@Suite(.enabled(if: !DemosaicSamples.files("BAYER_SAMPLES").isEmpty,
+                "Set BAYER_SAMPLES to Bayer raws (a list or a folder) to check AC2 and AC3 against a known truth"),
+       .serialized)
+struct DemosaicTruthTests {
+    @Test("Against a known truth, ours is within 0.1 dB of LibRaw's CPSNR and at most its edge chroma error (AC2, AC3)")
+    func truth() async throws {
+        for url in DemosaicSamples.files("BAYER_SAMPLES") {
+            let mosaic = try LibRawDecoder.sensorMosaic(url)
+            guard mosaic.pattern.kind == .bayer else { continue }
+            let binned = try GPUDemosaic.shared().run(mosaic, halfSize: true, precision: .float, noiseReduction: nil)
+            let w = binned.width / 6 * 6, h = binned.height / 6 * 6
+            let whole = RGBPicture(rgba: binned.floats(), width: binned.width, height: binned.height)
+            let truth = whole.cropped(x: 0, y: 0, width: w, height: h)
+                .map { (pointwiseMin(pointwiseMax($0, .zero), SIMD3(repeating: 1)) * 65535).rounded(.toNearestOrEven) / 65535 }
+            let truthLab = truth.pixels.map(Measure.labSRGB)
+            let edges = Measure.edgeMask(truthLab, width: w, height: h)
+            try await RepositoryFiles.withTemporaryDirectory { folder in
+                for pattern in [CFAPattern.rggb, .xTransSample] {
+                    var values = Data(count: w * h * 2)
+                    values.withUnsafeMutableBytes { raw in
+                        let out = raw.bindMemory(to: UInt16.self)
+                        for y in 0..<h { for x in 0..<w { out[y * w + x] = UInt16(truth[x, y][pattern.color(x: x, y: y)] * 65535).littleEndian } }
+                    }
+                    let dng = folder.appending(path: "\(url.deletingPathExtension().lastPathComponent)-\(pattern.kind).dng")
+                    var options = SyntheticDNG.Options(width: w, height: h, seed: 1)
+                    options.cfaPeriod = pattern.period
+                    options.cfaColors = pattern.colors.map(UInt8.init)
+                    try SyntheticDNG.write(to: dng, options: options, mosaic: values)
+                    // The demosaic alone: the truth has no noise model to reduce.
+                    var scores: [(cpsnr: Double, chroma: Double)] = []
+                    for choice in [LibRawDecoder.DemosaicChoice.automatic, .libRaw] {
+                        let (picture, _) = try DemosaicSamples.linear(dng, choice, noiseReduction: nil)
+                        let labs = picture.pixels.map(Measure.labSRGB)
+                        let comparison = Measure.compare(labs, truthLab, edges: edges, width: w, height: h)
+                        scores.append((Measure.cpsnr(picture, truth), comparison.edgeChroma.p95))
+                    }
+                    print(String(format: "BAYER_SAMPLES: %@ through %@: CPSNR ours %.2f dB, LibRaw %.2f dB; edge chroma error p95 ours %.2f, LibRaw %.2f",
+                                 url.lastPathComponent, "\(pattern.kind)", scores[0].cpsnr, scores[1].cpsnr, scores[0].chroma, scores[1].chroma))
+                    #expect(scores[0].cpsnr >= scores[1].cpsnr - 0.1, "\(url.lastPathComponent) \(pattern.kind): CPSNR")
+                    #expect(scores[0].chroma <= scores[1].chroma, "\(url.lastPathComponent) \(pattern.kind): edge chroma error")
+                }
+            }
+        }
+    }
+}

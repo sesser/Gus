@@ -43,8 +43,12 @@ public struct PreviewCacheKey: Hashable, Sendable, CustomStringConvertible {
     /// dehaze and local tone estimates are measured on the image with its
     /// edge pixels repeated, so the frame's edge no longer darkens with
     /// Shadows or Highlights or jumps with Dehaze, dehaze-above-white, issue
-    /// #73; a plain bump, every preview is made again).
-    public static let currentPipelineVersion = 11
+    /// #73; a plain bump, every preview is made again; 12: raws LibRaw
+    /// decodes are demosaiced by our own GPU kernels and get the baseline
+    /// color noise reduction, gpu-demosaic, issue #196; a plain bump, every
+    /// preview is made again, those of photos that render as before too,
+    /// since a key cannot say which decoder a file gets).
+    public static let currentPipelineVersion = 12
 
     public let contentHash: String
     public let editStackHash: String

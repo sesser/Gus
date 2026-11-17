@@ -1,7 +1,7 @@
 import CoreImage
 import Darwin
-import ImageIO
 import Foundation
+import ImageIO
 import PhotoCore
 import PhotoFixtures
 
@@ -43,10 +43,11 @@ enum DemosaicBenchmark {
         case "real": return try real(arguments, files: files)
         case "timing": return try timing(arguments, files: files)
         case "memory": return try memory(files[0])
+        case "live": return try await live(arguments, files: files)
         case "pattern":
             for url in files {
                 let m = try LibRawDecoder.sensorMosaic(url)
-                let noise = NoiseModel.estimate(m); print("\(url.lastPathComponent): noise a \(noise.a) b \(noise.b) (σ at 0.18: \((noise.variance(at: 0.18)).squareRoot())) \(m.pattern) \(m.width)x\(m.height) black \(m.blackPerSite.min() ?? 0)…\(m.blackPerSite.max() ?? 0) span \(m.whiteSpan) multipliers \(m.multipliers)")
+                let noise = NoiseModel.estimate(m); print("\(url.lastPathComponent): system decoder \(SystemRAWDecoder.reads(url) ? "reads it" : "no image"); noise a \(noise.a) b \(noise.b) (σ at 0.18: \((noise.variance(at: 0.18)).squareRoot())) \(m.pattern) \(m.width)x\(m.height) black \(m.blackPerSite.min() ?? 0)…\(m.blackPerSite.max() ?? 0) span \(m.whiteSpan) multipliers \(m.multipliers)")
             }
             return [:]
         default: throw BenchError("--mode is truth, real, timing or memory")
@@ -255,6 +256,62 @@ enum DemosaicBenchmark {
             rows.append(row)
         }
         return ["machine": machineDescription(), "rows": rows]
+    }
+
+    // MARK: Live frames
+
+    /// The loupe's live frames for a raw (AC15, R18): the fitted session's
+    /// first frame, then white balance and exposure frames from the kept
+    /// decode; the 100% renderer's full decode, its first region (a
+    /// 3024 x 1800 window in the middle) and white balance regions. Compare
+    /// demosaics with `RAW_DEMOSAIC=libraw` (the 100% renderer decodes in a
+    /// task of its own, so only the process's setting reaches it).
+    static func live(_ arguments: Arguments, files: [URL]) async throws -> [String: any Sendable] {
+        let frames = arguments.int("frames", default: 10)
+        let generator = PreviewGenerator(engine: RenderEngine.interactive())
+        func ms(_ start: ContinuousClock.Instant) -> Double { (ContinuousClock.now - start).milliseconds }
+        func median(_ values: [Double]) -> Double { values.sorted()[values.count / 2] }
+        print("Live frames (ms), demosaic \(LibRawDecoder.launchDemosaic.rawValue): first, then medians of \(frames).")
+        for url in files {
+            let session = LiveRenderSession(source: url, generator: generator, colorSpace: nil)
+            var values = Adjustments()
+            var start = ContinuousClock.now
+            _ = try await session.render(values)
+            let first = ms(start)
+            var balance: [Double] = [], exposure: [Double] = []
+            for i in 0..<frames {
+                values.whiteBalance = WhiteBalance(preset: .custom, temperature: 3000 + Double(i) * 300, tint: Double(i))
+                start = .now
+                _ = try await session.render(values, interactive: true)
+                balance.append(ms(start))
+            }
+            for i in 0..<frames {
+                values.exposure.ev = Double(i) * 0.1
+                start = .now
+                _ = try await session.render(values, interactive: true)
+                exposure.append(ms(start))
+            }
+            let region = LiveRegionRenderer(source: url, generator: generator, colorSpace: nil)
+            values = Adjustments()
+            start = .now
+            try await region.prepare(values)
+            let decode = ms(start)
+            let size = PreviewGenerator.nativeSize(url) ?? CGSize(width: 6000, height: 4000)
+            let unit = CGRect(x: 0.5 - 1512 / size.width, y: 0.5 - 900 / size.height, width: 3024 / size.width, height: 1800 / size.height)
+            start = .now
+            _ = try await region.render(values, unit: unit)
+            let firstRegion = ms(start)
+            var regions: [Double] = []
+            for i in 0..<frames {
+                values.whiteBalance = WhiteBalance(preset: .custom, temperature: 3000 + Double(i) * 300, tint: Double(i))
+                start = .now
+                _ = try await region.render(values, unit: unit)
+                regions.append(ms(start))
+            }
+            print(String(format: "%@: fit first frame %.0f, white balance %.1f, exposure %.1f; 100%%: decode %.0f, first region %.0f, white balance %.1f",
+                         url.lastPathComponent, first, median(balance), median(exposure), decode, firstRegion, median(regions)))
+        }
+        return [:]
     }
 
     // MARK: Memory
