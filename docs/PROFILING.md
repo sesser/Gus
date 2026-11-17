@@ -450,6 +450,63 @@ How to read it:
 swift run -c release photobench rawcompare --files a.RAF:b.ARW --runs 3 --output /tmp/rawcompare
 ```
 
+## Our GPU demosaic for raws LibRaw decodes (gpu-demosaic)
+
+Measured on 2026-11-16, Apple M4 Pro, macOS 27.2.1, a release build, the
+files in the file cache (copies in a scratch folder). `photobench demosaic
+--mode timing --runs 6 --libraw`: decode plus render to 8-bit sRGB, the first
+run, then the median (min–max) of the other five. "Ours" is LibRaw's unpack,
+our Metal demosaic and the baseline color noise reduction; "LibRaw" is
+LibRaw's own demosaic, which the app used before (and still uses with
+`--demosaic libraw`).
+
+| File | Ours, full | LibRaw, full | Ours, half | LibRaw, half | Unpack and copy | GPU, full / half |
+|---|---|---|---|---|---|---|
+| Fujifilm X-E3 RAF, 24 MP | **0.62 s** (0.62–0.63) | 7.88 s | 0.56 s | 0.59 s | 0.52 s | 78 / 9 ms |
+| Fujifilm X-T3 RAF, 26 MP | **0.65 s** (0.64–0.65) | 8.37 s | 0.59 s | 0.62 s | 0.54 s | 85 / 10 ms |
+| Panasonic GX85 RW2, 16 MP | **0.10 s** | 0.40 s | 0.08 s | 0.11 s | 0.06 s | 24 / 5 ms |
+| Canon 5D II CR2, 21 MP | **0.30 s** | 0.62 s | 0.28 s | 0.29 s | 0.24 s | 32 / 7 ms |
+| Olympus E-M5 III ORF, 20 MP | **0.31 s** | 0.63 s | 0.29 s | 0.31 s | 0.25 s | 30 / 7 ms |
+
+How to read it:
+
+- LibRaw's unpack (decompression, one CPU thread) is the floor: 84% of an
+  X-E3's full decode. The GPU's part, demosaic and noise reduction in one
+  command buffer, is 78 to 85 ms for X-Trans (the demosaic alone 48 ms, the
+  noise reduction the rest) and 24 to 32 ms for Bayer (the demosaic alone
+  6 ms).
+- Half size (thumbnails and the fitted loupe) bins each color in a window
+  around every 2 x 2 block and is 3 to 30% faster than LibRaw's half size.
+- The Bayer files are read by the system decoder in the app; they were
+  decoded here through `LibRawDecoder` directly, as a raw the system can't
+  read would be.
+- Live frames (`--mode live`, X-E3, medians of 30): a white balance frame at
+  fit is 8 to 9 ms with either demosaic (it renders from the kept decode);
+  at 100% the full decode takes 0.76 s (8.06 s with LibRaw's), the first
+  region 4 ms and a white balance region 2.5 ms with either.
+- Peak memory of one full-size decode (`--mode memory`, a fresh process,
+  `ri_lifetime_max_phys_footprint` over the footprint before): 295 MB (X-E3)
+  and 315 MB (X-T3) against LibRaw's 550 and 595 MB; 265 MB for the 5D II.
+  The kernels normalize as they read (no normalized copy of the mosaic),
+  LibRaw's buffers are freed before the GPU's are made, and the noise
+  reduction runs in place in bands of 256 rows.
+
+```bash
+swift run -c release photobench demosaic --mode timing --runs 6 --libraw --files a.RAF:b.RW2
+```
+
+```bash
+swift run -c release photobench demosaic --mode live --frames 30 --files a.RAF
+```
+
+```bash
+swift run -c release photobench demosaic --mode memory --file a.RAF
+```
+
+The quality measures (`--mode truth --nr off`, `--mode real`, with
+`--nr off` for the kernels alone) are in
+`docs/features/gpu-demosaic/status.md`.
+
 ## Reproducing
 
 Build the tools:

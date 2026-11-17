@@ -242,14 +242,15 @@ enum DemosaicBenchmark {
             }
             if let mosaic = try? LibRawDecoder.sensorMosaic(url) {
                 let unpack = try timed { _ = try LibRawDecoder.sensorMosaic(url) }
-                var gpu: [Double] = [], halfGPU: [Double] = []
+                var gpu: [Double] = [], halfGPU: [Double] = [], alone: [Double] = []
                 for _ in 0..<runs {
                     gpu.append(try GPUDemosaic.shared().run(mosaic).gpuSeconds * 1000)
                     halfGPU.append(try GPUDemosaic.shared().run(mosaic, halfSize: true).gpuSeconds * 1000)
+                    alone.append(try GPUDemosaic.shared().run(mosaic, noiseReduction: nil).gpuSeconds * 1000)
                 }
-                let g = gpu.dropFirst().sorted(), hg = halfGPU.dropFirst().sorted()
-                let line = String(format: "unpack and copy %@ s; GPU full %.1f ms (%.1f–%.1f), half %.1f ms", text(unpack),
-                                  g[g.count / 2], g.first!, g.last!, hg[hg.count / 2])
+                let g = gpu.dropFirst().sorted(), hg = halfGPU.dropFirst().sorted(), a = alone.dropFirst().sorted()
+                let line = String(format: "unpack and copy %@ s; GPU full %.1f ms (%.1f–%.1f; the demosaic alone %.1f), half %.1f ms",
+                                  text(unpack), g[g.count / 2], g.first!, g.last!, a[a.count / 2], hg[hg.count / 2])
                 print("\(url.lastPathComponent) \(line)")
                 row["gpu"] = line
             }
