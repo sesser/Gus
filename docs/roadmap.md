@@ -40,7 +40,7 @@ Principles (drawn from `README.md` and `CLAUDE.md`):
 
 ## Now (maximum three)
 
-1. [#196](https://github.com/sesser/Gus/issues/196) `gpu-demosaic`: Raws LibRaw decodes (the X-E3 class) take about 8 s at full size; demosaic on the GPU instead, X-Trans first
+Nothing in progress.
 
 ## Next
 

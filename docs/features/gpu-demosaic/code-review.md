@@ -1,0 +1,274 @@
+# GPU demosaic for raws LibRaw decodes: code review
+
+Owner: code-reviewer. Date: 2026-11-16. Step 4 of `docs/WORKFLOW.md`.
+Reviewed: `feature/gpu-demosaic`, `34738c2..fb6b7f5` (6 commits). Build and
+tests: `swift build` green, and a clean build into a separate build path shows
+no warnings; `swift test` passed 1067 tests in 161 suites (66 s). The opt-in
+suites (`XTRANS_SAMPLES`, `BAYER_SAMPLES`, `RAF_SAMPLE`, `RAW_BOTH_SAMPLES`)
+were not run: there are no samples on this side.
+
+Checked against the PRD as revised on 2026-11-16 (issue #196: AC3 accepted as
+measured, RI-1; AC4 only at ISO 800 or lower, RI-2; AC6 accepted as measured).
+
+## Verdict
+
+Not ready yet. The design is sound and the rules this review was asked to
+watch hold: `SystemRAWDecoder.reads` still decides, system-decoded raws and
+JPEGs are untouched, the pipeline bump is plain, there is no brand leak, and
+nothing points to another project's code. There are four Should-fix findings.
+One fallback path the PRD promises (R19, allocation failure) aborts the
+process. Stopping an export now lists the raws in flight as failed. The opt-in
+sample suite still checks the criteria as first written. `status.md` still
+says Blocked. All four are small fixes.
+
+## Findings
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C1 | Should fix | `Sources/PhotoCore/Demosaic/GPUDemosaic.swift:276` (also `:479` in `denoise`) | `encodeDenoise` can throw (its scratch textures fail to allocate, `.allocation("noise reduction scratch")`) after `run` has made its compute encoder. Nothing ends that encoder on the way out. The other throws after the encoder exists (green plane, X-Trans tables) do call `endEncoding()` first; this one doesn't. | Metal aborts the process when an encoder is released without `endEncoding`, without the validation layer too. I checked this with a 20-line program in the scratchpad (make a command buffer and a compute encoder, throw, drain the autorelease pool): `-[_MTLCommandEncoder dealloc]:134: failed assertion 'Command encoder released without endEncoding'`, exit 134. So when memory is tight, a full-size decode (4 × 27 MB of `rgba32Float` scratch at 6000 px wide) takes the app down. R19 says such a decode falls back to LibRaw's demosaic. Fix: make the scratch textures before the encoder, or end the encoder on every throw (a `defer` or a `do`/`catch` around the encoding). | R19; correctness |
+| C2 | Should fix | `Sources/PhotoCore/Preview/LibRawDecoder+GPU.swift:115,124` with `PreviewGenerator.swift:308` and `Export/ExportJob.swift:273` | A LibRaw decode now throws `CancellationError` once its task is cancelled (R21), and `PreviewGenerator` passes it on. `ExportJob.export` doesn't tell that apart from a real failure: its last `catch` makes it `.writeFailed(error.localizedDescription)`. | Export 24 X-E3 raws and choose File ▸ Stop while two are rendering. The two in flight (the unpack is 0.5 s of their 0.6 s) come back as failures. Activity lists "`DSCF0001.RAF`: The operation couldn't be completed. (Swift.CancellationError error 1.)" and the row is a warning. If those two were the last items, `summary.cancelled` (`Task.isCancelled && done < total`, line 248) is false, because failures count toward `done`, and the row reads "Exported 22 of 24 photos. 2 could not be written." Before this branch those two finished and were written. Fix: treat `CancellationError` in `ExportJob.export` as not done (or skipped), not failed. The other callers are fine: the preview lanes, the live session (`AdjustmentEditor` catches it), and the measuring paste (detached task). | Correctness; R21 |
+| C3 | Should fix | `Tests/PhotoCoreTests/DemosaicSampleTests.swift:82-89` | The opt-in X-Trans suite still checks AC3 as first written (`alone.falseColorRatio <= 1.0`, `alone.detailRatio >= 0.95`) and AC4 on every file at every ISO. The PRD revised both on 2026-11-16: AC3 is accepted as measured, and AC4 applies only at ISO 800 or lower. | `XTRANS_SAMPLES=<the 28 files> swift test --filter DemosaicXTransSampleTests` is red on the accepted state, by `status.md`'s own numbers: AC3 detail fails on 11 files, AC4 on the high-ISO ones (`DSCF4583`: blocks p95 2.33, edges 8.42), AC6 detail on 5. `status.md` proposes that command for `CLAUDE.md`, so whoever runs it next meets a red suite for a known, accepted result. Fix: AC4 expectations only for files at ISO 800 or lower (LibRaw's `other.iso_speed`, say), and AC3 printed as a measurement, not expected. For AC6's detail bound, see Q1. This aligns the test with the PRD as revised; it does not loosen a tolerance to make a test pass. | PRD rev 2; tests match the spec |
+| C4 | Should fix | `docs/features/gpu-demosaic/status.md:15-21, 314, 332-333, 348-378` | `status.md` still says **Status: Blocked** on RI-1 and RI-2, with R8, AC3 and AC4 marked Blocked or Not met. The owner ruled on both on 2026-11-16 (PRD Revisions, rev 2). It also gives the latest full run "at `5003d8a`", a commit that is not on any branch (one rewritten before `6d54d5a`). | Review and QA read `status.md` as the record. `docs/WORKFLOW.md` step 3 wants the engineer's last state to be **Done**, and the rulings recorded. Update the status line, the RI section (ruled: accepted as measured; AC4 at ISO 800 or lower), the AC rows, and the commit of the last full run. | `docs/WORKFLOW.md` step 3 |
+| C5 | Nit | `Tests/PhotoCoreTests/GPUDemosaicDecodeTests.swift:30,36,136`; `DemosaicKernelTests.swift:71-78`; `ColorNoiseReductionTests.swift:62,87,114,150,219` | Without a Metal device the new GPU tests `return` and pass instead of being skipped. `GPUDemosaicDecodeTests.gpuAvailable` is `(try? shared()) != nil`, so a kernel compile failure also turns `whichDemosaic` and `fallbackOnFailure` into silent passes. (`DemosaicKernelTests` would still fail on a compile failure: it catches only `.noDevice`.) `whiteBalanceRunsNoDemosaic` also returns early on any macOS whose system decoder reads the small DNG, which may be the CI runners, so AC10 is checked only here. | On a runner with no device, or a broken kernel source, the run shows these tests passed when nothing ran. AC16 asks for "skip with the reason, as the existing GPU tests do" (`RuntimeKernelTests`, `StitchableKernelTests` use `.enabled(if:, "reason")`). | AC16 |
+| C6 | Nit | `Sources/PhotoCore/Commands/RenderCommands.swift:134-140, 233-253` | `photocli render`'s new `decoder` and `demosaic` keys, and the refusal of a bad `--demosaic` value, have no automated test (`status.md` R20: "checked by hand"). | A change to the JSON contract or the parsing goes unnoticed. A test like `whichDemosaic`'s on the small synthetic X-Trans DNG would cover it. | R20; tests |
+| C7 | Nit | `Sources/PhotoCore/Demosaic/SensorMosaic.swift:195-197` | `cblack` is read at `offset(of: \.black) − 4104 × 4`. That is correct for the vendored 0.22.3 header (`curve[0x10000]`, then `cblack[LIBRAW_CBLACK_SIZE]`, then `black`, all 4-byte aligned), but nothing checks it. | A future LibRaw update that reorders `libraw_colordata_t` would read the wrong blacks without any error. A one-line test (`offset(of: \.black) == 0x10000 * 2 + Int(LIBRAW_CBLACK_SIZE) * 4`) would catch it. | Robustness |
+| C8 | Nit | `GPUDemosaic.swift:188-189`, `LibRawDecoderTests.swift:362-366` | The output's rows are padded to `minimumLinearTextureAlignment` (16 bytes here, more on some GPUs). The padding comes from `posix_memalign` and is never written. `Pixels.data` includes it, and the concurrency test compares `pixels.data` of GPU decodes byte for byte. | With an odd decode width (8 bytes of padding a row here), the same file decoded twice can compare unequal from leftover heap bytes. That's a flaky test, not a rendering fault. Compare `samples()`, or zero the padding. | Test determinism |
+| C9 | Nit | `Sources/PhotoCore/Preview/LibRawDecoder+GPU.swift:49` | `Pixels: @unchecked Sendable`, but every member (`Int`, `Bool`, `Data`) is `Sendable`. | No failure. The `@unchecked` is unneeded and would hide a future non-`Sendable` member. | Swift 6 concurrency |
+
+## Questions
+
+- **Q1 (product manager).** The owner accepted AC6 "as a whole" with 5 of 28
+  files under the detail bound (0.92x to 0.94x). Should the opt-in suite keep
+  `reduced.detailRatio >= 0.95` as an expectation, so it is red on those five
+  of the owner's own samples, or record the result as a measurement, as C3
+  proposes for AC3? Either is defensible; the suite should say which.
+
+## Checked and fine
+
+- **The one decider.** `SystemRAWDecoder.reads` is untouched, and
+  `PreviewGenerator.decode` still tries the system decoder first
+  (`rawImage`). The only change there is `try` on the LibRaw branch, so raws
+  the system reads and JPEGs render as before. No golden moved, and no file
+  under `Goldens/` is in the diff.
+- **Pipeline version.** 11 to 12 in `PreviewCacheKey`, a plain bump with no
+  carry-over. `GPUDemosaicDecodeTests.pipelineVersion` pins it, and
+  `EstimateEdgeTests` now checks `>= 11`, as `LocalSharpenGroupOffTests`
+  already did for its own bump. The user guide says previews are made again.
+- **Memory lifetime.** The mosaic and output storage are page-aligned
+  (`posix_memalign` at `getpagesize()`, length rounded to pages) and wrapped
+  with `makeBuffer(bytesNoCopy:…, deallocator: nil)`. `run` holds the storage,
+  the buffers, the green plane and the scratch until `waitUntilCompleted`.
+  `Image.data` keeps the storage alive through its deallocator, and the
+  `CIImage` and live session keep the `Data`. LibRaw's buffers are freed
+  (`libraw_recycle`) before the GPU's are made.
+- **Bounds.** `SensorMosaic.unpacked` checks `left + width <= raw_pitch/2` and
+  `top + height <= raw_height` before copying, and the 150 MP cap is checked
+  at open. The black pattern must divide the CFA period before it is indexed,
+  so `rows × columns ≤ 36`. In the kernels, every raw read is in the image
+  (`valueAt` on mirrored or in-border coordinates). The X-Trans border is
+  worked out from the tables' reach (6), and neighbours stay within ±2. The
+  banded noise reduction reads scratch rows clamped to what the previous
+  level wrote. I traced the in-place band order: a band's last level writes
+  only after the next band's first level has read the rows they share, and a
+  scratch set is reused only two bands later. `DemosaicTables` refuses
+  patterns whose lists exceed the kernels' fixed arrays.
+- **Fallbacks.** Every one is logged with the file private and the reason
+  public: unsupported pattern, no color data, no sensor data, no device,
+  compile, allocation, encoding and execution failures. The debug switch
+  isn't logged, which is intended. The failure path decides per decode; only
+  a missing device is cached, as R19 allows. The `fallbackOnFailure` test
+  reads the log line back.
+- **Cancellation.** It is checked after the unpack and after the copy, before
+  any GPU allocation. `WorkLane` cancels a job only when no waiter is left,
+  so a cancelled decode can't reach a waiting caller. C2 is the one caller
+  that mishandles it.
+- **Concurrency.** The new `@unchecked Sendable` types (`GPUDemosaic`,
+  `PageAlignedStorage`, `TableBuffers`) have written reasons that hold.
+  `Mutex` guards the engine and the tables cache. Decodes run off the main
+  actor. `MTLCompileOptions.mathMode`, `Mutex` and `OSLogStore` are all on
+  macOS 15 (R22).
+- **Matching LibRaw's scale.** The multipliers, per-site black (common, per
+  color with the second green as 3, and the repeating pattern), the white
+  span, the crop box (cut after the demosaic), the orientation (whole-pixel
+  moves in LibRaw's flip order), the Fujifilm frame and lens corrections, and
+  `channelScale`/`whiteMargin` all match `decodeWithLibRawDemosaic`. The
+  existing orientation, inset-crop and white-level tests now run through the
+  GPU path and pass.
+- **Hermetic tests and tools.** The new tests write only to
+  `RepositoryFiles.withTemporaryDirectory`. Real samples are opt-in through
+  `XTRANS_SAMPLES` and `BAYER_SAMPLES`, with `.enabled(if:, reason)`.
+  `photobench demosaic` opens no library and removes its temporary folder.
+  No sample path is committed; the docs give file names only.
+- **Branding and localization.** There are no brand values. The new persisted
+  or JSON names (`decoder`, `demosaic`, `method`, `pattern`, `reason`) are
+  generic. No UI string was added. The launch option `--demosaic` takes a
+  value.
+- **Clean room (AC8).** `THIRD_PARTY_NOTICES.md` is unchanged. The kernels and
+  tables say which papers they follow. I found none of the hallmarks of the
+  known X-Trans or Bayer implementations (no hexagon tables, no
+  homogeneity-map tiles, no copied constant tables): the X-Trans taps are
+  derived at run time from the pattern. `status.md` lists the published
+  sources.
+- **Other rules.** No migration, no change to the edit stack or presets (R13),
+  no new package, and `Package.swift` is untouched.
+
+## Follow-up
+
+### Second pass (2026-11-16)
+
+Reviewed: `fb6b7f5..dda56da` (`522f41f` code and tests, `dda56da`
+`status.md`). Build and tests at `dda56da` on this Mac (Xcode 27.2, Swift
+6.4.2): `swift build` green; `swift test` passed 1071 tests in 161 suites
+(67 s); `swift test --filter
+"GPUDemosaicDecodeTests|DemosaicKernelTests|ColorNoiseReductionTests"` passed
+21 tests in 3 suites, the new ones included. The sample suites were not run
+(no samples here).
+
+**Verdict: not ready yet.** C1 to C9 are fixed, and the fixes are correct. One
+of them (C5) brought in `Test.cancel`, which the Swift 6.2.4 toolchain of the
+macOS 15 CI job does not have, so the pull request's required check would fail
+to compile the tests (C10, Blocker). It is a small change to three tests.
+
+| # | Verdict | Commit | Notes |
+|---|---|---|---|
+| C1 | Fixed | `522f41f` | `run` wraps everything from the first `common(...)` to `encodeDenoise` in `do throws(Failure)`, and the `catch` ends the encoder before it rethrows. Nothing between `makeComputeCommandEncoder` and that `do` can throw (`tableBuffers` and every other throw come before the encoder). `denoise` does the same around `encodeDenoise`, its only throw after the encoder is made. `InjectedFault.scratchAllocation` throws at the top of the scratch loop, inside both `do`s. `scratchAllocationFallsBack` covers Bayer and X-Trans decodes (LibRaw's pixels byte for byte, the next decode ours) and `denoise`. Passes here. |
+| C2 | Fixed | `522f41f` | `ExportJob.outcome(of:name:)` maps `CancellationError` to `.cancelled`; `tally` counts it neither done nor failed. A `CancellationError` reaches `export` only from `Task.checkCancellation` in `decodeOnGPU`, on the child task of a cancelled group, so `Task.isCancelled` is true whenever an item is `.cancelled`, and `done < total` then holds: `summary.cancelled` is set, and Activity reads "Export stopped after N photos." (`ExportModel.finishedMessage`). Both checks come before any file is opened, so a stopped item writes nothing and replaces nothing. Other errors still log and fail as before; `photocli export` runs uncancelled and is unchanged. `stoppedExportIsNotAFailure` checks the mapping, the tally and a real render in a stopped task, with no file written. It checks `run`'s end-of-export arithmetic by reasoning, not end to end; that is enough here. |
+| C3 | Fixed | `522f41f` | AC4 is expected only when LibRaw's `other.iso_speed` is 1 to 800; AC3 is printed, not expected; AC6 expects false color, prints detail, and lists the files under 0.95x (Q1 answered that way). The truth suite expects AC2 for Bayer only and prints X-Trans. No threshold changed. Two known-red cases remain by the engineer's choice and are documented in `status.md`: see Q2 (already with the owner) and Q3 below. |
+| C4 | Fixed | `dda56da` | **Status: Done** with the rev 2 rulings, the RI section rewritten as ruled, the AC rows updated, the last full run at `522f41f` (on the branch; 1071 tests, which matches my run). |
+| C5 | Fixed, but see C10 | `522f41f` | The three GPU suites and the GPU tests of `GPUDemosaicDecodeTests` are `.enabled(if: hasMetalDevice, "…")` and call `GPUDemosaic.shared()` directly, so a kernel compile failure now fails them. The tests that need a raw only LibRaw decodes skip with a reason, but through `Test.cancel`, which C10 is about. |
+| C6 | Fixed | `522f41f` | `renderReportsTheDemosaic` checks `decoder`, `demosaic.method`/`pattern`/`reason`, `--demosaic libraw`, `Automatic`, the refusal of `ahd` (`invalidValue`) and a JPEG with no `demosaic`. Passes. |
+| C7 | Fixed | `522f41f` | `blackLayoutHolds` checks `black`'s offset against `curve[0x10000]` plus `cblack[LIBRAW_CBLACK_SIZE]` and that `data_maximum` follows it, which matches the vendored header (`libraw_types.h:782-785`). A changed size of `cblack` moves both the check and the read together; anything inserted around them fails the check, and the decode then falls back to LibRaw's demosaic with a logged reason (`Unsupported.blackLayout`). `DemosaicKernelTests.blackLayout` pins it. (The check runs after the unpack, so in that case each decode unpacks twice; it can only happen after a LibRaw update, which the test catches first. Not a finding.) |
+| C8 | Fixed | `522f41f` | `PageAlignedStorage.zeroPadding` clears each row's padding after allocation, in `run` and `denoise`, before the storage reaches Metal. `Image.data` covers `bytesPerRow × height`, so the page-rounding tail past it is never in the data. The `@unchecked Sendable` reason (written once by the filling thread before hand-off) still holds. |
+| C9 | Fixed | `522f41f` | `Pixels: Sendable`; it compiles, so every member is `Sendable`. |
+
+New in this pass:
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C10 | Blocker | `Tests/PhotoCoreTests/GPUDemosaicDecodeTests.swift:87, 118, 270` | The C5 fix skips three tests with `try Test.cancel("…")`. `Test.cancel` is public in Swift Testing from Swift 6.3 (`Sources/Testing/Test+Cancellation.swift`, first in tag `swift-6.3-RELEASE`). In `swift-6.2.4-RELEASE` that file doesn't exist and no `func cancel` is in `Sources/Testing` (I checked a clone of the tag). The macOS 15 CI job selects Xcode 26.3, and its latest green run on `develop` (run 43984746539) logs `Apple Swift version 6.2.4`. The macOS 26 job (Xcode 26.6, Swift 6.3.3) and this Mac (Swift 6.4.2) have it, so nothing before the pull request shows the problem. | When the pull request opens, the `Build and test (macos-15)` required check fails to compile `PhotoCoreTests` ("type 'Test' has no member 'cancel'"), so no test runs on macOS 15 and the merge is blocked (WORKFLOW step 7). Fix without `Test.cancel`: decide each test's condition before it runs (for example a `static let` that writes the small X-Trans DNG to a temporary folder and asks `SystemRAWDecoder.reads`, used in `.enabled(if:, "reason")`), or put the `Test.cancel` behind `#if compiler(>=6.3)` with a printed reason and `return` otherwise. Whichever is used, the macOS 15 job is the check: a build with Xcode 26.3 if it can be had here, otherwise the pull request's CI. | CI on macOS 15 (WORKFLOW step 7); R22 |
+
+New question:
+
+- **Q3 (product manager, with Q2).** The X-Trans sample suite now expects AC4
+  on every file at ISO 800 or lower. Rev 2 records three such files (an X-E3 at
+  ISO 200 with block p95 2.08, two X100S files) as outside AC4 and accepted as
+  part of the whole. So `XTRANS_SAMPLES` over all 28 of the owner's files is
+  still red on those three, and only on them. For AC6's five files under the
+  detail bound the suite records rather than expects (Q1). Should AC4's three
+  be treated the same way, or stay expected so they keep showing? Q2 asks the
+  same of AC2's E-M5 III in `DemosaicTruthTests`. It is not a code fault either
+  way: the engineer chose this on purpose and `status.md` says so (AC2 and AC4
+  rows). The two should get one answer.
+
+Checked and fine in this pass, beyond the table: `LibRawDecoder.Output.iso`
+is read while the processor is open on both paths (before `libraw_unpack` and
+`libraw_recycle` on the GPU path, before `libraw_close` on LibRaw's), and it
+has a default, so other initializers are unaffected. It is used only by the
+sample suite. `hasMetalDevice` is a module-level `let Bool`, fine under strict
+concurrency. `whiteBalanceRunsNoDemosaic` stays enabled without a device and
+expects zero runs there. `stoppedExportIsNotAFailure` needs no device: the
+cancellation check comes before `GPUDemosaic.shared()`. The gate in that test
+(`AsyncStream` iteration ends when its task is cancelled) is deterministic,
+with no sleep. Nothing under `Sources/CLibRaw`, `Goldens/` or `Package.swift`
+changed, and no UI string, brand value or tolerance changed.
+
+### Third pass (2026-11-16)
+
+Reviewed: `dda56da..2397983` (`4ec2ea9` tests, `2397983` `status.md`). Build
+and tests at `2397983` on this Mac (Xcode 27.2, Swift 6.4.2): `swift build`
+green; `swift test` passed 1072 tests in 161 suites (60 s); `swift test
+--filter GPUDemosaicDecodeTests` passed 10 tests, and the three tests behind
+the new condition ran (not skipped) here, as they should on macOS 27.2. The
+sample suites were not run.
+
+**Verdict: ready for QA.** C10 is fixed and Q3 is settled as PRD rev 2 reads.
+Nothing new. The only open item is still Q2 (AC2's E-M5 III), which is with
+the product manager. The macOS 15 CI job is still the only real check of
+C10, since this Mac has no Swift 6.2 toolchain.
+
+| # | Verdict | Commit | Notes |
+|---|---|---|---|
+| C5 | Fixed | `4ec2ea9` | It now skips with its reason through `.enabled(if:)`, not `Test.cancel`. On a macOS whose system decoder reads the small DNG (the CI runners, maybe), AC10, R20 and the export test show as skipped with that reason, not as passed. |
+| C10 | Fixed | `4ec2ea9` | `Test.cancel` is gone from `Tests/`; it is left only in a doc comment (`GPUDemosaicDecodeTests.swift:34`). I listed every Swift Testing API the test target uses: `#expect`/`#require` (including `throws:` with a type, `Never.self`, an `Equatable` error value, and the `#expect { } throws: { }` closure form), `Issue.record` (a comment or an error, with `sourceLocation`), `withKnownIssue(_:isIntermittent:)`, `.enabled(if:_:)`, `.serialized` and `#_sourceLocation`. There is no `Test.current`, `Attachment`, exit test, issue `severity:`, `confirmation`, `.timeLimit`, `.bug` or scoping trait. I checked each one used against the `swift-6.2.4-RELEASE` tag of swift-testing (`Expectation+Macro.swift`, `ConditionTrait.swift:125,144`, `ParallelizationTrait.swift:60`, `Issue+Recording.swift`, `KnownIssue.swift`): all are public there. The branch's tests use none of the return-value forms of `#expect(throws:)`. The branch's sources use `Mutex` (Synchronization, macOS 15, Swift 6.0) and typed throws (6.0), and no Swift 6.2- or 6.3-only API. |
+| Probe | Fine | `4ec2ea9` | `systemReadsSmallXTrans` is a `static let`, so it runs once, thread-safely, when Swift Testing first evaluates the condition, before the tests run. It writes one 252 x 192 synthetic DNG into its own folder in `temporaryDirectory` (`gpu-demosaic-probe-<UUID>`) and removes it in `defer` (no folder left after the run here). It touches no library and no catalog, only `CIRAWFilter` on that file. Its options (`.xTransSample`, 252 x 192, seed 11) match the file each of the three tests writes, so the probe and the test agree. Each test also keeps `#expect(!SystemRAWDecoder.reads(url))`. If the probe cannot write its file it returns `true`, so the three tests are skipped with a reason that is wrong in that case. That is not silent: `whichDemosaic` and the other tests that use `Self.dng` fail on the same writer. The tally checks moved to `stoppedPhotoTally`, which always runs and needs no device. |
+| Q3 | Settled | `4ec2ea9`, `2397983` | `acceptedOutsideAC4` names `DSCF4179.RAF`, `X1009619.RAF` and `X1009802.RAF`. These are exactly the three files at ISO 800 or lower that miss AC4 in the measurement log of the 28 samples, with the noise reduction on, as `reduced` is. `DSCF4179` is the X-E3 at ISO 200 with blocks 0.53 / **2.08** and edges 5.72, the p95 rev 2 quotes. `X1009619` is an X100S at ISO 200 (1.10 / 3.27, edges 14.45). `X1009802` is an X100S at ISO 320 (0.84 / 2.46, edges 9.81). The other 10 files at ISO 800 or lower meet it (seven of them at ISO 400 or lower, matching rev 2's 7 of 10). In the 130-file manifest no other camera has these numbers, so the suffix match exempts nothing else. The exemption sits inside the ISO 800 or lower branch and covers AC4 alone: AC6's false color is still expected for those files. This follows rev 2's AC4 text ("part of the result the owner accepted as a whole"). For AC2's E-M5 III, rev 2 accepts nothing, so keeping AC2 expected there (Q2, still open) is consistent with this. My second pass asked for one answer to both. Rev 2's text gives them different answers, and that is right. |
+
+### Fourth pass (2026-11-16)
+
+Reviewed: `2397983..53c8d1f` (`5dd946e` test, `53c8d1f` `status.md`; `e956acb`
+and `64094c1` are review and QA files). `swift build` green; `swift test --filter
+"ColorNoiseReductionTests|GPUDemosaicDecodeTests"` passed 15 tests, three runs in a
+row, with the same figures each time: RGGB ours 0.00199, kernel alone 0.00688,
+LibRaw's 0.00812 (0.25x, 0.85x); X-Trans 0.00172, 0.00586, 0.00843 (0.20x, 0.69x).
+
+**Verdict: ready for QA's rerun of Q1.** Nothing new.
+
+| # | Verdict | Commit | Notes |
+|---|---|---|---|
+| QA Q1 | Fixed | `5dd946e` | The step-off decode sets `GPUDemosaic.decodeNoiseReduction` to `nil`, which is exactly mutation M3, so its figures are what the default decode would give under M3: 0.85x and 0.69x, both over 0.5x and not under themselves, so both new expectations fail then. A decode that ignored the task-local would make `ours == kernelAlone` and fail `ours < kernelAlone`, so the comparison can't pass vacuously. The 0.5x bound sits between the measured 0.25x/0.20x and 0.85x/0.69x, the nearest margin 0.19x (X-Trans, step off); it is tighter than the PRD's 1.0x, which is still expected, so nothing is loosened. Scoping: the task-local is read synchronously in `LibRawDecoder+GPU.swift:126` inside the `withValue` closure (no dispatch or detached task on that path); the GPU output is already a bitmap when the closure returns, so the render after it is unaffected. The other two decodes run outside any scope and get `.baseline`; Swift Testing gives each test case its own task, so nothing leaks between cases. Input is seeded (`SplitMixRandom(seed: 9)`, DNG seed 1), LibRaw's decode is CPU, and the GPU figures were identical across runs and with the GPU suites in parallel. The only API is the synchronous `TaskLocal.withValue` (Swift 5.5), already used by the branch's other tests: nothing 6.3-only. It writes one DNG in a temporary folder and touches no library. Nit, not a finding: the doc comment at `ColorNoiseReductionTests.swift:213-216` still describes only the "at most LibRaw's" half. |
+
+### Fifth pass (2026-11-17)
+
+Reviewed: `de79587` (the Swift 6.2.4 type-checker rewrite, 13 source and test
+files) and `db1daad` (`status.md`); `dfd0ea3`, `4781f37`, `8cf6a1b` and
+`c263c73` are a merge with no code conflicts and Ship's docs, not reviewed.
+Build and tests at `db1daad` on this Mac (Swift 6.4.2): `swift build` green;
+`swift test` passed 1072 tests in 161 suites (64 s); the demosaic suites alone
+(`Demosaic|ColorNoiseReduction|GPUDemosaicDecode|LibRawDecoder|ReferenceTests|GoldenTests`)
+passed 64 tests, X-Trans 27648 of 27648 values identical to the reference, shifted
+or not. The sample suites were not run (no samples here).
+
+**Verdict: ready to go back to CI.** Every rewrite is the same computation, and
+macOS 15's `Build` step (Swift 6.2.4) already passed on this commit (run
+44135494961, 17:18:53 to 17:21:05 UTC), so PhotoCore, PhotoFixtures and
+photobench now type-check there. The test target is type-checked only by that
+job's `Test` step, which was still running when this pass ended. No findings.
+
+Semantics, rewrite by rewrite (each read against its old line):
+
+| Where | Same because |
+|---|---|
+| `CFAPattern.shifted`, `SensorMosaic.cropped` black (the two CI rejected) | Same index `((site / p + y) % p) * p + (site % p + x) % p`, in `Int`, sites in order; `%` on a negative offset would behave as before, and none occurs (`cropped` guards `x, y ≥ 0`; every caller of `shifted` passes 0 or more). |
+| `CFAPattern` X-Trans row and column check | `Set<Int32>` of the same six colors; `colors` is `[Int32]`. |
+| `NoiseModel` green offset | `first(where:)` over the same offsets; the nested function returns true on the first green site whose neighbour is green, as `contains` with `&&` did. |
+| `NoiseModel` least squares | Each `reduce(0)` was a left fold from 0.0 over `points` in order; the loop adds the same products (`w·l·l`, `w·l·v` keep their left-to-right order) in the same order. Double throughout. Swift does not contract to FMA, so the separate accumulators round as the folds did. |
+| `DemosaicTables.centered` | `lambda`, `mu` unchanged; weight `s·(1 + mu + Σλ·o)`, the same order of addition. |
+| `DemosaicTables` green line, own color | One closure `isOwn` used for both `first(where:)`; it captures `position` and `own` as the inline closures did. Taps `Int32(key·dx)` in `Int` first, as before (it would not compile if `dx` were not `Int`). |
+| `DemosaicTables` differences | `total` a left fold from 0.0 in order; weight `lineWeight / Double(distance) / total`, same order. |
+| `GPUDemosaic` radii and `remaining` | `2·step`; `remaining[i]` the sum of `radii[i+1...]`, empty for the last level (`count..<count` is a valid empty range), `steps` non-empty by the guard above. `band`, margins and the rows that use them unchanged. |
+| `SensorMosaic.scalePerSite`, pattern text and tile | Same values in the same order; `String(Int32)` as before. |
+| `SensorMosaic.blackLayoutHolds` | Old: `Int? == Int` and `Int? == Int?.map`; both nil gave false through the first clause, `next` nil alone gave false. New `guard let` returns false in both cases, same sums otherwise. |
+| `LibRawDecoder+GPU` crop box | `UInt32` fields to `CGFloat` instead of `Double`: exact either way, and `CGFloat` is `Double` on every Mac this builds for (arm64, x86_64). The old `decodedSize.width - left` already mixed the two through the implicit conversion. Floor, `min`, the flipped `y` (`height - top - height`) unchanged. |
+| `DemosaicMeasure` (`RGBPicture.init`, `labOf`, `ColorStep`, `deltaE`, `edgeMask`) | Literals were `Float` before too (no implicit `Float`/`Double` conversion exists): `216/24389` and `24389/27` are the same `Float` divisions, `(slope·t + 16)/116` the same order; tone lookup `curve[i]·(1−f) + curve[i+1]·f` unchanged; `Measure.quantized16` is the old closure verbatim (clip, ×65535, ties to even, ÷65535). |
+| `photobench demosaic` | PSNR, error image and `quantized16` as above; the region `unit` is now `0.5 − (3024/w)/2`, equal to `0.5 − 1512/w` bit for bit (halving is exact). Benchmark only. |
+| Tests | Bounds keep their left-to-right sums (`blend + sums + division + ulp`, `throughGreen + blend + sums + ulp`); the scene keeps its comparisons, `gaussian()` calls in the same order; `12..<(n−12)` equals the old `stride` (`n` is 192); `JSONValue` comparisons through `stringValue` mean what `== "…"` meant (`.string` only), and "no `demosaic` key" is what `== nil` meant (a present `null` failed both). |
+
+The kernels and their CPU references take their weights from the same
+`DemosaicTables`, so "identical to the reference" alone would not catch a change
+in the tables; the reading above, `DemosaicKernelTests`' fixed Hamilton–Adams
+taps (`-0.25, 0.5, 0.5, 0.5, -0.25`), the goldens and the engineer's
+byte-identical X-E3 and X100S renders cover that. Nothing under
+`Sources/CLibRaw`, `Goldens/` or `Package.swift` changed; no tolerance, Metal
+source, pipeline version or UI string changed.
+
+Remaining risk shape. On Swift 6.4 the two expressions CI rejected cost 18
+solver scopes each (`-warn-long-expression-type-checking-scopes`), so this
+Mac's compiler does not rank 6.2.4's problem; what does is CI. A sweep of every
+target at 300 scopes lists four lines in the branch's files:
+`DemosaicBenchmark.swift:165` (`UInt8(min(max(ternary · 255, 0), 255).rounded())`,
+1259), `DemosaicMeasure.swift:177` (`Summary.mean`, 613), `SyntheticDNG.swift:310`
+(Box–Muller, 581, not this branch's line) and `ColorNoiseReductionTests.swift:282`
+(348). The first three compiled on Swift 6.2.4 in this commit's `Build` step.
+The shapes left in the test target are not closures over `$0`:
+`ColorNoiseReductionTests.swift:203` (`SIMD2(…) − (SIMD2(…) + SIMD2(…)) / 2`),
+`:124` and `DemosaicKernelTests.swift:255` (`abs(h − a) > max(abs(a) · 0x1p-10, 0x1p-24)`),
+and `Reference/DemosaicReference.swift:246-248` (nested `max`). If the macOS 15
+`Test` step rejects any of them, that is the place to look. The commit message
+says "mixes /bin/zsh" where it meant `$0` (the shell expanded it); cosmetic,
+not worth rewriting a pushed commit.
+
+| # | Verdict | Commit | Notes |
+|---|---|---|---|
+| CI (macOS 15) | Fixed for the build; tests pending | `de79587` | `Build` passed on Swift 6.2.4 at `db1daad`; `Test` running at the end of this pass. |
+| Rewrite | Fine | `de79587` | Same operations, order, types and rounding throughout; 1072 tests pass here. |
+| `status.md` | Fine | `de79587`, `db1daad` | Matches the diff and the run I saw. |

@@ -38,6 +38,9 @@ public struct PreviewGenerator: Sendable {
     public struct Rendering {
         public var image: CIImage
         public var machineLearning: MachineLearningNoiseReduction.Outcome
+        /// Which decoder made the image, and for LibRaw's, which demosaic (R20).
+        public var decoder: Decoder = .imageIO
+        public var demosaic: LibRawDecoder.Demosaic?
     }
 
     /// As `image`, with the machine learning outcome of the decode.
@@ -48,7 +51,8 @@ public struct PreviewGenerator: Sendable {
         if let longEdge {
             image = image.scaledToFit(longEdge: longEdge)
         }
-        return Rendering(image: image, machineLearning: decoded.machineLearning)
+        return Rendering(image: image, machineLearning: decoded.machineLearning, decoder: decoded.decoder,
+                         demosaic: decoded.demosaic)
     }
 
     /// Encoded rendition for the disk cache.
@@ -177,6 +181,8 @@ public struct PreviewGenerator: Sendable {
         /// result of: a caller that keeps a decode while white balance
         /// changes keeps this, and makes each white balance's image from it.
         public var camera: CameraDecode?
+        /// For LibRaw's decode, which demosaic made it.
+        public var demosaic: LibRawDecoder.Demosaic?
     }
 
     /// LibRaw's linear image and the color step that turns it into the
@@ -239,10 +245,10 @@ public struct PreviewGenerator: Sendable {
                 fallback.context.isRaw ? .failed : MachineLearningNoiseReduction.reasonWithoutSystemDecoder)
             return fallback
         }
-        if isRaw, let decoded = rawImage(settings: settings, system: {
+        if isRaw, let decoded = try rawImage(settings: settings, system: {
             decodeRAW(url, longEdge: longEdge, draft: draft, extendedRange: extendedRange, settings: $0)
         }, libRaw: {
-            decodeWithLibRaw(url, longEdge: longEdge, settings: settings)
+            try decodeWithLibRaw(url, longEdge: longEdge, settings: settings)
         }, droppedChoices: {
             log.error("\(url.lastPathComponent, privacy: .private): no image for the stack's decoder choices; decoded without them")
         }) {
@@ -269,13 +275,13 @@ public struct PreviewGenerator: Sendable {
     ///
     /// Nil when neither has one (ImageIO is tried next).
     static func rawImage<Image>(settings: RAWDecodeSettings, system: (RAWDecodeSettings) -> Image?,
-                                libRaw: () -> Image?, droppedChoices: () -> Void = {}) -> Image? {
+                                libRaw: () throws -> Image?, droppedChoices: () -> Void = {}) rethrows -> Image? {
         if let image = system(settings) { return image }
         if settings.choosesTheDecode, let image = system(settings.withoutDecodeChoices) {
             droppedChoices()
             return image
         }
-        return libRaw()
+        return try libRaw()
     }
 
     private static let log = Logger(subsystem: AppBranding.bundleIdentifier, category: "decode")
@@ -283,20 +289,24 @@ public struct PreviewGenerator: Sendable {
     /// LibRaw's decode, at half size when the target is at most half the
     /// frame, through its color step for the settings' white balance. Nil
     /// when LibRaw cannot decode the file either; its reason is logged, since
-    /// the caller then reports only that the file is undecodable.
+    /// the caller then reports only that the file is undecodable. A task
+    /// cancelled during the decode throws `CancellationError` (R21).
     ///
     /// The step's profile is the built-in one. A stack's profile reference
     /// (`Adjustments.cameraProfile`) would be resolved here and given to the
     /// step with `CameraColor.with(profile:)` (#89); no build has profiles
     /// to resolve yet, so every reference renders with the built-in profile.
-    private static func decodeWithLibRaw(_ url: URL, longEdge: Int?, settings: RAWDecodeSettings) -> Decoded? {
+    private static func decodeWithLibRaw(_ url: URL, longEdge: Int?, settings: RAWDecodeSettings) throws -> Decoded? {
         do {
             let output = try LibRawDecoder.decode(url, longEdge: longEdge)
             guard !output.linear.extent.isEmpty else { return nil }
             return Decoded(image: output.step.apply(to: output.linear, settings: settings),
                            context: RenderContext(scale: Self.scale(of: output.linear, native: output.fullSize),
                                                   isRaw: false, balancedByDecoder: true),
-                           decoder: .libRaw, camera: CameraDecode(linear: output.linear, step: output.step))
+                           decoder: .libRaw, camera: CameraDecode(linear: output.linear, step: output.step),
+                           demosaic: output.demosaic)
+        } catch let cancelled as CancellationError {
+            throw cancelled
         } catch {
             log.error("\(url.lastPathComponent, privacy: .private): no image from the system RAW decoder, and \(String(describing: error), privacy: .public)")
             return nil

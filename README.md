@@ -89,7 +89,13 @@ I built this with Claude. AI did the work, I did the orchestration.
   between the two decoders for the same camera (Fujifilm X-T3 files read
   14% to 30% lower). For Fujifilm files Gus uses the camera's own frame and
   the lens corrections stored in the file (distortion, color fringing, corner
-  shading); it is about 9 s to sharpen such a photo at 100%
+  shading)
+- Those raws now open fast: Gus demosaics them on the GPU with its own code
+  (an X-E3 file is ready at 100% in about 0.6 s, where LibRaw's own took
+  about 8 s) and applies a fixed, light color noise cleanup, so there is no
+  control for it. Detail is a little softer than LibRaw's on a few files, and
+  a sharper version is planned (#199). If the GPU can't do it, Gus falls back
+  to LibRaw and says so in the log
 - Before/after, copy and paste, and presets, including import of Lightroom
   presets (`.lrtemplate`, `.xmp`, `.dng`) with a report of anything that
   doesn't carry over

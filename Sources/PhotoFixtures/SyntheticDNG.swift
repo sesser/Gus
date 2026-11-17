@@ -86,6 +86,10 @@ public enum SyntheticDNG {
         /// per pixel, PhotometricInterpretation 34892, as HDR merges and
         /// panoramas are), instead of a color filter array.
         public var linearRaw: Bool
+        /// The color filter array: `period` x `period` colors (0 red, 1
+        /// green, 2 blue), rows first. Red, green / green, blue by default.
+        public var cfaPeriod: Int = 2
+        public var cfaColors: [UInt8] = [0, 1, 1, 2]
 
         public init(width: Int, height: Int, seed: UInt64, dateTimeOriginal: String? = nil, orientation: Int = 1,
                     noise: Double = 0, writesNoiseProfile: Bool = false, iso: Int? = nil, scene: Scene = .pattern,
@@ -162,7 +166,7 @@ public enum SyntheticDNG {
               let scene = options.scene.image(width: width, height: height, seed: options.seed)
         else { throw CocoaError(.fileWriteInvalidFileName) }
         return try mosaic(scene, width: width, height: height, noise: options.noise, seed: options.seed,
-                          linearRaw: options.linearRaw)
+                          linearRaw: options.linearRaw, cfaPeriod: options.cfaPeriod, cfaColors: options.cfaColors)
     }
 
     public static func data(options: Options, mosaic drawn: Data? = nil) throws -> Data {
@@ -199,8 +203,8 @@ public enum SyntheticDNG {
         ifd.short(284, [1])                        // PlanarConfiguration: chunky
         ifd.ascii(306, date)                       // DateTime
         if !options.linearRaw {
-            ifd.short(33421, [2, 2])               // CFARepeatPatternDim
-            ifd.bytes(33422, [0, 1, 1, 2])         // CFAPattern: RGGB
+            ifd.short(33421, [UInt16(options.cfaPeriod), UInt16(options.cfaPeriod)]) // CFARepeatPatternDim
+            ifd.bytes(33422, options.cfaColors)    // CFAPattern (RGGB unless set)
         }
         ifd.subIFD(34665, exif)                    // ExifIFD
         ifd.bytes(50706, [1, 4, 0, 0])             // DNGVersion
@@ -283,10 +287,10 @@ public enum SyntheticDNG {
         return tiff.write(ifd)
     }
 
-    /// Samples the scene through an RGGB color filter array as 16-bit linear
+    /// Samples the scene through the color filter array (RGGB unless given) as 16-bit linear
     /// values, or every channel at every pixel for a linear raw.
     static func mosaic(_ scene: CGImage, width: Int, height: Int, noise: Double, seed: UInt64,
-                       linearRaw: Bool = false) throws -> Data {
+                       linearRaw: Bool = false, cfaPeriod: Int = 2, cfaColors: [UInt8] = [0, 1, 1, 2]) throws -> Data {
         var rgba = [UInt8](repeating: 0, count: width * height * 4)
         guard let context = CGContext(data: &rgba, width: width, height: height, bitsPerComponent: 8,
                                       bytesPerRow: width * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
@@ -314,7 +318,7 @@ public enum SyntheticDNG {
             for y in 0..<height {
                 for x in 0..<width {
                     for sample in 0..<samplesPerPixel {
-                        let channel = linearRaw ? sample : (y & 1) == 0 ? ((x & 1) == 0 ? 0 : 1) : ((x & 1) == 0 ? 1 : 2)
+                        let channel = linearRaw ? sample : Int(cfaColors[(y % cfaPeriod) * cfaPeriod + x % cfaPeriod])
                         var value = linear[Int(rgba[(y * width + x) * 4 + channel])]
                         if noise > 0 {
                             value = UInt16(min(65535, max(0, (Double(value) + gaussian() * noise * 65535).rounded())))

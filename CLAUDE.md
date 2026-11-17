@@ -71,6 +71,14 @@ RAF_SAMPLE=path/to/file.RAF swift test --filter LibRawFallbackTests
 RAW_CONTEXT_SOAK=12000 swift test --filter RAWContextSoakTests
 ```
 
+```bash
+XTRANS_SAMPLES=a.RAF:b.RAF swift test --filter DemosaicXTransSampleTests
+```
+
+```bash
+BAYER_SAMPLES=a.RW2:b.CR2 swift test --filter DemosaicTruthTests
+```
+
 The build does not depend on Xcode: everything goes through SwiftPM, and tests
 use Swift Testing (not XCTest). `Scripts/build-app.sh` assembles the `.app`
 bundle (Info.plist from `Branding.xcconfig`, String Catalog compiled by the
@@ -805,9 +813,63 @@ with the mouse, light beyond the sliders' ends, the new look across a cached
 library) by eye on 2026-11-15, everything fine (#82,
 `docs/features/white-balance-across-decoders/qa.md`).
 
+GPU demosaic for raws LibRaw decodes (`docs/features/gpu-demosaic/`, issue #196,
+branch `feature/gpu-demosaic`; follows #195, LibRaw built with -O3, PR #197):
+for a raw the system decoder gives no image for, LibRaw now only unpacks
+(`Demosaic/SensorMosaic.swift`: the visible area in page-aligned memory Metal
+uses in place, the pattern, per-site blacks, white span and multipliers) and
+our own Metal kernels demosaic (`Demosaic/DemosaicKernels.swift`,
+`GPUDemosaic.swift`, `DemosaicTables.swift`; compiled at run time in safe math
+with `fp contract(off)`): Bayer by Hamilton-Adams green and color differences,
+X-Trans by four directional green estimates (taps derived from the pattern, so
+the same derivation gives Hamilton and Adams' on a Bayer one), blended by
+inverse squared variation. The Fujifilm frame and lens corrections, the
+orientation and the color step follow as before, and a white balance change
+still re-runs only the color step. A fixed baseline color noise step follows
+the demosaic (edge-avoiding a trous smoothing of R-G and B-G against a noise
+model the file gives, in place in bands of 256 rows; `NoiseModel.swift`): no
+control, no stored setting, and the Noise Reduction group is as before. Any
+other pattern, any GPU failure (no device, compile, allocation, execution) and
+the debug switch give LibRaw's own decode, unchanged, with a log notice naming
+the reason. Written from published papers and measurement only (the list is in
+`status.md`); nothing derived from another project's code. An X-E3 file at full
+size is ready in 0.62 s (LibRaw's demosaic: 7.7 s; X-T3 0.65 s against 8.4 s),
+a 24 MP decode peaks at about 300 MB above its start (LibRaw's own: about 550
+MB), GPU time 78 to 85 ms; Bayer files 0.10 to 0.31 s against 0.40 to 0.63 s;
+half-size decodes are no slower. Raws the system decodes are untouched.
+`PreviewCacheKey.currentPipelineVersion` is 12, a plain bump: every cached
+preview is made again once. `photocli render` prints `decoder` (`systemRAW`,
+`libRaw`, `imageIO`) and, for LibRaw's, `demosaic` (`method`, `pattern` or
+`reason`). Hidden switch for comparing, never a setting: launch option
+`--demosaic libraw`, `RAW_DEMOSAIC=libraw` for every tool and the tests,
+`photocli render … --demosaic libraw`. Checks with the owner's files (never
+committed): `XTRANS_SAMPLES=a.RAF:b.RAF swift test --filter
+DemosaicXTransSampleTests`, `BAYER_SAMPLES=a.RW2:b.CR2 swift test --filter
+DemosaicTruthTests`, `swift run -c release photobench demosaic --mode timing
+--files a.RAF` (modes `truth`, `real`, `timing`, `live`, `memory`, `pattern`).
+No migration, no stack change, no golden moved. Accepted by the owner as
+measured, 2026-11-16: the X-Trans kernel alone is 0.26 to 1.09 dB under
+LibRaw's three passes against binned truths (AC3; the sharper kernel is #199);
+AC4's per-pixel agreement with LibRaw's output is held only at ISO 800 or
+lower, with three files just outside (high ISO is judged by false color,
+detail and the system-decoder cross-check); AC6's detail is 0.92x to 0.94x on 5
+of 28 real files (false color is 0.17x to 0.82x of LibRaw's on all 28); AC2's
+edge chroma error on the E-M5 III is 1.04x LibRaw's. Known: the sample suites
+record those files rather than expect them; LibRaw's own X-Trans demosaic
+fails with an I/O error on frames of 450 rows or fewer (fallback path only, no
+camera's frame is that small); the macOS 15 job of CI has not built the new
+tests (Swift 6.2 has no `Test.cancel`; they avoid it). Shipped, checks
+pending: macOS 15 and 26 (CI is the first run there). The owner checked P1 to
+P4 (X-E3, X-T3 and X100S files at ISO 200 to 12800 beside `--demosaic libraw`,
+high-ISO look, stopping an export, first launch with an empty cache) by eye on
+2026-11-17: "no noticeable difference in rendering at 100% against the old
+look; previews for X-E3 files generate a lot faster, no lag"
+(`docs/features/gpu-demosaic/qa.md`).
+
 Not yet: AI masks, healing, lens corrections (distortion, lens vignetting,
 profiles; only the camera's own tables in Fujifilm raws LibRaw decodes), DNG export, `.dcp` profiles
 (a profile's hue/saturation and look tables are not applied, #89),
+a sharper X-Trans demosaic (#199),
 general (hand-made or burst) stacks, hierarchical
 keywords, PTP cameras, a second backup destination. Writing metadata into
 originals was dropped (2026-11-04, `docs/roadmap.md`): originals are never

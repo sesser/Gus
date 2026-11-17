@@ -8,6 +8,10 @@ import Foundation
 ///     --benchmark-scroll <report.json> scroll the grid at fixed speeds, write frame
 ///                                      statistics to the file, then quit
 ///     --debug-script "<commands>"      drive the UI for development checks (DebugScript)
+///     --demosaic libraw                demosaic every raw LibRaw decodes with LibRaw's
+///                                      own demosaic instead of ours (for comparing;
+///                                      `RAW_DEMOSAIC=libraw` in the environment does
+///                                      the same for every tool)
 ///
 /// The library app refuses to start without `--library-root` when it is a
 /// test launch: a bundle identifier other than the release one, or
@@ -20,6 +24,8 @@ public struct LaunchOptions: Sendable {
     public var libraryRoot: URL?
     public var benchmarkReport: URL?
     public var debugScript: String?
+    /// `LibRawDecoder.DemosaicChoice`'s raw value.
+    public var demosaic: String?
 
     public var benchmarkScroll: Bool { benchmarkReport != nil }
 
@@ -35,6 +41,8 @@ public struct LaunchOptions: Sendable {
                 benchmarkReport = iterator.next().map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) }
             case "--debug-script":
                 debugScript = iterator.next()
+            case "--demosaic":
+                demosaic = iterator.next()
             default:
                 break
             }

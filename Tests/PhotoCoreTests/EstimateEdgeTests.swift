@@ -147,6 +147,6 @@ struct EstimateEdgeTests {
     /// edges, and a key cannot say which stacks use the estimates.
     @Test("Previews cached before the fix are not used")
     func pipelineVersionBumped() {
-        #expect(PreviewCacheKey.currentPipelineVersion == 11)
+        #expect(PreviewCacheKey.currentPipelineVersion >= 11)
     }
 }

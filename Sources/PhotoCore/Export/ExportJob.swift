@@ -233,15 +233,10 @@ public struct ExportJob: Sendable {
             while running < maxConcurrentRenders, startNext() {}
             while let outcome = await group.next() {
                 running -= 1
-                switch outcome {
-                case .written(let url, let result):
-                    summary.written.append(url)
-                    if let result { summary.machineLearning.append(result) }
-                case .skipped: summary.skippedExisting += 1
-                case .failed(let failure): summary.failures.append(failure)
+                if Self.tally(outcome, into: &summary) {
+                    done += 1
+                    progress(done, total)
                 }
-                done += 1
-                progress(done, total)
                 _ = startNext()
             }
         }
@@ -249,10 +244,36 @@ public struct ExportJob: Sendable {
         return summary
     }
 
-    private enum Outcome: Sendable {
+    enum Outcome: Sendable {
         case written(URL, ExportSummary.MachineLearningResult?)
         case skipped
         case failed(ExportSummary.Failure)
+        /// Stopped while it rendered (a raw LibRaw decodes checks between
+        /// its unpack and the GPU work): not done, not failed, nothing written.
+        case cancelled
+    }
+
+    /// Adds one photo's outcome to the summary; false for one that was
+    /// stopped, which does not count as done, so the export reads as stopped
+    /// (`summary.cancelled`) and lists no failure for it.
+    static func tally(_ outcome: Outcome, into summary: inout ExportSummary) -> Bool {
+        switch outcome {
+        case .written(let url, let result):
+            summary.written.append(url)
+            if let result { summary.machineLearning.append(result) }
+        case .skipped: summary.skippedExisting += 1
+        case .failed(let failure): summary.failures.append(failure)
+        case .cancelled: return false
+        }
+        return true
+    }
+
+    /// The outcome of an export whose render threw `error`, other than the
+    /// failures `export` names itself.
+    static func outcome(of error: any Error, name: String) -> Outcome {
+        if error is CancellationError { return .cancelled }
+        log.error("Export of \(name, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
+        return .failed(.init(fileName: name, reason: .writeFailed(error.localizedDescription)))
     }
 
     private static func export(_ item: ExportItem, to destination: ExportDestination, settings: ExportSettings,
@@ -271,8 +292,7 @@ public struct ExportJob: Sendable {
         } catch PreviewGenerator.Failure.undecodable {
             return .failed(.init(fileName: name, reason: .unreadable))
         } catch {
-            log.error("Export of \(name, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
-            return .failed(.init(fileName: name, reason: .writeFailed(error.localizedDescription)))
+            return outcome(of: error, name: name)
         }
     }
 }

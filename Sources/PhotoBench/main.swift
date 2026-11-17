@@ -61,6 +61,10 @@ let usage = """
                  synthetic 6000x4000 DNGs) one after the other, as the two panes get them, without
                  adjustments and with a typical stack: time until each is sharp, and the memory two hold.
 
+      demosaic   --mode truth|real|timing|memory --files FILE[:FILE...] [--crop N] [--runs N] [--libraw]
+                 Our GPU demosaic against LibRaw's own (issue #196): against a known truth, on
+                 real frames, decode and GPU times, and one decode's peak memory.
+
       rawcompare --files FILE[:FILE...] [--output DIR] [--runs N]
                  The system RAW decoder against LibRaw on real raws: decode and render to 8-bit sRGB at
                  full size (LibRaw also at half size), each as the first run and the best of N (default 3;
@@ -151,6 +155,7 @@ do {
     case "compare": report = try await ComparisonBenchmark.run(arguments)
     case "denoise": report = try await DenoiseBenchmark.run(arguments)
     case "rawcompare": report = try await RawCompareBenchmark.run(arguments)
+    case "demosaic": report = try await DemosaicBenchmark.run(arguments)
     case "scenes": report = try await SceneFiles.run(arguments)
     default:
         print(usage)
