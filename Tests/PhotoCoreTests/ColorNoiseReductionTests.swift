@@ -7,7 +7,7 @@ import Testing
 /// AC7, AC8a): its kernel against the CPU reference, its bands, its
 /// half-float write, what it keeps (thin colored lines, edges) and what it
 /// removes (color noise in flat areas, against LibRaw's own decode).
-@Suite("Color noise reduction")
+@Suite("Color noise reduction", .enabled(if: hasMetalDevice, "No Metal device: the noise reduction kernel needs one"))
 struct ColorNoiseReductionTests {
     static let size = 96
     static let u: Float = 0x1p-23
@@ -15,8 +15,8 @@ struct ColorNoiseReductionTests {
     static func ulp(_ v: Float) -> Float { max(abs(v).ulp, .leastNonzeroMagnitude) }
 
     /// A demosaiced noisy picture (32-bit floats, no noise reduction) and its model.
-    static func input(_ pattern: CFAPattern = .xTransSample, noise: Float = 0.02) throws -> (GPUDemosaic, GPUDemosaic.Image)? {
-        guard let engine = try DemosaicKernelTests.engine() else { return nil }
+    static func input(_ pattern: CFAPattern = .xTransSample, noise: Float = 0.02) throws -> (GPUDemosaic, GPUDemosaic.Image) {
+        let engine = try DemosaicKernelTests.engine()
         let truth = DemosaicScene.truth(width: size, height: size, noise: noise)
         let mosaic = DemosaicScene.mosaic(truth, width: size, height: size, pattern: pattern)
         return (engine, try engine.run(mosaic, precision: .float, noiseReduction: nil))
@@ -59,7 +59,7 @@ struct ColorNoiseReductionTests {
 
     @Test("One level of the kernel is its CPU reference's within the derived bound", arguments: [1, 2, 4])
     func levelMatchesReference(step: Int) throws {
-        guard let (engine, image) = try Self.input() else { return }
+        let (engine, image) = try Self.input()
         let reduction = GPUDemosaic.ColorNoiseReduction(luminanceStrength: 2, colorStrength: 3, steps: [step])
         let gpu = try engine.denoise(image, channels: Self.channels, reduction: reduction, precision: .float).floats()
         let source = image.floats()
@@ -84,7 +84,7 @@ struct ColorNoiseReductionTests {
 
     @Test("Bands give the same image as one pass over the whole picture, in place or not")
     func bandsAreInvisible() throws {
-        guard let (engine, image) = try Self.input() else { return }
+        let (engine, image) = try Self.input()
         let reduction = GPUDemosaic.ColorNoiseReduction(luminanceStrength: 2, colorStrength: 3)
         let whole = try engine.denoise(image, channels: Self.channels, reduction: reduction, precision: .float,
                                        bandHeight: 4096).floats()
@@ -111,7 +111,7 @@ struct ColorNoiseReductionTests {
     /// output is its Float32 output with one write, 2⁻¹⁰ relative.
     @Test("The half-float output is the Float32 output within one half-float write (2⁻¹⁰)")
     func halfOutput() throws {
-        guard let (engine, image) = try Self.input() else { return }
+        let (engine, image) = try Self.input()
         let reduction = GPUDemosaic.ColorNoiseReduction(luminanceStrength: 2, colorStrength: 3)
         let float = try engine.denoise(image, channels: Self.channels, reduction: reduction, precision: .float).floats()
         let half = try engine.denoise(image, channels: Self.channels, reduction: reduction, precision: .half).floats()
@@ -147,7 +147,7 @@ struct ColorNoiseReductionTests {
     /// by at most 3 at the 95th percentile.
     @Test("Thin colored lines keep their color and edges stay put", arguments: ["RGGB", "X-Trans"])
     func keepsLinesAndEdges(name: String) throws {
-        guard let engine = try DemosaicKernelTests.engine() else { return }
+        let engine = try DemosaicKernelTests.engine()
         let pattern: CFAPattern = name == "RGGB" ? .rggb : .xTransSample
         let n = 192
         let sigma: Float = 0.015
@@ -216,7 +216,7 @@ struct ColorNoiseReductionTests {
     /// from the file, as for a real raw.
     @Test("Color noise in flat areas is at most LibRaw's", arguments: ["RGGB", "X-Trans"])
     func flatColorNoise(name: String) async throws {
-        guard try DemosaicKernelTests.engine() != nil else { return }
+        _ = try DemosaicKernelTests.engine()
         let pattern: CFAPattern = name == "RGGB" ? .rggb : .xTransSample
         let n = 516
         let sigma = 0.01

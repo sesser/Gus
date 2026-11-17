@@ -42,6 +42,9 @@ public final class GPUDemosaic: @unchecked Sendable {
         case execution
         /// As if there were no Metal device.
         case noDevice
+        /// As if the noise reduction's scratch textures could not be made,
+        /// after the demosaic is encoded (code review C1).
+        case scratchAllocation
     }
 
     /// Set by a test, for the work of its own task only.
@@ -187,6 +190,7 @@ public final class GPUDemosaic: @unchecked Sendable {
         let alignment = device.minimumLinearTextureAlignment(for: format)
         let bytesPerRow = (width * precision.bytesPerPixel + alignment - 1) / alignment * alignment
         guard let storage = PageAlignedStorage(count: bytesPerRow * height) else { throw .allocation("the output") }
+        storage.zeroPadding(rows: height, bytesPerRow: bytesPerRow, used: width * precision.bytesPerPixel)
         guard let outputBuffer = device.makeBuffer(bytesNoCopy: storage.pointer, length: storage.allocatedCount,
                                                    options: .storageModeShared, deallocator: nil) else {
             throw .allocation("the output buffer")
@@ -230,51 +234,55 @@ public final class GPUDemosaic: @unchecked Sendable {
             encoder.dispatchThreadgroups(MTLSize(width: (w + tw - 1) / tw, height: (h + th - 1) / th, depth: 1),
                                          threadsPerThreadgroup: MTLSize(width: tw, height: th, depth: 1))
         }
+        // Every way out of the encoding ends the encoder: Metal aborts the
+        // process when one is released without `endEncoding` (code review C1).
         var green: (any MTLTexture)?
-        if halfSize {
-            common("binHalf")
-            encoder.setTexture(output, index: 0)
-            dispatch("binHalf", width, height)
-        } else {
-            let greenDescriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .r32Float, width: width,
-                                                                           height: height, mipmapped: false)
-            greenDescriptor.storageMode = .private
-            greenDescriptor.usage = [.shaderRead, .shaderWrite]
-            guard let plane = device.makeTexture(descriptor: greenDescriptor) else {
-                encoder.endEncoding()
-                throw .allocation("the green plane")
-            }
-            green = plane
-            switch pattern.kind {
-            case .bayer:
-                common("bayerGreen")
-                encoder.setTexture(plane, index: 0)
-                dispatch("bayerGreen", width, height)
-                common("bayerColor")
-                encoder.setTexture(plane, index: 0)
-                encoder.setTexture(output, index: 1)
-                dispatch("bayerColor", width, height)
-            case .xTrans:
-                guard let tables else { encoder.endEncoding(); throw .encoding("tables for \(pattern)") }
-                common("xtransGreen")
-                encoder.setBuffer(tables.tapCounts, offset: 0, index: 5)
-                encoder.setBuffer(tables.taps, offset: 0, index: 6)
-                encoder.setBuffer(tables.pairCounts, offset: 0, index: 7)
-                encoder.setBuffer(tables.pairs, offset: 0, index: 8)
-                encoder.setTexture(plane, index: 0)
-                dispatch("xtransGreen", width, height)
-                common("xtransColor")
-                encoder.setBuffer(tables.neighbourCounts, offset: 0, index: 5)
-                encoder.setBuffer(tables.neighbours, offset: 0, index: 6)
-                encoder.setTexture(plane, index: 0)
-                encoder.setTexture(output, index: 1)
-                dispatch("xtransColor", width, height)
-            }
-        }
         var scratch: [any MTLTexture] = []
-        if let noiseReduction, let channels = noiseReduction.channels(for: mosaic, halfSize: halfSize) {
-            scratch = try encodeDenoise(encoder, source: output, destination: output, width: width, height: height,
-                                        channels: channels, reduction: noiseReduction, bandHeight: bandHeight)
+        do throws(Failure) {
+            if halfSize {
+                common("binHalf")
+                encoder.setTexture(output, index: 0)
+                dispatch("binHalf", width, height)
+            } else {
+                let greenDescriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .r32Float, width: width,
+                                                                               height: height, mipmapped: false)
+                greenDescriptor.storageMode = .private
+                greenDescriptor.usage = [.shaderRead, .shaderWrite]
+                guard let plane = device.makeTexture(descriptor: greenDescriptor) else { throw .allocation("the green plane") }
+                green = plane
+                switch pattern.kind {
+                case .bayer:
+                    common("bayerGreen")
+                    encoder.setTexture(plane, index: 0)
+                    dispatch("bayerGreen", width, height)
+                    common("bayerColor")
+                    encoder.setTexture(plane, index: 0)
+                    encoder.setTexture(output, index: 1)
+                    dispatch("bayerColor", width, height)
+                case .xTrans:
+                    guard let tables else { throw .encoding("tables for \(pattern)") }
+                    common("xtransGreen")
+                    encoder.setBuffer(tables.tapCounts, offset: 0, index: 5)
+                    encoder.setBuffer(tables.taps, offset: 0, index: 6)
+                    encoder.setBuffer(tables.pairCounts, offset: 0, index: 7)
+                    encoder.setBuffer(tables.pairs, offset: 0, index: 8)
+                    encoder.setTexture(plane, index: 0)
+                    dispatch("xtransGreen", width, height)
+                    common("xtransColor")
+                    encoder.setBuffer(tables.neighbourCounts, offset: 0, index: 5)
+                    encoder.setBuffer(tables.neighbours, offset: 0, index: 6)
+                    encoder.setTexture(plane, index: 0)
+                    encoder.setTexture(output, index: 1)
+                    dispatch("xtransColor", width, height)
+                }
+            }
+            if let noiseReduction, let channels = noiseReduction.channels(for: mosaic, halfSize: halfSize) {
+                scratch = try encodeDenoise(encoder, source: output, destination: output, width: width, height: height,
+                                            channels: channels, reduction: noiseReduction, bandHeight: bandHeight)
+            }
+        } catch {
+            encoder.endEncoding()
+            throw error
         }
         encoder.endEncoding()
         commands.commit()
@@ -396,6 +404,7 @@ public final class GPUDemosaic: @unchecked Sendable {
         // What each level must leave valid around the band: the radii of the levels after it.
         let remaining = radii.indices.map { i in radii[(i + 1)...].reduce(0, +) }
         let band = max(bandHeight, radii.reduce(0, +))
+        if Self.injectedFault == .scratchAllocation { throw .allocation("noise reduction scratch") }
         var sets: [[any MTLTexture]] = []
         for _ in 0..<2 {
             var set: [any MTLTexture] = []
@@ -456,7 +465,10 @@ public final class GPUDemosaic: @unchecked Sendable {
         let format = precision.pixelFormat
         let alignment = device.minimumLinearTextureAlignment(for: format)
         let bytesPerRow = (image.width * precision.bytesPerPixel + alignment - 1) / alignment * alignment
-        guard let storage = PageAlignedStorage(count: bytesPerRow * image.height),
+        guard let storage = PageAlignedStorage(count: bytesPerRow * image.height).map({
+                  $0.zeroPadding(rows: image.height, bytesPerRow: bytesPerRow, used: image.width * precision.bytesPerPixel)
+                  return $0
+              }),
               let outputBuffer = device.makeBuffer(bytesNoCopy: storage.pointer, length: storage.allocatedCount,
                                                    options: .storageModeShared, deallocator: nil),
               let inputBuffer = device.makeBuffer(bytesNoCopy: image.storage.pointer, length: image.storage.allocatedCount,
@@ -476,8 +488,14 @@ public final class GPUDemosaic: @unchecked Sendable {
               let commands = queue.makeCommandBuffer(), let encoder = commands.makeComputeCommandEncoder() else {
             throw .allocation("the noise reduction's textures")
         }
-        let scratch = try encodeDenoise(encoder, source: input, destination: output, width: image.width, height: image.height,
+        let scratch: [any MTLTexture]
+        do throws(Failure) {
+            scratch = try encodeDenoise(encoder, source: input, destination: output, width: image.width, height: image.height,
                                         channels: channels, reduction: reduction, bandHeight: bandHeight)
+        } catch {
+            encoder.endEncoding()
+            throw error
+        }
         encoder.endEncoding()
         commands.commit()
         commands.waitUntilCompleted()

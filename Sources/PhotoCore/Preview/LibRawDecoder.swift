@@ -52,6 +52,8 @@ public enum LibRawDecoder {
         public var fullSize: CGSize
         public var cameraMake: String
         public var cameraModel: String
+        /// The ISO speed the file records (0 when it records none).
+        public var iso: Double = 0
         /// The camera's lens corrections were read from the file and applied.
         public var hasLensCorrections = false
 
@@ -517,7 +519,8 @@ public enum LibRawDecoder {
         return Output(linear: framed.image, step: step,
                       pixels: pixels, demosaic: .libRaw(reason: reason), size: framed.size,
                       fullSize: framed.fullSize ?? (half ? CGSize(width: width * 2, height: height * 2) : decoded),
-                      cameraMake: make, cameraModel: model, hasLensCorrections: framed.corrected)
+                      cameraMake: make, cameraModel: model, iso: Double(processor.pointee.other.iso_speed),
+                      hasLensCorrections: framed.corrected)
     }
 
     /// The camera's lens tables for a decode of `frame`: only for a frame

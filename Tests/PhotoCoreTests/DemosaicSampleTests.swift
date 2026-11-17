@@ -59,8 +59,19 @@ struct DemosaicXTransSampleTests {
                    blockMedian: blocks.median, blockP95: blocks.p95, edgeMedian: pixels.edges.median)
     }
 
+    /// As the PRD stands after the owner's rulings of 2026-11-16 (rev 2):
+    /// AC3 (the kernel alone) is accepted as measured, so it is printed, not
+    /// expected. AC4 applies to files at ISO 800 or lower only; high ISO is
+    /// judged by AC5 and AC6. AC6 was accepted as a whole: false color at
+    /// most LibRaw's is expected on every file, the detail ratio is recorded
+    /// (the owner accepted five of 28 files at 0.92x to 0.94x), and the files
+    /// under 0.95x are listed at the end. Rev 2 also records three files at
+    /// ISO 400 or lower just outside AC4 (an X-E3 at ISO 200 with block p95
+    /// 2.08, two X100S files with dense fine detail): with those among the
+    /// samples, AC4 reports them.
     @Test("Real X-Trans raws against LibRaw's own demosaic: false color, detail, ΔE (AC3, AC4, AC6)")
     func quality() throws {
+        var underDetail: [String] = []
         for url in DemosaicSamples.files("XTRANS_SAMPLES") {
             let (libRaw, lib) = try DemosaicSamples.linear(url, .libRaw)
             let (kernel, kernelOutput) = try DemosaicSamples.linear(url, .automatic, noiseReduction: nil)
@@ -73,21 +84,25 @@ struct DemosaicXTransSampleTests {
             let alone = Self.measure(url, ours: kernel, libRaw: libRaw, step: step)
             let reduced = Self.measure(url, ours: ours, libRaw: libRaw, step: step)
             let decoder = SystemRAWDecoder.reads(url) ? "system decoder reads it" : "LibRaw only"
-            print(String(format: "XTRANS_SAMPLES: %@ (%@ %@, %@): LibRaw false color %.2f, detail %.2f; kernel %.2fx at detail %.2fx; "
-                         + "with noise reduction %.2fx at %.2fx; blocks ΔE %.2f / %.2f, edge ΔE median %.2f",
-                         url.lastPathComponent, lib.cameraMake, lib.cameraModel, decoder, alone.libRawFalseColor, alone.libRawDetail,
-                         alone.falseColorRatio, alone.detailRatio, reduced.falseColorRatio, reduced.detailRatio,
-                         reduced.blockMedian, reduced.blockP95, reduced.edgeMedian))
-            // AC6 (Must): with the noise reduction, false color at most LibRaw's at detail at least 0.95 of its.
+            print(String(format: "XTRANS_SAMPLES: %@ (%@ %@, ISO %.0f, %@): LibRaw false color %.2f, detail %.2f; "
+                         + "kernel alone (AC3, measured) %.2fx at detail %.2fx; with noise reduction %.2fx at %.2fx; "
+                         + "blocks ΔE %.2f / %.2f, edge ΔE median %.2f",
+                         url.lastPathComponent, lib.cameraMake, lib.cameraModel, lib.iso, decoder, alone.libRawFalseColor,
+                         alone.libRawDetail, alone.falseColorRatio, alone.detailRatio, reduced.falseColorRatio,
+                         reduced.detailRatio, reduced.blockMedian, reduced.blockP95, reduced.edgeMedian))
+            // AC6: with the noise reduction, false color at most LibRaw's; detail recorded.
             #expect(reduced.falseColorRatio <= 1.0, "\(url.lastPathComponent): AC6 false color")
-            #expect(reduced.detailRatio >= 0.95, "\(url.lastPathComponent): AC6 detail")
-            // AC3: the kernel alone.
-            #expect(alone.falseColorRatio <= 1.0, "\(url.lastPathComponent): AC3 false color")
-            #expect(alone.detailRatio >= 0.95, "\(url.lastPathComponent): AC3 detail")
-            // AC4: at block scale the two agree.
-            #expect(reduced.blockMedian <= 1.0 && reduced.blockP95 <= 2.0, "\(url.lastPathComponent): AC4 blocks")
-            #expect(reduced.edgeMedian <= 5, "\(url.lastPathComponent): AC4 edges")
+            if reduced.detailRatio < 0.95 {
+                underDetail.append(String(format: "%@ %.2fx", url.lastPathComponent, reduced.detailRatio))
+            }
+            // AC4: at ISO 800 or lower, at block scale and at edges the two agree.
+            if lib.iso > 0, lib.iso <= 800 {
+                #expect(reduced.blockMedian <= 1.0 && reduced.blockP95 <= 2.0, "\(url.lastPathComponent): AC4 blocks")
+                #expect(reduced.edgeMedian <= 5, "\(url.lastPathComponent): AC4 edges")
+            }
         }
+        print("XTRANS_SAMPLES: AC6 detail under 0.95x with the noise reduction (recorded, accepted in rev 2): "
+              + (underDetail.isEmpty ? "none" : underDetail.joined(separator: ", ")))
     }
 
     @Test("An X-E3's frame is the camera's and its lens corrections apply; a GPU failure gives LibRaw's pixels (AC9, AC12)")
@@ -116,7 +131,7 @@ struct DemosaicXTransSampleTests {
                 "Set BAYER_SAMPLES to Bayer raws (a list or a folder) to check AC2 and AC3 against a known truth"),
        .serialized)
 struct DemosaicTruthTests {
-    @Test("Against a known truth, ours is within 0.1 dB of LibRaw's CPSNR and at most its edge chroma error (AC2, AC3)")
+    @Test("Against a known truth, the Bayer kernel is within 0.1 dB of AHD's CPSNR and at most its edge chroma error (AC2); X-Trans recorded (AC3)")
     func truth() async throws {
         for url in DemosaicSamples.files("BAYER_SAMPLES") {
             let mosaic = try LibRawDecoder.sensorMosaic(url)
@@ -150,8 +165,11 @@ struct DemosaicTruthTests {
                     }
                     print(String(format: "BAYER_SAMPLES: %@ through %@: CPSNR ours %.2f dB, LibRaw %.2f dB; edge chroma error p95 ours %.2f, LibRaw %.2f",
                                  url.lastPathComponent, "\(pattern.kind)", scores[0].cpsnr, scores[1].cpsnr, scores[0].chroma, scores[1].chroma))
-                    #expect(scores[0].cpsnr >= scores[1].cpsnr - 0.1, "\(url.lastPathComponent) \(pattern.kind): CPSNR")
-                    #expect(scores[0].chroma <= scores[1].chroma, "\(url.lastPathComponent) \(pattern.kind): edge chroma error")
+                    // AC2 for Bayer. AC3's X-Trans half was accepted as measured (PRD rev 2): printed only.
+                    if pattern.kind == .bayer {
+                        #expect(scores[0].cpsnr >= scores[1].cpsnr - 0.1, "\(url.lastPathComponent): AC2 CPSNR")
+                        #expect(scores[0].chroma <= scores[1].chroma, "\(url.lastPathComponent): AC2 edge chroma error")
+                    }
                 }
             }
         }

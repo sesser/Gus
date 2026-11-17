@@ -63,19 +63,17 @@ enum DemosaicScene {
 
 /// The demosaic kernels against their CPU reference (R10, AC8a), on small
 /// mosaics that run on every Mac, CI's included.
-@Suite("Demosaic kernels")
+/// Whether there is a Metal device to run the kernels on (CI's virtual
+/// GPUs have one); without one the GPU suites are skipped, saying so.
+let hasMetalDevice = MTLCreateSystemDefaultDevice() != nil
+
+@Suite("Demosaic kernels", .enabled(if: hasMetalDevice, "No Metal device: the demosaic kernels need one"))
 struct DemosaicKernelTests {
     static let size = 96
     static let u: Float = 0x1p-23
 
-    static func engine() throws -> GPUDemosaic? {
-        do {
-            return try GPUDemosaic.shared()
-        } catch .noDevice {
-            print("Demosaic kernels: no Metal device here; the kernels are not checked")
-            return nil
-        }
-    }
+    /// The engine; a compile failure fails the test that asks.
+    static func engine() throws -> GPUDemosaic { try GPUDemosaic.shared() }
 
     static func ulp(_ v: Float) -> Float { max(abs(v).ulp, .leastNonzeroMagnitude) }
 
@@ -114,7 +112,7 @@ struct DemosaicKernelTests {
     /// - Half size: one division, 3 ULP.
     @Test("Each kernel's Float32 output is its CPU reference's within the derived bound", arguments: patterns.map(\.0))
     func matchesReference(name: String) throws {
-        guard let engine = try Self.engine() else { return }
+        let engine = try Self.engine()
         let pattern = Self.patterns.first { $0.0 == name }!.1
         let mosaic = Self.mosaic(pattern)
         let gpu = try engine.run(mosaic, precision: .float).floats()
@@ -224,7 +222,7 @@ struct DemosaicKernelTests {
     /// 2⁻¹⁰ relative, not round-to-nearest's 2⁻¹¹ (subnormals: 2⁻²⁴ absolute).
     @Test("The half-float output is the Float32 output within one half-float write (2⁻¹⁰)", arguments: patterns.map(\.0))
     func halfOutput(name: String) throws {
-        guard let engine = try Self.engine() else { return }
+        let engine = try Self.engine()
         let pattern = Self.patterns.first { $0.0 == name }!.1
         let mosaic = Self.mosaic(pattern)
         for half in [false, true] {
@@ -239,7 +237,7 @@ struct DemosaicKernelTests {
 
     @Test("The half-size bins are their CPU reference's within 3 ULP", arguments: patterns.map(\.0))
     func halfSizeMatchesReference(name: String) throws {
-        guard let engine = try Self.engine() else { return }
+        let engine = try Self.engine()
         let pattern = Self.patterns.first { $0.0 == name }!.1
         let mosaic = Self.mosaic(pattern)
         let image = try engine.run(mosaic, halfSize: true, precision: .float)
@@ -260,7 +258,7 @@ struct DemosaicKernelTests {
     /// do what it says.
     @Test("Away from edges, a demosaic of a smooth picture gives it back", arguments: patterns.map(\.0))
     func smoothPictureComesBack(name: String) throws {
-        guard let engine = try Self.engine() else { return }
+        let engine = try Self.engine()
         let pattern = Self.patterns.first { $0.0 == name }!.1
         let n = Self.size
         var truth = [SIMD3<Float>](repeating: .zero, count: n * n)
@@ -299,6 +297,13 @@ struct DemosaicKernelTests {
             #expect(perChannel[0] <= gradients[0] * Float(8).squareRoot() + 1e-4, "\(perChannel)")
             #expect(perChannel[2] <= gradients[1] * Float(8).squareRoot() + 1e-4, "\(perChannel)")
         }
+    }
+
+    /// Code review C7: the per-color blacks are read at an offset in LibRaw's
+    /// struct; this fails if a LibRaw update moves them.
+    @Test("LibRaw's black levels are where the unpack reads them")
+    func blackLayout() {
+        #expect(SensorMosaic.blackLayoutHolds)
     }
 
     @Test("Half floats read back as their values")

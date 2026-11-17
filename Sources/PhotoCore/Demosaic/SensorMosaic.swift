@@ -26,6 +26,14 @@ final class PageAlignedStorage: @unchecked Sendable {
     }
 
     deinit { free(pointer) }
+
+    /// Clears the bytes past `used` in each row: rows padded for the GPU's
+    /// alignment are never written there, and an image's data should not
+    /// depend on what the heap held (code review C8).
+    func zeroPadding(rows: Int, bytesPerRow: Int, used: Int) {
+        guard bytesPerRow > used else { return }
+        for row in 0..<rows { (pointer + row * bytesPerRow + used).initializeMemory(as: UInt8.self, repeating: 0, count: bytesPerRow - used) }
+    }
 }
 
 /// A raw's sensor values as LibRaw unpacks them, before any of LibRaw's own
@@ -130,6 +138,8 @@ extension SensorMosaic {
         /// A mosaic whose pattern is neither Bayer nor X-Trans.
         case pattern(String)
         case noSensorData
+        /// The vendored LibRaw no longer lays its black levels out as read here (`blackLayoutHolds`).
+        case blackLayout
 
         public var description: String {
             switch self {
@@ -137,6 +147,7 @@ extension SensorMosaic {
             case .diagonalSensor: "a Super CCD sensor"
             case .pattern(let pattern): "a color filter pattern the kernels do not demosaic (\(pattern))"
             case .noSensorData: "LibRaw gave no sensor data"
+            case .blackLayout: "LibRaw's black levels are not where this build reads them"
             }
         }
     }
@@ -173,10 +184,26 @@ extension SensorMosaic {
         return .success(pattern)
     }
 
+    /// `cblack` (LibRaw's `unsigned cblack[LIBRAW_CBLACK_SIZE]`) is too large
+    /// a C array for Swift to import, so it is read at its offset: right after
+    /// `ushort curve[0x10000]`, the first member, and right before `black`.
+    /// True while the vendored header lays `libraw_colordata_t` out that way
+    /// (code review C7); a LibRaw that changes it makes every decode LibRaw's
+    /// own (`Unsupported.blackLayout`) instead of reading wrong blacks.
+    static let blackLayoutHolds: Bool = {
+        // `curve` is not imported either (65,536 values); its size and `cblack`'s put `black` here, and
+        // `data_maximum` follows it.
+        let black = MemoryLayout<libraw_colordata_t>.offset(of: \.black)
+        let next = MemoryLayout<libraw_colordata_t>.offset(of: \.data_maximum)
+        return black == 0x10000 * MemoryLayout<UInt16>.size + Int(LIBRAW_CBLACK_SIZE) * MemoryLayout<UInt32>.size
+            && next == black.map { $0 + MemoryLayout<UInt32>.size }
+    }()
+
     /// The visible area of an unpacked file, copied out of LibRaw's buffer,
     /// with its pattern, levels and `multipliers`.
     static func unpacked(_ processor: UnsafeMutablePointer<libraw_data_t>, pattern: CFAPattern,
                          multipliers: SIMD3<Double>) throws -> SensorMosaic {
+        guard blackLayoutHolds else { throw Unsupported.blackLayout }
         guard let raw = processor.pointee.rawdata.raw_image else { throw Unsupported.noSensorData }
         let sizes = processor.pointee.sizes
         let width = Int(sizes.width), height = Int(sizes.height)

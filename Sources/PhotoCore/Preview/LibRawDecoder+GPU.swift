@@ -46,8 +46,7 @@ extension LibRawDecoder {
 
     /// A decode's pixels before the crop, the orientation and the frame:
     /// red, green, blue and alpha, rows from the top.
-    struct Pixels: @unchecked Sendable {
-        // @unchecked: the data is immutable once made.
+    struct Pixels: Sendable {
         var width: Int
         var height: Int
         var bytesPerRow: Int
@@ -109,6 +108,7 @@ extension LibRawDecoder {
             $0.withMemoryRebound(to: CChar.self, capacity: 64) { String(cString: $0) }
         }
         let exposure = fileExposure(of: processor)
+        let iso = Double(processor.pointee.other.iso_speed)
 
         code = libraw_unpack(processor)
         guard code == LIBRAW_SUCCESS.rawValue else { throw Failure.libraw("unpack", code: code) }
@@ -149,7 +149,7 @@ extension LibRawDecoder {
         let full = half ? CGSize(width: size.width * 2, height: size.height * 2) : size
         return .decoded(Output(linear: framed.image, step: step, pixels: pixels, demosaic: .gpu(pattern.kind),
                                size: framed.size, fullSize: framed.fullSize ?? full,
-                               cameraMake: make, cameraModel: model, hasLensCorrections: framed.corrected))
+                               cameraMake: make, cameraModel: model, iso: iso, hasLensCorrections: framed.corrected))
     }
 
     /// The image (the sensor's rows and columns, extent at the origin)
