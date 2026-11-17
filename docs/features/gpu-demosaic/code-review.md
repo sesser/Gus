@@ -171,3 +171,24 @@ cancellation check comes before `GPUDemosaic.shared()`. The gate in that test
 (`AsyncStream` iteration ends when its task is cancelled) is deterministic,
 with no sleep. Nothing under `Sources/CLibRaw`, `Goldens/` or `Package.swift`
 changed, and no UI string, brand value or tolerance changed.
+
+### Third pass (2026-11-16)
+
+Reviewed: `dda56da..2397983` (`4ec2ea9` tests, `2397983` `status.md`). Build
+and tests at `2397983` on this Mac (Xcode 27.2, Swift 6.4.2): `swift build`
+green; `swift test` passed 1072 tests in 161 suites (60 s); `swift test
+--filter GPUDemosaicDecodeTests` passed 10 tests, and the three tests behind
+the new condition ran (not skipped) here, as they should on macOS 27.2. The
+sample suites were not run.
+
+**Verdict: ready for QA.** C10 is fixed and Q3 is settled as PRD rev 2 reads.
+Nothing new. The only open item is still Q2 (AC2's E-M5 III), which is with
+the product manager. The macOS 15 CI job is still the only real check of
+C10, since this Mac has no Swift 6.2 toolchain.
+
+| # | Verdict | Commit | Notes |
+|---|---|---|---|
+| C5 | Fixed | `4ec2ea9` | It now skips with its reason through `.enabled(if:)`, not `Test.cancel`. On a macOS whose system decoder reads the small DNG (the CI runners, maybe), AC10, R20 and the export test show as skipped with that reason, not as passed. |
+| C10 | Fixed | `4ec2ea9` | `Test.cancel` is gone from `Tests/`; it is left only in a doc comment (`GPUDemosaicDecodeTests.swift:34`). I listed every Swift Testing API the test target uses: `#expect`/`#require` (including `throws:` with a type, `Never.self`, an `Equatable` error value, and the `#expect { } throws: { }` closure form), `Issue.record` (a comment or an error, with `sourceLocation`), `withKnownIssue(_:isIntermittent:)`, `.enabled(if:_:)`, `.serialized` and `#_sourceLocation`. There is no `Test.current`, `Attachment`, exit test, issue `severity:`, `confirmation`, `.timeLimit`, `.bug` or scoping trait. I checked each one used against the `swift-6.2.4-RELEASE` tag of swift-testing (`Expectation+Macro.swift`, `ConditionTrait.swift:125,144`, `ParallelizationTrait.swift:60`, `Issue+Recording.swift`, `KnownIssue.swift`): all are public there. The branch's tests use none of the return-value forms of `#expect(throws:)`. The branch's sources use `Mutex` (Synchronization, macOS 15, Swift 6.0) and typed throws (6.0), and no Swift 6.2- or 6.3-only API. |
+| Probe | Fine | `4ec2ea9` | `systemReadsSmallXTrans` is a `static let`, so it runs once, thread-safely, when Swift Testing first evaluates the condition, before the tests run. It writes one 252 x 192 synthetic DNG into its own folder in `temporaryDirectory` (`gpu-demosaic-probe-<UUID>`) and removes it in `defer` (no folder left after the run here). It touches no library and no catalog, only `CIRAWFilter` on that file. Its options (`.xTransSample`, 252 x 192, seed 11) match the file each of the three tests writes, so the probe and the test agree. Each test also keeps `#expect(!SystemRAWDecoder.reads(url))`. If the probe cannot write its file it returns `true`, so the three tests are skipped with a reason that is wrong in that case. That is not silent: `whichDemosaic` and the other tests that use `Self.dng` fail on the same writer. The tally checks moved to `stoppedPhotoTally`, which always runs and needs no device. |
+| Q3 | Settled | `4ec2ea9`, `2397983` | `acceptedOutsideAC4` names `DSCF4179.RAF`, `X1009619.RAF` and `X1009802.RAF`. These are exactly the three files at ISO 800 or lower that miss AC4 in the measurement log of the 28 samples, with the noise reduction on, as `reduced` is. `DSCF4179` is the X-E3 at ISO 200 with blocks 0.53 / **2.08** and edges 5.72, the p95 rev 2 quotes. `X1009619` is an X100S at ISO 200 (1.10 / 3.27, edges 14.45). `X1009802` is an X100S at ISO 320 (0.84 / 2.46, edges 9.81). The other 10 files at ISO 800 or lower meet it (seven of them at ISO 400 or lower, matching rev 2's 7 of 10). In the 130-file manifest no other camera has these numbers, so the suffix match exempts nothing else. The exemption sits inside the ISO 800 or lower branch and covers AC4 alone: AC6's false color is still expected for those files. This follows rev 2's AC4 text ("part of the result the owner accepted as a whole"). For AC2's E-M5 III, rev 2 accepts nothing, so keeping AC2 expected there (Q2, still open) is consistent with this. My second pass asked for one answer to both. Rev 2's text gives them different answers, and that is right. |
