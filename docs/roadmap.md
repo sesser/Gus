@@ -105,6 +105,7 @@ Roughly ordered by dependency, then by how often a photographer would hit the ga
 1. [#108](https://github.com/sesser/Gus/issues/108) `viewport-faster-frames`: At 100% on the owner's display a typical stack draws 6 to 7 sharp frames a second while a value moves (p95 about 140–160 ms);
 1. [#109](https://github.com/sesser/Gus/issues/109) `viewport-large-photos`: Above 24 MP, sharp frames at 100% are slower (over 100 ms even in small windows at 54 MP) and the full-resolution copy held at 100%…
 1. [#110](https://github.com/sesser/Gus/issues/110) `ml-denoise-missing-model`: On a Mac with macOS 27 but without the RAW 9 model, a photo that asks for machine learning noise reduction would say "could not be…
+1. [#199](https://github.com/sesser/Gus/issues/199) `xtrans-demosaic-sharper`: A sharper X-Trans demosaic (homogeneity-directed); the GPU demosaic's X-Trans kernel from #196 is 0.3 to 1.1 dB under LibRaw's three passes and softer on some files (owner, 2026-11-17)
 
 ## Dropped
 
