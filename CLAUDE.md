@@ -71,6 +71,14 @@ RAF_SAMPLE=path/to/file.RAF swift test --filter LibRawFallbackTests
 RAW_CONTEXT_SOAK=12000 swift test --filter RAWContextSoakTests
 ```
 
+```bash
+XTRANS_SAMPLES=a.RAF:b.RAF swift test --filter DemosaicXTransSampleTests
+```
+
+```bash
+BAYER_SAMPLES=a.RW2:b.CR2 swift test --filter DemosaicTruthTests
+```
+
 The build does not depend on Xcode: everything goes through SwiftPM, and tests
 use Swift Testing (not XCTest). `Scripts/build-app.sh` assembles the `.app`
 bundle (Info.plist from `Branding.xcconfig`, String Catalog compiled by the
