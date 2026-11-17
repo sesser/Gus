@@ -143,8 +143,9 @@ Machine: Apple M4 Pro (14 cores), 24 GB, macOS 27.2.1, Xcode 26 toolchain
 | After the code review's fixes, `522f41f` | green, no warnings | 1071 tests in 161 suites passed (68 s) |
 | After the second pass, `4ec2ea9` | green, no warnings | **1072 tests in 161 suites passed** (66 s) |
 
-Latest full run: 2026-11-16, at `5dd946e` (QA Q1's test): 1072 tests in 161 suites
-passed. At `4ec2ea9` (the second-pass fixes): 1072. Before it, at
+Latest full run: 2026-11-16, at `ccc71fa` (Q2's ruling in the truth suite): 1072
+tests in 161 suites passed; `BAYER_SAMPLES` with the E-M5 III passed, its edge
+chroma listed. At `5dd946e` (QA Q1's test): 1072. At `4ec2ea9` (the second-pass fixes): 1072. Before it, at
 `522f41f`: 1071. (An earlier line here named `5003d8a`, a commit since
 rewritten; code review C4.)
 At `522f41f`, `XTRANS_SAMPLES` with the X-E3 `DSCF5123` (ISO 400), an X-T3 at
