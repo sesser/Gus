@@ -206,3 +206,69 @@ LibRaw's 0.00812 (0.25x, 0.85x); X-Trans 0.00172, 0.00586, 0.00843 (0.20x, 0.69x
 | # | Verdict | Commit | Notes |
 |---|---|---|---|
 | QA Q1 | Fixed | `5dd946e` | The step-off decode sets `GPUDemosaic.decodeNoiseReduction` to `nil`, which is exactly mutation M3, so its figures are what the default decode would give under M3: 0.85x and 0.69x, both over 0.5x and not under themselves, so both new expectations fail then. A decode that ignored the task-local would make `ours == kernelAlone` and fail `ours < kernelAlone`, so the comparison can't pass vacuously. The 0.5x bound sits between the measured 0.25x/0.20x and 0.85x/0.69x, the nearest margin 0.19x (X-Trans, step off); it is tighter than the PRD's 1.0x, which is still expected, so nothing is loosened. Scoping: the task-local is read synchronously in `LibRawDecoder+GPU.swift:126` inside the `withValue` closure (no dispatch or detached task on that path); the GPU output is already a bitmap when the closure returns, so the render after it is unaffected. The other two decodes run outside any scope and get `.baseline`; Swift Testing gives each test case its own task, so nothing leaks between cases. Input is seeded (`SplitMixRandom(seed: 9)`, DNG seed 1), LibRaw's decode is CPU, and the GPU figures were identical across runs and with the GPU suites in parallel. The only API is the synchronous `TaskLocal.withValue` (Swift 5.5), already used by the branch's other tests: nothing 6.3-only. It writes one DNG in a temporary folder and touches no library. Nit, not a finding: the doc comment at `ColorNoiseReductionTests.swift:213-216` still describes only the "at most LibRaw's" half. |
+
+### Fifth pass (2026-11-17)
+
+Reviewed: `de79587` (the Swift 6.2.4 type-checker rewrite, 13 source and test
+files) and `db1daad` (`status.md`); `dfd0ea3`, `4781f37`, `8cf6a1b` and
+`c263c73` are a merge with no code conflicts and Ship's docs, not reviewed.
+Build and tests at `db1daad` on this Mac (Swift 6.4.2): `swift build` green;
+`swift test` passed 1072 tests in 161 suites (64 s); the demosaic suites alone
+(`Demosaic|ColorNoiseReduction|GPUDemosaicDecode|LibRawDecoder|ReferenceTests|GoldenTests`)
+passed 64 tests, X-Trans 27648 of 27648 values identical to the reference, shifted
+or not. The sample suites were not run (no samples here).
+
+**Verdict: ready to go back to CI.** Every rewrite is the same computation, and
+macOS 15's `Build` step (Swift 6.2.4) already passed on this commit (run
+44135494961, 17:18:53 to 17:21:05 UTC), so PhotoCore, PhotoFixtures and
+photobench now type-check there. The test target is type-checked only by that
+job's `Test` step, which was still running when this pass ended. No findings.
+
+Semantics, rewrite by rewrite (each read against its old line):
+
+| Where | Same because |
+|---|---|
+| `CFAPattern.shifted`, `SensorMosaic.cropped` black (the two CI rejected) | Same index `((site / p + y) % p) * p + (site % p + x) % p`, in `Int`, sites in order; `%` on a negative offset would behave as before, and none occurs (`cropped` guards `x, y ≥ 0`; every caller of `shifted` passes 0 or more). |
+| `CFAPattern` X-Trans row and column check | `Set<Int32>` of the same six colors; `colors` is `[Int32]`. |
+| `NoiseModel` green offset | `first(where:)` over the same offsets; the nested function returns true on the first green site whose neighbour is green, as `contains` with `&&` did. |
+| `NoiseModel` least squares | Each `reduce(0)` was a left fold from 0.0 over `points` in order; the loop adds the same products (`w·l·l`, `w·l·v` keep their left-to-right order) in the same order. Double throughout. Swift does not contract to FMA, so the separate accumulators round as the folds did. |
+| `DemosaicTables.centered` | `lambda`, `mu` unchanged; weight `s·(1 + mu + Σλ·o)`, the same order of addition. |
+| `DemosaicTables` green line, own color | One closure `isOwn` used for both `first(where:)`; it captures `position` and `own` as the inline closures did. Taps `Int32(key·dx)` in `Int` first, as before (it would not compile if `dx` were not `Int`). |
+| `DemosaicTables` differences | `total` a left fold from 0.0 in order; weight `lineWeight / Double(distance) / total`, same order. |
+| `GPUDemosaic` radii and `remaining` | `2·step`; `remaining[i]` the sum of `radii[i+1...]`, empty for the last level (`count..<count` is a valid empty range), `steps` non-empty by the guard above. `band`, margins and the rows that use them unchanged. |
+| `SensorMosaic.scalePerSite`, pattern text and tile | Same values in the same order; `String(Int32)` as before. |
+| `SensorMosaic.blackLayoutHolds` | Old: `Int? == Int` and `Int? == Int?.map`; both nil gave false through the first clause, `next` nil alone gave false. New `guard let` returns false in both cases, same sums otherwise. |
+| `LibRawDecoder+GPU` crop box | `UInt32` fields to `CGFloat` instead of `Double`: exact either way, and `CGFloat` is `Double` on every Mac this builds for (arm64, x86_64). The old `decodedSize.width - left` already mixed the two through the implicit conversion. Floor, `min`, the flipped `y` (`height - top - height`) unchanged. |
+| `DemosaicMeasure` (`RGBPicture.init`, `labOf`, `ColorStep`, `deltaE`, `edgeMask`) | Literals were `Float` before too (no implicit `Float`/`Double` conversion exists): `216/24389` and `24389/27` are the same `Float` divisions, `(slope·t + 16)/116` the same order; tone lookup `curve[i]·(1−f) + curve[i+1]·f` unchanged; `Measure.quantized16` is the old closure verbatim (clip, ×65535, ties to even, ÷65535). |
+| `photobench demosaic` | PSNR, error image and `quantized16` as above; the region `unit` is now `0.5 − (3024/w)/2`, equal to `0.5 − 1512/w` bit for bit (halving is exact). Benchmark only. |
+| Tests | Bounds keep their left-to-right sums (`blend + sums + division + ulp`, `throughGreen + blend + sums + ulp`); the scene keeps its comparisons, `gaussian()` calls in the same order; `12..<(n−12)` equals the old `stride` (`n` is 192); `JSONValue` comparisons through `stringValue` mean what `== "…"` meant (`.string` only), and "no `demosaic` key" is what `== nil` meant (a present `null` failed both). |
+
+The kernels and their CPU references take their weights from the same
+`DemosaicTables`, so "identical to the reference" alone would not catch a change
+in the tables; the reading above, `DemosaicKernelTests`' fixed Hamilton–Adams
+taps (`-0.25, 0.5, 0.5, 0.5, -0.25`), the goldens and the engineer's
+byte-identical X-E3 and X100S renders cover that. Nothing under
+`Sources/CLibRaw`, `Goldens/` or `Package.swift` changed; no tolerance, Metal
+source, pipeline version or UI string changed.
+
+Remaining risk shape. On Swift 6.4 the two expressions CI rejected cost 18
+solver scopes each (`-warn-long-expression-type-checking-scopes`), so this
+Mac's compiler does not rank 6.2.4's problem; what does is CI. A sweep of every
+target at 300 scopes lists four lines in the branch's files:
+`DemosaicBenchmark.swift:165` (`UInt8(min(max(ternary · 255, 0), 255).rounded())`,
+1259), `DemosaicMeasure.swift:177` (`Summary.mean`, 613), `SyntheticDNG.swift:310`
+(Box–Muller, 581, not this branch's line) and `ColorNoiseReductionTests.swift:282`
+(348). The first three compiled on Swift 6.2.4 in this commit's `Build` step.
+The shapes left in the test target are not closures over `$0`:
+`ColorNoiseReductionTests.swift:203` (`SIMD2(…) − (SIMD2(…) + SIMD2(…)) / 2`),
+`:124` and `DemosaicKernelTests.swift:255` (`abs(h − a) > max(abs(a) · 0x1p-10, 0x1p-24)`),
+and `Reference/DemosaicReference.swift:246-248` (nested `max`). If the macOS 15
+`Test` step rejects any of them, that is the place to look. The commit message
+says "mixes /bin/zsh" where it meant `$0` (the shell expanded it); cosmetic,
+not worth rewriting a pushed commit.
+
+| # | Verdict | Commit | Notes |
+|---|---|---|---|
+| CI (macOS 15) | Fixed for the build; tests pending | `de79587` | `Build` passed on Swift 6.2.4 at `db1daad`; `Test` running at the end of this pass. |
+| Rewrite | Fine | `de79587` | Same operations, order, types and rounding throughout; 1072 tests pass here. |
+| `status.md` | Fine | `de79587`, `db1daad` | Matches the diff and the run I saw. |
