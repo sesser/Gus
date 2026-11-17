@@ -39,6 +39,10 @@ enum RenderCommands {
             CommandParameter("original", .flag, "Render without any edits."),
             CommandParameter("colorSpace", .string, "sRGB (default), displayP3, adobeRGB or proPhoto."),
             CommandParameter("software", .flag, "Core Image's software renderer, where there is one."),
+            CommandParameter("demosaic", .string, """
+                For a raw LibRaw decodes: automatic (the default: the GPU demosaic where the pattern allows) or \
+                libraw (LibRaw's own demosaic, for comparing).
+                """),
         ],
         run: runRender)
 
@@ -127,6 +131,13 @@ enum RenderCommands {
                                + ExportSettings.ColorSpace.allCases.map(\.rawValue).joined(separator: ", "))
         }
         let software = arguments.flag("software")
+        var demosaic: LibRawDecoder.DemosaicChoice?
+        if let name = arguments.string("demosaic") {
+            guard let choice = LibRawDecoder.DemosaicChoice(rawValue: name.lowercased()) else {
+                throw CommandError(.invalidValue, "--demosaic is automatic or libraw")
+            }
+            demosaic = choice
+        }
         if software, !RenderEngine.softwareRendererIsAvailable {
             throw CommandError(.softwareRendererUnavailable, """
                 Core Image has no software renderer on this Mac (it needs OpenCL, which Apple silicon does not have); \
@@ -193,7 +204,9 @@ enum RenderCommands {
         let generator = PreviewGenerator(engine: engine, renderer: AdjustmentRenderer(lookTables: library?.lookTables))
         let clock = ContinuousClock()
         let started = clock.now
-        let rendering = try generator.rendering(source: source, stack: stack, longEdge: arguments.integer("longEdge"))
+        let rendering = try LibRawDecoder.$demosaicOverride.withValue(demosaic) {
+            try generator.rendering(source: source, stack: stack, longEdge: arguments.integer("longEdge"))
+        }
         let image = rendering.image
         guard let cgImage = engine.makeCGImage(image, colorSpace: colorSpace.cgColorSpace,
                                                bitsPerComponent: format.bitsPerComponent)
@@ -217,7 +230,26 @@ enum RenderCommands {
         ]
         if let versionID { result["versionID"] = JSONValue(versionID) }
         result["machineLearning"] = machineLearningJSON(rendering.machineLearning)
+        result["decoder"] = .string(decoderName(rendering.decoder))
+        if let demosaic = rendering.demosaic { result["demosaic"] = demosaicJSON(demosaic) }
         return .object(result)
+    }
+
+    static func decoderName(_ decoder: PreviewGenerator.Decoder) -> String {
+        switch decoder {
+        case .systemRAW: "systemRAW"
+        case .libRaw: "libRaw"
+        case .imageIO: "imageIO"
+        }
+    }
+
+    /// Which demosaic made a LibRaw decode (R20): `method` gpu or libraw,
+    /// with the pattern (`bayer`, `xTrans`) or the reason LibRaw's was used.
+    static func demosaicJSON(_ demosaic: LibRawDecoder.Demosaic) -> JSONValue {
+        switch demosaic {
+        case .gpu(let kind): ["method": "gpu", "pattern": .string(kind.rawValue)]
+        case .libRaw(let reason): ["method": "libraw", "reason": .string(reason)]
+        }
     }
 
     /// Whether a stack's machine learning noise reduction was asked for and

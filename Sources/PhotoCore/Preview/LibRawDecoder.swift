@@ -31,7 +31,7 @@ import os
 /// Each call has a LibRaw instance of its own and LibRaw is built thread-safe
 /// (without `LIBRAW_NOTHREADS`), so decodes may run at the same time.
 public enum LibRawDecoder {
-    private static let log = Logger(subsystem: AppBranding.bundleIdentifier, category: "decode")
+    static let log = Logger(subsystem: AppBranding.bundleIdentifier, category: "decode")
 
     public struct Output {
         /// The decode before its color step, cut to the frame and with the
@@ -41,10 +41,11 @@ public enum LibRawDecoder {
         public var linear: CIImage
         /// What turns `linear` into the photo.
         public var step: CameraColorStep
-        /// LibRaw's own pixels (before a Fujifilm RAF's frame is cut from them
-        /// and its lens corrections applied): red, green, blue and alpha, 16
-        /// bits each in host order, rows from the top.
-        var rgba16: Data
+        /// The demosaic's own pixels, before the crop, the orientation, a
+        /// Fujifilm RAF's frame and its lens corrections (tests).
+        var pixels: Pixels
+        /// Which demosaic made the image (R20).
+        public var demosaic: Demosaic
         /// The decode's size in pixels (half the frame's with `halfSize`).
         public var size: CGSize
         /// The frame's size at full resolution.
@@ -250,7 +251,7 @@ public enum LibRawDecoder {
     }
 
     /// The frame of an opened file, and the Fujifilm container it came from, if it is one.
-    private static func frame(of processor: UnsafeMutablePointer<libraw_data_t>, url: URL) -> (frame: Frame, camera: FujifilmRAF?) {
+    static func frame(of processor: UnsafeMutablePointer<libraw_data_t>, url: URL) -> (frame: Frame, camera: FujifilmRAF?) {
         let sizes = processor.pointee.sizes
         let camera = FujifilmRAF(contentsOf: url)
         if processor.pointee.rawdata.ioparams.fuji_width != 0 {
@@ -402,7 +403,31 @@ public enum LibRawDecoder {
     /// system decoder does for the raws it reads; `lensCorrections` false
     /// leaves them out, for comparing.
     public static func decode(_ url: URL, halfSize: Bool = false, longEdge: Int? = nil,
-                              lensCorrections: Bool = true) throws -> Output {
+                              lensCorrections: Bool = true, demosaic: DemosaicChoice? = nil) throws -> Output {
+        var reason = "chosen"
+        if (demosaic ?? currentDemosaic) == .automatic {
+            do {
+                switch try decodeOnGPU(url, halfSize: halfSize, longEdge: longEdge, lensCorrections: lensCorrections) {
+                case .decoded(let output): return output
+                case .unsupported(let why):
+                    reason = why
+                    log.notice("\(url.lastPathComponent, privacy: .private): demosaiced by LibRaw: \(why, privacy: .public)")
+                }
+            } catch let failure as GPUDemosaic.Failure {
+                // R19: this decode only; the next one tries the GPU again.
+                reason = failure.description
+                log.notice("\(url.lastPathComponent, privacy: .private): demosaiced by LibRaw: \(failure.description, privacy: .public)")
+            }
+        }
+        return try decodeWithLibRawDemosaic(url, halfSize: halfSize, longEdge: longEdge, lensCorrections: lensCorrections,
+                                            reason: reason)
+    }
+
+    /// LibRaw's own decode, demosaic included: for raws whose pattern our
+    /// kernels do not demosaic, files without usable color data, a GPU
+    /// failure, and the debug switch.
+    static func decodeWithLibRawDemosaic(_ url: URL, halfSize: Bool, longEdge: Int?, lensCorrections: Bool,
+                                         reason: String) throws -> Output {
         guard let processor = libraw_init(0) else { throw Failure.noMemory }
         defer { libraw_close(processor) }
         libraw_set_output_bps(processor, 16)
@@ -478,6 +503,7 @@ public enum LibRawDecoder {
         guard let space = CGColorSpace(name: CGColorSpace.extendedLinearITUR_2020) else { throw Failure.noMemory }
         let image = CIImage(bitmapData: rgba, bytesPerRow: width * 8, size: CGSize(width: width, height: height),
                             format: .RGBA16, colorSpace: space)
+        let pixels = Pixels(width: width, height: height, bytesPerRow: width * 8, isHalfFloat: false, data: rgba)
         let make = withUnsafePointer(to: processor.pointee.idata.make) {
             $0.withMemoryRebound(to: CChar.self, capacity: 64) { String(cString: $0) }
         }
@@ -489,7 +515,7 @@ public enum LibRawDecoder {
                             tables: lensCorrections ? lensTables(camera, frame: frame, file: url.lastPathComponent) : nil)
         let step = CameraColorStep(color: color, channelScale: channelScale, fileExposure: fileExposure(of: processor))
         return Output(linear: framed.image, step: step,
-                      rgba16: rgba, size: framed.size,
+                      pixels: pixels, demosaic: .libRaw(reason: reason), size: framed.size,
                       fullSize: framed.fullSize ?? (half ? CGSize(width: width * 2, height: height * 2) : decoded),
                       cameraMake: make, cameraModel: model, hasLensCorrections: framed.corrected)
     }

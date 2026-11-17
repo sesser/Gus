@@ -35,12 +35,17 @@ struct LibRawDecoderTests {
     }
 
     /// The decode's samples, four to a pixel, rows from the top.
-    static func samples(_ output: LibRawDecoder.Output) -> [UInt16] {
-        output.rgba16.withUnsafeBytes { Array($0.bindMemory(to: UInt16.self)) }
+    /// The decode as it is shown (cropped, oriented, framed), four values to
+    /// a pixel on LibRaw's 16-bit scale (1 is 65535), whichever demosaic made
+    /// it. Rendered in the app's half-float working format: exact for our
+    /// demosaic's half floats; LibRaw's 16-bit values are rounded to half
+    /// float, the same way every time.
+    static func samples(_ output: LibRawDecoder.Output) -> [Float] {
+        ReferenceTests.renderLinear(output.linear).pixels.map { $0 * 65535 }
     }
 
     /// One pixel's red, green and blue.
-    static func pixel(_ samples: [UInt16], width: Int, x: Int, y: Int) -> [UInt16] {
+    static func pixel(_ samples: [Float], width: Int, x: Int, y: Int) -> [Float] {
         Array(samples[((y * width + x) * 4)..<((y * width + x) * 4 + 3)])
     }
 
@@ -80,7 +85,7 @@ struct LibRawDecoderTests {
                 }
             }
             // Opaque.
-            #expect(samples[3] == .max)
+            #expect(samples[3] == 65535)
             // Through the color step without a look the camera (sRGB's primaries, under D65) is
             // converted to the working space: a grey stays grey, 1 / 0.99 as bright (the margin).
             var transform = output.step.transform(temperature: nil, tint: nil)
@@ -111,13 +116,14 @@ struct LibRawDecoderTests {
             let mosaic = try Self.mosaic(seed: .max)
             let whole = try LibRawDecoder.decode(try Self.dng(in: folder, "whole", seed: .max, mosaic: mosaic))
             let all = Self.samples(whole)
-            let brightest = stride(from: 0, to: all.count, by: 4).map { max(all[$0], all[$0 + 1], all[$0 + 2]) }.max() ?? 0
+            var brightest: Float = 0
+            for i in stride(from: 0, to: all.count, by: 4) { brightest = max(brightest, all[i], all[i + 1], all[i + 2]) }
             // A window of the mosaic whose brightest value is well under the whole picture's.
             let size = 64
-            var crop: CGRect?, cropBrightest: UInt16 = 0
+            var crop: CGRect?, cropBrightest: Float = 0
             search: for top in stride(from: 8, through: Self.height - size - 8, by: 8) {
                 for left in stride(from: 8, through: Self.width - size - 8, by: 8) {
-                    var highest: UInt16 = 0
+                    var highest: Float = 0
                     for y in top..<(top + size) {
                         for x in left..<(left + size) {
                             highest = max(highest, Self.pixel(all, width: Self.width, x: x, y: y).max() ?? 0)
@@ -204,7 +210,7 @@ struct LibRawDecoderTests {
             let half = try LibRawDecoder.decode(url, longEdge: 128)
             #expect(half.size == CGSize(width: 128, height: 96))
             #expect(half.fullSize == CGSize(width: 256, height: 192))
-            #expect(half.rgba16.count == 128 * 96 * 8)
+            #expect(half.pixels.width == 128 && half.pixels.height == 96)
             let full = try LibRawDecoder.decode(url, longEdge: 129)
             #expect(full.size == CGSize(width: 256, height: 192))
             #expect(try LibRawDecoder.decode(url, halfSize: true).size == half.size)
@@ -356,12 +362,12 @@ struct LibRawDecoderTests {
                 jobs.append((url, false))
                 jobs.append((url, true))
             }
-            let alone = try jobs.map { try LibRawDecoder.decode($0.url, halfSize: $0.half).rgba16 }
+            let alone = try jobs.map { try LibRawDecoder.decode($0.url, halfSize: $0.half).pixels.data }
             #expect(Set(alone).count == alone.count, "the files decode to different pictures")
             for round in 0..<4 {
                 let together = try await withThrowingTaskGroup(of: (Int, Data).self) { group in
                     for (index, job) in jobs.enumerated() {
-                        group.addTask { (index, try LibRawDecoder.decode(job.url, halfSize: job.half).rgba16) }
+                        group.addTask { (index, try LibRawDecoder.decode(job.url, halfSize: job.half).pixels.data) }
                     }
                     var results = [Data?](repeating: nil, count: jobs.count)
                     for try await (index, data) in group { results[index] = data }
