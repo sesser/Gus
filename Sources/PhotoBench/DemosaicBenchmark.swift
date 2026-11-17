@@ -74,7 +74,7 @@ enum DemosaicBenchmark {
         for url in files {
             let mosaic = try LibRawDecoder.sensorMosaic(url)
             guard mosaic.pattern.kind == .bayer else { print("\(url.lastPathComponent): not Bayer, skipped"); continue }
-            let binned = try GPUDemosaic.shared().run(mosaic, halfSize: true, precision: .float)
+            let binned = try GPUDemosaic.shared().run(mosaic, halfSize: true, precision: .float, noiseReduction: nil)
             var w = binned.width / 6 * 6, h = binned.height / 6 * 6
             if crop > 0 { w = min(w, crop / 6 * 6); h = min(h, crop / 6 * 6) }
             let whole = RGBPicture(rgba: binned.floats(), width: binned.width, height: binned.height)
