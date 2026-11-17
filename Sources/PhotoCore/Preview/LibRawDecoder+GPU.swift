@@ -171,3 +171,22 @@ extension LibRawDecoder {
         return result
     }
 }
+
+extension LibRawDecoder {
+    /// The file's sensor values, unpacked by LibRaw with the multipliers a
+    /// decode uses, for measuring the kernels on real files (`photobench
+    /// demosaic`, tests). Throws `SensorMosaic.Unsupported` for a file our
+    /// kernels do not demosaic.
+    public static func sensorMosaic(_ url: URL) throws -> SensorMosaic {
+        guard let processor = libraw_init(0) else { throw Failure.noMemory }
+        defer { libraw_close(processor) }
+        var code = libraw_open_file(processor, url.path)
+        guard code == LIBRAW_SUCCESS.rawValue else { throw Failure.libraw("open", code: code) }
+        guard let color = cameraColor(of: processor) else { throw SensorMosaic.Unsupported.noSensorData }
+        let pattern = try SensorMosaic.pattern(of: processor).get()
+        code = libraw_unpack(processor)
+        guard code == LIBRAW_SUCCESS.rawValue else { throw Failure.libraw("unpack", code: code) }
+        return try SensorMosaic.unpacked(processor, pattern: pattern,
+                                         multipliers: color.asShotNeutral.min() / color.asShotNeutral)
+    }
+}
