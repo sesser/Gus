@@ -140,11 +140,13 @@ Machine: Apple M4 Pro (14 cores), 24 GB, macOS 27.2.1, Xcode 26 toolchain
 |---|---|---|
 | Baseline, `develop` at `34738c2` (2026-11-16) | green, no warnings | 1047 tests in 156 suites passed (one unnamed failure in the first of three runs, not reproduced in the next two: flaky, not this feature's) |
 | After the first pass | green, no warnings (debug, and `-c release` for `photobench` and `photocli`) | 1067 tests in 161 suites passed |
-| After the code review's fixes, `522f41f` | green, no warnings | **1071 tests in 161 suites passed** (68 s) |
+| After the code review's fixes, `522f41f` | green, no warnings | 1071 tests in 161 suites passed (68 s) |
+| After the second pass, `4ec2ea9` | green, no warnings | **1072 tests in 161 suites passed** (66 s) |
 
-Latest full run: 2026-11-16, at `522f41f` (the review fixes; the commits
-after it change only this file): 1071 tests in 161 suites passed. (An earlier
-line here named `5003d8a`, a commit since rewritten; code review C4.)
+Latest full run: 2026-11-16, at `4ec2ea9` (the second-pass fixes; the commit
+after it changes only this file): 1072 tests in 161 suites passed. Before it, at
+`522f41f`: 1071. (An earlier line here named `5003d8a`, a commit since
+rewritten; code review C4.)
 At `522f41f`, `XTRANS_SAMPLES` with the X-E3 `DSCF5123` (ISO 400), an X-T3 at
 ISO 160 and the X-T3 `DSCF4583` (ISO 6400): `DemosaicXTransSampleTests` passed
 (2 tests, 317 s in a debug build; AC4 checked on the first two, recorded on the
