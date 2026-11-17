@@ -128,4 +128,11 @@ macOS 15 and 26 are covered by the pull request's CI (the macOS 15 job builds wi
 
 ## Follow-up
 
-Reruns after fixes: none yet. Q1 (a test) and Q2 (the owner's ruling on AC2's E-M5 III edge chroma, with code review Q3) are open. The owner's sign-off, its commit, date and any checks left open: not recorded yet.
+Findings (relayed by the main session; I did not rerun anything for these):
+
+- **Q1: Fixed** in `5dd946e`, confirmed by code review's fourth pass with the mutation re-run (the baseline noise step switched off in the decode now fails a test).
+- **Q2: Closed.** The owner accepted AC2's E-M5 III edge chroma (2.04 against 1.97, 1.04x) as measured, in `ccc71fa`. AC2 therefore stands as accepted, like AC3, AC4 and AC6.
+
+Person checks: the owner did P1 to P4 on 2026-11-17 in the bundled app at `f211d34`, on a scratch library with five RAFs (X-E3 at ISO 200, 3200 and 8000, X-T3 at ISO 12800, X100S at ISO 3200). Their words: "no noticeable difference in rendering at 100% against the old look; previews for X-E3 files generate a lot faster, no lag." P1 to P4 are done.
+
+**Sign-off: 2026-11-17, owner, commit `f211d34`.** Checks left open: none, except those left to the pull request's CI (macOS 15 and 26, the Swift 6.2.4 test compile of the macOS 15 job, and the CI runners' GPU). The main session commits this file.
