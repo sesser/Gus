@@ -40,7 +40,7 @@ Principles (drawn from `README.md` and `CLAUDE.md`):
 
 ## Now (maximum three)
 
-Nothing in progress. #170 (`white-balance-across-decoders`) is built and signed off; it leaves this list and closes with its pull request.
+1. [#196](https://github.com/sesser/Gus/issues/196) `gpu-demosaic`: Raws LibRaw decodes (the X-E3 class) take about 8 s at full size; demosaic on the GPU instead, X-Trans first
 
 ## Next
 
