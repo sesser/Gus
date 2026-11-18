@@ -40,15 +40,21 @@ Principles (drawn from `README.md` and `CLAUDE.md`):
 
 ## Now (maximum three)
 
-Nothing in progress.
+1. [#203](https://github.com/sesser/Gus/issues/203) `luminar-preset-import`: Luminar preset packs (.lnpc) can't be imported into the app
 
 ## Next
 
 Order set by the owner 2026-11-06 (library and project operations first, then
 virtual copies, then side-by-side comparison; the rest in the order it had). HDR merge (#150) was put after
 side-by-side comparison on 2026-11-11, ahead of the rest.
+On 2026-11-17 the owner put healing (#86), lens corrections (#87), AI masks (#88)
+and DCP profiles (#89) first, in that order; this lifts the earlier hold on #89.
 The small fixes and tooling items can each go as a bug fix (`docs/WORKFLOW.md`).
 
+1. [#86](https://github.com/sesser/Gus/issues/86) `healing`: No spot removal or healing
+1. [#87](https://github.com/sesser/Gus/issues/87) `lens-corrections`: No correction of geometric distortion or lens vignetting, and no lens profiles
+1. [#88](https://github.com/sesser/Gus/issues/88) `ai-masks`: No subject, sky, object or people masks
+1. [#89](https://github.com/sesser/Gus/issues/89) `dcp-profiles`: Adobe .dcp camera profiles not supported
 1. [#150](https://github.com/sesser/Gus/issues/150) `hdr-merge`: No way to merge several exposures of a scene into one tone-mapped HDR image, with automatic alignment and de-ghosting (owner, 2026-11-11)
 1. [#64](https://github.com/sesser/Gus/issues/64) `reads-beside-write-chain`: Five reads still take a photo's edits from the catalog without waiting for pending saves, so right after a change they can get the older…
 1. [#65](https://github.com/sesser/Gus/issues/65) `full-render-main-thread-stall`: At 100%, every arrival at a photo and every change that is let go freezes the window for about 0.4 s (about 1.3 s with machine learning…
@@ -79,11 +85,7 @@ Roughly ordered by dependency, then by how often a photographer would hit the ga
 1. [#83](https://github.com/sesser/Gus/issues/83) `pick-colors-magnifier`: The Color Range mask's Pick Colors doesn't use the Pixel Magnifier, so the person can't see which pixel a click takes or read its values
 1. [#84](https://github.com/sesser/Gus/issues/84) `apple-feedback-raw-lens-state`: Core Image's RAW decoder reuses a context's prepared lens correction regions for a different raw with the same graph digest, which…
 1. [#85](https://github.com/sesser/Gus/issues/85) `dng-export`: No DNG output
-1. [#86](https://github.com/sesser/Gus/issues/86) `healing`: No spot removal or healing
-1. [#87](https://github.com/sesser/Gus/issues/87) `lens-corrections`: No correction of geometric distortion or lens vignetting, and no lens profiles
-1. [#88](https://github.com/sesser/Gus/issues/88) `ai-masks`: No subject, sky, object or people masks
 1. [#151](https://github.com/sesser/Gus/issues/151) `panorama-merge`: No way to merge overlapping photos into a panorama. Open for the PRD: approach (Core Image if it offers stitching, the Hugin libraries, or a stitcher of our own); GRDB is the only dependency (ask first) and Hugin is GPL (owner, 2026-11-11)
-1. [#89](https://github.com/sesser/Gus/issues/89) `dcp-profiles`: Adobe .dcp camera profiles not supported
 1. [#90](https://github.com/sesser/Gus/issues/90) `stacks`: No hand-made or burst stacks
 1. [#91](https://github.com/sesser/Gus/issues/91) `hierarchical-keywords`: Keywords are flat
 1. [#92](https://github.com/sesser/Gus/issues/92) `masks-in-presets-and-paste`: Presets, paste and sync leave masks out;
