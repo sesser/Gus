@@ -201,3 +201,58 @@ Rechecked for the fixes:
 
 `/security-review` still applies to the branch (parsers of outside files), now
 with C8 and the FIFO note above added to its list.
+
+### Third pass (2026-11-17)
+
+Reviewed: 83bae21 only (`git show 83bae21`), against C7 and C8. Build and
+tests at 83bae21: `swift build` clean; `swift test` 1135 tests in 169 suites,
+all pass. Opt-in `LUMINAR_PACKS=~/Projects/luminar-presets
+LUMINAR_PROTOTYPE_OUTPUT=~/Projects/luminar-presets/gus-presets swift test
+--filter PresetPackSampleTests` (packs read only): both pass, 40 presets equal
+to the prototype's within rounding, tables 8, 9, 9, 10, all added. The
+largest text member in the four real packs is a 75 KB `template.lmps`, about
+1/55 of the new 4 MiB cap.
+
+**Verdict: not ready for QA until C9 is fixed or ruled on.** C7 is fixed for
+everything it named, and C8 is fixed. One more sheet source in the library
+window, the Remove from Library confirmation, is outside `otherSheetIsUp`
+(C9). C10 is a nit.
+
+| # | Result | Commit | Notes |
+|---|---|---|---|
+| C7 | Fixed, as named | 83bae21 | `otherSheetIsUp` (Export, look-up tables, `sidebarSheet`, `sidebarDeletion`) is the only guard, used by `openPresetSheetWhenFree` and `sheetDidDismiss`. The sidebar's `.sheet(item:)` has `onDismiss`. When the item changes from one sheet to another, `onDismiss` runs with the new item already set, so the guard keeps the wait. The delete dialog's `onChange(of: sidebarDeletion == nil)` fires only on a change to nil (no `initial:`), on Delete as well as on Cancel. It calls `sheetDidDismiss` as the dialog begins to close, not after it has closed as `onDismiss` would. `status.md` says the snapshot after `sheet deleteclose` shows the Import Report alone; QA should repeat that check, because it is the one path without `onDismiss`. The swept sources missed one sheet: see C9. |
+| 6.2.4 | Confirmed | 83bae21 | No method reference is passed as `onDismiss` anywhere in `Sources/` (all three are `{ model.sheetDidDismiss() }`). The two-parameter `onChange` is macOS 14 API, below the macOS 15 minimum. |
+| C8 | Fixed | 83bae21 | `readText` checks the central directory's declared size before any read or budget charge. That size bounds the real output: stored members must match it, and inflate writes into a buffer of exactly that size and fails on any other length. Every JSON, `.strings` and template read goes through `readText`; resources (tables, images) keep the member limit. The test fails without the guard: by reading, with the guard removed the one-byte-over members parse (trailing spaces are valid in all three), so nothing throws. A missing path throws `damaged`, as `read` does, and every caller checks presence first. A correction to my second pass: the cap bounds peak memory, not the time a hostile folder takes. Measured here (release, macOS 27.2), one 4 MiB `{"a":["","",…]}` (1.4 million entries) parses in 37 ms with about 100 MB resident. A config without `templates` is never counted, so one file can hold 128 of them within the 512 MiB read budget: about 5 s per file, and about 2.7 h for a folder of 2,000, which can't be stopped. That is the read budget's bound, accepted in the first pass, so it is not a finding. I have added it to the `/security-review` list. |
+
+New findings:
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C9 | Should fix | `Sources/PhotoApp/Model/PresetActions.swift:156-158`; `Sources/PhotoApp/Views/MainView.swift:52-59`; `Sources/PhotoApp/Model/LibraryOpsActions.swift:139-142, 199` | `otherSheetIsUp` leaves out the library window's other confirmation dialog: `pendingRemoval`, used by File ▸ Remove from Library… (⌘⌫), the grid and sidebar context menus, and Remove Project from Library…. It is the same kind of window sheet as `sidebarDeletion`, which the commit includes. Nothing calls `sheetDidDismiss` when it closes. | `canRemoveFromLibrary` does not look at preset imports (`RemovalAvailability.canStart`: removing, adding folders, copying, duplicating), so ⌘⌫ works while a pack import runs. The import took 25 s in a debug build here, and a folder of packs takes seconds in release. ⌘⌫ sets `pendingRemoval` (:199), and the dialog goes up. The import then ends: `openPresetSheetWhenFree` sees `otherSheetIsUp` false and sets `showsPresetSheet = true` while the removal dialog is attached. That is F2's two-sheet state again, and the report opens over a destructive confirmation. QA can show it with `selectall; removephotos; preset summary MadeUp.lnpc; preset sheets`, which should report `presets true … attached`. Fix: add `pendingRemoval != nil` to `otherSheetIsUp`, and add `.onChange(of: model.pendingRemoval == nil) { _, closed in if closed { model.sheetDidDismiss() } }` beside the dialog. `cancelRemoval` and `confirmRemoval` both set it to nil. | One sheet at a time (UI_REDESIGN §8, design §2.2; F2, C7) |
+| C10 | Nit | `PresetActions.swift:233-235`; `MainView.swift:60-66` | The summary alert for imports without a pack (`presetImportSummary`) is a third alert source on the window, also outside the rule. | Imports run in sequence. If the person imports a `.guspreset` with tables (several seconds: the table check), then picks a pack in a second Import Presets… before the first ends, the first import's alert goes up, and the pack's report then opens under it. This needs two imports running at once, so it is rare. The reverse order (an alert over the open preset manager) predates the branch. Either add `presetImportSummary != nil` to the rule with the same `onChange`, or leave it and say so in `status.md`. | One sheet at a time (F2) |
+
+Swept for C7 (every `.sheet`, `.confirmationDialog`, `.alert`, `.popover`,
+`beginSheetModal`, `runModal` and `WindowModal` in `Sources/PhotoApp` and
+`Sources/PhotoUI`):
+
+- **Covered.** Export, look-up tables, the sidebar's sheet, the sidebar's
+  delete dialog. The preset manager itself is the target.
+- **Inside a covered sheet.** Export's three alerts and its folder panel,
+  the look-up table browser's remove alert and import panels, and the preset
+  manager's own alerts and panel.
+- **Missed.** `pendingRemoval` (C9) and `presetImportSummary` (C10).
+- **Popovers, not sheets.** The keyword entry (⌘K) and Activity. A popover
+  can coexist with a sheet.
+- **AppKit window-modal sheets** (`WindowModal.run`). The Import Presets
+  open panel and Add Folder Without Copying are the likeliest, then the
+  comparison refusal alert and the quit question. As in the second pass,
+  this is a rarer case and not a finding. AppKit queues a sheet begun on a
+  window that already has one, but whether SwiftUI's `sheet` goes through
+  that queue is unverified. QA can try the case that matters most: Import
+  Presets… again while a folder of packs is still importing.
+- **Other windows.** The import window's sheet and alerts are in another
+  window.
+
+`/security-review` still applies to the branch (parsers of outside files).
+Add to its list: the per-file parse time that the 512 MiB read budget
+allows (C8 note above), and the FIFO note from the second pass.
