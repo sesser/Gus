@@ -7,7 +7,7 @@ Spec: the PRD (issue #203, rev 3), `design.md` rev 2 with §13, `status.md`, `re
 
 ## Verdict
 
-Passes: AC1 to AC11 are met and AC12 waits for the owner's eye. The one finding (Q1, the table tool's report wording) is
+Passes, signed off by the owner on 2026-11-18 (see Follow-up): AC1 to AC12 are met; AC12's eye comparison (P5) was done by the owner. The one finding (Q1, the table tool's report wording) is
 fixed and confirmed on b235516; no failures. The owner's library and the owner's four packs were not touched (checked at
 the end of both runs, see Scripts).
 
@@ -18,7 +18,7 @@ How: Test, Script or Person. Tests run with `swift test` (full run on b235516: 1
 
 | AC | How | Evidence | Result |
 |---|---|---|---|
-| AC1 import accepts `.lnpc`, several at once, existing formats still import | Test, Script, Person | `PresetPackImportTests.importsPacksBesideOtherFormats` (two packs and a `.guspreset` in one import; fails without `lnpc` in `fileExtensions`); `PresetPackTableTests.everyImportExtensionHasAType`; Scripts S1, S6 (a folder; a pack, a plain preset file and a damaged file in one import); the open panel itself: P1 | Pass (panel half: P1) |
+| AC1 import accepts `.lnpc`, several at once, existing formats still import | Test, Script, Person | `PresetPackImportTests.importsPacksBesideOtherFormats` (two packs and a `.guspreset` in one import; fails without `lnpc` in `fileExtensions`); `PresetPackTableTests.everyImportExtensionHasAType`; Scripts S1, S6 (a folder; a pack, a plain preset file and a damaged file in one import); the open panel itself: P1 | Pass (panel half: P1, done by the owner 2026-11-18) |
 | AC2 N presets, pack's order; German names with a German system language, English otherwise | Test, Script | `importsPacksBesideOtherFormats` (order Beta, Alpha as the pack lists them), `namesInTheSystemLanguage`, `PresetPackReadingTests.namesFollowTheLanguageWhenThePackHasIt`; Script S3 (launch with `-AppleLanguages "(de)"`: "Erfundenes Paket / Goldtest", the preset with no German name stays English) | Pass |
 | AC3 table in a look-up table collection of the pack's name; applying renders with it at the mapped intensity | Test, Script | `importsPacksBesideOtherFormats` (table installed, collection `Test Pack`, applied `effective.lookTable` intensity 80); Script S2 (`luts` lists "Made Up Pack: Warm Look"), S8 (preset applied in the loupe: stack hash changes, saved, the photo renders brighter with vignette; snapshots looked at) | Pass |
 | AC4 each mapped tool against prototype-derived values; curves at 17 points; Develop instances add up; RAW Develop only alone | Test | `PresetPackMappingTests` (26 tests, `lookUpTableContrastAndSaturationAreApproximated` now pins `lookUpTable:mapped`, `lookUpTable:approximated`, `develop:mapped` per design §13; `PresetPackReportLineTests.aTableWithContrastCountsUnderBothStatuses`; every tool of the README table, `curvesComposeInToolOrderAt17Points`, `developInstancesAddUpWithColorSaturation`, `rawDevelopIsUsedOnlyAlone`, ...). Read: expected values are literal numbers the prototype gives for the same made-up templates, not computed by the code under test. Also the opt-in suite on the owner's packs: `PresetPackSampleTests.conversionsMatchThePrototype` compared 40 of 40 presets with the prototype's own output (same groups, every parameter within 2e-4) | Pass |
@@ -27,12 +27,12 @@ How: Test, Script or Person. Tests run with `swift test` (full run on b235516: 1
 | AC7 importing twice leaves counts unchanged | Test, Script | `importingAgainDuplicatesNothing` (presets, ids, collections, table entries and files); Script S4: the same pack twice in one run and again in a second launch on the same library: 2 presets, 1 collection of each name, 1 table entry per pack and 10 files in `LUTs` (8 built-in, 2 ours) before and after; pack header says "replaced" | Pass |
 | AC8 truncated zip, zip without `Config/config.json`, non-zip each give a reason and import nothing; a valid file with them imports; no temp files | Test, Script | `badFilesAreRefusedAndTheRestImport`, `refusesWhatIsNotAReadablePack`, the limits tests (`refusesWhatIsOverItsLimitsOrUnsupported`, `refusesAPackOverItsReadBudget`, `readsOnlyRegularFilesWithinTheLimit`, ...); Script S1 (the three refused with "The file is damaged or incomplete." / "Not a preset pack." and the good pack imported). No temp files: `packCodeWritesNoFiles` is a source search for write calls (a tripwire, not a run), so I also compared the user temp folder (`getconf DARWIN_USER_TEMP_DIR`, 3,996 entries) before and after Script S1: no difference | Pass |
 | AC9 each assumed scale a named constant; a test fails if one changes | Test | `assumedScalesAreTheRecordedOnes` (ten constants, plus the mapping uses them) | Pass |
-| AC10 no file type, UTI, document type or Finder association; the one table and its catalog entries; verbatim fallback; no other Luminar asset or string | Test, Script, Person | `PresetPackTableTests`: `everyToolInTheTableIsOneTheMappingHandles` (36 cases), `theLeftOutToolsOfR6AreInTheTable`, `aToolNotInTheTableIsReportedVerbatim`, `theCatalogHoldsExactlyTheTablesToolNames`, `packsAreNotAFileTypeOfTheApps`, `noStringNamesTheFormatsApplication`; `LocalizationTests` and `BrandingTests` pass in the full run. Script S9: no `lnpc` in either built `Info.plist`; the only types declared are the app's own (`me.sesser.gus.versions`, `me.sesser.gus.preset`); no `*.lnp*` or `*.lmps` file and no "luminar" or "skylum" text in either `.app`; `git ls-files` has no pack, icon or artwork file and the only tracked data with the tool identifiers are the table and made-up test fixtures. A real double-click: P3 | Pass (Finder half: P3) |
+| AC10 no file type, UTI, document type or Finder association; the one table and its catalog entries; verbatim fallback; no other Luminar asset or string | Test, Script, Person | `PresetPackTableTests`: `everyToolInTheTableIsOneTheMappingHandles` (36 cases), `theLeftOutToolsOfR6AreInTheTable`, `aToolNotInTheTableIsReportedVerbatim`, `theCatalogHoldsExactlyTheTablesToolNames`, `packsAreNotAFileTypeOfTheApps`, `noStringNamesTheFormatsApplication`; `LocalizationTests` and `BrandingTests` pass in the full run. Script S9: no `lnpc` in either built `Info.plist`; the only types declared are the app's own (`me.sesser.gus.versions`, `me.sesser.gus.preset`); no `*.lnp*` or `*.lmps` file and no "luminar" or "skylum" text in either `.app`; `git ls-files` has no pack, icon or artwork file and the only tracked data with the tool identifiers are the table and made-up test fixtures. A real double-click: P3 | Pass (Finder half: P3, done by the owner 2026-11-18) |
 | AC11 existing suite and goldens pass unchanged | Test | full `swift test` (b235516): 1137 tests, 170 suites, all pass; `git status` clean, no golden file differs; diff against `develop` has no migration and no `currentPipelineVersion` change | Pass |
-| AC12 the owner imports his four packs and compares a sample with the prototype's output by eye | Script, Person | Script S5: the four packs (read through symbolic links, files unchanged afterwards) import with "4 packs · 40 presets · 36 look-up tables added", nothing refused, no "Not recognized" line (rerun S5 and S10 on b235516); opt-in suite 40 of 40 match the prototype (rerun, and its per-pack totals now print: American Dream 27 mapped, 28 approximated, 7 left out; Camping Trip 21, 21, 13; Land of the Rising Sun 21, 17, 6; Wonderful Scandinavia 35, 52, 13); the eye comparison: P5 | Open (P5) |
+| AC12 the owner imports his four packs and compares a sample with the prototype's output by eye | Script, Person | Script S5: the four packs (read through symbolic links, files unchanged afterwards) import with "4 packs · 40 presets · 36 look-up tables added", nothing refused, no "Not recognized" line (rerun S5 and S10 on b235516); opt-in suite 40 of 40 match the prototype (rerun, and its per-pack totals now print: American Dream 27 mapped, 28 approximated, 7 left out; Camping Trip 21, 21, 13; Land of the Rising Sun 21, 17, 6; Wonderful Scandinavia 35, 52, 13); the eye comparison: P5, done by the owner 2026-11-18 ("P1-5 all check out") | Pass (P5 done by the owner, 2026-11-18) |
 
-Counts: 11 Pass (4 by test alone: AC4, AC5, AC9, AC11; 6 by test and script: AC2, AC3, AC6, AC7, AC8, AC10; AC1 by test
-and script, with the panel left to P1), 1 Open for a person (AC12), 0 Fail.
+Counts (after the owner's sign-off, 2026-11-18): 12 Pass, 0 Open, 0 Fail. Before it: 11 Pass (4 by test alone: AC4, AC5, AC9, AC11; 6 by test and script: AC2, AC3, AC6, AC7, AC8, AC10; AC1 by test
+and script, with the panel left to P1), 1 Open for a person (AC12), 0 Fail. AC1's panel half (P1) and AC10's Finder half (P3) were also done by the owner.
 
 Design requirements the designer marked for a manual check (`review.md` M1 to M12) are in "For a person" below, with
 what the script covered.
@@ -245,6 +245,8 @@ had the same size and modification time as before; `git status` was clean.
 
 ## For a person
 
+Status: P1 to P5 were done by the owner on 2026-11-18 on a scratch library, all fine ("P1-5 all check out"), on bdaf297. None is open. The steps are kept as run.
+
 The owner is not asked for VoiceOver, macOS 15 or macOS 26 (project memory), so M10 is not on this list (see below).
 To build the bundle and run it on a scratch library of four photos, never the real one:
 
@@ -313,4 +315,9 @@ Reruns after fixes and the owner's sign-off are recorded here.
   table lists it as mapped; the unreadable-table case is unchanged ("1 approximated, 1 left out"); the eight modal-source
   waits still pass; no value, group or pack count changed. AC1 to AC11 still Pass (the counts above are unchanged: 11
   Pass, 1 Open for a person, 0 Fail).
-- P1 to P5: open (P2 now includes a table preset with a contrast setting).
+- P1 to P5: were open here; superseded by the owner's sign-off below (all done 2026-11-18). P2 included a table preset with a contrast setting.
+- **Owner's sign-off, 2026-11-18, on bdaf297** (HEAD of `feature/luminar-preset-import`, the commit after the rerun
+  above; it changes only docs). The owner did P1 to P5 by hand on a scratch library, including P5's eye comparison
+  (AC12), and wrote: "P1-5 all check out. Sign off on this feature." P1 to P5 are done; AC12 is therefore closed (12
+  Pass, 0 Open, 0 Fail). Checks left open: none. VoiceOver and macOS 15 and 26 are never asked of the owner (CI covers
+  the two systems), so they are not open items here.
