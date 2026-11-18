@@ -642,11 +642,18 @@ extension LuminarMapping {
             return grade
         }
 
-        /// Reports in tool order; a tool approximated anywhere is not also listed as mapped.
+        /// Tools with a part carried exactly in one control and another approximated in others: listed
+        /// under both statuses (design §13). Only the table tool: its table is exact, its contrast and
+        /// saturation go to Tone and Presence. Every other approximated tool has no exact part.
+        static let exactAndApproximated: Set<LuminarToolReference> = [.known(.lookUpTable)]
+
+        /// Reports in tool order; a tool approximated anywhere is not also listed as mapped, except a
+        /// tool in `exactAndApproximated`, which is listed under each.
         func toolReports() -> [LuminarToolReport] {
             let approximated = Set(reports.filter { $0.status == .approximated }.map(\.tool))
             return reports.compactMap { key in
-                if key.status == .mapped, approximated.contains(key.tool) { return nil }
+                if key.status == .mapped, approximated.contains(key.tool),
+                   !Self.exactAndApproximated.contains(key.tool) { return nil }
                 return LuminarToolReport(tool: key.tool, status: key.status, controls: controls[key] ?? [])
             }
         }

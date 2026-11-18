@@ -142,8 +142,10 @@ struct PresetPackMappingTests {
                                resources: ["TABLE.CUBE": F.identityCube])
         #expect(result.adjustments.tone.contrast == 15)
         #expect(result.adjustments.presence.saturation == -5)
-        #expect(Self.statuses(result) == ["lookUpTable:approximated", "develop:mapped"])
-        #expect(result.tools[0].controls == [.contrast, .saturation])
+        // Design §13: the table is exact, its contrast and saturation approximated: listed under both.
+        #expect(Self.statuses(result) == ["lookUpTable:mapped", "lookUpTable:approximated", "develop:mapped"])
+        #expect(result.tools[0].controls.isEmpty)
+        #expect(result.tools[1].controls == [.contrast, .saturation])
     }
 
     @Test func aMissingOrSecondTableIsLeftOut() {

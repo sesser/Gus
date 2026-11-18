@@ -19,7 +19,8 @@ Reference for the mapping and scales: the owner's prototype `lnp2gus`
 | After the DQ-1 change | clean, no new warnings | 1128 tests in 169 suites, all pass; no golden changed |
 | After the first review fixes | clean, no new warnings | 1134 tests in 169 suites, all pass; no golden changed |
 | After the second-pass fixes (C7, C8) | clean, no new warnings | 1135 tests in 169 suites, all pass; no golden changed |
-| Latest (third-pass fixes, C9, C10) | clean, no new warnings | 1136 tests in 170 suites, all pass; no golden changed |
+| After the third-pass fixes (C9, C10) | clean, no new warnings | 1136 tests in 170 suites, all pass; no golden changed |
+| Latest (design §13, a table under both statuses) | clean, no new warnings | 1137 tests in 170 suites, all pass; no golden changed; opt-in four-pack suite passes, 40 presets equal to the prototype's |
 
 ## What was built
 
@@ -92,7 +93,14 @@ No migration, no pipeline bump, no `Info.plist` or file-type change.
   Correction) and "Layers" (layer opacity, blend modes, several layers: the
   prototype's approximation). See Requirements issue RI-E1.
 - **Report granularity:** a tool approximated anywhere in a preset is not also
-  listed as mapped; the same tool can be both mapped and left out (a second
+  listed as mapped, except the look-up table tool (design §13, ruling on QA's
+  Q1): its table is carried exactly and its contrast and saturation are
+  approximated in other controls, so it is listed, and counted, under both
+  (`LuminarMapping.exactAndApproximated`, which holds only it; no other tool
+  has an exact part beside an approximated one: Vignette's style stays in its
+  own control, Matte, Dramatic and Black and White are approximated
+  throughout, Details Enhancer's sharpening is its own Sharpening entry). The
+  rest of this point is unchanged: listed as mapped; the same tool can be both mapped and left out (a second
   look-up table). Settings the prototype reports separately inside an
   approximated tool (the Matte look's toning, color a black and white
   conversion keeps, the vignette's feather) are part of that tool's
@@ -140,7 +148,7 @@ fails if one changes without the test.
 | AC8 | `badFilesAreRefusedAndTheRestImport` (truncated → damaged, no config, text file), `refusesWhatIsNotAReadablePack`; no temp files: `packCodeWritesNoFiles` (no write API in the pack and zip code; reading takes `Data`) | Done |
 | AC9 | `assumedScalesAreTheRecordedOnes` | Done |
 | AC10 | `PresetPackTableTests`: every table case reported by the mapping from a template; R6's tools left out; unknown identifiers verbatim; the catalog's `presetPackTool.` entries are exactly the table's and nothing else has the tool-name comment; no `lnpc` or the format's name in either `Info.plist`; Finder open path takes `PresetFile.fileExtensions` only; no catalog string names the format's application or maker; `LocalizationTests` and `BrandingTests` pass; manual M6 | Done |
-| AC11 | full `swift test`: 1136 tests pass, goldens untouched; no migration, no pipeline bump | Done |
+| AC11 | full `swift test`: 1137 tests pass, goldens untouched; no migration, no pipeline bump | Done |
 | AC12 | the owner, by eye (manual). Opt-in `PresetPackSampleTests.conversionsMatchThePrototype` compares all 40 presets of the four packs with the prototype's own output: all match within rounding | Manual |
 
 Opt-in suite (real packs, never committed):
@@ -162,6 +170,7 @@ owner's four packs (read from copies only).
 | `preset reportpage; preset windowshot` | the page as in design §2.3: Back and title, summary line, Not imported first, pack header with its trailing summary, collapsed rows with count lines, Done at the bottom |
 | `preset import MadeUp.lnpc` again | "1 pack · 2 presets" (no tables added), pack "2 presets · 1 look-up table · replaced" |
 | the owner's four packs | "4 packs · 40 presets · 36 look-up tables added"; nothing refused, nothing not recognized; the tools per preset read as expected (e.g. Americana: LUT Mapping, Develop, Color, and Grain mapped) |
+| the owner's four packs, after design §13 (opt-in suite's totals) | American Dream 27 mapped, 28 approximated, 7 left out; Camping Trip 21, 21, 13; Land of the Rising Sun 21, 17, 6; Wonderful Scandinavia 35, 52, 13. A preset whose table tool sets contrast or saturation now reads one more mapped (Heritage Hues: "3 mapped, 5 approximated", was "2 mapped") |
 | `plutil -p` on the bundle's `Info.plist` | no `lnpc` entry; the only type declared is the app's own preset type |
 
 Expanding a row needs a click; the debug script has no command for it
@@ -282,6 +291,15 @@ removal confirmation's Cancel the four photos are all still there and the
 snapshot is the Import Report page.
 
 ## Rulings (owner, 2026-11-17)
+
+- **QA's Q1 (designer, design §13):** a look-up table tool that also sets
+  contrast or saturation is listed as Mapped and as Approximated (as Contrast
+  and Saturation), counted once under each. Done; C6's unreadable table
+  unchanged (its Mapped entry becomes Left out, the Approximated one stays).
+  Tests: `lookUpTableContrastAndSaturationAreApproximated` (now
+  `["lookUpTable:mapped", "lookUpTable:approximated", "develop:mapped"]`),
+  `aTableWithContrastCountsUnderBothStatuses`. No stored value or rendering
+  changed.
 
 - **DQ-1:** option (b), check the cubes concurrently in
   `PresetFile.installTables`. Done; see Measurements.

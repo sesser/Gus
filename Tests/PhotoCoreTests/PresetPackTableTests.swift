@@ -157,4 +157,17 @@ struct PresetPackReportLineTests {
                              report.count(LuminarToolReport.Status.leftOut)]
         #expect(counts == [2, 1, 3])
     }
+
+    /// Design §13: a table with contrast or saturation counts once as mapped and once as approximated,
+    /// and its lines name it under both; the count line is the number of entries in the lines.
+    @Test func aTableWithContrastCountsUnderBothStatuses() {
+        let conversion = PackFixture.convert([PackFixture.lutTool(contrast: 12)], resources: ["TABLE.CUBE": PackFixture.identityCube])
+        let report = PresetImport.PackPresetReport(id: 0, name: "Look", isUnreadable: false, tools: conversion.tools)
+        #expect(report.mapped == [.lookUpTable])
+        #expect(report.approximated.map(\.0) == [.lookUpTable])
+        let counts: [Int] = [report.count(LuminarToolReport.Status.mapped), report.count(LuminarToolReport.Status.approximated),
+                             report.count(LuminarToolReport.Status.leftOut)]
+        #expect(counts == [1, 1, 0])
+        #expect(counts[0] == report.mapped.count && counts[1] == report.approximated.count)
+    }
 }

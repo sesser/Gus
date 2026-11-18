@@ -569,7 +569,9 @@ equivalent here (Accent AI, Sky Enhancer, Atmosphere, Glow, masks and others)
 are left out, and nothing is made up for them. A converted preset replaces
 only the groups it sets. After an import with a pack, the preset manager
 opens on its **Import Report**: per pack, each preset with what was mapped,
-approximated or left out (click a preset to see the tools), tools the app has
+approximated or left out (click a preset to see the tools; a look-up table
+whose tool also changes contrast or saturation is listed as mapped, and again
+as approximated for those), tools the app has
 no name for listed by the identifier the pack gives them under "Not
 recognized", and the files that were not imported and why (not a preset pack,
 damaged or incomplete, settings that can't be read, no presets, too large).

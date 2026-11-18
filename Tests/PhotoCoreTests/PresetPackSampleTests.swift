@@ -43,8 +43,11 @@ struct PresetPackSampleTests {
                 #expect(pack.importedCount > 0)
                 let left = pack.presets.flatMap(\.tools).filter { $0.status == .leftOut }.map(\.tool)
                 let unknown = left.filter { if case .unknown = $0 { true } else { false } }
+                let totals = [LuminarToolReport.Status.mapped, .approximated, .leftOut].map { status in
+                    pack.presets.reduce(0) { $0 + $1.count(status) }
+                }
                 print("\(pack.name): \(pack.importedCount) presets, \(pack.tableCount) tables, \(pack.addedTables) added; "
-                      + "not recognized: \(unknown)")
+                      + "\(totals[0]) mapped, \(totals[1]) approximated, \(totals[2]) left out; not recognized: \(unknown)")
             }
             let again = try await PresetImport.run(PresetImport.scan(files, language: "en"), catalog: catalog, store: store)
             #expect(again.addedTables == 0)
