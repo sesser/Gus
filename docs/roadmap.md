@@ -40,7 +40,7 @@ Principles (drawn from `README.md` and `CLAUDE.md`):
 
 ## Now (maximum three)
 
-1. [#203](https://github.com/sesser/Gus/issues/203) `luminar-preset-import`: Luminar preset packs (.lnpc) can't be imported into the app
+Nothing in progress.
 
 ## Next
 
