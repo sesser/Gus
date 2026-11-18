@@ -143,3 +143,61 @@ overflowed a 512 KB thread stack in a quick check.
 
 (After the engineer's fixes: each finding Fixed, Not fixed or Withdrawn, with
 the commit.)
+
+### Second pass (2026-11-17)
+
+Reviewed: the fix commits eda06c5 and 7d784f0 (`git diff 3ece314..b8c475d`;
+a099e7f and b8c475d are review files only). Build and tests at b8c475d:
+`swift build` clean; `swift test` 1134 tests in 169 suites, all pass. Opt-in
+`PresetPackSampleTests` with the owner's four packs (read only) and the
+prototype's output: both pass, 40 presets equal within rounding, every table
+of the four packs still counted (8, 9, 9, 10).
+
+**Verdict: ready for QA once C7 is fixed or ruled on.** Every first-pass
+finding is fixed. F2's fix leaves out one of the library window's sheets
+(C7). C8 is a nit.
+
+| # | Result | Commit | Notes |
+|---|---|---|---|
+| C1 | Fixed | eda06c5 | `maximumPresetCount` (1,000) applies to the preset folders the archive holds and to the entries every config lists. Both are counted before any row is made. Rows per file are now at most 2,000 (listed plus unlisted, or the orphans). `unlisted` uses a `Set`, paths are sorted once, and resources are indexed once. The order is the same (listed, then unlisted sorted, then orphans sorted), and the sample comparison confirms it. Real packs hold 10 presets each, far under the cap. Two gaps remain. The guard on preset folders (`LuminarPack.swift:213`) has no test, but the zip's 10,000-member limit bounds it anyway. The parse cost before the count is C8. |
+| C2 | Fixed | eda06c5 | `contents(of:limit:)` resolves the link, requires a regular file, checks the size, then reads through a `FileHandle` capped at limit + 1. Folder imports skip links to anything but a regular file, and skip dangling links. The test covers a file, a link to it, a folder, a link to a folder, `/dev/zero` and the folder listing. A link that is swapped for a FIFO between the check and the open could block that one read. That needs a local attacker, so it is not a finding. |
+| C3 | Fixed | eda06c5 | Member size, entry count, the encryption flag, an unsupported method, the read budget and the file limit are all tested now. By reading: without the member-size guard, a stored member whose sizes differ is reported `damaged`, not `tooLarge`. Without the budget guard, the 200-byte budget read succeeds. Either way the test fails, as `status.md` says. |
+| C4 | Fixed (record) | eda06c5 | `status.md` Known limits now says the first one is kept, names are compared without regard to case, and the count can be one high. |
+| C5 | Fixed | eda06c5 | The fixture name is now "Valley of Quiet Lakes". |
+| C6 | Fixed | eda06c5 | Only the `mapped` row becomes `leftOut`. The approximated row stays and its values apply (the test checks `tone.contrast` 20). `tableCount` counts only tables in `installed`, which is keyed by the original identifier, as the preset rewrite above it is. Showing a mapped row and an approximated row for one tool is how the mapping already reported it. |
+| F1 | Confirmed | eda06c5 | `everyImportExtensionHasAType` passes here. |
+| F2 | Partly fixed: see C7 | 7d784f0 | This works for Export and the look-up table sheet. `onDismiss` re-checks both flags, so a sheet reopened in the gap keeps the wait, and every wait is resolved by that sheet's own dismissal. |
+| Nits (design) | Confirmed | 7d784f0 | The `PageHeader` comment is corrected, and `.help` is on the unreadable row. |
+
+New findings:
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C7 | Should fix | `Sources/PhotoApp/Model/PresetActions.swift:153-169`; `Sources/PhotoApp/Views/SidebarView.swift:237-240` | The library window has four sheet sources, not three. The fourth is `sidebarSheet`: New Album…, New Smart Album…, Edit Smart Album… and Rename… for a keyword, all from the menu bar, the toolbar and row menus, plus the sidebar's delete `confirmationDialog`. `openPresetSheetWhenFree` and `sheetDidDismiss` check only `showsExportSheet` and `showsLookTableSheet`, and the sidebar sheet has no `onDismiss`. | A pack import ends while File ▸ New Smart Album… is open. This can happen in the 0.5 to 0.7 s after the panel closes, and for longer with a folder of packs (the table check took 28 s in a debug build here). `openPresetSheetWhenFree` sees neither flag set and sets `showsPresetSheet = true` while the smart album sheet is attached. That is the two-sheet state F2 was about, and the wait path cannot apply. I did not launch the app, so what SwiftUI then does is unverified. QA can show it with `sheet smart; preset summary MadeUp.lnpc; preset sheets`, which reports `attached`, and then see whether the smart album sheet survives. Fix: add `sidebarSheet != nil` (and `sidebarDeletion != nil`) to both guards, and `onDismiss: model.sheetDidDismiss` on the sidebar's `.sheet(item:)`. Window-modal alerts (`WindowModal`) are a further, rarer case. | One sheet at a time (UI_REDESIGN §8, design §2.2; F2) |
+| C8 | Nit | `LuminarPack.swift:162-169, 217-222` | The count happens after the whole `config.json` is parsed, and JSON, `.strings` and template members are capped only by the 64 MiB member limit, though real ones are a few KB. | I measured a 64 MiB `{"templates":["","",…]}` (22.4 million entries, a few hundred KB deflated) here: `JSONSerialization` takes 1.3 s and peaks at about 1.4 GB, and then the pack is refused. The cost is bounded and passes. However, a folder of 2,000 such files holds the import chain about 45 minutes, and it can't be stopped. A cap of a few MiB on members that are parsed as text would bound it. Optional. Worth a look in `/security-review`. | Sizes checked before allocation (R9) |
+
+Rechecked for the fixes:
+
+- **Concurrency.** `openPresetSheetWhenFree` and `sheetDidDismiss` are on
+  the `@MainActor` model and are called from `runPresetImport` and SwiftUI's
+  `onDismiss`, both on the main actor. `presetSheetWaits` is plain observable
+  state, so there is no new race. The debug script's `preset sheets` only
+  reads, so it needs no undo group.
+- **Swift 6.2.4 floor.** `onDismiss: model.sheetDidDismiss` is the first
+  method reference passed as a SwiftUI closure in the code base. It
+  type-checks with no diagnostic in Swift 6 mode with complete checking here
+  (6.4.2, macOS 27 SDK; a standalone reproduction). Only CI (Xcode 26.3) can
+  confirm it on 6.2.4. If it fails there, `{ model.sheetDidDismiss() }` is
+  the fallback. The new test expressions (`patched`'s four-term shift and
+  OR, and the byte array) type-check in 15 to 33 ms here, well within reach
+  of an older checker.
+- **Effect of the cap on real packs.** None: 40 presets in 4 packs, 10 each.
+  Folder imports apply the cap per file.
+- **Other formats.** The regular-file filter in `files(in:)` now also skips
+  `.xmp`, `.lrtemplate`, `.dng` and preset-file links that lead to folders or
+  devices. That is a harmless improvement. Those formats' reads are still
+  uncapped, which predates this branch (first pass, `/security-review`
+  notes).
+
+`/security-review` still applies to the branch (parsers of outside files), now
+with C8 and the FIFO note above added to its list.
