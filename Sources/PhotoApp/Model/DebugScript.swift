@@ -539,12 +539,21 @@ enum DebugScript {
                     print("debug-script: no import report")
                 }
             case "sheets":
-                // preset sheets: which sheet flags are up, the manager's page, and a waiting report.
+                // preset sheets: each of the window's other sheets, dialogs and alerts (`LibraryModal`),
+                // the preset manager, its page, a waiting report, and how many sheets are attached.
                 let attached = NSApp.windows.filter { $0.attachedSheet != nil }.count
-                print("debug-script: sheets export \(model.showsExportSheet) lut \(model.showsLookTableSheet) "
-                      + "sidebar \(model.sidebarSheet != nil) deletion \(model.sidebarDeletion != nil) "
-                      + "presets \(model.showsPresetSheet) page \(model.presetManagerPage == .report ? "report" : "list") "
+                let modals = LibraryModal.allCases.map { "\($0) \(model.isUp($0))" }.joined(separator: " ")
+                print("debug-script: sheets \(modals) presets \(model.showsPresetSheet) "
+                      + "page \(model.presetManagerPage == .report ? "report" : "list") "
                       + "waits \(model.presetSheetWaits) attached \(attached)")
+            case "close":
+                // preset close removal|summary: answers the removal question (Cancel) or the summary alert (OK).
+                switch rest.dropFirst().first {
+                case "removal": model.cancelRemoval()
+                case "summary": model.presetImportSummary = nil
+                default: print("debug-script: preset close takes removal or summary")
+                }
+                try? await Task.sleep(for: .milliseconds(500))
             case "reportpage":
                 // preset reportpage: the preset manager on its Import Report page (dimmed button: no report yet).
                 model.presetManagerPage = .report

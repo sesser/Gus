@@ -150,31 +150,6 @@ extension LibraryModel {
         PresetImport.fileExtensions.compactMap { UTType(filenameExtension: $0) }
     }
 
-    /// Another sheet is up on the library window: Export, look-up tables,
-    /// the sidebar's (New Album…, New Smart Album…, Edit Smart Album…, a
-    /// keyword's Rename…) or the sidebar's delete confirmation.
-    var otherSheetIsUp: Bool {
-        showsExportSheet || showsLookTableSheet || sidebarSheet != nil || sidebarDeletion != nil
-    }
-
-    /// One sheet at a time (UI_REDESIGN §8): the preset manager opens now,
-    /// or, when another sheet is up, after it closes.
-    func openPresetSheetWhenFree() {
-        if otherSheetIsUp {
-            presetSheetWaits = true
-        } else {
-            showsPresetSheet = true
-        }
-    }
-
-    /// Another sheet has finished closing: a waiting report opens, unless a sheet is still up.
-    func sheetDidDismiss() {
-        guard presetSheetWaits, !otherSheetIsUp else { return }
-        presetSheetWaits = false
-        presetManagerPage = .report
-        showsPresetSheet = true
-    }
-
     /// True while a preset import runs (or waits for one that does).
     var isImportingPresets: Bool { pendingPresetImports > 0 }
 

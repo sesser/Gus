@@ -234,12 +234,9 @@ struct SidebarView: View {
             return .handled
         }
         .background { SidebarMarker(observer: model.windowObserver) }
-        // A pack import that ended under the sheet or the dialog opens its report once they have closed.
-        .sheet(item: $model.sidebarSheet, onDismiss: { model.sheetDidDismiss() }) { sheet in
+        // A `LibraryModal` (sheet and dialog): a waiting import report opens once it has closed.
+        .sheet(item: $model.sidebarSheet, onDismiss: { model.modalDidClose() }) { sheet in
             SidebarSheetView(model: model, sheet: sheet)
-        }
-        .onChange(of: model.sidebarDeletion == nil) { _, closed in
-            if closed { model.sheetDidDismiss() }
         }
         .confirmationDialog(deletionTitle, isPresented: Binding(get: { model.sidebarDeletion != nil },
                                                                 set: { if !$0 { model.sidebarDeletion = nil } }),
