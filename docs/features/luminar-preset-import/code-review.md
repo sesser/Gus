@@ -256,3 +256,82 @@ Swept for C7 (every `.sheet`, `.confirmationDialog`, `.alert`, `.popover`,
 `/security-review` still applies to the branch (parsers of outside files).
 Add to its list: the per-file parse time that the 512 MiB read budget
 allows (C8 note above), and the FIFO note from the second pass.
+
+### Fourth pass (2026-11-17)
+
+Reviewed: 66cc05a only (`git show 66cc05a`), against C9 and C10. Build and
+tests at 66cc05a: `swift build` clean; `swift test` 1136 tests in 170 suites,
+all pass (the new `LibraryModalTests` is the one more).
+
+**Verdict: ready for QA.** C9 and C10 are fixed, and the one list
+(`LibraryModal`) now holds every sheet, dialog and alert SwiftUI presents on
+the library window. Two new nits (C11, C12) don't block QA.
+
+| # | Result | Commit | Notes |
+|---|---|---|---|
+| C9 | Fixed | 66cc05a | `.removal` (`pendingRemoval != nil`, kind `.dialog`). Cancel and Escape go through the dialog's binding, `cancelRemoval` clears `pendingRemoval`, `dialogIsUp` turns false, and `MainView`'s `onChange` calls `modalDidClose`. Remove calls `confirmRemoval`, which clears `pendingRemoval` first, so the same path runs. SwiftUI's later binding write then hits `cancelRemoval`'s guard, so `isRemoving` stays true for the write. The report then opens while the removal writes. The removal reports its result in Activity only, with no modal, so nothing can open over the report. |
+| C10 | Fixed | 66cc05a | `.importSummary` (`presetImportSummary != nil`, kind `.dialog`). It closes through the same `onChange`. |
+| 6.2.4 | No new risk | 66cc05a | The three `onDismiss` handlers are written as closures, `{ model.modalDidClose() }`. The `onChange` has the two-parameter form (macOS 14). One method is now passed by name: `contains(where: isUp)` passes a main-actor method as a nonisolated, non-Sendable, synchronous closure from main-actor code. Swift 6.0 allows that (SE-0434). A standalone copy of `LibraryModal`'s extension on an `@MainActor @Observable` class type-checks with Swift 6 mode, complete checking and `-warn-long-expression-type-checking=20` (6.4.2), with no diagnostic. Only CI can confirm it on 6.2.4. If it fails there, `{ isUp($0) }` is the fallback. |
+
+Swept again (`.sheet(`, `.confirmationDialog(`, `.alert(`, `.popover(`,
+`.fullScreenCover(`, `.inspector(`, `.fileImporter(`, `.fileExporter(` in
+`Sources/PhotoApp` and `Sources/PhotoUI`):
+
+- **Listed (6).** `MainView.swift:41` Export, `:44` look-up tables, `:53`
+  removal, `:65` summary alert; `SidebarView.swift:238` the sidebar's sheet,
+  `:241` its delete dialog. The preset manager (`MainView.swift:47`) is the
+  target and correctly has no `onDismiss`.
+- **Inside a listed sheet.** `ExportSheet.swift:31, 217, 222`,
+  `LookTableBrowserSheet.swift:352`; `PresetManagerSheet.swift:75, 85` are
+  inside the target.
+- **Not modal.** The popovers (`ActivityToolbarItem.swift:60`, the keyword
+  entry `MainView.swift:107`) and the inspector column (`MainView.swift:17`).
+- **Other window.** `ImportWindow.swift:19, 43, 54, 340, 449` (PhotoUI).
+- **None anywhere.** `.fullScreenCover`, `.fileImporter`, `.fileExporter`.
+- **AppKit `WindowModal`** stays out of scope, as in the second and third
+  passes. `LibraryModal`'s comment now says so.
+
+Nothing is left out.
+
+The close hooks: there is one `onChange(of: model.dialogIsUp)` in
+`MainView`. The sidebar's own `onChange` is gone, so there is no double
+call, and a second call would be a no-op anyway because of the
+`presetSheetWaits` guard. It fires only on a change and has no `initial:`.
+The cases it has to handle:
+
+- A dialog closes while a sheet is up: `modalDidClose` sees
+  `otherModalIsUp` and keeps waiting, and the sheet's `onDismiss` opens the
+  report later.
+- A sheet closes while a dialog is up: the same, the other way round.
+- One dialog is replaced by another in a single update: `dialogIsUp` stays
+  true, so the hook doesn't fire until the second dialog closes, which is
+  right.
+
+As before, a dialog's hook runs as the dialog begins to close, not after.
+QA should repeat the snapshot after `preset close removal` and `preset close
+summary`, as `status.md` describes.
+
+The tripwire: `LibraryModalTests` reads every line of `MainView.swift` and
+`SidebarView.swift` that contains `.sheet(`, `.confirmationDialog(`, `.alert(`
+or `.fullScreenCover(`, skipping lines that start with `//`. It expects that
+count to be the list's cases plus one, and it pins the list of cases. It also
+checks that every sheet other than the preset manager has the literal
+`onDismiss: { model.modalDidClose() }`, and that `MainView` has the
+`onChange`. Nothing was edited to check this. Instead, a script that copies
+the test's counting reads 7 lines today, the expected 7. With an `.alert(`
+line inserted in `MainView` it reads 8, so the test does fail for a new
+presenter in those two files. A new case without a presenter can't compile,
+because `isUp`'s switch must cover every case. Gaps: see C12.
+
+New findings:
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C11 | Nit | `Sources/PhotoApp/Model/LibraryOpsActions.swift:188-199`; `LibraryModal.swift:40` | The removal confirmation is the one listed source that goes up after an await. `askToRemove` sets `isRemoving` at once, but `pendingRemoval` only after `writes.read { prepare() }`, which is a catalog read. For Remove Project, that read builds the whole project's plan. `.removal` is false during that read. | Press ⌘⌫ (or Remove Project from Library…) while a pack import runs, and have the import end during the read. Preset imports don't use the write chain, so nothing orders the two. `openPresetSheetWhenFree` sees nothing up and opens the manager on its report. Then `pendingRemoval` is set, and the confirmation is asked for while the report is attached: either two sheets, or a dialog SwiftUI holds back with Remove commands off (`isRemoving`) until the manager closes. The window is one catalog read long (milliseconds for a few photos, longer for a large project), so this is rare. Fix: a flag for the asking step (set in `askToRemove`, cleared where `pendingRemoval` is set or the read fails), with `.removal` true while it is set. The read's failure then also reaches `modalDidClose` through `dialogIsUp`. Alternatively, leave it and note it in `status.md`. | One sheet at a time (F2, C9) |
+| C12 | Nit | `Tests/PhotoCoreTests/LibraryModalTests.swift:11-12` | The tripwire reads only `MainView.swift` and `SidebarView.swift`, and its presenter list leaves out `.fileImporter(`, `.fileExporter(` and `.fileMover(`. `.fileImporter(` and `.fileExporter(` attach their panel to the window as a sheet. | An `.alert(` added to `InspectorView`, `BrowserView`, `LibraryToolbar` or any other view in the library window, or a `.fileImporter(` added to `MainView`, leaves the count at 7. The test passes, and a report can open over the new modal. `RepositoryFiles.files(under:)` already exists. The test could scan `Sources/PhotoApp`, skip the files whose presenters sit inside a listed sheet (`ExportSheet`, `LookTableBrowserSheet`, `PresetManagerSheet`), and add those presenters to its list. | `LibraryModal`'s own contract ("a new sheet, dialog or alert on the library window goes here") |
+
+QA can run. C11 and C12 can be fixed on the branch before the pull request,
+or recorded in `status.md` as accepted. Either way they need no further QA
+beyond what is listed above. `/security-review` still applies to the branch,
+with the items the second and third passes added to its list. This commit adds
+no parser, subprocess, file write or network code.
