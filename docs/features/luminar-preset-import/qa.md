@@ -1,19 +1,19 @@
 # Import preset packs (.lnpc): QA
 
 Owner: qa-tester. Date: 2026-11-17. Step 4 of `docs/WORKFLOW.md`.
-Tested: `feature/luminar-preset-import` at 5e5e386, on a Mac with Apple M4 Pro, macOS 27.2.1 (26B131), Xcode SDK 27.2
+Tested: `feature/luminar-preset-import` at b235516 (first run at 5e5e386; rerun after design §13, commit 50b582f), on a Mac with Apple M4 Pro, macOS 27.2.1 (26B131), Xcode SDK 27.2
 (the bundle's executable records `sdk 27.2`, `minos 15.0`).
-Spec: the PRD (issue #203, rev 3), `design.md` rev 2, `status.md`, `review.md`, `code-review.md` (fourth pass).
+Spec: the PRD (issue #203, rev 3), `design.md` rev 2 with §13, `status.md`, `review.md` (with its second confirmation), `code-review.md` (fifth pass).
 
 ## Verdict
 
-Passes: AC1 to AC11 are met and AC12 waits for the owner's eye. One low finding (Q1, a question about report wording
-that the designer should rule on) and no failure. The owner's library and the owner's four packs were not touched
-(checked at the end, see Scripts).
+Passes: AC1 to AC11 are met and AC12 waits for the owner's eye. The one finding (Q1, the table tool's report wording) is
+fixed and confirmed on b235516; no failures. The owner's library and the owner's four packs were not touched (checked at
+the end of both runs, see Scripts).
 
 ## Acceptance criteria
 
-How: Test, Script or Person. Tests run with `swift test` (full run: 1136 tests in 170 suites, all pass, no warnings,
+How: Test, Script or Person. Tests run with `swift test` (full run on b235516: 1137 tests in 170 suites, all pass, no warnings,
 `git status` clean afterwards so no golden or file changed). Scripts are in "Scripts" below.
 
 | AC | How | Evidence | Result |
@@ -21,15 +21,15 @@ How: Test, Script or Person. Tests run with `swift test` (full run: 1136 tests i
 | AC1 import accepts `.lnpc`, several at once, existing formats still import | Test, Script, Person | `PresetPackImportTests.importsPacksBesideOtherFormats` (two packs and a `.guspreset` in one import; fails without `lnpc` in `fileExtensions`); `PresetPackTableTests.everyImportExtensionHasAType`; Scripts S1, S6 (a folder; a pack, a plain preset file and a damaged file in one import); the open panel itself: P1 | Pass (panel half: P1) |
 | AC2 N presets, pack's order; German names with a German system language, English otherwise | Test, Script | `importsPacksBesideOtherFormats` (order Beta, Alpha as the pack lists them), `namesInTheSystemLanguage`, `PresetPackReadingTests.namesFollowTheLanguageWhenThePackHasIt`; Script S3 (launch with `-AppleLanguages "(de)"`: "Erfundenes Paket / Goldtest", the preset with no German name stays English) | Pass |
 | AC3 table in a look-up table collection of the pack's name; applying renders with it at the mapped intensity | Test, Script | `importsPacksBesideOtherFormats` (table installed, collection `Test Pack`, applied `effective.lookTable` intensity 80); Script S2 (`luts` lists "Made Up Pack: Warm Look"), S8 (preset applied in the loupe: stack hash changes, saved, the photo renders brighter with vignette; snapshots looked at) | Pass |
-| AC4 each mapped tool against prototype-derived values; curves at 17 points; Develop instances add up; RAW Develop only alone | Test | `PresetPackMappingTests` (26 tests: every tool of the README table, `curvesComposeInToolOrderAt17Points`, `developInstancesAddUpWithColorSaturation`, `rawDevelopIsUsedOnlyAlone`, ...). Read: expected values are literal numbers the prototype gives for the same made-up templates, not computed by the code under test. Also the opt-in suite on the owner's packs: `PresetPackSampleTests.conversionsMatchThePrototype` compared 40 of 40 presets with the prototype's own output (same groups, every parameter within 2e-4) | Pass |
+| AC4 each mapped tool against prototype-derived values; curves at 17 points; Develop instances add up; RAW Develop only alone | Test | `PresetPackMappingTests` (26 tests, `lookUpTableContrastAndSaturationAreApproximated` now pins `lookUpTable:mapped`, `lookUpTable:approximated`, `develop:mapped` per design §13; `PresetPackReportLineTests.aTableWithContrastCountsUnderBothStatuses`; every tool of the README table, `curvesComposeInToolOrderAt17Points`, `developInstancesAddUpWithColorSaturation`, `rawDevelopIsUsedOnlyAlone`, ...). Read: expected values are literal numbers the prototype gives for the same made-up templates, not computed by the code under test. Also the opt-in suite on the owner's packs: `PresetPackSampleTests.conversionsMatchThePrototype` compared 40 of 40 presets with the prototype's own output (same groups, every parameter within 2e-4) | Pass |
 | AC5 a converted preset changes only the groups it sets | Test | `applyingChangesOnlyTheGroupsItSets` (Exposure, Clarity, Grain, Color Mixer of the photo untouched, only Presence replaced) | Pass |
 | AC6 Accent AI and a mask left out and listed; mapped and approximated named; no value set from them | Test, Script | `accentAIAndAMaskAreLeftOutAndSetNothing` (the result equals the same preset without those tools), `leftOutToolsAreReportedOnlyWhenTheyChangeSomething`, `PresetPackReportLineTests`; Script S1 ("Left out: Smart Tone, Texture, Accent AI, Sky Enhancer, and Masks", "Approximated: Structure (as Clarity)", "Mapped: Develop"; the preset's groups are Tone and Presence only) | Pass |
 | AC7 importing twice leaves counts unchanged | Test, Script | `importingAgainDuplicatesNothing` (presets, ids, collections, table entries and files); Script S4: the same pack twice in one run and again in a second launch on the same library: 2 presets, 1 collection of each name, 1 table entry per pack and 10 files in `LUTs` (8 built-in, 2 ours) before and after; pack header says "replaced" | Pass |
 | AC8 truncated zip, zip without `Config/config.json`, non-zip each give a reason and import nothing; a valid file with them imports; no temp files | Test, Script | `badFilesAreRefusedAndTheRestImport`, `refusesWhatIsNotAReadablePack`, the limits tests (`refusesWhatIsOverItsLimitsOrUnsupported`, `refusesAPackOverItsReadBudget`, `readsOnlyRegularFilesWithinTheLimit`, ...); Script S1 (the three refused with "The file is damaged or incomplete." / "Not a preset pack." and the good pack imported). No temp files: `packCodeWritesNoFiles` is a source search for write calls (a tripwire, not a run), so I also compared the user temp folder (`getconf DARWIN_USER_TEMP_DIR`, 3,996 entries) before and after Script S1: no difference | Pass |
 | AC9 each assumed scale a named constant; a test fails if one changes | Test | `assumedScalesAreTheRecordedOnes` (ten constants, plus the mapping uses them) | Pass |
 | AC10 no file type, UTI, document type or Finder association; the one table and its catalog entries; verbatim fallback; no other Luminar asset or string | Test, Script, Person | `PresetPackTableTests`: `everyToolInTheTableIsOneTheMappingHandles` (36 cases), `theLeftOutToolsOfR6AreInTheTable`, `aToolNotInTheTableIsReportedVerbatim`, `theCatalogHoldsExactlyTheTablesToolNames`, `packsAreNotAFileTypeOfTheApps`, `noStringNamesTheFormatsApplication`; `LocalizationTests` and `BrandingTests` pass in the full run. Script S9: no `lnpc` in either built `Info.plist`; the only types declared are the app's own (`me.sesser.gus.versions`, `me.sesser.gus.preset`); no `*.lnp*` or `*.lmps` file and no "luminar" or "skylum" text in either `.app`; `git ls-files` has no pack, icon or artwork file and the only tracked data with the tool identifiers are the table and made-up test fixtures. A real double-click: P3 | Pass (Finder half: P3) |
-| AC11 existing suite and goldens pass unchanged | Test | full `swift test`: 1136 tests, 170 suites, all pass; `git status` clean, no golden file differs; diff against `develop` has no migration and no `currentPipelineVersion` change | Pass |
-| AC12 the owner imports his four packs and compares a sample with the prototype's output by eye | Script, Person | Script S5: the four packs (read through symbolic links, files unchanged afterwards) import with "4 packs · 40 presets · 36 look-up tables added", nothing refused, no "Not recognized" line; opt-in suite 40 of 40 match the prototype; the eye comparison: P5 | Open (P5) |
+| AC11 existing suite and goldens pass unchanged | Test | full `swift test` (b235516): 1137 tests, 170 suites, all pass; `git status` clean, no golden file differs; diff against `develop` has no migration and no `currentPipelineVersion` change | Pass |
+| AC12 the owner imports his four packs and compares a sample with the prototype's output by eye | Script, Person | Script S5: the four packs (read through symbolic links, files unchanged afterwards) import with "4 packs · 40 presets · 36 look-up tables added", nothing refused, no "Not recognized" line (rerun S5 and S10 on b235516); opt-in suite 40 of 40 match the prototype (rerun, and its per-pack totals now print: American Dream 27 mapped, 28 approximated, 7 left out; Camping Trip 21, 21, 13; Land of the Rising Sun 21, 17, 6; Wonderful Scandinavia 35, 52, 13); the eye comparison: P5 | Open (P5) |
 
 Counts: 11 Pass (4 by test alone: AC4, AC5, AC9, AC11; 6 by test and script: AC2, AC3, AC6, AC7, AC8, AC10; AC1 by test
 and script, with the panel left to P1), 1 Open for a person (AC12), 0 Fail.
@@ -39,20 +39,12 @@ what the script covered.
 
 ## Findings
 
-**Q1 (low, Design question).** Where a preset's look-up table tool also carries Contrast or Saturation, the report
-lists the tool only as "Approximated: LUT Mapping (as Contrast and Saturation)" and not under Mapped, although the
-table itself is carried exactly (the preset has the Look-Up Table group set).
-Steps: import the owner's American Dream pack (or any pack with a table that has contrast or saturation set); in
-`preset report` or the page, "Heritage Hues: 2 mapped, 5 approximated", "Approximated: LUT Mapping (as Contrast and
-Saturation), ..."; the preset's groups from `preset` are `[Tone, Presence, Tone Curve, Color Grading, Look-Up Table]`.
-24 of the 36 presets that carry a table read this way in the four packs; the other 12 show "Mapped: LUT Mapping".
-Expected: a reader should be able to tell the table was applied. `design.md` A3 says a preset that carries a table has
-"1 mapped at least"; the prototype's README marks "LUT, Amount" exact and "LUT contrast and saturation" approximated.
-Actual: `status.md` records the engineer's rule "a tool approximated anywhere in a preset is not also listed as mapped"
-(`lookUpTableContrastAndSaturationAreApproximated` pins `["lookUpTable:approximated", "develop:mapped"]`), so the
-table's exact part is not named. Not a failure of AC6 or AC7 (the tool is named, nothing is invented). The designer
-should rule whether the line should also say the table was mapped (for example listing LUT Mapping under Mapped as well),
-and if so the engineer changes the report's granularity.
+**Q1 (low, Design question): closed.** Where a preset's look-up table tool also carried Contrast or Saturation, the
+report listed it only as "Approximated: LUT Mapping (as Contrast and Saturation)", never under Mapped, although the
+table itself was carried exactly (24 of the 36 presets with a table in the four packs; "Heritage Hues: 2 mapped, 5
+approximated"). The designer ruled (design §13) that the table tool is listed under both statuses; the engineer
+changed `toolReports()` in commit 50b582f (`exactAndApproximated`, the table tool only). Confirmed on b235516, see
+Follow-up and Script S10.
 
 Observations, not findings: `packCodeWritesNoFiles` is a source search, not a run (covered above by the temp folder
 comparison); a debug-script `preset import` with a path that has spaces splits it at the spaces (existing behavior of
@@ -226,7 +218,28 @@ darker corners. The table is an identity cube, so its effect is not visible; the
 in the bundle: none. `git grep -i -E "luminar|skylum|lnpc"` outside `docs/`: only the source and tests of this feature
 (type names, the table, made-up fixtures) and the catalog's format-list entries that say `.lnpc`.
 
-**End checks.** No `Gus` process was running at the end (`pgrep -x Gus`); nothing in `~/Library/Application
+**S10, rerun on b235516 after design §13 (Q1, AC6, AC7, code review F2, C7, C9, C10).** A new bundle copy
+(`build/Gus.app` rebuilt, id `me.sesser.gus.debugtest`, ad hoc signed), fresh library copies, every launch with
+`--library-root`.
+- The owner's four packs, as S5 (`… preset reportpage; wait 1; preset windowshot $Q/real-report2.png; preset`):
+  "4 packs · 40 presets · 36 look-up tables added", nothing refused. **Heritage Hues "3 mapped, 5 approximated"**, "Mapped:
+  LUT Mapping, Color Toning, and Develop", "Approximated: LUT Mapping (as Contrast and Saturation), Matte Look (as Tone Curve
+  and Saturation), Supercontrast (as Tone Curve), Vividness (as Vibrance), and Warmth (as Color Grading)"; Freedom "3 mapped,
+  3 approximated, 1 left out"; Americana still "4 mapped". "LUT Mapping" is now under Mapped in all 36 presets with a table,
+  and also under Approximated in the 24 with contrast or saturation. Heritage Hues' groups are unchanged (`[Tone, Presence,
+  Tone Curve, Color Grading, Look-Up Table]`). The snapshot (looked at) is the collapsed page with the new counts. The four
+  packs had the same size and modification time afterwards.
+- A made-up pack with a table with contrast 15 and saturation -10, and one whose table is not a cube with contrast 20
+  (`TableContrast.lnpc`, made with the same Python helper as S0): `wait 2; preset import $Q/packs/TableContrast.lnpc; preset`:
+  "Table With Contrast: 1 mapped, 1 approximated" (Mapped: LUT Mapping; Approximated: LUT Mapping (as Contrast and
+  Saturation)); **"Unreadable Table: 1 approximated, 1 left out"** (Approximated: LUT Mapping (as Contrast and Saturation);
+  Left out: LUT Mapping), the same as in the first run, groups `[Tone]` only.
+- The eight modal sources of S7, the same scripts: with the source up "presets false page report waits true attached 1"
+  and only that source true (the sidebar delete confirmation and the summary alert also before the import: page list);
+  after closing, "presets true page report waits false attached 1". Remove from Library and Remove Project: `gen=4`
+  after Cancel. The eight snapshots are byte-identical to S7's (same hash), which I looked at.
+
+**End checks (both runs).** No `Gus` process was running at the end (`pgrep -x Gus`); nothing in `~/Library/Application
 Support/Gus` was newer than the marker made before the first launch; the four packs in `~/Projects/luminar-presets`
 had the same size and modification time as before; `git status` was clean.
 
@@ -262,7 +275,10 @@ Every launch needs `--library-root`; without it the app opens the real library. 
 - **P2 (M2, M3, M7), the page's look and keys.** On the four-pack report: look in Dark and with Increase Contrast (System
   Settings ▸ Accessibility ▸ Display) and with Reduce Transparency; long names truncate at the tail with a tooltip and
   tool lines wrap at the sheet's width. Click a preset's arrow: Mapped, Approximated and Left out lines with symbols
-  and words, nothing red or green. With Full Keyboard Access on: Tab reaches Back, the rows and Done; arrows move
+  and words, nothing red or green. Include a table preset with a contrast setting (American Dream's Heritage Hues:
+  "3 mapped, 5 approximated", "LUT Mapping" under Mapped and again, "as Contrast and Saturation", under Approximated):
+  the two lines read as one tool whose table was carried and whose contrast was approximated, with the count line
+  matching the entries. With Full Keyboard Access on: Tab reaches Back, the rows and Done; arrows move
   between rows; Right, Left or Space open and close a row (design review's risk: the page's `List` has no selection, so
   this may not work, and if it does not that goes back as a Design question); Esc goes Back and does not close the
   sheet; ⌘[ is Back; Return is Done. For "Not recognized" you need a pack with an unknown tool: not in your four, so
@@ -280,8 +296,7 @@ Every launch needs `--library-root`; without it the app opens the real library. 
   one black and white, one with Warmth) and apply each to a photo you have; compare with the same preset's look from the
   prototype's output (`~/Projects/luminar-presets/gus-presets/*.guspreset`, opened in the same scratch library) on the
   same photo. The numbers already agree for 40 of 40 presets (S5); this is the check that the look is as you expect.
-  Also read the report of a preset with a table and a contrast or saturation setting: Q1 asks whether it should say the
-  table was mapped.
+  Q1's wording (a table with a contrast setting under both statuses) is part of P2's look.
 - **M10 (not for the owner).** Accessibility of the page by reading: headings, a status line as one element, the spoken
   summary. Not checked by an assistive app here, and not asked of the owner. The design review passed it by reading
   `PresetImportReportPage` and `AccessibilityText.announce`.
@@ -290,5 +305,12 @@ Every launch needs `--library-root`; without it the app opens the real library. 
 
 Reruns after fixes and the owner's sign-off are recorded here.
 
-- Q1: open, waiting for the designer's ruling (Design question).
-- P1 to P5: open.
+- **Rerun, 2026-11-17, on b235516** (design §13 in 50b582f; design review's second confirmation, code review's fifth
+  pass, status and guide fixes up to b235516). `swift test`: 1137 tests in 170 suites pass (one more than before: the new
+  count test), `Scripts/build-app.sh` succeeds, `git status` clean, no warnings. Opt-in four-pack suite: 40 of 40 match
+  the prototype, 2 tests pass. Script checks S10.
+- **Q1: Fixed.** Heritage Hues reads "3 mapped, 5 approximated" with LUT Mapping under both statuses; every preset with a
+  table lists it as mapped; the unreadable-table case is unchanged ("1 approximated, 1 left out"); the eight modal-source
+  waits still pass; no value, group or pack count changed. AC1 to AC11 still Pass (the counts above are unchanged: 11
+  Pass, 1 Open for a person, 0 Fail).
+- P1 to P5: open (P2 now includes a table preset with a contrast setting).
