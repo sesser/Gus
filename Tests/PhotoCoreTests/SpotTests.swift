@@ -597,3 +597,4 @@ struct SpotCatalogTests {
         #expect(try await Self.count(catalog, "sidecarQueue") == queued)
     }
 }
+
