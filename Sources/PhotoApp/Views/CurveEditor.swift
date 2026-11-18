@@ -192,6 +192,10 @@ final class CurveEditorView: NSView {
 struct AppKitSegmented: NSViewRepresentable {
     var labels: [String]
     var selection: Int
+    /// One tooltip per segment (HIG: provide one for each); empty for none.
+    var toolTips: [String] = []
+    /// VoiceOver's name for the control; nil for none.
+    var accessibilityLabel: String?
     let onSelect: (Int) -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -207,6 +211,10 @@ struct AppKitSegmented: NSViewRepresentable {
     func updateNSView(_ control: NSSegmentedControl, context: Context) {
         context.coordinator.onSelect = onSelect
         control.selectedSegment = selection
+        for (index, tip) in toolTips.enumerated() where index < control.segmentCount {
+            control.setToolTip(tip, forSegment: index)
+        }
+        if let accessibilityLabel { control.setAccessibilityLabel(accessibilityLabel) }
     }
 
     @MainActor

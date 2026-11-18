@@ -90,6 +90,8 @@ import PhotoUI
 ///            | videos on|off | rescan | toggle <n> | accessibility … | run (waits) | confirm yes|no | snapshot <file> | print
 ///            (see ImportDebugCommands)
 ///     adjust …  original on|off  tab info|adjust   (see DebugAdjustCommands)
+///     spots on|off|overlay on|off|print   spot add|select|delete|clear|mode|set|drag|source|nudge|enable …
+///            (heal and clone spots; see DebugSpotCommands)
 ///     metadata <field> [<text>]   print metadata   sidecars on|off   (see DebugMetadataCommands)
 ///     dropfolders <path>[, <path>…]   (imports dropped items the way a drop from Finder does)
 ///     addfolder <path>      (adds a folder the way Add Folder Without Copying… does once its panel returns)
@@ -175,7 +177,7 @@ enum DebugScript {
             // keyboard from a project's or an album's name field saves the rename.
             let changing: Set<String> = ["key", "addkeywords", "text", "pairfile", "accept", "album", "projectalbum", "smartalbum", "remove",
                                          "adjust", "lut", "pasteadjust", "preset", "menupick", "lutwindow", "metadata",
-                                         "menupress", "contextmenu", "filmstripclick", "ml", "sidebarfocus", "duplicate"]
+                                         "menupress", "contextmenu", "filmstripclick", "ml", "sidebarfocus", "duplicate", "spot"]
             for command in commands where !command.isEmpty {
                 let words = command.split(separator: " ")
                 // "accessibility <role> <n> <action>" runs an action; listing changes nothing.
@@ -497,6 +499,10 @@ enum DebugScript {
             await DebugMetadataCommands.run(verb, rest, model: model)
         case "adjust":
             await DebugAdjustCommands.run(rest, editor: model.editor)
+        case "spot":
+            await DebugSpotCommands.run(rest, model: model)
+        case "spots":
+            DebugSpotCommands.runTool(rest, model: model)
         case "ml":
             await DebugMachineLearningCommands.run(rest, model: model)
         case "history":
@@ -1366,7 +1372,7 @@ enum DebugScript {
         ]
         let digits: [String: UInt16] = ["0": 29, "1": 18, "2": 19, "3": 20, "4": 21, "5": 23, "6": 22, "7": 26]
         let letters: [String: UInt16] = ["p": 35, "x": 7, "u": 32, "z": 6, "[": 33, "]": 30, "r": 15, ".": 47, "s": 1,
-                                         "a": 0, "f": 3, "c": 8]
+                                         "a": 0, "f": 3, "c": 8, "h": 4, "v": 9]
         let (code, characters) = named[key] ?? (digits[key] ?? letters[key] ?? 0, key)
         for type in [NSEvent.EventType.keyDown, .keyUp] {
             guard let event = NSEvent.keyEvent(with: type, location: .zero, modifierFlags: flags,

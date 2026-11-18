@@ -587,6 +587,8 @@ struct SectionHeader<Check: View, Trailing: View>: View {
     let family: InspectorFamily
     var turnOff: (title: String, action: () -> Void)?
     var reset: (() -> Void)?
+    /// The context menu's title for `reset`; "Reset" when nil.
+    var resetTitle: String? = nil
     /// The trailing control's width: a reset's 20 pt, nil for its own (a count).
     var trailingWidth: CGFloat? = InspectorMetrics.resetSlot
     @ViewBuilder let check: Check
@@ -611,7 +613,7 @@ struct SectionHeader<Check: View, Trailing: View>: View {
         .contentShape(Rectangle())
         .contextMenu {
             if let turnOff { Button(turnOff.title, action: turnOff.action) }
-            if let reset { Button("Reset", action: reset) }
+            if let reset { Button(resetTitle ?? String(localized: "Reset"), action: reset) }
             if turnOff != nil || reset != nil { Divider() }
             Button("Collapse All") { InspectorExpansion.shared.setAll(family, expanded: false) }
             Button("Expand All") { InspectorExpansion.shared.setAll(family, expanded: true) }

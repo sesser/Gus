@@ -139,6 +139,9 @@ final class LoupeController: NSObject {
     private(set) var magnifierState = MagnifierState()
     private let cropView = CropOverlayView()
     private let maskView = MaskOverlayView()
+    private let spotView = SpotOverlayView()
+    /// Edit Spots as the cursor rects were last made for.
+    private var editingSpotsShown = false
     /// The version and edit shown; a new edit hash loads new renditions.
     private var shownKey: ShownKey?
     private struct ShownKey: Equatable {
@@ -214,20 +217,33 @@ final class LoupeController: NSObject {
         maskView.autoresizingMask = [.width, .height]
         maskView.editor = model.editor
         imageView.addSubview(maskView)
+        spotView.frame = imageView.bounds
+        spotView.autoresizingMask = [.width, .height]
+        spotView.editor = model.editor
+        spotView.isHidden = true
+        spotView.contextMenu = { [weak model] in model.map { PhotoContextMenu.loupe(model: $0, onSpot: true) } }
+        imageView.addSubview(spotView)
         cropView.onChangeRect = { [weak self] rect in self?.model.editor.setCropRect(rect) }
         cropView.onStraighten = { [weak self] angle, phase in self?.model.editor.straighten(angle, phase: phase) }
         hostView.controller = self
         scrollView.onClick = { [weak self] point in self?.toggleZoom(at: point) }
         scrollView.onDoubleClick = { [weak self] in self?.model.closeLoupe() }
         // While a fringe slot picks, a click picks at once instead of zooming
-        // (chromatic-aberration design §4); drags still pan.
-        scrollView.isPicking = { [weak self] in self?.model.editor.pixelMagnifierIsPicking == true }
-        scrollView.onPick = { [weak self] point in self?.pickFringe(at: point) }
+        // (chromatic-aberration design §4); drags still pan. Edit Spots takes
+        // clicks the same way: one on empty photo adds a spot (healing design §4).
+        scrollView.isPicking = { [weak self] in
+            guard let editor = self?.model.editor else { return false }
+            return editor.pixelMagnifierIsPicking || editor.isEditingSpots
+        }
+        scrollView.onPick = { [weak self] point in
+            guard let self else { return }
+            if self.model.editor.isEditingSpots { self.addSpot(at: point) } else { self.pickFringe(at: point) }
+        }
         scrollView.onPointerMoved = { [weak self] location in self?.movePointer(toWindowPoint: location) }
         magnifierView.isHidden = true
         hostView.addSubview(magnifierView)
         scrollView.photoRect = { [weak self] in
-            guard let self, self.model.editor.pickingFringeSlot != nil else { return nil }
+            guard let self, self.model.editor.pickingFringeSlot != nil || self.model.editor.isEditingSpots else { return nil }
             return self.imageView.bounds
         }
         scrollView.onZoomScroll = { [weak self] factor, point in self?.zoom(by: factor, at: point) }
@@ -500,6 +516,15 @@ final class LoupeController: NSObject {
         maskView.isHidden = editor.state != .ready || editor.cropSession != nil || editor.selectedMaskID == nil
             || editor.sharpeningMap.isShown || editor.pickingFringeSlot != nil
         maskView.refresh()
+        _ = (editor.adjustments.spots, editor.selectedSpotID, editor.showsSpotOverlay, editor.spotTemplate,
+             editor.adjustments.crop)
+        spotView.isHidden = !editor.isEditingSpots || editor.state != .ready || editor.cropSession != nil
+        if editor.isEditingSpots != editingSpotsShown {
+            editingSpotsShown = editor.isEditingSpots
+            // The crosshair over the photo while Edit Spots is on.
+            scrollView.window?.invalidateCursorRects(for: scrollView)
+        }
+        spotView.refresh()
     }
 
     /// Shows the crop frame over the whole photo while a crop is edited.
@@ -671,6 +696,15 @@ final class LoupeController: NSObject {
 
     /// A click while a fringe slot picks, at `point` in the photo's view; a
     /// click on the surround does nothing (chromatic-aberration design §4).
+    /// A click on the photo while Edit Spots is on: a spot there. The
+    /// surround (outside the photo) does nothing (design §4).
+    private func addSpot(at point: NSPoint) {
+        let bounds = imageView.bounds
+        guard bounds.contains(point), bounds.width > 0, bounds.height > 0 else { return }
+        // The image view is not flipped: unit coordinates count from the top.
+        model.editor.addSpot(atOutput: CGPoint(x: point.x / bounds.width, y: 1 - point.y / bounds.height))
+    }
+
     private func pickFringe(at point: NSPoint) {
         guard imageView.bounds.contains(point) else { return }
         let geometry = magnifierGeometry(atHostPoint: hostView.convert(point, from: imageView))
@@ -753,6 +787,11 @@ final class LoupeController: NSObject {
     /// percent, and a photo small enough that Fit is 100% counts too.
     private func updateLoupeViewport(magnification known: CGFloat? = nil) {
         let bounds = imageView.bounds
+        if bounds.width > 0, bounds.height > 0 {
+            // One screen point, for the spots' option-arrow nudges (healing design §6).
+            let points = 1 / max(known ?? scrollView.magnification, 0.01)
+            model.editor.spotNudgeStep = CGSize(width: points / bounds.width, height: points / bounds.height)
+        }
         guard bounds.width > 0, bounds.height > 0, model.mode == .loupe else {
             model.editor.setLoupeViewport(nil)
             return
@@ -1005,6 +1044,11 @@ final class LoupeController: NSObject {
         let value = PhotoAccessibility.loupeValue(for: item, offline: model.isOffline(item), notes: notes, index: index,
                                                   count: model.items.count)
         if model.editor.pixelMagnifierIsPicking { return LensText.pickingCanvasValue(value) }
+        if model.editor.isEditingSpots {
+            let count = SpotText.count(model.editor.adjustments.spots.spots.count)
+            return String(localized: "Editing spots, \(count), \(value)",
+                          comment: "VoiceOver value of the loupe while Edit Spots is on: how many spots (“12 spots”), then the photo's value")
+        }
         if let fringeMap = model.editor.shownFringeMap { return LensText.canvasValue(fringeMap, photoValue: value) }
         guard let map = model.editor.shownSharpeningMap else { return value }
         return SharpeningMapText.canvasValue(map, photoValue: value)
@@ -1063,6 +1107,40 @@ final class LoupeController: NSObject {
 
     // MARK: Keys
 
+    /// The Spots keys (healing design §6): H turns Edit Spots on and off, V
+    /// shows or hides its overlay, ⌫ deletes the selected spot, ⌥ arrows
+    /// move it and ⌥⌘ arrows its source (one point, ten with ⇧). Not while
+    /// comparing: the comparison's own key handler never gets here.
+    private func handleSpotKey(_ event: NSEvent) -> Bool {
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask).subtracting([.numericPad, .function])
+        let key = event.charactersIgnoringModifiers?.lowercased()
+        let editor = model.editor
+        if flags.isEmpty, key == "h", model.canEditSpots || editor.isEditingSpots {
+            model.toggleEditingSpots()
+            return true
+        }
+        guard editor.isEditingSpots else { return false }
+        if flags.isEmpty, key == "v" {
+            model.toggleSpotOverlay()
+            return true
+        }
+        if flags.isEmpty, event.keyCode == 51 || event.keyCode == 117, editor.selectedSpotID != nil {
+            editor.deleteSelectedSpot()
+            return true
+        }
+        guard editor.selectedSpotID != nil, flags.contains(.option) else { return false }
+        let direction: LibraryModel.SpotNudge? = switch event.keyCode {
+        case 123: .left
+        case 124: .right
+        case 125: .down
+        case 126: .up
+        default: nil
+        }
+        guard let direction, flags.subtracting([.option, .command, .shift]).isEmpty else { return false }
+        model.nudgeSpot(direction, source: flags.contains(.command), large: flags.contains(.shift))
+        return true
+    }
+
     func handle(_ event: NSEvent) -> Bool {
         if model.editor.cropSession != nil {
             switch event.keyCode {
@@ -1077,6 +1155,7 @@ final class LoupeController: NSObject {
             }
         }
         if handleMagnifierKey(event) { return true }
+        if handleSpotKey(event) { return true }
         if let action = CullingKeymap.action(for: event) {
             model.perform(action)
             return true
@@ -1111,6 +1190,14 @@ final class LoupeController: NSObject {
         case .exitLoupe where model.editor.showsSharpeningMap:
             model.setSharpeningMap(false, from: .key)
             return true
+        case .exitLoupe where model.editor.isEditingSpots:
+            // Then a selected spot, then Edit Spots itself (healing design §4).
+            if model.editor.selectedSpotID != nil {
+                model.editor.selectedSpotID = nil
+            } else {
+                model.editor.setEditingSpots(false)
+            }
+            return true
         case .exitLoupe where model.isReviewing:
             // Esc backs out one level: review first, then the loupe.
             model.exitReview()
@@ -1138,6 +1225,15 @@ final class LoupeHostView: NSView {
 
     override func keyDown(with event: NSEvent) {
         if controller?.handle(event) != true { super.keyDown(with: event) }
+    }
+
+    override func keyUp(with event: NSEvent) {
+        // Releasing an arrow ends a held spot nudge: one undo step (healing design §6).
+        if (123...126).contains(event.keyCode), let editor = controller?.model.editor, editor.spotNudge != nil {
+            editor.commitSpotNudge()
+            return
+        }
+        super.keyUp(with: event)
     }
 
     override func viewDidMoveToWindow() {
@@ -1448,6 +1544,11 @@ struct LoupeCaption: View {
             } else if model.editor.showsOriginal {
                 CaptionBadge(title: String(localized: "Original"),
                              help: String(localized: "Showing the photo without adjustments. Press \\ to show them again."))
+            }
+            // Where the eyes are while adding spots (healing design §7).
+            if model.editor.isEditingSpots, model.editor.spotsAtLimit {
+                CaptionBadge(title: String(localized: "Spot Limit", comment: "Loupe caption badge: the photo has the most spots it can have"),
+                             help: SpotText.notice(.atLimit))
             }
             // One spinner in one slot; the map's label wins when both wait (ml-denoise design §6).
             if let label = spinnerLabel {

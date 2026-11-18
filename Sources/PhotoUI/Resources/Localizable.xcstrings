@@ -243,6 +243,17 @@
         }
       }
     },
+    "%@, %@." : {
+      "comment" : "Spots caption: how many spots (“12 spots”), then how many lie outside the crop (“2 outside the crop”)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, %2$@."
+          }
+        }
+      }
+    },
     "%@, shutter count %@" : {
       "comment" : "Import window subtitle: the newest photo's camera and its shutter count",
       "localizations" : {
@@ -608,6 +619,29 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "%lld of them are originals in the library. Originals are never replaced, so those photos are written under numbered names."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld outside the crop" : {
+      "comment" : "Spots caption: how many spots lie outside the crop",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld outside the crop"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld outside the crop"
                 }
               }
             }
@@ -1010,6 +1044,52 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "%lld selected of %lld"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld spots" : {
+      "comment" : "How many spots a photo has: the Spots context row at the limit, captions and VoiceOver",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld spot"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld spots"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld spots." : {
+      "comment" : "Spots caption: how many spots the photo has",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld spot."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld spots."
                 }
               }
             }
@@ -1497,6 +1577,17 @@
         }
       }
     },
+    "Add Spot" : {
+      "comment" : "Undo action name and History label",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Spot"
+          }
+        }
+      }
+    },
     "Add Suggested Keyword" : {
       "comment" : "Undo action name",
       "localizations" : {
@@ -1846,6 +1937,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "All settings"
+          }
+        }
+      }
+    },
+    "All spots deleted." : {
+      "comment" : "VoiceOver after Delete All Spots",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All spots deleted."
           }
         }
       }
@@ -2302,6 +2404,17 @@
         }
       }
     },
+    "Blend the copied texture into the surrounding tone and color" : {
+      "comment" : "Tooltip of the Heal segment",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blend the copied texture into the surrounding tone and color"
+          }
+        }
+      }
+    },
     "Blending" : {
       "comment" : "Color grading slider: how much the tonal ranges overlap; also its undo action name",
       "localizations" : {
@@ -2376,6 +2489,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bottom"
+          }
+        }
+      }
+    },
+    "bottom" : {
+      "comment" : "Spot announcement: Copied from the bottom",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "bottom"
           }
         }
       }
@@ -2677,6 +2801,17 @@
         }
       }
     },
+    "center" : {
+      "comment" : "Spot position word: the middle third of the photo",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "center"
+          }
+        }
+      }
+    },
     "Change %@" : {
       "comment" : "Undo action name; the argument is a metadata field such as Title",
       "localizations" : {
@@ -2684,6 +2819,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Change %@"
+          }
+        }
+      }
+    },
+    "Change Spot Mode" : {
+      "comment" : "Undo action name and History label",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Change Spot Mode"
           }
         }
       }
@@ -2739,6 +2885,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Choose"
+          }
+        }
+      }
+    },
+    "Choose Edit Spots to change them." : {
+      "comment" : "Spots caption, after the count: not editing",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose Edit Spots to change them."
+          }
+        }
+      }
+    },
+    "Choose Edit Spots, then click a dust spot or blemish in the photo. It is filled from a clean area nearby." : {
+      "comment" : "Spots caption: not editing, no spots",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose Edit Spots, then click a dust spot or blemish in the photo. It is filled from a clean area nearby."
           }
         }
       }
@@ -2874,6 +3042,28 @@
         }
       }
     },
+    "Choose Source Automatically" : {
+      "comment" : "Adjust ▸ Spots, the ⋯ menu, the loupe's context menu and VoiceOver action",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose Source Automatically"
+          }
+        }
+      }
+    },
+    "Choose Spot Source" : {
+      "comment" : "Undo action name and History label",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose Spot Source"
+          }
+        }
+      }
+    },
     "Choose the folder exported photos are written to." : {
       "comment" : "Export window: folder panel message",
       "localizations" : {
@@ -2972,6 +3162,17 @@
         }
       }
     },
+    "Click a dust spot or blemish in the photo. Press Esc when you are done." : {
+      "comment" : "Spots caption while editing a photo with no spots",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Click a dust spot or blemish in the photo. Press Esc when you are done."
+          }
+        }
+      }
+    },
     "Click a fringe in the photo to pick its color" : {
       "comment" : "Eyedropper tooltip and VoiceOver help",
       "localizations" : {
@@ -2979,6 +3180,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Click a fringe in the photo to pick its color"
+          }
+        }
+      }
+    },
+    "Click spots in the photo to heal or clone them" : {
+      "comment" : "VoiceOver help of the Edit Spots toggle",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Click spots in the photo to heal or clone them"
+          }
+        }
+      }
+    },
+    "Click spots in the photo to heal or clone them (H)" : {
+      "comment" : "Tooltip of the Edit Spots toggle",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Click spots in the photo to heal or clone them (H)"
+          }
+        }
+      }
+    },
+    "Click the photo to add a spot, or click a spot to change it. Press Esc when you are done." : {
+      "comment" : "Spots caption while editing a photo with spots, none selected",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Click the photo to add a spot, or click a spot to change it. Press Esc when you are done."
           }
         }
       }
@@ -3001,6 +3235,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Click to add a point, drag to move it, double-click to remove it."
+          }
+        }
+      }
+    },
+    "Clone" : {
+      "comment" : "Spot mode: copy the source exactly as it is",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clone"
           }
         }
       }
@@ -3477,6 +3722,17 @@
         }
       }
     },
+    "Copy the source exactly as it is" : {
+      "comment" : "Tooltip of the Clone segment",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy the source exactly as it is"
+          }
+        }
+      }
+    },
     "Copying %@" : {
       "comment" : "Import progress; the argument is a file name",
       "localizations" : {
@@ -3862,6 +4118,17 @@
         }
       }
     },
+    "Delete All Spots" : {
+      "comment" : "Undo action name, History label, menu item and the Spots heading's reset",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete All Spots"
+          }
+        }
+      }
+    },
     "Delete Keyword" : {
       "comment" : "Undo action name and the confirming button",
       "localizations" : {
@@ -3913,6 +4180,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Delete originals from “%@”"
+          }
+        }
+      }
+    },
+    "Delete Spot" : {
+      "comment" : "Undo action name, History label, menu item and the trash button's tooltip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Spot"
           }
         }
       }
@@ -4137,6 +4415,17 @@
         }
       }
     },
+    "Down" : {
+      "comment" : "Adjust ▸ Spots ▸ Move Spot / Move Source item",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Down"
+          }
+        }
+      }
+    },
     "Drag folders here to add them without copying." : {
       "comment" : "Empty library hint",
       "localizations" : {
@@ -4166,6 +4455,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Drag photos onto the album in the sidebar, or choose Photo ▸ Add to Album."
+          }
+        }
+      }
+    },
+    "Drag the spot to move it, or drag the circle it copies from. Press Delete to remove it." : {
+      "comment" : "Spots caption while a spot is selected",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag the spot to move it, or drag the circle it copies from. Press Delete to remove it."
           }
         }
       }
@@ -4222,6 +4522,28 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "Edit Spots" : {
+      "comment" : "Adjust ▸ Spots, the Spots heading's toggle, the loupe's context menu and the toolbar item",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit Spots"
+          }
+        }
+      }
+    },
+    "Editing spots, %@, %@" : {
+      "comment" : "VoiceOver value of the loupe while Edit Spots is on: how many spots (“12 spots”), then the photo's value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Editing spots, %@, %@"
           }
         }
       }
@@ -4736,7 +5058,7 @@
       }
     },
     "Feather" : {
-      "comment" : "Mask and brush slider",
+      "comment" : "Mask and brush slider; also the Spots slider (edge softness)",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4955,6 +5277,17 @@
         }
       }
     },
+    "Finish cropping to edit spots." : {
+      "comment" : "Tooltip of Edit Spots during a crop session",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finish cropping to edit spots."
+          }
+        }
+      }
+    },
     "Finish cropping to go back to an earlier state." : {
       "comment" : "History list: tooltip and VoiceOver hint of rows while a crop session is open",
       "localizations" : {
@@ -4995,6 +5328,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Finish cropping to show the sharpening map."
+          }
+        }
+      }
+    },
+    "Finish Editing Spots" : {
+      "comment" : "Adjust ▸ Spots and the loupe's context menu, while Edit Spots is on",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finish Editing Spots"
           }
         }
       }
@@ -5337,6 +5681,17 @@
         }
       }
     },
+    "Heal" : {
+      "comment" : "Spot mode: blend the copied texture into the surrounding tone and color",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Heal"
+          }
+        }
+      }
+    },
     "HEIC" : {
       "comment" : "Grid badge: HEIC or HEIF file",
       "localizations" : {
@@ -5465,6 +5820,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Hide Sharpening Map"
+          }
+        }
+      }
+    },
+    "Hide Spot Overlay" : {
+      "comment" : "Adjust ▸ Spots and the loupe's context menu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide Spot Overlay"
           }
         }
       }
@@ -6542,6 +6908,17 @@
         }
       }
     },
+    "left" : {
+      "comment" : "Spot announcement: Copied from the left",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "left"
+          }
+        }
+      }
+    },
     "Left out: %@" : {
       "localizations" : {
         "en" : {
@@ -6560,6 +6937,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "LGPL 2.1"
+          }
+        }
+      }
+    },
+    "lower left" : {
+      "comment" : "Spot announcement and position word",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "lower left"
+          }
+        }
+      }
+    },
+    "lower right" : {
+      "comment" : "Spot announcement and position word",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "lower right"
           }
         }
       }
@@ -6597,7 +6996,7 @@
       }
     },
     "Left" : {
-      "comment" : "Export window: watermark position",
+      "comment" : "Export window: watermark position; also Adjust ▸ Spots ▸ Move Spot / Move Source item",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7388,6 +7787,127 @@
         }
       }
     },
+    "Move Source" : {
+      "comment" : "Adjust ▸ Spots ▸ submenu: moves the selected spot's source",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move Source"
+          }
+        }
+      }
+    },
+    "Move Source Down" : {
+      "comment" : "VoiceOver action on a spot",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move Source Down"
+          }
+        }
+      }
+    },
+    "Move Source Left" : {
+      "comment" : "VoiceOver action on a spot",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move Source Left"
+          }
+        }
+      }
+    },
+    "Move Source Right" : {
+      "comment" : "VoiceOver action on a spot",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move Source Right"
+          }
+        }
+      }
+    },
+    "Move Source Up" : {
+      "comment" : "VoiceOver action on a spot",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move Source Up"
+          }
+        }
+      }
+    },
+    "Move Spot" : {
+      "comment" : "Undo action name, History label and Adjust ▸ Spots submenu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move Spot"
+          }
+        }
+      }
+    },
+    "Move Spot Down" : {
+      "comment" : "VoiceOver action on a spot",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move Spot Down"
+          }
+        }
+      }
+    },
+    "Move Spot Left" : {
+      "comment" : "VoiceOver action on a spot",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move Spot Left"
+          }
+        }
+      }
+    },
+    "Move Spot Right" : {
+      "comment" : "VoiceOver action on a spot",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move Spot Right"
+          }
+        }
+      }
+    },
+    "Move Spot Source" : {
+      "comment" : "Undo action name and History label",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move Spot Source"
+          }
+        }
+      }
+    },
+    "Move Spot Up" : {
+      "comment" : "VoiceOver action on a spot",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move Spot Up"
+          }
+        }
+      }
+    },
     "Move To" : {
       "comment" : "Preset manager submenu",
       "localizations" : {
@@ -7582,6 +8102,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "New Smart Album…"
+          }
+        }
+      }
+    },
+    "New spot" : {
+      "comment" : "Spots context row: the controls set the next spot's values",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New spot"
           }
         }
       }
@@ -8222,7 +8753,7 @@
       }
     },
     "Opacity" : {
-      "comment" : "Export window: watermark opacity",
+      "comment" : "Export window: watermark opacity; also the Spots slider (how much of the fix shows)",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -9220,6 +9751,17 @@
         }
       }
     },
+    "Presets and Paste Adjustments leave spots out." : {
+      "comment" : "The Spots heading's note, in the Masks heading's words (healing design §11)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Presets and Paste Adjustments leave spots out."
+          }
+        }
+      }
+    },
     "Presets imported: %lld" : {
       "comment" : "Preset import summary title",
       "localizations" : {
@@ -9227,6 +9769,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Presets imported: %lld"
+          }
+        }
+      }
+    },
+    "Press to select" : {
+      "comment" : "VoiceOver help of a spot on the photo",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Press to select"
           }
         }
       }
@@ -9461,6 +10014,17 @@
         }
       },
       "comment" : "Import report: every preset of the pack was already in the library and was replaced"
+    },
+    "Resize Spot" : {
+      "comment" : "Undo action name and History label",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resize Spot"
+          }
+        }
+      }
     },
     "RGB" : {
       "comment" : "Tone curve channel: all three together",
@@ -10321,12 +10885,23 @@
       }
     },
     "Right" : {
-      "comment" : "Export window: watermark position",
+      "comment" : "Export window: watermark position; also Adjust ▸ Spots ▸ Move Spot / Move Source item",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Right"
+          }
+        }
+      }
+    },
+    "right" : {
+      "comment" : "Spot announcement: Copied from the right",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "right"
           }
         }
       }
@@ -10607,7 +11182,7 @@
       }
     },
     "Select" : {
-      "comment" : "Import grid context menu",
+      "comment" : "Import grid context menu; also the VoiceOver action on a spot",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -10639,6 +11214,17 @@
         }
       }
     },
+    "Select Next Spot" : {
+      "comment" : "Adjust ▸ Spots and the ⋯ menu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select Next Spot"
+          }
+        }
+      }
+    },
     "Select photos to see and change their keywords." : {
       "comment" : "Inspector, nothing selected",
       "localizations" : {
@@ -10661,6 +11247,17 @@
         }
       }
     },
+    "Select Previous Spot" : {
+      "comment" : "Adjust ▸ Spots and the ⋯ menu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select Previous Spot"
+          }
+        }
+      }
+    },
     "Select this mask" : {
       "comment" : "Button help",
       "localizations" : {
@@ -10679,6 +11276,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Select this mask; double-click to rename it"
+          }
+        }
+      }
+    },
+    "Selected" : {
+      "comment" : "VoiceOver value of the selected spot",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selected"
           }
         }
       }
@@ -11056,6 +11664,28 @@
         }
       }
     },
+    "Show Spot Overlay" : {
+      "comment" : "Adjust ▸ Spots and the loupe's context menu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Spot Overlay"
+          }
+        }
+      }
+    },
+    "Show the spots and their sources" : {
+      "comment" : "Tooltip of the Spots heading's eye: shows or hides the spot overlay",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show the spots and their sources"
+          }
+        }
+      }
+    },
     "Show Them" : {
       "comment" : "Import window: show the shots already in the library",
       "localizations" : {
@@ -11354,7 +11984,7 @@
       }
     },
     "Size" : {
-      "comment" : "Vignette or grain size",
+      "comment" : "Vignette or grain size; also the Spots slider (the radius, percent of the long edge)",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -11436,6 +12066,204 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Source"
+          }
+        }
+      }
+    },
+    "Source chosen. Copied from the %@." : {
+      "comment" : "VoiceOver after Choose Source Automatically; where the source lies (left, upper right…)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Source chosen. Copied from the %@."
+          }
+        }
+      }
+    },
+    "Spot %lld added. %@. Copied from the %@." : {
+      "comment" : "VoiceOver after a click adds a spot: its number, Heal or Clone, and where its source lies (left, upper right…)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spot %1$lld added. %2$@. Copied from the %3$@."
+          }
+        }
+      }
+    },
+    "Spot %lld of %lld" : {
+      "comment" : "Spots context row: which spot the controls change, in placement order",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spot %1$lld of %2$lld"
+          }
+        }
+      }
+    },
+    "Spot %lld, %@, %@" : {
+      "comment" : "VoiceOver label of a spot on the photo: its number, Heal or Clone, its position",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spot %1$lld, %2$@, %3$@"
+          }
+        }
+      }
+    },
+    "Spot commands" : {
+      "comment" : "Tooltip and VoiceOver name of the Spots ⋯ menu",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spot commands"
+          }
+        }
+      }
+    },
+    "Spot deleted. %@." : {
+      "comment" : "VoiceOver after a spot is deleted; how many are left (“3 spots”)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spot deleted. %@."
+          }
+        }
+      }
+    },
+    "Spot Feather" : {
+      "comment" : "Undo action name and History label",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spot Feather"
+          }
+        }
+      }
+    },
+    "Spot feather" : {
+      "comment" : "VoiceOver name of the Spots Feather slider",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spot feather"
+          }
+        }
+      }
+    },
+    "Spot feather value" : {
+      "comment" : "VoiceOver name of the Spots Feather field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spot feather value"
+          }
+        }
+      }
+    },
+    "Spot Limit" : {
+      "comment" : "Loupe caption badge: the photo has the most spots it can have",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spot Limit"
+          }
+        }
+      }
+    },
+    "Spot Mode" : {
+      "comment" : "Adjust ▸ Spots ▸ submenu: Heal, Clone",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spot Mode"
+          }
+        }
+      }
+    },
+    "Spot mode" : {
+      "comment" : "VoiceOver name of the Heal / Clone control",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spot mode"
+          }
+        }
+      }
+    },
+    "Spot Opacity" : {
+      "comment" : "Undo action name and History label",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spot Opacity"
+          }
+        }
+      }
+    },
+    "Spot opacity" : {
+      "comment" : "VoiceOver name of the Spots Opacity slider",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spot opacity"
+          }
+        }
+      }
+    },
+    "Spot opacity value" : {
+      "comment" : "VoiceOver name of the Spots Opacity field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spot opacity value"
+          }
+        }
+      }
+    },
+    "Spot Size" : {
+      "comment" : "Undo action name and History label",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spot Size"
+          }
+        }
+      }
+    },
+    "Spot size" : {
+      "comment" : "VoiceOver name of the Spots Size slider",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spot size"
+          }
+        }
+      }
+    },
+    "Spot size value" : {
+      "comment" : "VoiceOver name of the Spots Size field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spot size value"
           }
         }
       }
@@ -11704,6 +12532,28 @@
         }
       }
     },
+    "Switch to Clone" : {
+      "comment" : "VoiceOver action on a spot",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Switch to Clone"
+          }
+        }
+      }
+    },
+    "Switch to Heal" : {
+      "comment" : "VoiceOver action on a spot",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Switch to Heal"
+          }
+        }
+      }
+    },
     "Switch to Left Photo" : {
       "comment" : "View menu (A): makes the left photo of the comparison the active one",
       "localizations" : {
@@ -11770,6 +12620,17 @@
         }
       }
     },
+    "The overlay is hidden, so a click adds a spot. Show the overlay to select one." : {
+      "comment" : "Spots caption while editing with the overlay hidden",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The overlay is hidden, so a click adds a spot. Show the overlay to select one."
+          }
+        }
+      }
+    },
     "The pack has no presets." : {
       "localizations" : {
         "en" : {
@@ -11792,6 +12653,17 @@
       },
       "comment" : "Import report: why a file was not imported"
     },
+    "There's no clean area nearby to copy from. Try a smaller size, or click somewhere else." : {
+      "comment" : "Spots caption and VoiceOver: a click found no source, nothing was added",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There's no clean area nearby to copy from. Try a smaller size, or click somewhere else."
+          }
+        }
+      }
+    },
     "These edits hold more masks, brush points or spots than this version of %@ allows. Editing is off so they are not lost." : {
       "comment" : "Adjust tab and status line, for a stack over the mask or spot limits (healing design §7); %@ is the app's name",
       "localizations" : {
@@ -11799,6 +12671,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "These edits hold more masks, brush points or spots than this version of %@ allows. Editing is off so they are not lost."
+          }
+        }
+      }
+    },
+    "This photo has %lld spots, the most it can have. Delete one to add another." : {
+      "comment" : "Spots caption, the Spot Limit badge's tooltip and VoiceOver: the photo is at the limit",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This photo has %lld spots, the most it can have. Delete one to add another."
+          }
+        }
+      }
+    },
+    "This spot's source is outside the crop. Drag the spot, or choose a source automatically." : {
+      "comment" : "Spots caption: the selected spot copies from outside the crop",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This spot's source is outside the crop. Drag the spot, or choose a source automatically."
           }
         }
       }
@@ -12416,6 +13310,17 @@
         }
       }
     },
+    "top" : {
+      "comment" : "Spot announcement: Copied from the top",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "top"
+          }
+        }
+      }
+    },
     "Top left" : {
       "comment" : "Export window: watermark position",
       "localizations" : {
@@ -12700,6 +13605,17 @@
         }
       }
     },
+    "Up" : {
+      "comment" : "Adjust ▸ Spots ▸ Move Spot / Move Source item",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Up"
+          }
+        }
+      }
+    },
     "Update “%@”" : {
       "comment" : "Export window: saves the changed settings into the selected preset",
       "localizations" : {
@@ -12718,6 +13634,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Upper"
+          }
+        }
+      }
+    },
+    "upper left" : {
+      "comment" : "Spot announcement and position word",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "upper left"
+          }
+        }
+      }
+    },
+    "upper right" : {
+      "comment" : "Spot announcement and position word",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "upper right"
           }
         }
       }

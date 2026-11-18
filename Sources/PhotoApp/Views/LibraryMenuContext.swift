@@ -49,6 +49,17 @@ struct LibraryMenuState: Equatable {
     var canAddMask: Bool
     /// Adjust ▸ Show / Hide Mask Overlay: a mask is selected in the loupe.
     var hasSelectedMask: Bool
+    /// Adjust ▸ Spots ▸ (healing design §6): Edit Spots can act
+    /// (`LibraryModel.canEditSpots`), the tool is on, its overlay shown, a
+    /// spot selected, the mode the menus check, how many spots the photo has
+    /// and how many lie in the crop.
+    var canEditSpots: Bool
+    var isEditingSpots: Bool
+    var showsSpotOverlay: Bool
+    var hasSelectedSpot: Bool
+    var spotMode: SpotMode
+    var spotCount: Int
+    var visibleSpotCount: Int
     /// Reset All Adjustments has something to reset. In the loupe: the photo's
     /// adjustments are not at their defaults. In the grid the items can't
     /// tell (their hash leaves out turned-off groups), so it is true.
@@ -190,6 +201,13 @@ struct LibraryMenuState: Equatable {
         canSaveAsPreset = model.canSaveAdjustmentPreset
         pairDisplay = PairDisplay(model.actionTargets.lazy.map { model.items[$0] })
         hasSelectedMask = canEditLoupePhoto && model.editor.selectedMaskID != nil
+        canEditSpots = model.canEditSpots
+        isEditingSpots = model.editor.isEditingSpots
+        showsSpotOverlay = model.editor.showsSpotOverlay
+        hasSelectedSpot = canEditSpots && model.editor.selectedSpotID != nil
+        spotMode = model.editor.shownSpotMode
+        spotCount = canEditLoupePhoto ? model.editor.adjustments.spots.spots.count : 0
+        visibleSpotCount = isEditingSpots ? model.editor.visibleSpots.count : 0
         canResetAll = model.mode == .grid ? targetsIncludePhoto
             : canEditLoupePhoto && !isCropping && !model.editor.adjustments.isDefault
         showsMaskOverlay = model.editor.showsMaskOverlay

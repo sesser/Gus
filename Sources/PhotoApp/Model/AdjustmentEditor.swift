@@ -61,7 +61,12 @@ final class AdjustmentEditor {
     /// Nil exactly when `isRaw` is false.
     private(set) var rawDefaults: RawDefaults?
     /// Current values, ahead of the catalog while a slider is dragged.
-    private(set) var adjustments = Adjustments()
+    private(set) var adjustments = Adjustments() {
+        // An undo, a revert or a delete that took the selected spot away deselects it (design §10).
+        didSet {
+            if let id = selectedSpotID, !adjustments.spots.spots.contains(where: { $0.id == id }) { selectedSpotID = nil }
+        }
+    }
     /// Histogram of the latest frame.
     private(set) var histogram: Histogram?
     /// Auto exposure or white balance is measuring.
@@ -109,6 +114,8 @@ final class AdjustmentEditor {
     var selectedMaskID: UUID? {
         didSet {
             guard oldValue != selectedMaskID else { return }
+            // Selecting a mask ends Edit Spots: one on-photo tool at a time (healing design §4).
+            if selectedMaskID != nil { isEditingSpots = false }
             if selectedMask?.components.contains(where: { $0.shape.brushComponent }) != true { isBrushing = false }
             if showsMaskOverlay, state == .ready { showsLive = true; requestRender(interactive: false) }
             schedulePrefill()
@@ -139,6 +146,7 @@ final class AdjustmentEditor {
             if isBrushing {
                 endSharpeningMap()
                 pickingFringeSlot = nil
+                isEditingSpots = false
             }
         }
     }
@@ -150,9 +158,58 @@ final class AdjustmentEditor {
             if isSamplingColor {
                 endSharpeningMap()
                 pickingFringeSlot = nil
+                isEditingSpots = false
             }
         }
     }
+    // MARK: Spots state (healing design §4, §15)
+
+    /// Edit Spots is on: a click on the photo adds a spot, a click on one
+    /// selects it, a drag moves it. Never saved, never an undo step; one
+    /// on-photo tool at a time, the last asked for wins (design §4).
+    var isEditingSpots = false {
+        didSet {
+            guard oldValue != isEditingSpots else { return }
+            spotNotice = nil
+            if isEditingSpots {
+                endSharpeningMap()
+                pickingFringeSlot = nil
+                isBrushing = false
+                isSamplingColor = false
+                selectedMaskID = nil
+                showsOriginal = false
+                // The overlay starts shown each time the tool is turned on (design §4).
+                showsSpotOverlay = true
+            } else {
+                selectedSpotID = nil
+                spotPlacements.removeAll()
+                commitSpotNudge()
+            }
+        }
+    }
+    /// The spot the Spots heading and the loupe's handles edit.
+    var selectedSpotID: UUID? {
+        didSet { if oldValue != selectedSpotID { commitSpotNudge() } }
+    }
+    /// The spot rings and the selected spot's source are drawn; hidden, every click adds.
+    var showsSpotOverlay = true
+    /// What the next spot gets: the values last set (design §3), kept as preferences.
+    var spotTemplate = SpotTemplate.stored() {
+        didSet { if spotTemplate != oldValue { spotTemplate.store() } }
+    }
+    /// Why the last click added nothing, until the next action (design §3's caption).
+    var spotNotice: SpotNotice?
+    /// Clicks waiting for their automatic source, in order (output unit coordinates).
+    @ObservationIgnored var spotPlacements: [CGPoint] = []
+    @ObservationIgnored var spotPlacementTask: Task<Void, Never>?
+    /// Choose Source Automatically, while it finds the source.
+    @ObservationIgnored var spotSourceTask: Task<Void, Never>?
+    /// A held option-arrow nudge: committed as one undo step once the keys stop (design §6).
+    @ObservationIgnored var spotNudge: (name: String, task: Task<Void, Never>)?
+    /// One screen point of the loupe at its zoom, in output unit coordinates:
+    /// how far an option-arrow nudge moves (design §6). Set by the loupe.
+    @ObservationIgnored var spotNudgeStep = CGSize(width: 0.001, height: 0.001)
+
     /// The mask frame's size in pixels, from the latest frame: its proportions
     /// place masks on screen.
     private(set) var maskFrameSize: CGSize?
@@ -217,6 +274,7 @@ final class AdjustmentEditor {
                 // One picking or painting tool at a time; the photo being edited.
                 isBrushing = false
                 isSamplingColor = false
+                isEditingSpots = false
                 if showsSharpeningMap { endSharpeningMap() }
                 showsOriginal = false
             }
@@ -508,6 +566,9 @@ final class AdjustmentEditor {
         paintingStroke = nil
         isBrushing = false
         isSamplingColor = false
+        isEditingSpots = false
+        spotPlacementTask?.cancel()
+        spotPlacementTask = nil
         maskFrameSize = nil
         stopAwaitingMachineLearning()
         pickingFringeSlot = nil
@@ -663,6 +724,7 @@ final class AdjustmentEditor {
         }
         isBrushing = false
         isSamplingColor = false
+        isEditingSpots = false
         if kind == .sharpeningMap { pickingFringeSlot = nil }
         mapKind = kind
         sharpeningMap.show(overlay: showsMaskOverlay, original: showsOriginal)
@@ -855,6 +917,8 @@ final class AdjustmentEditor {
             guard let stack = snapshot, let self, state == .ready, cropSession == nil, item?.versionID == versionID,
                   !stack.hasSameContent(as: committed.editStack) else { return }
             showsOriginal = false
+            // Reverting clears the spot selection (healing design §10).
+            selectedSpotID = nil
             let name = HistoryText.revert(toLabel: entry.label)
             apply(stack, toVersion: versionID, undoingTo: committed.editStack, actionName: name)
             AccessibilityText.announce(String(localized: "Reverted to \(entry.label)",
@@ -1463,6 +1527,14 @@ final class AdjustmentEditor {
         }
     }
 
+    /// The automatic source of spot `id` of `values` (`LiveRenderSession.spotSource`),
+    /// off the main actor. Nil when no source is allowed; throws when the
+    /// photo could not be rendered for it.
+    func automaticSpotSource(for id: UUID, in values: Adjustments) async throws -> MaskPoint? {
+        guard let session else { throw PreviewGenerator.Failure.renderFailed }
+        return try await session.spotSource(for: id, in: values)
+    }
+
     /// The photo with its saved adjustments but no effects (look-up table,
     /// vignette, grain), at the loupe's size, for previewing tables on it.
     func lookTablePreviewBase() async -> DecodedImage? {
@@ -1489,6 +1561,7 @@ final class AdjustmentEditor {
         // Crop ends the map; it does not come back after Done (design §6).
         endSharpeningMap()
         pickingFringeSlot = nil
+        isEditingSpots = false
         showsOriginal = false
         isPreviewing = false
         previewValues = nil

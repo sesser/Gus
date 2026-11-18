@@ -550,3 +550,50 @@ struct SpotRenderingTests {
     }
 }
 
+
+/// Spots in the catalog: per file, copied by Duplicate, never a sidecar (R12, R14).
+@Suite("Spots: catalog")
+struct SpotCatalogTests {
+    static func count(_ catalog: Catalog, _ table: String) async throws -> Int {
+        try await catalog.database.read { db in try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM \(table)") ?? 0 }
+    }
+
+    static func stack(_ spots: [Spot]) -> EditStack {
+        var values = Adjustments()
+        values.spots.spots = spots
+        return values.editStack
+    }
+
+    @Test("A duplicate starts with the original's spots; edits to either leave the other (R12, AC10)")
+    func duplicateCopiesSpots() async throws {
+        let fixture = try await CatalogFixture.make()
+        let catalog = fixture.catalog
+        let id = try await fixture.addMasters([CatalogFixture.master(1)])[0]
+        try await catalog.setEditStack(Self.stack([SpotModelTests.spot(0)]), forVersion: id, historyLabel: "Add Spot")
+        let copyID = try await catalog.duplicateVersions(ids: [id])[0].copyVersionID
+        let copy = try #require(try await catalog.version(id: copyID))
+        #expect(Adjustments(stack: try copy.decodedEditStack()).spots.spots == [SpotModelTests.spot(0)])
+
+        try await catalog.setEditStack(Self.stack([SpotModelTests.spot(0), SpotModelTests.spot(1, x: 0.7)]),
+                                       forVersion: copyID, historyLabel: "Add Spot")
+        let original = try #require(try await catalog.version(id: id))
+        #expect(Adjustments(stack: try original.decodedEditStack()).spots.spots == [SpotModelTests.spot(0)])
+        try await catalog.setEditStack(.identity, forVersion: id, historyLabel: "Delete All Spots")
+        let copyAfter = try #require(try await catalog.version(id: copyID))
+        #expect(Adjustments(stack: try copyAfter.decodedEditStack()).spots.spots.count == 2)
+    }
+
+    @Test("Spots are per file: a RAW+JPEG pair's other file keeps its stack, and no sidecar is queued (R12, R14, AC10, AC12)")
+    func spotsArePerFileAndNeverSidecars() async throws {
+        let fixture = try await CatalogFixture.make()
+        let catalog = fixture.catalog
+        let ids = try await fixture.addMasters([CatalogFixture.master(1, hash: String(repeating: "a", count: 64), path: "shoot/IMG_0001.CR3"),
+                                                CatalogFixture.master(2, hash: String(repeating: "b", count: 64), path: "shoot/IMG_0001.JPG")])
+        #expect(try await Self.count(catalog, "imagePair") == 1)
+        let queued = try await Self.count(catalog, "sidecarQueue")
+        try await catalog.setEditStack(Self.stack([SpotModelTests.spot(0)]), forVersion: ids[0], historyLabel: "Add Spot")
+        let partner = try #require(try await catalog.version(id: ids[1]))
+        #expect(try partner.decodedEditStack() == .identity)
+        #expect(try await Self.count(catalog, "sidecarQueue") == queued)
+    }
+}
