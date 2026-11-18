@@ -11440,6 +11440,17 @@
         }
       }
     },
+    "Spots" : {
+      "comment" : "Adjust tab heading and group: heal and clone spots; also the Adjust ▸ Spots submenu and undo names (Turn On Spots)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spots"
+          }
+        }
+      }
+    },
     "Standard" : {
       "comment" : "RAW profile: the decoder's default rendering",
       "localizations" : {
@@ -11780,6 +11791,17 @@
         }
       },
       "comment" : "Import report: why a file was not imported"
+    },
+    "These edits hold more masks, brush points or spots than this version of %@ allows. Editing is off so they are not lost." : {
+      "comment" : "Adjust tab and status line, for a stack over the mask or spot limits (healing design §7); %@ is the app's name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These edits hold more masks, brush points or spots than this version of %@ allows. Editing is off so they are not lost."
+          }
+        }
+      }
     },
     "TIFF" : {
       "comment" : "Grid badge: TIFF file",
@@ -12183,17 +12205,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "These edits cannot be read. Editing is off so they are not lost."
-          }
-        }
-      }
-    },
-    "These edits hold more masks or brush points than this version of %@ allows. Editing is off so they are not lost." : {
-      "comment" : "Adjust tab and status line; %@ is the app's name",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "These edits hold more masks or brush points than this version of %@ allows. Editing is off so they are not lost."
           }
         }
       }

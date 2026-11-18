@@ -16,18 +16,18 @@ public struct AdjustmentPreset: Hashable, Sendable, Identifiable {
     public var adjustments: Adjustments
 
     public init(id: Int64? = nil, uuid: String = UUID().uuidString, name: String, collection: String = "",
-                groups: Set<Adjustments.Group> = Set(Adjustments.Group.allCases), adjustments: Adjustments) {
+                groups: Set<Adjustments.Group> = Set(Adjustments.Group.presetGroups), adjustments: Adjustments) {
         self.id = id
         self.uuid = uuid
         self.name = name
         self.collection = collection
-        self.groups = groups
+        self.groups = groups.subtracting([.spots])
         // `copying` keeps a legacy machine learning decoder in Profile, so the
         // preset still turns it on when applied (`replacing`).
         self.adjustments = Adjustments.none.copying(groups, from: adjustments)
     }
 
-    public var includesEveryGroup: Bool { groups == Set(Adjustments.Group.allCases) }
+    public var includesEveryGroup: Bool { groups == Set(Adjustments.Group.presetGroups) }
 
     /// `target` with this preset's groups replaced (its unknown operations kept).
     public func applied(onto target: Adjustments) -> Adjustments {
@@ -37,14 +37,14 @@ public struct AdjustmentPreset: Hashable, Sendable, Identifiable {
     /// Stored group names: nil for every group, so presets saved before a group
     /// existed keep replacing everything.
     static func encodeGroups(_ groups: Set<Adjustments.Group>) -> String? {
-        guard groups != Set(Adjustments.Group.allCases) else { return nil }
+        guard groups != Set(Adjustments.Group.presetGroups) else { return nil }
         return groups.map(\.rawValue).sorted().joined(separator: ",")
     }
 
     /// Names this build does not know are ignored.
     static func decodeGroups(_ text: String?) -> Set<Adjustments.Group> {
-        guard let text else { return Set(Adjustments.Group.allCases) }
-        return Set(text.split(separator: ",").compactMap { Adjustments.Group(rawValue: String($0)) })
+        guard let text else { return Set(Adjustments.Group.presetGroups) }
+        return Set(text.split(separator: ",").compactMap { Adjustments.Group(rawValue: String($0)) }).subtracting([.spots])
     }
 }
 
@@ -89,8 +89,11 @@ extension Adjustments {
     public func pasted(onto target: Adjustments) -> Adjustments {
         var result = self
         result.preserved = target.preserved
-        // Masks are drawn on one photo's content: paste leaves the target's.
+        // Masks and spots are drawn on one photo's content: paste leaves the
+        // target's, spots with their on/off state (PRD R11, R18).
         result.local = target.local
+        result.spots = target.spots
+        result.setEnabled(.spots, target.isEnabled(.spots))
         return result
     }
 }

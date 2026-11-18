@@ -345,7 +345,8 @@ struct CommandTests {
         let json = try JSONValue.parse(await cli.run(["adjustments"]).standardOutput)
         let modules = try #require(json["modules"]?.arrayValue)
         let kinds = Set(modules.compactMap { $0["kind"]?.stringValue })
-        let expected = Set(Adjustments.Group.allCases.flatMap(\.kinds).map(\.rawValue) + [Crop.kind.rawValue])
+        // Spots, like masks, are objects, not a module of parameters: their group only turns them off and on.
+        let expected = Set(Adjustments.Group.presetGroups.flatMap(\.kinds).map(\.rawValue) + [Crop.kind.rawValue])
         #expect(kinds == expected)
         let exposure = modules.first { $0["kind"] == "exposure" }
         #expect(exposure?["group"] == "light" && exposure?["section"] == "develop")

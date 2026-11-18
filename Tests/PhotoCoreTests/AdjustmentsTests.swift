@@ -67,6 +67,7 @@ struct AdjustmentsModelTests {
         adjustments.colorMixer[.blue] = .init(hue: 10)
         adjustments.colorFringes.slot1 = CommonFringeColor.purple.slot
         adjustments.colorAlignment = ColorAlignment(red: 5)
+        adjustments.spots.spots = [Spot(center: MaskPoint(x: 0.2, y: 0.2), size: 0.01, source: MaskPoint(x: 0.3, y: 0.2))]
         for section in Adjustments.Section.allCases {
             #expect(adjustments.isModified(section))
             adjustments = adjustments.resetting(section)

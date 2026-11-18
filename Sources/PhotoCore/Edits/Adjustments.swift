@@ -22,6 +22,10 @@ public struct Adjustments: Hashable, Sendable {
     public var colorAlignment = ColorAlignment()
     /// Picked fringe colors turned gray near high-contrast edges, before the crop.
     public var colorFringes = ColorFringes()
+    /// Heal and clone spots, after the Lens heading's steps and before the
+    /// crop (`SpotRenderer`). Their group, `.spots`, turns them off and on;
+    /// presets and paste leave them out (`Group.presetGroups`).
+    public var spots = Spots()
     public var whiteBalance = WhiteBalance()
     public var exposure = Exposure()
     public var tone = Tone()
@@ -105,6 +109,11 @@ public struct Adjustments: Hashable, Sendable {
         }
         add(colorAlignment)
         add(colorFringes)
+        let spotParameters = spots.parameters
+        if !spotParameters.isEmpty {
+            operations.append(EditOperation(kind: Spots.kind, isEnabled: !disabled.contains(Spots.kind),
+                                            parameters: spotParameters))
+        }
         add(whiteBalance)
         add(exposure)
         add(tone)
@@ -136,6 +145,10 @@ public struct Adjustments: Hashable, Sendable {
         case CameraProfileReference.kind: cameraProfile = CameraProfileReference(parameters: operation.parameters)
         case ColorAlignment.kind: colorAlignment = ColorAlignment(values)
         case ColorFringes.kind: colorFringes = ColorFringes(values)
+        case Spots.kind:
+            // Read strictly, as masks: a stack built in memory that does not read is kept as it is.
+            guard let read = try? Spots(operation.parameters) else { return false }
+            spots = read
         case WhiteBalance.kind: whiteBalance = WhiteBalance(values)
         case Exposure.kind: exposure = Exposure(values)
         case Tone.kind: tone = Tone(values)
@@ -166,6 +179,7 @@ public struct Adjustments: Hashable, Sendable {
         case CameraProfileReference.kind: cameraProfile.parameters
         case ColorAlignment.kind: colorAlignment.parameters
         case ColorFringes.kind: colorFringes.parameters
+        case Spots.kind: spots.parameters
         case WhiteBalance.kind: whiteBalance.parameters
         case Exposure.kind: exposure.parameters
         case Tone.kind: tone.parameters
@@ -191,6 +205,7 @@ public struct Adjustments: Hashable, Sendable {
         case CameraProfileReference.kind: cameraProfile = CameraProfileReference()
         case ColorAlignment.kind: colorAlignment = ColorAlignment()
         case ColorFringes.kind: colorFringes = ColorFringes()
+        case Spots.kind: spots = Spots()
         case WhiteBalance.kind: whiteBalance = WhiteBalance()
         case Exposure.kind: exposure = Exposure()
         case Tone.kind: tone = Tone()
@@ -217,6 +232,7 @@ public struct Adjustments: Hashable, Sendable {
         case CameraProfileReference.kind: cameraProfile = source.cameraProfile
         case ColorAlignment.kind: colorAlignment = source.colorAlignment
         case ColorFringes.kind: colorFringes = source.colorFringes
+        case Spots.kind: spots = source.spots
         case WhiteBalance.kind: whiteBalance = source.whiteBalance
         case Exposure.kind: exposure = source.exposure
         case Tone.kind: tone = source.tone
@@ -255,16 +271,18 @@ public struct Adjustments: Hashable, Sendable {
         return copy
     }
 
-    /// As `replacing`, keeping a legacy machine learning decoder as it is (a preset's own values).
+    /// As `replacing`, keeping a legacy machine learning decoder as it is (a
+    /// preset's own values). Spots are never copied between photos, whatever
+    /// `groups` holds (PRD R11).
     func copying(_ groups: Set<Group>, from source: Adjustments) -> Adjustments {
         var copy = self
-        for kind in groups.flatMap(\.kinds) { copy.copyModule(kind, from: source) }
+        for kind in groups.subtracting([.spots]).flatMap(\.kinds) { copy.copyModule(kind, from: source) }
         return copy
     }
 
-    /// The groups with values away from their defaults.
+    /// The groups presets can carry with values away from their defaults.
     public var modifiedGroups: Set<Group> {
-        Set(Group.allCases.filter(isModified))
+        Set(Group.presetGroups.filter(isModified))
     }
 
     /// What renders: these adjustments with the modules that are off at their
@@ -284,7 +302,7 @@ public struct Adjustments: Hashable, Sendable {
 
     /// The Adjust tab's headings, used to reset a group of modules.
     public enum Section: String, CaseIterable, Sendable {
-        case develop, tone, details, lens, colorMixer, colorGrading, effects
+        case develop, tone, details, lens, colorMixer, colorGrading, effects, spots
 
         public var groups: [Group] {
             switch self {
@@ -295,6 +313,7 @@ public struct Adjustments: Hashable, Sendable {
             case .colorMixer: [.colorMixer]
             case .colorGrading: [.colorGrade]
             case .effects: [.lookTable, .vignette, .grain]
+            case .spots: [.spots]
             }
         }
     }
@@ -304,6 +323,13 @@ public struct Adjustments: Hashable, Sendable {
         case profile, whiteBalance, light, presence, toneCurve, sharpening, noiseReduction, colorMixer, colorGrade
         case lookTable, vignette, grain
         case colorFringes, colorAlignment
+        /// Heal and clone spots: a group only so its heading has an on/off
+        /// check box (PRD R18). Not a preset group: presets, copy and paste
+        /// leave it out (R11).
+        case spots
+
+        /// The groups presets carry and paste replaces: every group but `.spots`.
+        public static let presetGroups: [Group] = allCases.filter { $0 != .spots }
 
         public var kinds: [EditOperationKind] {
             switch self {
@@ -321,6 +347,7 @@ public struct Adjustments: Hashable, Sendable {
             case .grain: [Grain.kind]
             case .colorFringes: [ColorFringes.kind]
             case .colorAlignment: [ColorAlignment.kind]
+            case .spots: [Spots.kind]
             }
         }
     }

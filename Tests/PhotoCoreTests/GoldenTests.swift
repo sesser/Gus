@@ -33,6 +33,15 @@ struct GoldenCase: Sendable, CustomTestStringConvertible {
                     components: components, adjustments: local)
     }
 
+    /// A spot of the 256 × 192 scenes, in their pixels, its id fixed so stacks repeat.
+    static func spot(_ index: Int, x: Double, y: Double, radius: Double, sourceX: Double, sourceY: Double,
+                     mode: SpotMode = .heal, feather: Double = Spot.defaultFeather, opacity: Double = 100) -> Spot {
+        let width = Double(TestScene.defaultWidth), height = Double(TestScene.defaultHeight)
+        return Spot(id: UUID(uuidString: String(format: "00000000-0000-4000-8000-%012d", index))!, mode: mode,
+                    center: MaskPoint(x: x / width, y: y / height), size: radius / max(width, height),
+                    source: MaskPoint(x: sourceX / width, y: sourceY / height), feather: feather, opacity: opacity)
+    }
+
     /// Built-in look-up tables are installed here on first use.
     static let lookTables = LookTableStore(directory: FileManager.default.temporaryDirectory
         .appending(path: "golden-look-tables-\(ProcessInfo.processInfo.processIdentifier)", directoryHint: .isDirectory))
@@ -254,6 +263,21 @@ struct GoldenTests {
                                                                       radiusY: 0.25, rotation: -20))]) {
                 $0.exposure = 1
             }]
+        },
+
+        // Spots (docs/features/healing): a heal and a clone of the specks, and
+        // a heal under a turn and straightening, rendered before the crop (AC4).
+        GoldenCase("spots-heal-dustySky", .dustySky) {
+            $0.spots.spots = [GoldenCase.spot(0, x: 80, y: 60, radius: 9, sourceX: 110, sourceY: 60),
+                              GoldenCase.spot(1, x: 170, y: 100, radius: 11, sourceX: 170, sourceY: 140, feather: 30)]
+        },
+        GoldenCase("spots-clone-dustySky", .dustySky) {
+            $0.spots.spots = [GoldenCase.spot(0, x: 40, y: 150, radius: 8, sourceX: 70, sourceY: 150, mode: .clone,
+                                              opacity: 80)]
+        },
+        GoldenCase("spots-healCropTurn-dustySky", .dustySky) {
+            $0.crop = Crop(rect: CropRect(x: 0.1, y: 0.1, width: 0.8, height: 0.75), quarterTurns: 1, angle: 6)
+            $0.spots.spots = [GoldenCase.spot(0, x: 170, y: 100, radius: 11, sourceX: 140, sourceY: 100)]
         },
 
         GoldenCase("crop-straighten-patchChart", .patchChart) {
