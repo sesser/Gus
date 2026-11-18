@@ -510,3 +510,43 @@ progress and a partly unreadable pack; those are assumptions above.
 - **12.2 Light appearance.** M2 asks for Light. The library window is dark
   only and its sheets inherit that, so Light is not reachable: check Dark and
   Increase Contrast.
+
+## 13. Ruling on QA's Q1: a table with contrast or saturation (2026-11-17)
+
+**Q1 ruling: the report must also list the table as Mapped. The engineer
+changes code.** The question the report answers is "what of this preset is in
+my library now". For 24 of the 36 table presets it says only "Approximated:
+LUT Mapping (as Contrast and Saturation)", which a reader takes to mean the
+table itself was approximated or not carried, yet the preset's Look-Up Table
+group is set and the table is applied exactly. That is a wrong impression of
+the most important part of the preset, and it also contradicts A3 ("1 mapped at
+least") and the prototype's README, which marks "LUT, Amount" exact and only
+"LUT contrast and saturation" approximated. The engineer's rule ("a tool
+approximated anywhere is not also listed as mapped") is sound as a default,
+because Structure as Clarity or Supercontrast has no exactly-carried part to
+report; it is wrong where a tool has one part carried exactly in one Gus
+control and another approximated in a different one, as the table tool does.
+
+- **Rule.** A tool whose parts split that way is listed twice, once per status:
+  **Mapped: LUT Mapping** and **Approximated: LUT Mapping (as Contrast and
+  Saturation)**. The Approximated entry names only the approximated part, as it
+  does now. This is the same shape the report already has for a tool both
+  mapped and left out (a second table), so no new kind of line or wording.
+- **Counts.** The tool counts once under each status, so Heritage Hues reads
+  "3 mapped, 5 approximated" where it read "2 mapped, 5 approximated"; the
+  count line stays the number of entries in the lines below it, which is the
+  property that makes it checkable. Nothing else in the page (pack summaries,
+  look-up table counts) changes.
+- **Unreadable table (C6)** is unchanged: the Mapped entry becomes Left out,
+  the Approximated entry stays while its contrast and saturation apply.
+- **Scope.** Only the table tool is ruled. If the engineer finds another tool in
+  the same position (an exact part and an approximated part in different Gus
+  controls), apply the same rule and record it in `status.md`; if it is a
+  judgment call whether a part is exact, return a Design question rather than
+  deciding.
+- **Test change.** `lookUpTableContrastAndSaturationAreApproximated` expects
+  `["lookUpTable:mapped", "lookUpTable:approximated", "develop:mapped"]`
+  (the new Mapped entry first, as tools list in table order); report-line and
+  count tests, the user guide's example counts and the owner's four-pack
+  numbers in `status.md` are updated to match. No stored value, rendering, or
+  migration changes: the adjustments are identical, only the report differs.
