@@ -100,8 +100,8 @@ No migration, no pipeline bump, no `Info.plist` or file-type change.
   has an exact part beside an approximated one: Vignette's style stays in its
   own control, Matte, Dramatic and Black and White are approximated
   throughout, Details Enhancer's sharpening is its own Sharpening entry). The
-  rest of this point is unchanged: listed as mapped; the same tool can be both mapped and left out (a second
-  look-up table). Settings the prototype reports separately inside an
+  rest of this point is unchanged: the same tool can be both mapped and left
+  out (a second look-up table). Settings the prototype reports separately inside an
   approximated tool (the Matte look's toning, color a black and white
   conversion keeps, the vignette's feather) are part of that tool's
   approximation, not separate rows. Warmth, Color Balance and Color Toning
