@@ -171,6 +171,13 @@ This file's rules win over anything in an agent's prompt: GRDB is the only
 package dependency (LibRaw is vendored source: see Dependencies), goldens are updated only on purpose, brand values stay in
 `AppBranding.swift`, and work goes on a branch off `develop`.
 
+Commits must be signed: branch rules on `develop` require it, and an unsigned
+commit blocks the merge. Every agent that commits keeps the repository's
+signing on: never `--no-gpg-sign` or `-c commit.gpgsign=false`. Rewriting
+history (`filter-branch`, `rebase`, `commit --amend`) drops or invalidates
+signatures, so after any rewrite re-sign the commits (`git rebase -r -f -S
+<base>`) and check that GitHub shows them verified before pushing.
+
 ## Checking image code
 
 - **Goldens** (`Tests/PhotoCoreTests/Goldens`, `GoldenTests`) pin every
