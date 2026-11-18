@@ -4,7 +4,8 @@ Issue: #203
 
 Owner: swift-macos-engineer. State: **Done** (2026-11-17). Commits 065dcb6
 (PhotoCore and its tests), b57a25a (the page, strings, user guide, AC10 test),
-and the DQ-1 change after the owner's rulings (concurrent table check).
+the DQ-1 change after the owner's rulings (concurrent table check), and the
+review fixes (see Review findings).
 Spec: the PRD (issue #203 body, rev 3, approved) and `design.md` rev 2.
 Reference for the mapping and scales: the owner's prototype `lnp2gus`
 (outside this repository; read only, nothing copied).
@@ -15,7 +16,8 @@ Reference for the mapping and scales: the owner's prototype `lnp2gus`
 |---|---|---|
 | Baseline (branch at 00a016f) | clean | 1072 tests in 161 suites, all pass |
 | After b57a25a | clean, no new warnings | 1127 tests in 169 suites, all pass; no golden changed |
-| Latest (DQ-1 change) | clean, no new warnings | 1128 tests in 169 suites, all pass; no golden changed |
+| After the DQ-1 change | clean, no new warnings | 1128 tests in 169 suites, all pass; no golden changed |
+| Latest (review fixes) | clean, no new warnings | 1134 tests in 169 suites, all pass; no golden changed |
 
 ## What was built
 
@@ -26,8 +28,10 @@ PhotoCore (no AppKit or SwiftUI):
   framework, `COMPRESSION_ZLIB`, which is raw deflate; CRC-32 checked; one
   disk, no ZIP64, no encryption; 64 MiB per member, 10,000 members). **No new
   package.**
-- `Presets/Luminar/LuminarPack.swift`: reads a pack from memory (file over
-  256 MiB refused before reading, at most 512 MiB decompressed), typed
+- `Presets/Luminar/LuminarPack.swift`: reads a pack from memory (a regular
+  file only, symbolic links followed, read through a handle capped at
+  256 MiB; at most 512 MiB decompressed; at most 1,000 presets listed or
+  found, counted before any row is made), typed
   refusals (`LuminarPack.Failure`), names in the system language when the pack
   has it, English otherwise, presets in the pack's order, a preset that can't
   be read kept in its place as unreadable. `.strings` files are read with
@@ -122,7 +126,7 @@ fails if one changes without the test.
 
 | AC | Check | State |
 |---|---|---|
-| AC1 | `PresetPackImportTests.importsPacksBesideOtherFormats` (two packs and a preset file in one import); `PresetImport.fileExtensions` has `lnpc`; manual M1 (panel) | Done |
+| AC1 | `PresetPackImportTests.importsPacksBesideOtherFormats` (two packs and a preset file in one import); `PresetImport.fileExtensions` has `lnpc`; `PresetPackTableTests.everyImportExtensionHasAType` (each extension gives a `UTType`, design §1.1, review F1; passes here, no type declared); manual M1 (panel) | Done |
 | AC2 | `importsPacksBesideOtherFormats` (order), `namesInTheSystemLanguage` (German), `PresetPackReadingTests.namesFollowTheLanguageWhenThePackHasIt` (French falls back to English) | Done |
 | AC3 | `importsPacksBesideOtherFormats`: table installed, listed in the pack-named collection, the applied preset's effective look-up table at intensity 80 | Done |
 | AC4 | `PresetPackMappingTests`: every mapped tool, expected values from the prototype run on the same made-up templates; curves at 17 points; two Develops add up; RAW Develop used only alone | Done |
@@ -132,7 +136,7 @@ fails if one changes without the test.
 | AC8 | `badFilesAreRefusedAndTheRestImport` (truncated → damaged, no config, text file), `refusesWhatIsNotAReadablePack`; no temp files: `packCodeWritesNoFiles` (no write API in the pack and zip code; reading takes `Data`) | Done |
 | AC9 | `assumedScalesAreTheRecordedOnes` | Done |
 | AC10 | `PresetPackTableTests`: every table case reported by the mapping from a template; R6's tools left out; unknown identifiers verbatim; the catalog's `presetPackTool.` entries are exactly the table's and nothing else has the tool-name comment; no `lnpc` or the format's name in either `Info.plist`; Finder open path takes `PresetFile.fileExtensions` only; no catalog string names the format's application or maker; `LocalizationTests` and `BrandingTests` pass; manual M6 | Done |
-| AC11 | full `swift test`: 1128 tests pass, goldens untouched; no migration, no pipeline bump | Done |
+| AC11 | full `swift test`: 1134 tests pass, goldens untouched; no migration, no pipeline bump | Done |
 | AC12 | the owner, by eye (manual). Opt-in `PresetPackSampleTests.conversionsMatchThePrototype` compares all 40 presets of the four packs with the prototype's own output: all match within rounding | Manual |
 
 Opt-in suite (real packs, never committed):
@@ -174,9 +178,14 @@ already finds every value equal within rounding).
 
 ## Known limits
 
-- Two presets with the same name in one pack collapse to one: the later
-  replaces the earlier (the existing name rule, kept by the owner's RI-E3
-  ruling; no suffix), though the report lists both. None in the owner's packs.
+- Two presets with the same name in one pack collapse to one (RI-E3, kept by
+  the owner; no suffix). Corrected record (code review C4): the import's
+  deduplication (`PresetImport.deduplicated`) keeps the **first** of them, not
+  the later, and it compares names **without regard to case** ("Sunset" and
+  "sunset" collapse too), while the catalog's own name rule
+  (`saveAdjustmentPresets`) is case-sensitive. The pack's report still lists
+  both and counts both as imported, so its "N presets" can be one more than
+  the presets saved. None in the owner's packs.
 - A table two packs share, or one already listed in another look-up table
   collection, is listed once, in the first collection (the existing rule of
   `PresetImport.listNewTables`).
@@ -217,6 +226,29 @@ still isn't. Test: `PresetFileTests.installsTablesAsOneAtATimeWould` (16
 tables, readable, unreadable and repeated; the same map and files as a
 one-at-a-time check, five runs); `embedsTablesAndInstallsThemElsewhere` and
 the pack import tests unchanged and passing.
+
+## Review findings (code-review.md, review.md)
+
+| # | Finding | Fix | State |
+|---|---|---|---|
+| C1 | No limit on how many presets a pack's config lists; quadratic `unlisted` filter; paths sorted per preset | `LuminarPack.maximumPresetCount` (1,000): template folders and listed entries counted before any row is made, refused as "Too large to read."; listed entries looked up in a `Set`, template folders grouped by parent once, paths sorted once, each preset's resources indexed once. Test `refusesAPackListingTooManyPresets` | Fixed |
+| C2 | The size check read a symbolic link's own size; a link to a large file or a device was read whole | `LuminarPack.contents(of:limit:)`: the link resolved, a regular file required ("Not a preset pack." otherwise), the size checked, then read through a `FileHandle` capped at the limit + 1. Folder imports (`PresetImport.files(in:)`) list a file only when it, or what its link leads to, is a regular file. Test `readsOnlyRegularFilesWithinTheLimit` (a file over a small limit, a link to it, a folder, a link to a folder, a link to `/dev/zero`, the folder listing) | Fixed |
+| C3 | The zip and pack limits had no tests | `refusesWhatIsOverItsLimitsOrUnsupported` (member size, entry count, encryption flag, an unsupported method, by patching the central directory and end record), `refusesAPackOverItsReadBudget` (an internal `readBudget`), the file limit in C2's test. Checked: deleting the member-size guard or the read-budget guard now fails these tests | Fixed |
+| C4 | `status.md` said the later duplicate wins; the first does, compared without regard to case | Record corrected (Known limits); the owner's RI-E3 ruling stands, no code change | Fixed (record) |
+| C5 | A test used a real pack's name | Renamed to a made-up name ("Valley of Quiet Lakes") | Fixed |
+| C6 | An uninstalled table dropped the table tool's approximated row while its contrast and saturation stayed; the pack counted the table | Only the mapped row becomes "left out"; the approximated row stays while its values apply; a pack counts only tables that installed. Test `anUnreadableTableKeepsItsApproximatedValues` | Fixed |
+| F1 | No test that every import extension gives a `UTType` | `everyImportExtensionHasAType`; passes on macOS 27.2 here, so no Design question (CI runs it on 26 and 15) | Fixed |
+| F2 | The manager could open over another sheet at the end of a pack import | `openPresetSheetWhenFree`: with Export or the look-up table sheet up, the report waits (`presetSheetWaits`) and the manager opens on it from that sheet's `onDismiss`, after it has closed. Debug script `preset sheets` (below) | Fixed |
+| Nits | `PageHeader`'s stale comment; no `.help` on an unreadable preset's truncated name | Comment corrected; `.help` added | Fixed |
+
+F2 checks (bundle copy, scratch library, `--library-root`):
+`selectall; export window; preset summary MadeUp.lnpc; preset sheets` gives
+"export true … presets false page report waits true attached 1"; after
+`export close`, "export false … presets true page report waits false attached
+1", and the snapshot is the Import Report page. The same with `lutwindow
+open` / `lutwindow close`. With no other sheet up, the manager opens at once
+on the report. Only one sheet is attached at any point. Manual M9 (a real
+⇧⌘E in the second after the panel closes) stays for a person.
 
 ## Rulings (owner, 2026-11-17)
 

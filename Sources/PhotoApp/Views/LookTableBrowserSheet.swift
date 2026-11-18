@@ -111,7 +111,7 @@ struct PageHeader: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            // Esc goes back too: the sheet closes only from the tables.
+            // Esc goes back too: on a page it never closes the sheet.
             Button(action: back) {
                 Label("Back", systemImage: "chevron.backward")
             }

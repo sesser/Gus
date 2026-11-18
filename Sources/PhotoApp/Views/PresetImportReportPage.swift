@@ -164,6 +164,7 @@ private struct UnreadablePresetRow: View {
                 Text(verbatim: PresetReportText.name(preset))
                     .lineLimit(1)
                     .truncationMode(.tail)
+                    .help(PresetReportText.name(preset))
                 Text("Its settings can't be read.")
                     .font(.caption)
                     .foregroundStyle(.secondary)

@@ -535,6 +535,12 @@ enum DebugScript {
                 } else {
                     print("debug-script: no import report")
                 }
+            case "sheets":
+                // preset sheets: which sheet flags are up, the manager's page, and a waiting report.
+                let attached = NSApp.windows.filter { $0.attachedSheet != nil }.count
+                print("debug-script: sheets export \(model.showsExportSheet) lut \(model.showsLookTableSheet) "
+                      + "presets \(model.showsPresetSheet) page \(model.presetManagerPage == .report ? "report" : "list") "
+                      + "waits \(model.presetSheetWaits) attached \(attached)")
             case "reportpage":
                 // preset reportpage: the preset manager on its Import Report page (dimmed button: no report yet).
                 model.presetManagerPage = .report

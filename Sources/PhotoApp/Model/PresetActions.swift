@@ -150,6 +150,24 @@ extension LibraryModel {
         PresetImport.fileExtensions.compactMap { UTType(filenameExtension: $0) }
     }
 
+    /// One sheet at a time (UI_REDESIGN §8): the preset manager opens now,
+    /// or, when the Export or look-up table sheet is up, after it closes.
+    func openPresetSheetWhenFree() {
+        if showsExportSheet || showsLookTableSheet {
+            presetSheetWaits = true
+        } else {
+            showsPresetSheet = true
+        }
+    }
+
+    /// The Export or look-up table sheet has finished closing: a waiting report opens.
+    func sheetDidDismiss() {
+        guard presetSheetWaits, !showsExportSheet, !showsLookTableSheet else { return }
+        presetSheetWaits = false
+        presetManagerPage = .report
+        showsPresetSheet = true
+    }
+
     /// True while a preset import runs (or waits for one that does).
     var isImportingPresets: Bool { pendingPresetImports > 0 }
 
@@ -202,7 +220,7 @@ extension LibraryModel {
             presetImportReport = result
             if showsSummary {
                 presetManagerPage = .report
-                showsPresetSheet = true
+                openPresetSheetWhenFree()
                 AccessibilityText.announce(PresetReportText.summary(of: result), priority: .medium)
             }
         } else if showsSummary {

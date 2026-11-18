@@ -214,6 +214,9 @@ final class LibraryModel {
     var presetImportReport: PresetImport.Result?
     /// The preset manager's page: its presets, or the import report.
     var presetManagerPage = PresetManagerPage.list
+    /// A pack import ended while the Export or look-up table sheet was up:
+    /// the preset manager opens on its report when that sheet has closed.
+    var presetSheetWaits = false
     /// Preset imports started and not finished; they run one after another.
     var pendingPresetImports = 0
     /// The newest preset import, which the next one waits for.
