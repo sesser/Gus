@@ -41,4 +41,35 @@ None for the designer or product manager.
 
 ## Follow-up
 
-(For the second pass.)
+Second pass, 2026-11-18: `f0d16f5` (the only commit after `1a6c8dd`). `swift build` clean. I ran
+`swift test` four times. Three runs passed all 1161 tests in 173 suites (about 63 s). The first run
+reported one failing test out of 1161 and I did not capture its name. I could not reproduce it in
+three more full runs, so I can't tie it to this commit. QA should watch for it.
+
+| # | Status | Commit | Note |
+|---|---|---|---|
+| C1 | Fixed | `f0d16f5` | (a) A Move Spot / Move Source item chosen with the mouse now saves at once (`LibraryCommands.nudge`: the current event is not a key down), so the case I traced is now two steps. (b) `change(_:phase:_:)` saves a waiting run before the body runs, under the run's own name (`SpotNudgeRule`). So `deleteSpot` saves the nudge first. Then `selectedSpotID`'s `didSet` finds nothing waiting, and the deletion is saved as "Delete Spot". `commit` is only called from `change`, so every save goes through the rule. One correction to my first pass: the variant "⌥-arrows while the inspector has the keyboard" cannot happen. The Move items are `canByKey`, so they are off unless the grid or loupe has the keyboard. A run waits only while the arrow is held, or for up to 1.5 s when the keyboard moved away during the hold. |
+| C1 residual | Accepted | — | The case: an arrow still held while another control is clicked. The click's change saves the waiting run first, inside the click's event group, so History shows two entries but one ⌘Z undoes both. Nothing is lost or mislabeled. Undo and redo restore consistent states, and History records each entry under its own name. Splitting the steps would mean closing AppKit's per-event group by hand, which is riskier than the limit. The other edge cases in the same window are just as hard to hit: ⌘Z chosen from the menu while the arrow is held drops the run, and dragging the same spot while the arrow is held joins the run as "Move Spot". `status.md` (C1 row) records the limit. Add it to `qa.md`'s known limits. |
+| C2 | Fixed | `f0d16f5` | A cancelled placement task returns before touching the handle. `finishSession` still cancels the task and clears the handle, and `isEditingSpots = false` empties `spotPlacements`. `spotSourceTask`'s `defer` is guarded the same way. A newer call cancels the old task before it replaces it, so the old task never clears the new task's handle. |
+| C3 | Fixed | `f0d16f5` | Every grouped command now saves a waiting nudge before `endUndoGrouping`. `menupress Right` saves at once anyway (no key-down event). The one exception is `spot nudge … hold`, which leaves the run for the next command. It is documented, needs the next command within 1.5 s, and is a test hook only. In S5 the held run and the next command share one undo group, which is the C1 residual reproduced on purpose. |
+| C4 | Fixed | `f0d16f5` | The comment now cites 102 ms at 2560 × 1707 and 26 ms at 256 × 192, which match `status.md` "Measurements", and #211. |
+| C5 | Fixed | `f0d16f5` | `status.md` now has one "Measurements" (line 143) and one "Crop to the kernel's extent" (line 162). |
+
+New findings in `f0d16f5` and the branch around it:
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C6 | Nit | `Sources/PhotoApp/Loupe/LoupeView.swift:697-703` | `pickFringe`'s doc comment ("A click while a fringe slot picks…") now sits above the new `spotAccessibilityElements` property, and that property sits under `// MARK: Zoom`. The branch had already split the comment from `pickFringe` when it added `addSpot`; on `develop` it is directly above `pickFringe`. | Quick Help for `spotAccessibilityElements` describes fringe picking, and `pickFringe` has no doc. Fix: move the two fringe lines back above `pickFringe`. | Doc accuracy |
+
+Checked in `f0d16f5` and fine:
+
+- `SpotNudgeRule`: a further unsaved step with the same name joins the run. Any save, or any other name, saves the run first. The run's own save cannot recurse, because `commitSpotNudge` clears `spotNudge` before it calls `change`. The test covers each branch.
+- `dropSpotNudge` on `apply` (undo and redo) and `catalogChanged`: the values a waiting run held are replaced by the stack written there, so dropping the run is consistent with what is shown.
+- F3 `heldInCrop`: it clamps in output unit space and maps back through the crop, so a moved center stays inside the crop even when the crop is turned or straightened. The source keeps its own rules.
+- F4: the cursor is set from `mouseMoved` only while Edit Spots is on and the pointer is inside the overlay. Removing `invalidateCursorRects` and `resetCursorRects` leaves no stale cursor rects. Whether it looks right is the designer's and QA's call.
+- F5: both click paths post `.browserShouldTakeFocus` before anything changes. A field being edited therefore saves its value against the spot that was selected before the click.
+- F1: `LoupeHostView` adds the spots' elements only while the overlay is shown, with the host as their parent. The overlay itself sits under the filtered `LoupeScrollView`, so no spot is listed twice. `AccessibilityProbe` now also visits the children of AppKit element views, with deduplication by identity. One caution for QA: elements under other AppKit element views (the grids) may now be listed in a different order, so index-based `accessibility <role> <n> <action>` lines in earlier features' scripts can point at a different element.
+- F2 (`SpotsSection`): the heading has one trailing control again. The eye button keeps its accessibility label and disabled state.
+- Project rules: no new strings without catalog entries (`LocalizationTests` passes), no migration, no pipeline bump, no golden or tolerance touched, no new dependency. No `/security-review` is needed.
+
+Verdict after the second pass: ready for QA. C1 to C5 are fixed, and the C1 residual is acceptable as recorded. C6 is a nit that can go in with any later commit. For QA, a person check: choose Adjust ▸ Spots ▸ Move Spot ▸ Right with the mouse, then click Clone within 1.5 s. Expect two History entries and two ⌘Z steps. The script cannot show this, because it saves after every command either way.

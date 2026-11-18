@@ -29,6 +29,9 @@ other heading uses (F2). Four smaller findings follow (F3 to F6). Design
 questions DQ-1 and DQ-2 are ruled in `design.md` §20; neither needs code beyond
 what the engineer already did. No Requirements issues.
 
+*Updated 2026-11-18: see "Second pass" at the end for which findings
+commit f0d16f5 closed.*
+
 ## Findings for the engineer
 
 Most severe first.
@@ -233,6 +236,82 @@ checked with the debug script.
   menu. If the handle is too small, the remedy is a larger uniform grab
   distance (DQ-2).
 
-## Summary for the issue
+## Second pass (2026-11-18, commit f0d16f5)
+
+Limits, as in the first pass: no shell, so I did not run `git show`, the app,
+the debug script or `gh issue view 86`. The working tree was clean at f0d16f5,
+so I read the current sources and `docs/USER_GUIDE.md`, and took the scripted
+accessibility run from `status.md` (S6) as the engineer's output, not mine.
+The PRD's own wording is still unread; criteria come from `status.md`'s table.
+
+**Verdict.** F1, F2, F4, F5 and F6 are fixed. F3 is fixed in intent but has
+a gap at the exact crop edge that I think reopens it (R2-1, unconfirmed, a
+small fix). One wording nit in the user guide (R2-2). No Requirements issues,
+no Design questions, and no ruling in `design.md` needs changing: DQ-1, DQ-2
+and R-3 stand as written. Ready for QA once R2-1 is answered.
+
+| # | Result | Evidence and remaining doubt |
+|---|---|---|
+| F1 VoiceOver reachability | Fixed, scripted | `LoupeHostView.accessibilityChildren()` now appends `spotAccessibilityElements` (empty while the overlay is hidden or the tool off) after the filtered children; each element's parent is the host (`SpotOverlayView.accessibilityHost`, set in `LoupeView`), so the route is window, host, spot. `AccessibilityProbe` also visits the children of AppKit element views. `status.md` S6 shows "Spot 1, Heal, left" with its actions listed, press selecting, Switch to Clone and Delete Spot running, History rows matching, and no spot buttons with `spots overlay off`. The probe lists each spot twice because it reaches the canvas by two paths and each call builds new elements; the engineer logged the canvas's own children to show it returns each once. Accepted. Residual: the probe is the app's own answer, not VoiceOver's; a leaf-role image element with children is the same arrangement the loupe already used for its overlays, and the standing rule says the owner is not asked to run VoiceOver. I record it as unproven by a real assistive app, not as a finding. |
+| F1 (second part) press on empty canvas | Recorded, accepted | `status.md` says it does nothing: the canvas is an image element with no press action. That is R-3's accepted limit, and the user guide says adding a spot needs a click or touch. Design §12 line 505 ("adds a spot if the loupe's element does that") is conditional and now resolved as "it does not"; no edit needed, since §12's "Honest gap" and §20 R-3 already say the same. |
+| F2 heading check box | Fixed | `SpotsSection` passes one trailing 20 pt control (the reset) and no `trailingWidth`, so the check box sits in the column of Light's and Crop's. The eye is now in the context row beside the trash and ⋯ (22 pt each, enabled only while the tool is on, title flips between Show and Hide Spot Overlay for VoiceOver). This is option (b), as preferred. M4 still checks the alignment by eye. Small point: the eye's tooltip is the same text in both states ("Show the spots and their sources"); the VoiceOver label changes. Fine. |
+| F3 spot dragged past the crop | Partly fixed | `moveSpot` now passes the center through `heldInCrop`, and nudges go through `moveSpot`, so a drag or option-arrow stops at the crop's edge. See R2-1 for the edge case. `status.md` records no script run and there is no test (`PhotoApp` has no test target; `heldInCrop` is in the editor). |
+| F4 pointer over handle and source | Fixed by reading | The per-spot cursor rectangles are gone; `mouseMoved` calls `updatePointer`, which sets the arrow when `target(at:)` hits (ring, handle, source ring) and the crosshair otherwise, using the same hit test as a click, so the cue now agrees with what a click does. It runs only while the tool is on and the pointer is in the overlay's bounds. Cursor behavior is M2's (AppKit can re-apply a cursor rectangle on entry; the order of that and `mouseMoved` is the thing to watch). A stationary pointer keeps its old cursor after a spot is selected or deleted under it until the next move; cosmetic. |
+| F5 keyboard focus after typing | Fixed by reading | The loupe's `addSpot(at:)` (`LoupeView.swift`) and `SpotOverlayView.mouseDown` (on a ring, handle or source) post `.browserShouldTakeFocus` with the window; `takeFocus` makes the host first responder in loupe mode. The drag and double-click paths start from the same mouse down. M6 confirms with a real click. |
+| F6 user guide | Fixed, one nit | **Finish Editing Spots** and **Adjust ▸ Spots ▸ Hide Spot Overlay** are named, and the eye is placed "beside the trash button", which matches the move. See R2-2. |
+
+### Findings for the engineer (second pass)
+
+**R2-1. A spot held at the crop's edge may still count as outside it (design
+§8; F3).** `heldInCrop` clamps the output point to exactly 0 or 1 and maps it
+back with `maskPoint(fromOutput:)`. `isVisible` then maps the mask point
+forward with `outputPoint(fromMask:)` and tests `(0...1).contains`, with no
+tolerance. `CropGeometry.outputToMask` and `maskToOutput` each do several
+multiplications, a subtraction of 0.5 and (with Straighten or a quarter turn)
+a rotation, so the round trip is not exact: an edge value can come back as
+1.0000000000000002 or -1e-17. When it does, `visibleSpots` drops the spot, the
+ring disappears while `selectedSpotID` stays, and F3's symptom is back. Dragging
+far past an edge is the common case, because every pointer position beyond the
+edge clamps to the exact boundary. I could not run it, so this is a reading,
+not a confirmed failure, and a crop with no turn and a rectangle starting at 0
+may round-trip exactly. Fix: give `isVisible` and `selectedSourceIsOutsideCrop`
+a small tolerance (for example `-1e-9...1 + 1e-9`), or clamp in `heldInCrop` to
+[ε, 1 − ε]; the tolerance is cleaner, since it also protects a spot placed on
+the edge by a click. Then show it: with `status.md`'s scratch library, a crop
+with a few degrees of Straighten, `spots on`, add a spot, `spot drag` it far past
+each of the four edges, and put `spots print` (the spot still listed as
+selected, still drawn: `accessibility button` lists it) in `status.md`. If you
+can test the clamp in PhotoCore (a pure function over `CropGeometry` that the
+editor calls), do that too.
+
+**R2-2. User guide, Spots paragraph, first sentences (wording).** "…turns the
+tool on in the loupe, and **Finish Editing Spots** (…) turns it off: the
+pointer becomes a crosshair…" The colon reads as if the crosshair were what
+turning it off does. Put the crosshair with the tool being on: "turns the tool
+on in the loupe: the pointer becomes a crosshair with a ring the size of the
+next spot. **Finish Editing Spots** (the same item while the tool is on, or the
+button again) turns it off." The paragraph also has two unwrapped long lines
+(after "Esc deselects the spot…" and the Crop paragraph); harmless.
+
+### Manual checks (second pass)
+
+M1 to M12 stand. Those the fixes bear on: M2 (pointer: arrow over a ring, the
+handle and the source ring, crosshair elsewhere, including just outside a
+ring's bounding square, where the old rectangles were wrong), M4 (check box
+column), M6 (type a Size, click the photo or a spot, then `H`, `V` and ⌫ reach
+the loupe), M11 (drag past a crop edge, and past it on a straightened photo,
+the spot stays drawn and selected: R2-1). One addition for the owner:
+
+- **M13 Spots and the keyboard after clicking a ring's handle.** Type in the
+  Size field, then click the selected spot's resize handle (not the photo):
+  ⌫ deletes the spot and does not edit the field (the `mouseDown` path of F5).
+
+Per the standing rule, VoiceOver is not among them; F1 stands on S6.
+
+## Summary for the issue (first pass, superseded by the second pass above)
 
 Design review of #86 (`docs/features/healing/review.md`): matches the design closely (heading, controls, overlay, keys, menus, limit, states, strings, History names, user guide); two fixes before sign-off. F1: the spots' VoiceOver elements sit inside the scroll view the loupe hides from VoiceOver, so they are probably unreachable; prove with `accessibility any` or expose them from the host. F2: the heading's check box is 20 pt out of the check-box column (two trailing buttons); move the eye into the context row. F3 to F6 are small (spot dragged past the crop edge, cursor over handles, keyboard focus after typing in a field, two guide additions). Rulings in design.md §20: DQ-1 Show / Hide Spot Overlay (`V`) stays in Adjust ▸ Spots (the app's tool overlays live in Adjust); DQ-2 one 10 pt grab distance, no touch detection. Not seen on screen: manual checks M1 to M12 for the owner. I could not read the PRD (no shell), so criteria were taken from `status.md`.
+
+## Summary for the issue (second pass)
+
+Design review of #86, second pass on f0d16f5 (`docs/features/healing/review.md`): F1, F2, F4, F5 and F6 are fixed. The spots are now children of the canvas for VoiceOver (scripted run S6 in status.md: select, Switch to Clone, Delete Spot work; a press on empty canvas adds nothing, the accepted R-3 limit). The eye moved to the context row, so the check box is back in its column. The pointer follows the click's own hit test, and a click on the photo or a ring gives the keyboard back to the loupe. F3 is fixed except possibly at the exact crop edge: the clamp's round trip through the crop maps may land a hair outside 0...1 and hide the selected spot (R2-1, unconfirmed, add a tolerance and a script run). One wording nit in the user guide (R2-2). No ruling in design.md changed. Open for the owner: M1 to M13, none needing VoiceOver. Read from source only; I could not run the app, the script or `gh`.
