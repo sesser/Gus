@@ -1,14 +1,20 @@
 import Foundation
 
-/// Reading preset files (this app's, `.lrtemplate`, `.xmp` and `.dng`) and adding
-/// them to the catalog.
+/// Reading preset files (this app's, `.lrtemplate`, `.xmp`, `.dng` and preset
+/// packs, `.lnpc`) and adding them to the catalog.
 public enum PresetImport {
     /// At most this many files are read from one folder.
     public static let fileLimit = 2000
 
     public static let fileExtensions = PresetFile.fileExtensions + [CameraRawSettings.templateExtension,
                                                                     CameraRawSettings.xmpExtension,
-                                                                    CameraRawSettings.dngExtension]
+                                                                    CameraRawSettings.dngExtension,
+                                                                    LuminarPack.fileExtension]
+
+    /// The system's language code, for the names of preset packs.
+    public static var systemLanguage: String {
+        Locale.preferredLanguages.first.flatMap { Locale(identifier: $0).language.languageCode?.identifier } ?? "en"
+    }
 
     /// A preset read from a file.
     public struct Item: Sendable {
@@ -19,11 +25,72 @@ public enum PresetImport {
         /// The collection of the folder it was found in, which copies of one
         /// preset in several formats share even when one names its own.
         var folderCollection = ""
+        /// For a preset of a pack: the pack's index in `Scan.packs` and its place in the pack.
+        var pack: (index: Int, position: Int)?
     }
 
     public struct Failure: Sendable, Hashable {
         public var url: URL
+        /// What went wrong, in English (files other than packs, and files that can't be opened).
         public var reason: String
+        /// Why a preset pack was refused; nil for other files.
+        public var packFailure: LuminarPack.Failure?
+
+        public init(url: URL, reason: String, packFailure: LuminarPack.Failure? = nil) {
+            self.url = url
+            self.reason = reason
+            self.packFailure = packFailure
+        }
+    }
+
+    /// What became of one preset of a pack.
+    public struct PackPresetReport: Sendable, Identifiable {
+        /// Its place in the pack, from 0.
+        public var id: Int
+        /// Nil for a preset that could not be read and has no name.
+        public var name: String?
+        /// Listed but missing, or its settings could not be read: skipped.
+        public var isUnreadable: Bool
+        public var tools: [LuminarToolReport]
+
+        /// How many tools have `status`; tools not recognized count as left out.
+        public func count(_ status: LuminarToolReport.Status) -> Int {
+            tools.filter { $0.status == status }.count
+        }
+
+        /// Known tools mapped, approximated (with their controls) and left out, then the identifiers of
+        /// tools not recognized, each in tool order: the report's lines (design §2.3).
+        public var mapped: [LuminarTool] { known(.mapped).map(\.0) }
+        public var approximated: [(LuminarTool, [PresetControl])] { known(.approximated) }
+        public var leftOut: [LuminarTool] { known(.leftOut).map(\.0) }
+        public var unrecognized: [String] {
+            tools.compactMap { if case .unknown(let identifier) = $0.tool { identifier } else { nil } }
+        }
+
+        private func known(_ status: LuminarToolReport.Status) -> [(LuminarTool, [PresetControl])] {
+            tools.compactMap { report in
+                guard report.status == status, case .known(let tool) = report.tool else { return nil }
+                return (tool, report.controls)
+            }
+        }
+    }
+
+    /// What became of one pack: a preset collection and a look-up table collection of its name.
+    public struct PackReport: Sendable, Identifiable {
+        public var id: Int
+        public var source: URL
+        /// The collection's name.
+        public var name: String
+        public var presets: [PackPresetReport]
+        /// Look-up tables its presets use.
+        public var tableCount: Int
+        /// Presets that replaced one of the same name already in the collection, and presets added.
+        public var replaced = 0
+        public var added = 0
+        /// Its look-up tables the library did not list before.
+        public var addedTables = 0
+
+        public var importedCount: Int { presets.filter { !$0.isUnreadable }.count }
     }
 
     /// What a set of files holds.
@@ -32,15 +99,43 @@ public enum PresetImport {
         /// Look-up tables embedded in preset files, by the identifiers their presets use.
         public var tables: [PresetFile.Table] = []
         public var failures: [Failure] = []
+        /// Preset packs read, in the order their files were chosen.
+        public var packs: [PackReport] = []
     }
 
     public struct Result: Sendable {
         public var imported: [AdjustmentPreset]
-        /// How many presets each kind of setting left out or approximated.
+        /// How many presets each kind of setting left out or approximated (files other than packs).
         public var unsupported: [CameraRawFeature: Int]
         public var failures: [Failure]
         /// Embedded tables added to the library's look-up table collections.
         public var addedTables: Int
+        /// Preset packs imported, in the order their files were chosen.
+        public var packs: [PackReport] = []
+
+        public init(imported: [AdjustmentPreset], unsupported: [CameraRawFeature: Int], failures: [Failure],
+                    addedTables: Int, packs: [PackReport] = []) {
+            self.imported = imported
+            self.unsupported = unsupported
+            self.failures = failures
+            self.addedTables = addedTables
+            self.packs = packs
+        }
+
+        /// True when a preset pack was among the files, imported or refused.
+        public var includesPacks: Bool {
+            !packs.isEmpty || failures.contains { $0.packFailure != nil }
+        }
+
+        /// Imported presets that came from files other than packs.
+        public var otherImported: [AdjustmentPreset] = []
+
+        /// What the files other than packs gave, without failures (the report lists every file's).
+        public var otherPresets: Result {
+            let tablesFromPacks = packs.reduce(0) { $0 + $1.addedTables }
+            return Result(imported: otherImported, unsupported: unsupported, failures: [],
+                          addedTables: max(0, addedTables - tablesFromPacks))
+        }
     }
 
     /// Preset files in `folder` and its subfolders, sorted by path.
@@ -61,13 +156,19 @@ public enum PresetImport {
     /// files picked one by one keep theirs or none. When a pack holds the same
     /// preset in several formats, one copy is kept (this app's, then XMP, then
     /// templates, then DNG presets, whose photo may add its own settings).
-    public static func scan(_ urls: [URL]) -> Scan {
+    /// A preset pack is its own collection, whatever folder it is in, with
+    /// names in `language` when the pack has it.
+    public static func scan(_ urls: [URL], language: String = systemLanguage) -> Scan {
         var scan = Scan()
         var seenTables = Set<String>()
         for url in urls {
             let isFolder = (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
             let folderCollection = isFolder ? LookTableNaming.cleanedFileName(url.lastPathComponent) : ""
             for file in isFolder ? files(in: url) : [url] {
+                if file.pathExtension.lowercased() == LuminarPack.fileExtension {
+                    readPacks(file, language: language, into: &scan, seenTables: &seenTables)
+                    continue
+                }
                 do {
                     let read = try readFile(file, defaultCollection: folderCollection)
                     scan.items += read.items
@@ -81,6 +182,47 @@ public enum PresetImport {
         }
         scan.items = deduplicated(scan.items)
         return scan
+    }
+
+    /// The packs of one `.lnpc` file, each preset converted, or the file's refusal.
+    static func readPacks(_ url: URL, language: String, into scan: inout Scan, seenTables: inout Set<String>) {
+        let packs: [LuminarPack]
+        do {
+            packs = try LuminarPack.read(contentsOf: url, language: language)
+        } catch let failure as LuminarPack.Failure {
+            scan.failures.append(Failure(url: url, reason: "\(failure)", packFailure: failure))
+            return
+        } catch {
+            scan.failures.append(Failure(url: url, reason: error.localizedDescription))
+            return
+        }
+        for pack in packs {
+            let index = scan.packs.count
+            var report = PackReport(id: index, source: url, name: pack.name, presets: [], tableCount: 0)
+            var packTables = Set<String>()
+            for (position, entry) in pack.entries.enumerated() {
+                guard case .preset(let source) = entry else {
+                    if case .unreadable(let name) = entry {
+                        report.presets.append(PackPresetReport(id: position, name: name, isUnreadable: true, tools: []))
+                    }
+                    continue
+                }
+                let conversion = LuminarMapping.convert(source.template, resources: source.resources)
+                let preset = AdjustmentPreset(name: source.name, collection: pack.name, groups: conversion.groups,
+                                              adjustments: conversion.adjustments)
+                // A key of its own, so presets of different packs are never taken for copies of each other.
+                scan.items.append(Item(preset: preset, unsupported: [], source: url, folderCollection: "\u{1}\(index)",
+                                       pack: (index, position)))
+                report.presets.append(PackPresetReport(id: position, name: source.name, isUnreadable: false,
+                                                       tools: conversion.tools))
+                if let table = conversion.lookTable {
+                    packTables.insert(table.identifier)
+                    if seenTables.insert(table.identifier).inserted { scan.tables.append(table) }
+                }
+            }
+            report.tableCount = packTables.count
+            scan.packs.append(report)
+        }
     }
 
     /// The presets of one file.
@@ -144,28 +286,60 @@ public enum PresetImport {
     /// with the same name in the same collection). Tables the library does
     /// not list yet are added to a look-up table collection named after the
     /// presets' collection, so they can be picked on their own too.
+    /// A preset of a pack whose table could not be installed (not a readable
+    /// `.cube`) leaves the table out, and says so in its pack's report.
+    /// Presets of packs are counted as replaced or added.
     public static func run(_ scan: Scan, catalog: Catalog, store: LookTableStore) async throws -> Result {
         let installedFile = PresetFile(format: PresetFile.formatName, formatVersion: PresetFile.currentFormatVersion,
                                        presets: [], lookTables: scan.tables)
         let installed = installedFile.installTables(into: store)
+        var packs = scan.packs
+        let existing = Set(try await catalog.adjustmentPresets().map { PresetKey(collection: $0.collection, name: $0.name) })
         let presets = scan.items.map { item -> AdjustmentPreset in
             var preset = item.preset
-            if let identifier = preset.adjustments.lookTable.identifier, let actual = installed[identifier] {
-                preset.adjustments.lookTable.identifier = actual
+            if let identifier = preset.adjustments.lookTable.identifier {
+                if let actual = installed[identifier] {
+                    preset.adjustments.lookTable.identifier = actual
+                } else if let (index, position) = item.pack {
+                    preset.groups.remove(.lookTable)
+                    preset.adjustments.lookTable = LookTable()
+                    packs[index].presets[presetIndex(position, in: packs[index])].tools.leaveOutLookUpTable()
+                }
+            }
+            if let (index, _) = item.pack {
+                if existing.contains(PresetKey(collection: preset.collection, name: preset.name)) {
+                    packs[index].replaced += 1
+                } else {
+                    packs[index].added += 1
+                }
             }
             return preset
         }
         let saved = try await catalog.saveAdjustmentPresets(presets)
-        let addedTables = try await listNewTables(scan, installed: installed, presets: presets, catalog: catalog)
+        let added = try await listNewTables(scan, installed: installed, presets: presets, catalog: catalog)
+        for index in packs.indices { packs[index].addedTables = added[packs[index].name] ?? 0 }
         var unsupported: [CameraRawFeature: Int] = [:]
         for item in scan.items {
             for feature in item.unsupported { unsupported[feature, default: 0] += 1 }
         }
-        return Result(imported: saved, unsupported: unsupported, failures: scan.failures, addedTables: addedTables)
+        var result = Result(imported: saved, unsupported: unsupported, failures: scan.failures,
+                            addedTables: added.values.reduce(0, +), packs: packs)
+        result.otherImported = zip(scan.items, saved).filter { $0.0.pack == nil }.map(\.1)
+        return result
     }
 
+    private struct PresetKey: Hashable {
+        var collection: String
+        var name: String
+    }
+
+    private static func presetIndex(_ position: Int, in pack: PackReport) -> Int {
+        pack.presets.firstIndex { $0.id == position } ?? 0
+    }
+
+    /// Tables added to the library's look-up table collections, by collection name.
     private static func listNewTables(_ scan: Scan, installed: [String: String], presets: [AdjustmentPreset],
-                                      catalog: Catalog) async throws -> Int {
+                                      catalog: Catalog) async throws -> [String: Int] {
         let listed = Set(try await catalog.lookTableCollections().flatMap(\.entries).map(\.identifier))
         var byCollection: [String: [LookTableEntry]] = [:]
         for table in scan.tables {
@@ -177,9 +351,9 @@ public enum PresetImport {
                 identifier: identifier, name: table.name,
                 colorSpace: LookTable.ColorSpace(rawValue: table.colorSpace) ?? .sRGB, fileName: table.fileName))
         }
-        guard !byCollection.isEmpty else { return 0 }
+        guard !byCollection.isEmpty else { return [:] }
         let existing = try await catalog.lookTableCollections()
-        var added = 0
+        var added: [String: Int] = [:]
         for (name, entries) in byCollection {
             let id: Int64
             if let collection = existing.first(where: { $0.name == name }), let rowID = collection.rowID {
@@ -187,9 +361,18 @@ public enum PresetImport {
             } else {
                 id = try await catalog.createLookTableCollection(named: name)
             }
-            added += try await catalog.addLookTables(entries, toCollection: id)
+            added[name, default: 0] += try await catalog.addLookTables(entries, toCollection: id)
         }
         return added
+    }
+}
+
+extension [LuminarToolReport] {
+    /// The pack's look-up table did not install: what was mapped is left out.
+    mutating func leaveOutLookUpTable() {
+        let table = LuminarToolReference.known(.lookUpTable)
+        removeAll { $0.tool == table }
+        append(LuminarToolReport(tool: table, status: .leftOut))
     }
 }
 

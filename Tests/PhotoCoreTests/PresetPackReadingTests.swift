@@ -1,0 +1,178 @@
+import Foundation
+import Testing
+@testable import PhotoCore
+
+@Suite("Zip archives")
+struct ZipArchiveTests {
+    @Test func readsStoredAndDeflatedMembers() throws {
+        let text = Data(String(repeating: "a look-up table line 0.5 0.25 0.125\n", count: 400).utf8)
+        let data = ZipWriter.archive([
+            .init(path: "dir/stored.txt", data: text, deflated: false),
+            .init(path: "dir/deflated.txt", data: text, deflated: true),
+            .init(path: "empty.txt", data: Data(), deflated: false),
+        ])
+        let archive = try ZipArchive(data: data)
+        #expect(archive.entries.map(\.path) == ["dir/stored.txt", "dir/deflated.txt", "empty.txt"])
+        let deflated = try #require(archive.entries.first { $0.path == "dir/deflated.txt" })
+        #expect(deflated.compressedSize < text.count)
+        for entry in archive.entries.prefix(2) { #expect(try archive.contents(of: entry) == text) }
+        #expect(try archive.contents(of: archive.entries[2]).isEmpty)
+    }
+
+    @Test func checksCRCAndRefusesWhatItCannotRead() throws {
+        let data = ZipWriter.archive(["a.txt": Data("hello hello hello".utf8)], deflated: false)
+        var corrupted = data
+        // The member's first byte (after the 30-byte header and the 5-byte name).
+        corrupted[35] ^= 0xFF
+        let archive = try ZipArchive(data: corrupted)
+        #expect(throws: ZipArchive.Failure.damaged) { try archive.contents(of: archive.entries[0]) }
+
+        #expect(throws: ZipArchive.Failure.notAZip) { try ZipArchive(data: Data("not a zip at all".utf8)) }
+        #expect(throws: ZipArchive.Failure.notAZip) { try ZipArchive(data: Data()) }
+        // Cut short: the central directory is gone.
+        #expect(throws: ZipArchive.Failure.damaged) { try ZipArchive(data: data.prefix(data.count - 30)) }
+        #expect(throws: ZipArchive.Failure.damaged) { try ZipArchive(data: data.prefix(40)) }
+
+        // A ZIP64 end record (65535 entries) is beyond what is read.
+        var zip64 = data
+        let end = zip64.count - 22
+        zip64[end + 10] = 0xFF
+        zip64[end + 11] = 0xFF
+        #expect(throws: ZipArchive.Failure.tooLarge) { try ZipArchive(data: zip64) }
+    }
+
+    @Test func truncatedDeflateIsDamaged() throws {
+        let text = Data((0..<3000).map { "\($0 % 97) 0.2 0.3\n" }.joined().utf8)
+        let deflated = ZipWriter.deflate(text)
+        var data = ZipWriter.archive([ZipWriter.Member(path: "a.txt", data: text)])
+        // The second half of the deflated stream zeroed, its sizes unchanged.
+        let start = 30 + 5
+        for index in (start + deflated.count / 2)..<(start + deflated.count) { data[index] = 0 }
+        let archive = try ZipArchive(data: data)
+        #expect(archive.entries[0].uncompressedSize == text.count)
+        #expect(throws: ZipArchive.Failure.damaged) { try archive.contents(of: archive.entries[0]) }
+    }
+}
+
+@Suite("Strings tables")
+struct StringsTableTests {
+    @Test func readsTheEncodingsPacksUse() {
+        let text = "/* note */ \"Pack Name\" = \"Amerikanischer Traum – ü\"; // trailing\n\"b\"\t=\t\"2\" ;"
+        let expected = ["Pack Name": "Amerikanischer Traum – ü", "b": "2"]
+        #expect(StringsTable.parse(Data(text.utf8)) == expected)
+        #expect(StringsTable.parse(text.data(using: .utf16)!) == expected)
+        #expect(StringsTable.parse(text.data(using: .utf16LittleEndian)!) == expected)
+        #expect(StringsTable.parse(text.data(using: .utf16BigEndian)!) == expected)
+        #expect(StringsTable.parse(Data([0xEF, 0xBB, 0xBF]) + Data(text.utf8)) == expected)
+        #expect(StringsTable.parse(Data("\"a\" = \"1\"; \"a\" = \"2\";".utf8)) == ["a": "2"])
+        #expect(StringsTable.parse(Data("\"a\" = \"b\"".utf8)) == nil)
+        #expect(StringsTable.parse(Data("hello".utf8)) == nil)
+    }
+}
+
+@Suite("Preset packs: reading")
+struct PresetPackReadingTests {
+    @Test func readsPresetsInThePacksOrderWithTheirTables() throws {
+        let packs = try LuminarPack.read(PackFixture.packData(), fileName: "Test_Pack.lnpc", language: "en")
+        let pack = try #require(packs.first)
+        #expect(packs.count == 1)
+        #expect(pack.name == "Test Pack")
+        #expect(pack.presets.map(\.name) == ["Beta", "Alpha"])
+        #expect(pack.presets[1].resources == ["TABLE.CUBE": PackFixture.identityCube])
+        #expect(pack.presets[1].uuid == "11111111-0000-0000-0000-000000000000")
+        #expect(pack.presets[0].resources.isEmpty)
+    }
+
+    @Test func namesFollowTheLanguageWhenThePackHasIt() throws {
+        let german = try #require(try LuminarPack.read(PackFixture.packData(), fileName: "p.lnpc", language: "de").first)
+        #expect(german.name == "Testpaket")
+        #expect(german.presets.map(\.name) == ["Beta", "Alfa"])
+        let french = try #require(try LuminarPack.read(PackFixture.packData(), fileName: "p.lnpc", language: "fr").first)
+        #expect(french.name == "Test Pack")
+        #expect(french.presets.map(\.name) == ["Beta", "Alpha"])
+    }
+
+    @Test func anUntranslatedNameFallsBackToTheFileName() throws {
+        var files = PackFixture.files(presets: PackFixture.twoPresets())
+        files["\(PackFixture.packID)/localizations/en.strings"] = nil
+        files["\(PackFixture.packID)/localizations/de.strings"] = nil
+        let pack = try #require(try LuminarPack.read(ZipWriter.archive(files), fileName: "Land_of_the_Rising_Sun.lnpc",
+                                                     language: "en").first)
+        #expect(pack.name == "Land of the Rising Sun")
+    }
+
+    @Test func anUnreadablePresetIsSkippedInItsPlace() throws {
+        var files = PackFixture.files(presets: PackFixture.twoPresets(), extraListed: ["33333333-0000-0000-0000-000000000000.lnp"])
+        files["\(PackFixture.packID)/22222222-0000-0000-0000-000000000000.lnp/template.lmps"] = Data("{not json".utf8)
+        files["\(PackFixture.packID)/44444444-0000-0000-0000-000000000000.lnp/template.lmps"] =
+            PackFixture.json(PackFixture.template("Gamma", [PackFixture.tool(.color, PackFixture.effect(
+                "MIPLSaturationEffect", PackFixture.param("Saturation", 5)))]))
+        let pack = try #require(try LuminarPack.read(ZipWriter.archive(files), fileName: "p.lnpc", language: "en").first)
+        let summary = pack.entries.map { entry -> String in
+            switch entry {
+            case .preset(let preset): preset.name
+            case .unreadable(let name): "unreadable \(name ?? "-")"
+            }
+        }
+        // Beta's settings are damaged, the third listed is missing, Gamma is not listed (it follows).
+        #expect(summary == ["unreadable -", "Alpha", "unreadable -", "Gamma"])
+    }
+
+    @Test func hiddenAndEscapingMembersAreIgnored() throws {
+        var files = PackFixture.files(presets: PackFixture.twoPresets())
+        files["__MACOSX/._x"] = Data("junk".utf8)
+        files["\(PackFixture.packID)/.DS_Store"] = Data("junk".utf8)
+        files["../evil.lnp/template.lmps"] = PackFixture.json(PackFixture.template("Evil", []))
+        files["/abs.lnp/template.lmps"] = PackFixture.json(PackFixture.template("Absolute", []))
+        let packs = try LuminarPack.read(ZipWriter.archive(files), fileName: "p.lnpc", language: "en")
+        #expect(packs.flatMap(\.presets).map(\.name) == ["Beta", "Alpha"])
+    }
+
+    /// AC8: each refusal has its reason, distinct in PhotoCore even where the app words two alike.
+    @Test func refusesWhatIsNotAReadablePack() throws {
+        func failure(_ data: Data) -> LuminarPack.Failure? {
+            do {
+                _ = try LuminarPack.read(data, fileName: "x.lnpc", language: "en")
+                return nil
+            } catch {
+                return error as? LuminarPack.Failure
+            }
+        }
+        let good = PackFixture.packData()
+        #expect(failure(good) == nil)
+        #expect(failure(good.prefix(good.count / 2)) == .damaged)
+        #expect(failure(Data("PK not really".utf8)) == .notAZip)
+        #expect(failure(Data("a text file".utf8)) == .notAZip)
+
+        var noConfig = PackFixture.files(presets: PackFixture.twoPresets())
+        noConfig["Config/config.json"] = nil
+        #expect(failure(ZipWriter.archive(noConfig)) == .missingConfig)
+        #expect(failure(ZipWriter.archive(["readme.txt": Data("x".utf8)])) == .missingConfig)
+
+        var badConfig = PackFixture.files(presets: PackFixture.twoPresets())
+        badConfig["Config/config.json"] = Data("{".utf8)
+        #expect(failure(ZipWriter.archive(badConfig)) == .unreadableSettings)
+
+        #expect(failure(ZipWriter.archive(PackFixture.files(presets: []))) == .noPresets)
+
+        var allBroken = PackFixture.files(presets: PackFixture.twoPresets())
+        for key in allBroken.keys where key.hasSuffix("template.lmps") { allBroken[key] = Data("[]".utf8) }
+        #expect(failure(ZipWriter.archive(allBroken)) == .unreadableSettings)
+    }
+
+    /// AC8 and R9: the archive is read in memory; the code that reads it writes no file anywhere.
+    @Test func packCodeWritesNoFiles() throws {
+        let root = RepositoryFiles.root
+        let folder = root.appending(path: "Sources/PhotoCore/Presets/Luminar")
+        var sources = try FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "swift" }
+        sources.append(root.appending(path: "Sources/PhotoCore/Support/ZipArchive.swift"))
+        #expect(sources.count >= 6)
+        let writing = ["write(to", "createFile", "createDirectory", "temporaryDirectory", "NSTemporaryDirectory",
+                       "FileHandle(forWriting", "moveItem", "copyItem", "Process("]
+        for source in sources {
+            let text = try String(contentsOf: source, encoding: .utf8)
+            for call in writing { #expect(!text.contains(call), "\(source.lastPathComponent) uses \(call)") }
+        }
+    }
+}
