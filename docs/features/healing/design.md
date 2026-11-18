@@ -1,8 +1,8 @@
 # Spot healing and cloning: design
 
 Owner: apple-ui-designer. Date: 2026-11-18. Issue: #86 (slug `healing`).
-Status: Designed, with three small proposed additions the product manager
-should confirm (§18). Nothing else is open.
+Status: Designed. The owner ruled the three requirements issues on
+2026-11-18 (§18, recorded as R-1 to R-3 in §20). Nothing is open.
 
 **Inputs.**
 
@@ -102,7 +102,7 @@ Why here:
    inspector and the Adjust tab, as Show Sharpening Map does.
 
 The heading header uses the existing `SectionHeader`: a **check box** (turn
-the spots off and on to compare; the operation's `isEnabled`, §18 RI-2), the
+the spots off and on to compare; the operation's `isEnabled`, ruling R-2), the
 overlay **eye** and the heading's **reset** in the trailing slot. The reset's
 tooltip and menu title are "Delete All Spots" (the thing being reset is a
 set of objects, so the title says what happens). Its context menu is the
@@ -488,9 +488,9 @@ and the selection is cleared.
 **Honest gap.** Adding a spot by keyboard alone is not designed here, because
 a spot's place is the one value that has no number to type. If VoiceOver's
 press on the canvas does not click at the VoiceOver cursor, a person who
-cannot point cannot add spots at all. Recommendation, labeled judgment: accept
-for the first version, as picking a fringe color is accepted, and add **Add
-Spot at Center of View** as a follow-up if it matters (§18 RI-3).
+cannot point cannot add spots at all. Ruled (R-3, 2026-11-18): accepted for
+the first version, as picking a fringe color is; **Add Spot at Center of View**
+is a possible follow-up, not part of this feature.
 
 ### VoiceOver
 
@@ -652,11 +652,10 @@ existing pattern (`mask add`, `activity open`):
 
 Manual checks for a person (M1…) are written into `review.md` after the build.
 
-## 18. Requirements issues
+## 18. Requirements issues (ruled 2026-11-18)
 
-For the product manager. Each is a proposed addition or a question the PRD
-does not answer; none blocks designing. Without an answer the design stands
-as written.
+Raised for the product manager; the owner ruled all three on 2026-11-18 (§20
+R-1 to R-3). The text below is kept as the question that was asked.
 
 **RI-1. A command to choose the source again (R3).** The PRD says the app
 chooses the source on placing and the person can drag it. Moving a spot onto
@@ -698,7 +697,22 @@ owner wants it. Please rule.
   `NavigationKey`, the comparison and magnifier keys and the menus).
 - No new setting in Settings, no alert, no sheet; Activity is not used.
 
-## 20. Design questions from implementation
+## 20. Rulings
+
+### Owner rulings on the requirements issues (2026-11-18)
+
+| # | Ruling | Where it is built into this design |
+|---|---|---|
+| R-1 | **Choose Source Automatically is in scope** (RI-1). One undo step, "Choose Spot Source", reusing the placement logic. A "try another source" command is not part of this feature | §3 ⋯ menu, §4 (moving and the source), §6 menu, context menus, §10 label, §12 action and announcement |
+| R-2 | **The Spots heading has an on/off check box** (RI-2): the operation's `isEnabled`, with a `spots` group that Copy, Paste Adjustments and presets leave out (it is not offered in the preset save sheet's group list). Turning it off keeps the spots and their values, and shows them secondary; placing, moving or changing a spot turns it back on. The check box is hidden while the photo has no spots, as other headings' are when nothing is modified. Undo and History names: Turn Off Spots, Turn On Spots | §2 header, §9 states, §10 labels, §11, §15 group note |
+| R-3 | **No pointer-free add in v1** (RI-3). Adding a spot needs a click or touch. Everything after is keyboard- and VoiceOver-reachable. **Add Spot at Center of View** is a possible follow-up, to be filed by the main session if the owner wants it; no menu item, command or text for it is in this design | §12 "Honest gap" |
+
+Because R-2 makes the check box part of the design, the PRD should list the
+`spots` group beside R11 (left out of copy, paste and presets), and AC10
+should include "turning the check box off keeps the spots and the photo
+renders without them". That is the product manager's edit, not mine.
+
+### Design questions from implementation
 
 None yet. Rulings will be recorded here, numbered DQ-1 onward, so the engineer
 can cite them.
