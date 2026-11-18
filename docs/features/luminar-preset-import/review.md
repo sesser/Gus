@@ -218,6 +218,38 @@ owner can do it on any one pack. The owner's own record says VoiceOver and macOS
 **Result: F1, F2 and both nits are closed. Verdict unchanged: pass.** Open
 manual checks are M1 to M12 as listed above, with M9 as just described.
 
+## Second confirmation (2026-11-17)
+
+Reviewer: apple-ui-designer. Against commit 50b582f (design.md §13, my ruling on
+QA's Q1). Read from code, `status.md` and `docs/USER_GUIDE.md` only: no shell,
+so no diff, build or test run (`status.md`'s totals are the engineer's).
+
+| Item | Result | Evidence |
+|---|---|---|
+| Table listed as Mapped and as Approximated | Confirmed | `LuminarMapping.lookUpTable` reports `.mapped` once the table is installed, then `.approximated` with `[.contrast, .saturation]` only when Contrast or Saturation changed. `toolReports` drops a mapped entry for an approximated tool except those in `exactAndApproximated`, which holds only `.known(.lookUpTable)`. The Approximated entry names only the approximated part, as §13 says. |
+| Counts | Confirmed | The tool is one entry under each status, so Heritage Hues is "3 mapped, 5 approximated" (`status.md`), and the count line still equals the number of entries in the lines below it. The page code is unchanged: the counts and lines come from the report's entries, so no view change was needed. |
+| Unreadable table (C6) | Confirmed | The missing-file and second-table paths report only `.leftOut` and never reach the `.approximated` branch's mapped entry, so no "Mapped" line appears for a table that did not install; `anUnreadableTableKeepsItsApproximatedValues` is unchanged and still the pin. |
+| Other tools | Accepted | `status.md` records why no other tool has an exact part beside an approximated one (Vignette's style stays in its own control, Matte, Dramatic and Black and White are approximated throughout, the Details Enhancer's sharpening is its own entry). That is the engineer's reading of the mapping; I did not re-derive it. |
+| Tests and records | Confirmed | `lookUpTableContrastAndSaturationAreApproximated` expects `mapped, approximated, develop:mapped`; `aTableWithContrastCountsUnderBothStatuses` is added; `status.md` carries the new totals and the ruling. |
+| Nothing else on the page changed | Confirmed by reading | The change is in PhotoCore's report building plus tests and docs; the page, the strings and the summary line are as reviewed. |
+
+**Reading the lines.** "Mapped: LUT Mapping, Develop" and "Approximated: LUT
+Mapping (as Contrast and Saturation)" read correctly together: the second names
+what is approximated and where it went, and the first says the table is in. The
+repetition of the tool name is the cost of one status per line, the same shape
+as a table both mapped and left out, and is the right trade.
+
+**User guide (nit, no action required).** `docs/USER_GUIDE.md` lines 572 to 574:
+"a look-up table whose tool also changes contrast or saturation is listed as
+mapped, and again as approximated for those". The terms match the page. "For
+those" can be read as "for those presets"; "and again as approximated for its
+contrast and saturation" is clearer. The sentence also sits inside a long
+parenthesis that wraps awkwardly; consider moving it to its own sentence.
+
+**Result: closed. Verdict unchanged: pass.** M1 to M12 stand as listed; M2 (the
+page's look) should include one preset with a table and a contrast setting, such
+as Heritage Hues, to see the two lines together.
+
 ## Summary for the issue
 
 Design review of #203: pass with two small findings, no blocker. The Import Report page, manager changes, catalog strings (plurals, translator comments, keyed tool names) and user guide match design.md rev 2; the Finder double-click line is corrected. Open: F1 (add the test that every importable extension has a `UTType`, which the design asked for and is missing) and F2 (a pack import ending while Export or look-up sheet is up: confirm the one-sheet rule holds). Two corrections to my own design.md (§12): macOS `.caption` is 10 pt, and Light is unreachable in the dark-only library window. Manual checks M1 to M12 (open panel, Increase Contrast, keyboard in a `List` without selection, "Not recognized" look, Finder, race with another sheet). I had no shell, so the PRD was not re-read. Details: docs/features/luminar-preset-import/review.md
