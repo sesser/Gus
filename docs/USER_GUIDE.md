@@ -344,7 +344,9 @@ widened. Other raw formats are cropped within the frame their decoder gives.
 **Spots** (after Crop & Straighten, folded until first used) removes dust
 specks and small blemishes. **Edit Spots** (the heading's button, `H`,
 **Adjust ▸ Spots ▸ Edit Spots**, the loupe's context menu, or a toolbar item
-from View ▸ Customize Toolbar…) turns the tool on in the loupe: the pointer
+from View ▸ Customize Toolbar…) turns the tool on in the loupe, and
+**Finish Editing Spots** (the same item while the tool is on, or the button
+again) turns it off: the pointer
 becomes a crosshair with a ring the size of the next spot. A click on the
 photo adds a spot there, picks a clean area nearby to copy from (its
 **source**, never overlapping the spot or another spot, inside the photo, and
@@ -363,9 +365,9 @@ and the ⋯ menu) picks a fresh source for the selected spot, the same one a
 new spot there would get. ⌥ and the arrow keys move the selected spot, ⌥⌘
 and the arrows its source, one screen point at a time (⇧ for ten); Delete
 (⌫) deletes it, while Remove from Album waits until no spot is selected.
-**Select Next / Previous Spot** step through the spots in the crop. `V` (or
-the heading's eye) hides the rings to judge the result; then every click
-adds. Esc deselects the spot, then turns the tool off; moving to another
+**Select Next / Previous Spot** step through the spots in the crop. `V`
+(**Adjust ▸ Spots ▸ Hide Spot Overlay**, or the eye beside the trash button)
+hides the rings to judge the result; then every click adds. Esc deselects the spot, then turns the tool off; moving to another
 photo, cropping, review and comparing turn it off too. Every change is one
 undo step and a History entry (Add Spot, Move Spot, Resize Spot, Move Spot
 Source, Change Spot Mode, Choose Spot Source, Delete Spot…). The heading's

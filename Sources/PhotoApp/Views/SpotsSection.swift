@@ -19,28 +19,15 @@ struct SpotsSection: View {
             SectionHeader(title: SpotText.title, isExpanded: $isExpanded, family: .adjust,
                           turnOff: isModified ? (isOn ? String(localized: "Turn Off") : String(localized: "Turn On"),
                                                  { editor.setEnabled(Adjustments.Group.spots, !isOn) }) : nil,
-                          reset: isModified ? { editor.deleteAllSpots() } : nil, resetTitle: SpotText.deleteAll,
-                          trailingWidth: nil) {
+                          reset: isModified ? { editor.deleteAllSpots() } : nil, resetTitle: SpotText.deleteAll) {
                 GroupToggle(group: .spots, editor: editor)
             } trailing: {
-                HStack(spacing: 0) {
-                    AppKitButton(symbol: editor.showsSpotOverlay ? "eye.fill" : "eye", style: .borderless,
-                                 tint: editor.showsSpotOverlay && editor.isEditingSpots ? .controlAccentColor : .secondaryLabelColor,
-                                 help: String(localized: "Show the spots and their sources",
-                                              comment: "Tooltip of the Spots heading's eye: shows or hides the spot overlay"),
-                                 accessibilityLabel: editor.showsSpotOverlay ? SpotText.hideOverlay : SpotText.showOverlay,
-                                 isEnabled: editor.isEditingSpots) {
-                        editor.showsSpotOverlay.toggle()
-                    }
-                    .disabled(!editor.isEditingSpots)
-                    .frame(width: InspectorMetrics.resetSlot)
-                    AppKitButton(symbol: "arrow.counterclockwise", style: .borderless, tint: .secondaryLabelColor,
-                                 help: SpotText.deleteAll, isEnabled: isModified) {
-                        editor.deleteAllSpots()
-                    }
-                    .disabled(!isModified)
-                    .frame(width: InspectorMetrics.resetSlot)
+                // One trailing control, as every heading has, so the check box keeps its column (design review F2).
+                AppKitButton(symbol: "arrow.counterclockwise", style: .borderless, tint: .secondaryLabelColor,
+                             help: SpotText.deleteAll, isEnabled: isModified) {
+                    editor.deleteAllSpots()
                 }
+                .disabled(!isModified)
             }
             if isExpanded {
                 SpotControls(editor: editor)
@@ -129,6 +116,17 @@ private struct SpotControls: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
+            // The overlay's eye: a tool control, beside the other tool controls (design review F2).
+            AppKitButton(symbol: editor.showsSpotOverlay ? "eye.fill" : "eye", style: .borderless,
+                         tint: editor.showsSpotOverlay && editor.isEditingSpots ? .controlAccentColor : .secondaryLabelColor,
+                         help: String(localized: "Show the spots and their sources",
+                                      comment: "Tooltip of the Spots heading's eye: shows or hides the spot overlay"),
+                         accessibilityLabel: editor.showsSpotOverlay ? SpotText.hideOverlay : SpotText.showOverlay,
+                         isEnabled: editor.isEditingSpots) {
+                editor.showsSpotOverlay.toggle()
+            }
+            .disabled(!editor.isEditingSpots)
+            .frame(width: 22)
             AppKitButton(symbol: "trash", style: .borderless, tint: .secondaryLabelColor, help: SpotText.delete,
                          accessibilityLabel: SpotText.delete, isEnabled: selected != nil) {
                 editor.deleteSelectedSpot()

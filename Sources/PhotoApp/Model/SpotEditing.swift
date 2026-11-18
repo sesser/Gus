@@ -139,6 +139,9 @@ extension AdjustmentEditor {
                 let next = self.spotPlacements.removeFirst()
                 await self.placeSpot(atOutput: next)
             }
+            // A cancelled task's handle was cleared by whoever cancelled it; a
+            // newer task's (on the next photo) is not this one's to clear (C2).
+            guard !Task.isCancelled else { return }
             self?.spotPlacementTask = nil
         }
     }
@@ -196,7 +199,7 @@ extension AdjustmentEditor {
         spotSourceTask?.cancel()
         spotSourceTask = Task { [weak self] in
             guard let self else { return }
-            defer { self.spotSourceTask = nil }
+            defer { if !Task.isCancelled { self.spotSourceTask = nil } }
             let found: MaskPoint?
             do {
                 found = try await self.automaticSpotSource(for: id, in: values)
@@ -218,10 +221,21 @@ extension AdjustmentEditor {
         }
     }
 
-    /// The spot moved to `center` (mask frame), its source keeping its offset where the rules allow.
+    /// The spot moved to `center` (mask frame), its source keeping its offset
+    /// where the rules allow. The center stays inside the crop, so a dragged
+    /// or nudged spot never leaves the view while selected (design review F3).
     func moveSpot(_ id: UUID, to center: MaskPoint, phase: EditPhase) {
         guard let geometry = spotGeometry else { return }
-        changeSpot(id, SpotText.moveSpot, phase: phase) { $0 = geometry.moving($0, to: center) }
+        let held = heldInCrop(center)
+        changeSpot(id, SpotText.moveSpot, phase: phase) { $0 = geometry.moving($0, to: held) }
+    }
+
+    /// `point` (mask frame) moved as little as needed to lie inside the photo as cropped.
+    func heldInCrop(_ point: MaskPoint) -> MaskPoint {
+        guard let output = outputPoint(fromMask: point) else { return point }
+        let clamped = CGPoint(x: min(max(output.x, 0), 1), y: min(max(output.y, 0), 1))
+        guard clamped != output else { return point }
+        return maskPoint(fromOutput: clamped) ?? point
     }
 
     /// The source moved to `source` (mask frame), held inside the photo and clear of its spot.
@@ -330,6 +344,13 @@ extension AdjustmentEditor {
             guard !Task.isCancelled else { return }
             self?.commitSpotNudge()
         })
+    }
+
+    /// Forgets a waiting run of nudges whose values an undo, a redo or
+    /// another writer replaced.
+    func dropSpotNudge() {
+        spotNudge?.task.cancel()
+        spotNudge = nil
     }
 
     /// Saves a run of nudges as one undo step.

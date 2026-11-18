@@ -16,7 +16,8 @@ import PhotoCore
 ///     spot drag spot|source|size <x> <y>      a drag of the selected spot, its source or its
 ///                               ring's handle to unit coordinates of the photo as shown, one undo step
 ///     spot source auto          Choose Source Automatically (waits)
-///     spot nudge left|right|up|down [source] [large]   the option-arrow keys (saves at once)
+///     spot nudge left|right|up|down [source] [large] [hold]   the option-arrow keys (saves at once;
+///                               with hold, waits unsaved as a menu-chosen nudge does, until the next change)
 ///     spot enable on|off        the Spots heading's check box
 ///     spot fill <n>             adds n small spots on a grid with set sources, as one step (for the limit)
 @MainActor
@@ -61,7 +62,7 @@ enum DebugSpotCommands {
         case "nudge":
             guard let direction = arguments.first.flatMap(nudge) else { return print("spot nudge left|right|up|down") }
             model.nudgeSpot(direction, source: arguments.contains("source"), large: arguments.contains("large"))
-            editor.commitSpotNudge()
+            if !arguments.contains("hold") { editor.commitSpotNudge() }
         case "fill":
             guard let count = number(0).map(Int.init), count > 0 else { return print("spot fill <n>") }
             let side = Int(Double(count).squareRoot().rounded(.up))

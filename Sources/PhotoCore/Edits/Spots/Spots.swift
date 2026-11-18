@@ -54,9 +54,9 @@ public struct Spots: Hashable, Sendable {
 /// Bounds on what a stack may hold (PRD R10). Enforced when spots are added;
 /// a stored stack over them is unreadable, never truncated.
 public enum SpotLimits {
-    /// The PRD's proposed cap. A heal is one small kernel pass over its own
-    /// square, so 100 spots render in a few milliseconds more than none at
-    /// the loupe's size (status.md, "Measurements").
+    /// The PRD's proposed cap. Each spot costs two kernel passes and a
+    /// composite: 100 spots took 102 ms at 2560 × 1707 and 26 ms at
+    /// 256 × 192 (docs/features/healing/status.md, "Measurements"; #211).
     public static let spots = 100
 
     static func check(_ spots: Spots) throws(MaskReadError) {

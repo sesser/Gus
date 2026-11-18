@@ -529,21 +529,31 @@ struct LibraryCommands: Commands {
     private func nudgeItems(source: Bool) -> some View {
         let modifiers: EventModifiers = source ? [.option, .command] : .option
         Button(String(localized: "Left", comment: "Adjust ▸ Spots ▸ Move Spot / Move Source item")) {
-            model?.nudgeSpot(.left, source: source, large: false)
+            nudge(.left, source: source)
         }
         .keyboardShortcut(.leftArrow, modifiers: modifiers)
         Button(String(localized: "Right", comment: "Adjust ▸ Spots ▸ Move Spot / Move Source item")) {
-            model?.nudgeSpot(.right, source: source, large: false)
+            nudge(.right, source: source)
         }
         .keyboardShortcut(.rightArrow, modifiers: modifiers)
         Button(String(localized: "Up", comment: "Adjust ▸ Spots ▸ Move Spot / Move Source item")) {
-            model?.nudgeSpot(.up, source: source, large: false)
+            nudge(.up, source: source)
         }
         .keyboardShortcut(.upArrow, modifiers: modifiers)
         Button(String(localized: "Down", comment: "Adjust ▸ Spots ▸ Move Spot / Move Source item")) {
-            model?.nudgeSpot(.down, source: source, large: false)
+            nudge(.down, source: source)
         }
         .keyboardShortcut(.downArrow, modifiers: modifiers)
+    }
+
+    /// A key held down repeats into one undo step, saved when the loupe sees
+    /// the key go up; an item chosen with the mouse is one step at once
+    /// (code review C1).
+    private func nudge(_ direction: LibraryModel.SpotNudge, source: Bool) {
+        guard let model else { return }
+        let event = NSApp.currentEvent
+        model.nudgeSpot(direction, source: source, large: event?.modifierFlags.contains(.shift) ?? false)
+        if event?.type != .keyDown { model.editor.commitSpotNudge() }
     }
 
     private func cull(_ action: CullingAction) {

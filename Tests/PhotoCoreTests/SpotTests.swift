@@ -185,6 +185,20 @@ struct SpotModelTests {
         #expect(values.resetting(.spots).spots.isIdentity)
     }
 
+    @Test("A waiting run of nudges is saved before any other change, as its own undo step (code review C1)")
+    func nudgeRunIsItsOwnStep() {
+        // Nothing waiting: nothing to save first.
+        #expect(!SpotNudgeRule.savesPendingFirst(pending: nil, incoming: "Change Spot Mode", committing: true))
+        // A further step of the same run joins it.
+        #expect(!SpotNudgeRule.savesPendingFirst(pending: "Move Spot", incoming: "Move Spot", committing: false))
+        // Another action (the mode, a delete, Exposure), or any save, saves the run first.
+        #expect(SpotNudgeRule.savesPendingFirst(pending: "Move Spot", incoming: "Change Spot Mode", committing: true))
+        #expect(SpotNudgeRule.savesPendingFirst(pending: "Move Spot", incoming: "Delete Spot", committing: true))
+        #expect(SpotNudgeRule.savesPendingFirst(pending: "Move Spot", incoming: "Exposure", committing: false))
+        #expect(SpotNudgeRule.savesPendingFirst(pending: "Move Spot", incoming: "Move Spot Source", committing: false))
+        #expect(SpotNudgeRule.savesPendingFirst(pending: "Move Spot", incoming: "Move Spot", committing: true))
+    }
+
     @Test("A source is kept inside the photo and clear of its own spot")
     func sourceRules() {
         let geometry = SpotGeometry(frameSize: CGSize(width: 400, height: 200))

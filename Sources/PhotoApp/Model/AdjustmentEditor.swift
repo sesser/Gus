@@ -620,6 +620,10 @@ final class AdjustmentEditor {
     /// Applies a change from a control. `actionName` names the undo step.
     func change(_ actionName: String, phase: EditPhase, _ body: (inout Adjustments) -> Void) {
         guard state == .ready else { return }
+        // A run of spot nudges still waiting to be saved is its own undo step (code review C1).
+        if SpotNudgeRule.savesPendingFirst(pending: spotNudge?.name, incoming: actionName, committing: phase == .committed) {
+            commitSpotNudge()
+        }
         // New input: a pending full-quality render or cache fill is out of date.
         refineTask?.cancel()
         refinement?.cancel()
@@ -872,6 +876,8 @@ final class AdjustmentEditor {
             self?.library?.historyChanged()
         }
         if versionID == item?.versionID {
+            // Undo or redo replaces values a waiting nudge would save.
+            dropSpotNudge()
             let values = Adjustments(stack: stack)
             committed = values
             sessionHashes.insert(hash)
@@ -943,6 +949,7 @@ final class AdjustmentEditor {
     /// A stack saved for a version by something else (paste, a preset, their undo).
     func catalogChanged(_ stack: EditStack, forVersion versionID: Int64) {
         guard versionID == item?.versionID, state == .ready else { return }
+        dropSpotNudge()
         let values = Adjustments(stack: stack)
         committed = values
         adjustments = values

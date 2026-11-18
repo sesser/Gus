@@ -196,6 +196,10 @@ enum DebugScript {
                 // A Duplicate started by a key or a menu item registers its
                 // undo step when its copies are written.
                 await DebugCopyCommands.waitForDuplicate(model)
+                // A nudge saves on key up or after a pause: inside this command's group (code review C3).
+                // `spot nudge … hold` leaves it waiting for the next command, which saves it first (C1);
+                // that command must come within 1.5 s.
+                if grouped, !(words.first == "spot" && words.last == "hold") { model.editor.commitSpotNudge() }
                 if grouped { undoManager.endUndoGrouping() }
             }
         }

@@ -19,6 +19,10 @@ final class SpotOverlayView: NSView {
     weak var editor: AdjustmentEditor?
     /// The loupe's context menu, for a right-click on a spot (which selects it first).
     var contextMenu: (() -> NSMenu?)?
+    /// The canvas element VoiceOver reaches: the spots' elements are its
+    /// children, since the scroll view holding this view is hidden from
+    /// VoiceOver (design review F1).
+    weak var accessibilityHost: NSView?
 
     private let haloLayer = CAShapeLayer()
     private let ringLayer = CAShapeLayer()
@@ -208,7 +212,6 @@ final class SpotOverlayView: NSView {
         arrowLayer.fillColor = nil
         arrowHeadLayer.path = arrowHeads(arrows)
         drawCursor()
-        window?.invalidateCursorRects(for: self)
     }
 
     private lazy var selectedRingLayer: CAShapeLayer = makeLayer(dashed: false, halo: false)
@@ -310,18 +313,18 @@ final class SpotOverlayView: NSView {
         return target(at: local) == nil ? nil : super.hitTest(point)
     }
 
-    override func resetCursorRects() {
-        super.resetCursorRects()
-        // The arrow over spots and handles: a click there selects, it does not add (design §4).
-        for item in shownSpots {
-            addCursorRect(CGRect(x: item.center.x - item.drawn, y: item.center.y - item.drawn, width: 2 * item.drawn,
-                                 height: 2 * item.drawn), cursor: .arrow)
-        }
-    }
-
     override func mouseMoved(with event: NSEvent) {
         cursor = convert(event.locationInWindow, from: nil)
+        updatePointer()
         drawCursor()
+    }
+
+    /// The arrow over a spot's ring or a handle (a click there selects, it
+    /// does not add), the crosshair over the rest of the photo (design §4).
+    /// Set from the pointer, since cursor rectangles can't be circles (design review F4).
+    private func updatePointer() {
+        guard let editor, editor.isEditingSpots, !isHidden, let cursor, bounds.contains(cursor) else { return }
+        (target(at: cursor) == nil ? NSCursor.crosshair : NSCursor.arrow).set()
     }
 
     override func mouseExited(with event: NSEvent) {
@@ -340,6 +343,8 @@ final class SpotOverlayView: NSView {
         let point = convert(event.locationInWindow, from: nil)
         guard let target = target(at: point),
               let spot = editor.adjustments.spots.spots.first(where: { $0.id == target.id }) else { return }
+        // The keyboard goes back to the loupe, as a click on the photo would give it (design review F5).
+        NotificationCenter.default.post(name: .browserShouldTakeFocus, object: window)
         editor.selectedSpotID = target.id
         drag = Drag(id: target.id, part: target.part, start: point, original: spot)
         refresh()
@@ -460,7 +465,7 @@ final class SpotAccessibilityElement: NSAccessibilityElement {
         }
         super.init()
         setAccessibilityRole(.button)
-        setAccessibilityParent(overlay)
+        setAccessibilityParent(overlay.accessibilityHost ?? overlay)
         setAccessibilityFrame(frame)
         if let editor = overlay.editor {
             setAccessibilityLabel(SpotText.elementLabel(spot, editor: editor))

@@ -27,7 +27,7 @@ State: **Done** (2026-11-18). Every criterion is built and tested or has a scrip
 
 - `swift build`: clean; no new warnings in the files this branch touches
   (recompiled on purpose to check).
-- `swift test`: 1160 tests in 173 suites passed (64 s); 23 of them new.
+- `swift test`: 1161 tests in 173 suites passed after the review fixes; 24 of them new.
 - `Scripts/build-app.sh`: built; scripted runs below on a copy with the
   identifier `me.sesser.gus.debugtest` and a scratch library from
   `photobench import` of `photobench scenes --size 3000x2000` (the dusty sky
@@ -110,25 +110,6 @@ or used.
 - **Cap**: 100 spots (`SpotLimits.spots`).
 - **Size**: stored as the radius, a fraction of the long edge (Paint's unit),
   clamped to 0.0005 … 0.25 on read; the inspector offers 0.1 % … 10 %.
-
-## Measurements
-
-- CPU reference (float context): largest difference 6 × 10⁻⁸, 0.002 of the
-  derived tolerance (3 × 10⁻⁵), four cases (heal, hard-edged heal, clone at
-  80 % opacity, three overlapping spots one at the frame's corner).
-- Half-float context: 0.25 to 0.64 of the derived bound 5 · 2⁻¹¹ of the
-  largest value.
-- AC2: the three specks of `dustySky`, sourced automatically, heal to within
-  0.008 to 0.010 of the clean sky (perceptual; tolerance 0.025, derived from
-  the scene's grain); before, 0.34 to 0.38.
-
-## Crop to the kernel's extent
-
-Core Image dropped `cropped(to:)` when the rectangle equalled the kernel
-image's own extent, and the general kernel's output then covered the whole
-frame when composited (every pixel of the photo changed). The spot kernel is
-applied one pixel wider than it is kept, so the crop is real
-(`SpotRenderer.apply`).
 
 ## Acceptance criteria
 
@@ -223,12 +204,11 @@ applied one pixel wider than it is kept, so the crop is real
 ## Known limitations
 
 - **Many spots are slow** (Measurements): near the cap a drag at 100% is
-  several times slower than a brush mask. See Requirements issues.
+  several times slower than a brush mask. Follow-up #211.
 - If the spot kernels can't compile, spots are skipped with no message, as
   the Lens heading's corrections are (RI-CR1's rule).
-- Touch: the handles' grab distance is 10 pt for every event; I found no
-  public AppKit way to tell a touch from the pointer to give touches 22 pt
-  (design §4). See Design questions.
+- Touch: the handles' grab distance is 10 pt for every event, as ruled
+  (design.md §20, DQ-2).
 
 ## README
 
@@ -236,7 +216,53 @@ applied one pixel wider than it is kept, so the crop is real
 - Layout: `Sources/PhotoCore/Edits/Spots/` (for `CLAUDE.md`'s Layout,
   proposed to the owner).
 
+## Rulings
+
+- DQ-1 (design.md §20): Show / Hide Spot Overlay stays in Adjust ▸ Spots
+  (bare `V`), as built.
+- DQ-2 (design.md §20): one 10 pt grab distance for every event, as built.
+
+## Review findings (2026-11-18)
+
+Code review (`code-review.md`) and design review (`review.md`), all fixed in
+one commit after 1a6c8dd.
+
+| # | Fix |
+|---|---|
+| C1 | A nudge chosen from Adjust ▸ Spots ▸ Move Spot / Move Source with the mouse (no key down) is saved at once, as its own step; only a held ⌥-arrow in the loupe waits, for its key up. As a safety net, `change(_:phase:_:)` saves a waiting run first, under its own name, before any other action or save (`SpotNudgeRule` in PhotoCore, tested by `SpotModelTests.nudgeRunIsItsOwnStep`); an undo, redo or another writer's save drops a waiting run. Script S5 (`spot nudge right hold`, then `spot mode clone`; again, then `spot delete`): History lists Move Spot, Change Spot Mode, Move Spot, Delete Spot, the deletion under its own name. Limit: when the safety net acts (a key still held while another control is clicked), the two History entries share one ⌘Z, since AppKit groups the registrations of one event. |
+| C2 | The placement and Choose Source tasks clear their handle only when not cancelled, so a cancelled task never clears the next photo's. |
+| C3 | The debug script saves a waiting nudge before it closes a command's undo group. |
+| C4 | `SpotLimits.spots`'s comment cites the measurements (102 ms at 2560 × 1707) and #211. |
+| C5 | One "Measurements" and one "Crop to the kernel's extent" section. |
+| F1 | Confirmed: before the fix `accessibility any` with the tool on listed the canvas (`AXImage 'dusty-sky, RAW plus JPEG' value 'Editing spots, 3 spots, 5 of 6'`) and no spot. The canvas (`LoupeHostView.accessibilityChildren`) now returns the overlay's spot elements while Edit Spots is on and the overlay shown, with the canvas as their parent. The probe (`AccessibilityProbe`) now also visits the children of AppKit element views, which the window walk does not reach without an assistive app. Run S6 below. |
+| F2 | The eye moved from the heading to the context row, beside the trash and ⋯; the heading has one trailing control, so its check box keeps the column. |
+| F3 | A dragged or nudged spot's center is held inside the crop (`AdjustmentEditor.heldInCrop`), so a selected spot never leaves the view. |
+| F4 | The pointer is set from `mouseMoved`: the arrow over a ring or a handle (`target(at:)`), the crosshair elsewhere; the square cursor rectangles are gone. |
+| F5 | A click that adds a spot, and a click on a spot or handle, post `.browserShouldTakeFocus` with the window, so the loupe takes the keyboard back from an inspector field. M6 checks it with a real click. |
+| F6 | The user guide names Finish Editing Spots and Adjust ▸ Spots ▸ Hide Spot Overlay. |
+
+**S6 (F1)**, on the dusty-sky DNG with three spots: `spots on; accessibility
+AXButton 3 press; accessibility AXButton 4 Switch to Clone; accessibility
+AXButton 5 Delete Spot; history`:
+
+```
+debug-script: accessibility press on 3: done
+spot 1 selected: heal at 0.3125,0.3516 …
+debug-script: accessibility Switch to Clone on 4: done
+debug-script: accessibility Delete Spot on 5: done
+debug-script:   3 AXButton 'Spot 1, Heal, left' actions [Select, Switch to Clone, Move Spot Left, Move Spot Right, …, Choose Source Automatically, Delete Spot]
+debug-script:   4 AXButton 'Spot 2, Clone, center' actions [Select, Switch to Heal, …]
+debug-script: history row 0 Delete Spot
+debug-script: history row 1 Change Spot Mode
+```
+
+With `spots overlay off` no spot buttons are listed. The probe lists each spot
+twice (indexes 3–4 and 5–6 after the delete): it reaches the canvas by two of
+its own paths; the canvas returns each spot once (checked with a temporary
+log of its children). **A VoiceOver press on empty canvas** does nothing: the
+canvas is an image element with no press action, so no spot is added (the
+accepted limit R-3); its custom actions are the loupe's as before.
+
 ## Open questions
 
-Design questions DQ-1, DQ-2 and requirements issue RI-E1 are in the report
-to the main session (the engineer's report of 2026-11-18).
+None.

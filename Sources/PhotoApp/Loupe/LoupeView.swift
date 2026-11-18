@@ -222,6 +222,7 @@ final class LoupeController: NSObject {
         spotView.editor = model.editor
         spotView.isHidden = true
         spotView.contextMenu = { [weak model] in model.map { PhotoContextMenu.loupe(model: $0, onSpot: true) } }
+        spotView.accessibilityHost = hostView
         imageView.addSubview(spotView)
         cropView.onChangeRect = { [weak self] rect in self?.model.editor.setCropRect(rect) }
         cropView.onStraighten = { [weak self] angle, phase in self?.model.editor.straighten(angle, phase: phase) }
@@ -696,11 +697,19 @@ final class LoupeController: NSObject {
 
     /// A click while a fringe slot picks, at `point` in the photo's view; a
     /// click on the surround does nothing (chromatic-aberration design §4).
+    /// The spots' VoiceOver elements while Edit Spots is on and the overlay shown, else none.
+    var spotAccessibilityElements: [Any] {
+        guard !spotView.isHidden else { return [] }
+        return spotView.accessibilityChildren() ?? []
+    }
+
     /// A click on the photo while Edit Spots is on: a spot there. The
     /// surround (outside the photo) does nothing (design §4).
     private func addSpot(at point: NSPoint) {
         let bounds = imageView.bounds
         guard bounds.contains(point), bounds.width > 0, bounds.height > 0 else { return }
+        // A click on the photo takes the keyboard back from an inspector field (design review F5).
+        NotificationCenter.default.post(name: .browserShouldTakeFocus, object: hostView.window)
         // The image view is not flipped: unit coordinates count from the top.
         model.editor.addSpot(atOutput: CGPoint(x: point.x / bounds.width, y: 1 - point.y / bounds.height))
     }
@@ -1285,7 +1294,9 @@ final class LoupeHostView: NSView {
     override func accessibilityCustomActions() -> [NSAccessibilityCustomAction]? { controller?.accessibilityActions() }
 
     override func accessibilityChildren() -> [Any]? {
-        super.accessibilityChildren()?.filter { !($0 is LoupeScrollView) }
+        // While Edit Spots is on, each spot on the photo is a child of the canvas (healing design §12).
+        let spots = controller?.spotAccessibilityElements ?? []
+        return (super.accessibilityChildren()?.filter { !($0 is LoupeScrollView) } ?? []) + spots
     }
 
     // Declared nonisolated, but AppKit asks accessibility questions on the main thread.
