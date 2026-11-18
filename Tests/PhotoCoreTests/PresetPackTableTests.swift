@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import UniformTypeIdentifiers
 @testable import PhotoCore
 
 /// AC10 (PRD #203 R11): the one table of tool identifiers, its String Catalog
@@ -111,6 +112,16 @@ struct PresetPackTableTests {
         let application = try String(contentsOf: RepositoryFiles.url("Sources/PhotoApp/PhotoApplication.swift"), encoding: .utf8)
         #expect(application.contains("PresetFile.fileExtensions.contains($0.pathExtension.lowercased())"))
         #expect(!application.contains("PresetImport.fileExtensions"))
+    }
+
+    /// The open panel filters by these types: an extension without one would be dropped silently by
+    /// `compactMap` and its files greyed out (design §1.1, review F1). No type is declared for any.
+    @Test func everyImportExtensionHasAType() {
+        for fileExtension in PresetImport.fileExtensions {
+            #expect(UTType(filenameExtension: fileExtension) != nil, "\(fileExtension)")
+        }
+        #expect(PresetImport.fileExtensions.compactMap { UTType(filenameExtension: $0) }.count
+                == PresetImport.fileExtensions.count)
     }
 
     /// No string of ours names the format's application or its maker.

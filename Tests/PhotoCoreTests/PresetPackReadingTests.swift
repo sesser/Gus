@@ -41,6 +41,41 @@ struct ZipArchiveTests {
         #expect(throws: ZipArchive.Failure.tooLarge) { try ZipArchive(data: zip64) }
     }
 
+    /// The central directory's fields of the first member, at their offsets, rewritten.
+    static func patched(_ data: Data, central offset: Int, _ bytes: [UInt8]) -> Data {
+        var data = data
+        let end = data.count - 22
+        let directory = Int(data[end + 16]) | Int(data[end + 17]) << 8 | Int(data[end + 18]) << 16 | Int(data[end + 19]) << 24
+        for (index, byte) in bytes.enumerated() { data[directory + offset + index] = byte }
+        return data
+    }
+
+    /// The reader's limits and refusals, each checked (code review C3).
+    @Test func refusesWhatIsOverItsLimitsOrUnsupported() throws {
+        let data = ZipWriter.archive(["a.txt": Data("hello hello hello".utf8)], deflated: false)
+        // Declared size one byte over the member limit (central directory, uncompressed size at +24).
+        let size = UInt32(ZipArchive.maximumMemberSize + 1)
+        let huge = Self.patched(data, central: 24, [UInt8(size & 0xFF), UInt8(size >> 8 & 0xFF),
+                                                    UInt8(size >> 16 & 0xFF), UInt8(size >> 24)])
+        let hugeArchive = try ZipArchive(data: huge)
+        #expect(throws: ZipArchive.Failure.tooLarge) { try hugeArchive.contents(of: hugeArchive.entries[0]) }
+        // Encrypted (flags at +8, bit 0).
+        let encrypted = try ZipArchive(data: Self.patched(data, central: 8, [0x01, 0x00]))
+        #expect(throws: ZipArchive.Failure.unsupported) { try encrypted.contents(of: encrypted.entries[0]) }
+        // A method other than stored or deflate (method at +10; 12 is bzip2).
+        let bzip2 = try ZipArchive(data: Self.patched(data, central: 10, [12, 0]))
+        #expect(throws: ZipArchive.Failure.unsupported) { try bzip2.contents(of: bzip2.entries[0]) }
+        // More members than the limit (the end record's count at +10), refused before the directory is walked.
+        var many = data
+        let count = UInt16(ZipArchive.maximumEntryCount + 1)
+        many[many.count - 22 + 10] = UInt8(count & 0xFF)
+        many[many.count - 22 + 11] = UInt8(count >> 8)
+        #expect(throws: ZipArchive.Failure.tooLarge) { try ZipArchive(data: many) }
+        // Each maps to the pack's reason.
+        #expect(LuminarPack.Failure(.unsupported) == .damaged)
+        #expect(LuminarPack.Failure(.tooLarge) == .tooLarge)
+    }
+
     @Test func truncatedDeflateIsDamaged() throws {
         let text = Data((0..<3000).map { "\($0 % 97) 0.2 0.3\n" }.joined().utf8)
         let deflated = ZipWriter.deflate(text)
@@ -96,9 +131,9 @@ struct PresetPackReadingTests {
         var files = PackFixture.files(presets: PackFixture.twoPresets())
         files["\(PackFixture.packID)/localizations/en.strings"] = nil
         files["\(PackFixture.packID)/localizations/de.strings"] = nil
-        let pack = try #require(try LuminarPack.read(ZipWriter.archive(files), fileName: "Land_of_the_Rising_Sun.lnpc",
+        let pack = try #require(try LuminarPack.read(ZipWriter.archive(files), fileName: "Valley_of_Quiet_Lakes.lnpc",
                                                      language: "en").first)
-        #expect(pack.name == "Land of the Rising Sun")
+        #expect(pack.name == "Valley of Quiet Lakes")
     }
 
     @Test func anUnreadablePresetIsSkippedInItsPlace() throws {
@@ -158,6 +193,58 @@ struct PresetPackReadingTests {
         var allBroken = PackFixture.files(presets: PackFixture.twoPresets())
         for key in allBroken.keys where key.hasSuffix("template.lmps") { allBroken[key] = Data("[]".utf8) }
         #expect(failure(ZipWriter.archive(allBroken)) == .unreadableSettings)
+    }
+
+    /// The decompression budget of one file (code review C3).
+    @Test func refusesAPackOverItsReadBudget() throws {
+        let data = PackFixture.packData()
+        #expect(try LuminarPack.read(data, fileName: "p.lnpc", language: "en").count == 1)
+        #expect(throws: LuminarPack.Failure.tooLarge) {
+            try LuminarPack.read(data, fileName: "p.lnpc", language: "en", readBudget: 200)
+        }
+    }
+
+    /// A list can name far more presets than the archive holds: refused before any row is made (code review C1).
+    @Test func refusesAPackListingTooManyPresets() throws {
+        var files = PackFixture.files(presets: PackFixture.twoPresets(),
+                                      extraListed: Array(repeating: "", count: LuminarPack.maximumPresetCount))
+        #expect(throws: LuminarPack.Failure.tooLarge) {
+            try LuminarPack.read(ZipWriter.archive(files), fileName: "p.lnpc", language: "en")
+        }
+        files = PackFixture.files(presets: PackFixture.twoPresets(),
+                                  extraListed: Array(repeating: "", count: LuminarPack.maximumPresetCount - 2))
+        let pack = try #require(try LuminarPack.read(ZipWriter.archive(files), fileName: "p.lnpc", language: "en").first)
+        #expect(pack.entries.count == LuminarPack.maximumPresetCount)
+        #expect(pack.presets.count == 2)
+    }
+
+    /// The file is read only when it is a regular file, links followed, and never past the limit (code review C2, C3).
+    @Test func readsOnlyRegularFilesWithinTheLimit() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let manager = FileManager.default
+            let file = root.appending(path: "big.lnpc")
+            try Data(repeating: 7, count: 64).write(to: file)
+            #expect(try LuminarPack.contents(of: file, limit: 64).count == 64)
+            #expect(throws: LuminarPack.Failure.tooLarge) { try LuminarPack.contents(of: file, limit: 63) }
+            // A link reports its own small size; the file it leads to is what counts.
+            let link = root.appending(path: "link.lnpc")
+            try manager.createSymbolicLink(at: link, withDestinationURL: file)
+            #expect(throws: LuminarPack.Failure.tooLarge) { try LuminarPack.contents(of: link, limit: 63) }
+            #expect(try LuminarPack.contents(of: link, limit: 64).count == 64)
+            // Not a regular file: a folder, a link to one, a device.
+            let folder = root.appending(path: "folder.lnpc")
+            try manager.createDirectory(at: folder, withIntermediateDirectories: true)
+            let folderLink = root.appending(path: "folder-link.lnpc")
+            try manager.createSymbolicLink(at: folderLink, withDestinationURL: folder)
+            let device = root.appending(path: "device.lnpc")
+            try manager.createSymbolicLink(at: device, withDestinationURL: URL(fileURLWithPath: "/dev/zero"))
+            for url in [folder, folderLink, device] {
+                #expect(throws: LuminarPack.Failure.notAZip) { try LuminarPack.contents(of: url, limit: 1 << 20) }
+            }
+            // A folder import lists the file and the link to it, never the others.
+            let found = PresetImport.files(in: root).map(\.lastPathComponent)
+            #expect(found == ["big.lnpc", "link.lnpc"])
+        }
     }
 
     /// AC8 and R9: the archive is read in memory; the code that reads it writes no file anywhere.

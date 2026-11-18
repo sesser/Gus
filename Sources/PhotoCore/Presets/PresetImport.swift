@@ -84,6 +84,8 @@ public enum PresetImport {
         public var presets: [PackPresetReport]
         /// Look-up tables its presets use.
         public var tableCount: Int
+        /// The identifiers of the tables its presets use, before installing.
+        var tables: Set<String> = []
         /// Presets that replaced one of the same name already in the collection, and presets added.
         public var replaced = 0
         public var added = 0
@@ -145,6 +147,9 @@ public enum PresetImport {
             options: [.skipsHiddenFiles, .skipsPackageDescendants]) else { return [] }
         var found: [URL] = []
         for case let url as URL in enumerator where fileExtensions.contains(url.pathExtension.lowercased()) {
+            // A symbolic link counts only when it leads to a regular file (never a device or a folder).
+            guard (try? url.resolvingSymlinksInPath().resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
+            else { continue }
             found.append(url)
             if found.count >= fileLimit { break }
         }
@@ -221,6 +226,7 @@ public enum PresetImport {
                 }
             }
             report.tableCount = packTables.count
+            report.tables = packTables
             scan.packs.append(report)
         }
     }
@@ -315,6 +321,8 @@ public enum PresetImport {
             }
             return preset
         }
+        // A pack counts only the tables that installed.
+        for index in packs.indices { packs[index].tableCount = packs[index].tables.filter { installed[$0] != nil }.count }
         let saved = try await catalog.saveAdjustmentPresets(presets)
         let added = try await listNewTables(scan, installed: installed, presets: presets, catalog: catalog)
         for index in packs.indices { packs[index].addedTables = added[packs[index].name] ?? 0 }
@@ -371,8 +379,10 @@ extension [LuminarToolReport] {
     /// The pack's look-up table did not install: what was mapped is left out.
     mutating func leaveOutLookUpTable() {
         let table = LuminarToolReference.known(.lookUpTable)
-        removeAll { $0.tool == table }
-        append(LuminarToolReport(tool: table, status: .leftOut))
+        // Its contrast and saturation stay in the values: that row stays; only the table itself is left out.
+        removeAll { $0.tool == table && $0.status == .mapped }
+        let leftOut = LuminarToolReport(tool: table, status: .leftOut)
+        if !contains(leftOut) { append(leftOut) }
     }
 }
 

@@ -160,6 +160,27 @@ struct PresetPackImportTests {
         }
     }
 
+    /// A table that is not a readable cube is not installed: the preset leaves it out and says so, keeps
+    /// the table tool's contrast and saturation and says so too, and the pack counts no table (code review C6).
+    @Test func anUnreadableTableKeepsItsApproximatedValues() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let presets = [F.Preset(uuid: "77777777-0000-0000-0000-000000000000", name: "Broken", german: nil,
+                                    tools: [F.lutTool("X.cube", contrast: 20)], resources: ["X.cube": Data("not a cube".utf8)])]
+            let catalog = try Catalog.makeInMemory()
+            let result = try await Self.importing(["p.lnpc": F.packData(presets)], into: catalog,
+                                                  store: LookTableStore(directory: root.appending(path: "LUTs")), root: root)
+            let pack = try #require(result.packs.first)
+            #expect(pack.tableCount == 0)
+            #expect(pack.presets.first?.tools == [
+                LuminarToolReport(tool: .known(.lookUpTable), status: .approximated, controls: [.contrast, .saturation]),
+                LuminarToolReport(tool: .known(.lookUpTable), status: .leftOut),
+            ])
+            let saved = try #require(try await catalog.adjustmentPresets().first)
+            #expect(saved.groups == [.light])
+            #expect(saved.adjustments.tone.contrast == 20)
+        }
+    }
+
     /// A table that is not a readable cube is not installed: the preset leaves it out and says so.
     @Test func anUnreadableTableIsLeftOut() async throws {
         try await RepositoryFiles.withTemporaryDirectory { root in

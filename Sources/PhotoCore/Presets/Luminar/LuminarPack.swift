@@ -12,6 +12,8 @@ public struct LuminarPack: Sendable {
     public static let maximumFileSize = 256 * 1024 * 1024
     /// At most this much is decompressed from one file.
     public static let maximumReadSize = 512 * 1024 * 1024
+    /// At most this many presets in one file, listed or found (packs hold about ten).
+    public static let maximumPresetCount = 1000
 
     /// Why a file was refused. Each case has its own wording in the app.
     public enum Failure: Error, Equatable, Sendable {
@@ -61,19 +63,33 @@ public struct LuminarPack: Sendable {
     /// The packs of the file at `url` (usually one), names in `language`
     /// (a language code such as "de") when the pack has it, English otherwise.
     public static func read(contentsOf url: URL, language: String) throws -> [LuminarPack] {
-        let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
-        guard size <= maximumFileSize else { throw Failure.tooLarge }
-        return try read(Data(contentsOf: url), fileName: url.lastPathComponent, language: language)
+        try read(Self.contents(of: url, limit: maximumFileSize), fileName: url.lastPathComponent, language: language)
     }
 
-    static func read(_ data: Data, fileName: String, language: String) throws -> [LuminarPack] {
+    /// The file's bytes: a regular file (a symbolic link is followed first,
+    /// anything else is not a pack), read through a handle that never takes
+    /// more than `limit` bytes, whatever the file's size says or becomes.
+    static func contents(of url: URL, limit: Int) throws -> Data {
+        let resolved = url.resolvingSymlinksInPath()
+        let values = try resolved.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
+        guard values.isRegularFile == true else { throw Failure.notAZip }
+        guard (values.fileSize ?? 0) <= limit else { throw Failure.tooLarge }
+        let handle = try FileHandle(forReadingFrom: resolved)
+        defer { try? handle.close() }
+        let data = try handle.read(upToCount: limit + 1) ?? Data()
+        guard data.count <= limit else { throw Failure.tooLarge }
+        return data
+    }
+
+    static func read(_ data: Data, fileName: String, language: String,
+                     readBudget: Int = maximumReadSize) throws -> [LuminarPack] {
         let archive: ZipArchive
         do {
             archive = try ZipArchive(data: data)
         } catch let failure as ZipArchive.Failure {
             throw Failure(failure)
         }
-        var reader = Reader(archive: archive)
+        var reader = Reader(archive: archive, readBudget: readBudget)
         return try reader.packs(fallbackName: LookTableNaming.cleanedFileName(fileName), language: language)
     }
 }
@@ -93,16 +109,30 @@ extension LuminarPack {
         let archive: ZipArchive
         /// Members by normalized path; directories, hidden files and paths leaving the archive left out.
         let files: [String: ZipArchive.Entry]
+        /// Every member's path, sorted once.
+        let sortedPaths: [String]
+        /// The files directly in each preset folder's `resources/`, by the preset folder, sorted.
+        let resources: [String: [String]]
+        let readBudget: Int
         var bytesRead = 0
 
-        init(archive: ZipArchive) {
+        init(archive: ZipArchive, readBudget: Int) {
             self.archive = archive
+            self.readBudget = readBudget
             var files: [String: ZipArchive.Entry] = [:]
             for entry in archive.entries where !entry.isDirectory {
                 guard let path = Self.normalized(entry.path) else { continue }
                 files[path] = entry
             }
             self.files = files
+            sortedPaths = files.keys.sorted()
+            var resources: [String: [String]] = [:]
+            for path in sortedPaths {
+                let folder = Self.folder(of: path)
+                guard Self.lastComponent(folder) == "resources" else { continue }
+                resources[Self.folder(of: folder), default: []].append(path)
+            }
+            self.resources = resources
         }
 
         /// The path without `.` parts or repeated slashes; nil when it is
@@ -121,7 +151,7 @@ extension LuminarPack {
         mutating func read(_ path: String) throws -> Data {
             guard let entry = files[path] else { throw LuminarPack.Failure.damaged }
             bytesRead += entry.uncompressedSize
-            guard bytesRead <= LuminarPack.maximumReadSize else { throw LuminarPack.Failure.tooLarge }
+            guard bytesRead <= readBudget else { throw LuminarPack.Failure.tooLarge }
             do {
                 return try archive.contents(of: entry)
             } catch let failure as ZipArchive.Failure {
@@ -172,13 +202,24 @@ extension LuminarPack {
         mutating func packs(fallbackName: String, language: String) throws -> [LuminarPack] {
             guard files[LuminarPack.configPath] != nil else { throw LuminarPack.Failure.missingConfig }
             _ = try object(LuminarPack.configPath)
-            let templateFolders = Set(files.keys.filter { Self.lastComponent($0) == LuminarPack.templateName }
-                .map(Self.folder(of:)))
+            // Preset folders, sorted, and grouped by the folder they are in.
+            var templateFolders: [String] = []
+            var templatesByParent: [String: [String]] = [:]
+            for path in sortedPaths where Self.lastComponent(path) == LuminarPack.templateName {
+                let folder = Self.folder(of: path)
+                templateFolders.append(folder)
+                templatesByParent[Self.folder(of: folder), default: []].append(folder)
+            }
+            guard templateFolders.count <= LuminarPack.maximumPresetCount else { throw LuminarPack.Failure.tooLarge }
 
             var configs: [(folder: String, templates: [Any], name: Any?)] = []
-            for path in files.keys.sorted() where Self.lastComponent(path) == "config.json" && path != LuminarPack.configPath {
+            var listedCount = 0
+            for path in sortedPaths where Self.lastComponent(path) == "config.json" && path != LuminarPack.configPath {
                 let config = try object(path)
                 if let templates = config["templates"] as? [Any] {
+                    // Counted before any row is made: a list can name far more presets than the archive holds.
+                    listedCount += templates.count
+                    guard listedCount <= LuminarPack.maximumPresetCount else { throw LuminarPack.Failure.tooLarge }
                     configs.append((Self.folder(of: path), templates, config["name"]))
                 }
             }
@@ -190,7 +231,8 @@ extension LuminarPack {
                 let name = Self.text(texts, config.name).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                 var pack = LuminarPack(name: name.flatMap { $0.isEmpty ? nil : $0 } ?? fallbackName, entries: [])
                 let listed = config.templates.map { Self.join(config.folder, LuminarTemplate.text($0)) }
-                let unlisted = templateFolders.filter { Self.folder(of: $0) == config.folder && !listed.contains($0) }.sorted()
+                let listedSet = Set(listed)
+                let unlisted = (templatesByParent[config.folder] ?? []).filter { !listedSet.contains($0) }
                 for folder in listed + unlisted {
                     claimed.insert(folder)
                     pack.entries.append(try entry(folder, language: language))
@@ -198,7 +240,7 @@ extension LuminarPack {
                 packs.append(pack)
             }
             // Presets no pack lists (a lone preset folder, or one made by hand).
-            let orphans = templateFolders.subtracting(claimed).sorted()
+            let orphans = templateFolders.filter { !claimed.contains($0) }
             if !orphans.isEmpty {
                 var pack = LuminarPack(name: fallbackName, entries: [])
                 for folder in orphans { pack.entries.append(try entry(folder, language: language)) }
@@ -228,12 +270,9 @@ extension LuminarPack {
             if folderName.lowercased().hasSuffix(LuminarPack.presetSuffix) { folderName.removeLast(LuminarPack.presetSuffix.count) }
             let translated = (texts[template.name] ?? template.name).trimmingCharacters(in: .whitespacesAndNewlines)
             let name = translated.isEmpty ? folderName : translated
-            let prefix = Self.join(folder, "resources/")
             var resources: [String: Data] = [:]
-            for path in files.keys.sorted() where path.hasPrefix(prefix) {
-                let rest = String(path.dropFirst(prefix.count))
-                guard !rest.contains("/") else { continue }
-                resources[rest] = try read(path)
+            for path in self.resources[folder] ?? [] {
+                resources[Self.lastComponent(path)] = try read(path)
             }
             return .preset(LuminarPack.Preset(name: name, uuid: template.uuid.isEmpty ? folderName : template.uuid,
                                               template: template, resources: resources))
