@@ -1,8 +1,9 @@
 # Spot healing and cloning: design
 
 Owner: apple-ui-designer. Date: 2026-11-18. Issue: #86 (slug `healing`).
-Status: Designed. The owner ruled the three requirements issues on
-2026-11-18 (§18, recorded as R-1 to R-3 in §20). Nothing is open.
+Status: Designed and built. The owner ruled the three requirements issues on
+2026-11-18 (§18, recorded as R-1 to R-3 in §20); the engineer's two design
+questions are ruled in §20 (DQ-1, DQ-2). Review: [`review.md`](review.md).
 
 **Inputs.**
 
@@ -265,7 +266,7 @@ so it zooms and scrolls with the photo and nothing goes on the glass layer.
 | Selected spot | Ring 2.5 pt, the feather's core as a thin inner ring (as the brush cursor), and a 6 pt-radius **resize handle** (white fill, black 60% stroke: the mask handle) on the ring at 3 o'clock |
 | Source of the selected spot | A ring of the same size, solid 1 pt, with a **small cross at its center** (the thing to grab), and a 1 pt line from the source's center to the spot's ring ending in a **filled arrowhead** (8 pt) on the spot's ring, so "from here, to there" is shown by shape and direction. Only the selected spot's source is drawn (100 sources would bury the photo) |
 | Other spots | Their ring only, no source |
-| Hidden | Nothing is drawn or hit-tested; clicks add. Its state is the eye's (`eye` / `eye.fill`, accent tint when on, the Masks heading's eye), **View ▸ Show / Hide Spot Overlay** (`V`) and the loupe's menu. It starts shown each time the tool is turned on and is not saved |
+| Hidden | Nothing is drawn or hit-tested; clicks add. Its state is the eye's (`eye` / `eye.fill`, accent tint when on, the Masks heading's eye), **Adjust ▸ Spots ▸ Show / Hide Spot Overlay** (`V`; DQ-1: not under View) and the loupe's menu. It starts shown each time the tool is turned on and is not saved |
 
 **Increase Contrast:** the hairline goes to 60% and every stroke gains
 0.5 pt. **Reduce Motion:** nothing animates. **Color is never the only
@@ -275,8 +276,8 @@ fixed drawing colors, not chrome, as the existing mask overlay's are.
 
 **Touch-display Macs (HIG Pointing devices, touch):** a tap adds, selects or
 grabs exactly as a click does; the handles' visible size is unchanged and
-their hit area grows from 10 pt to 22 pt when the event is a touch (the
-visual stays tuned for the pointer). Nothing depends on hover: the source
+their grab distance is 10 pt for every kind of event (DQ-2: the app does not
+tell touch from pointer; an earlier draft grew it to 22 pt on touch). Nothing depends on hover: the source
 shows on selection, not on hover. Touch-and-hold opens the context menu.
 
 ### What a placed spot looks like in the render
@@ -613,7 +614,7 @@ floating over content, not for annotations on the content).
 - **Live drag**: moving, resizing and a source drag render live frames; at
   100% they use the sharp-live path as masks do. Report the cost of a drag
   against a brush mask (the PRD's only performance wording).
-- **Touch**: hit areas of 22 pt for handles on touch events.
+- **Touch**: one 10 pt grab distance for every event (DQ-2); no touch detection.
 - **Strings** `AdjustText.unreadableMessage(.exceedsLimits)` changes (§7), and
   its catalog comment says so.
 - **photocli** names (spots, source, heal, clone) should follow this UI's words.
@@ -647,7 +648,7 @@ existing pattern (`mask add`, `activity open`):
 10. Comparing: the Adjust tab says so; `H` does nothing; spots still render.
 11. The paste note is present and worded as the Masks heading's; paste and presets don't change the target's spots.
 12. History labels read as §10; undo and revert restore spots and clear the selection.
-13. Overlay legibility on a white sky and a dark foreground; Increase Contrast; Reduce Motion; touch hit areas.
+13. Overlay legibility on a white sky and a dark foreground; Increase Contrast; Reduce Motion; the 10 pt grab distance (DQ-2).
 14. VoiceOver elements, actions and announcements of §12 as far as `accessibility` shows them.
 
 Manual checks for a person (M1…) are written into `review.md` after the build.
@@ -714,5 +715,55 @@ renders without them". That is the product manager's edit, not mine.
 
 ### Design questions from implementation
 
-None yet. Rulings will be recorded here, numbered DQ-1 onward, so the engineer
-can cite them.
+Ruled 2026-11-18, on the engineer's report after step 6.
+
+**DQ-1. Where Show / Hide Spot Overlay lives (`V`).** §4's overlay table said
+View; §6's command map said Adjust ▸ Spots ▸. The engineer followed §6.
+
+*Ruling: Adjust ▸ Spots ▸ Show Spot Overlay / Hide Spot Overlay, bare `V`.
+§6 governs and §4 is corrected above.* Reasons:
+
+1. **The overlay belongs to a tool, not to the photo's display.** It exists
+   only while Edit Spots is on and shows that tool's own handles. The app
+   already puts every such overlay with its tool in Adjust: Show / Hide Mask
+   Overlay, Show / Hide Sharpening Map and Show / Hide Fringe Map are all in
+   Adjust. View holds the things that change how any photo is shown (Show
+   Original, zoom, the film strip, the inspector, Pixel Magnifier while a
+   picker is on). One rule per kind of thing is the consistency principle (P5).
+2. **Discoverability.** The item sits one line under Edit Spots, which is
+   where a person looks for it, and its enablement (on only while the tool is
+   on) reads the same as its neighbours.
+3. **HIG.** The HIG describes View as the menu for how content is displayed
+   and Apple's apps follow it; this is a judgment call, not an Apple rule, and
+   the app's own precedent (1) decides it. Nothing else changes: the key, the
+   titles, the eye and the loupe's context menu are as in §4 and §6.
+
+**DQ-2. Touch hit areas (§4 said 22 pt on touch, built as 10 pt always).** The
+engineer found no public AppKit way to tell a finger from the pointer.
+
+*Ruling: keep one 10 pt grab distance (a 20 pt target around the 6 pt handle)
+for every event, add no touch detection, and §4 and §15 are corrected above.*
+Reasons:
+
+1. **I can't verify a way to do it.** `NSEvent.subtype` has a `.touch` case,
+   documented only as "A touch event occurred"; nothing I could read says a
+   touch-display Mac reports it for a finger on a window. Branching on a signal
+   that may never fire, in a build nobody here can try on a touch Mac, would be
+   dead code that claims a feature. The HIG's own advice is to distinguish
+   pointer and finger "only if it provides value" (Pointing devices), and its
+   touch-on-Mac section (added October 2026) gives guidance on revealing
+   hidden controls, not on hit-area sizes. So §4's 22 pt was my judgment, not
+   Apple's number.
+2. **The spot's other parts are already big.** The ring's whole inside moves
+   the spot (never drawn under a 16 pt diameter, and larger as you zoom in),
+   the source's whole ring grabs the source, and a tap on empty photo adds.
+   Only the resize handle is small, and Size has a slider and a typed field
+   and a spot can be nudged by menu, so nothing is reachable only through that
+   handle.
+3. **Touch-and-hold opens the context menu** and tap-to-select is the same
+   code as a click, both from the system.
+
+If the owner has a touch Mac and finds the handle hard to hit, the remedy is a
+larger uniform grab distance (about 14 pt), not input detection (judgment).
+If the PRD states a touch target size I did not see it (I could not read the
+issue; see `review.md`): the product manager should say so.
