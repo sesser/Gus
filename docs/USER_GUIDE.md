@@ -344,10 +344,10 @@ widened. Other raw formats are cropped within the frame their decoder gives.
 **Spots** (after Crop & Straighten, folded until first used) removes dust
 specks and small blemishes. **Edit Spots** (the heading's button, `H`,
 **Adjust ▸ Spots ▸ Edit Spots**, the loupe's context menu, or a toolbar item
-from View ▸ Customize Toolbar…) turns the tool on in the loupe, and
-**Finish Editing Spots** (the same item while the tool is on, or the button
-again) turns it off: the pointer
-becomes a crosshair with a ring the size of the next spot. A click on the
+from View ▸ Customize Toolbar…) turns the tool on in the loupe: the pointer
+becomes a crosshair with a ring the size of the next spot. **Finish Editing
+Spots** (the same item while the tool is on, or the button again) turns it
+off. A click on the
 photo adds a spot there, picks a clean area nearby to copy from (its
 **source**, never overlapping the spot or another spot, inside the photo, and
 inside the crop when it can), selects it and shows the source as a ring with

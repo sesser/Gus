@@ -102,6 +102,43 @@ public struct SpotGeometry: Hashable, Sendable {
     }
 }
 
+/// Where spots lie against the crop (healing design §8). Points of the output
+/// (the photo as cropped) are unit coordinates, y down.
+public enum SpotCrop {
+    /// How far past the output's edges still counts as on them: the
+    /// round trip through `CropGeometry` (turns, straightening) is not
+    /// exact, and a spot held at an edge must stay visible (review R2-1).
+    public static let tolerance = 1e-9
+
+    /// `point` lies in the photo as cropped, within `tolerance`.
+    public static func contains(_ point: CGPoint) -> Bool {
+        let range = -tolerance...(1 + tolerance)
+        return range.contains(Double(point.x)) && range.contains(Double(point.y))
+    }
+
+    /// `point` (mask frame) moved as little as needed, in the output, to lie
+    /// in the photo as cropped by `crop` over a mask frame of `sourceSize`.
+    /// A stored point is rounded to 10⁻⁶ (`MaskPoint`), which can carry a
+    /// point clamped onto the edge just past it; the margin then grows in
+    /// steps until the stored point maps inside, so the result always
+    /// passes `contains`.
+    public static func held(_ point: MaskPoint, crop: Crop, sourceSize: CGSize) -> MaskPoint {
+        let output = CropGeometry.maskToOutput(CGPoint(x: point.x, y: point.y), crop: crop, sourceSize: sourceSize)
+        guard !contains(output) else { return point }
+        var held = point
+        for margin in [0, 1e-6, 1e-5, 1e-4, 1e-3] {
+            let clamped = CGPoint(x: min(max(Double(output.x), margin), 1 - margin),
+                                  y: min(max(Double(output.y), margin), 1 - margin))
+            let mapped = CropGeometry.outputToMask(clamped, crop: crop, sourceSize: sourceSize)
+            held = MaskPoint(x: Double(mapped.x), y: Double(mapped.y))
+            if contains(CropGeometry.maskToOutput(CGPoint(x: held.x, y: held.y), crop: crop, sourceSize: sourceSize)) {
+                return held
+            }
+        }
+        return held
+    }
+}
+
 /// Eight directions, counterclockwise from the right.
 public enum SpotDirection: String, CaseIterable, Sendable {
     case right, upperRight, above, upperLeft, left, lowerLeft, below, lowerRight

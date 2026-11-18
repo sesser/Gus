@@ -27,7 +27,7 @@ State: **Done** (2026-11-18). Every criterion is built and tested or has a scrip
 
 - `swift build`: clean; no new warnings in the files this branch touches
   (recompiled on purpose to check).
-- `swift test`: 1161 tests in 173 suites passed after the review fixes; 24 of them new.
+- `swift test`: 1162 tests in 173 suites passed after the second pass; 25 of them new.
 - `Scripts/build-app.sh`: built; scripted runs below on a copy with the
   identifier `me.sesser.gus.debugtest` and a scratch library from
   `photobench import` of `photobench scenes --size 3000x2000` (the dusty sky
@@ -262,6 +262,37 @@ its own paths; the canvas returns each spot once (checked with a temporary
 log of its children). **A VoiceOver press on empty canvas** does nothing: the
 canvas is an image element with no press action, so no spot is added (the
 accepted limit R-3); its custom actions are the loupe's as before.
+
+## Second pass (2026-11-18)
+
+| # | Fix |
+|---|---|
+| R2-1 | Confirmed by a test, and worse than a float rounding: a stored point is rounded to 10⁻⁶ (`MaskPoint`), so with the old clamp 20 of 32 far drags (four crops with turns and Straighten, eight targets past edges and corners) came back outside the crop. `SpotCrop` in PhotoCore now holds the point (`held`: clamp in the output, map back, and if the stored point still maps outside, clamp again 10⁻⁶, 10⁻⁵, … inside) and tests visibility with a 10⁻⁹ tolerance (`contains`); the editor's `heldInCrop`, `isVisible` and `selectedSourceIsOutsideCrop` use them. Test: `SpotModelTests.heldInCropStaysVisible` (all 32 held on the edge they were pushed to, within 2 × 10⁻³, and counted visible). Script S7 below. |
+| R2-2 | The user guide's first Spots sentences put the crosshair with turning the tool on, then Finish Editing Spots. |
+| C6 | `pickFringe`'s doc comment is back above `pickFringe`. |
+
+**S7 (R2-1)**, the dusty-sky DNG cropped with 4° of Straighten (`adjust crop
+begin; adjust crop angle 4; adjust crop rect 0.15 0.15 0.7 0.7; adjust crop
+done`), spot 2 dragged far past each edge (`spot drag spot 3 0.5`, `-3 0.5`,
+`0.5 -3`, `0.5 3`), `spots print` after each, then `accessibility AXButton`:
+
+```
+spots: … count 3, visible 2 …
+spot 2 selected: heal at 0.8491,0.4634 … shown 1.0000,0.5000 …
+spot 2 selected: heal at 0.1509,0.5366 … shown 0.0000,0.5000 …
+spot 2 selected: heal at 0.4837,0.1509 … shown 0.5000,0.0000 …
+spot 2 selected: heal at 0.5163,0.8491 … shown 0.5000,1.0000 …
+debug-script:   4 AXButton 'Spot 2, Heal, bottom' value 'Selected' actions [Select, Switch to Clone, …]
+```
+
+Each time the spot stays selected, counted visible (spot 3 lies outside the
+crop) and listed as a VoiceOver button.
+
+**Flakiness** (code-reviewer saw one unnamed failure in 1 of 4 full runs):
+four full `swift test` runs in a row after these fixes, 1162 tests each, all
+passed. No spot test failed in any run; the spot suites use fixed scenes and
+seeds, render through their own contexts and have no sleeps or timing
+thresholds. The reviewer's failure is not reproduced here.
 
 ## Open questions
 

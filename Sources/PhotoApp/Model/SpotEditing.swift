@@ -78,7 +78,7 @@ extension AdjustmentEditor {
     /// A spot's center lies in the photo as cropped (design §8: only those are drawn and selectable).
     func isVisible(_ spot: Spot) -> Bool {
         guard let point = outputPoint(fromMask: spot.center) else { return false }
-        return (0...1).contains(point.x) && (0...1).contains(point.y)
+        return SpotCrop.contains(point)
     }
 
     var visibleSpots: [Spot] { adjustments.spots.spots.filter(isVisible) }
@@ -89,7 +89,7 @@ extension AdjustmentEditor {
     /// The selected spot's source is outside the crop (design §3's caption).
     var selectedSourceIsOutsideCrop: Bool {
         guard let spot = selectedSpot, let point = outputPoint(fromMask: spot.source) else { return false }
-        return !((0...1).contains(point.x) && (0...1).contains(point.y))
+        return !SpotCrop.contains(point)
     }
 
     // MARK: The tool
@@ -232,10 +232,8 @@ extension AdjustmentEditor {
 
     /// `point` (mask frame) moved as little as needed to lie inside the photo as cropped.
     func heldInCrop(_ point: MaskPoint) -> MaskPoint {
-        guard let output = outputPoint(fromMask: point) else { return point }
-        let clamped = CGPoint(x: min(max(output.x, 0), 1), y: min(max(output.y, 0), 1))
-        guard clamped != output else { return point }
-        return maskPoint(fromOutput: clamped) ?? point
+        guard let size = maskSourceSize else { return point }
+        return SpotCrop.held(point, crop: maskCrop, sourceSize: size)
     }
 
     /// The source moved to `source` (mask frame), held inside the photo and clear of its spot.

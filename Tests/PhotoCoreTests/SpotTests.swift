@@ -199,6 +199,33 @@ struct SpotModelTests {
         #expect(SpotNudgeRule.savesPendingFirst(pending: "Move Spot", incoming: "Move Spot", committing: true))
     }
 
+    @Test("A spot moved far past any edge of a turned, straightened crop is held where it still counts as visible (review R2-1)")
+    func heldInCropStaysVisible() {
+        let size = CGSize(width: 6000, height: 4000)
+        let crops = [
+            Crop(rect: CropRect(x: 0.1, y: 0.1, width: 0.8, height: 0.75), angle: 3.7),
+            Crop(rect: CropRect(x: 0.05, y: 0.2, width: 0.6, height: 0.55), quarterTurns: 1, angle: -4.2),
+            Crop(rect: CropRect(x: 0, y: 0, width: 1, height: 1), quarterTurns: 3, angle: 1.3),
+            Crop(rect: CropRect(x: 0.33, y: 0.21, width: 0.17, height: 0.13), quarterTurns: 2, angle: 7.9),
+        ]
+        // Far past each edge and corner, as every pointer position beyond an edge is.
+        let targets = [(-3.0, 0.5), (4.0, 0.5), (0.5, -2.0), (0.5, 5.0), (-1.0, -1.0), (2.0, 2.0), (-0.4, 1.7), (1.3, -0.2)]
+        for crop in crops {
+            for (x, y) in targets {
+                let far = CropGeometry.outputToMask(CGPoint(x: x, y: y), crop: crop, sourceSize: size)
+                let held = SpotCrop.held(MaskPoint(x: Double(far.x), y: Double(far.y)), crop: crop, sourceSize: size)
+                let shown = CropGeometry.maskToOutput(CGPoint(x: held.x, y: held.y), crop: crop, sourceSize: size)
+                #expect(SpotCrop.contains(shown), "\(crop) \(x),\(y) → \(shown)")
+                // On the edge it was pushed to, not somewhere inside.
+                let edge = min(abs(shown.x), abs(1 - shown.x), abs(shown.y), abs(1 - shown.y))
+                #expect(edge < 2e-3, "\(crop) \(x),\(y) → \(shown)")
+            }
+        }
+        // A point already inside is left exactly where it is.
+        let inside = MaskPoint(x: 0.5, y: 0.5)
+        #expect(SpotCrop.held(inside, crop: crops[1], sourceSize: size) == inside)
+    }
+
     @Test("A source is kept inside the photo and clear of its own spot")
     func sourceRules() {
         let geometry = SpotGeometry(frameSize: CGSize(width: 400, height: 200))

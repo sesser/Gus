@@ -695,8 +695,6 @@ final class LoupeController: NSObject {
 
     // MARK: Zoom
 
-    /// A click while a fringe slot picks, at `point` in the photo's view; a
-    /// click on the surround does nothing (chromatic-aberration design §4).
     /// The spots' VoiceOver elements while Edit Spots is on and the overlay shown, else none.
     var spotAccessibilityElements: [Any] {
         guard !spotView.isHidden else { return [] }
@@ -714,6 +712,8 @@ final class LoupeController: NSObject {
         model.editor.addSpot(atOutput: CGPoint(x: point.x / bounds.width, y: 1 - point.y / bounds.height))
     }
 
+    /// A click while a fringe slot picks, at `point` in the photo's view; a
+    /// click on the surround does nothing (chromatic-aberration design §4).
     private func pickFringe(at point: NSPoint) {
         guard imageView.bounds.contains(point) else { return }
         let geometry = magnifierGeometry(atHostPoint: hostView.convert(point, from: imageView))
