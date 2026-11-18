@@ -3,7 +3,8 @@ Issue: #203
 # Import preset packs (.lnpc): status
 
 Owner: swift-macos-engineer. State: **Done** (2026-11-17). Commits 065dcb6
-(PhotoCore and its tests), b57a25a (the page, strings, user guide, AC10 test).
+(PhotoCore and its tests), b57a25a (the page, strings, user guide, AC10 test),
+and the DQ-1 change after the owner's rulings (concurrent table check).
 Spec: the PRD (issue #203 body, rev 3, approved) and `design.md` rev 2.
 Reference for the mapping and scales: the owner's prototype `lnp2gus`
 (outside this repository; read only, nothing copied).
@@ -13,7 +14,8 @@ Reference for the mapping and scales: the owner's prototype `lnp2gus`
 | When | `swift build` | `swift test` |
 |---|---|---|
 | Baseline (branch at 00a016f) | clean | 1072 tests in 161 suites, all pass |
-| Latest (b57a25a) | clean, no new warnings | 1127 tests in 169 suites, all pass; no golden changed |
+| After b57a25a | clean, no new warnings | 1127 tests in 169 suites, all pass; no golden changed |
+| Latest (DQ-1 change) | clean, no new warnings | 1128 tests in 169 suites, all pass; no golden changed |
 
 ## What was built
 
@@ -130,7 +132,7 @@ fails if one changes without the test.
 | AC8 | `badFilesAreRefusedAndTheRestImport` (truncated → damaged, no config, text file), `refusesWhatIsNotAReadablePack`; no temp files: `packCodeWritesNoFiles` (no write API in the pack and zip code; reading takes `Data`) | Done |
 | AC9 | `assumedScalesAreTheRecordedOnes` | Done |
 | AC10 | `PresetPackTableTests`: every table case reported by the mapping from a template; R6's tools left out; unknown identifiers verbatim; the catalog's `presetPackTool.` entries are exactly the table's and nothing else has the tool-name comment; no `lnpc` or the format's name in either `Info.plist`; Finder open path takes `PresetFile.fileExtensions` only; no catalog string names the format's application or maker; `LocalizationTests` and `BrandingTests` pass; manual M6 | Done |
-| AC11 | full `swift test`: 1127 tests pass, goldens untouched; no migration, no pipeline bump | Done |
+| AC11 | full `swift test`: 1128 tests pass, goldens untouched; no migration, no pipeline bump | Done |
 | AC12 | the owner, by eye (manual). Opt-in `PresetPackSampleTests.conversionsMatchThePrototype` compares all 40 presets of the four packs with the prototype's own output: all match within rounding | Manual |
 
 Opt-in suite (real packs, never committed):
@@ -172,9 +174,9 @@ already finds every value equal within rounding).
 
 ## Known limits
 
-- Two presets with the same name in one pack: the later replaces the earlier
-  (the existing name rule), though the report lists both (RI-E3). None in the
-  owner's packs.
+- Two presets with the same name in one pack collapse to one: the later
+  replaces the earlier (the existing name rule, kept by the owner's RI-E3
+  ruling; no suffix), though the report lists both. None in the owner's packs.
 - A table two packs share, or one already listed in another look-up table
   collection, is listed once, in the first collection (the existing rule of
   `PresetImport.listNewTables`).
@@ -193,25 +195,45 @@ already finds every value equal within rounding).
 
 ## Measurements
 
-Owner's four packs (40 presets, 36 tables), release build: reading and
-converting 0.13 s; saving 1.89 s, of which checking and installing the 36
-tables (`PresetFile.installTables`, which parses each ~1 MB cube) is 1.84 s.
-Debug build: 0.75 s and 5.2 s. Over the design's one second: Design question
-DQ-1.
+Owner's four packs (40 presets, 36 tables), release build,
+`LUMINAR_PACKS=… swift test -c release --filter PresetPackSampleTests`:
 
-## Open questions
+| | Reading and converting | Saving | of which checking and installing the tables |
+|---|---|---|---|
+| Before (tables checked one at a time) | 0.13 s | 1.89 s | 1.84 s |
+| After DQ-1 (b), three runs | 0.13 to 0.14 s | 0.53 to 0.56 s | 0.50 to 0.51 s |
 
-- **DQ-1 (design, A6):** the import takes about 1.9 s (release) for the four
-  packs, 1.84 s of it in the existing table check. Options and
-  recommendation in the engineer's report; nothing changed until ruled.
-- **DQ-2 (design, informational):** tool names as keyed catalog entries
-  (`presetPackTool.<case>`), and an approximated tool that keeps its own
-  control (a vignette with feather or offset changed) shown without "(as …)".
-- **RI-E1 (product):** the table's scope beyond R6's list (settings the
-  mapping leaves out by name, "Layers").
-- **RI-E2 (product):** AC10's "only Luminar-named data" and the format's
-  structure keys the mapping must read.
-- **RI-E3 (product):** duplicate preset names within one pack.
+The whole import is now about 0.7 s, under the design's one second (A6), so
+it stays in the sheet with Importing… and does not become an Activity job.
+Debug builds are slower (before the change: 0.75 s and 5.2 s).
+
+**DQ-1 change.** `PresetFile.installTables` checks the tables (parses each
+cube) with `DispatchQueue.concurrentPerform`, each result in its table's
+place (`Mutex<[Bool]>`); the tables are then installed one after another in
+the file's order, as before. The identifier map, the files written, and
+unreadable tables being left out are unchanged, so `.guspreset` imports
+behave exactly as before, only faster. The call was never cancellable and
+still isn't. Test: `PresetFileTests.installsTablesAsOneAtATimeWould` (16
+tables, readable, unreadable and repeated; the same map and files as a
+one-at-a-time check, five runs); `embedsTablesAndInstallsThemElsewhere` and
+the pack import tests unchanged and passing.
+
+## Rulings (owner, 2026-11-17)
+
+- **DQ-1:** option (b), check the cubes concurrently in
+  `PresetFile.installTables`. Done; see Measurements.
+- **DQ-2:** yes to both: tool names as their own keyed catalog entries
+  (`presetPackTool.<case>`), and a vignette approximated in its own control
+  shown as plain "Vignette".
+- **RI-E1:** all 36 table entries are within option (b) of RI-1.
+- **RI-E2:** the format's structure keys the mapping reads are fine (never
+  shown); AC10 means display-name data.
+- **RI-E3:** keep the existing name rule; same names in one pack collapse to
+  one (Known limits). No suffix.
+
+No open questions. The proposed follow-up issues (a faster table check,
+duplicate names in a pack) are not filed: the first is done here, the second
+was ruled out.
 
 ## README
 

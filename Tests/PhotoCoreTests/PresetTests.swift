@@ -177,6 +177,41 @@ struct PresetFileTests {
         #expect(PresetImport.fileExtensions.contains("photopreset"))
     }
 
+    /// Tables are checked concurrently (issue #203, DQ-1): the result is the one-at-a-time
+    /// result, in the file's order, every time; unreadable tables are still left out.
+    @Test func installsTablesAsOneAtATimeWould() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            var tables: [PresetFile.Table] = []
+            for index in 0..<16 {
+                let data: Data
+                switch index % 4 {
+                case 0: data = Data("not a cube \(index)".utf8)
+                case 1: data = PackFixture.identityCube
+                // A comment of its own: distinct files with the same cube.
+                default: data = Data("# \(index)\n".utf8) + PackFixture.swapCube
+                }
+                tables.append(PresetFile.Table(identifier: "claimed-\(index)", name: "T\(index)", fileName: "T\(index).cube",
+                                               colorSpace: "sRGB", data: data))
+            }
+            let file = PresetFile(format: PresetFile.formatName, formatVersion: PresetFile.currentFormatVersion,
+                                  presets: [], lookTables: tables)
+            var expected: [String: String] = [:]
+            for table in tables where PresetFile.isReadableCube(table.data) {
+                expected[table.identifier] = Digest.sha256Hex(table.data)
+            }
+            #expect(expected.count == 12)
+            #expect(PresetFile.readableTables(tables) == tables.map { PresetFile.isReadableCube($0.data) })
+            for run in 0..<5 {
+                let directory = root.appending(path: "LUTs\(run)")
+                #expect(file.installTables(into: LookTableStore(directory: directory)) == expected)
+                let files = try FileManager.default.contentsOfDirectory(atPath: directory.path)
+                #expect(files.count == Set(expected.values).count)
+            }
+            #expect(PresetFile.readableTables([]) == [])
+            #expect(PresetFile.readableTables([tables[1]]) == [true])
+        }
+    }
+
     @Test func rejectsOtherJSONAndNewerFormats() {
         #expect(throws: PresetFile.Failure.notAPresetFile) { try PresetFile(data: Data("{\"a\": 1}".utf8)) }
         #expect(throws: PresetFile.Failure.notAPresetFile) {
