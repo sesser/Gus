@@ -554,12 +554,40 @@ app's preset files and Lightroom presets (`.lrtemplate`, `.xmp`, and
 its presets name their own, and a pack that holds a preset in several formats
 gives one copy. Lightroom settings with no equivalent here (calibration,
 masks, texture, crop, lens corrections and the like) are left out, and the
-import lists them. **Manage Presets…** opens a sheet that renames, moves,
+import lists them.
+
+**Import Presets…** also reads preset packs (`.lnpc` files), several at once
+and alongside the other formats. Each pack becomes a collection named after
+the pack (whatever folder it is in), with its presets in the pack's order and
+named in the system's language when the pack has it, English otherwise; its
+look-up tables go in a look-up table collection of the same name. A pack's
+tools are carried over to this app's controls where they have one, some
+approximately (Structure and Details Enhancer as Clarity, Supercontrast and
+the Matte look as a tone curve, Warmth and Color Balance as color grading,
+black and white through the Color Mixer, and the like); tools with no
+equivalent here (Accent AI, Sky Enhancer, Atmosphere, Glow, masks and others)
+are left out, and nothing is made up for them. A converted preset replaces
+only the groups it sets. After an import with a pack, the preset manager
+opens on its **Import Report**: per pack, each preset with what was mapped,
+approximated or left out (click a preset to see the tools), tools the app has
+no name for listed by the identifier the pack gives them under "Not
+recognized", and the files that were not imported and why (not a preset pack,
+damaged or incomplete, settings that can't be read, no presets, too large).
+**Back** shows the presets, **Done** closes the sheet, and the manager's
+**Import Report** button shows the last report again until the app quits.
+Importing a pack again replaces its presets by name, keeping nothing changed
+in **Manage Presets…** since (the report says "replaced"), and adds no
+look-up table twice. The pack is read in memory; nothing is extracted or
+written outside the library. Packs are imported only from **Import**: the app
+doesn't open them from the Finder.
+
+**Manage Presets…** opens a sheet that renames, moves,
 exports and deletes presets and collections, and changes what each includes;
 changes apply at once (deleting a preset or a collection asks first), and Done
 closes it. An exported preset
 file carries the look-up tables its presets use, so it looks the same in
-another library; double-clicking one in the Finder imports it.
+another library; double-clicking one of this app's preset files in the Finder
+imports it.
 
 **Export** (**File ▸ Export…**, ⇧⌘E) writes the selected photos, or the one in
 the loupe, to a folder with their adjustments. A RAW+JPEG pair is exported once,

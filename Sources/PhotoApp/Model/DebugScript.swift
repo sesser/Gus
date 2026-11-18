@@ -520,9 +520,26 @@ enum DebugScript {
             case "import":
                 let urls = rest.dropFirst().map { URL(fileURLWithPath: $0) }
                 if let result = await model.importAdjustmentPresets(urls, showsSummary: false) {
-                    let summary = LibraryModel.summary(of: result)
-                    print("debug-script: \(summary.title)\n\(summary.message)")
+                    if result.includesPacks {
+                        print("debug-script: " + PresetReportText.lines(of: result).joined(separator: "\n"))
+                    } else {
+                        let summary = LibraryModel.summary(of: result)
+                        print("debug-script: \(summary.title)\n\(summary.message)")
+                    }
                 }
+            case "report":
+                // preset report: the Import Report page's text, as it reads it (labels and values).
+                if let result = model.presetImportReport {
+                    print("debug-script: page \(model.presetManagerPage == .report ? "report" : "list")\n"
+                          + PresetReportText.lines(of: result).joined(separator: "\n"))
+                } else {
+                    print("debug-script: no import report")
+                }
+            case "reportpage":
+                // preset reportpage: the preset manager on its Import Report page (dimmed button: no report yet).
+                model.presetManagerPage = .report
+                model.showsPresetSheet = true
+                try? await Task.sleep(for: .milliseconds(500))
             case "export":
                 // preset export <file> [name]: every preset, or the one named.
                 let url = URL(fileURLWithPath: rest.dropFirst().first ?? "")

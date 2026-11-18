@@ -14,10 +14,23 @@ struct PresetManagerSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        Group {
+            if model.presetManagerPage == .report, let report = model.presetImportReport {
+                PresetImportReportPage(model: model, result: report)
+            } else {
+                presets
+            }
+        }
+        .frame(width: 560, height: 480)
+        // The sheet opens on its presets next time, unless an import asks for the report.
+        .onDisappear { model.presetManagerPage = .list }
+    }
+
+    private var presets: some View {
         VStack(alignment: .leading, spacing: 12) {
             if model.adjustmentPresets.isEmpty {
                 ContentUnavailableView("No Presets", systemImage: "slider.horizontal.3",
-                                       description: Text("Save a photo's adjustments as a preset, or import presets (.\(PresetFile.fileExtension), .lrtemplate, .xmp or .dng)."))
+                                       description: Text("Save a photo's adjustments as a preset, or import presets (.\(PresetFile.fileExtension), .lrtemplate, .xmp, .dng or .lnpc)."))
             } else {
                 List {
                     ForEach(model.adjustmentPresetCollections) { collection in
@@ -38,17 +51,27 @@ struct PresetManagerSheet: View {
                 .foregroundStyle(.secondary)
             HStack(spacing: 12) {
                 Button("Import…") { model.chooseAdjustmentPresetImport() }
+                    .disabled(model.isImportingPresets)
                 Button("Export All…") {
                     model.exportAdjustmentPresets(model.adjustmentPresets, suggestedName: String(localized: "Presets"))
                 }
                 .disabled(model.adjustmentPresets.isEmpty)
+                // The last pack import's report, again (design §2.5); dimmed until there is one.
+                Button("Import Report") { model.presetManagerPage = .report }
+                    .disabled(model.presetImportReport == nil)
+                if model.isImportingPresets {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Importing…")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
                 Spacer()
                 Button("Done") { dismiss() }
                     .keyboardShortcut(.defaultAction)
             }
         }
         .padding(20)
-        .frame(width: 560, height: 480)
         .alert(String(localized: "Remove the collection \(pendingRemoval ?? "")?"),
                isPresented: Binding(get: { pendingRemoval != nil }, set: { if !$0 { pendingRemoval = nil } })) {
             Button("Remove", role: .destructive) {

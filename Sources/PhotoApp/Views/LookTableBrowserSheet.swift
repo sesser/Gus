@@ -103,8 +103,9 @@ private struct BrowserBar: View {
     }
 }
 
-/// A page's top row: Back, and its title.
-private struct PageHeader: View {
+/// A page's top row: Back, and its title. Shared by the sheets that have
+/// pages (look-up tables, presets).
+struct PageHeader: View {
     let title: String
     let back: () -> Void
 
