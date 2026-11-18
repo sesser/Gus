@@ -335,3 +335,40 @@ or recorded in `status.md` as accepted. Either way they need no further QA
 beyond what is listed above. `/security-review` still applies to the branch,
 with the items the second and third passes added to its list. This commit adds
 no parser, subprocess, file write or network code.
+
+### Fifth pass (2026-11-17)
+
+Reviewed: 50b582f only (`git show 50b582f`), against design §13 (the ruling
+on QA's Q1). HEAD is 733b623, which adds only the design review's
+`review.md`. Build and tests at 733b623: `swift build` clean; `swift test`
+1137 tests in 170 suites, all pass (the new
+`aTableWithContrastCountsUnderBothStatuses` is the one more). The
+`PresetPack*`, `Localization` and `Branding` suites pass on their own too (73
+tests). The opt-in four-pack suite needs the owner's packs and was not run
+here.
+
+**Verdict: ready for QA.** The change does what §13 rules and nothing else.
+One new nit (C13), in `status.md` prose only.
+
+| # | Result | Commit | Notes |
+|---|---|---|---|
+| §13 rule | Done as ruled | 50b582f | `toolReports()` drops a `mapped` row for a tool that also has an `approximated` row unless the tool is in `exactAndApproximated`, which holds only `.known(.lookUpTable)`. Every other tool keeps the old rule. I checked every `report(…, .mapped)` and `.approximated` call in `LuminarMapping`: no other tool reports both, except the generic tools at :238 that never report approximated, and Vignette, whose two calls are if/else (:560, :562). So, as `status.md` says, the table tool is the only one in §13's position today, and the set changes nothing for the others. |
+| Counts | Agree with the lines | 50b582f | `report()` keeps one row per (tool, status), so the table tool counts at most once under each status. `PackPresetReport.count` counts rows and `mapped`/`approximated` list the known rows of the same status, so for known tools each count line equals the entries in its line. The mapped row has no controls (`report(.lookUpTable, .mapped)` passes none) and the approximated row keeps `[.contrast, .saturation]`, so the lines read "Mapped: LUT Mapping" and "Approximated: LUT Mapping (as Contrast and Saturation)". Left out still counts unrecognized tools too, as before (`count`'s comment). Both the page (`PresetImportReportPage`) and the copied text (`PresetReportText`) read the same properties, so there is no second list to drift. Pack summaries and the import summary alert (`PresetActions.swift:224`) don't count tools and are unchanged. |
+| C6 | Unchanged result | 50b582f | `leaveOutLookUpTable` removes the `mapped` row and appends a `leftOut` row if there isn't one. Before the change, a table with contrast had no mapped row to remove. Now it has one, and it is removed. The final rows are the same in the same order: `[lookUpTable:approximated, …, lookUpTable:leftOut]`. `anUnreadableTableKeepsItsApproximatedValues` is unchanged, now runs through the new path, and passes. With a second table as well (mapped, approximated, left out), the left-out row is already there, so nothing is appended twice. |
+| Values | No change | 50b582f | The diff in `Sources/` is `toolReports()` and the new set, nothing else. The adjustments, groups, the table and the stored preset are built before and apart from the report. No migration, no pipeline bump, no golden. |
+| Tests | Would fail without the change | 50b582f | Without the exception, a table with Contrast 12 gives only `[lookUpTable:approximated]`, so `report.mapped == [.lookUpTable]` and `counts == [1, 1, 0]` both fail, and so does the updated `statuses` expectation in `PresetPackMappingTests`. The new test also states the count-equals-lines property. The opt-in suite's added totals line only prints. |
+| 6.2.4 | No new risk | 50b582f | A `static let` `Set` of `LuminarToolReference` (already `Hashable, Sendable`), a `compactMap` condition, and in the tests a tuple key path `\.0` (Swift 5.1) and a `reduce`. No new language feature. |
+| Docs | Match | 50b582f | `USER_GUIDE.md` explains the double listing. `status.md` records the ruling, the tests and the owner's pack totals. |
+
+New finding:
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C13 | Nit | `docs/features/luminar-preset-import/status.md:102-104` | The edit to the Report granularity point left part of the old sentence behind: "The rest of this point is unchanged: listed as mapped; the same tool can be both mapped and left out …". The words "listed as mapped;" belong to nothing. | It reads as if something more is "listed as mapped". It should read "The rest of this point is unchanged: the same tool can be both mapped and left out (a second look-up table)." The record only; no code. | Correctness of the record |
+
+QA can run again. The re-run is the report's lines and counts for a preset
+whose table tool sets contrast or saturation (Heritage Hues: "3 mapped, 5
+approximated", with LUT Mapping under Mapped and under Approximated), and the
+unreadable-table case, which should read as before. This commit adds no
+parser, subprocess, file write or network code. `/security-review` still
+applies to the branch as listed in the earlier passes.
