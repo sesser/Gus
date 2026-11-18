@@ -201,6 +201,16 @@ already finds every value equal within rounding).
   look's toning, color a black and white conversion keeps, a vignette's
   feather, inner light or offset) are part of that tool's "approximated", not
   named on their own.
+- C11 (fourth review, accepted by the coordinator): Remove from Library's
+  confirmation goes up only after a catalog read (`askToRemove`), so if ⌘⌫ is
+  pressed while a pack import is ending, the import can end inside that read,
+  find no modal up and open the preset manager; the removal confirmation then
+  comes after it. Rare: the window is one catalog read wide.
+- C12 (fourth review, accepted): `LibraryModalTests` is a tripwire on
+  `MainView.swift` and `SidebarView.swift` only, and counts `.sheet(`,
+  `.confirmationDialog(`, `.alert(` and `.fullScreenCover(`, not
+  `.fileImporter`, `.fileExporter` or `.fileMover` (none used on the window
+  today). A presenter added elsewhere on the window is not caught.
 - Develop's Brightness, which the prototype reports as "other", shows as
   "Not recognized: Brightness".
 - Type-check times of the new code (local compiler): no PhotoCore expression
