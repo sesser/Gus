@@ -169,6 +169,55 @@ same text but not the view's labels.
   debug build): **Import…** is dimmed and the spinner with "Importing…" shows;
   Done during the import does not leave the sheet stuck.
 
+## Confirmation (2026-11-17)
+
+Reviewer: apple-ui-designer. Against `status.md` and commit 7d784f0 (and the
+earlier review-fix commits). Read from code only: I have no shell, so I did not
+build, run the tests or run the `preset sheets` command; the results below that
+come from a run are `status.md`'s (1134 tests pass, F2 debug-script output).
+
+| # | Result | Evidence |
+|---|---|---|
+| F1 | Confirmed | `PresetPackTableTests.everyImportExtensionHasAType` loops `PresetImport.fileExtensions`, expects a non-nil `UTType(filenameExtension:)` for each with the extension in the failure message, and repeats my `compactMap` count comparison. `status.md` says it passes on macOS 27.2 and that no type is declared; CI runs it on 26 and 15. If it fails there, it is a Design question, not a declared type. |
+| F2 | Confirmed, behavior acceptable (below) | `openPresetSheetWhenFree` sets `presetSheetWaits` when Export or the look-up table sheet is up and otherwise sets `showsPresetSheet`. `MainView` gives both of those sheets `onDismiss: model.sheetDidDismiss`, which re-checks that neither is up again and then sets the report page and opens the manager. `presetManagerPage = .report` is set at import end as well, so a wait leaves the page right. The Import Report button and the spoken summary are unchanged. `status.md`'s `preset sheets` output (export, then lut, up: "waits true attached 1"; after close: manager open on the report, attached 1) shows one sheet attached at every point. |
+| Nit 1 (`PageHeader` comment) | Confirmed | The comment now says Esc goes back and "on a page it never closes the sheet", which is true of every user of it. |
+| Nit 2 (`.help` on `UnreadablePresetRow`) | Confirmed | `.help(PresetReportText.name(preset))` beside `lineLimit(1)` and tail truncation, as the readable rows have. |
+
+**Is F2's behavior acceptable under the one-sheet rule?** Yes. The rule
+(design §2.2, UI_REDESIGN §8) is that a person never sees two sheets at once or
+loses one to another. Waiting for the other sheet to finish closing keeps that,
+and using `onDismiss` rather than the flag going false avoids presenting during
+the close animation, the case where SwiftUI is least predictable. Three details
+I checked and accept:
+
+- The report is deferred, never dropped: if the person cancels Export, or closes
+  the look-up tables, the manager still opens on the report, and it stays
+  available from **Import Report** whatever happens.
+- If the person opens the other sheet again in the gap between its close and the
+  `onDismiss` call, the guard in `sheetDidDismiss` keeps the wait, and the next
+  dismissal opens the report. It cannot open over a sheet.
+- The summary is spoken at the import's end, while the other sheet may still be
+  up. That is right: it tells VoiceOver users the import finished, and the page
+  follows.
+
+One thing I am labelling as judgment, not a defect: a person who is in the
+Export sheet when the import ends gets no visible sign until it closes. Export is
+a short, modal task, so I would not add one (an Activity message would be a
+second place for the same result).
+
+**M9 stays a manual check, narrowed.** The debug script drives the flags
+(`showsExportSheet`, `showsLookTableSheet`) and shows one attached sheet, but
+not a real ⇧⌘E arriving from the keyboard in the second after the open panel
+closes, nor SwiftUI's real `onDismiss` timing under a real close animation (the
+script's `export close` sets the flag). Keep M9, as: choose packs, press ⇧⌘E
+at once; the Export sheet stays; Cancel it; the manager opens on the report
+with nothing doubled; repeat with Browse Look-Up Tables…. It is quick and the
+owner can do it on any one pack. The owner's own record says VoiceOver and macOS
+15 and 26 are not asked of them, so this stays on macOS 27.
+
+**Result: F1, F2 and both nits are closed. Verdict unchanged: pass.** Open
+manual checks are M1 to M12 as listed above, with M9 as just described.
+
 ## Summary for the issue
 
 Design review of #203: pass with two small findings, no blocker. The Import Report page, manager changes, catalog strings (plurals, translator comments, keyed tool names) and user guide match design.md rev 2; the Finder double-click line is corrected. Open: F1 (add the test that every importable extension has a `UTType`, which the design asked for and is missing) and F2 (a pack import ending while Export or look-up sheet is up: confirm the one-sheet rule holds). Two corrections to my own design.md (§12): macOS `.caption` is 10 pt, and Light is unreachable in the dark-only library window. Manual checks M1 to M12 (open panel, Increase Contrast, keyboard in a `List` without selection, "Not recognized" look, Finder, race with another sheet). I had no shell, so the PRD was not re-read. Details: docs/features/luminar-preset-import/review.md
