@@ -204,6 +204,35 @@ struct PresetPackReadingTests {
         }
     }
 
+    /// Configurations, templates and `.strings` larger than the text limit are refused before they are
+    /// decompressed or parsed (code review C8); a table is not text and only has the member limit.
+    @Test func refusesTextMembersOverTheTextLimit() throws {
+        #expect(LuminarPack.maximumTextSize == 4 * 1024 * 1024)
+        var files = PackFixture.files(presets: PackFixture.twoPresets())
+        let table = "\(PackFixture.packID)/11111111-0000-0000-0000-000000000000.lnp/resources/TABLE.CUBE"
+        var textSizes: [Int] = []
+        for (path, data) in files where !path.hasSuffix(".CUBE") && !path.hasSuffix(".jpg") { textSizes.append(data.count) }
+        let limit = textSizes.max() ?? 0
+        // A table larger than the text limit reads.
+        files[table] = Data(String(repeating: "# padding\n", count: limit).utf8) + PackFixture.identityCube
+        let pack = try #require(try LuminarPack.read(ZipWriter.archive(files), fileName: "p.lnpc", language: "en",
+                                                     textLimit: limit).first)
+        #expect(pack.presets.count == 2)
+        #expect((pack.presets[1].resources["TABLE.CUBE"]?.count ?? 0) > limit)
+
+        let texts = ["Config/config.json", "\(PackFixture.packID)/config.json",
+                     "\(PackFixture.packID)/11111111-0000-0000-0000-000000000000.lnp/template.lmps",
+                     "\(PackFixture.packID)/localizations/en.strings"]
+        for path in texts {
+            var oversized = files
+            // Trailing spaces: still valid, one byte over the limit.
+            oversized[path] = (files[path] ?? Data()) + Data(repeating: 0x20, count: limit + 1 - (files[path]?.count ?? 0))
+            #expect(throws: LuminarPack.Failure.tooLarge, "\(path)") {
+                try LuminarPack.read(ZipWriter.archive(oversized), fileName: "p.lnpc", language: "en", textLimit: limit)
+            }
+        }
+    }
+
     /// A list can name far more presets than the archive holds: refused before any row is made (code review C1).
     @Test func refusesAPackListingTooManyPresets() throws {
         var files = PackFixture.files(presets: PackFixture.twoPresets(),

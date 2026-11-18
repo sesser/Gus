@@ -346,6 +346,9 @@ enum DebugScript {
             switch rest.first {
             case "smart": model.sidebarSheet = .smartAlbum(model.smartAlbums.first, projectID: nil)
             case "album": model.sidebarSheet = .newAlbum(projectID: nil)
+            // The delete confirmation for the first smart album, and closing it.
+            case "deletesmart": model.sidebarDeletion = model.smartAlbums.first.map { .smartAlbum($0) }
+            case "deleteclose": model.sidebarDeletion = nil
             default: model.sidebarSheet = nil
             }
         case "checkdisk":
@@ -539,6 +542,7 @@ enum DebugScript {
                 // preset sheets: which sheet flags are up, the manager's page, and a waiting report.
                 let attached = NSApp.windows.filter { $0.attachedSheet != nil }.count
                 print("debug-script: sheets export \(model.showsExportSheet) lut \(model.showsLookTableSheet) "
+                      + "sidebar \(model.sidebarSheet != nil) deletion \(model.sidebarDeletion != nil) "
                       + "presets \(model.showsPresetSheet) page \(model.presetManagerPage == .report ? "report" : "list") "
                       + "waits \(model.presetSheetWaits) attached \(attached)")
             case "reportpage":

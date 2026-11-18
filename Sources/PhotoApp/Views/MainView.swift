@@ -37,10 +37,10 @@ struct MainView: View {
         }
         // One sheet at a time (section 8, "The rule").
         // A pack import that ended under one of these opens the preset manager when it has closed.
-        .sheet(isPresented: $model.showsExportSheet, onDismiss: model.sheetDidDismiss) {
+        .sheet(isPresented: $model.showsExportSheet, onDismiss: { model.sheetDidDismiss() }) {
             ExportSheet(model: model)
         }
-        .sheet(isPresented: $model.showsLookTableSheet, onDismiss: model.sheetDidDismiss) {
+        .sheet(isPresented: $model.showsLookTableSheet, onDismiss: { model.sheetDidDismiss() }) {
             LookTableBrowserSheet(model: model)
         }
         .sheet(isPresented: $model.showsPresetSheet) {

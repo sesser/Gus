@@ -17,7 +17,8 @@ Reference for the mapping and scales: the owner's prototype `lnp2gus`
 | Baseline (branch at 00a016f) | clean | 1072 tests in 161 suites, all pass |
 | After b57a25a | clean, no new warnings | 1127 tests in 169 suites, all pass; no golden changed |
 | After the DQ-1 change | clean, no new warnings | 1128 tests in 169 suites, all pass; no golden changed |
-| Latest (review fixes) | clean, no new warnings | 1134 tests in 169 suites, all pass; no golden changed |
+| After the first review fixes | clean, no new warnings | 1134 tests in 169 suites, all pass; no golden changed |
+| Latest (second-pass fixes, C7 and C8) | clean, no new warnings | 1135 tests in 169 suites, all pass; no golden changed |
 
 ## What was built
 
@@ -30,7 +31,9 @@ PhotoCore (no AppKit or SwiftUI):
   package.**
 - `Presets/Luminar/LuminarPack.swift`: reads a pack from memory (a regular
   file only, symbolic links followed, read through a handle capped at
-  256 MiB; at most 512 MiB decompressed; at most 1,000 presets listed or
+  256 MiB; at most 512 MiB decompressed; members parsed as text, that is
+  configurations, templates and `.strings`, at most 4 MiB each, refused from
+  the declared size before decompressing; at most 1,000 presets listed or
   found, counted before any row is made), typed
   refusals (`LuminarPack.Failure`), names in the system language when the pack
   has it, English otherwise, presets in the pack's order, a preset that can't
@@ -136,7 +139,7 @@ fails if one changes without the test.
 | AC8 | `badFilesAreRefusedAndTheRestImport` (truncated → damaged, no config, text file), `refusesWhatIsNotAReadablePack`; no temp files: `packCodeWritesNoFiles` (no write API in the pack and zip code; reading takes `Data`) | Done |
 | AC9 | `assumedScalesAreTheRecordedOnes` | Done |
 | AC10 | `PresetPackTableTests`: every table case reported by the mapping from a template; R6's tools left out; unknown identifiers verbatim; the catalog's `presetPackTool.` entries are exactly the table's and nothing else has the tool-name comment; no `lnpc` or the format's name in either `Info.plist`; Finder open path takes `PresetFile.fileExtensions` only; no catalog string names the format's application or maker; `LocalizationTests` and `BrandingTests` pass; manual M6 | Done |
-| AC11 | full `swift test`: 1134 tests pass, goldens untouched; no migration, no pipeline bump | Done |
+| AC11 | full `swift test`: 1135 tests pass, goldens untouched; no migration, no pipeline bump | Done |
 | AC12 | the owner, by eye (manual). Opt-in `PresetPackSampleTests.conversionsMatchThePrototype` compares all 40 presets of the four packs with the prototype's own output: all match within rounding | Manual |
 
 Opt-in suite (real packs, never committed):
@@ -240,6 +243,8 @@ the pack import tests unchanged and passing.
 | F1 | No test that every import extension gives a `UTType` | `everyImportExtensionHasAType`; passes on macOS 27.2 here, so no Design question (CI runs it on 26 and 15) | Fixed |
 | F2 | The manager could open over another sheet at the end of a pack import | `openPresetSheetWhenFree`: with Export or the look-up table sheet up, the report waits (`presetSheetWaits`) and the manager opens on it from that sheet's `onDismiss`, after it has closed. Debug script `preset sheets` (below) | Fixed |
 | Nits | `PageHeader`'s stale comment; no `.help` on an unreadable preset's truncated name | Comment corrected; `.help` added | Fixed |
+| C7 (second pass) | F2's guard missed the sidebar's sheet (New Album…, New Smart Album…, Edit Smart Album…, a keyword's Rename…) and its delete confirmation | One rule, `otherSheetIsUp` (Export, look-up tables, `sidebarSheet`, `sidebarDeletion`), used by `openPresetSheetWhenFree` and `sheetDidDismiss`; the sidebar's `.sheet(item:)` has an `onDismiss`, and the delete confirmation (a `confirmationDialog`, which has none) calls `sheetDidDismiss` when it closes (`onChange`). Every `onDismiss` is a closure, `{ model.sheetDidDismiss() }`, not a method reference. Debug-script checks below; the rule lives in PhotoApp, which has no test target, so there is no unit test | Fixed |
+| C8 (second pass) | Text members capped only by the 64 MiB member limit | `LuminarPack.maximumTextSize` (4 MiB) for configurations, templates and `.strings`, checked from the archive's declared size before reading; tables keep the member limit. Test `refusesTextMembersOverTheTextLimit` (each kind one byte over an internal limit; a table larger than it still reads) | Fixed |
 
 F2 checks (bundle copy, scratch library, `--library-root`):
 `selectall; export window; preset summary MadeUp.lnpc; preset sheets` gives
@@ -249,6 +254,14 @@ F2 checks (bundle copy, scratch library, `--library-root`):
 open` / `lutwindow close`. With no other sheet up, the manager opens at once
 on the report. Only one sheet is attached at any point. Manual M9 (a real
 ⇧⌘E in the second after the panel closes) stays for a person.
+
+C7 checks, the same way, with the debug script's new `sheet deletesmart` and
+`sheet deleteclose`: `sheet smart` (New Smart Album…), `sheet album` (New
+Album…) and the smart album delete confirmation each give, after `preset
+summary MadeUp.lnpc`, "sidebar true" (or "deletion true") "… presets false
+page report waits true attached 1", and after closing, "presets true page
+report waits false attached 1"; the snapshot after the confirmation closes
+is the Import Report page.
 
 ## Rulings (owner, 2026-11-17)
 

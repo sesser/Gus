@@ -12,6 +12,9 @@ public struct LuminarPack: Sendable {
     public static let maximumFileSize = 256 * 1024 * 1024
     /// At most this much is decompressed from one file.
     public static let maximumReadSize = 512 * 1024 * 1024
+    /// Members parsed as text (configurations, templates, `.strings`) larger
+    /// than this are refused before they are decompressed; real ones are a few KB.
+    public static let maximumTextSize = 4 * 1024 * 1024
     /// At most this many presets in one file, listed or found (packs hold about ten).
     public static let maximumPresetCount = 1000
 
@@ -82,14 +85,14 @@ public struct LuminarPack: Sendable {
     }
 
     static func read(_ data: Data, fileName: String, language: String,
-                     readBudget: Int = maximumReadSize) throws -> [LuminarPack] {
+                     readBudget: Int = maximumReadSize, textLimit: Int = maximumTextSize) throws -> [LuminarPack] {
         let archive: ZipArchive
         do {
             archive = try ZipArchive(data: data)
         } catch let failure as ZipArchive.Failure {
             throw Failure(failure)
         }
-        var reader = Reader(archive: archive, readBudget: readBudget)
+        var reader = Reader(archive: archive, readBudget: readBudget, textLimit: textLimit)
         return try reader.packs(fallbackName: LookTableNaming.cleanedFileName(fileName), language: language)
     }
 }
@@ -114,11 +117,13 @@ extension LuminarPack {
         /// The files directly in each preset folder's `resources/`, by the preset folder, sorted.
         let resources: [String: [String]]
         let readBudget: Int
+        let textLimit: Int
         var bytesRead = 0
 
-        init(archive: ZipArchive, readBudget: Int) {
+        init(archive: ZipArchive, readBudget: Int, textLimit: Int) {
             self.archive = archive
             self.readBudget = readBudget
+            self.textLimit = textLimit
             var files: [String: ZipArchive.Entry] = [:]
             for entry in archive.entries where !entry.isDirectory {
                 guard let path = Self.normalized(entry.path) else { continue }
@@ -159,8 +164,15 @@ extension LuminarPack {
             }
         }
 
+        /// A member parsed as text: refused as too large, from the size the archive declares, before it is read.
+        mutating func readText(_ path: String) throws -> Data {
+            guard let entry = files[path] else { throw LuminarPack.Failure.damaged }
+            guard entry.uncompressedSize <= textLimit else { throw LuminarPack.Failure.tooLarge }
+            return try read(path)
+        }
+
         mutating func object(_ path: String) throws -> [String: Any] {
-            var data = try read(path)
+            var data = try readText(path)
             if data.starts(with: [0xEF, 0xBB, 0xBF]) { data = Data(data.dropFirst(3)) }
             guard let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
                 throw LuminarPack.Failure.unreadableSettings
@@ -174,7 +186,7 @@ extension LuminarPack {
             for candidate in language == "en" ? ["en"] : ["en", language] {
                 let path = Self.join(folder, "localizations/\(candidate).strings")
                 guard files[path] != nil else { continue }
-                if let table = StringsTable.parse(try read(path)) { texts.merge(table) { $1 } }
+                if let table = StringsTable.parse(try readText(path)) { texts.merge(table) { $1 } }
             }
             return texts
         }
@@ -259,7 +271,7 @@ extension LuminarPack {
             guard files[templatePath] != nil else { return .unreadable(name: nil) }
             let template: LuminarTemplate
             do {
-                template = try LuminarTemplate(data: try read(templatePath))
+                template = try LuminarTemplate(data: try readText(templatePath))
             } catch LuminarPack.Failure.tooLarge {
                 throw LuminarPack.Failure.tooLarge
             } catch {
