@@ -496,3 +496,17 @@ progress and a partly unreadable pack; those are assumptions above.
   the identifier in monospace, unaltered, wrapping at commas, copyable; the
   count line includes it under "left out". QA checks its accessibility label by
   the debug script where it can; the owner is not asked to run VoiceOver.
+
+## 12. Corrections found at design review (2026-11-17)
+
+- **12.1 Caption size.** §2.3 and §6 call `.caption` "11 pt". On macOS it is
+  10 pt (HIG Typography, macOS built-in styles: Caption 1 is 10 pt; the
+  minimum size is 10 pt). The page uses `.caption` for count lines and
+  reasons, as the manager's own preset rows do, and 11 pt (`.system(size:
+  11)`) for the summary lines, as the manager's footnote does. Both are above
+  the HIG minimum and consistent with the manager, so the implementation
+  stands; read "11 pt" in §2.3 and §6 as "the manager's caption (10 pt) and
+  footnote (11 pt) sizes".
+- **12.2 Light appearance.** M2 asks for Light. The library window is dark
+  only and its sheets inherit that, so Light is not reachable: check Dark and
+  Increase Contrast.
