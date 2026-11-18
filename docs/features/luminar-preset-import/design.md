@@ -1,7 +1,10 @@
 # Import preset packs (.lnpc): design
 
 Owner: apple-ui-designer. Date: 2026-11-17.
-Issue: #203. Status: complete. One Requirements issue (RI-1), assumptions in §9.
+Issue: #203. Status: complete (rev 2, 2026-11-17: PRD rev 2 and the owner's RI-1
+ruling applied; §2.3 "Names", §6, §8, §10). No open Requirements issue; one
+clarification for the product manager in §10 (RI-2, not blocking). Assumptions
+in §9.
 
 **Inputs.**
 
@@ -175,7 +178,7 @@ relevant", with the most useful information visible by default. The counts are
 that information; the tool names are the detail. Collapsed by default because a
 pack is long and the person is usually hunting for what was left out.
 
-**Expanded** a preset shows up to three lines, one per status, each a leading
+**Expanded** a preset shows up to four lines, one per status, each a leading
 SF Symbol and then words, omitting a status with no tools:
 
 | Status | Symbol | Line |
@@ -183,6 +186,7 @@ SF Symbol and then words, omitting a status with no tools:
 | Mapped | `checkmark.circle` | "Mapped: ‹tools›" |
 | Approximated | `plusminus.circle` | "Approximated: ‹tool› (as ‹Gus control›), …" |
 | Left out | `minus.circle` | "Left out: ‹tools›" |
+| Not recognized | `questionmark.circle` | "Not recognized: ‹identifiers›" (§2.3 "Names") |
 
 The tools are joined with `formatted(.list(type: .and))`, wrapping to several
 lines. The word and the symbol both carry the status, so color and shape are
@@ -191,16 +195,64 @@ secondary color; nothing is red or green. A left-out tool is not an error, and a
 sea of red across a pack would make an expected result look like a failure.
 Symbols are `.accessibilityHidden(true)`; the words say it.
 
-Names and what they are:
+**Names, by where they come from** (PRD rev 2, R11):
 
-- **Gus control names** ("Clarity", "Tone Curve") are catalog strings, from
-  `AdjustText` where one exists.
-- **Luminar tool names, pack names and preset names** are data read from the
-  pack and shown **verbatim**, never put in the String Catalog (R11:
-  nothing beyond what a chosen pack contains). The views show them with
-  `Text(verbatim:)`. This is RI-1: if the pack carries only identifiers and no
-  display names, the page would show identifiers, and a table of friendlier
-  names in code is what R11 forbids. Needs the product manager (§10).
+| Kind | Source | In the String Catalog? | Shown as |
+|---|---|---|---|
+| Gus control names ("Clarity", "Tone Curve") | `AdjustText` where one exists | yes | normal text |
+| A Luminar tool the mapping knows (mapped, approximated, or one of R6's left-out tools) | the one name table, display name written by us | **yes** | normal text |
+| A Luminar tool the table does not know | the identifier exactly as the pack gives it | **no**, never | monospaced, its own line |
+| Pack names and preset names | read from the pack | no | verbatim, normal text (`Text(verbatim:)`) |
+
+*Known tools go through the catalog.* The display names are our wording (plain
+words for what the tool is called, never Skylum's text), so they follow the
+app's string rules like every other word on screen: a catalog entry per name,
+added by hand, found by `LocalizationTests`, and translatable. They are title-style
+like Gus's control names ("Sky Enhancer"). Each entry carries a translator
+comment, "Name of a tool in an imported preset pack. A proper name: leave it as
+is if there is no usual translation." so a translator does not invent one. The
+precedent is `CameraRawFeature` (PhotoCore enum) with `PresetText.title`
+(PhotoApp, catalog strings); the same split here keeps PhotoCore free of display
+text: a PhotoCore `LuminarTool` enum whose raw value is the pack's identifier
+and whose cases are exactly the tools the mapping handles or R6 names, plus an
+`unknown(identifier)` case for everything else, and a `PresetText` switch giving
+each known case its catalog string. The engineer may structure it differently,
+but the display wording must reach the screen through the catalog, not a
+Swift dictionary of literals (a literal outside `String(localized:)` is exactly
+what `LocalizationTests` catches).
+
+*Unknown identifiers.* A tool the table does not know is by definition left out
+(the mapping has no equivalent and never invents one), so it counts in the
+preset's "left out" total, but it is listed on its own line, **"Not
+recognized: ‹identifiers›"**, never mixed into the "Left out" line. The reasons:
+a name we wrote and an identifier a pack gave must not look alike, since the
+first says "this tool has no equivalent here" and the second says only "this app
+has no word for it". The identifiers are in a **monospaced** system font at the
+line's size (`.system(.body, design: .monospaced)` at 13 pt; `.caption` size is
+not used, the line is content), in the label's primary color, with the words
+"Not recognized:" in the normal font. Monospace is the system convention for
+identifiers and code, needs no color, and survives Increase Contrast and
+Reduce Transparency. Several identifiers are separated by a comma and a space
+(not the localized "and": an identifier list is data), wrapping at the commas;
+an identifier is never truncated or altered, including its case. The text view
+selects as a whole, so the owner can copy an identifier into an issue. The
+construction (one `Text` with the identifier run styled, or an interpolated
+`Text`) is the engineer's; the look is the contract.
+
+If the pack's identifier is empty or whitespace, the row shows "Not recognized: (no
+name)"; the engineer's decision on the exact string (a catalog entry).
+
+*Raw identifier reading (VoiceOver).* An identifier such as a run-together
+camel-case word reads badly as a spoken word, and spelling every one letter by
+letter is slower than useful. The status line is one accessibility element,
+label "Not recognized: ‹identifier›, ‹identifier›", read in the default way; the
+line is not set to spell out. Someone who needs the letters can move through it
+by character with the VoiceOver cursor, which works because the identifier is
+ordinary text (not an image or a custom drawing). This is judgment, not a stated
+Apple rule; a 20-character name read as one word is accepted over a long spelled
+one. The word "Not recognized" tells a listener at once that it is not a
+description. Manual: M7, by the owner's judgment and QA's accessibility
+checks, not by asking the owner to run VoiceOver.
 
 **Long names.** Tool lines wrap (they are the content). Pack and preset names
 truncate at the tail on one line, with the full name as `.help`, as the
@@ -305,7 +357,9 @@ Either way the report must read correctly: it states what it did.
 - **VoiceOver.** The section header is a heading. A preset row reads as the name,
   its count line as the value, and its state "collapsed" or "expanded" from
   `DisclosureGroup`. Each status line is one element read as its text ("Left
-  out: Accent AI, Sky Enhancer"); the symbols are hidden. The refused-file row
+  out: Accent AI, Sky Enhancer"); the symbols are hidden. The "Not recognized"
+  line is read as "Not recognized: ‹identifiers›" with the identifiers as plain
+  text (§2.3 "Names": not spelled out, navigable by character). The refused-file row
   reads as one element: file name, then reason. When the import finishes,
   `AccessibilityText.announce` (medium priority) says the header summary, so
   someone who cannot see the sheet appear still hears the outcome. This
@@ -353,14 +407,18 @@ New or changed keys (final wording, engineer may adjust punctuation only):
 | Section headers | Not imported; Other presets |
 | Pack summary | "‹n› presets", "‹n› look-up tables", "replaced", "‹n› replaced, ‹m› added" |
 | Preset counts | "‹n› mapped", "‹n› approximated", "‹n› left out", "Nothing carried over" |
-| Status lines | Mapped: %@, Approximated: %@, Left out: %@ ; "%@ (as %@)" |
+| Status lines | Mapped: %@, Approximated: %@, Left out: %@, Not recognized: %@ ; "%@ (as %@)" |
+| Tool display names | one entry per tool in the name table (title-style, our wording, each with the translator comment of §2.3). The list is the table's, nothing else: the engineer adds no name for a tool the mapping does not know |
 | Reasons | the six in §3 |
 | VoiceOver | the announcement is the header line |
 
 The Lightroom-era strings stay (the old alert is unchanged for those imports).
-Luminar's name appears in **no** string of ours: users see `.lnpc`, "pack" and
-"preset pack". The format name is data a pack carries, not a word we ship, and
-the existing UI likewise never says "Lightroom".
+The word "Luminar" and its maker's name appear in **no** string of ours: users see
+`.lnpc`, "pack" and "preset pack". The only Luminar-derived words in the catalog
+are the tool display names above, and they are the name table's localization,
+not a second list (RI-2). Pack names, preset names and unknown identifiers are
+data a pack carries, not words we ship, and never enter the catalog; the existing
+UI likewise never says "Lightroom".
 
 `docs/USER_GUIDE.md` (engineer, same change): in the Presets paragraph, add
 `.lnpc` packs to what **Import Presets…** reads; say a pack becomes a collection
@@ -375,9 +433,11 @@ Terms to keep exactly: **Import Presets…**, **Manage Presets…**, **Import**,
 ## 9. Assumptions
 
 - **A1.** Tool statuses reach the UI as structured data, not prose: per preset an
-  ordered list of (verbatim tool name, mapped | approximated | left out,
-  optional Gus control for approximated). PhotoCore decides the status; the UI
-  never infers it. This keeps AC4/AC6 testable without the view.
+  ordered list of (tool: known case or unknown identifier, mapped | approximated |
+  left out, optional Gus control for approximated). An unknown tool is always
+  left out. PhotoCore decides the status; the UI never infers it and never
+  holds display text (§2.3 "Names"). This keeps AC4/AC6 testable without the
+  view.
 - **A2.** A "mapped" tool is one whose settings all became Gus values as the
   prototype does; "approximated" is anything the README table marks so (Structure
   and Details as Clarity, Supercontrast, and the like). Left out is exactly
@@ -398,20 +458,21 @@ Terms to keep exactly: **Import Presets…**, **Manage Presets…**, **Import**,
 
 ## 10. Requirements issues for the product manager
 
-**RI-1 (R11 against R7).** The report must name each Luminar tool, including the
-ones left out, by what the person knows them as ("Accent AI", "Sky Enhancer").
-R11 says Gus ships no Luminar name list and no string beyond what a chosen pack
-contains. The design shows tool names verbatim from the pack and never in the
-catalog, which satisfies R11 only if the pack carries a display name per tool.
-If it carries only identifiers (the mapping needs those as keys anyway), the
-choices are: (a) show identifiers as they are (honest, ugly, and "left out"
-becomes hard to read); (b) a table in code from identifier to display name,
-which is a name list and needs the owner's reading of R11 (the names are facts
-about a file format, as the PRD's own R6 list is); (c) show Gus's description of
-what was left out ("An automatic sky effect") instead, written by us, never the
-tool's name. Recommendation: (b), limited to the tools the mapping already knows,
-if the owner accepts it; otherwise (c). The engineer should say which the
-prototype's pack data allows before this is decided.
+**RI-1: closed.** The owner ruled option (b) on 2026-11-17 and the PRD is rev 2:
+one identifier-to-display-name table in code, limited to the tools the mapping
+knows; unknown tools show their identifier as the pack gives it. The design
+applies it in §2.3 "Names" and §6. (Originally: R11 against R7, whether the
+report could name tools at all when packs carry only identifiers.)
+
+**RI-2 (clarification, not blocking).** The PRD's assumption leaves open
+whether the table's display names go through the String Catalog, "open,
+designer". The design says yes (§2.3): they are our wording on screen, and
+`LocalizationTests` requires a catalog entry for every UI string. AC10 says the
+only Luminar-named data in the repository or the bundle is the one table; the
+catalog entries are that table's localization and so are the same data in a
+second file. Please confirm that reading, or word AC10 as "the table and its
+catalog entries". The engineer's AC10 test should then check the catalog's
+tool-name entries against the table (no entry for a tool the table lacks).
 
 No other requirements issue: the PRD is silent on persistence of the report,
 progress and a partly unreadable pack; those are assumptions above.
@@ -430,3 +491,8 @@ progress and a partly unreadable pack; those are assumptions above.
 - **M5.** A selection of one good pack and one damaged file: the good one imports
   and the damaged one is listed with its reason.
 - **M6.** Double-clicking a `.lnpc` in the Finder does not open Gus.
+- **M7.** A preset with a tool the table does not know (a fixture, or one in the
+  owner's packs): its expanded row has a separate "Not recognized" line with
+  the identifier in monospace, unaltered, wrapping at commas, copyable; the
+  count line includes it under "left out". QA checks its accessibility label by
+  the debug script where it can; the owner is not asked to run VoiceOver.
