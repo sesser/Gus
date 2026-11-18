@@ -248,7 +248,8 @@ The PRD's own wording is still unread; criteria come from `status.md`'s table.
 a gap at the exact crop edge that I think reopens it (R2-1, unconfirmed, a
 small fix). One wording nit in the user guide (R2-2). No Requirements issues,
 no Design questions, and no ruling in `design.md` needs changing: DQ-1, DQ-2
-and R-3 stand as written. Ready for QA once R2-1 is answered.
+and R-3 stand as written. Ready for QA once R2-1 is answered
+(R2-1 and R2-2 are confirmed closed at baf350c: see the confirmation below).
 
 | # | Result | Evidence and remaining doubt |
 |---|---|---|
@@ -307,6 +308,29 @@ the spot stays drawn and selected: R2-1). One addition for the owner:
   ⌫ deletes the spot and does not edit the field (the `mouseDown` path of F5).
 
 Per the standing rule, VoiceOver is not among them; F1 stands on S6.
+
+### Confirmation of R2-1 and R2-2 (2026-11-18, commit baf350c)
+
+Same limits: no shell, so no `git show`, no run of the app, the script or the
+tests. I read the files as they stand at baf350c and took the script output
+(S7) as the engineer's, not mine.
+
+| # | Result | Evidence |
+|---|---|---|
+| R2-1 | Closed (by reading; run output is the engineer's) | My reading was right in kind and understated: `MaskPoint` rounds stored points to 10⁻⁶, which the engineer found sends 20 of 32 far drags outside, far more than float error. The fix is in the right place. `SpotCrop.held` (`SpotGeometry.swift`, PhotoCore) clamps in the output, maps back, and if the stored point still maps outside, retries with margins 10⁻⁶, 10⁻⁵, 10⁻⁴, 10⁻³ until it passes `contains`; a point already inside is returned unchanged. `SpotCrop.contains` has the 10⁻⁹ tolerance I asked for. The editor uses them in all three places that decide: `heldInCrop` (via `moveSpot`, so drags and option-arrow nudges), `isVisible` (so `visibleSpots`, the overlay, VoiceOver and the menu's count) and `selectedSourceIsOutsideCrop`. `heldInCrop` and `outputPoint(fromMask:)` use the same `maskCrop` and `maskSourceSize`, so the clamp and the visibility test agree on the camera-frame case too. Test `SpotModelTests.heldInCropStaysVisible` covers four crops (turns 0 to 3, Straighten −4.2° to 7.9°, one of 0.17 by 0.13) by eight targets, including corners, asserts `contains` and that the point is on the edge it was pushed to (within 2 × 10⁻³), and that an inside point is untouched. S7 shows a selected spot after drags past all four edges of a 4° straightened crop: `shown` is 1.0000/0.5000, 0.0000/0.5000, 0.5000/0.0000 and 0.5000/1.0000, still selected, `visible 2` counting it, and listed as an `AXButton`. That is the behavior I asked for: held on the crop edge, visible, selected. |
+| R2-2 | Closed | `docs/USER_GUIDE.md` (Spots opening) now reads "turns the tool on in the loupe: the pointer becomes a crosshair with a ring the size of the next spot. **Finish Editing Spots** (the same item while the tool is on, or the button again) turns it off." The crosshair belongs to the tool being on; turning it off is its own sentence. The wording is the one I proposed. |
+
+Residual, none blocking. (1) `held` returns the 10⁻³ attempt if none of the
+steps passes; the test never reaches it, and a 10⁻³ margin on any real crop
+passes, so I treat it as unreachable. (2) The test exercises `SpotCrop` in
+PhotoCore, not the editor's `moveSpot`; the editor's part is one line that calls
+it, and S7 covers the whole path, so I accept this. (3) A held spot sits up to
+2 × 10⁻³ of the crop's size inside the edge in the worst case, not exactly on
+it: not visible to a person. M11 stands as written and is the check by eye.
+
+No new findings. Design: R2-1 and R2-2 are closed; the second pass has no open
+design findings. What remains for the owner is M1 to M13 (none needing
+VoiceOver), after QA.
 
 ## Summary for the issue (first pass, superseded by the second pass above)
 

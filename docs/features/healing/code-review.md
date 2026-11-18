@@ -73,3 +73,25 @@ Checked in `f0d16f5` and fine:
 - Project rules: no new strings without catalog entries (`LocalizationTests` passes), no migration, no pipeline bump, no golden or tolerance touched, no new dependency. No `/security-review` is needed.
 
 Verdict after the second pass: ready for QA. C1 to C5 are fixed, and the C1 residual is acceptable as recorded. C6 is a nit that can go in with any later commit. For QA, a person check: choose Adjust ▸ Spots ▸ Move Spot ▸ Right with the mouse, then click Clone within 1.5 s. Expect two History entries and two ⌘Z steps. The script cannot show this, because it saves after every command either way.
+
+Third pass, 2026-11-18: `baf350c` only (the designer's R2-1 and R2-2, my C6). `swift build` clean; one full
+`swift test` run passed all 1162 tests in 173 suites (69 s).
+
+| # | Status | Commit | Note |
+|---|---|---|---|
+| R2-1 (designer's; code side) | Fixed | `baf350c` | `SpotCrop.held` clamps in output space, maps back, and checks the point as stored (after `MaskPoint`'s 10⁻⁶ rounding), stepping the margin inward when it lands outside. `heldInCrop` is now a thin call with the same `maskCrop` and `maskSourceSize` that `outputPoint(fromMask:)` uses, so the hold and the visibility test see one geometry. `moving` then clamps to [0, 1] and re-rounds an already rounded value, which is idempotent, and `constrained` touches only the source, so the held center is what gets stored. `isVisible` and `selectedSourceIsOutsideCrop` both use `SpotCrop.contains`. No other spot code tests crop containment in output space (`SpotSourceFinder` uses its own polygon in the mask frame). `heldInCropStaysVisible` drives `SpotCrop` directly over four turned or straightened crops and eight far targets, and checks both visibility and that the point lands on the edge. The designer confirms the behavior in `review.md`. |
+| R2-2 (designer's) | Fixed | `baf350c` | The user guide now puts the crosshair with turning the tool on, then **Finish Editing Spots**, as R2-2 asked. Wording is the designer's to confirm. |
+| C6 | Fixed | `baf350c` | `pickFringe`'s two doc lines are back directly above `pickFringe`; `spotAccessibilityElements` has only its own comment. |
+
+Questions asked for this pass:
+
+- **Does the retry loop terminate?** Yes. It is a `for` over five fixed margins (0, 10⁻⁶, 10⁻⁵, 10⁻⁴, 10⁻³) with no other exit than `return`, so it runs at most five map round trips.
+- **Is the tolerance used consistently?** Yes, within the app: `held`'s early return, its success test, `isVisible` and `selectedSourceIsOutsideCrop` all go through `SpotCrop.contains` (10⁻⁹). A point within 10⁻⁹ past an edge is left where it is and counted visible, which agrees.
+
+New finding in `baf350c`:
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C7 | Nit | `Sources/PhotoCore/Edits/Spots/SpotGeometry.swift:117-138` | The doc comment says the result "always passes `contains`". It does not when the crop is very narrow compared with the mask frame. Rounding moves a stored point by up to 5 × 10⁻⁷ of the frame, which is 5 × 10⁻⁷ / `rect.width` in output units. The largest margin tried, 10⁻³, covers that only while the crop is wider than about 1/2000 of the frame. `CropGeometry.minimumEdge` allows max(8 px, 2 % of the short edge), so a frame of more than about 40:1 (or more than about 16,000 px long with a short edge under 400 px) cropped to its minimum can fail every margin. After the last margin, `held` returns a point that is still outside. | Reproduced with the same arithmetic (no turn, x axis) in a scratch script: frame 60,000 × 1,000 px, crop 20 px wide (its minimum) with its right edge at 0.5000009. A drag far past the right edge stores x = 0.500001 at every margin; the output is 1.0003, so `contains` fails, `visibleSpots` drops the spot, and the selected spot's ring disappears (F3's symptom). This is a reasoning trace with the real formulas; I did not run it in the app. No normal photo comes near this: 6000 × 4000 cropped to its 80 px minimum needs a margin of about 4 × 10⁻⁵. Fix, either: derive the last margin from the crop's scale (about 10⁻⁶ × the frame's long edge in pixels ÷ the crop's short edge in pixels, doubled); or, when the stored point is still outside, step it by 10⁻⁶ in the mask frame toward the crop's center until it maps inside. Otherwise, soften the comment to say the margins cover crops wider than about 1/2000 of the frame. | Correctness of a documented guarantee (design §8, F3) |
+
+Verdict after the third pass: ready for QA. R2-1 and C6 are fixed in code, R2-2 in the guide, and the build and tests are green. C7 is a nit at an extreme aspect ratio and can go in with any later commit or be accepted. No `/security-review` is needed: this commit adds no parser, subprocess, file write or network code.
