@@ -97,8 +97,9 @@ I built this with Claude. AI did the work, I did the orchestration.
   a sharper version is planned (#199). If the GPU can't do it, Gus falls back
   to LibRaw and says so in the log
 - Before/after, copy and paste, and presets, including import of Lightroom
-  presets (`.lrtemplate`, `.xmp`, `.dng`) with a report of anything that
-  doesn't carry over
+  presets (`.lrtemplate`, `.xmp`, `.dng`) and Luminar preset packs (`.lnpc`,
+  several at once) with a report of anything that doesn't carry over. Luminar's
+  conversion is approximate, and the report says where
 - HDR display of HDR sources (floating-point DNG, gain-map HEIC and JPEG,
   HLG and PQ) on EDR screens
 

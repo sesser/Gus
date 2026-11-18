@@ -209,6 +209,18 @@ final class LibraryModel {
     }
     /// What the last preset import did, shown in an alert.
     var presetImportSummary: PresetImportSummary?
+    /// What the last import with a preset pack did, read on the preset
+    /// manager's Import Report page; replaced by the next, never stored.
+    var presetImportReport: PresetImport.Result?
+    /// The preset manager's page: its presets, or the import report.
+    var presetManagerPage = PresetManagerPage.list
+    /// A pack import ended while the Export or look-up table sheet was up:
+    /// the preset manager opens on its report when that sheet has closed.
+    var presetSheetWaits = false
+    /// Preset imports started and not finished; they run one after another.
+    var pendingPresetImports = 0
+    /// The newest preset import, which the next one waits for.
+    var presetImportChain: Task<Void, Never>?
     /// Open the import window when a card is inserted (Settings).
     var opensImportOnCard: Bool {
         didSet { UserDefaults.standard.set(opensImportOnCard, forKey: Self.opensImportOnCardKey) }

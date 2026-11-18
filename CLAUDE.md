@@ -873,6 +873,65 @@ high-ISO look, stopping an export, first launch with an empty cache) by eye on
 look; previews for X-E3 files generate a lot faster, no lag"
 (`docs/features/gpu-demosaic/qa.md`).
 
+Luminar preset packs (`docs/features/luminar-preset-import/`, issue #203,
+branch `feature/luminar-preset-import`): the preset manager's Import (Adjust ▸
+Import Presets… and the Presets heading's Import…) takes `.lnpc` packs, several
+at once, beside the other formats. Each pack becomes one preset collection and
+one look-up table collection of the pack's name (never a folder's), presets in
+the pack's order, named in the system language when the pack has it, English
+otherwise. Importing a pack again replaces its presets by name in the same
+collection (the existing rule of `saveAdjustmentPresets`, ids kept) and lists
+no table twice (by SHA-256); a renamed collection is not recognized. A converted
+preset sets only the groups it has, and one with nothing carried over imports
+with none. The conversion is approximate and the owner's (Skylum documents
+neither the format nor its scales): `Presets/Luminar/` (`LuminarPack`,
+`LuminarTemplate`, `LuminarCurves`, `LuminarMapping`, `LuminarTool`) reads a
+pack from memory with our own zip reader (`Support/ZipArchive.swift`, Apple's
+Compression framework for deflate, no new package; nothing is extracted or
+written), and `PresetImport` scans, converts and saves. Assumed scales are
+named constants in `LuminarMapping` (Exposure ±100 = ±2 EV, Color Balance 0.2,
+Warmth 0.1, Structure to Clarity 0.75, Details to Clarity 1.0, Supercontrast
+gain 0.5, and the rest), pinned by `assumedScalesAreTheRecordedOnes`, with no
+setting. Tools with no equivalent (Accent AI, Sky Enhancer, masks and the
+rest of the left-out list) set nothing and are listed. After a pack import the
+manager opens on its Import Report page (a button reopens the last one): per
+pack and per preset what was mapped, approximated or left out, what is not
+recognized (shown by the pack's identifier, verbatim) and which files were not
+imported and why; one file that can't be read never stops the others. A table
+tool that also sets contrast or saturation is listed under both Mapped and
+Approximated (design §13). The report waits while any other sheet, dialog or
+alert of the library window is up (`LibraryModal`, `LibraryModalTests`). The
+one Luminar name list is the identifier-to-display-name table (36 tools,
+`LuminarTool.swift`, each with a keyed `presetPackTool.<case>` catalog entry,
+checked against the table by `PresetPackTableTests`); there is no file type,
+UTI or `Info.plist` entry for `.lnpc`, so the Finder never opens it in the app,
+and no Luminar asset ships. `PresetFile.installTables` now checks cubes
+concurrently (an import of 40 presets and 36 tables takes about 0.7 s; `.guspreset`
+imports behave as before, only faster). Limits: a pack's file at most 256 MiB, 512
+MiB decompressed, 64 MiB per member (4 MiB for text), 1,000 presets, no ZIP64 or
+encryption, regular files only (links followed). Known: two presets with the same
+name in one pack collapse to one, the first kept, compared without regard to case,
+and the report still counts both (RI-E3, kept by the owner, no suffix);
+Develop's Brightness shows as "Not recognized"; a table two packs share is
+listed in the first's collection; C11 (⌘⌫ pressed while a pack import ends, in
+the one catalog read before the removal confirmation, can open the manager
+before the confirmation) and C12 (`LibraryModalTests` reads `MainView` and
+`SidebarView` only and doesn't count `.fileImporter`, `.fileExporter` or
+`.fileMover`) are accepted. The code review lists what `/security-review`
+should read (the zip reader's bounds, CRC and budgets; the file-size and
+symbolic link checks; memory held across an import; the table checks run in
+parallel): the branch adds parsers of outside files, and the other formats'
+existing reads have no size cap (older than this work). No migration, no
+`PreviewCacheKey.currentPipelineVersion` bump, no golden moved, no rendering
+changed. Shipped; the owner checked P1 to P5 (the open panel and the three
+ways in, the page's look and keys, the Finder not opening packs, the report
+beside other sheets and the Importing… state, the eye comparison of his four
+packs' presets with the prototype's output) by eye on 2026-11-18, everything
+fine (#82, `docs/features/luminar-preset-import/qa.md`). The opt-in
+`PresetPackSampleTests` (`LUMINAR_PACKS`, `LUMINAR_PROTOTYPE_OUTPUT`; the
+packs are never committed) finds all 40 presets of the four packs equal to the
+prototype's within rounding.
+
 Not yet: AI masks, healing, lens corrections (distortion, lens vignetting,
 profiles; only the camera's own tables in Fujifilm raws LibRaw decodes), DNG export, `.dcp` profiles
 (a profile's hue/saturation and look tables are not applied, #89),

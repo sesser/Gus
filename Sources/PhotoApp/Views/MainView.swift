@@ -36,10 +36,12 @@ struct MainView: View {
             openWindow(id: "import")
         }
         // One sheet at a time (section 8, "The rule").
-        .sheet(isPresented: $model.showsExportSheet) {
+        // Every sheet, dialog and alert here and in the sidebar is a `LibraryModal`: a pack import
+        // that ended under one opens the preset manager when it has closed (sheets: `onDismiss`).
+        .sheet(isPresented: $model.showsExportSheet, onDismiss: { model.modalDidClose() }) {
             ExportSheet(model: model)
         }
-        .sheet(isPresented: $model.showsLookTableSheet) {
+        .sheet(isPresented: $model.showsLookTableSheet, onDismiss: { model.modalDidClose() }) {
             LookTableBrowserSheet(model: model)
         }
         .sheet(isPresented: $model.showsPresetSheet) {
@@ -55,6 +57,10 @@ struct MainView: View {
             Button("Remove", role: .destructive) { model.confirmRemoval(pending) }
         } message: { pending in
             Text(pending.text.message)
+        }
+        // Dialogs and alerts have no `onDismiss`: their closing is seen here.
+        .onChange(of: model.dialogIsUp) { _, isUp in
+            if !isUp { model.modalDidClose() }
         }
         .alert(model.presetImportSummary?.title ?? "", isPresented: Binding(
             get: { model.presetImportSummary != nil }, set: { if !$0 { model.presetImportSummary = nil } }

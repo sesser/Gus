@@ -19,7 +19,7 @@ struct PresetsSection: View {
                 VStack(alignment: .leading, spacing: 10) {
                     buttons
                     if model.adjustmentPresets.isEmpty {
-                        Text("Save a photo's adjustments as a preset, or import presets (.\(PresetFile.fileExtension), .lrtemplate, .xmp or .dng).")
+                        Text("Save a photo's adjustments as a preset, or import presets (.\(PresetFile.fileExtension), .lrtemplate, .xmp, .dng or .lnpc).")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -66,7 +66,7 @@ struct PresetsSection: View {
 
     private var importButton: AppKitButton {
         AppKitButton(title: String(localized: "Import…"), style: .push,
-                     help: String(localized: "Add presets from files or folders (.\(PresetFile.fileExtension), .lrtemplate, .xmp or .dng)")) {
+                     help: String(localized: "Add presets from files or folders (.\(PresetFile.fileExtension), .lrtemplate, .xmp, .dng or .lnpc)")) {
             model.chooseAdjustmentPresetImport()
         }
     }

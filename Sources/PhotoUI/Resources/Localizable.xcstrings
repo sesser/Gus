@@ -34,6 +34,17 @@
         }
       }
     },
+    "%@ (as %@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ (as %2$@)"
+          }
+        }
+      },
+      "comment" : "Import report: a tool of a preset pack, then the app's controls it was approximated with"
+    },
     "%@ (default)" : {
       "comment" : "RAW decoder version menu item; the argument is a version name",
       "localizations" : {
@@ -309,6 +320,17 @@
         }
       }
     },
+    "%lld approximated" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld approximated"
+          }
+        }
+      },
+      "comment" : "Import report: tools of a preset carried over approximately"
+    },
     "%lld K" : {
       "comment" : "Color temperature in kelvin",
       "localizations" : {
@@ -457,6 +479,74 @@
         }
       }
     },
+    "%lld left out" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld left out"
+          }
+        }
+      },
+      "comment" : "Import report: tools of a preset with no equivalent here"
+    },
+    "%lld look-up tables" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld look-up table"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld look-up tables"
+                }
+              }
+            }
+          }
+        }
+      },
+      "comment" : "Import report: look-up tables a pack's presets use"
+    },
+    "%lld look-up tables added" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld look-up table added"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld look-up tables added"
+                }
+              }
+            }
+          }
+        }
+      },
+      "comment" : "Import report header: look-up tables new to the library"
+    },
+    "%lld mapped" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld mapped"
+          }
+        }
+      },
+      "comment" : "Import report: tools of a preset carried over"
+    },
     "%lld mm" : {
       "comment" : "Focal length",
       "localizations" : {
@@ -524,6 +614,29 @@
           }
         }
       }
+    },
+    "%lld packs" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld pack"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld packs"
+                }
+              }
+            }
+          }
+        }
+      },
+      "comment" : "Import report header: preset packs imported"
     },
     "%lld photos" : {
       "comment" : "Window subtitle; also VoiceOver, after the result of a culling action on several photos (“Picked, 12 photos”)",
@@ -847,6 +960,40 @@
         }
       }
     },
+    "%lld presets" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld preset"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld presets"
+                }
+              }
+            }
+          }
+        }
+      },
+      "comment" : "Import report: presets imported (header), or a pack's presets (its section)"
+    },
+    "%lld replaced, %lld added" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld replaced, %2$lld added"
+          }
+        }
+      },
+      "comment" : "Import report: presets of a pack already in the library (replaced), and new ones"
+    },
     "%lld selected of %lld" : {
       "comment" : "Window subtitle: how many photos are selected, of how many shown",
       "localizations" : {
@@ -984,6 +1131,17 @@
           }
         }
       }
+    },
+    "(no name)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(no name)"
+          }
+        }
+      },
+      "comment" : "Import report: a tool the pack names with an empty identifier"
     },
     "100%" : {
       "comment" : "Toolbar, loupe: show the photo at actual size; also a zoom level of the pixel magnifier",
@@ -1417,13 +1575,13 @@
         }
       }
     },
-    "Add presets from files or folders (.%@, .lrtemplate, .xmp or .dng)" : {
+    "Add presets from files or folders (.%@, .lrtemplate, .xmp, .dng or .lnpc)" : {
       "comment" : "Tooltip of the Presets heading's Import button; the argument is this app's preset file extension",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Add presets from files or folders (.%@, .lrtemplate, .xmp or .dng)"
+            "value" : "Add presets from files or folders (.%@, .lrtemplate, .xmp, .dng or .lnpc)"
           }
         }
       }
@@ -1934,6 +2092,17 @@
           }
         }
       }
+    },
+    "Approximated: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Approximated: %@"
+          }
+        }
+      },
+      "comment" : "Import report: the tools of a preset carried over approximately"
     },
     "Aqua" : {
       "comment" : "Fringe color name",
@@ -2694,13 +2863,13 @@
         }
       }
     },
-    "Choose presets (.%@, .lrtemplate, .xmp or .dng), or folders of them." : {
+    "Choose presets (.%@, .lrtemplate, .xmp, .dng or .lnpc), or folders of them." : {
       "comment" : "Open panel message when importing presets; the argument is this app's preset file extension",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Choose presets (.%@, .lrtemplate, .xmp or .dng), or folders of them."
+            "value" : "Choose presets (.%@, .lrtemplate, .xmp, .dng or .lnpc), or folders of them."
           }
         }
       }
@@ -5421,6 +5590,28 @@
         }
       }
     },
+    "Import Report" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import Report"
+          }
+        }
+      },
+      "comment" : "Preset manager: the page listing what an import with a preset pack did, and the button that opens it"
+    },
+    "Importing…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importing…"
+          }
+        }
+      },
+      "comment" : "Preset manager: shown beside Import… while presets are being imported"
+    },
     "ISO" : {
       "comment" : "Smart album rule field",
       "localizations" : {
@@ -6120,6 +6311,17 @@
         }
       }
     },
+    "Its settings can't be read." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Its settings can't be read."
+          }
+        }
+      },
+      "comment" : "Import report: a preset of a pack that was skipped"
+    },
     "JPEG" : {
       "comment" : "Grid badge: JPEG file",
       "localizations" : {
@@ -6339,6 +6541,17 @@
           }
         }
       }
+    },
+    "Left out: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Left out: %@"
+          }
+        }
+      },
+      "comment" : "Import report: the tools of a preset with no equivalent here"
     },
     "LGPL 2.1" : {
       "comment" : "About window: LibRaw's license, as a short name",
@@ -6877,6 +7090,17 @@
           }
         }
       }
+    },
+    "Mapped: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mapped: %@"
+          }
+        }
+      },
+      "comment" : "Import report: the tools of a preset carried over exactly"
     },
     "Margin" : {
       "comment" : "Export window: watermark margin",
@@ -7690,6 +7914,17 @@
         }
       }
     },
+    "Not a preset pack." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not a preset pack."
+          }
+        }
+      },
+      "comment" : "Import report: why a file was not imported (not a zip archive, or no pack configuration in it)"
+    },
     "Not Available While Comparing" : {
       "comment" : "Adjust tab while two photos are compared: title",
       "localizations" : {
@@ -7700,6 +7935,28 @@
           }
         }
       }
+    },
+    "Not imported" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not imported"
+          }
+        }
+      },
+      "comment" : "Import report: section listing files that were refused"
+    },
+    "Not recognized: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not recognized: %@"
+          }
+        }
+      },
+      "comment" : "Import report: tools this app has no name for; the argument is their identifiers, as the pack gives them"
     },
     "Not Rejected" : {
       "comment" : "View ▸ Filter, Flag section",
@@ -7844,6 +8101,17 @@
         }
       }
     },
+    "Nothing carried over" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing carried over"
+          }
+        }
+      },
+      "comment" : "Import report: a preset none of whose tools could be carried over"
+    },
     "Nothing is running." : {
       "comment" : "Activity popover with no jobs and no messages",
       "localizations" : {
@@ -7854,6 +8122,17 @@
           }
         }
       }
+    },
+    "Nothing was imported." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing was imported."
+          }
+        }
+      },
+      "comment" : "Import report header when every file was refused"
     },
     "Numbering" : {
       "comment" : "Template field Insert menu section",
@@ -8084,6 +8363,17 @@
           }
         }
       }
+    },
+    "Other presets" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Other presets"
+          }
+        }
+      },
+      "comment" : "Import report: section for presets from files that are not packs"
     },
     "Output sharpening" : {
       "comment" : "Export sheet row",
@@ -8490,6 +8780,17 @@
         }
       }
     },
+    "Preset %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preset %lld"
+          }
+        }
+      },
+      "comment" : "Import report: a preset with no readable name, by its place in the pack"
+    },
     "Preset name" : {
       "comment" : "Preset editor field",
       "localizations" : {
@@ -8500,6 +8801,402 @@
           }
         }
       }
+    },
+    "presetPackTool.accentAI" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accent AI"
+          }
+        }
+      },
+      "comment" : "Name of a tool in an imported preset pack. A proper name: leave it as is if there is no usual translation."
+    },
+    "presetPackTool.aiNoiseReduction" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI Noise Reduction"
+          }
+        }
+      },
+      "comment" : "Name of a tool in an imported preset pack. A proper name: leave it as is if there is no usual translation."
+    },
+    "presetPackTool.atmosphere" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Atmosphere"
+          }
+        }
+      },
+      "comment" : "Name of a tool in an imported preset pack. A proper name: leave it as is if there is no usual translation."
+    },
+    "presetPackTool.blackAndWhite" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Black and White"
+          }
+        }
+      },
+      "comment" : "Name of a tool in an imported preset pack. A proper name: leave it as is if there is no usual translation."
+    },
+    "presetPackTool.color" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color"
+          }
+        }
+      },
+      "comment" : "Name of a tool in an imported preset pack. A proper name: leave it as is if there is no usual translation."
+    },
+    "presetPackTool.colorBalance" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color Balance"
+          }
+        }
+      },
+      "comment" : "Name of a tool in an imported preset pack. A proper name: leave it as is if there is no usual translation."
+    },
+    "presetPackTool.colorContrast" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color Contrast"
+          }
+        }
+      },
+      "comment" : "Name of a tool in an imported preset pack. A proper name: leave it as is if there is no usual translation."
+    },
+    "presetPackTool.colorToning" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color Toning"
+          }
+        }
+      },
+      "comment" : "Name of a tool in an imported preset pack. A proper name: leave it as is if there is no usual translation."
+    },
+    "presetPackTool.dehaze" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dehaze"
+          }
+        }
+      },
+      "comment" : "Name of a tool in an imported preset pack. A proper name: leave it as is if there is no usual translation."
+    },
+    "presetPackTool.detailsEnhancer" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Details Enhancer"
+          }
+        }
+      },
+      "comment" : "Name of a tool in an imported preset pack. A proper name: leave it as is if there is no usual translation."
+    },
+    "presetPackTool.develop" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Develop"
+          }
+        }
+      },
+      "comment" : "Name of a tool in an imported preset pack. A proper name: leave it as is if there is no usual translation."
+    },
+    "presetPackTool.dramatic" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dramatic"
+          }
+        }
+      },
+      "comment" : "Name of a tool in an imported preset pack. A proper name: leave it as is if there is no usual translation."
+    },
+    "presetPackTool.foliage" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foliage Enhancer"
+          }
+        }
+      },
+      "comment" : "Name of a tool in an imported preset pack. A proper name: leave it as is if there is no usual translation."
+    },
+    "presetPackTool.glow" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Glow"
+          }
+        }
+      },
+      "comment" : "Name of a tool in an imported preset pack. A proper name: leave it as is if there is no usual translation."
+    },
+    "presetPackTool.goldenHour" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Golden Hour"
+          }
+        }
+      },
+      "comment" : "Name of a tool in an imported preset pack. A proper name: leave it as is if there is no usual translation."
+    },
+    "presetPackTool.grain" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grain"
+          }
+        }
+      },
+      "comment" : "Name of a tool in an imported preset pack. A proper name: leave it as is if there is no usual translation."
+    },
+    "presetPackTool.highKey" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "High Key"
+          }
+        }
+      },
+      "comment" : "Name of a tool in an imported preset pack. A proper name: leave it as is if there is no usual translation."
+    },
+    "presetPackTool.hueShift" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hue Shift"
+          }
+        }
+      },
+      "comment" : "Name of a tool in an imported preset pack. A proper name: leave it as is if there is no usual translation."
+    },
+    "presetPackTool.layers" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Layers"
+          }
+        }
+      },
+      "comment" : "Name of a tool in an imported preset pack. A proper name: leave it as is if there is no usual translation."
+    },
+    "presetPackTool.lensCorrection" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lens Correction"
+          }
+        }
+      },
+      "comment" : "Name of a tool in an imported preset pack. A proper name: leave it as is if there is no usual translation."
+    },
+    "presetPackTool.lookUpTable" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LUT Mapping"
+          }
+        }
+      },
+      "comment" : "Name of a tool in an imported preset pack. A proper name: leave it as is if there is no usual translation."
+    },
+    "presetPackTool.masks" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Masks"
+          }
+        }
+      },
+      "comment" : "Name of a tool in an imported preset pack. A proper name: leave it as is if there is no usual translation."
+    },
+    "presetPackTool.matte" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Matte Look"
+          }
+        }
+      },
+      "comment" : "Name of a tool in an imported preset pack. A proper name: leave it as is if there is no usual translation."
+    },
+    "presetPackTool.noiseReduction" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noise Reduction"
+          }
+        }
+      },
+      "comment" : "Name of a tool in an imported preset pack. A proper name: leave it as is if there is no usual translation."
+    },
+    "presetPackTool.rawDevelop" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Develop (Raw)"
+          }
+        }
+      },
+      "comment" : "Name of a tool in an imported preset pack. A proper name: leave it as is if there is no usual translation."
+    },
+    "presetPackTool.removeColorCast" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove Color Cast"
+          }
+        }
+      },
+      "comment" : "Name of a tool in an imported preset pack. A proper name: leave it as is if there is no usual translation."
+    },
+    "presetPackTool.sharpening" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sharpening"
+          }
+        }
+      },
+      "comment" : "Name of a tool in an imported preset pack. A proper name: leave it as is if there is no usual translation."
+    },
+    "presetPackTool.skyEnhancer" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sky Enhancer"
+          }
+        }
+      },
+      "comment" : "Name of a tool in an imported preset pack. A proper name: leave it as is if there is no usual translation."
+    },
+    "presetPackTool.smartTone" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Smart Tone"
+          }
+        }
+      },
+      "comment" : "Name of a tool in an imported preset pack. A proper name: leave it as is if there is no usual translation."
+    },
+    "presetPackTool.structure" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Structure"
+          }
+        }
+      },
+      "comment" : "Name of a tool in an imported preset pack. A proper name: leave it as is if there is no usual translation."
+    },
+    "presetPackTool.supercontrast" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supercontrast"
+          }
+        }
+      },
+      "comment" : "Name of a tool in an imported preset pack. A proper name: leave it as is if there is no usual translation."
+    },
+    "presetPackTool.texture" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Texture"
+          }
+        }
+      },
+      "comment" : "Name of a tool in an imported preset pack. A proper name: leave it as is if there is no usual translation."
+    },
+    "presetPackTool.vignette" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vignette"
+          }
+        }
+      },
+      "comment" : "Name of a tool in an imported preset pack. A proper name: leave it as is if there is no usual translation."
+    },
+    "presetPackTool.vividness" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vividness"
+          }
+        }
+      },
+      "comment" : "Name of a tool in an imported preset pack. A proper name: leave it as is if there is no usual translation."
+    },
+    "presetPackTool.warmAndCoolColors" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Warm and Cool Colors"
+          }
+        }
+      },
+      "comment" : "Name of a tool in an imported preset pack. A proper name: leave it as is if there is no usual translation."
+    },
+    "presetPackTool.warmth" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Warmth"
+          }
+        }
+      },
+      "comment" : "Name of a tool in an imported preset pack. A proper name: leave it as is if there is no usual translation."
     },
     "Presets" : {
       "comment" : "Adjust tab menu of adjustment presets",
@@ -8753,6 +9450,17 @@
           }
         }
       }
+    },
+    "replaced" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "replaced"
+          }
+        }
+      },
+      "comment" : "Import report: every preset of the pack was already in the library and was replaced"
     },
     "RGB" : {
       "comment" : "Tone curve channel: all three together",
@@ -9810,13 +10518,13 @@
         }
       }
     },
-    "Save a photo's adjustments as a preset, or import presets (.%@, .lrtemplate, .xmp or .dng)." : {
+    "Save a photo's adjustments as a preset, or import presets (.%@, .lrtemplate, .xmp, .dng or .lnpc)." : {
       "comment" : "Preset manager, when there are no presets; the argument is this app's preset file extension",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Save a photo's adjustments as a preset, or import presets (.%@, .lrtemplate, .xmp or .dng)."
+            "value" : "Save a photo's adjustments as a preset, or import presets (.%@, .lrtemplate, .xmp, .dng or .lnpc)."
           }
         }
       }
@@ -11018,6 +11726,17 @@
         }
       }
     },
+    "The file is damaged or incomplete." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The file is damaged or incomplete."
+          }
+        }
+      },
+      "comment" : "Import report: why a file was not imported"
+    },
     "The formulas behind brush and color range masks, reimplemented in Swift." : {
       "comment" : "About window: what LightCraft gave the app. Formulas were reimplemented, not code copied",
       "localizations" : {
@@ -11039,6 +11758,28 @@
           }
         }
       }
+    },
+    "The pack has no presets." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The pack has no presets."
+          }
+        }
+      },
+      "comment" : "Import report: why a file was not imported"
+    },
+    "The pack's settings can't be read." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The pack's settings can't be read."
+          }
+        }
+      },
+      "comment" : "Import report: why a file was not imported"
     },
     "TIFF" : {
       "comment" : "Grid badge: TIFF file",
@@ -11641,6 +12382,17 @@
           }
         }
       }
+    },
+    "Too large to read." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Too large to read."
+          }
+        }
+      },
+      "comment" : "Import report: why a file was not imported"
     },
     "Top" : {
       "comment" : "Export window: watermark position",

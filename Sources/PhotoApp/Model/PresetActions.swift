@@ -150,6 +150,9 @@ extension LibraryModel {
         PresetImport.fileExtensions.compactMap { UTType(filenameExtension: $0) }
     }
 
+    /// True while a preset import runs (or waits for one that does).
+    var isImportingPresets: Bool { pendingPresetImports > 0 }
+
     /// Asks for preset files or folders, then imports them.
     func chooseAdjustmentPresetImport() {
         let panel = NSOpenPanel()
@@ -158,17 +161,33 @@ extension LibraryModel {
         panel.allowsMultipleSelection = true
         panel.allowedContentTypes = Self.presetFileTypes
         panel.prompt = String(localized: "Import")
-        panel.message = String(localized: "Choose presets (.\(PresetFile.fileExtension), .lrtemplate, .xmp or .dng), or folders of them.")
+        panel.message = String(localized: "Choose presets (.\(PresetFile.fileExtension), .lrtemplate, .xmp, .dng or .lnpc), or folders of them.")
         Task {
             guard await WindowModal.run(panel), !panel.urls.isEmpty else { return }
             await importAdjustmentPresets(panel.urls)
         }
     }
 
-    /// Reads and saves the presets in `urls`, then shows what was imported.
+    /// Reads and saves the presets in `urls`, then shows what was imported:
+    /// the preset manager's Import Report page when a preset pack was among
+    /// the files (the sheet opens on it if it is not up), otherwise an alert.
+    /// Imports run one after another.
     @discardableResult
     func importAdjustmentPresets(_ urls: [URL], showsSummary: Bool = true) async -> PresetImport.Result? {
-        let scan = await Task.detached(priority: .userInitiated) { PresetImport.scan(urls) }.value
+        let previous = presetImportChain
+        pendingPresetImports += 1
+        let task = Task { @MainActor () -> PresetImport.Result? in
+            await previous?.value
+            defer { self.pendingPresetImports -= 1 }
+            return await self.runPresetImport(urls, showsSummary: showsSummary)
+        }
+        presetImportChain = Task { _ = await task.value }
+        return await task.value
+    }
+
+    private func runPresetImport(_ urls: [URL], showsSummary: Bool) async -> PresetImport.Result? {
+        let language = PresetImport.systemLanguage
+        let scan = await Task.detached(priority: .userInitiated) { PresetImport.scan(urls, language: language) }.value
         let result: PresetImport.Result
         do {
             result = try await PresetImport.run(scan, catalog: catalog, store: lookTables)
@@ -179,7 +198,16 @@ extension LibraryModel {
         }
         await refreshAdjustmentPresets()
         if result.addedTables > 0 { await lookTableLibrary.reload() }
-        if showsSummary { presetImportSummary = Self.summary(of: result) }
+        if result.includesPacks {
+            presetImportReport = result
+            if showsSummary {
+                presetManagerPage = .report
+                openPresetSheetWhenFree()
+                AccessibilityText.announce(PresetReportText.summary(of: result), priority: .medium)
+            }
+        } else if showsSummary {
+            presetImportSummary = Self.summary(of: result)
+        }
         return result
     }
 
@@ -232,6 +260,13 @@ extension LibraryModel {
     }
 }
 
+/// The preset manager's pages (preset-pack import design §2).
+enum PresetManagerPage {
+    case list
+    /// What the last import with a preset pack did.
+    case report
+}
+
 /// Names for what preset imports report.
 enum PresetText {
     static func title(_ feature: CameraRawFeature) -> String {
@@ -251,6 +286,67 @@ enum PresetText {
         case .defringe: String(localized: "Defringe", comment: "Imported preset setting")
         case .vignetteStyle: String(localized: "Vignette feather and style")
         case .legacyProcess: String(localized: "Older process versions (approximated)")
+        }
+    }
+
+    /// The translator comment of every tool name.
+    static let toolComment: StaticString = "Name of a tool in an imported preset pack. A proper name: leave it as is if there is no usual translation."
+
+    /// A tool of a preset pack the mapping knows, by our name for it: the
+    /// name table's display names (PRD #203 R11), one keyed catalog entry
+    /// each (`presetPackTool.<case>`), so they never share an entry with the
+    /// app's own control names.
+    static func title(_ tool: LuminarTool) -> String {
+        switch tool {
+        case .develop: String(localized: "presetPackTool.develop", defaultValue: "Develop", comment: toolComment)
+        case .rawDevelop: String(localized: "presetPackTool.rawDevelop", defaultValue: "Develop (Raw)", comment: toolComment)
+        case .lookUpTable: String(localized: "presetPackTool.lookUpTable", defaultValue: "LUT Mapping", comment: toolComment)
+        case .color: String(localized: "presetPackTool.color", defaultValue: "Color", comment: toolComment)
+        case .colorToning: String(localized: "presetPackTool.colorToning", defaultValue: "Color Toning", comment: toolComment)
+        case .grain: String(localized: "presetPackTool.grain", defaultValue: "Grain", comment: toolComment)
+        case .vignette: String(localized: "presetPackTool.vignette", defaultValue: "Vignette", comment: toolComment)
+        case .sharpening: String(localized: "presetPackTool.sharpening", defaultValue: "Sharpening", comment: toolComment)
+        case .dehaze: String(localized: "presetPackTool.dehaze", defaultValue: "Dehaze", comment: toolComment)
+        case .supercontrast: String(localized: "presetPackTool.supercontrast", defaultValue: "Supercontrast", comment: toolComment)
+        case .matte: String(localized: "presetPackTool.matte", defaultValue: "Matte Look", comment: toolComment)
+        case .colorBalance: String(localized: "presetPackTool.colorBalance", defaultValue: "Color Balance", comment: toolComment)
+        case .warmth: String(localized: "presetPackTool.warmth", defaultValue: "Warmth", comment: toolComment)
+        case .vividness: String(localized: "presetPackTool.vividness", defaultValue: "Vividness", comment: toolComment)
+        case .warmAndCoolColors: String(localized: "presetPackTool.warmAndCoolColors", defaultValue: "Warm and Cool Colors", comment: toolComment)
+        case .structure: String(localized: "presetPackTool.structure", defaultValue: "Structure", comment: toolComment)
+        case .detailsEnhancer: String(localized: "presetPackTool.detailsEnhancer", defaultValue: "Details Enhancer", comment: toolComment)
+        case .dramatic: String(localized: "presetPackTool.dramatic", defaultValue: "Dramatic", comment: toolComment)
+        case .blackAndWhite: String(localized: "presetPackTool.blackAndWhite", defaultValue: "Black and White", comment: toolComment)
+        case .layers: String(localized: "presetPackTool.layers", defaultValue: "Layers", comment: toolComment)
+        case .accentAI: String(localized: "presetPackTool.accentAI", defaultValue: "Accent AI", comment: toolComment)
+        case .skyEnhancer: String(localized: "presetPackTool.skyEnhancer", defaultValue: "Sky Enhancer", comment: toolComment)
+        case .atmosphere: String(localized: "presetPackTool.atmosphere", defaultValue: "Atmosphere", comment: toolComment)
+        case .glow: String(localized: "presetPackTool.glow", defaultValue: "Glow", comment: toolComment)
+        case .highKey: String(localized: "presetPackTool.highKey", defaultValue: "High Key", comment: toolComment)
+        case .goldenHour: String(localized: "presetPackTool.goldenHour", defaultValue: "Golden Hour", comment: toolComment)
+        case .foliage: String(localized: "presetPackTool.foliage", defaultValue: "Foliage Enhancer", comment: toolComment)
+        case .colorContrast: String(localized: "presetPackTool.colorContrast", defaultValue: "Color Contrast", comment: toolComment)
+        case .removeColorCast: String(localized: "presetPackTool.removeColorCast", defaultValue: "Remove Color Cast", comment: toolComment)
+        case .hueShift: String(localized: "presetPackTool.hueShift", defaultValue: "Hue Shift", comment: toolComment)
+        case .masks: String(localized: "presetPackTool.masks", defaultValue: "Masks", comment: toolComment)
+        case .smartTone: String(localized: "presetPackTool.smartTone", defaultValue: "Smart Tone", comment: toolComment)
+        case .texture: String(localized: "presetPackTool.texture", defaultValue: "Texture", comment: toolComment)
+        case .noiseReduction: String(localized: "presetPackTool.noiseReduction", defaultValue: "Noise Reduction", comment: toolComment)
+        case .aiNoiseReduction: String(localized: "presetPackTool.aiNoiseReduction", defaultValue: "AI Noise Reduction", comment: toolComment)
+        case .lensCorrection: String(localized: "presetPackTool.lensCorrection", defaultValue: "Lens Correction", comment: toolComment)
+        }
+    }
+
+    /// The control an approximated tool went into, as the Adjust tab names it.
+    static func title(_ control: PresetControl) -> String {
+        switch control {
+        case .toneCurve: AdjustText.title(Adjustments.Group.toneCurve)
+        case .contrast: String(localized: "Contrast")
+        case .clarity: String(localized: "Clarity")
+        case .saturation: String(localized: "Saturation")
+        case .vibrance: String(localized: "Vibrance")
+        case .colorMixer: AdjustText.title(Adjustments.Group.colorMixer)
+        case .colorGrading: AdjustText.title(.colorGrade)
         }
     }
 

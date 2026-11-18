@@ -194,6 +194,7 @@ Abbreviations: P1–P6 = `docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR
 | Adjustment presets | Partial presets by group, collections, hover preview, preview tiles | P3 second pass |
 | Preset files | xz-compressed JSON with embedded `.cube` files; Finder double-click imports | P3 second pass; `Support/Info.plist` (exported type) |
 | Lightroom preset import | `.lrtemplate`, `.xmp`, `.dng`; report of unmapped settings. Purple and green fringe removal and automatic chromatic aberration removal map to the Lens groups | P3 second pass; `Presets/` |
+| Luminar preset pack import | `.lnpc` packs (several at once) through Import Presets…; one preset collection and one look-up table collection per pack; approximate conversion with named assumed scales; Import Report page (mapped, approximated, left out, not recognized, not imported); re-import replaces by name; no Finder registration | `luminar-preset-import` (#203); `Presets/Luminar/`, `Support/ZipArchive.swift` |
 | Manage Presets sheet | Rename, move, export, delete, change groups | P3; UIR §8 |
 | Look-up tables | `.cube` import into flat collections, copied into `Library/LUTs/`; built-ins generated in code; per-table color space | P3 Look-up tables |
 | LUT hover preview and browser | Hover in the menu previews; browser sheet with Import and Manage pages; Apply closes, double-click applies and stays | P3; issue #1; UIR §8 Other sheets |

@@ -346,6 +346,9 @@ enum DebugScript {
             switch rest.first {
             case "smart": model.sidebarSheet = .smartAlbum(model.smartAlbums.first, projectID: nil)
             case "album": model.sidebarSheet = .newAlbum(projectID: nil)
+            // The delete confirmation for the first smart album, and closing it.
+            case "deletesmart": model.sidebarDeletion = model.smartAlbums.first.map { .smartAlbum($0) }
+            case "deleteclose": model.sidebarDeletion = nil
             default: model.sidebarSheet = nil
             }
         case "checkdisk":
@@ -520,9 +523,42 @@ enum DebugScript {
             case "import":
                 let urls = rest.dropFirst().map { URL(fileURLWithPath: $0) }
                 if let result = await model.importAdjustmentPresets(urls, showsSummary: false) {
-                    let summary = LibraryModel.summary(of: result)
-                    print("debug-script: \(summary.title)\n\(summary.message)")
+                    if result.includesPacks {
+                        print("debug-script: " + PresetReportText.lines(of: result).joined(separator: "\n"))
+                    } else {
+                        let summary = LibraryModel.summary(of: result)
+                        print("debug-script: \(summary.title)\n\(summary.message)")
+                    }
                 }
+            case "report":
+                // preset report: the Import Report page's text, as it reads it (labels and values).
+                if let result = model.presetImportReport {
+                    print("debug-script: page \(model.presetManagerPage == .report ? "report" : "list")\n"
+                          + PresetReportText.lines(of: result).joined(separator: "\n"))
+                } else {
+                    print("debug-script: no import report")
+                }
+            case "sheets":
+                // preset sheets: each of the window's other sheets, dialogs and alerts (`LibraryModal`),
+                // the preset manager, its page, a waiting report, and how many sheets are attached.
+                let attached = NSApp.windows.filter { $0.attachedSheet != nil }.count
+                let modals = LibraryModal.allCases.map { "\($0) \(model.isUp($0))" }.joined(separator: " ")
+                print("debug-script: sheets \(modals) presets \(model.showsPresetSheet) "
+                      + "page \(model.presetManagerPage == .report ? "report" : "list") "
+                      + "waits \(model.presetSheetWaits) attached \(attached)")
+            case "close":
+                // preset close removal|summary: answers the removal question (Cancel) or the summary alert (OK).
+                switch rest.dropFirst().first {
+                case "removal": model.cancelRemoval()
+                case "summary": model.presetImportSummary = nil
+                default: print("debug-script: preset close takes removal or summary")
+                }
+                try? await Task.sleep(for: .milliseconds(500))
+            case "reportpage":
+                // preset reportpage: the preset manager on its Import Report page (dimmed button: no report yet).
+                model.presetManagerPage = .report
+                model.showsPresetSheet = true
+                try? await Task.sleep(for: .milliseconds(500))
             case "export":
                 // preset export <file> [name]: every preset, or the one named.
                 let url = URL(fileURLWithPath: rest.dropFirst().first ?? "")

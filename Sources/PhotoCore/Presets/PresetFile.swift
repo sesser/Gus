@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 /// Presets written to a file to share them: each preset's settings as edit
 /// stack JSON, and the look-up tables they use embedded, so the file renders
@@ -107,13 +108,32 @@ public struct PresetFile: Codable, Sendable {
     /// its contents, whatever the file claims). Returns the identifiers the
     /// presets use mapped to the ones installed; unreadable tables are left out.
     public func installTables(into store: LookTableStore) -> [String: String] {
+        let readable = Self.readableTables(lookTables)
         var installed: [String: String] = [:]
-        for table in lookTables {
-            guard (try? CubeLUT(parsing: String(decoding: table.data, as: UTF8.self))) != nil,
-                  let identifier = try? store.install(table.data) else { continue }
+        // Installed one after another, in the file's order, as before: only the checking is concurrent.
+        for (index, table) in lookTables.enumerated() where readable[index] {
+            guard let identifier = try? store.install(table.data) else { continue }
             installed[table.identifier] = identifier
         }
         return installed
+    }
+
+    /// Which tables parse as cubes, by position. Parsing a large cube is most
+    /// of an import's time, so several are checked at once (issue #203, DQ-1);
+    /// each result goes in its table's place, so the answer never depends on
+    /// the order they finish in.
+    static func readableTables(_ tables: [Table]) -> [Bool] {
+        guard tables.count > 1 else { return tables.map { isReadableCube($0.data) } }
+        let results = Mutex([Bool](repeating: false, count: tables.count))
+        DispatchQueue.concurrentPerform(iterations: tables.count) { index in
+            let readable = isReadableCube(tables[index].data)
+            results.withLock { $0[index] = readable }
+        }
+        return results.withLock { $0 }
+    }
+
+    static func isReadableCube(_ data: Data) -> Bool {
+        (try? CubeLUT(parsing: String(decoding: data, as: UTF8.self))) != nil
     }
 
     /// The presets, with table identifiers replaced through `tables`.
