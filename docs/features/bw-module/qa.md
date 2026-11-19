@@ -308,4 +308,18 @@ No Gus process was left running (`pgrep -x Gus` empty). After the runs, nothing 
 
 ### Sign-off
 
-Not yet given. P1 to P13 are open; P13 is new in this rerun.
+Owner's sign-off on #218 (relayed by the main session; recorded by qa-tester, committed by the main session).
+
+- **Signed off:** 2026-11-19, at commit `9e547bc` (head of `feature/bw-module`; the sources are as of 69f1ef1, the later commits change only `status.md`, the reviews and this file).
+- **How:** by eye, on a `photobench` scratch library, with the bundle run under `--library-root`. Earlier in the session the owner found the Adjust column wider than the inspector with the Black & White heading open; that was fixed (69f1ef1, 95fa5b9, rerun above: S9 and S10) and the owner then reported: "They are fixed now. Signed off on #218."
+- **Checks left open:** none named by the owner. No VoiceOver, macOS 15 or macOS 26 checks (not asked of the owner, per the standing rule).
+
+| Item | State | Note |
+|---|---|---|
+| P1 to P6 (look, tints, menu, enablement, cropping, monochrome file) | Checked by the owner, fine | Not itemised by the owner; recorded under the blanket sign-off. |
+| P7 (filter strength on real photos, M7) | Checked by the owner, fine | The owner's judgment of strength was part of the look check on his photos; he did not report it separately and named no change to the filter table. The numbers remain the engineer's estimates (`status.md`). |
+| P8 to P11 (History and undo, a click that moves nothing, presets and paste and copies, fringe swatch) | Checked by the owner, fine | Not itemised. |
+| P12 (live drag, no flash of colour) | Checked by the owner, fine | Not itemised; motion judged by hand. |
+| P13 (quick-set width, M12) | Checked by the owner, fine | This is the finding he raised and re-checked after the fix, at the inspector width he used. He did not say whether he also tried the narrowest and widest widths or the Tone Curve heading open at the narrowest width; with nothing reported against them, they are recorded as fine under the sign-off, not as separately confirmed. |
+
+No P item stays open. Carried outside this branch: **Q5** (the Tone Curve, Color Grading and Spots mode controls are 276 pt wide and do not fit the 256 pt content area at the narrowest inspector; proposed fix `fillsWidth: true`) is a follow-up issue for the main session to file, not a check on this branch.
