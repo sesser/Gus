@@ -244,7 +244,68 @@ No VoiceOver, macOS 15 or macOS 26 checks. Run the bundle on a scratch library f
 - **P10. Presets, paste, copies, menus (M10).** Save Adjustments as Preset…: "Black & White" is listed between Color Mixer and Color Grading and checked for a converted photo. Copy and paste a converted photo onto two selected photos from the grid: both go gray, one undo step (the script did a paste over 12; this is the menu and key path). Duplicate a converted photo: the copy starts converted and then changes alone.
 - **P11. Fringe swatch look (M11).** On a photo with a Color Fringes slot filled (Purple), turn Black & White on: the photo goes gray and the slot's swatch in the Lens heading stays purple. Turn it off: unchanged. Saturation at -100 grays the swatch; that is expected. (Values checked in S5.)
 - **P12. Live drag (QA's own, no M-number).** With a gray result visible, drag a slider in the loupe and judge that the preview follows smoothly with no flash of colour (the scripts render settled frames only; this is motion and timing).
+- **P13. Quick-set width at three inspector widths (M12, designer's third pass).** A script cannot set the inspector's width (`windowsize` leaves it at 300 pt), so this is the one width check left. Adjust tab on a colour photo, Black & White heading open, then drag the inspector's divider.
+  - Narrowest (280 pt pane, 256 pt of content, 51 pt a segment): all five names read in full, "Orange" included, no ellipsis; the selected segment's capsule still has air around its name (the designer rates Orange as tight). Nothing on the tab is cut off on either side: the Presets buttons, slider labels, value fields and the heading's check box. Choose each segment and look at the selected state.
+  - Default (300 pt, 276 pt of content): the row has the same left and right edges as the sliders (scripted: controls 8 to 292 in a 300 pt pane, `fits`).
+  - Widest (420 pt): the segments stretch evenly, the row still lines up with the sliders, nothing else moves.
+  - With the Tone Curve heading open too: record whether the tab clips at the narrowest width. Expected (its four segments are 276 pt wide and the content is 256 pt: the follow-up in Q5); do not fail this branch for it.
+  - Increase Contrast, or a larger text size if offered: look again at the narrowest width.
 
 ## Follow-up
 
-Reruns after fixes: none yet. Sign-off: not yet given.
+### Rerun for the owner's sign-off finding (2026-11-19, commits 69f1ef1 and 95fa5b9)
+
+Owner: qa-tester. Date: 2026-11-19. Tested: `feature/bw-module` at e012174 (sources as of 69f1ef1; 95fa5b9 and e012174 change only `status.md` and the reviews), same Mac and macOS build as above (27.2.1, SDK 27.2, minos 15.0).
+
+**Verdict: the finding is fixed.** With the Black & White heading open, the Adjust column fits the inspector (`print inspectorwidth`: visible 300, controls 8...292, `fits`; the same build without the flag: -26...326, `overflow`). The Tone Curve, Color Grading and Spots mode controls are the same width as before (276 pt in a 300 pt inspector, identical in the two builds). The full `swift test` passed (1189 tests in 174 suites, 63.8 s). One check stays for a person: the narrowest inspector width (P13, the designer's M12), which no script can set.
+
+| Finding | State | Evidence |
+|---|---|---|
+| Owner finding: Adjust column wider than the inspector with Black & White open | **Fixed** | S9 and S10 |
+| Q1 to Q4 (first QA) | Unchanged: observations and follow-ups, no new information | |
+| **Q5 (new, follow-up, not this branch)** | Open, for the main session to file | The Tone Curve control is 276 pt wide in a 256 pt content area at the narrowest inspector, as the engineer and the designer say. Not measurable by script (the inspector stays 300 pt under `windowsize`), so this is arithmetic plus the intrinsic width in `status.md`; M12 and P13 show it. Proposed title: "Tone Curve channel control widens the Adjust tab at the narrowest inspector width"; the fix is `fillsWidth: true` on that control. Color Grading (three segments) and Spots (frame fills) were also 276 pt wide, so check them at the narrowest width in P13 |
+
+**What changed since 7c321aa, checked.** `git diff --stat 7c321aa HEAD` lists, under `Sources/`, only `Model/DebugScript.swift` (the `print inspectorwidth` command and its header line), `Views/BlackAndWhiteSection.swift` (one line: `fillsWidth: true` on the quick-set control) and `Views/CurveEditor.swift` (the `fillsWidth` property, off by default, a `sizeThatFits` that answers only when it is on, and a compression-resistance line). Nothing under `Tests/`, `Scripts/`, `Sources/PhotoCore`, `Package.swift`, the String Catalog or `docs/USER_GUIDE.md`. In `docs/`: `status.md` (the new "Owner finding at sign-off" section), `review.md` and `code-review.md` (third passes) and `qa.md` (my first run, added after 7c321aa). `PreviewCacheKey.currentPipelineVersion` untouched. The only other callers of `AppKitSegmented` (Tone Curve, Color Grading, Spots) pass no new argument.
+
+**No unit test is possible** for this (the view is in PhotoApp, which no test target imports; engineer and code reviewer agree). The regression check is S9 below. Note that `print inspectorwidth` would trap on an `Int(infinity)` if a visible hosting-view scroll view held no visible control (code review's observation); none does today.
+
+### Scripts for the rerun
+
+Builds, both copies of the bundle with their own identifiers and a re-signed ad hoc signature: After is `Scripts/build-app.sh` on the checkout (`me.sesser.gus.debugtest.fix218after`); Before is `git archive HEAD` extracted to a scratch directory outside the checkout with one line changed (`, fillsWidth: true` removed from the quick-set control in `BlackAndWhiteSection.swift`), built the same way (`me.sesser.gus.debugtest.fix218before`). Scratch library: the `photobench` one from the first run (12 items), copied fresh for each run. Launcher: `timeout 180 <app>/Contents/MacOS/Gus --library-root <copy of the scratch library> --debug-script "<script>"`; every launch carries `--library-root`, and no `photocli` or `photobench` command was run this time. The headings' open state is the app's own preference (`adjust.section.<name>`) in each copy's own preference domain, written with `defaults write <copy's id> adjust.section.blackAndWhite -bool true` (and `tone`, `colorGrading`, `spots` for the second run, `false` for the rest), and the domains were deleted after.
+
+**S9. Width with the Black & White heading open (only it open).**
+
+```
+wait 2; focus IMG_00001; loupe; wait 2; inspector on; wait 1; tab adjust; wait 2;
+print inspector; print inspectorwidth; buttons;
+scroll bottom; wait 1; print inspectorwidth; tab info; wait 1; print inspectorwidth; quit
+```
+
+| Build | Adjust tab | Adjust tab, scrolled to the bottom | Info tab |
+|---|---|---|---|
+| After | visible 300 controls 8...292 widest NSSegmentedControl 276 **fits** | same, **fits** | visible 300 controls 12...288 widest NSTextField 276 fits |
+| Before (flag off) | visible 300 controls -26...326 widest NSSegmentedControl 345 **overflow** | same, **overflow** | same as After, fits |
+
+`buttons`: the "Filter" control is 276 pt wide after, 345 pt before (the engineer's numbers, reproduced). The control starts at the same x as the sliders after the fix.
+
+**S10. The other segmented controls, kept widths.** Run A: Tone, Color Grading and Spots headings open, Black & White closed (`print inspectorwidth` and `buttons` at the top of the tab and scrolled to the bottom). Run B: all four open (adds `windowsize` steps at the end of S9's script: 1000 x 700, 800 x 600, 700 x 600 and 2200 x 1000, each followed by `print inspectorwidth`).
+
+| Control | Run A, Before | Run A, After | Run B, Before | Run B, After |
+|---|---|---|---|---|
+| Spots mode (Heal / Clone) | 276 | 276 | 345 | 276 |
+| Tone Curve channels (4 segments) | 276 | 276 | 345 | 276 |
+| Color Grading ranges (3 segments) | 276 | 276 | 345 | 276 |
+| Black & White quick-set | not shown | not shown | 345 | 276 |
+| Column | visible 300, controls 8...292, fits | same, fits | visible 300, controls -26...326, **overflow** | visible 300, controls 8...292, **fits** |
+
+Run A is identical in the two builds: the flag changed no other control. In run B (before) the three other controls were as wide as the Black & White one only because the column had been widened for it (their own width is Run A's). After the fix every segmented control matches the pane's content width. At every window size in run B (the 2200 pt one included) the inspector stayed 300 pt, so the script cannot show another width. At 300 pt the Tone Curve control (276 pt) exactly fills the column; that it would not fit in 256 pt is Q5.
+
+I did not take a snapshot: the inspector is a glass pane and snapshots leave it blank (`CLAUDE.md`), so the widths above are the evidence, and the look is P13.
+
+### Checks on the owner's data
+
+No Gus process was left running (`pgrep -x Gus` empty). After the runs, nothing under `~/Library/Application Support/Gus` is newer than my start (the listing of every file and its modification time is identical to the one taken before; `catalog.sqlite-shm` still has the earlier run's time, 21:30:54 on 2026-11-18) and nothing under `~/Library/Caches/me.sesser.gus` is newer. In `~/Library/Caches` itself only a system file (`com.apple.nsservicescache.plist`) changed.
+
+### Sign-off
+
+Not yet given. P1 to P13 are open; P13 is new in this rerun.
