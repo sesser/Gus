@@ -57,7 +57,7 @@ private struct BlackAndWhiteControls: View {
         VStack(alignment: .leading, spacing: 8) {
             AppKitSegmented(labels: filters.map(BlackAndWhiteText.name), selection: selected,
                             toolTips: filters.map(BlackAndWhiteText.help),
-                            accessibilityLabel: BlackAndWhiteText.quickSetName) { index in
+                            accessibilityLabel: BlackAndWhiteText.quickSetName, fillsWidth: true) { index in
                 guard filters.indices.contains(index) else { return }
                 editor.chooseBlackAndWhite(filters[index])
             }

@@ -207,6 +207,56 @@ passed `--library-root`.
 | F3: stale translator comment ("Yellow and Orange are new") | Fixed in `BlackAndWhiteText.name` and the five catalog entries | `LocalizationTests` |
 | Designer question in code-review.md (Color Fringes swatches): owner ruling 2026-11-18, the swatches show true colors | Fixed: `LensRenderer.swatch` leaves Black & White out | `fringeSwatchesKeepColor`: the purple slot's swatch with Black & White on equals the one without it, and is purple |
 
+## Owner finding at sign-off (2026-11-19)
+
+**Finding.** With the Black & White heading open, the whole Adjust column was
+wider than the inspector and clipped on both sides. The Presets buttons read
+"ve…", slider labels lost their first letters, the quick-set control showed
+"ellow … Blue", and the value fields and the heading's check box were cut off.
+Seen on a CR2 at the inspector's default width.
+
+**Cause.** In the current design a segmented control's segments are at least
+about 65 pt wide whatever their labels. As an `NSViewRepresentable`,
+`AppKitSegmented` reports its intrinsic width, so with five segments SwiftUI was
+given a minimum of 345 pt. The inspector's content is 256 to 396 pt wide
+(`inspectorColumnWidth` 280 to 420, minus 12 pt of padding on each side), and
+276 pt at the default 300. The VStack took the control's minimum, the column
+became wider than its scroll view, and SwiftUI centered the overflow. That is
+why both edges were cut. My own scripted runs had the same overflow: the
+`buttons` lines showed every segmented control 345 pt wide. I didn't compare
+that width with the pane's, because snapshots leave the pane blank.
+
+**Fix.** `AppKitSegmented` gains `fillsWidth` (off by default, so no other
+control changes). With it on, the control takes exactly the width it is
+offered (`sizeThatFits`) and its horizontal compression resistance is low. The
+quick-set control uses it. The names need no design ruling: drawn offscreen in
+the current design at the small size, all five English names fit uncut at
+256 pt (51 pt a segment), and so do the German ones (Gelb, Orange, Rot, Grün,
+Blau). Narrower than that, a long translation truncates in its segment, as
+design §3.2 allows.
+
+**Check.** The debug script gains `print inspectorwidth`. For each inspector
+tab it prints the visible width, how far the controls inside reach, and `fits`
+or `overflow`. Copies of the bundle with their own identifiers, on the
+`photobench` scratch library, heading open, window 1400 × 900 (inspector 300 pt):
+
+| Build | `print inspectorwidth` | Quick-set and Color Grading controls |
+|---|---|---|
+| Before (`fillsWidth: false`) | visible 300, controls −26…326, **overflow** | 345 pt |
+| After | visible 300, controls 8…292, **fits** | 276 pt |
+
+No unit test is possible for this: the view lives in PhotoApp, and the package
+has no test target that can import it (`PhotoCoreTests` depends on PhotoCore
+and PhotoFixtures only). The regression check is the scripted
+`print inspectorwidth` above; QA should run it with the heading open, and a
+person should look at the narrowest inspector width (280 pt), which a script
+can't set. `swift test`: 1189 tests pass.
+
+**Related, not fixed here.** The Tone Curve's segmented control (RGB, Red,
+Green, Blue: four segments, about 260 pt intrinsic) would overflow the same way
+at the narrowest inspector width (256 pt of content). It already did before this
+branch. It is proposed as a follow-up.
+
 ## Rulings (owner, 2026-11-18)
 
 - **RI-1 (R7, render position): keep as built.** The conversion renders right
