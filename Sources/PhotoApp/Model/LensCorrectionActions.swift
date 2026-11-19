@@ -116,7 +116,9 @@ extension AdjustmentEditor {
             alert.messageText = LensCorrectionText.frameQuestionTitle
             alert.informativeText = LensCorrectionText.frameQuestionMessage
         }
-        // The first button is the default (Return); one titled Cancel takes Esc.
+        // Change is the default (Return; NSAlert makes its first button the
+        // sheet's default button): the person chose the change and it can be
+        // undone (design §6). The button titled Cancel takes Esc and ⌘.
         alert.addButton(withTitle: LensCorrectionText.change)
         alert.addButton(withTitle: LensCorrectionText.cancel)
         return alert

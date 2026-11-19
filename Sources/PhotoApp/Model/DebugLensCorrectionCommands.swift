@@ -8,9 +8,39 @@ import PhotoCore
 /// and `lens force kernelfail|tablecorrupt|off`.
 @MainActor
 enum DebugLensCorrectionCommands {
-    /// `lens distortion|vignetting …` changes the photo (its own undo group).
-    static func changesPhoto(_ words: [String]) -> Bool {
-        words.first == "lens" && ["distortion", "vignetting"].contains(words.dropFirst().first ?? "")
+    /// `lens distortion|vignetting …` changes the photo at once: its own undo
+    /// group. Not when the change will ask the frame question first: its step
+    /// is then registered by `alert press Change` (in that command's group),
+    /// and an empty group here would be an undo step that does nothing.
+    static func changesPhoto(_ words: [String], editor: AdjustmentEditor) -> Bool {
+        guard words.first == "lens", ["distortion", "vignetting"].contains(words.dropFirst().first ?? "") else { return false }
+        guard let next = predicted(Array(words.dropFirst()), editor: editor) else { return true }
+        return !editor.asksLensFrameQuestion(from: editor.savedAdjustments, to: next)
+    }
+
+    /// The values a `lens distortion|vignetting …` command leaves on screen.
+    private static func predicted(_ words: [String], editor: AdjustmentEditor) -> Adjustments? {
+        let group: LensCorrectionStatus.Group = words.first == "distortion" ? .distortion : .vignetting
+        let status = editor.lensStatus(group)
+        var next = editor.adjustments
+        switch (words.dropFirst().first, words.dropFirst(2).first.flatMap(Double.init)) {
+        case ("on", _):
+            next.setEnabled(group.adjustmentGroup, true)
+            if status.startsInManual {
+                if group == .distortion { next.distortion.source = .manual } else { next.lensVignetting.source = .manual }
+            }
+        case ("off", _): next.setEnabled(group.adjustmentGroup, false)
+        case ("auto", _), ("manual", _):
+            let source: LensCorrectionSource = words.dropFirst().first == "auto" ? .auto : .manual
+            if group == .distortion { next.distortion.source = source } else { next.lensVignetting.source = source }
+            next.setEnabled(group.adjustmentGroup, true)
+        case ("amount", let value?):
+            if group == .distortion { next.distortion.setAmount(value) } else { next.lensVignetting.setAmount(value) }
+        case ("constrain", _): next.distortion.constrain = words.dropFirst(2).first == "on"
+        default: return nil
+        }
+        next.enableModules(changedFrom: editor.adjustments)
+        return next
     }
 
     static func run(_ words: [String], model: LibraryModel) async {

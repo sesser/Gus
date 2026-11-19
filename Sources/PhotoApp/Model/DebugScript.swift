@@ -197,7 +197,7 @@ enum DebugScript {
                     || (endsRename.contains(String(words.first ?? "")) && model.sidebarRename != nil)
                     || (words.first == "accessibility" && words.count >= 4)
                     || (words.first == "history" && words.dropFirst().first == "revert")
-                    || DebugLensCorrectionCommands.changesPhoto(words.map(String.init))
+                    || DebugLensCorrectionCommands.changesPhoto(words.map(String.init), editor: model.editor)
                 if grouped { undoManager.beginUndoGrouping() }
                 await run(command, model: model)
                 // A Duplicate started by a key or a menu item registers its
