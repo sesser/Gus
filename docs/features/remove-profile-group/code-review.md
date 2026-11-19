@@ -131,5 +131,32 @@ own. No blockers and nothing to fix before QA; three nits below.
 
 ## Follow-up
 
-(After the engineer's fixes: each finding with Fixed, Not fixed (and why) or
-Withdrawn, and the commit.)
+Second pass, 2026-11-18: f4b64b1 only (the fix commit; 101457a holds the
+reviews themselves). `swift test --filter StoredLookTests`: 17 tests in 1 suite
+passed (this worktree).
+
+| # | Result | Commit | Note |
+|---|---|---|---|
+| C1 | Not fixed: accepted by the owner | f4b64b1 (status.md) | Owner ruling 2026-11-18 with RI-E2: the legacy-preset machine learning difference is accepted, no code change. Recorded in `status.md` under "How it is built" and in its Review table. Closed. |
+| C2 | Fixed | f4b64b1 | `LiveRegionRenderer.shouldDecode(whileMoving:)`'s comment now names White Balance and Noise Reduction only. Comment-only change; no other "Profile" naming introduced. Closed. |
+| C3 | Fixed | f4b64b1 | `developAndUndoKeepIt` is split. `developKeepsIt` keeps the `photocli develop` and `--reset all` checks. `editorUndoAndRedoKeepIt` makes the writes `AdjustmentEditor.apply` (`Sources/PhotoApp/Model/AdjustmentEditor.swift:867`) makes, in its order: the edit writes the edited values' stack with the committed values' stack as its undo target, undo writes that, redo writes the edit's. Each target stack is built through `Adjustments(stack:).editStack`, so the test fails if `Adjustments` ever drops or rewrites a stored `look` (the after-edit, after-undo and after-redo checks all read `decode.storedLook`, and the after-undo check also compares content with the stored stack). Closed. |
+
+The new test is sound and deterministic:
+
+- It reads each state back from the catalog before deriving the next target,
+  where the editor takes `Adjustments(stack: stack)` from the stack it was
+  handed. Given `roundTripsUnchanged`, that is the same values or a stricter
+  check (a catalog round trip on top).
+- The redo target is the read-back edit rather than `edited.editStack` itself;
+  the two hold the same content by the same round trip, so nothing is hidden.
+- No sleeps, no clocks, no randomness: one in-memory catalog fixture per test,
+  sequential awaits. The history label order rests on `editHistory`'s
+  `ORDER BY id DESC`, not on timestamps, so it can't tie.
+- The undo manager itself (PhotoApp, no test target) is not driven; the
+  engineer's debug-script run through the window's undo manager (`adjust
+  exposure 0.5; undo; redo; undo`, `look: flat` at every step, recorded in
+  `status.md`) covers it, which is what C3 asked for. QA may repeat it.
+
+RI-E1 (photocli keeps `rawDecode.decoderVersion`) and N1, N2 (the designer's)
+are ruled by the owner in `status.md`; nothing for code review. No open
+findings.
