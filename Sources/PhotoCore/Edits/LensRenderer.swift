@@ -156,7 +156,8 @@ extension AdjustmentRenderer {
     /// A small patch of `okLab`'s color with the adjustments that render
     /// after the fringe step (white balance through color grading, then the
     /// look-up table): how a pixel of that color looks in the photo now,
-    /// for the slot's swatch (design §14 OQ2, point 3). In the working space.
+    /// for the slot's swatch (design §14 OQ2, point 3), leaving out Black &
+    /// White. In the working space.
     public func swatch(_ okLab: SIMD3<Double>, values: Adjustments, context: RenderContext) -> CIImage {
         var after = values.effective
         after.crop = Crop()
@@ -167,6 +168,9 @@ extension AdjustmentRenderer {
         after.sharpen = Sharpen()
         after.grain = Grain()
         after.noiseReduction = NoiseReduction()
+        // A slot's swatch keeps its color under Black & White, so a purple
+        // slot still looks purple (owner ruling 2026-11-18, issue #218).
+        after.blackAndWhite = BlackAndWhite()
         let rgb = FringeColorMath.linearRec2020(okLab: okLab)
         let extent = CGRect(x: 0, y: 0, width: 4, height: 4)
         let patch = CIImage(color: CIColor(red: rgb.x, green: rgb.y, blue: rgb.z,

@@ -371,6 +371,13 @@ public struct Adjustments: Hashable, Sendable {
         group.kinds.contains { !parameters(of: $0).isEmpty }
     }
 
+    /// A Black & White slider's value. Only the value: changing it while the
+    /// group does not apply switches it on through `enableModules`, and a
+    /// value that does not change changes nothing (code review C1).
+    public mutating func setBlackAndWhite(_ filter: BlackAndWhite.Filter, _ value: Double) {
+        blackAndWhite[filter] = value
+    }
+
     /// The Black & White conversion renders: switched on and not turned off.
     public var blackAndWhiteApplies: Bool {
         blackAndWhite.isOn && isEnabled(.blackAndWhite)

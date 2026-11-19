@@ -20,7 +20,7 @@ review and the designer's review, then QA.
 | When | `swift build` | `swift test` |
 |---|---|---|
 | Baseline (develop at d2d0db2, before any change) | Pass, no warnings | Not run on its own. The first full run with this branch's model in place failed only on two of this branch's own checks (an existing test that walks every heading, and missing catalog strings), both fixed |
-| Latest (2026-11-18, after the rulings) | Pass, no new warnings (two existing warnings in `SmartAlbumTests.swift` and `VirtualCopiesTests.swift` remain) | 1186 tests in 174 suites pass (`BlackAndWhiteTests`: 24) |
+| Latest (2026-11-18, after the review fixes) | Pass, no new warnings (two existing warnings in `SmartAlbumTests.swift` and `VirtualCopiesTests.swift` remain) | 1189 tests in 174 suites pass (`BlackAndWhiteTests`: 27). Two earlier full runs each failed once in `DeferredRenderTests` ("Core Animation renders an unread deferred image…", at a different assertion each time). That suite passes alone three times out of three, and the third full run passed. This branch touches none of its code, so the failure is a load-dependent flake |
 | Bundle | `Scripts/build-app.sh` passes; `vtool` shows sdk 27.2, minos 15.0 | |
 
 `PreviewCacheKey.currentPipelineVersion` is still 12. No migration. No existing
@@ -145,7 +145,7 @@ actor while the photo loads. It is never true for a raw.
 | AC10 (R10) | `notALocalControl` (no local control of the group's names). `masksWorkOnTheGray` (a mask's exposure and contrast over the conversion keep it gray; outside the mask the result is the global conversion alone) | Pass |
 | AC11 (R11) | `presets` (a preset of only this group, a turned-off group stays off, "All settings" replaces it), `paste`, `copiesAndBatches` (virtual copy starts equal and then changes on its own; a preset over two photos is one write with one label each). One undo step for paste and batch is the existing batch path (`changeAdjustments`), unchanged | Pass |
 | AC12 (R1, R12) | `stackRepresentation` (on with all filters at 0 is `{on: true}` with a non-identity hash), `checkBox`, `resetIsIdentity`. Debug script History rows: "Turn On Black & White", "Black & White Filter", "Turn Off Black & White", "Reset Black & White" | Pass |
-| AC13 (R13) | `pipelineVersionUnchanged` (12). The full `swift test` passes with no existing golden updated; three new goldens | Pass |
+| AC13 (R13) | `pipelineVersionUnchanged` (at least 12: this branch adds no bump; #219 makes it 13). The full `swift test` passes with no existing golden updated; three new goldens | Pass |
 | AC14 (R14) | `grainStaysGray` (two grain settings and a vignette: every pixel exactly R = G = B) | Pass |
 
 ## Debug-script checks (2026-11-18)
@@ -194,6 +194,18 @@ passed `--library-root`.
 5. A gray JPEG shows "This photo has no color, so the filters change nothing."
 6. Full Keyboard Access reaches the check box, the segments, the sliders and the
    fields.
+
+## Review findings (code-review.md, review.md)
+
+| Finding | Answer | Test |
+|---|---|---|
+| C1 / F1: a slider gesture that changes no value turned the photo gray and recorded a step | Fixed. `setBlackAndWhite` writes only the value (`Adjustments.setBlackAndWhite`), and a real change switches the group on through `enableModules`. Debug script on a fresh photo: `adjust bw set red 0` leaves `on false modified false` and adds no step; `set red 20` gives `on true` and "Black & White Filter" | `noChangeGestureChangesNothing`: on a never-used photo, `setBlackAndWhite(.red, 0)` changes nothing (the editor's `change` then commits nothing); the same value on a turned-off group leaves it off; a real change still switches it on |
+| C2: in `photocli develop`, whether `on` ended up set after a module reset and a filter set depended on the photo's earlier state | Fixed. `EditStack.applying` decides `on` from the edits alone. `on` set or reset by name wins. Otherwise a filter set means on. A module reset or `--reset all` forgets both. With no edit to the group, the stored state stays | `scriptedOnState`: the review's reproduction (`--reset blackAndWhite --set blackAndWhite.green=50`, and `--reset all --set blackAndWhite.red=40`) gives `{on, …}` from both a photo that had the group and one that didn't; plus `on` reset by name, a set wiped by a later reset, edits to other modules, and a filter reset by name |
+| C3: `--set blackAndWhite.on=true` did not turn a turned-off group back on | Fixed (cheap): an explicit `on=true` also clears the group's turned-off state, as the heading's Turn On does | `scriptedOnState` (last case) |
+| C4: `pipelineVersionUnchanged` hard-coded 12 | Fixed: `>= 12` | — |
+| F2: the user guide said "Tone heading"; the paragraph was long | Fixed: "the Light heading's tone sliders", and the paragraph is split in two (what it does and how to use it; its place in the order and what reaches it) | — |
+| F3: stale translator comment ("Yellow and Orange are new") | Fixed in `BlackAndWhiteText.name` and the five catalog entries | `LocalizationTests` |
+| Designer question in code-review.md (Color Fringes swatches): owner ruling 2026-11-18, the swatches show true colors | Fixed: `LensRenderer.swatch` leaves Black & White out | `fringeSwatchesKeepColor`: the purple slot's swatch with Black & White on equals the one without it, and is purple |
 
 ## Rulings (owner, 2026-11-18)
 

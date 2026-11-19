@@ -166,6 +166,76 @@ struct BlackAndWhiteTests {
         #expect(!other.blackAndWhiteApplies)
     }
 
+    @Test("A slider gesture that leaves the value as it was changes nothing: no switch-on, no step (C1, F1)")
+    func noChangeGestureChangesNothing() {
+        // As the editor's `change` runs it: the slider's write, then `enableModules`.
+        func slider(_ filter: Filter, _ value: Double, on before: Adjustments) -> Adjustments {
+            var next = before
+            next.setBlackAndWhite(filter, value)
+            next.enableModules(changedFrom: before)
+            return next
+        }
+        // Never used: a double-click at 0, Return in a field showing 0, a knob press.
+        #expect(slider(.red, 0, on: Adjustments()) == Adjustments())
+        // Turned off: the same value again leaves it off.
+        var off = Self.converted([.red: 50])
+        off.setEnabled(.blackAndWhite, false)
+        #expect(slider(.red, 50, on: off) == off)
+        // A real change still switches it on (B10), from never used and from turned off.
+        #expect(slider(.red, 10, on: Adjustments()).blackAndWhite == BlackAndWhite(isOn: true, [.red: 10]))
+        let changed = slider(.red, 60, on: off)
+        #expect(changed.blackAndWhiteApplies && changed.blackAndWhite[.red] == 60)
+    }
+
+    @Test("photocli: on is decided by the edits, whatever the photo held and in any reset order (C2, C3)")
+    func scriptedOnState() throws {
+        let kind = BlackAndWhite.kind
+        let red = Self.converted([.red: 100]).editStack
+        // The review's reproduction: a module reset, then a filter set, on a photo that had the group and one that didn't.
+        for start in [red, EditStack.identity] {
+            let reset = try start.applying([.reset(kind: kind, parameter: nil),
+                                            .set(kind: kind, parameter: "green", value: "50")])
+            #expect(Adjustments(stack: reset).blackAndWhite == BlackAndWhite(isOn: true, [.green: 50]))
+            let all = try start.applying([.resetAll, .set(kind: kind, parameter: "red", value: "40")])
+            #expect(Adjustments(stack: all).blackAndWhite == BlackAndWhite(isOn: true, [.red: 40]))
+            // `on` reset by name wins over a filter set.
+            let offByName = try start.applying([.reset(kind: kind, parameter: "on"),
+                                                .set(kind: kind, parameter: "red", value: "40")])
+            #expect(Adjustments(stack: offByName).blackAndWhite == BlackAndWhite(isOn: false, [.red: 40]))
+            // A set wiped by a later module reset leaves nothing.
+            let wiped = try start.applying([.set(kind: kind, parameter: "green", value: "50"),
+                                            .reset(kind: kind, parameter: nil)])
+            #expect(Adjustments(stack: wiped).blackAndWhite == BlackAndWhite())
+        }
+        // Edits that don't touch the group keep its state.
+        let other = try red.applying([.set(kind: Exposure.kind, parameter: "ev", value: "1")])
+        #expect(Adjustments(stack: other).blackAndWhite == BlackAndWhite(isOn: true, [.red: 100]))
+        // A filter reset by name keeps on as it was.
+        let filterReset = try red.applying([.reset(kind: kind, parameter: "red")])
+        #expect(Adjustments(stack: filterReset).blackAndWhite == BlackAndWhite(isOn: true))
+
+        // C3: `on=true` on a turned-off group turns it back on, as the heading's Turn On does.
+        var off = Self.converted([.red: 50])
+        off.setEnabled(.blackAndWhite, false)
+        let turnedOn = Adjustments(stack: try off.editStack.applying([.set(kind: kind, parameter: "on", value: "true")]))
+        #expect(turnedOn.blackAndWhiteApplies && turnedOn.blackAndWhite[.red] == 50)
+    }
+
+    @Test("Color Fringes slot swatches keep their color under Black & White (owner ruling 2026-11-18)")
+    func fringeSwatchesKeepColor() {
+        let purple = CommonFringeColor.purple.color
+        var gray = Self.converted([.red: 100])
+        gray.exposure.ev = 0.3
+        var color = gray
+        color.blackAndWhite = BlackAndWhite()
+        let renderer = AdjustmentRenderer()
+        let withConversion = ReferenceTests.renderLinear(renderer.swatch(purple, values: gray, context: RenderContext()))
+        let without = ReferenceTests.renderLinear(renderer.swatch(purple, values: color, context: RenderContext()))
+        #expect(withConversion == without)
+        let pixel = withConversion[0, 0]
+        #expect(pixel.z > pixel.y * 1.2, "the purple swatch is not gray: \(pixel)")
+    }
+
     @Test("A quick-set is one filter at 100 and the rest at 0, compared as the sliders round them (R6)")
     func quickSets() {
         for filter in Filter.allCases {
@@ -551,8 +621,9 @@ struct BlackAndWhiteTests {
         }
     }
 
+    /// This branch did not bump the version; others may (#219 makes it 13).
     @Test("No pipeline version bump (R13, AC13)")
     func pipelineVersionUnchanged() {
-        #expect(PreviewCacheKey.currentPipelineVersion == 12)
+        #expect(PreviewCacheKey.currentPipelineVersion >= 12)
     }
 }

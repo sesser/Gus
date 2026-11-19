@@ -11,7 +11,7 @@ enum BlackAndWhiteText {
 
     /// The segment and slider label.
     static func name(_ filter: BlackAndWhite.Filter) -> String {
-        let comment: StaticString = "Black & White filter names, as colored filters on a camera lens. Yellow and Orange are new; Red, Green and Blue already exist as Tone Curve channel names, so these have their own keys"
+        let comment: StaticString = "Black & White filter names, as colored filters on a camera lens; Red, Green and Blue have their own keys because they are also Tone Curve channel names"
         return switch filter {
         case .yellow: String(localized: "blackAndWhite.filter.yellow", defaultValue: "Yellow", comment: comment)
         case .orange: String(localized: "blackAndWhite.filter.orange", defaultValue: "Orange", comment: comment)

@@ -20,12 +20,11 @@ extension AdjustmentEditor {
         setEnabled(Adjustments.Group.blackAndWhite, !adjustments.blackAndWhiteApplies)
     }
 
-    /// A slider or its field. Switches the group on (B10).
+    /// A slider or its field. A real change switches the group on (B10,
+    /// through `change`'s `enableModules`); a press, double-click or Return
+    /// that leaves the value as it was records nothing.
     func setBlackAndWhite(_ filter: BlackAndWhite.Filter, _ value: Double, phase: EditPhase) {
-        change(BlackAndWhiteText.filterChange, phase: phase) {
-            $0.blackAndWhite[filter] = value
-            $0.blackAndWhite.isOn = true
-        }
+        change(BlackAndWhiteText.filterChange, phase: phase) { $0.setBlackAndWhite(filter, value) }
     }
 
     /// A segment or a menu item: that filter at the quick-set value, the

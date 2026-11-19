@@ -2769,7 +2769,7 @@
       }
     },
     "blackAndWhite.filter.blue" : {
-      "comment" : "Black & White filter names, as colored filters on a camera lens. Yellow and Orange are new; Red, Green and Blue already exist as Tone Curve channel names, so these have their own keys",
+      "comment" : "Black & White filter names, as colored filters on a camera lens; Red, Green and Blue have their own keys because they are also Tone Curve channel names",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2780,7 +2780,7 @@
       }
     },
     "blackAndWhite.filter.green" : {
-      "comment" : "Black & White filter names, as colored filters on a camera lens. Yellow and Orange are new; Red, Green and Blue already exist as Tone Curve channel names, so these have their own keys",
+      "comment" : "Black & White filter names, as colored filters on a camera lens; Red, Green and Blue have their own keys because they are also Tone Curve channel names",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2791,7 +2791,7 @@
       }
     },
     "blackAndWhite.filter.orange" : {
-      "comment" : "Black & White filter names, as colored filters on a camera lens. Yellow and Orange are new; Red, Green and Blue already exist as Tone Curve channel names, so these have their own keys",
+      "comment" : "Black & White filter names, as colored filters on a camera lens; Red, Green and Blue have their own keys because they are also Tone Curve channel names",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2802,7 +2802,7 @@
       }
     },
     "blackAndWhite.filter.red" : {
-      "comment" : "Black & White filter names, as colored filters on a camera lens. Yellow and Orange are new; Red, Green and Blue already exist as Tone Curve channel names, so these have their own keys",
+      "comment" : "Black & White filter names, as colored filters on a camera lens; Red, Green and Blue have their own keys because they are also Tone Curve channel names",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2813,7 +2813,7 @@
       }
     },
     "blackAndWhite.filter.yellow" : {
-      "comment" : "Black & White filter names, as colored filters on a camera lens. Yellow and Orange are new; Red, Green and Blue already exist as Tone Curve channel names, so these have their own keys",
+      "comment" : "Black & White filter names, as colored filters on a camera lens; Red, Green and Blue have their own keys because they are also Tone Curve channel names",
       "localizations" : {
         "en" : {
           "stringUnit" : {
