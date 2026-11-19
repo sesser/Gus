@@ -238,3 +238,86 @@ findings, C10 and C11. Both are small fixes in `confirmingLensFrameChange`.
   no file writing and no network code. The opcode reader and the RAF check are the
   branch's parsers, already in scope from the first pass.
 - No Design questions or Requirements issues.
+
+## Follow-up, third pass
+
+Third pass, 2026-11-19: dc89c81 (C10 to C12, the designer's F6 to F8, the
+debug command `lens pastethenfocus`) and 6dfb005 (user guide). a0df578 (the
+designer's `review.md`) is docs only. `swift build` passes. Full `swift test`:
+the first run had 1 failing test out of 1239. Only the tail of that log was
+kept, so I can't name it. Four more full runs passed, each 1239 tests in 176
+suites in 68.6 to 71.3 s. None of the reviewed commits touches a test, a
+golden, a migration or `currentPipelineVersion`. The failure is most likely an
+existing intermittent test unrelated to this change, but that is unconfirmed.
+QA's full run should keep its whole log.
+
+**Verdict of the third pass: ready for QA.** C10, C11 and C12 are fixed, and so
+are F6 and F8 from the code side. No new Should-fix finding. There are two new
+Nits (C13, C14), both narrow timing cases. I confirm the designer's F9 from the
+code. It is the only thing I would fix before QA, because the result is an
+Activity row that never ends and a Stop that does nothing.
+
+### Second-pass findings
+
+| # | Result | Commit | Note |
+|---|---|---|---|
+| C10 | Fixed | dc89c81 | The read and the question run on `lensQuestionTask` with their own token, `lensQuestionRun`. No code path in `confirmingLensFrameChange` touches `batchAutoTask`, `batchAutoRun` or `setBatchAutoProgress` (grep: the only claimants are `BatchActions` Auto Exposure and `changeAdjustmentsMeasuringAlignment`, as on `develop`). The measuring body still takes `batchAutoTask` when it measures, which is `develop`'s rule. Activity's "lensread" job Stop cancels only `lensQuestionTask`. `waitForBatchWork` waits for either task unless the question is up. The second command takes over the first: the grid path cancels the older task and begins a new run, and each guard (217, 226, 248) and the `defer` check `owns(run)`. The exceptions are C13 and F9. |
+| C11 | Fixed | dc89c81 | `commandTargets` is read once, before any await, and handed to `body`. Videos stay in it so `batchSelection` still counts skipped videos. `batchSelection(action:targets:)`, `applyingAdjustmentPreset(_:targets:)` and `changeAdjustmentsMeasuringAlignment(…, targets:)` use it. After that, everything looks photos up by id (`item(versionID:)`, the catalog's `editStacks`). The loupe path: one target, the open one, decided synchronously from `editor.savedAdjustments`. With no question, `body` and its undo registration run before the call returns. With a question, the alert is a sheet on the window, so the open photo can't change while it is up. A loupe paste no longer applies twice when the grid read it supersedes asked a question (that path cancels the older task). It can still apply twice when it takes the no-question path: see C13. The one remaining live read between question and change is `mode == .loupe` in the measuring path: see C14. |
+| C12 | Fixed | dc89c81 | `catch is CancellationError { return }` writes nothing, and the `defer` clears the row only for its own run. `WriteChain.read` throws `CancellationError` before and after its fetch, so a cancelled task can't get stacks back. A genuine error runs `body` only while `lensQuestionRun.owns(run)`. Stop can't come between the cancel and that check, because the read's Activity row (and so its Stop) appears only after the stacks are read (214). |
+| F6 | Fixed (code side) | dc89c81 | `ToolbarMetrics.statusLine(name:)` with the same "Apply Preset %@" key as the measuring path. It reaches `setLensReadProgress` at both sites and the job's `toolbarTitle`. |
+| F7 | Fixed | dc89c81 | Same change as C10. |
+| F8 | Fixed | dc89c81 | Comments and the catalog comment agree. The catalog's key is unchanged, so `LocalizationTests` is unaffected (it passes). |
+
+### Checked in this pass
+
+- **Two commands in flight.** Grid then grid: the newer one cancels the older.
+  The older one returns from the stack read (`CancellationError`), from the
+  chunk guard or from 226, and writes nothing. While the question is up, a newer
+  paste or preset does nothing (162). Each measuring body that starts takes
+  `batchAutoTask` over from an earlier measuring body, as on `develop`.
+- **Undo registration.** `changeAdjustments` registers synchronously inside
+  `body`. On the grid path that happens on the main actor after an await
+  (outside an event), the same as `develop`'s measuring paste. The step's
+  `before` and `after` come from the write itself, so a version that was gone by
+  then simply isn't in the step.
+- **Photos removed or going offline during the read.** The `CatalogItem`s are
+  snapshots, but only `versionID`, `isVideo` and `volumeID` are used. A removed
+  version is absent from `Catalog.editStacks(forVersions:)` (a filtered fetch), so
+  `changeEditStacks` and its undo step skip it. The measuring path drops it at
+  `item(versionID:)`. `isOffline` and `sourceURL` are evaluated in `body`, so a
+  volume unmounted during the read gets the measuring path's offline warning. A
+  non-measuring paste still changes offline photos, as on `develop`. The
+  question's count can include a photo removed during the read, which is
+  harmless.
+- **`lens pastethenfocus`.** `changesPhoto` returns true, so the command gets
+  its own undo group, which is the same rule as `pasteadjust`. The command
+  awaits `waitForBatchWork`, and so does the loop. When the paste asks, the wait
+  ends on `isAskingLensFrame` and `alert press` registers the step in its own
+  group. That is the same as `pasteadjust` (the group closes with nothing in it).
+  `setFocus` runs synchronously after `pasteAdjustments`, before the task's first
+  await, so the command really does change the selection before the read ends,
+  even with no file to read.
+- **F9 (designer), confirmed by reading the code.** `setLensReadProgress` at 214
+  and 223 has no `owns(run)` check. A superseded task that is between its
+  detached `frameCandidates` and 214, or inside a chunk, writes the row after the
+  newer run cleared it. It then returns at 217 or 226, and its `defer` no longer
+  owns the run. The row stays, and its Stop cancels the nil or finished
+  `lensQuestionTask`. The designer's fix is right: guard both writes with
+  `lensQuestionRun.owns(run)`.
+
+### New findings (third pass)
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C13 | Nit | `Model/LensCorrectionActions.swift:165, 169`; `PresetActions.swift:35` | The doc comment (157) and `status.md` C10 say a newer paste or preset ends a pending read. Only the grid path and the loupe path that asks actually cancel `lensQuestionTask`. These paths return without cancelling it: the loupe paste or preset that needs no question (169), a selection of videos only (165), and every preset without Distortion (`PresetActions.swift:35`). In those cases the pending read later applies the older command after the newer one. | Select 40 RAFs with a spot and Distortion Auto, and apply preset X (with Distortion). While Activity shows "N of 40", open one of the 40 in the loupe and apply preset Y (no Distortion, or no frame change). Y is saved. Then X's read ends and X is saved over all 40, the loupe's photo included, so for the groups both presets set, that photo shows X, the older command. ⌘Z undoes X first. With the same copied adjustments pasted twice, the second write records no history entry (`hasSameContent`), but it adds a second undo step. `develop` already does this with a measuring paste followed by a plain preset, so this is not a regression of kind. | Correctness; the doc comment. Fix: either cancel the pending read (`lensQuestionTask?.cancel()`, `lensQuestionRun.begin()`) at the top of `confirmingLensFrameChange` after the 162 guard and in `applyAdjustmentPreset`'s direct path, or reword 157 and `status.md` to "a newer paste or preset that reads". |
+| C14 | Nit | `Model/AdjustmentActions.swift:67, 71, 107` | `changeAdjustmentsMeasuringAlignment` decides `inLoupe = mode == .loupe` when `body` runs, which is now after the read (and the question). It then marks the editor's current photo as measuring, and as failed if any target's original can't be read, without checking that this photo is a target. | Select 20 raws with spots and Distortion Auto in the grid, and paste a copy with Align automatically on. During the read, press Return on another photo, Q, to open it. When the read ends, Q's Color Alignment caption says it is measuring for the whole batch. Unchecking Align automatically on Q then cancels the 20-photo paste (`AdjustmentEditor.swift:1995`, `batchAutoTask?.cancel()` when the editor has no task of its own). If one of the 20 originals is unreadable, Q says "This photo could not be measured" although nothing touched it. `develop` has a narrower form of this: `inLoupe` was taken at the command, and the open photo can change while measuring. The read widens the window. | C11 (live state read between question and change). Fix: set measuring and failed only while `editor.item?.versionID` is a target (or the single target), checked when they are set. |
+
+### For the main session
+
+- `/security-review`: nothing new. These commits add no parser, subprocess, file
+  writing or network code.
+- No Design questions or Requirements issues. C13's choice (end the pending
+  read, or let it land after) is small enough for the engineer. If the owner
+  wants a rule, it is a Design question for DQ-5.
+- Next: F9 to the engineer (a two-line guard), with C13 and C14 optional, then
+  qa-tester. If they are fixed, a fourth pass needs only the new commit.
