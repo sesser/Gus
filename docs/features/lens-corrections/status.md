@@ -367,6 +367,7 @@ which no test target imports.
 |---|---|---|
 | C15 | Fixed: the measuring paste marks the open photo "could not be measured" only when its own original is one that could not be read (`BatchEdit.AlignmentMeasurements.failed(_:)`), not when any target's failed | `measurementFailuresByPhoto` |
 | C16 | Fixed: `askLensFrameQuestion` returns before the question goes up when its read was ended or replaced before its task ran (`lensQuestionRun.owns(run)`, `Task.isCancelled`) | scripted S10 |
+| C17 | Fixed: the `record` doc line ("`alignment` nil: the original could not be measured.") is back above `record`; `failed(_:)` keeps its own (comment only) | `swift build` |
 
 ## Rulings (owner, 2026-11-19)
 
