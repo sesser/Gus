@@ -37,6 +37,13 @@ enum LensKernels {
         }
     }()
 
+    /// The kernels compiled, and no debug switch says they did not
+    /// (`LensCorrectionDebug`): when false the Distortion and Lens Vignetting
+    /// steps apply nothing and their groups say so (R11).
+    static var isAvailable: Bool {
+        LensCorrectionDebug.fault != .kernelFailure && (try? compiled.get()) != nil
+    }
+
     /// Compiles now rather than on first use; says how many kernels it gave.
     @discardableResult
     static func compile() throws -> Int {
@@ -195,6 +202,49 @@ enum LensKernels {
             float b = bilinear(source, sourceCenter + d * m.b).b
                 * (1.0f + lensTableValue(table, min(radii.b, scales.z), 1.0f).r);
             return float4(min(float3(r, g, b), 1.0f), 1);
+        }
+        """,
+        "lensGain": """
+        /// Lens vignetting (LensGain): each pixel times the gain at its radius, read
+        /// from a one-row table of gain − 1. A gain above 1 lifts a value at most to
+        /// white (1) and leaves one already above it as it is; below 1 it scales.
+        /// params: 1 / radius, entries per unit radius, the last entry's index.
+        [[stitchable]] float4 lensGain(sampler source, sampler table, float2 center, float3 params,
+                                       destination dest) {
+            float2 p = dest.coord();
+            float4 s = source.sample(source.transform(p));
+            float position = min(length(p - center) * params.x * params.y, params.z);
+            float i = floor(position);
+            float a = table.sample(table.transform(float2(i + 0.5f, 0.5f))).r;
+            float b = table.sample(table.transform(float2(min(i + 1.0f, params.z) + 0.5f, 0.5f))).r;
+            float g = 1.0f + mix(a, b, position - i);
+            float3 v = g >= 1.0f ? max(min(s.rgb * g, 1.0f), s.rgb) : s.rgb * g;
+            return float4(v, s.a);
+        }
+        """,
+        "lensWarp": """
+        /// The distortion correction (LensWarp): each pixel of the corrected picture taken
+        /// from where the lens recorded it. m: the decoded image's vectors (y up) to the
+        /// sensor's, rows first (its transpose undoes it). params: 1 / (radius × scale),
+        /// the radius in pixels, table entries per unit radius, the last entry's index.
+        /// tangential: kt0, kt1. bounds: the recorded image; a point beyond it is black.
+        [[stitchable]] float4 lensWarp(sampler source, sampler table, float2 center, float4 m, float4 params,
+                                       float2 tangential, float4 bounds, destination dest) {
+            float2 d = (dest.coord() - center) * params.x;
+            float2 u = float2(m.x * d.x + m.y * d.y, m.z * d.x + m.w * d.y);
+            float r2 = dot(u, u);
+            float position = min(sqrt(r2) * params.z, params.w);
+            float i = floor(position);
+            float a = table.sample(table.transform(float2(i + 0.5f, 0.5f))).r;
+            float b = table.sample(table.transform(float2(min(i + 1.0f, params.w) + 0.5f, 0.5f))).r;
+            float ratio = 1.0f + mix(a, b, position - i);
+            float2 su = u * ratio + float2(tangential.x * 2.0f * u.x * u.y + tangential.y * (r2 + 2.0f * u.x * u.x),
+                                           tangential.y * 2.0f * u.x * u.y + tangential.x * (r2 + 2.0f * u.y * u.y));
+            float2 p = center + float2(m.x * su.x + m.z * su.y, m.y * su.x + m.w * su.y) * params.y;
+            if (p.x < bounds.x || p.y < bounds.y || p.x > bounds.z || p.y > bounds.w) {
+                return float4(0, 0, 0, 1);
+            }
+            return bilinear(source, p);
         }
         """,
         "fringeMap": """

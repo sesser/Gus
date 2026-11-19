@@ -51,7 +51,7 @@ public enum ColorAlignmentMeasurement {
         } catch {
             throw Failure.unreadable
         }
-        var image = decoded.image
+        var image = measuredImage(adjustments, decoded.image, context: decoded.context)
         let extent = image.extent.integral
         guard !extent.isInfinite, !extent.isEmpty else { throw Failure.unreadable }
         let longest = max(extent.width, extent.height)
@@ -69,6 +69,13 @@ public enum ColorAlignmentMeasurement {
         }
         let scales = measure(rgba: rgba, width: width, height: height)
         return ColorAlignment(automatic: true, red: units(scales.red), blue: units(scales.blue))
+    }
+
+    /// The image a measurement reads: the decode as the Distortion and Lens
+    /// Vignetting groups leave it (issue #87, AC5), so red and blue are lined
+    /// up with the corrected green.
+    static func measuredImage(_ adjustments: Adjustments, _ decoded: CIImage, context: RenderContext) -> CIImage {
+        AdjustmentRenderer.lensCorrected(adjustments.effective, decoded, context: context)
     }
 
     /// Ten-thousandths, to a hundredth of one, with tiny values as none.

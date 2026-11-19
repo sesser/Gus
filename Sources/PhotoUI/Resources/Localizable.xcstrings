@@ -2537,6 +2537,17 @@
         }
       }
     },
+    "Distortion" : {
+      "comment" : "Adjust tab group under Lens and preset group: straightens lines a lens bends; also undo names (Turn On Distortion)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Distortion"
+          }
+        }
+      }
+    },
     "Each filter lightens colors like itself and darkens the opposite ones. Color Grading can tint the result." : {
       "comment" : "Black & White heading caption; “Color Grading” is the heading's name below",
       "localizations" : {
@@ -2588,6 +2599,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Green filter: lighter leaves and grass, darker reds and skin."
+          }
+        }
+      }
+    },
+    "Lens Vignetting" : {
+      "comment" : "Adjust tab group under Lens and preset group: corrects dark or light corners a lens causes. Not the creative Vignette under Effects; also undo names",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lens Vignetting"
           }
         }
       }
@@ -7359,7 +7381,7 @@
       }
     },
     "Lens" : {
-      "comment" : "Inspector info row and template token; Adjust tab heading for lens corrections: color fringes, color alignment",
+      "comment" : "Inspector info row and template token; Adjust tab heading for lens corrections: distortion, lens vignetting, color fringes, color alignment",
       "localizations" : {
         "en" : {
           "stringUnit" : {

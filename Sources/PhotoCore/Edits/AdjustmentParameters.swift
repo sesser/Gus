@@ -71,7 +71,8 @@ extension Adjustments {
         }
         return [describe(Crop.self), describe(RawDecode.self), describe(WhiteBalance.self), describe(Exposure.self),
                 describe(Tone.self), describe(Presence.self), describe(ToneCurve.self), describe(ColorMixer.self),
-                describe(BlackAndWhite.self), describe(ColorGrade.self), describe(ColorAlignment.self), describe(ColorFringes.self),
+                describe(BlackAndWhite.self), describe(ColorGrade.self), describe(LensDistortion.self),
+                describe(LensVignetting.self), describe(ColorAlignment.self), describe(ColorFringes.self),
                 describe(LookTable.self), describe(Vignette.self),
                 describe(NoiseReduction.self), describe(Sharpen.self), describe(Grain.self)]
     }()

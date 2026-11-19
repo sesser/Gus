@@ -851,6 +851,8 @@ enum AdjustText {
         case .lookTable: String(localized: "Look-Up Table")
         case .vignette: String(localized: "Vignette", comment: "Adjust tab group")
         case .grain: String(localized: "Grain", comment: "Adjust tab group")
+        case .distortion: String(localized: "Distortion", comment: "Adjust tab group under Lens: straightens lines a lens bends; also undo names (Turn On Distortion) and the preset group list")
+        case .lensVignetting: String(localized: "Lens Vignetting", comment: "Adjust tab group under Lens: corrects dark or light corners a lens causes. Not the creative Vignette under Effects; also undo names and the preset group list")
         case .colorFringes: String(localized: "Color Fringes", comment: "Adjust tab group under Lens: picked fringe colors turned gray near high-contrast edges")
         case .colorAlignment: String(localized: "Color Alignment", comment: "Adjust tab group under Lens: lines up red and blue with green toward the corners")
         case .spots: String(localized: "Spots", comment: "Adjust tab heading and group: heal and clone spots; also the Adjust ▸ Spots submenu and undo names (Turn On Spots)")
@@ -863,7 +865,7 @@ enum AdjustText {
         case .develop: String(localized: "Light", comment: "Adjust tab heading: white balance, tone, presence")
         case .tone: String(localized: "Tone Curve", comment: "Adjust tab heading")
         case .details: String(localized: "Details", comment: "Adjust tab heading")
-        case .lens: String(localized: "Lens", comment: "Adjust tab heading for lens corrections: color fringes, color alignment")
+        case .lens: String(localized: "Lens", comment: "Adjust tab heading for lens corrections: distortion, lens vignetting, color fringes, color alignment")
         case .colorMixer: String(localized: "Color Mixer", comment: "Adjust tab heading")
         case .blackAndWhite: BlackAndWhiteText.title
         case .colorGrading: String(localized: "Color Grading", comment: "Adjust tab heading")

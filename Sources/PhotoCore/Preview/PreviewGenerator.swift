@@ -302,7 +302,8 @@ public struct PreviewGenerator: Sendable {
             guard !output.linear.extent.isEmpty else { return nil }
             return Decoded(image: output.step.apply(to: output.linear, settings: settings),
                            context: RenderContext(scale: Self.scale(of: output.linear, native: output.fullSize),
-                                                  isRaw: false, balancedByDecoder: true),
+                                                  isRaw: false, balancedByDecoder: true,
+                                                  lens: CameraLensState.read(url, systemDecodes: false, decoderCorrects: false)),
                            decoder: .libRaw, camera: CameraDecode(linear: output.linear, step: output.step),
                            demosaic: output.demosaic)
         } catch let cancelled as CancellationError {
@@ -350,9 +351,13 @@ public struct PreviewGenerator: Sendable {
                 if layout?.hasLinearRaw == true, let whole = LinearRawDecode.rendered(output) {
                     output = whole
                 }
+                // Read from the filter that decoded: its own correction is what the image has (status.md Q1).
+                let lens = CameraLensState.read(url, systemDecodes: true,
+                                                decoderCorrects: raw.isLensCorrectionSupported && raw.isLensCorrectionEnabled)
                 return Decoded(image: output, context: RenderContext(scale: Self.scale(of: output, native: native),
                                                                      isRaw: true, balancedByDecoder: true,
-                                                                     cameraFrame: wholeSensor == nil ? nil : CameraFrame.rect(of: url)),
+                                                                     cameraFrame: wholeSensor == nil ? nil : CameraFrame.rect(of: url),
+                                                                     lens: lens),
                                machineLearning: outcome, decoder: .systemRAW)
             }
         }
@@ -378,12 +383,12 @@ public struct PreviewGenerator: Sendable {
             }
             let image = CIImage(cgImage: thumbnail)
             return Decoded(image: image, context: RenderContext(scale: Self.scale(of: image, native: Self.pixelSize(source)),
-                                                                isRaw: false))
+                                                                isRaw: false, lens: .notRaw))
         }
         guard let image = CIImage(contentsOf: url, options: [.applyOrientationProperty: true]) else {
             throw Failure.undecodable(url)
         }
-        return Decoded(image: image, context: RenderContext(scale: 1, isRaw: false))
+        return Decoded(image: image, context: RenderContext(scale: 1, isRaw: false, lens: .notRaw))
     }
 
     /// Long edge of the decode over the long edge of the master, at most 1.
@@ -422,6 +427,6 @@ public struct PreviewGenerator: Sendable {
         guard let image = CIImage(contentsOf: url, options: [.applyOrientationProperty: true, .expandToHDR: true]) else {
             throw Failure.undecodable(url)
         }
-        return Decoded(image: image, context: RenderContext(scale: 1, isRaw: false))
+        return Decoded(image: image, context: RenderContext(scale: 1, isRaw: false, lens: .notRaw))
     }
 }
