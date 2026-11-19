@@ -305,7 +305,7 @@ public struct PreviewGenerator: Sendable {
             return Decoded(image: output.step.apply(to: output.linear, settings: settings),
                            context: RenderContext(scale: Self.scale(of: output.linear, native: output.fullSize),
                                                   isRaw: false, balancedByDecoder: true,
-                                                  lens: CameraLensState.read(url, systemDecodes: false, decoderCorrects: false)),
+                                                  lens: Self.libRawLensState(url, corrected: output.hasLensCorrections)),
                            decoder: .libRaw, camera: CameraDecode(linear: output.linear, step: output.step),
                            demosaic: output.demosaic)
         } catch let cancelled as CancellationError {
@@ -314,6 +314,15 @@ public struct PreviewGenerator: Sendable {
             log.error("\(url.lastPathComponent, privacy: .private): no image from the system RAW decoder, and \(String(describing: error), privacy: .public)")
             return nil
         }
+    }
+
+    /// The lens state of a LibRaw decode: built in exactly when LibRaw applied
+    /// the camera's tables (`Output.hasLensCorrections`; code review C7), so a
+    /// frame outside LibRaw's image or a kernel that failed leaves Auto free.
+    static func libRawLensState(_ url: URL, corrected: Bool) -> CameraLensState {
+        if corrected { return .builtInCorrection }
+        let state = CameraLensState.read(url, systemDecodes: false, decoderCorrects: false)
+        return state == .builtInCorrection ? .tables(.none) : state
     }
 
     /// The system RAW decoder's image of a raw with its default settings, or nil

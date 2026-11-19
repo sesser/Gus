@@ -37,8 +37,14 @@ enum DebugLensCorrectionCommands {
             if group == .distortion { next.distortion.source = source } else { next.lensVignetting.source = source }
             next.setEnabled(group.adjustmentGroup, true)
         case ("amount", let value?):
+            let isOn = group == .distortion ? next.distortion.isOn : next.lensVignetting.isOn
             if group == .distortion { next.distortion.setAmount(value) } else { next.lensVignetting.setAmount(value) }
-        case ("constrain", _): next.distortion.constrain = words.dropFirst(2).first == "on"
+            if !isOn, status.startsInManual {
+                if group == .distortion { next.distortion.source = .manual } else { next.lensVignetting.source = .manual }
+            }
+        case ("constrain", _):
+            if !next.distortion.isOn, status.startsInManual { next.distortion.source = .manual }
+            next.distortion.constrain = words.dropFirst(2).first == "on"
         default: return nil
         }
         next.enableModules(changedFrom: editor.adjustments)
@@ -88,7 +94,7 @@ enum DebugLensCorrectionCommands {
 
     static func printState(_ editor: AdjustmentEditor) {
         let plan = LensCorrectionPlan(editor.adjustments.effective, lens: editor.lensState)
-        print("debug-script: lens state \(describe(editor.lensState)) kernels \(AdjustmentRenderer.lensCorrectionKernelsAvailable)"
+        print("debug-script: lens state \(describe(editor.lensState)) kernels \(!AdjustmentRenderer.lensCorrectionKernelsKnownUnavailable)"
               + " asking \(editor.isAskingLensFrame) answered \(editor.lensFrameAnswer.map(String.init) ?? "no")"
               + " warp \(plan.warp != nil) gain \(plan.gain != nil)")
         for group in LensCorrectionStatus.Group.allCases {

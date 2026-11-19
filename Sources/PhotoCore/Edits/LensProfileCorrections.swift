@@ -44,7 +44,8 @@ public struct LensDistortion: AdjustmentModule {
     init(_ values: ParameterValues) {
         isOn = values.bool("on", default: false)
         source = values.string("source").flatMap(LensCorrectionSource.init(rawValue:)) ?? .auto
-        amount = values.number("amount", default: 0)
+        // Stored values from outside (a preset file) are clamped, as Color Alignment's (code review C5).
+        amount = Self.clamped(values.number("amount", default: 0))
         constrain = values.bool("constrain", default: true)
     }
 
@@ -53,6 +54,10 @@ public struct LensDistortion: AdjustmentModule {
     public mutating func setAmount(_ value: Double) {
         guard value.isFinite, Self.amountRange.contains(value) else { return }
         amount = value
+    }
+
+    static func clamped(_ value: Double) -> Double {
+        min(max(value, amountRange.lowerBound), amountRange.upperBound)
     }
 
     /// True when the values other than `on` differ from `other`'s.
@@ -94,7 +99,7 @@ public struct LensVignetting: AdjustmentModule {
     init(_ values: ParameterValues) {
         isOn = values.bool("on", default: false)
         source = values.string("source").flatMap(LensCorrectionSource.init(rawValue:)) ?? .auto
-        amount = values.number("amount", default: 0)
+        amount = LensDistortion.clamped(values.number("amount", default: 0))
     }
 
     public mutating func setAmount(_ value: Double) {

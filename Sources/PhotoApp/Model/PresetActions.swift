@@ -33,7 +33,8 @@ extension LibraryModel {
     func applyAdjustmentPreset(_ preset: AdjustmentPreset) {
         // Asks first when it moves the frame of photos with masks or spots (lens-corrections design §6).
         guard preset.groups.contains(.distortion) else { return applyingAdjustmentPreset(preset) }
-        confirmingLensFrameChange({ preset.applied(onto: $0) }) { [self] in applyingAdjustmentPreset(preset) }
+        confirmingLensFrameChange(actionName: String(localized: "Apply Preset \(preset.name)", comment: "Undo action name"),
+                                  { preset.applied(onto: $0) }) { [self] in applyingAdjustmentPreset(preset) }
     }
 
     private func applyingAdjustmentPreset(_ preset: AdjustmentPreset) {

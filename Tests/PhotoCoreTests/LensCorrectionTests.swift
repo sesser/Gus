@@ -183,6 +183,19 @@ struct LensCorrectionTests {
         }
     }
 
+    @Test("A stored amount beyond −100 … +100 is clamped on read (code review C5)")
+    func storedAmountClamped() {
+        let stack = EditStack(operations: [
+            EditOperation(kind: LensDistortion.kind, parameters: ["on": .bool(true), "source": .string("manual"),
+                                                                  "amount": .number(2000)]),
+            EditOperation(kind: LensVignetting.kind, parameters: ["on": .bool(true), "amount": .number(-900)]),
+        ])
+        let values = Adjustments(stack: stack)
+        #expect(values.distortion.amount == 100 && values.lensVignetting.amount == -100)
+        // The plan is the slider's end, not a fold of the picture.
+        #expect(LensCorrectionPlan(values, lens: nil).warp?.radial == .manual(amount: 100))
+    }
+
     // MARK: The plan (R3, R4, R9; AC3, AC4, AC9)
 
     static let tables = CameraLensTables(origin: .dng, distortion: LensWarp(radial: .polynomial([1, -0.04, 0, 0]), fills: true),
@@ -377,6 +390,18 @@ struct LensCorrectionTests {
         }
     }
 
+    @Test("The lens frame is the camera's frame where it lies in a whole-sensor decode (code review Q2)")
+    func lensFrameOffCenter() {
+        let extent = CGRect(x: 0, y: 0, width: 400, height: 300)
+        #expect(AdjustmentRenderer.lensFrame(of: extent, context: RenderContext()) == extent)
+        // A frame 10% from the left and 20% from the top, 80% by 60%.
+        let context = RenderContext(cameraFrame: CropRect(x: 0.1, y: 0.2, width: 0.8, height: 0.6))
+        let frame = AdjustmentRenderer.lensFrame(of: extent, context: context)
+        let expected = CGRect(x: 40, y: 60, width: 320, height: 180)
+        #expect([frame.minX - expected.minX, frame.minY - expected.minY, frame.width - expected.width,
+                 frame.height - expected.height].allSatisfy { abs($0) < 1e-9 })
+    }
+
     @Test("The crop still applies after the correction (AC7)")
     func cropAfterCorrection() {
         var values = Self.values(distortion: LensDistortion(isOn: true, source: .manual, amount: 50))
@@ -447,9 +472,12 @@ struct LensCorrectionTests {
     func kernelFailure() {
         let input = Self.grid.ciImage
         let manual = Self.values(distortion: LensDistortion(isOn: true, source: .manual, amount: 40))
-        LensCorrectionDebug.fault = .kernelFailure
-        defer { LensCorrectionDebug.fault = nil }
-        #expect(AdjustmentRenderer.lensCorrected(manual, input, context: RenderContext()) === input)
+        // For this task only: parallel suites (the goldens) never see it (code review C9).
+        LensCorrectionDebug.$taskFault.withValue(.kernelFailure) {
+            #expect(AdjustmentRenderer.lensCorrected(manual, input, context: RenderContext()) === input)
+            #expect(AdjustmentRenderer.lensCorrectionKernelsKnownUnavailable)
+        }
+        #expect(AdjustmentRenderer.lensCorrected(manual, input, context: RenderContext()) !== input)
     }
 
     // MARK: Tables (R3; AC3, AC11)
@@ -534,10 +562,37 @@ struct LensCorrectionTests {
     @Test("The debug switch reads every usable table as damaged (AC11)")
     func corruptSwitch() throws {
         let url = try Self.write(SyntheticRAF.xe3(), "DSCF0005.RAF")
-        LensCorrectionDebug.fault = .tableCorrupt
-        defer { LensCorrectionDebug.fault = nil }
-        #expect(CameraLensState.read(url, systemDecodes: true, decoderCorrects: false) == .unreadable)
-        #expect(CameraLensState.read(url, systemDecodes: true, decoderCorrects: true) == .decoderCorrects)
+        LensCorrectionDebug.$taskFault.withValue(.tableCorrupt) {
+            #expect(CameraLensState.read(url, systemDecodes: true, decoderCorrects: false) == .unreadable)
+            #expect(CameraLensState.read(url, systemDecodes: true, decoderCorrects: true) == .decoderCorrects)
+        }
+        #expect(CameraLensState.read(url, systemDecodes: true, decoderCorrects: false) != .unreadable)
+    }
+
+    @Test("An empty OpcodeList3 (four bytes, held in the entry itself) is no table, not a damaged one (code review C6)")
+    func emptyOpcodeList() throws {
+        var options = SyntheticDNG.Options(width: 64, height: 48, seed: 5)
+        options.opcodeList3 = DNGOpcodes.list([])
+        #expect(options.opcodeList3?.count == 4)
+        let url = try Self.write(try SyntheticDNG.data(options: options), "IMG_0004.dng")
+        #expect(CameraLensState.read(url, systemDecodes: true, decoderCorrects: false) == .tables(.none))
+    }
+
+    @Test("A LibRaw decode is built in only when LibRaw applied the tables (code review C7)")
+    func libRawBuiltIn() throws {
+        let url = try Self.write(SyntheticRAF.xe3(), "DSCF0006.RAF")
+        #expect(PreviewGenerator.libRawLensState(url, corrected: true) == .builtInCorrection)
+        #expect(PreviewGenerator.libRawLensState(url, corrected: false) == .tables(.none))
+        // The file rule the editor uses first, before a decode.
+        #expect(CameraLensState.read(url, systemDecodes: false, decoderCorrects: false) == .builtInCorrection)
+    }
+
+    @Test("A file read on its own: not a raw, a DNG the system decoder reads without tables (code review C2)")
+    func standaloneRead() throws {
+        #expect(CameraLensState.read(URL(fileURLWithPath: "/tmp/nothing.jpg")) == .notRaw)
+        let url = try Self.write(try SyntheticDNG.data(options: SyntheticDNG.Options(width: 64, height: 48, seed: 6)),
+                                 "IMG_0005.dng")
+        #expect(CameraLensState.read(url) == .tables(.none))
     }
 
     @Test("DNG opcode lists: the green plane's warp and the radial vignetting; damaged lists throw")

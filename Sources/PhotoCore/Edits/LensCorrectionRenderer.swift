@@ -11,6 +11,11 @@ extension AdjustmentRenderer {
     /// when false, those groups apply nothing and say so.
     public static var lensCorrectionKernelsAvailable: Bool { LensKernels.isAvailable }
 
+    /// The kernels are known not to run (`lensCorrectionKernelsAvailable`
+    /// false), without compiling them: what the Adjust tab asks on the main
+    /// actor. False until a compile has finished.
+    public static var lensCorrectionKernelsKnownUnavailable: Bool { LensKernels.isKnownUnavailable }
+
     /// Entries of the radial lookup tables. Between two entries the kernels
     /// interpolate linearly; for the manual models that is exact to 10⁻⁸ of
     /// the radius.
@@ -29,13 +34,16 @@ extension AdjustmentRenderer {
         return image
     }
 
-    /// The frame the corrections' radii are measured in: the camera's frame
-    /// (for a raw decoded whole for its crop or masks) about the middle of
-    /// the decode, or the decode itself. A crop never changes it.
+    /// The frame the corrections' radii and center are measured in: the
+    /// camera's frame where it lies in a raw decoded whole for its crop or
+    /// masks, or the decode itself, which is that frame otherwise. So the same
+    /// whether or not a crop or a first mask switched the decode to the whole
+    /// sensor (code review Q2), and a crop never changes it.
     static func lensFrame(of extent: CGRect, context: RenderContext) -> CGRect {
         guard let camera = context.cameraFrame, camera.width > 0, camera.height > 0 else { return extent }
-        let width = extent.width * camera.width, height = extent.height * camera.height
-        return CGRect(x: extent.midX - width / 2, y: extent.midY - height / 2, width: width, height: height)
+        // `CropRect` counts y from the top; Core Image from the bottom.
+        return CGRect(x: extent.minX + camera.x * extent.width, y: extent.minY + (1 - camera.y - camera.height) * extent.height,
+                      width: camera.width * extent.width, height: camera.height * extent.height)
     }
 
     /// One row of `count` 32-bit floats in red (offsets from 1, so a context

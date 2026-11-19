@@ -230,6 +230,8 @@ final class AdjustmentEditor {
     @ObservationIgnored var lensFrameAnswer: Int?
     /// The frame question is up; the change waits for its answer.
     var isAskingLensFrame = false
+    /// Changes once the Lens kernels' compile has ended (`lensStatus`).
+    private(set) var lensKernelsRevision = 0
     /// The next commit is Reset All, which never asks (design §6).
     @ObservationIgnored var commitSkipsLensQuestion = false
 
@@ -462,7 +464,7 @@ final class AdjustmentEditor {
         let previewKey = library.previewRequest(for: newItem, tier: .preview)?.key
         let writes = library.writes
         // The Lens kernels compile once, the first time; not on the first frame that needs them.
-        Self.prepareLensKernelsOnce()
+        prepareLensKernelsOnce()
         loadTask = Task {
             let fileIsRaw = SupportedFormats.isRaw(pathExtension: url.pathExtension)
             let defaults = fileIsRaw
@@ -651,7 +653,10 @@ final class AdjustmentEditor {
 
     /// Applies a change from a control. `actionName` names the undo step.
     func change(_ actionName: String, phase: EditPhase, _ body: (inout Adjustments) -> Void) {
-        guard state == .ready else { return }
+        // While the lens frame question is up, nothing else changes the photo
+        // (a menu's key equivalent included): the answer decides one change
+        // (code review Q3).
+        guard state == .ready, !isAskingLensFrame else { return }
         // A run of spot nudges still waiting to be saved is its own undo step (code review C1).
         if SpotNudgeRule.savesPendingFirst(pending: spotNudge?.name, incoming: actionName, committing: phase == .committed) {
             commitSpotNudge()
@@ -718,6 +723,7 @@ final class AdjustmentEditor {
     func resetAll() {
         // It clears the masks and spots with the rest: nothing to ask (design §6).
         commitSkipsLensQuestion = true
+        defer { commitSkipsLensQuestion = false }
         change(String(localized: "Reset Adjustments", comment: "Undo action name"), phase: .committed) {
             $0 = $0.resettingAll()
         }
@@ -891,9 +897,11 @@ final class AdjustmentEditor {
     }
 
     private func commit(_ actionName: String) {
-        guard let item, adjustments != committed else { return }
+        // Read and cleared before anything returns: a Reset All that changes
+        // nothing must not leave it for the next commit (review F1, code review C4).
         let skipsQuestion = commitSkipsLensQuestion
         commitSkipsLensQuestion = false
+        guard let item, adjustments != committed else { return }
         if !skipsQuestion, asksLensFrameQuestion(from: committed, to: adjustments) {
             askLensFrameQuestion(actionName, versionID: item.versionID)
             return
@@ -1809,8 +1817,8 @@ final class AdjustmentEditor {
     /// The fringe tool itself (the click, and the debug script's mask points).
     var fringeMagnifierTool: FringeMagnifierTool? {
         fringeSamplePixels.map {
-            // Its pixels are the corrected ones while Distortion applies (lens-corrections design §10).
-            let corrected = LensCorrectionPlan(adjustments.effective, lens: lensState).warp != nil
+            // Its pixels are the corrected ones while Distortion or Lens Vignetting applies (design §10, review F4).
+            let corrected = !LensCorrectionPlan(adjustments.effective, lens: lensState).isIdentity
             return FringeMagnifierTool(pixels: $0, crop: maskCrop,
                                        note: corrected ? LensCorrectionText.afterLensCorrection : LensText.magnifierNote,
                                        refusal: LensText.almostNoColorState)
@@ -1959,10 +1967,18 @@ final class AdjustmentEditor {
 
     private static let lensKernels = Task.detached(priority: .utility) { AdjustmentRenderer.prepareLensKernels() }
 
-    /// Starts compiling the Lens kernels the first time a photo opens.
-    static func prepareLensKernelsOnce() {
-        _ = lensKernels
+    /// Starts compiling the Lens kernels the first time a photo opens, and
+    /// redraws the lens groups when it ends (code review C1).
+    func prepareLensKernelsOnce() {
+        guard !Self.lensKernelsStarted else { return }
+        Self.lensKernelsStarted = true
+        Task { [weak self] in
+            await Self.lensKernels.value
+            self?.lensKernelsRevision += 1
+        }
     }
+
+    private static var lensKernelsStarted = false
 
     // MARK: Color alignment (chromatic-aberration design §7)
 

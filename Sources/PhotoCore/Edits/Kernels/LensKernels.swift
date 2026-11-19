@@ -1,5 +1,6 @@
 import CoreImage
 import Foundation
+import Synchronization
 
 /// The Core Image kernels of the Lens heading (docs/features/chromatic-aberration),
 /// written in Metal and compiled from source at run time
@@ -29,13 +30,26 @@ enum LensKernels {
 
     /// Compiled once, on first use (about 300 ms after a build, `docs/PROFILING.md`).
     private static let compiled: Result<[String: CIKernel], Failure> = {
+        let result: Result<[String: CIKernel], Failure>
         do {
             let kernels = try kernelSources.keys.sorted().flatMap { try CIKernel.kernels(withMetalString: source(of: $0)) }
-            return .success(Dictionary(kernels.map { ($0.name, $0) }, uniquingKeysWith: { first, _ in first }))
+            result = .success(Dictionary(kernels.map { ($0.name, $0) }, uniquingKeysWith: { first, _ in first }))
         } catch {
-            return .failure(.compileFailed(String(describing: error)))
+            result = .failure(.compileFailed(String(describing: error)))
         }
+        compileState.store(result.isSuccess ? 1 : 2, ordering: .releasing)
+        return result
     }()
+
+    /// 0 while the kernels have not been compiled yet, 1 compiled, 2 failed.
+    private static let compileState = Atomic<UInt8>(0)
+
+    /// The kernels are known not to run: the compile failed, or the debug
+    /// switch says so. Never compiles, so the main actor can ask (code review
+    /// C1): while the compile has not finished, the answer is false.
+    static var isKnownUnavailable: Bool {
+        LensCorrectionDebug.fault == .kernelFailure || compileState.load(ordering: .acquiring) == 2
+    }
 
     /// The kernels compiled, and no debug switch says they did not
     /// (`LensCorrectionDebug`): when false the Distortion and Lens Vignetting
@@ -266,5 +280,12 @@ enum LensKernels {
             }
             }
             """
+    }
+}
+
+private extension Result {
+    var isSuccess: Bool {
+        if case .success = self { return true }
+        return false
     }
 }

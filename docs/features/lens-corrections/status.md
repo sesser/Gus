@@ -19,7 +19,8 @@ opened or changed). Next: code review and the designer's review, then QA;
 | When | `swift build` | `swift test` |
 |---|---|---|
 | Baseline (develop c97d579 plus the design commits, before any change) | Pass (two existing warnings in `SmartAlbumTests.swift`, `VirtualCopiesTests.swift`) | 1204 tests in 175 suites pass |
-| Latest (after the 2026-11-19 rulings) | Pass, no new warnings | 1234 tests in 176 suites pass (71.9 s); `dngSample` passes opt-in on Adobe's sample; `Scripts/build-app.sh` passes |
+| After the 2026-11-19 rulings (ad9b419) | Pass, no new warnings | 1234 tests in 176 suites pass (71.9 s); `dngSample` passes opt-in on Adobe's sample; `Scripts/build-app.sh` passes |
+| Latest (after the code and design reviews) | Pass, no new warnings | 1239 tests in 176 suites pass (70.3 s); `Scripts/build-app.sh` passes |
 
 `PreviewCacheKey.currentPipelineVersion` stays 13: a stack without the new
 operations renders byte for byte as before (the lens step returns its input
@@ -280,6 +281,16 @@ fresh copy, every launch with `--library-root`.
   the 107 photos has masks or spots…", Change: undo "Paste Adjustments".
 - **S4** `photocli render` of the 12-32 RW2 with `lensDistortion.on=true`:
   `decoderCorrectsAuto` for both groups, nothing applied.
+- **S6** (after the reviews) JPEG, never touched: `lens distortion constrain off`
+  turns Distortion on in Manual ("Turn Off Constrain to Image"). With a spot and
+  the question up for Distortion, a Lens Vignetting change does nothing; Cancel
+  restores, Return saves "Distortion Amount".
+- **S7** Grid, all 107 selected, Paste of Manual Distortion 30 onto a selection
+  where one photo has a spot: "1 of the 107 photos has masks or spots…"; Cancel
+  writes nothing; again with Return: "Paste Adjustments"; one `undo` leaves redo
+  "Paste Adjustments". A scripted `pasteadjust` answered Cancel leaves its own
+  command's group empty, which the script's undo stack shows as an empty step
+  (a scripting artifact: ⌘V in the app has no group of its own).
 - **S5** (AC14) XF14 raw, Lens Vignetting never on: `lens vignetting manual`
   turns it on in Manual, undo "Lens Vignetting Source"; one `undo` puts it back
   off with Source Auto; `lens vignetting auto` twice: the first turns it on (one
@@ -288,6 +299,27 @@ fresh copy, every launch with `--library-root`.
 - `print inspectorwidth` with the Lens heading open: visible 283, `fits` (the
   widest control is the Tone Curve's segmented control). The narrowest
   inspector can't be set by script (P2).
+
+## Review findings (code-review.md C1 to C9, Q1 to Q3; review.md F1 to F5)
+
+| # | What was done | Test or check |
+|---|---|---|
+| C1 | Fixed. The tab never compiles the kernels: `LensKernels` records when its compile ends (an atomic), and the editor asks `lensCorrectionKernelsKnownUnavailable`, false until a compile has finished (a failed one shows row 3 then). The editor starts the compile off the main actor when a photo opens, as before, and bumps `lensKernelsRevision` when it ends, so the groups redraw. Renders (off the main actor) still compile on first use | `kernelFailure` (the known flag); scripted `lens print` |
+| C2 | Fixed. A selection's read now runs as the batch task (`batchAutoTask`, `batchAutoRun`): the saved stacks, then only for photos with masks or spots whose Distortion uses Auto, their files, four at a time, through `CameraLensState.read(url)` (one `CIRAWFilter`, not `RawDefaults`), with progress in Activity under the command's title. Stop there or a newer paste or preset ends it (the run token keeps a second command from clearing the first's state); a paste or preset while the question is up does nothing | `standaloneRead`; scripted S7 |
+| C3 | Fixed in the script, mostly fixed in the app. The debug script's loop now waits after every grouped command (key, menu, context menu, paste, preset) while a batch task reads or measures, unless the frame question is up; `alert press` and `alert key` wait in their own group after the answer. In the app, the loupe's photo alone (⌘V in the loupe, the common case) is decided at once from the editor, which holds its saved values and file state, so the paste registers its undo step before the command returns and ⌘Z right after ⌘V undoes it. **Not fixed for a selection in the grid**: there the stacks are read first, so ⌘Z pressed before that read returns (normally a few milliseconds behind pending saves, longer when files are read, with Activity showing it) undoes the step before the paste. The same is true today of a paste or preset that measures Color Alignment. Holding Undo during the read needs the window's own undo manager or the Edit menu, which the app does not own; noted as a limit | scripted S6, S7 |
+| C4 / F1 | Fixed: `commit` reads and clears the skip flag before any return, and `resetAll` clears it in a `defer` | by reading (the path needs an operation this build does not know); scripted Reset All earlier (S3) |
+| C5 | Fixed: stored amounts are clamped to −100 … +100 on read, as Color Alignment's values | `storedAmountClamped` |
+| C6 | Fixed: an `OpcodeList3` of 4 bytes or fewer is read from the entry's own field | `emptyOpcodeList` |
+| C7 | Fixed: a LibRaw decode's state is built in exactly when `Output.hasLensCorrections` says LibRaw applied the tables (`PreviewGenerator.libRawLensState`); the editor keeps the file rule for its first read, as suggested | `libRawBuiltIn` |
+| C8 | Fixed: `readingLabel` and its catalog entry removed | `LocalizationTests` |
+| C9 | Fixed: tests set `LensCorrectionDebug.$taskFault` (task-local), which parallel suites never see; the process-wide switch stays for the debug script | `kernelFailure`, `corruptSwitch` |
+| F2 (DQ-4) | Fixed: Constrain to image on a group never switched on starts it in Manual where Auto can't apply, in the same step; the Amount (a typed value or a script) does the same. The debug script's prediction follows | scripted S6 |
+| F3 | Fixed: `constrainTitle`'s comment and the catalog comment read "scale the corrected photo to fill its frame" | — |
+| F4 | Fixed: the magnifier plate reads "After lens correction" while the plan has a warp or a gain; user guide updated | by reading (`fringeMagnifierTool`) |
+| F5 | Fixed: the user guide lists Turn Off Distortion, Turn Off Constrain to Image, the four Lens Vignetting forms and Reset Lens | — |
+| Q1 | Answered: no disagreement on the owner's files. On an E-M5 III ORF, a GX7 II RW2 and X-E3 RAFs (XF35, XF14), the flags are the same under `RAWDecodeSettings.none`, under the stack's settings (Kelvin, the whole-sensor request, machine learning asked) and under the older decoder version (7 or 6). None of these cameras is offered the machine learning decoder (versions 7 and 8 only), so version 9 could not be tried; renders read the flag from the filter that decodes, so a render never applies Auto over the decoder's correction | probe, 2026-11-19 |
+| Q2 | Fixed rather than assumed: `lensFrame` places the camera's frame where it lies (`CropRect.x`/`y`, y from the top), so the center and radius are the camera frame's with or without a whole-sensor decode | `lensFrameOffCenter` |
+| Q3 | Guarded: while the question is up, `change` does nothing (a menu key equivalent included) and a paste or preset does nothing, so the answer decides one change under its own name. Whether AppKit delivers a menu key equivalent with the sheet up stays a check with a real keyboard (P4) | scripted S6 (a Lens Vignetting change while asking is ignored) |
 
 ## Rulings (owner, 2026-11-19)
 
@@ -430,6 +462,9 @@ line in the feature list (Distortion and Lens Vignetting in the Lens heading).
 ## Open items and limits
 
 - Auto reads Fujifilm and DNG tables only (ruled: RQ-1, RQ-2; follow-ups F2 to F4).
+- ⌘Z pressed while a paste or preset on a grid selection is still reading its
+  targets undoes the step before it (code review C3, the part not fixed; the
+  loupe's paste is decided at once).
 - The frame question does not wait behind another sheet (`LibraryModal`); none
   can be up when it is asked from the tab or the menus.
 - "Reading the camera's table" (design §4 row 4) is not built: the state is

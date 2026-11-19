@@ -1,4 +1,5 @@
 import CoreGraphics
+import CoreImage
 import Foundation
 import ImageIO
 
@@ -59,6 +60,18 @@ public struct CameraLensTables: Hashable, Sendable {
 }
 
 extension CameraLensState {
+    /// The state of `url` read on its own, with one look at the file by the
+    /// system decoder (which decoder reads it, and whether it corrects the
+    /// lens), set up as for an untouched photo: what a paste or preset asks
+    /// of photos that are not open (code review C2).
+    public static func read(_ url: URL) -> CameraLensState {
+        guard SupportedFormats.isRaw(pathExtension: url.pathExtension) else { return .notRaw }
+        if let raw = CIRAWFilter(imageURL: url), SystemRAWDecoder.givesImageUntouched(raw) {
+            return read(url, systemDecodes: true, decoderCorrects: raw.isLensCorrectionSupported && raw.isLensCorrectionEnabled)
+        }
+        return read(url, systemDecodes: false, decoderCorrects: false)
+    }
+
     /// The state of `url` as it decodes: `systemDecodes` when the system's
     /// RAW decoder reads it (`SystemRAWDecoder.reads`), `decoderCorrects`
     /// read from the filter that decodes it.
@@ -179,8 +192,9 @@ enum DNGLensOpcodes {
         guard let raw = images.first(where: { entries in
             (entries.first { $0.tag == Tag.newSubfileType }.flatMap { reader.values($0).first } ?? 0) == 0
         }), let list = raw.first(where: { $0.tag == Tag.opcodeList3 }) else { return .tables(.none) }
+        // A value of 4 bytes or fewer is held in the entry's own field (code review C6).
         guard [1, 7].contains(list.type), list.count >= 4, Int(list.count) <= maximumListLength,
-              let data = reader.read(Int(list.count), at: reader.valueOffset(list)),
+              let data = list.count <= 4 ? list.field : reader.read(Int(list.count), at: reader.valueOffset(list)),
               let parsed = try? parse(data) else { return .unreadable }
         guard parsed.warp != nil || parsed.vignette != nil else { return .tables(.none) }
 

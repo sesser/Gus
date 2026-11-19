@@ -87,6 +87,8 @@ enum DebugLibraryOpsCommands {
         let grouped = asked && model.pendingRemoval == nil
         if grouped { model.undoManager.beginUndoGrouping() }
         await answer()
+        // A paste or preset confirmed here may go on to measure before it saves.
+        if grouped { await DebugScript.waitForBatchWork(model) }
         if grouped { model.undoManager.endUndoGrouping() }
     }
 

@@ -2682,7 +2682,7 @@
       }
     },
     "Constrain to image" : {
-      "comment" : "Check box under Distortion: zoom so the corrected photo has no empty edge",
+      "comment" : "Check box under Distortion: scale the corrected photo to fill its frame",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3018,17 +3018,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Positive values straighten lines that bow outward; negative values straighten lines that bow inward."
-          }
-        }
-      }
-    },
-    "Reading the camera's table" : {
-      "comment" : "Spinner tooltip and VoiceOver label while a lens correction table is read; no visible label",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reading the camera's table"
           }
         }
       }

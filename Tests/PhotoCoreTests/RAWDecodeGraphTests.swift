@@ -246,6 +246,7 @@ struct RAWDecodeGraphTests {
             "Sources/PhotoCore/Preview/SystemRAWDecoder.swift": false,  // asks whether there is an image (keyed, never rendered)
             "Sources/PhotoCore/Edits/AutoAdjust.swift": true,           // Auto White Balance; RawDefaults reads values
             "Sources/PhotoCore/Edits/MachineLearningNoiseReduction.swift": false, // reads decoder versions
+            "Sources/PhotoCore/Preview/CameraLensState.swift": false,   // asks whether there is an image and reads the lens flags
         ]
         var found: Set<String> = []
         for path in RepositoryFiles.files(under: "Sources") where path.hasSuffix(".swift") {

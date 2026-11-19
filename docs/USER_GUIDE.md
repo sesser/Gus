@@ -568,7 +568,8 @@ them, and a photo you never touch renders exactly as before.
 **Distortion** straightens lines a lens bends, and **Lens Vignetting** brightens
 the corners a lens darkens (it is not the creative **Vignette** under Effects,
 which comes last). Their check boxes are always shown: checking one turns it on, and so does
-choosing a Source segment or moving its Amount while it is off.
+choosing a Source segment, moving its Amount or clicking Constrain to image while
+it is off.
 Each has a **Source**: **Auto** uses the correction table your camera stored in
 the raw file; **Manual** shows one **Amount**, -100 to +100. For Distortion,
 positive values straighten lines that bow outward (barrel), negative values lines
@@ -590,7 +591,7 @@ segment is dimmed, its tooltip and the caption say why), so nothing is ever
 corrected twice; Manual still works, and your amount is added on top of the
 camera's correction. A file that is not a raw (a JPEG, the JPEG of a RAW+JPEG
 pair, a HEIC) has no table, so Auto is dimmed there too. On these files, checking
-the group starts it in Manual. Today Auto reads the tables of Fujifilm raws the
+the group (or clicking Constrain to image) starts it in Manual. Today Auto reads the tables of Fujifilm raws the
 system decoder does not correct (for example the XF14mm and XF23mm f/1.4 on an
 X-E3, whose tables correct vignetting) and the lens corrections stored in DNG
 files; for other raws it says no table was found.
@@ -614,8 +615,11 @@ it was, the slider included. A drag asks when you let go. It asks once per visit
 to the photo (again after you add a mask or spot), once for a whole paste or
 preset with how many of the photos have masks or spots, and never for Undo, Redo,
 History or Reset All Adjustments. Lens Vignetting never asks. Undo and History
-read **Turn On Distortion**, **Distortion Source**, **Distortion Amount**, **Turn
-On Constrain to Image** and the Lens Vignetting forms. Copy and paste and presets
+read **Turn On Distortion** and **Turn Off Distortion**, **Distortion Source**,
+**Distortion Amount**, **Turn On Constrain to Image** and **Turn Off Constrain to
+Image**, the Lens Vignetting forms (**Turn On Lens Vignetting**, **Turn Off Lens
+Vignetting**, **Lens Vignetting Source**, **Lens Vignetting Amount**), and **Reset
+Lens** for the heading's reset. Copy and paste and presets
 carry both groups; each photo reads its own file's table for Auto, so a photo
 without one is left as it was and says so in its caption. To correct a whole
 shoot, save a preset of the two groups set to Auto and apply it to the selection.
@@ -635,8 +639,8 @@ the text under the slots says so and the eyedropper stays on. If the original
 can't be read when you click the eyedropper, picking ends and the text under the
 slots says so; make it available and click the eyedropper again. When the magnifier
 reads **Almost no color**, a click there won't be taken. It shows the photo before
-your edits (after lens correction while Distortion applies, and its plate says
-so), so its colors can differ from the photo around it and from the slot's
+your edits (after lens correction while Distortion or Lens Vignetting applies,
+and its plate says so), so its colors can differ from the photo around it and from the slot's
 swatch. Change its zoom with the **Pixel magnifier** pop-up under the slots,
 **View ▸ Pixel Magnifier**, the photo's context menu, or `-` and `=` while picking;
 the app remembers it. Or, without

@@ -33,7 +33,7 @@ extension LibraryModel {
         guard let copiedAdjustments else { return }
         let actionName = String(localized: "Paste Adjustments", comment: "Undo action name")
         // Asks first when it moves the frame of photos with masks or spots (lens-corrections design §6).
-        confirmingLensFrameChange({ copiedAdjustments.pasted(onto: $0) }) { [self] in
+        confirmingLensFrameChange(actionName: actionName, { copiedAdjustments.pasted(onto: $0) }) { [self] in
             if copiedAdjustments.needsAlignmentMeasurement {
                 changeAdjustmentsMeasuringAlignment(actionName: actionName) { copiedAdjustments.pasted(onto: $0) }
                 return

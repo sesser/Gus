@@ -200,6 +200,7 @@ enum DebugScript {
                     || DebugLensCorrectionCommands.changesPhoto(words.map(String.init), editor: model.editor)
                 if grouped { undoManager.beginUndoGrouping() }
                 await run(command, model: model)
+                if grouped { await waitForBatchWork(model) }
                 // A Duplicate started by a key or a menu item registers its
                 // undo step when its copies are written.
                 await DebugCopyCommands.waitForDuplicate(model)
@@ -216,10 +217,20 @@ enum DebugScript {
     /// lands in the command's undo group.
     private static func waitForBatchMeasuring(_ model: LibraryModel) async {
         try? await Task.sleep(for: .milliseconds(100))
-        // The lens frame question, until it is up (`alert press` answers it).
-        while model.lensQuestionTask != nil, !model.editor.isAskingLensFrame { try? await Task.sleep(for: .milliseconds(50)) }
-        while model.batchAutoTask != nil { try? await Task.sleep(for: .milliseconds(100)) }
+        await waitForBatchWork(model)
         try? await Task.sleep(for: .milliseconds(200))
+    }
+
+    /// Waits while a batch command reads or measures before it saves (a
+    /// paste or preset reading its targets for the lens frame question, or
+    /// measuring color alignment), so its save lands in the command's undo
+    /// group, whichever command started it (a key, a menu item; code review
+    /// C3). Not while the frame question is up: `alert press` answers it, and
+    /// waits in its own group.
+    static func waitForBatchWork(_ model: LibraryModel) async {
+        while model.batchAutoTask != nil, !model.editor.isAskingLensFrame {
+            try? await Task.sleep(for: .milliseconds(50))
+        }
     }
 
     private static var window: NSWindow? {
