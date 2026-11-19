@@ -64,6 +64,10 @@ I built this with Claude. AI did the work, I did the orchestration.
 - Crop, rotate and straighten
 - White balance, exposure (with Auto), tone, clarity, vibrance and
   saturation, a tone curve, a color mixer and color grading
+- Black and white with film filters: turn the group on and pick Yellow,
+  Orange, Red, Green or Blue (or mix the five sliders) to say how colors turn
+  into grays, as a colored filter on the lens did. It applies to the whole
+  photo, not to a mask
 - Sharpening, noise reduction, vignette, grain and look-up tables (`.cube`)
 - A sharpening map that shows where sharpening goes and where Masking holds
   it back
@@ -139,7 +143,7 @@ Removing larger objects (a remove brush) and automatic dust detection,
 distortion and lens vignetting corrections (other than the camera's
 own in Fujifilm raws macOS can't decode), lens profiles, DNG
 export, automatic (subject/sky) masks, DCP camera profiles, hand-made and
-burst stacks,
+burst stacks, black and white for part of a photo (through a mask), mapping of Lightroom black and white settings on import,
 hierarchical keywords, importing straight from a camera over USB, a second
 backup destination on import. Metadata is never written into original
 files; it goes to XMP sidecars.

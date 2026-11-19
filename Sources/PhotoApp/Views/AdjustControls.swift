@@ -97,6 +97,9 @@ struct AdjustSlider: NSViewRepresentable {
     /// label is ambiguous (two "Tolerance" rows); nil uses the label.
     var accessibilityLabel: String?
     var fieldAccessibilityLabel: String?
+    /// The track's fill while the group is on, in place of the system's
+    /// (Black & White's filter colors, design §5); nil for the standard look.
+    var trackTint: NSColor?
     let onChange: (Double, EditPhase) -> Void
     /// False while the slider's group is turned off (`showsTurnedOff`).
     @Environment(\.adjustGroupIsOn) private var groupIsOn
@@ -109,7 +112,7 @@ struct AdjustSlider: NSViewRepresentable {
         row.configure(title: title, value: value, range: range, defaultValue: defaultValue, format: format,
                       scale: scale, isEnabled: isEnabled, groupIsOn: groupIsOn, help: help,
                       accessibilityLabel: accessibilityLabel, fieldAccessibilityLabel: fieldAccessibilityLabel,
-                      onChange: onChange)
+                      trackTint: trackTint, onChange: onChange)
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: SliderRow, context: Context) -> CGSize? {
@@ -179,6 +182,7 @@ final class SliderRow: NSView, NSTextFieldDelegate {
     private var defaultValue = 0.0
     private var groupIsOn = true
     private var isEnabled = true
+    private var trackTint: NSColor?
     private var onChange: (Double, EditPhase) -> Void = { _, _ in }
 
     init() {
@@ -234,7 +238,7 @@ final class SliderRow: NSView, NSTextFieldDelegate {
     func configure(title: String, value: Double, range: ClosedRange<Double>, defaultValue: Double,
                    format: SliderFormat, scale: SliderScale, isEnabled: Bool, groupIsOn: Bool = true,
                    help: String? = nil, accessibilityLabel: String? = nil, fieldAccessibilityLabel: String? = nil,
-                   onChange: @escaping (Double, EditPhase) -> Void) {
+                   trackTint: NSColor? = nil, onChange: @escaping (Double, EditPhase) -> Void) {
         label.stringValue = title
         let ends = [scale.position(range.lowerBound), scale.position(range.upperBound)]
         slider.minValue = ends.min() ?? 0
@@ -246,6 +250,7 @@ final class SliderRow: NSView, NSTextFieldDelegate {
         self.defaultValue = defaultValue
         self.groupIsOn = groupIsOn
         self.isEnabled = isEnabled
+        self.trackTint = trackTint
         self.onChange = onChange
         slider.isEnabled = isEnabled
         field.isEditable = isEnabled
@@ -281,10 +286,10 @@ final class SliderRow: NSView, NSTextFieldDelegate {
             : groupIsOn && isChanged ? .labelColor : .secondaryLabelColor
         if #available(macOS 26, *) {
             slider.neutralValue = scale.position(defaultValue)
-            slider.trackFillColor = groupIsOn ? nil : .clear
+            slider.trackFillColor = groupIsOn ? trackTint : .clear
         } else {
-            // No fill from a neutral value before macOS 26: a neutral gray from the minimum.
-            slider.trackFillColor = groupIsOn ? .systemGray : .clear
+            // No fill from a neutral value before macOS 26: a neutral gray (or the tint) from the minimum.
+            slider.trackFillColor = groupIsOn ? trackTint ?? .systemGray : .clear
         }
     }
 
@@ -841,6 +846,7 @@ enum AdjustText {
         case .sharpening: String(localized: "Sharpening")
         case .noiseReduction: String(localized: "Noise Reduction")
         case .colorMixer: String(localized: "Color Mixer", comment: "Adjust tab heading")
+        case .blackAndWhite: BlackAndWhiteText.title
         case .colorGrade: String(localized: "Color Grading", comment: "Adjust tab heading")
         case .lookTable: String(localized: "Look-Up Table")
         case .vignette: String(localized: "Vignette", comment: "Adjust tab group")
@@ -859,6 +865,7 @@ enum AdjustText {
         case .details: String(localized: "Details", comment: "Adjust tab heading")
         case .lens: String(localized: "Lens", comment: "Adjust tab heading for lens corrections: color fringes, color alignment")
         case .colorMixer: String(localized: "Color Mixer", comment: "Adjust tab heading")
+        case .blackAndWhite: BlackAndWhiteText.title
         case .colorGrading: String(localized: "Color Grading", comment: "Adjust tab heading")
         case .effects: String(localized: "Effects", comment: "Adjust tab heading")
         case .spots: String(localized: "Spots", comment: "Adjust tab heading and group: heal and clone spots; also the Adjust ▸ Spots submenu and undo names (Turn On Spots)")

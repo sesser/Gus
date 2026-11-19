@@ -58,6 +58,9 @@ final class AdjustmentEditor {
     var renderContextKind: RenderContext {
         RenderContext(isRaw: isRaw, balancedByDecoder: isRaw || usesFallbackDecoder)
     }
+    /// The photo's file is known to hold no color (`SourceColorModel`): the
+    /// Black & White heading says its filters change nothing (design §6).
+    private(set) var sourceIsMonochrome = false
     /// What the decoder chose for a RAW file (as-shot white balance, defaults).
     /// Nil exactly when `isRaw` is false.
     private(set) var rawDefaults: RawDefaults?
@@ -437,6 +440,7 @@ final class AdjustmentEditor {
         isRaw = false
         usesFallbackDecoder = false
         whiteBalanceControls = .relative
+        sourceIsMonochrome = false
         let catalog = library.catalog
         let generator = library.previews.interactiveGenerator
         let colorSpace = library.previews.displayColorSpace
@@ -462,6 +466,9 @@ final class AdjustmentEditor {
                 ? await Task.detached(priority: .userInitiated) { CameraFrame.rect(of: url) }.value : nil
             let cached = await Task.detached(priority: .userInitiated) { previewKey.map(cache.contains) ?? false }.value
             let fallback = previewKey.flatMap(cache.sessionOnlyReason)
+            // The file's header only; never true for a raw.
+            let monochrome = fileIsRaw ? false
+                : await Task.detached(priority: .userInitiated) { SourceColorModel.isMonochrome(url) }.value
             guard !Task.isCancelled, item?.versionID == versionID else { return }
             // Through the write chain: a save of this photo can still be
             // queued (it was left and opened again before the save landed).
@@ -485,6 +492,7 @@ final class AdjustmentEditor {
                     arrivedWithFailedFallback = fallback == .failed
                     if let fallback { learnUnavailability(fallback) }
                     cameraRect = camera
+                    sourceIsMonochrome = monochrome
                     session = LiveRenderSession(source: url, generator: generator, colorSpace: colorSpace,
                                                 systemDecodesRaw: systemDecodes)
                     regionRenderer = LiveRegionRenderer(source: url, generator: generator, colorSpace: colorSpace,
@@ -561,6 +569,7 @@ final class AdjustmentEditor {
         isRaw = false
         usesFallbackDecoder = false
         whiteBalanceControls = .relative
+        sourceIsMonochrome = false
         sourceURL = nil
         selectedMaskID = nil
         cameraRect = nil

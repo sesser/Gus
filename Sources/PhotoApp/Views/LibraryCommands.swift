@@ -524,6 +524,31 @@ struct LibraryCommands: Commands {
         }
     }
 
+    /// Adjust ▸ Black & White ▸ (bw-module design §8): the loupe photo only.
+    /// The submenu's title stays enabled (D-Q5); its items are dimmed when
+    /// they can't act. No keyboard shortcuts.
+    private var blackAndWhiteMenu: some View {
+        let canEdit: (LibraryMenuState) -> Bool = { $0.canEditLoupePhoto && !$0.isCropping && !$0.isComparing }
+        let state = can(canEdit) ? menu?.state : nil
+        return Menu(BlackAndWhiteText.title) {
+            Button(BlackAndWhiteText.turn(on: state?.blackAndWhiteApplies != true)) {
+                model?.editor.toggleBlackAndWhite()
+            }
+            .disabled(!can(canEdit))
+            Divider()
+            ForEach(BlackAndWhite.Filter.allCases, id: \.self) { filter in
+                Toggle(BlackAndWhiteText.menuItem(filter),
+                       isOn: Binding(get: { state?.blackAndWhiteQuickSet == filter },
+                                     set: { _ in model?.editor.chooseBlackAndWhite(filter) }))
+                    .disabled(!can(canEdit))
+            }
+            Divider()
+            Toggle(BlackAndWhiteText.noFilter, isOn: Binding(get: { state?.blackAndWhiteHasNoFilter == true },
+                                                             set: { _ in model?.editor.clearBlackAndWhiteFilters() }))
+                .disabled(!can(canEdit))
+        }
+    }
+
     /// Left, Right, Up, Down on ⌥ (the spot) or ⌥⌘ (its source) arrows.
     @ViewBuilder
     private func nudgeItems(source: Bool) -> some View {
@@ -590,6 +615,7 @@ struct LibraryCommands: Commands {
             Divider()
             Button("Auto Exposure") { model?.autoExposure() }
                 .disabled(!can(adjustsTargets))
+            blackAndWhiteMenu
             Button("Reset All Adjustments") { model?.resetAllAdjustments() }
                 .disabled(!can { $0.canResetAll })
             Divider()

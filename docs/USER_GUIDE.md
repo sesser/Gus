@@ -468,6 +468,53 @@ decodes the camera, macOS decodes these photos from then on: they look
 a little different, their white balance still applies, and thumbnails
 made before keep the old look until the photo is edited or the cache is deleted.
 
+**Black & White** (between Color Mixer and Color Grading, folded until you open
+it) turns the photo gray the way a colored filter on the lens does for black
+and white film. Its check box is always shown: select it and the photo turns
+gray by each color's brightness (every filter at 0); deselect it to compare with
+the color photo, and your values are kept. Moving a slider or choosing a filter
+also turns it on; a click that leaves a slider's value as it was does nothing.
+There are five filters, **Yellow**, **Orange**, **Red**, **Green** and
+**Blue**, each 0 to 100. A filter lightens colors like itself and darkens the
+opposite ones: Yellow makes a blue sky slightly darker, Orange darker, Red much
+darker (and lightens skin and reds, and darkens leaves); Green lightens leaves
+and grass and darkens reds and skin; Blue lightens skies and haze and darkens
+reds and skin. Filters combine, and a neutral gray keeps its level whatever they
+say, so the photo's overall brightness stays about where it was. The row of five
+names above the sliders sets one filter to 100, its full strength, and the
+others to 0; it shows which filter is on only while the sliders are exactly
+that. The same choices are in **Adjust ▸ Black & White ▸**: **Turn On / Turn
+Off Black & White**, the five filters with a check mark on the one in effect,
+and **No Filter** (every filter at 0, still gray). They act on the photo in the
+loupe and have no keyboard shortcut (you can give them one in System Settings ▸
+Keyboard ▸ Keyboard Shortcuts ▸ App Shortcuts). Undo and History name the
+changes **Turn On Black & White**, **Turn Off Black & White**, **Black & White
+Filter** (a slider, a filter, **No Filter**) and **Reset Black & White**; the
+heading's reset turns it off with every filter at 0, as if it had never been
+used.
+
+The conversion comes after White Balance, the Light heading's tone sliders,
+Tone Curve and the Color Mixer, so a Color Mixer luminance change still
+lightens or darkens that color's gray (its hue and saturation then change
+nothing). A Red, Green or Blue channel curve in Tone Curve also comes before
+it, so it acts like one more filter rather than tinting the gray. Vibrance,
+Saturation (which do nothing to gray) and Color Grading, which tints the gray,
+come after it, and so do the masks, Look-Up Table, Vignette and Grain: a
+mask's White Balance tints the gray where it applies (its Saturation and
+Vibrance do nothing there), and Grain stays gray unless its Color is up. The
+Color Fringes swatches keep showing their colors. Black & White is for the
+whole photo: masks have no such control. It goes into Copy and Paste
+Adjustments and presets like the other groups (a preset can carry it alone), a
+copy made with Duplicate starts with the original's, and each file of a
+RAW+JPEG pair has its own. In `photocli develop`, setting a filter turns it on
+unless the same command sets or resets `blackAndWhite.on`, and `blackAndWhite.on=true`
+also turns a group that was turned off back on. A photo whose file already has
+no color (a gray JPEG or TIFF) says the filters change nothing there; the
+controls still work, for copying to other photos. Lightroom presets that make a
+photo black and white still import as Saturation at -100 with Color Mixer
+luminances (reported as approximated), not as this heading. Photos that don't
+use it look exactly as before.
+
 **Sharpening Map**: Masking (Details ▸ Sharpening) holds sharpening back where
 the photo is smooth, such as skies and skin, and keeps it on edges. To see where
 it goes, turn on the **Sharpening Map** toggle under Masking, or choose
@@ -594,8 +641,9 @@ Preset…** asks for a name, a collection and the groups of controls to include
 (those the photo changes are checked): applying the preset replaces only those
 and leaves the photo's other settings alone. A preset with all settings,
 including one saved before Color Fringes and Color Alignment existed, also
-replaces those two (clearing a photo's fringe colors and alignment); **Manage
-Presets…** can take them out of it. **Import Presets…** reads this
+replaces those two (clearing a photo's fringe colors and alignment), and
+Black & White: applying such a preset to a photo turned black and white turns it
+back to color. **Manage Presets…** can take those groups out of it. **Import Presets…** reads this
 app's preset files and Lightroom presets (`.lrtemplate`, `.xmp`, and
 `.dng` mobile presets), or folders of them. A folder becomes a collection unless
 its presets name their own, and a pack that holds a preset in several formats

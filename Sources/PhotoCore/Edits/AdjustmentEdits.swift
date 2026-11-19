@@ -118,11 +118,19 @@ extension EditStack {
         var stack = self
         // The last edit of each parameter decides what it should be at the end.
         var expected: [String: (kind: EditOperationKind, name: String, value: EditParameter?)] = [:]
+        // Black & White's on state, decided by the edits alone (whatever the
+        // photo held before): `on` set or reset by name wins, otherwise a
+        // filter set means on. A reset of the module (or of everything)
+        // forgets both.
+        var blackAndWhiteOn: Bool?
+        var setsBlackAndWhiteFilter = false
         for edit in edits {
             switch edit {
             case .resetAll:
                 stack = .identity
                 expected = [:]
+                blackAndWhiteOn = nil
+                setsBlackAndWhiteFilter = false
             case .reset(let kind, let name):
                 guard let module = Adjustments.moduleDescription(kind) else { throw .unknownModule(kind.rawValue) }
                 if let name {
@@ -131,9 +139,14 @@ extension EditStack {
                     }
                     stack.changeOperation(kind) { $0[name] = nil }
                     expected["\(kind.rawValue).\(name)"] = nil
+                    if kind == BlackAndWhite.kind, name == "on" { blackAndWhiteOn = false }
                 } else {
                     stack.changeOperation(kind) { $0 = [:] }
                     expected = expected.filter { $0.value.kind != kind }
+                    if kind == BlackAndWhite.kind {
+                        blackAndWhiteOn = nil
+                        setsBlackAndWhiteFilter = false
+                    }
                 }
             case .set(let kind, let name, let text):
                 guard let module = Adjustments.moduleDescription(kind) else { throw .unknownModule(kind.rawValue) }
@@ -154,10 +167,20 @@ extension EditStack {
                 }
                 stack.changeOperation(kind) { $0[name] = value }
                 expected["\(kind.rawValue).\(name)"] = (kind, name, value == parameter.defaultValue ? nil : value)
+                if kind == BlackAndWhite.kind {
+                    if name == "on" { blackAndWhiteOn = value == .bool(true) } else { setsBlackAndWhiteFilter = true }
+                }
             }
         }
         var after = Adjustments(stack: stack)
+        let storedOn = after.blackAndWhite.isOn
         after.enableModules(changedFrom: Adjustments(stack: self))
+        if let on = blackAndWhiteOn {
+            // `on=true` is the heading's Turn On: it also turns a turned-off group back on.
+            if on { after.setEnabled(.blackAndWhite, true) } else { after.blackAndWhite.isOn = false }
+        } else {
+            after.blackAndWhite.isOn = setsBlackAndWhiteFilter || storedOn
+        }
         for (kind, name, value) in expected.values where after.parameters(of: kind)[name] != value {
             throw .noEffect(kind: kind.rawValue, parameter: name)
         }

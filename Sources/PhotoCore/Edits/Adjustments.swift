@@ -35,6 +35,9 @@ public struct Adjustments: Hashable, Sendable {
     public var presence = Presence()
     public var toneCurve = ToneCurve()
     public var colorMixer = ColorMixer()
+    /// The conversion to gray by film filters, after the Color Mixer and
+    /// before Vibrance, Saturation and Color Grading (issue #218).
+    public var blackAndWhite = BlackAndWhite()
     public var colorGrade = ColorGrade()
     /// Masks and their local values. Not one of the `Group`s: presets and
     /// paste leave them out.
@@ -123,6 +126,7 @@ public struct Adjustments: Hashable, Sendable {
         add(presence)
         add(toneCurve)
         add(colorMixer)
+        add(blackAndWhite)
         add(colorGrade)
         let masks = local.parameters
         if !masks.isEmpty {
@@ -158,6 +162,7 @@ public struct Adjustments: Hashable, Sendable {
         case Presence.kind: presence = Presence(values)
         case ToneCurve.kind: toneCurve = ToneCurve(values)
         case ColorMixer.kind: colorMixer = ColorMixer(values)
+        case BlackAndWhite.kind: blackAndWhite = BlackAndWhite(values)
         case ColorGrade.kind: colorGrade = ColorGrade(values)
         case LocalAdjustments.kind:
             // Stored stacks were checked by `EditStack.decode`; one built in
@@ -189,6 +194,7 @@ public struct Adjustments: Hashable, Sendable {
         case Presence.kind: presence.parameters
         case ToneCurve.kind: toneCurve.parameters
         case ColorMixer.kind: colorMixer.parameters
+        case BlackAndWhite.kind: blackAndWhite.parameters
         case ColorGrade.kind: colorGrade.parameters
         case LocalAdjustments.kind: local.parameters
         case LookTable.kind: lookTable.parameters
@@ -215,6 +221,7 @@ public struct Adjustments: Hashable, Sendable {
         case Presence.kind: presence = Presence()
         case ToneCurve.kind: toneCurve = ToneCurve()
         case ColorMixer.kind: colorMixer = ColorMixer()
+        case BlackAndWhite.kind: blackAndWhite = BlackAndWhite()
         case ColorGrade.kind: colorGrade = ColorGrade()
         case LocalAdjustments.kind: local = LocalAdjustments()
         case LookTable.kind: lookTable = LookTable()
@@ -242,6 +249,7 @@ public struct Adjustments: Hashable, Sendable {
         case Presence.kind: presence = source.presence
         case ToneCurve.kind: toneCurve = source.toneCurve
         case ColorMixer.kind: colorMixer = source.colorMixer
+        case BlackAndWhite.kind: blackAndWhite = source.blackAndWhite
         case ColorGrade.kind: colorGrade = source.colorGrade
         case LocalAdjustments.kind: local = source.local
         case LookTable.kind: lookTable = source.lookTable
@@ -315,7 +323,7 @@ public struct Adjustments: Hashable, Sendable {
 
     /// The Adjust tab's headings, used to reset a group of modules.
     public enum Section: String, CaseIterable, Sendable {
-        case develop, tone, details, lens, colorMixer, colorGrading, effects, spots
+        case develop, tone, details, lens, colorMixer, blackAndWhite, colorGrading, effects, spots
 
         public var groups: [Group] {
             switch self {
@@ -324,6 +332,7 @@ public struct Adjustments: Hashable, Sendable {
             case .details: [.sharpening, .noiseReduction]
             case .lens: [.colorFringes, .colorAlignment]
             case .colorMixer: [.colorMixer]
+            case .blackAndWhite: [.blackAndWhite]
             case .colorGrading: [.colorGrade]
             case .effects: [.lookTable, .vignette, .grain]
             case .spots: [.spots]
@@ -333,7 +342,11 @@ public struct Adjustments: Hashable, Sendable {
 
     /// The controls under a heading that are turned on and off together.
     public enum Group: String, CaseIterable, Sendable {
-        case whiteBalance, light, presence, toneCurve, sharpening, noiseReduction, colorMixer, colorGrade
+        case whiteBalance, light, presence, toneCurve, sharpening, noiseReduction, colorMixer
+        /// The conversion to gray (issue #218): a preset group like the Color
+        /// Mixer's, whose check box also turns it on (`setEnabled`).
+        case blackAndWhite
+        case colorGrade
         case lookTable, vignette, grain
         case colorFringes, colorAlignment
         /// Heal and clone spots: a group only so its heading has an on/off
@@ -353,6 +366,7 @@ public struct Adjustments: Hashable, Sendable {
             case .sharpening: [Sharpen.kind]
             case .noiseReduction: [NoiseReduction.kind]
             case .colorMixer: [ColorMixer.kind]
+            case .blackAndWhite: [BlackAndWhite.kind]
             case .colorGrade: [ColorGrade.kind]
             case .lookTable: [LookTable.kind]
             case .vignette: [Vignette.kind]
@@ -369,13 +383,28 @@ public struct Adjustments: Hashable, Sendable {
         group.kinds.contains { !parameters(of: $0).isEmpty }
     }
 
+    /// A Black & White slider's value. Only the value: changing it while the
+    /// group does not apply switches it on through `enableModules`, and a
+    /// value that does not change changes nothing (code review C1).
+    public mutating func setBlackAndWhite(_ filter: BlackAndWhite.Filter, _ value: Double) {
+        blackAndWhite[filter] = value
+    }
+
+    /// The Black & White conversion renders: switched on and not turned off.
+    public var blackAndWhiteApplies: Bool {
+        blackAndWhite.isOn && isEnabled(.blackAndWhite)
+    }
+
     /// False when a group's edits are turned off.
     public func isEnabled(_ group: Group) -> Bool {
         !group.kinds.contains(where: disabled.contains)
     }
 
-    /// Turns a group's edits off (kept, not rendered) or back on.
+    /// Turns a group's edits off (kept, not rendered) or back on. Turning
+    /// Black & White on also switches its conversion on, so a photo that
+    /// never had it goes gray with every filter at 0 (PRD R1).
     public mutating func setEnabled(_ group: Group, _ isEnabled: Bool) {
+        if group == .blackAndWhite, isEnabled { blackAndWhite.isOn = true }
         for kind in group.kinds {
             if isEnabled || parameters(of: kind).isEmpty {
                 disabled.remove(kind)
@@ -386,8 +415,13 @@ public struct Adjustments: Hashable, Sendable {
     }
 
     /// Turns back on every module whose values differ from `previous`: editing
-    /// a control that is off turns it on.
+    /// a control that is off turns it on. Changing a Black & White filter
+    /// switches its conversion on too, unless the same change set its on
+    /// state itself (design B10).
     public mutating func enableModules(changedFrom previous: Adjustments) {
+        if !blackAndWhite.isOn, !previous.blackAndWhite.isOn, blackAndWhite.filtersDiffer(from: previous.blackAndWhite) {
+            blackAndWhite.isOn = true
+        }
         for kind in disabled where parameters(of: kind) != previous.parameters(of: kind) {
             disabled.remove(kind)
         }

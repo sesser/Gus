@@ -1019,7 +1019,46 @@ All Adjustments by hand) in #82 and `docs/features/remove-profile-group/qa.md`.
 The owner signed off by eye on 2026-11-19 (P1, P3, P4, P6 and P7 checked, fine).
 Covered by CI only: VoiceOver, macOS 15 and macOS 26.
 
-Not yet: AI masks, automatic dust detection, a Remove brush, lens corrections (distortion, lens vignetting,
+Black & White module (`docs/features/bw-module/`, issue #218, branch
+`feature/bw-module`): a Black & White heading in the Adjust tab between Color
+Mixer and Color Grading, with a check box that is always shown (checking it on a
+fresh photo stores an explicit `on`, so an all-zero group that is on is itself an
+edit and turns the photo gray), a segmented quick-set (Yellow, Orange, Red, Green,
+Blue: that filter at 100, the other four at 0, one undo step) and five 0 to 100
+sliders. The conversion is a normalised channel mix: Rec. 709 luminance weights
+times the filters' transmittance (`t^(amount/100)`, filters multiply), divided by
+their sum so a neutral gray keeps its level; a `CIColorMatrix` in the working
+space with no clipping (`Edits/BlackAndWhite.swift`,
+`AdjustmentRenderer.blackAndWhite`). The filter strengths are the engineer's
+estimates from published filter pass bands, accepted by the owner at sign-off
+(`status.md`), and if too strong the table changes, not the quick-set value. It
+renders right after the Color Mixer and before Vibrance, Saturation and Color
+Grading (owner ruling RI-1: the Color Mixer runs after the tone table, so it can't
+also come before the Tone Curve; a per-channel Tone Curve therefore acts like an
+extra filter, and Saturation and Vibrance leave the grays unchanged). Masks, the
+look-up table, vignette, noise reduction, sharpening and grain render after it, so
+a mask's White Balance tints the gray (DQ-1) and grain stays neutral. Color
+Fringes swatches keep their true colors (`LensRenderer.swatch` leaves the group
+out). A normal group: per-group on/off, paste, presets, batches, virtual copies,
+RAW+JPEG files separately, reset to a stack with no operation (history labels
+"Turn On / Off Black & White", "Black & White Filter", "Reset Black & White");
+every decoder alike; videos skipped. Adjust ▸ Black & White ▸ submenu (loupe
+only; dimmed in the grid, while comparing and while cropping). A gray file shows
+a caption saying the filters change nothing (`Edits/SourceColorModel.swift`).
+`photocli develop` takes `blackAndWhite.*` (an explicit `on` wins; a filter set
+means on). No migration, no `PreviewCacheKey.currentPipelineVersion` bump, no
+existing golden moved, three new goldens (`blackAndWhite-noFilter-patchChart`,
+`-red-hazyLandscape`, `-yellowGreen-hueRamp`). A fix found at sign-off:
+`AppKitSegmented.fillsWidth` (off by default, on for the quick-set) keeps five
+segments from widening the Adjust column past the inspector, and the debug script
+gained `print inspectorwidth` (visible width, how far the controls reach, `fits`
+or `overflow`). Shipped; the owner signed off by eye on 2026-11-19, no checks left
+open. Covered by CI only: VoiceOver, macOS 15 and macOS 26. Known: the Tone Curve,
+Color Grading and Spots mode controls are 276 pt wide and would overflow the
+narrowest inspector (256 pt of content), as before this branch (follow-up).
+
+Not yet: local Black & White through masks, Lightroom Black & White mapping on
+import, Black & White items for a grid selection, AI masks, automatic dust detection, a Remove brush, lens corrections (distortion, lens vignetting,
 profiles; only the camera's own tables in Fujifilm raws LibRaw decodes), DNG export, `.dcp` profiles
 and built-in look profiles (dropped 2026-11-18, #89 and #216; a profile's
 hue/saturation and look tables are not applied), a Profile group or any

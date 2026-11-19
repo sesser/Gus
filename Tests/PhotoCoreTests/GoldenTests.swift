@@ -153,6 +153,15 @@ struct GoldenTests {
             $0.colorMixer[.aqua] = ColorMixer.Shift(hue: 50, saturation: 40)
         },
 
+        // Black & White (issue #218): the plain luminance mix, a quick-set and a mix of two.
+        GoldenCase("blackAndWhite-noFilter-patchChart", .patchChart) { $0.blackAndWhite = BlackAndWhite(isOn: true) },
+        GoldenCase("blackAndWhite-red-hazyLandscape", .hazyLandscape) {
+            $0.blackAndWhite = BlackAndWhite(isOn: true, [.red: 100])
+        },
+        GoldenCase("blackAndWhite-yellowGreen-hueRamp", .hueRamp) {
+            $0.blackAndWhite = BlackAndWhite(isOn: true, [.yellow: 40, .green: 30])
+        },
+
         GoldenCase("colorGrade-splitTone-grayRamp", .grayRamp) {
             $0.colorGrade.shadows = GradeWheel(hue: 200, amount: 40)
             $0.colorGrade.highlights = GradeWheel(hue: 40, amount: 30)

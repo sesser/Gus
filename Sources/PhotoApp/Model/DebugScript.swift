@@ -19,7 +19,8 @@ import PhotoUI
 ///     print <what>          (state for checks: selection, keywords, undo, suggestions, items, hdr, announcement,
 ///                           title (title, subtitle, filter and sort), activity, messages (every
 ///                           Activity row), empty (the browser's empty state), menustate (what the menus read),
-///                           inspector (shown, tab, Keywords expanded),
+///                           inspector (shown, tab, Keywords expanded), inspectorwidth (each inspector
+///                           tab's visible width and how far its controls reach: `overflow` when wider),
 ///                           loupe [<x> <y>]: mode, magnification, visible rect, image point under x y)
 ///     suggest               (analyzes the selection and waits)      accept <keyword>
 ///     album <name>          (from the selection)    smartalbum <name>  (rating ≥ 3)     remove
@@ -1182,6 +1183,32 @@ enum DebugScript {
         visit(NSApp.mainMenu, path: "")
     }
 
+    /// For each visible scroll view around SwiftUI content (the inspector's
+    /// tabs): its visible width and how far the AppKit controls inside reach,
+    /// so content wider than the pane shows as `overflow` (#218 sign-off).
+    private static func printScrollWidths(in view: NSView) {
+        if let scroll = view as? NSScrollView, !scroll.isHiddenOrHasHiddenAncestor,
+           let document = scroll.documentView, String(describing: type(of: document)).contains("NSHostingView") {
+            let clip = scroll.contentView
+            var minX = CGFloat.infinity, maxX = -CGFloat.infinity, widest: (String, CGFloat) = ("-", 0)
+            func visit(_ child: NSView) {
+                if child is NSControl, !child.isHiddenOrHasHiddenAncestor {
+                    let frame = child.convert(child.bounds, to: clip)
+                    minX = min(minX, frame.minX)
+                    maxX = max(maxX, frame.maxX)
+                    if frame.width > widest.1 { widest = (String(describing: type(of: child)), frame.width) }
+                }
+                child.subviews.forEach(visit)
+            }
+            visit(document)
+            let width = clip.bounds.width
+            print("debug-script: inspectorwidth visible \(Int(width)) controls \(Int(minX))...\(Int(maxX))"
+                  + " widest \(widest.0) \(Int(widest.1))" + (minX < -0.5 || maxX > width + 0.5 ? " overflow" : " fits"))
+            return
+        }
+        view.subviews.forEach(printScrollWidths)
+    }
+
     private static func printButtons(in view: NSView, window: NSWindow) {
         if let button = view as? NSControl, button is NSButton || button is NSSegmentedControl,
            !view.isHiddenOrHasHiddenAncestor {
@@ -1190,8 +1217,14 @@ enum DebugScript {
             let name = title.isEmpty ? (button.accessibilityLabel() ?? button.toolTip ?? "") : title
             // Dimmed buttons and tooltips that say something other than the name.
             let tip = button.toolTip.flatMap { $0 == name ? nil : " tip '\($0)'" } ?? ""
+            // A segmented control's selection and a check box's state, for headings that show them.
+            let selection = (button as? NSSegmentedControl).map { " selected \($0.selectedSegment)" } ?? ""
+            let checkState = (button as? NSButton).flatMap { box in
+                box.allowsMixedState ? " state \(box.state == .on ? "on" : box.state == .mixed ? "mixed" : "off")" : nil
+            } ?? ""
             print("debug-script: button '\(name)' at \(Int(frame.midX)),\(Int(window.frame.height - frame.midY))"
-                  + " width \(Int(frame.width)) \(type(of: button))" + (button.isEnabled ? "" : " disabled") + tip)
+                  + " width \(Int(frame.width)) \(type(of: button))" + (button.isEnabled ? "" : " disabled") + tip
+                  + selection + checkState)
         }
         for subview in view.subviews { printButtons(in: subview, window: window) }
     }
@@ -1271,6 +1304,8 @@ enum DebugScript {
         case "inspector":
             print("debug-script: inspector shown \(model.showsInspector) tab \(model.inspectorTab) keywords expanded "
                   + "\(InspectorExpansion.shared.isExpanded(InspectorView.keywordsKey, family: .info, default: true))")
+        case "inspectorwidth":
+            if let root = window?.contentView?.superview { printScrollWidths(in: root) }
         case "fringe":
             DebugLensCommands.printState(model: model)
         case "magnifier":

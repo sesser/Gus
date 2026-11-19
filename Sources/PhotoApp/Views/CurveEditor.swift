@@ -196,6 +196,13 @@ struct AppKitSegmented: NSViewRepresentable {
     var toolTips: [String] = []
     /// VoiceOver's name for the control; nil for none.
     var accessibilityLabel: String?
+    /// Takes exactly the width offered, narrower than its intrinsic width if
+    /// need be. In the current design a segment is at least about 65 pt wide
+    /// whatever its label, so five segments ask for 325 pt, more than the
+    /// inspector's 256 to 396 pt of content: SwiftUI would widen the whole
+    /// column past the pane (#218 sign-off finding). The labels themselves
+    /// fit in a fifth of 256 pt.
+    var fillsWidth = false
     let onSelect: (Int) -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -205,7 +212,13 @@ struct AppKitSegmented: NSViewRepresentable {
                                          target: context.coordinator, action: #selector(Coordinator.picked(_:)))
         control.controlSize = .small
         control.segmentDistribution = .fillEqually
+        if fillsWidth { control.setContentCompressionResistancePriority(.defaultLow, for: .horizontal) }
         return control
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSSegmentedControl, context: Context) -> CGSize? {
+        guard fillsWidth, let width = proposal.width, width.isFinite else { return nil }
+        return CGSize(width: width, height: nsView.intrinsicContentSize.height)
     }
 
     func updateNSView(_ control: NSSegmentedControl, context: Context) {

@@ -71,7 +71,7 @@ extension Adjustments {
         }
         return [describe(Crop.self), describe(RawDecode.self), describe(WhiteBalance.self), describe(Exposure.self),
                 describe(Tone.self), describe(Presence.self), describe(ToneCurve.self), describe(ColorMixer.self),
-                describe(ColorGrade.self), describe(ColorAlignment.self), describe(ColorFringes.self),
+                describe(BlackAndWhite.self), describe(ColorGrade.self), describe(ColorAlignment.self), describe(ColorFringes.self),
                 describe(LookTable.self), describe(Vignette.self),
                 describe(NoiseReduction.self), describe(Sharpen.self), describe(Grain.self)]
     }()
@@ -133,6 +133,12 @@ extension ColorMixer {
     public static let parameterDescriptions: [AdjustmentParameter] = Band.allCases.flatMap { band in
         ["Hue", "Saturation", "Luminance"].map { AdjustmentParameter.signed(band.rawValue + $0) }
     }
+}
+
+extension BlackAndWhite {
+    public static let parameterDescriptions: [AdjustmentParameter] =
+        [AdjustmentParameter("on", .boolean, default: .bool(false))]
+            + Filter.allCases.map { .number($0.rawValue, amountRange, default: 0) }
 }
 
 extension ColorGrade {
