@@ -303,3 +303,45 @@ commits add no finding.
   one-line fix.
 
 `/security-review` is still not needed.
+
+### Fourth pass, 2026-11-19 (merge of develop with #219, `cc0081e`)
+
+Reviewed only the hand resolution (`git show --remerge-diff cc0081e`) and
+whether the auto-merged files needed one. Build: the merged tree compiles (a
+full `swift test` was running in this worktree from a bundle built at 07:06:23,
+after the 07:05:54 merge, clean tree); I did not start another SwiftPM build.
+Tests: from that bundle, `--filter
+"BlackAndWhite|AdjustmentsModelTests|AdjustmentParameter|PresetTests|StoredLook|LocalizationTests|EditStackCorpus|CommandTests"`
+passed (121 tests, 21 suites), and `GoldenTests|ReferenceTests` passed.
+
+**Verdict: the resolution is right; no new finding.**
+
+- *The conflict.* `Group` is develop's line without `profile`, then
+  `blackAndWhite` (with its comment), then `colorGrade`, which is the
+  resolution forecast under "Merge risk with #219". `presetGroups`
+  (`allCases` minus `.spots`) therefore runs `…, noiseReduction, colorMixer,
+  blackAndWhite, colorGrade, lookTable, …`. `placement` checks that order,
+  and the order of `Section` and the stack, and it passes.
+- *Auto-merged code needed nothing more.* `kinds` has no `.profile` case and
+  has the `.blackAndWhite` case. `Section.develop` is develop's
+  `[.whiteBalance, .light, .presence]`, and `Section.blackAndWhite` is kept.
+  `AdjustText.title` has no `.profile` case, and the switch is exhaustive since
+  the tree builds. `AdjustmentRenderer` keeps the branch's B&W step and
+  develop's removed boost. Develop's `resettingAll()`, which the editor and
+  batch Reset All both use, rebuilds from `preserved`, so it resets Black &
+  White. `pasted(onto:)` (`keepingDecode`) and `replacing` don't touch B&W.
+  `decodeGroups` drops a stored `profile` name, and a nil list is
+  `presetGroups` with B&W included, as the user guide says. No `.profile`,
+  `decode.look`, `RawDecode.Look` or `chooseDecoder` is left in `Sources/` or
+  `Tests/`.
+- *Tests.* `AdjustmentsModelTests`' reset-every-heading test merged with B&W
+  set before the loop and develop's leftover-decode check after it, and it
+  passes. The golden list has the three B&W cases and lacks `raw-lookFlat`
+  and `raw-lookNeutral`. `pipelineVersionUnchanged` is `>= 12`, not hard-coded,
+  and passes at develop's 13 (C4).
+- *Catalog and guide.* The merged `Localizable.xcstrings` parses (1285 keys)
+  and `LocalizationTests` passes. `USER_GUIDE.md` has no leftover Profile
+  control text. Its Black & White section and the preset paragraph that
+  mentions B&W are intact.
+
+`/security-review` is still not needed.
