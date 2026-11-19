@@ -81,13 +81,15 @@ Why here:
    Color Mixer sets how colors look; Black & White then turns them to gray;
    Color Grading, which is after it in the render, tints the gray (the PRD's
    own non-goal: "Color Grading, after it, tints the grey"). The three headings
-   in this order are also the three steps' render order (R7).
+   in this order are also the three steps' render order (see "Render position"
+   below).
 2. **The tab is in workflow order, not render order** (`AdjustView`'s own
    comment), so the PRD's wish that the UI order "can differ" is free. The
    workflow order is *not* "just before Tone Curve": Tone Curve sits above the
-   color headings because people set light first. Moving Black & White above
-   Tone Curve to match the renderer would split it from the Color Mixer whose
-   result it consumes and from the Color Grading that follows it.
+   color headings because people set light first. In the renderer the Color
+   Mixer already runs after the tone curve, so Black & White, which consumes the
+   Color Mixer's result, runs after the tone curve too; placing its heading
+   below Tone Curve and Color Mixer matches both orders.
 3. **Not inside the Color Mixer heading.** Color Mixer is open by default, holds
    eight swatches and three sliders, and its hue and saturation do nothing once
    the photo is gray (only its luminance still matters: R7, AC7). A second group
@@ -100,6 +102,17 @@ Why here:
 5. **Not a toolbar item or a sheet.** The toolbar is for navigation and
    commands used on every photo; a conversion with parameters belongs beside the
    photo in the inspector (HIG Inspectors, as Crop and Spots).
+
+**Render position (ruled 2026-11-18, see Revisions).** The conversion renders
+**after the Color Mixer and before Vibrance, Saturation and Color Grading**. In
+the renderer the Color Mixer itself runs *after* the tone curve (after White
+Balance, Exposure, Highlights and Shadows, Dehaze, Clarity and the tone table:
+Contrast, Whites, Blacks, the Tone Curve), so the conversion is after the tone
+curve as well. This replaces any reading of R7 as "before the tone curve": no
+position can be both after the Color Mixer and before the tone curve without
+moving the Color Mixer and changing existing photos (R13). Masks, the Look-Up
+Table, Vignette, noise reduction, sharpening and Grain all render after it.
+This is order in the render only; the tab's order is above.
 
 **Folded by default**, remembered like every heading
 (`adjust.section.blackAndWhite`, default `false`, folded and expanded with
@@ -160,7 +173,12 @@ that starts it. So:
   White") returns the group to *off with all sliders 0* (R12): the stack goes
   back to one that never had the group, so the check box is unchecked and the
   segmented control has no selection. It is enabled when the group is on or any
-  slider is away from 0, whether or not the group is turned off.
+  slider is away from 0, whether or not the group is turned off, and **dimmed
+  when there is nothing to reset**. This is the right behavior (a disabled
+  control says "nothing to do", HIG Buttons; Spots does the same). The other
+  headings' reset arrows (`AdjustSection`) stay enabled with nothing to reset;
+  that is a pre-existing inconsistency in *those* headings, to be filed as its
+  own bug, and is not a reason to change this one (DQ-2, §21).
 
 What the engineer needs from the model (the shapes are the engineer's): the
 module carries an explicit *on* value, default false and left out of the stack
@@ -359,9 +377,15 @@ A stack that already has a conversion shows the heading's check box checked, the
 five values, and the matching segment selected when it is a quick-set.
 
 Things Black & White makes moot, which the UI does not warn about and the user
-guide says once: a local **White Balance** or **Saturation / Vibrance** on a
-photo that is converted has nothing to work on; Color Mixer hue and saturation
-do nothing on it, its luminance still does (R7).
+guide says once: Color Mixer hue and saturation do nothing on a converted photo,
+its luminance still does (R7); Presence's Saturation and Vibrance, which render
+after the conversion, have nothing to work on; a mask's local **Saturation** and
+**Vibrance** likewise do nothing. A mask's local **White Balance** is *not*
+moot: masks render after the conversion, so it tints the gray where the mask
+applies, which is a way to tone part of a black and white photo (DQ-1, §21). The
+UI does not hide or dim it. Per-channel Red, Green and Blue curves, which
+render before the conversion, act like an extra filter instead of tinting the
+gray; Color Grading does the tinting.
 
 ## 7. Wording of the filters
 
@@ -600,8 +624,9 @@ whole justification this document owes.
    quick-set constant (§4); a way to say "which quick-set is in effect" (the
    rule of §3.2); and, if cheap, whether the source file is monochrome (§6).
 2. **Not the UI's business**: the transmittance values, how combined sliders are
-   multiplied and normalized (R4), and the render position. The UI shows only
-   the five numbers. The §7 sentences are claims about direction (R5); the
+   multiplied and normalized (R4). The render position is fixed by §2 (after
+   the Color Mixer, before Vibrance, Saturation and Color Grading; the Color
+   Mixer runs after the tone curve). The UI shows only the five numbers. The §7 sentences are claims about direction (R5); the
    engineer's values and `AdjustmentParameterTests` / the CPU reference (AC4)
    keep them true, with Orange between Yellow and Red.
 3. **Section and group.** A new `Adjustments.Section.blackAndWhite` (one group,
@@ -727,14 +752,15 @@ White** paragraph:
 4. **Adjust ▸ Black & White ▸**: the on/off item, the five filters with check
    marks, No Filter; the loupe photo only. No keyboard shortcut (assign one in
    System Settings if you like).
-5. **Order.** It applies after White Balance, Color Mixer and the other color
-   edits (so the Color Mixer's luminance still lightens or darkens the gray and
-   its hue and saturation do nothing), and before Tone Curve and Light's tone
-   sliders; Color Grading can tint the gray, and Grain, Vignette and the
-   Look-Up Table come after.
-6. **Scope.** Global: it is not a mask's control and masks' local White Balance
-   and Saturation do nothing on a gray photo. Photos only (videos are left out of
-   batches and say so in Activity).
+5. **Order.** It applies after White Balance, Light's tone sliders, the Tone
+   Curve and the Color Mixer (so the Color Mixer's luminance still lightens or
+   darkens the gray and its hue and saturation do nothing), and before
+   Vibrance, Saturation and Color Grading, which can tint the gray; masks, the
+   Look-Up Table, Vignette and Grain come after.
+6. **Scope.** Global: it is not a mask's control. Masks render after it, so a
+   mask's local White Balance tints the gray where the mask applies, while its
+   local Saturation and Vibrance do nothing on a gray photo. Photos only
+   (videos are left out of batches and say so in Activity).
 7. **Undo and History.** Entries "Turn On / Off Black & White" and "Black &
    White Filter"; Reset is "Reset Black & White" and returns the heading to off
    with every slider at 0.
@@ -766,4 +792,27 @@ README at Ship (product manager): one line in the feature list.
 ## 21. Rulings
 
 Design questions from implementation are recorded here as numbered rulings
-(DQ-1, ...) with their date. None yet.
+(DQ-1, ...) with their date. Owner rulings of 2026-11-18, on the engineer's
+questions in `status.md`:
+
+- **DQ-1 (a mask's White Balance, §6, §19.6).** Kept. Masks render after the
+  conversion, so a mask's White Balance tints the gray where the mask applies;
+  it is not hidden or dimmed. A mask's Saturation and Vibrance still do nothing
+  on a gray photo. §6 and §19.6 are corrected to say so.
+- **DQ-2 (the reset arrow, §3.1).** This heading's reset is dimmed when there is
+  nothing to reset, and that is correct. The other headings' resets stay
+  enabled with nothing to reset (`AdjustSection`): that is a pre-existing
+  quirk, a bug to be filed separately, and it is the other headings that are
+  inconsistent, not this one. Nothing changes here.
+- **Render position.** After the Color Mixer, before Vibrance, Saturation and
+  Color Grading; the Color Mixer runs after the tone curve (§2). Recorded where
+  the design speaks of order (§2, §6, §15, §19.5).
+
+## Revisions
+
+- **2026-11-18.** Rulings DQ-1 and DQ-2 recorded (§21). §6 and §19.6 corrected:
+  a mask's White Balance tints a converted photo. §3.1 notes the dimmed reset is
+  right and the other headings' enabled resets are the inconsistency. Render
+  position stated in §2 and corrected in §2 point 2 (which wrongly placed the
+  conversion before the tone curve), §15.2 and §19.5. Requirements issue
+  RI-1 in `status.md` (R7's wording) stands with the product manager.
