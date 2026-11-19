@@ -86,6 +86,10 @@ public enum TestScene: String, CaseIterable, Sendable {
     /// A smooth sky gradient with faint fixed-seed grain and three soft dark
     /// dust specks (`dustSpecks`), for heal and clone spots (docs/features/healing).
     case dustySky
+    /// Dark lines every 16 pixels of the default size, across and down, on a
+    /// light ground with a soft warm-to-cool tint, so straight lines show
+    /// whether a lens correction bends them (docs/features/lens-corrections).
+    case lensGrid
 
     public static let defaultWidth = 256
     public static let defaultHeight = 192
@@ -102,6 +106,7 @@ public enum TestScene: String, CaseIterable, Sendable {
         case .lateralColor: Self.lateralColor(width: width, height: height)
         case .pixelGrid: Self.pixelGrid(width, height)
         case .dustySky: Self.dustySky(width, height)
+        case .lensGrid: Self.lensGrid(width, height)
         }
     }
 
@@ -266,6 +271,25 @@ public enum TestScene: String, CaseIterable, Sendable {
         }
         return fill(width, height, supersample: 4) { x, y in
             SIMD3(channel(x, y, red), pattern(x, y), channel(x, y, blue))
+        }
+    }
+
+    /// `lensGrid`: lines two pixels wide (of the default size) every 16, from
+    /// the frame's center outward, so the middle lines cross at the center.
+    private static func lensGrid(_ width: Int, _ height: Int) -> LinearImage {
+        let unit = Double(width) / Double(defaultWidth)
+        let cx = Double(width) / 2, cy = Double(height) / 2
+        let line: SIMD3<Double> = decode(SIMD3<Double>(0.12, 0.12, 0.14))
+        // Explicit types: Swift 6.2's type checker (PR #230).
+        return fill(width, height, supersample: 4) { (x: Double, y: Double) -> SIMD3<Double> in
+            let u: Double = abs(x - cx) / unit
+            let v: Double = abs(y - cy) / unit
+            let onLine: Bool = u.truncatingRemainder(dividingBy: 16) < 1 || v.truncatingRemainder(dividingBy: 16) < 1
+            if onLine { return line }
+            let tint: Double = x / Double(width)
+            let red: Double = 0.82 + 0.06 * (1 - tint)
+            let blue: Double = 0.78 + 0.08 * tint
+            return decode(SIMD3<Double>(red, 0.80, blue))
         }
     }
 

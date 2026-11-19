@@ -3,9 +3,10 @@ import PhotoCore
 import PhotoUI
 import SwiftUI
 
-/// The Lens heading's controls (docs/features/chromatic-aberration/design.md
-/// §3): Color Fringes (two slots, their Tolerance, the fringe map) and
-/// Color Alignment (Align automatically and two sliders).
+/// The Lens heading's controls: Distortion and Lens Vignetting
+/// (docs/features/lens-corrections/design.md §2, §3), then Color Fringes (two
+/// slots, their Tolerance, the fringe map) and Color Alignment (Align
+/// automatically and two sliders; docs/features/chromatic-aberration/design.md §3).
 struct LensControls: View {
     let model: LibraryModel
 
@@ -13,6 +14,8 @@ struct LensControls: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
+            LensCorrectionGroupView(editor: editor, group: .distortion)
+            LensCorrectionGroupView(editor: editor, group: .vignetting)
             GroupLabel(.colorFringes, editor: editor)
             ForEach([1, 2], id: \.self) { slot in
                 FringeSlotRow(model: model, slot: slot)

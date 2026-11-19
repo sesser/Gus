@@ -18,13 +18,19 @@ public struct RenderContext: Sendable, Hashable {
     /// one: a stack with masks but no crop of its own crops to it, so the
     /// photo keeps its frame.
     public var cameraFrame: CropRect?
+    /// What the file says about correcting its lens (`CameraLensState`):
+    /// whether Auto applies and with which tables. Nil when the image did not
+    /// come from a file (Auto then applies nothing; Manual does).
+    public var lens: CameraLensState?
 
     /// - Parameter balancedByDecoder: `isRaw` when not given: the system decoder always applies it.
-    public init(scale: Double = 1, isRaw: Bool = false, balancedByDecoder: Bool? = nil, cameraFrame: CropRect? = nil) {
+    public init(scale: Double = 1, isRaw: Bool = false, balancedByDecoder: Bool? = nil, cameraFrame: CropRect? = nil,
+                lens: CameraLensState? = nil) {
         self.scale = scale
         self.isRaw = isRaw
         self.balancedByDecoder = balancedByDecoder ?? isRaw
         self.cameraFrame = cameraFrame
+        self.lens = lens
     }
 }
 

@@ -40,15 +40,23 @@ enum DebugLibraryOpsCommands {
                 print("debug-script: alert has no button \(title)")
                 return
             }
-            await answering(model) {
+            // Cancel on the lens frame question records nothing: no group, or it would be an empty undo step.
+            let recordsNothing = model.editor.isAskingLensFrame && title == LensCorrectionText.cancel
+            await answering(model, grouped: !recordsNothing) {
                 button.performClick(nil)
                 await settle(model, window: window)
             }
         case "key":
             guard let event = keyEvent(words.dropFirst().first ?? "", in: sheet) else { return }
-            await answering(model) {
+            // On the lens frame question only Return (Change) records a step.
+            let recordsNothing = model.editor.isAskingLensFrame && words.dropFirst().first != "return"
+            await answering(model, grouped: !recordsNothing) {
+                // Return presses the sheet's default button, as AppKit does for a key
+                // window (a scripted process has none, issue #87's status.md).
+                if words.dropFirst().first == "return", let cell = sheet.defaultButtonCell, cell.isEnabled {
+                    cell.performClick(nil)
                 // A key equivalent first, as the application offers it to the key window; then the key itself.
-                if !sheet.performKeyEquivalent(with: event) { sheet.sendEvent(event) }
+                } else if !sheet.performKeyEquivalent(with: event) { sheet.sendEvent(event) }
                 await settle(model, window: window)
             }
             print("debug-script: alert after key \(words.dropFirst().first ?? "") \(window?.attachedSheet == nil ? "closed" : "open")")
@@ -61,7 +69,10 @@ enum DebugLibraryOpsCommands {
                 case "": "none"
                 default: button.keyEquivalent
                 }
-                print("debug-script: alert button '\(button.title)' key \(key)\(button.hasDestructiveAction ? " destructive" : "")")
+                // An alert's sheet holds its default button as the window's default button cell.
+                let isDefault = sheet.defaultButtonCell != nil && sheet.defaultButtonCell === button.cell
+                print("debug-script: alert button '\(button.title)' key \(key)\(isDefault ? " default" : "")"
+                      + (button.hasDestructiveAction ? " destructive" : ""))
             }
         }
     }
@@ -72,10 +83,12 @@ enum DebugLibraryOpsCommands {
     /// starts) inside an undo group, unless the sheet is a removal's
     /// confirmation. The script runs with `groupsByEvent` off, so an undo
     /// step registered outside a group raises.
-    private static func answering(_ model: LibraryModel, _ answer: () async -> Void) async {
-        let grouped = model.pendingRemoval == nil
+    private static func answering(_ model: LibraryModel, grouped asked: Bool = true, _ answer: () async -> Void) async {
+        let grouped = asked && model.pendingRemoval == nil
         if grouped { model.undoManager.beginUndoGrouping() }
         await answer()
+        // A paste or preset confirmed here may go on to measure before it saves.
+        if grouped { await DebugScript.waitForBatchWork(model) }
         if grouped { model.undoManager.endUndoGrouping() }
     }
 

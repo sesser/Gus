@@ -41,6 +41,8 @@ public struct PreviewGenerator: Sendable {
         /// Which decoder made the image, and for LibRaw's, which demosaic (R20).
         public var decoder: Decoder = .imageIO
         public var demosaic: LibRawDecoder.Demosaic?
+        /// What the file says about correcting its lens (issue #87).
+        public var lens: CameraLensState?
     }
 
     /// As `image`, with the machine learning outcome of the decode.
@@ -52,7 +54,7 @@ public struct PreviewGenerator: Sendable {
             image = image.scaledToFit(longEdge: longEdge)
         }
         return Rendering(image: image, machineLearning: decoded.machineLearning, decoder: decoded.decoder,
-                         demosaic: decoded.demosaic)
+                         demosaic: decoded.demosaic, lens: decoded.context.lens)
     }
 
     /// Encoded rendition for the disk cache.
@@ -302,7 +304,8 @@ public struct PreviewGenerator: Sendable {
             guard !output.linear.extent.isEmpty else { return nil }
             return Decoded(image: output.step.apply(to: output.linear, settings: settings),
                            context: RenderContext(scale: Self.scale(of: output.linear, native: output.fullSize),
-                                                  isRaw: false, balancedByDecoder: true),
+                                                  isRaw: false, balancedByDecoder: true,
+                                                  lens: Self.libRawLensState(url, corrected: output.hasLensCorrections)),
                            decoder: .libRaw, camera: CameraDecode(linear: output.linear, step: output.step),
                            demosaic: output.demosaic)
         } catch let cancelled as CancellationError {
@@ -311,6 +314,15 @@ public struct PreviewGenerator: Sendable {
             log.error("\(url.lastPathComponent, privacy: .private): no image from the system RAW decoder, and \(String(describing: error), privacy: .public)")
             return nil
         }
+    }
+
+    /// The lens state of a LibRaw decode: built in exactly when LibRaw applied
+    /// the camera's tables (`Output.hasLensCorrections`; code review C7), so a
+    /// frame outside LibRaw's image or a kernel that failed leaves Auto free.
+    static func libRawLensState(_ url: URL, corrected: Bool) -> CameraLensState {
+        if corrected { return .builtInCorrection }
+        let state = CameraLensState.read(url, systemDecodes: false, decoderCorrects: false)
+        return state == .builtInCorrection ? .tables(.none) : state
     }
 
     /// The system RAW decoder's image of a raw with its default settings, or nil
@@ -350,9 +362,13 @@ public struct PreviewGenerator: Sendable {
                 if layout?.hasLinearRaw == true, let whole = LinearRawDecode.rendered(output) {
                     output = whole
                 }
+                // Read from the filter that decoded: its own correction is what the image has (status.md Q1).
+                let lens = CameraLensState.read(url, systemDecodes: true,
+                                                decoderCorrects: raw.isLensCorrectionSupported && raw.isLensCorrectionEnabled)
                 return Decoded(image: output, context: RenderContext(scale: Self.scale(of: output, native: native),
                                                                      isRaw: true, balancedByDecoder: true,
-                                                                     cameraFrame: wholeSensor == nil ? nil : CameraFrame.rect(of: url)),
+                                                                     cameraFrame: wholeSensor == nil ? nil : CameraFrame.rect(of: url),
+                                                                     lens: lens),
                                machineLearning: outcome, decoder: .systemRAW)
             }
         }
@@ -378,12 +394,12 @@ public struct PreviewGenerator: Sendable {
             }
             let image = CIImage(cgImage: thumbnail)
             return Decoded(image: image, context: RenderContext(scale: Self.scale(of: image, native: Self.pixelSize(source)),
-                                                                isRaw: false))
+                                                                isRaw: false, lens: .notRaw))
         }
         guard let image = CIImage(contentsOf: url, options: [.applyOrientationProperty: true]) else {
             throw Failure.undecodable(url)
         }
-        return Decoded(image: image, context: RenderContext(scale: 1, isRaw: false))
+        return Decoded(image: image, context: RenderContext(scale: 1, isRaw: false, lens: .notRaw))
     }
 
     /// Long edge of the decode over the long edge of the master, at most 1.
@@ -422,6 +438,6 @@ public struct PreviewGenerator: Sendable {
         guard let image = CIImage(contentsOf: url, options: [.applyOrientationProperty: true, .expandToHDR: true]) else {
             throw Failure.undecodable(url)
         }
-        return Decoded(image: image, context: RenderContext(scale: 1, isRaw: false))
+        return Decoded(image: image, context: RenderContext(scale: 1, isRaw: false, lens: .notRaw))
     }
 }

@@ -31,6 +31,26 @@ extension LibraryModel {
 
     /// Gives the selection (grid) or the photo on screen (loupe) the preset's groups.
     func applyAdjustmentPreset(_ preset: AdjustmentPreset) {
+        // Asks first when it moves the frame of photos with masks or spots (lens-corrections design §6).
+        guard preset.groups.contains(.distortion) else {
+            // It ends an older paste's or preset's pending read too (owner ruling, code review C13),
+            // unless the frame question is up, when a preset does nothing.
+            guard !editor.isAskingLensFrame else { return }
+            endPendingLensRead()
+            return applyingAdjustmentPreset(preset)
+        }
+        // A long name fitted to the toolbar for the read's Activity row (design DQ-5, review F6).
+        let toolbarTitle = ToolbarMetrics.statusLine(name: preset.name) {
+            String(localized: "Apply Preset \($0)", comment: "Undo action name")
+        }
+        confirmingLensFrameChange(actionName: String(localized: "Apply Preset \(preset.name)", comment: "Undo action name"),
+                                  toolbarTitle: toolbarTitle, { preset.applied(onto: $0) }) { [self] targets in
+            applyingAdjustmentPreset(preset, targets: targets)
+        }
+    }
+
+    /// - Parameter targets: The command's photos when it asked first (code review C11).
+    private func applyingAdjustmentPreset(_ preset: AdjustmentPreset, targets: [CatalogItem]? = nil) {
         if preset.groups.contains(.colorAlignment), preset.adjustments.needsAlignmentMeasurement {
             // Measured on each photo it reaches (chromatic-aberration R16).
             let toolbarTitle = ToolbarMetrics.statusLine(name: preset.name) {
@@ -38,12 +58,13 @@ extension LibraryModel {
             }
             changeAdjustmentsMeasuringAlignment(actionName: String(localized: "Apply Preset \(preset.name)",
                                                                    comment: "Undo action name"),
-                                                toolbarTitle: toolbarTitle) {
+                                                toolbarTitle: toolbarTitle, targets: targets) {
                 preset.applied(onto: $0)
             }
             return
         }
-        changeAdjustments(ofVersions: batchSelection(action: String(localized: "Apply Preset \(preset.name)", comment: "Undo action name")).versionIDs,
+        changeAdjustments(ofVersions: batchSelection(action: String(localized: "Apply Preset \(preset.name)", comment: "Undo action name"),
+                                                     targets: targets).versionIDs,
                           actionName: String(localized: "Apply Preset \(preset.name)", comment: "Undo action name")) {
             preset.applied(onto: $0)
         }

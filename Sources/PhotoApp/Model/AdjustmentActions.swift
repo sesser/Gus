@@ -32,11 +32,15 @@ extension LibraryModel {
     func pasteAdjustments() {
         guard let copiedAdjustments else { return }
         let actionName = String(localized: "Paste Adjustments", comment: "Undo action name")
-        if copiedAdjustments.needsAlignmentMeasurement {
-            changeAdjustmentsMeasuringAlignment(actionName: actionName) { copiedAdjustments.pasted(onto: $0) }
-            return
+        // Asks first when it moves the frame of photos with masks or spots (lens-corrections design §6).
+        confirmingLensFrameChange(actionName: actionName, { copiedAdjustments.pasted(onto: $0) }) { [self] targets in
+            if copiedAdjustments.needsAlignmentMeasurement {
+                changeAdjustmentsMeasuringAlignment(actionName: actionName, targets: targets) { copiedAdjustments.pasted(onto: $0) }
+                return
+            }
+            applyAdjustments(copiedAdjustments, toVersions: batchSelection(action: actionName, targets: targets).versionIDs,
+                             actionName: actionName)
         }
-        applyAdjustments(copiedAdjustments, toVersions: batchSelection(action: actionName).versionIDs, actionName: actionName)
     }
 
     /// A paste or preset that carries automatic color alignment: each photo
@@ -48,9 +52,10 @@ extension LibraryModel {
     /// "the original could not be read". In the loupe, the inspector shows
     /// the measuring and, when it fails, "This photo could not be measured."
     /// `toolbarTitle` is `actionName` fitted to the toolbar, when it can be long.
-    func changeAdjustmentsMeasuringAlignment(actionName: String, toolbarTitle: String? = nil,
+    /// `targets` are the command's photos when it asked first (code review C11).
+    func changeAdjustmentsMeasuringAlignment(actionName: String, toolbarTitle: String? = nil, targets: [CatalogItem]? = nil,
                                              _ transform: @escaping @Sendable (Adjustments) -> Adjustments) {
-        let selection = batchSelection(action: actionName, needsMaster: { _ in true })
+        let selection = batchSelection(action: actionName, targets: targets, needsMaster: { _ in true })
         let sources = selection.versionIDs.compactMap { id -> (Int64, URL, String)? in
             guard let item = item(versionID: id), let url = sourceURL(for: item) else { return nil }
             return (id, url, PhotoName.inFull(item))
@@ -59,7 +64,15 @@ extension LibraryModel {
         let catalog = self.catalog
         let writes = self.writes
         let generator = previews.interactiveGenerator
-        let inLoupe = mode == .loupe
+        // The loupe's photo shows the measuring (and a failure) only while it is
+        // one of this command's photos: after a frame question's read the open
+        // photo may be another (code review C14).
+        let targetIDs = Set(sources.map(\.0))
+        let opensTarget = { [weak self] () -> Bool in
+            guard let self, mode == .loupe, let open = editor.item?.versionID else { return false }
+            return targetIDs.contains(open)
+        }
+        let inLoupe = opensTarget()
         batchAutoTask?.cancel()
         let run = batchAutoRun.begin()
         setBatchAutoProgress((0, sources.count), title: actionName, toolbarTitle: toolbarTitle)
@@ -99,7 +112,8 @@ extension LibraryModel {
                 report(Self.unreadableDetail(summary, names: unreadable), action: actionName, warning: true,
                        announcing: summary)
             }
-            if inLoupe, !unreadable.isEmpty { editor.noteAlignmentMeasureFailed() }
+            // Only when the open photo is itself one whose original could not be read (code review C15).
+            if opensTarget(), let open = editor.item?.versionID, measured.failed(open) { editor.noteAlignmentMeasureFailed() }
             let alignments = measured.alignments
             changeAdjustments(ofVersions: measured.versionsToChange(from: sources.map(\.0)), actionName: actionName) { id, values in
                 let changed = transform(values)

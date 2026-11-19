@@ -221,6 +221,19 @@ final class AdjustmentEditor {
     @ObservationIgnored var paintingStroke: (mask: UUID, component: Int, stroke: Int)?
     /// The camera's crop of a RAW file's whole sensor, if it has one.
     @ObservationIgnored private(set) var cameraRect: CropRect?
+    /// What the open photo's file says about correcting its lens (issue #87):
+    /// read with the photo, by the rule every render of it uses.
+    private(set) var lensState: CameraLensState?
+    /// The frame question (design §6) was answered Change on this visit to
+    /// the photo, with this many masks and spots: asked again only after one
+    /// is added, or on the next visit.
+    @ObservationIgnored var lensFrameAnswer: Int?
+    /// The frame question is up; the change waits for its answer.
+    var isAskingLensFrame = false
+    /// Changes once the Lens kernels' compile has ended (`lensStatus`).
+    private(set) var lensKernelsRevision = 0
+    /// The next commit is Reset All, which never asks (design §6).
+    @ObservationIgnored var commitSkipsLensQuestion = false
 
     /// Shows the photo without adjustments (before/after).
     var showsOriginal = false {
@@ -300,6 +313,8 @@ final class AdjustmentEditor {
         var source: URL
         var settings: RAWDecodeSettings
         var alignment: ColorAlignment
+        /// The picker reads the image after the lens corrections (issue #87, AC5).
+        var lens: LensCorrectionPlan
     }
     /// The last click while picking found almost no color (design §4).
     private(set) var fringePickRefused = false
@@ -449,7 +464,7 @@ final class AdjustmentEditor {
         let previewKey = library.previewRequest(for: newItem, tier: .preview)?.key
         let writes = library.writes
         // The Lens kernels compile once, the first time; not on the first frame that needs them.
-        Self.prepareLensKernelsOnce()
+        prepareLensKernelsOnce()
         loadTask = Task {
             let fileIsRaw = SupportedFormats.isRaw(pathExtension: url.pathExtension)
             let defaults = fileIsRaw
@@ -461,6 +476,11 @@ final class AdjustmentEditor {
             // read of the header, before the tab lays out (design §12).
             let fallbackColor = fileIsRaw && !systemDecodes
                 ? await Task.detached(priority: .userInitiated) { LibRawDecoder.cameraColor(url) }.value : nil
+            // The file's lens: the decoder's own correction, or the tables Auto can use (issue #87).
+            let lens = await Task.detached(priority: .userInitiated) {
+                CameraLensState.read(url, systemDecodes: systemDecodes,
+                                     decoderCorrects: defaults?.lensCorrectedByDecoder ?? false)
+            }.value
             // A camera frame is undone only by the system decoder's whole-sensor decode.
             let camera = systemDecodes
                 ? await Task.detached(priority: .userInitiated) { CameraFrame.rect(of: url) }.value : nil
@@ -492,6 +512,7 @@ final class AdjustmentEditor {
                     arrivedWithFailedFallback = fallback == .failed
                     if let fallback { learnUnavailability(fallback) }
                     cameraRect = camera
+                    lensState = lens
                     sourceIsMonochrome = monochrome
                     session = LiveRenderSession(source: url, generator: generator, colorSpace: colorSpace,
                                                 systemDecodesRaw: systemDecodes)
@@ -573,6 +594,9 @@ final class AdjustmentEditor {
         sourceURL = nil
         selectedMaskID = nil
         cameraRect = nil
+        lensState = nil
+        lensFrameAnswer = nil
+        commitSkipsLensQuestion = false
         paintingStroke = nil
         isBrushing = false
         isSamplingColor = false
@@ -629,7 +653,10 @@ final class AdjustmentEditor {
 
     /// Applies a change from a control. `actionName` names the undo step.
     func change(_ actionName: String, phase: EditPhase, _ body: (inout Adjustments) -> Void) {
-        guard state == .ready else { return }
+        // While the lens frame question is up, nothing else changes the photo
+        // (a menu's key equivalent included): the answer decides one change
+        // (code review Q3).
+        guard state == .ready, !isAskingLensFrame else { return }
         // A run of spot nudges still waiting to be saved is its own undo step (code review C1).
         if SpotNudgeRule.savesPendingFirst(pending: spotNudge?.name, incoming: actionName, committing: phase == .committed) {
             commitSpotNudge()
@@ -694,6 +721,9 @@ final class AdjustmentEditor {
     }
 
     func resetAll() {
+        // It clears the masks and spots with the rest: nothing to ask (design §6).
+        commitSkipsLensQuestion = true
+        defer { commitSkipsLensQuestion = false }
         change(String(localized: "Reset Adjustments", comment: "Undo action name"), phase: .committed) {
             $0 = $0.resettingAll()
         }
@@ -867,8 +897,35 @@ final class AdjustmentEditor {
     }
 
     private func commit(_ actionName: String) {
+        // Read and cleared before anything returns: a Reset All that changes
+        // nothing must not leave it for the next commit (review F1, code review C4).
+        let skipsQuestion = commitSkipsLensQuestion
+        commitSkipsLensQuestion = false
         guard let item, adjustments != committed else { return }
+        if !skipsQuestion, asksLensFrameQuestion(from: committed, to: adjustments) {
+            askLensFrameQuestion(actionName, versionID: item.versionID)
+            return
+        }
         apply(adjustments.editStack, toVersion: item.versionID, undoingTo: committed.editStack, actionName: actionName)
+    }
+
+    /// Saves the values on screen after the frame question was answered
+    /// Change, or puts the saved ones back after Cancel (design §6).
+    func finishLensFrameQuestion(change: Bool, actionName: String, versionID: Int64) {
+        isAskingLensFrame = false
+        guard item?.versionID == versionID, state == .ready, adjustments != committed else { return }
+        if change {
+            lensFrameAnswer = masksAndSpots(adjustments)
+            apply(adjustments.editStack, toVersion: versionID, undoingTo: committed.editStack, actionName: actionName)
+        } else {
+            adjustments = committed
+            sharpeningMap.valuesChanged()
+            showsLive = true
+            refreshFringeSwatches()
+            syncSamplePixels()
+            requestRender(interactive: false)
+            if cropSession != nil { renderCropImage() }
+        }
     }
 
     /// Saves `stack` for a version and registers the previous stack for undo.
@@ -1760,7 +1817,11 @@ final class AdjustmentEditor {
     /// The fringe tool itself (the click, and the debug script's mask points).
     var fringeMagnifierTool: FringeMagnifierTool? {
         fringeSamplePixels.map {
-            FringeMagnifierTool(pixels: $0, crop: maskCrop, note: LensText.magnifierNote, refusal: LensText.almostNoColorState)
+            // Its pixels are the corrected ones while Distortion or Lens Vignetting applies (design §10, review F4).
+            let corrected = !LensCorrectionPlan(adjustments.effective, lens: lensState).isIdentity
+            return FringeMagnifierTool(pixels: $0, crop: maskCrop,
+                                       note: corrected ? LensCorrectionText.afterLensCorrection : LensText.magnifierNote,
+                                       refusal: LensText.almostNoColorState)
         }
     }
 
@@ -1782,7 +1843,8 @@ final class AdjustmentEditor {
         // What reaches the decode the samples are read from: a LibRaw photo's white balance too.
         var settings = SystemRAWDecoder.settings(adjustments.decodeSettings, reaching: url, systemReads: isRaw)
         settings.fullFrame = isRaw
-        let key = SamplePixelsKey(source: url, settings: settings, alignment: adjustments.effective.colorAlignment)
+        let key = SamplePixelsKey(source: url, settings: settings, alignment: adjustments.effective.colorAlignment,
+                                  lens: LensCorrectionPlan(adjustments.effective, lens: lensState))
         guard key != samplePixelsKey else { return }
         samplePixelsKey = key
         if fringeSamplePixels != nil { fringeSamplePixels = nil }
@@ -1905,10 +1967,18 @@ final class AdjustmentEditor {
 
     private static let lensKernels = Task.detached(priority: .utility) { AdjustmentRenderer.prepareLensKernels() }
 
-    /// Starts compiling the Lens kernels the first time a photo opens.
-    static func prepareLensKernelsOnce() {
-        _ = lensKernels
+    /// Starts compiling the Lens kernels the first time a photo opens, and
+    /// redraws the lens groups when it ends (code review C1).
+    func prepareLensKernelsOnce() {
+        guard !Self.lensKernelsStarted else { return }
+        Self.lensKernelsStarted = true
+        Task { [weak self] in
+            await Self.lensKernels.value
+            self?.lensKernelsRevision += 1
+        }
     }
+
+    private static var lensKernelsStarted = false
 
     // MARK: Color alignment (chromatic-aberration design §7)
 

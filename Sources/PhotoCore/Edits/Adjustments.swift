@@ -21,6 +21,12 @@ public struct Adjustments: Hashable, Sendable {
     /// Which camera profile the color step of a LibRaw decode uses. Not one
     /// of the `Group`s, and no build writes it yet (`CameraProfileReference`).
     public var cameraProfile = CameraProfileReference()
+    /// Lines a lens bends straightened, first among the adjustments, before
+    /// the crop (issue #87). Its frame is the mask and spot frame.
+    public var distortion = LensDistortion()
+    /// Corners a lens darkens lifted, on the decoded image before the
+    /// distortion step, so before Exposure and the tone sliders (issue #87).
+    public var lensVignetting = LensVignetting()
     /// Lateral color: red and blue lined up with green, before the crop.
     public var colorAlignment = ColorAlignment()
     /// Picked fringe colors turned gray near high-contrast edges, before the crop.
@@ -113,6 +119,8 @@ public struct Adjustments: Hashable, Sendable {
                                             isEnabled: !disabled.contains(CameraProfileReference.kind),
                                             parameters: cameraProfile.parameters))
         }
+        add(distortion)
+        add(lensVignetting)
         add(colorAlignment)
         add(colorFringes)
         let spotParameters = spots.parameters
@@ -150,6 +158,8 @@ public struct Adjustments: Hashable, Sendable {
         case Crop.kind: crop = Crop(values)
         case RawDecode.kind: decode = RawDecode(values)
         case CameraProfileReference.kind: cameraProfile = CameraProfileReference(parameters: operation.parameters)
+        case LensDistortion.kind: distortion = LensDistortion(values)
+        case LensVignetting.kind: lensVignetting = LensVignetting(values)
         case ColorAlignment.kind: colorAlignment = ColorAlignment(values)
         case ColorFringes.kind: colorFringes = ColorFringes(values)
         case Spots.kind:
@@ -185,6 +195,8 @@ public struct Adjustments: Hashable, Sendable {
         case Crop.kind: crop.parameters
         case RawDecode.kind: decode.parameters
         case CameraProfileReference.kind: cameraProfile.parameters
+        case LensDistortion.kind: distortion.parameters
+        case LensVignetting.kind: lensVignetting.parameters
         case ColorAlignment.kind: colorAlignment.parameters
         case ColorFringes.kind: colorFringes.parameters
         case Spots.kind: spots.parameters
@@ -212,6 +224,8 @@ public struct Adjustments: Hashable, Sendable {
         case Crop.kind: crop = Crop()
         case RawDecode.kind: decode = RawDecode()
         case CameraProfileReference.kind: cameraProfile = CameraProfileReference()
+        case LensDistortion.kind: distortion = LensDistortion()
+        case LensVignetting.kind: lensVignetting = LensVignetting()
         case ColorAlignment.kind: colorAlignment = ColorAlignment()
         case ColorFringes.kind: colorFringes = ColorFringes()
         case Spots.kind: spots = Spots()
@@ -240,6 +254,8 @@ public struct Adjustments: Hashable, Sendable {
         case Crop.kind: crop = source.crop
         case RawDecode.kind: decode = source.decode
         case CameraProfileReference.kind: cameraProfile = source.cameraProfile
+        case LensDistortion.kind: distortion = source.distortion
+        case LensVignetting.kind: lensVignetting = source.lensVignetting
         case ColorAlignment.kind: colorAlignment = source.colorAlignment
         case ColorFringes.kind: colorFringes = source.colorFringes
         case Spots.kind: spots = source.spots
@@ -330,7 +346,7 @@ public struct Adjustments: Hashable, Sendable {
             case .develop: [.whiteBalance, .light, .presence]
             case .tone: [.toneCurve]
             case .details: [.sharpening, .noiseReduction]
-            case .lens: [.colorFringes, .colorAlignment]
+            case .lens: [.distortion, .lensVignetting, .colorFringes, .colorAlignment]
             case .colorMixer: [.colorMixer]
             case .blackAndWhite: [.blackAndWhite]
             case .colorGrading: [.colorGrade]
@@ -348,6 +364,9 @@ public struct Adjustments: Hashable, Sendable {
         case blackAndWhite
         case colorGrade
         case lookTable, vignette, grain
+        /// The Lens heading's geometry and light groups (issue #87): like
+        /// Black & White, their check boxes also switch them on (`setEnabled`).
+        case distortion, lensVignetting
         case colorFringes, colorAlignment
         /// Heal and clone spots: a group only so its heading has an on/off
         /// check box (PRD R18). Not a preset group: presets, copy and paste
@@ -371,6 +390,8 @@ public struct Adjustments: Hashable, Sendable {
             case .lookTable: [LookTable.kind]
             case .vignette: [Vignette.kind]
             case .grain: [Grain.kind]
+            case .distortion: [LensDistortion.kind]
+            case .lensVignetting: [LensVignetting.kind]
             case .colorFringes: [ColorFringes.kind]
             case .colorAlignment: [ColorAlignment.kind]
             case .spots: [Spots.kind]
@@ -402,9 +423,12 @@ public struct Adjustments: Hashable, Sendable {
 
     /// Turns a group's edits off (kept, not rendered) or back on. Turning
     /// Black & White on also switches its conversion on, so a photo that
-    /// never had it goes gray with every filter at 0 (PRD R1).
+    /// never had it goes gray with every filter at 0 (PRD R1); Distortion and
+    /// Lens Vignetting likewise (issue #87, RI-4).
     public mutating func setEnabled(_ group: Group, _ isEnabled: Bool) {
         if group == .blackAndWhite, isEnabled { blackAndWhite.isOn = true }
+        if group == .distortion, isEnabled { distortion.isOn = true }
+        if group == .lensVignetting, isEnabled { lensVignetting.isOn = true }
         for kind in group.kinds {
             if isEnabled || parameters(of: kind).isEmpty {
                 disabled.remove(kind)
@@ -421,6 +445,13 @@ public struct Adjustments: Hashable, Sendable {
     public mutating func enableModules(changedFrom previous: Adjustments) {
         if !blackAndWhite.isOn, !previous.blackAndWhite.isOn, blackAndWhite.filtersDiffer(from: previous.blackAndWhite) {
             blackAndWhite.isOn = true
+        }
+        // A lens group's Source, Amount or Constrain changed switches it on (design §3.1, B10's rule).
+        if !distortion.isOn, !previous.distortion.isOn, distortion.valuesDiffer(from: previous.distortion) {
+            distortion.isOn = true
+        }
+        if !lensVignetting.isOn, !previous.lensVignetting.isOn, lensVignetting.valuesDiffer(from: previous.lensVignetting) {
+            lensVignetting.isOn = true
         }
         for kind in disabled where parameters(of: kind) != previous.parameters(of: kind) {
             disabled.remove(kind)

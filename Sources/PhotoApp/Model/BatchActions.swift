@@ -9,11 +9,15 @@ extension LibraryModel {
     /// without videos, and without offline photos when `needsMaster` reads the
     /// master. Stacks this build cannot read are left out by the catalog,
     /// which says so (`changeAdjustments`).
-    func batchSelection(action: String, needsMaster: (CatalogItem) -> Bool = { _ in false }) -> BatchEdit.Selection {
-        let selection = BatchEdit.select(actionTargets.map { index in
-            let item = items[index]
-            return BatchEdit.Candidate(versionID: item.versionID, isVideo: item.isVideo, needsMaster: needsMaster(item),
-                                       isOnline: !isOffline(item))
+    ///
+    /// - Parameter targets: The command's photos taken when it started (a
+    ///   paste or preset that asked first, code review C11); the current
+    ///   targets when nil.
+    func batchSelection(action: String, targets: [CatalogItem]? = nil,
+                        needsMaster: (CatalogItem) -> Bool = { _ in false }) -> BatchEdit.Selection {
+        let selection = BatchEdit.select((targets ?? actionTargets.map { items[$0] }).map { item in
+            BatchEdit.Candidate(versionID: item.versionID, isVideo: item.isVideo, needsMaster: needsMaster(item),
+                                isOnline: !isOffline(item))
         })
         // Said in the toolbar's Activity item.
         if selection.skippedVideos > 0 {

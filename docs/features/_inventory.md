@@ -53,6 +53,10 @@ Preview cache row's pipeline version, now 12 with no carry-over), from its
 Updated 2026-11-19 (Ship pass) for bw-module (#218: the Black & White row under
 Editing), from its `status.md`, `qa.md` and `docs/USER_GUIDE.md`.
 
+Updated 2026-11-19 (Ship pass) for lens-corrections (#87: the Distortion and Lens
+Vignetting rows under Editing), from its `status.md`, `qa.md` and
+`docs/USER_GUIDE.md`.
+
 Markers:
 
 - **[inferred from code]**: no document states it; the claim rests on code alone.
@@ -166,6 +170,9 @@ Abbreviations: P1–P6 = `docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR
 | Color Fringes | Lens heading. Two slots, filled by picking from the photo or from a short list (Purple, Green); each slot's color turns gray near high-contrast edges only, keeping brightness, with its own Tolerance. Matches on the decoded photo before other adjustments (a raw's White Balance comes first). Off by default; not in masks; photos only | `chromatic-aberration/prd.md`; UG |
 | Fringe Map | Shows in the loupe where fringe color is removed; a view only, one map on screen at a time | `chromatic-aberration/prd.md` R6; UG |
 | Color Alignment | Lens heading. Align automatically measures red/cyan and blue/yellow edges once and stores the correction, centered on the sensor so crops don't change it; or set by hand. Paste and presets measure each receiving photo; one that can't be measured is left unchanged, and Activity says so | `chromatic-aberration/prd.md`; UG |
+| Distortion | Lens heading, first in the render (before Color Fringes and Color Alignment, all before the crop). Source Auto or Manual: Auto reads the camera's table from the file (Fujifilm RAF; DNG `WarpRectilinear`), Manual takes a signed Amount (barrel/pincushion) on any photo. Constrain to image (on by default) fills the frame with no empty edge. Auto is inert where the system decoder or Fujifilm's built-in table already corrected; Manual then works on top. No Auto on non-raw files or a RAW+JPEG pair's JPEG. Clicking a Source segment while the group is off turns it on. Off by default | `lens-corrections/`; UG; `Edits/LensCorrections.swift`. Sony, Panasonic and Olympus table readers not built (#227 Sony) |
+| Lens Vignetting | Lens heading, own group; lightens or darkens corners by Source Auto (Fujifilm RAF vignetting table; DNG `FixVignetteRadial`) or Manual Amount; applied before exposure and tone, not the same as Effects' Vignette. Same Auto-inert rule as Distortion. The Fujifilm XF14 and XF23 check against the camera JPEG was done by eye | `lens-corrections/`; UG. DNG `GainMap` not built |
+| Lens frame question | When a change moves the corrected frame on a photo with spots or masks, a narrow alert (Change default, Cancel) asks, once per visit; at commit for a slider drag; once with counts for paste or preset on several photos; never for Undo, Redo, History or Reset All | `lens-corrections/design.md` §6; UG. Known: ⌘Z during a grid paste's file read undoes the step before. Manual check P5 (real keys) open |
 | Effects | Look-up table, vignette, grain | P3 |
 | Group on/off | Check box per group keeps edits but disables them | P3 sidebar; UIR §4 |
 | Copy / Paste Adjustments | Paste carries crop, not masks | UG; P6 |

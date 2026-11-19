@@ -1057,9 +1057,60 @@ open. Covered by CI only: VoiceOver, macOS 15 and macOS 26. Known: the Tone Curv
 Color Grading and Spots mode controls are 276 pt wide and would overflow the
 narrowest inspector (256 pt of content), as before this branch (follow-up).
 
+Lens corrections (`docs/features/lens-corrections/`, issue #87, branch
+`feature/lens-corrections`): Distortion and Lens Vignetting, two groups under
+the Adjust tab's Lens heading (`lensDistortion` and `lensVignetting`
+operations, explicit on value, off by default; `Edits/LensCorrections.swift`,
+`LensRenderer`, `Kernels/LensKernels.swift`). Each has a Source, Auto or
+Manual, and a signed Amount that works on any photo. Auto reads the camera's
+own table from the file: Fujifilm RAF tables (vignetting; distortion where
+the table has it) and DNG `WarpRectilinear` and `FixVignetteRadial`. Auto is
+inert where the system decoder already corrects the raw, or Fujifilm's
+built-in table does (raws LibRaw decodes): nothing is applied, the caption
+says so, and Manual works on top of the camera's correction. A non-raw file
+(and a RAW+JPEG pair's JPEG) has no Auto and starts in Manual; a raw with no
+readable table says "No distortion table was found." The manual Amount is kept
+while Source is Auto and not applied. Constrain to image (on by default)
+scales the corrected photo to fill its frame. Order: distortion first in the
+Lens heading, before Color Fringes and Color Alignment, all before the crop;
+lens vignetting before exposure and tone, not after Effects' Vignette. The
+fringe picker and Color Alignment's measurement see the corrected image (the
+Pixel Magnifier plate reads "After lens correction"). R15: clicking a Source
+segment while its group is off turns the group on, one step. The mask and
+spot frame is the corrected frame, so a change that really moves it on a
+photo with spots or masks asks first, in a narrow alert (Change default,
+Cancel): once per visit to the photo, at commit for a slider drag, once with
+counts for a paste or preset on several photos, never for Undo, Redo, History
+or Reset All (`Adjustments.choosingLensSource` and the frame rule in
+PhotoCore). A newer paste or preset ends a pending file read. Paste and
+presets carry both groups, each receiving photo reading its own table; one
+that can't be corrected is left unchanged and Activity says so. Reset Lens
+returns the four groups to their start. Kernels that can't compile or a
+corrupt table are said on the group (Color Fringes and Color Alignment still
+skip silently, RI-CR1). No migration, `PreviewCacheKey.currentPipelineVersion`
+stays 13 (a stack without the groups renders byte for byte as before; one that
+turns them on has a new render hash), five new goldens, CPU references in
+`Reference/LensCorrectionReference.swift`, no existing golden moved. Rulings
+2026-11-19: RI-1 (Auto inert, Manual on top), RI-3 (the frame alert), RQ-1
+(Fujifilm and DNG now; other makers follow-ups), RQ-2 (DNG `GainMap` deferred),
+DQ-2 (R15), DQ-3 (the "No table found" caption stays on makers not read).
+Known: ⌘Z during a grid paste's file read undoes the step before the paste;
+the only real DNG with `WarpRectilinear` has a no-op green plane, so
+distortion read from a table has no by-eye check on real files (the XF14 and
+XF23 distortion tables are zeros): it rests on the CPU references, goldens and
+synthetic opcode tests; Panasonic, Olympus and Sony ARW readers (#227 Sony)
+and DNG `GainMap` are follow-ups; `DeferredRenderTests` flakes now and then
+(#229); Color Alignment's lensAlign kernel can read a stale area (#228). Shipped, checks pending: P5 (the frame question with real keys: Return,
+Esc, ⌘., Cancel after a real slider drag, once per visit, keys with the sheet
+up) in #82 and `docs/features/lens-corrections/qa.md`; the owner checked the
+rest, including Lens Vignetting Auto on the XF14 and XF23 files against the
+camera JPEG, by eye on 2026-11-19, everything fine. VoiceOver, macOS 15 and
+macOS 26 are covered by CI only.
+
 Not yet: local Black & White through masks, Lightroom Black & White mapping on
-import, Black & White items for a grid selection, AI masks, automatic dust detection, a Remove brush, lens corrections (distortion, lens vignetting,
-profiles; only the camera's own tables in Fujifilm raws LibRaw decodes), DNG export, `.dcp` profiles
+import, Black & White items for a grid selection, AI masks, automatic dust detection, a Remove brush, automatic lens corrections from tables other than
+Fujifilm RAF and DNG ones (Sony, Panasonic, Olympus; DNG GainMap), lens profiles
+(no lensfun or `.lcp`), perspective and keystone, DNG export, `.dcp` profiles
 and built-in look profiles (dropped 2026-11-18, #89 and #216; a profile's
 hue/saturation and look tables are not applied), a Profile group or any
 Neutral or Flat base look (#219 removed it; the loss is accepted),

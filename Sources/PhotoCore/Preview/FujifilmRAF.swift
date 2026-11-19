@@ -147,6 +147,9 @@ public struct FujifilmRAF: Sendable, Equatable {
     /// Where the camera's embedded JPEG is in the file.
     public var embeddedJPEG: Range<UInt64>?
     public var lens: LensTables?
+    /// The file has the three lens tables, but they can't be read as
+    /// tables (a layout not known, or values no lens has): `lens` is nil.
+    public var lensTablesDamaged = false
     /// The maker note's `CropMode` (0x104D) from the embedded JPEG's Exif,
     /// nil when it has none: 2 and 4 are the 1.25x crops some cameras offer,
     /// for which the tables' radii are of another frame (darktable multiplies
@@ -224,6 +227,7 @@ public struct FujifilmRAF: Sendable, Equatable {
         }
         if raw.offset > 0, raw.length >= 8, let data = read(raw.offset, min(raw.length, Self.maximumIFDLength)) {
             lens = Self.lensTables(inRawSection: data)
+            lensTablesDamaged = lens == nil && Self.hasLensTags(inRawSection: data)
         }
     }
 
@@ -267,6 +271,17 @@ public struct FujifilmRAF: Sendable, Equatable {
         static let geometricDistortion: UInt16 = 0xF00B
         static let chromaticAberration: UInt16 = 0xF00F
         static let vignetting: UInt16 = 0xF010
+    }
+
+    /// The raw data section has all three lens tags as signed rationals.
+    static func hasLensTags(inRawSection data: Data) -> Bool {
+        guard data.count >= 8, data.prefix(4) == Data([0x49, 0x49, 0x2A, 0x00]),
+              let root = entries(data, at: Int(littleEndian32(data, 4))),
+              let pointer = root.first(where: { $0.tag == Tag.fujiIFD }),
+              let tags = entries(data, at: Int(pointer.value)) else { return false }
+        return [Tag.geometricDistortion, Tag.chromaticAberration, Tag.vignetting].allSatisfy { tag in
+            tags.contains { $0.tag == tag && $0.type == 10 }
+        }
     }
 
     /// The lens tables of a raw data section that starts with a

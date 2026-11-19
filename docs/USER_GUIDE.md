@@ -560,10 +560,74 @@ with Luminance and Color instead, and shows a **Machine Learning Not Applied**
 badge in the caption, whose tooltip gives the reason. Exports say in Activity
 how many photos were written without it, and why.
 
-**Lens** (after Details) removes the colored fringes a lens leaves along
-high-contrast edges. It has two groups, each with its own check box: **Color
-Fringes** and **Color Alignment**. Both are off until you use them, and a photo
-you never touch renders exactly as before.
+**Lens** (after Details) corrects what a lens does to a photo. It has four
+groups, each with its own check box: **Distortion** and **Lens Vignetting**
+first, then **Color Fringes** and **Color Alignment**. All are off until you use
+them, and a photo you never touch renders exactly as before.
+
+**Distortion** straightens lines a lens bends, and **Lens Vignetting** brightens
+the corners a lens darkens (it is not the creative **Vignette** under Effects,
+which comes last). Their check boxes are always shown: checking one turns it on, and so does
+choosing a Source segment, moving its Amount or clicking Constrain to image while
+it is off.
+Each has a **Source**: **Auto** uses the correction table your camera stored in
+the raw file; **Manual** shows one **Amount**, -100 to +100. For Distortion,
+positive values straighten lines that bow outward (barrel), negative values lines
+that bow inward (pincushion); +100 moves a corner by about 8% of the distance from
+the center. For Lens Vignetting, positive values lighten the corners and negative
+values darken them, up to 2 stops at the corner. Auto has no slider; to take the
+camera's correction a little weaker, switch to Manual and set your own amount.
+Manual keeps its own value, not the table's, and the amount stays with the photo
+while Source is Auto (it applies only in Manual). The caption under Source names
+what is in use ("Using the camera's correction table from this file", "Set by
+hand") or why nothing happens: no table in the file; a table that could not be
+read; a Mac that could not run the correction.
+
+Many raws are already corrected when they are decoded: the system's raw decoder
+corrects the lenses it knows (on the cameras tried, most Panasonic and Olympus
+lenses, and some Fujifilm and Sony ones), and Fujifilm raws the app decodes itself
+are corrected with the camera's own table. On those, Auto does nothing (its
+segment is dimmed, its tooltip and the caption say why), so nothing is ever
+corrected twice; Manual still works, and your amount is added on top of the
+camera's correction. A file that is not a raw (a JPEG, the JPEG of a RAW+JPEG
+pair, a HEIC) has no table, so Auto is dimmed there too. On these files, checking
+the group (or clicking Constrain to image) starts it in Manual. Today Auto reads the tables of Fujifilm raws the
+system decoder does not correct (for example the XF14mm and XF23mm f/1.4 on an
+X-E3, whose tables correct vignetting) and the lens corrections stored in DNG
+files; for other raws it says no table was found.
+
+**Constrain to image** (under Distortion, on by default) scales the corrected
+photo to fill its frame, with no empty edge, the way the camera frames its own
+pictures: as little of the photo is lost as it can (correcting barrel
+distortion it comes out slightly smaller, pincushion slightly larger). Off, the photo keeps the
+lens's scale at its center and may show a black edge (correcting pincushion). Your
+crop applies after the correction, and Distortion never moves red against green:
+that is Color Alignment's job.
+
+Distortion is applied first, before Color Fringes, Color Alignment, the spots,
+masks and crop, so they all work on the corrected photo. Lens Vignetting lifts the
+corners before Exposure and the tone sliders; a value it lifts past white stops at
+white, so a clipped sky stays even toward the corners. Masks and spots are placed
+in the corrected frame, so changing Distortion on a photo that has any asks first
+whether to go ahead, since they can move away from what they cover: **Change**
+(Return) makes the change as one undo step, **Cancel** (Esc) leaves everything as
+it was, the slider included. A drag asks when you let go. It asks once per visit
+to the photo (again after you add a mask or spot), once for a whole paste or
+preset with how many of the photos have masks or spots, and never for Undo, Redo,
+History or Reset All Adjustments. To know whether to ask, a paste or preset on a
+selection may first read the files of photos with masks or spots whose
+Distortion is, or would be, on Auto; Activity then shows its progress under the command's
+name, and **Stop** ends it without changing anything, as does any newer paste or
+preset. It changes the photos that
+were selected when you gave the command, even if you select others meanwhile. Lens Vignetting never asks. Undo and History
+read **Turn On Distortion** and **Turn Off Distortion**, **Distortion Source**,
+**Distortion Amount**, **Turn On Constrain to Image** and **Turn Off Constrain to
+Image**, the Lens Vignetting forms (**Turn On Lens Vignetting**, **Turn Off Lens
+Vignetting**, **Lens Vignetting Source**, **Lens Vignetting Amount**), and **Reset
+Lens** for the heading's reset. Copy and paste and presets
+carry both groups; each photo reads its own file's table for Auto, so a photo
+without one is left as it was and says so in its caption. To correct a whole
+shoot, save a preset of the two groups set to Auto and apply it to the selection.
 
 **Color Fringes** turns a fringe's color gray where it lines a high-contrast
 edge: purple or green halos along branches against the sky, window frames,
@@ -580,7 +644,8 @@ the text under the slots says so and the eyedropper stays on. If the original
 can't be read when you click the eyedropper, picking ends and the text under the
 slots says so; make it available and click the eyedropper again. When the magnifier
 reads **Almost no color**, a click there won't be taken. It shows the photo before
-your edits, so its colors can differ from the photo around it and from the slot's
+your edits (after lens correction while Distortion or Lens Vignetting applies,
+and its plate says so), so its colors can differ from the photo around it and from the slot's
 swatch. Change its zoom with the **Pixel magnifier** pop-up under the slots,
 **View ▸ Pixel Magnifier**, the photo's context menu, or `-` and `=` while picking;
 the app remembers it. Or, without
@@ -641,9 +706,10 @@ Preset…** asks for a name, a collection and the groups of controls to include
 (those the photo changes are checked): applying the preset replaces only those
 and leaves the photo's other settings alone. A preset with all settings,
 including one saved before Color Fringes and Color Alignment existed, also
-replaces those two (clearing a photo's fringe colors and alignment), and
-Black & White: applying such a preset to a photo turned black and white turns it
-back to color. **Manage Presets…** can take those groups out of it. **Import Presets…** reads this
+replaces those two (clearing a photo's fringe colors and alignment), Black &
+White (applying such a preset to a photo turned black and white turns it back to
+color), and Distortion and Lens Vignetting (it turns them off, and asks first when
+that moves the frame of a photo with masks or spots). **Manage Presets…** can take those groups out of it. **Import Presets…** reads this
 app's preset files and Lightroom presets (`.lrtemplate`, `.xmp`, and
 `.dng` mobile presets), or folders of them. A folder becomes a collection unless
 its presets name their own, and a pack that holds a preset in several formats

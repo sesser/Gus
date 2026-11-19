@@ -1,10 +1,11 @@
 import CoreImage
 
-/// The Lens heading's steps (docs/features/chromatic-aberration), applied to
-/// the decoded image before anything else, the crop included: color
-/// alignment, centered on the lens's axis (R9), then fringe removal, which
-/// then sees the photo's own colors whatever is changed after it (design
-/// §14 OQ2). Both leave the image untouched when off (R11).
+/// The Lens heading's steps, applied to the decoded image before anything
+/// else, the crop included: lens vignetting's gain and the distortion
+/// correction (issue #87, `LensCorrectionPlan`), then color alignment,
+/// centered on the lens's axis (docs/features/chromatic-aberration R9), then
+/// fringe removal, which then sees the photo's own colors whatever is changed
+/// after it (design §14 OQ2). Each leaves the image untouched when off.
 extension AdjustmentRenderer {
     /// The edge rule's window (OQ1), in full-resolution pixels: a pixel is near
     /// a high-contrast edge when the luminance within this many pixels of it
@@ -22,7 +23,7 @@ extension AdjustmentRenderer {
     /// image, before the crop) aligned, then with its fringes grayed.
     /// `adjustments` are the effective ones.
     static func lens(_ adjustments: Adjustments, _ input: CIImage, context: RenderContext) -> CIImage {
-        var image = input
+        var image = lensCorrected(adjustments, input, context: context)
         if !adjustments.colorAlignment.isIdentity {
             image = align(image, adjustments.colorAlignment)
         }
@@ -140,7 +141,8 @@ extension AdjustmentRenderer {
     public func fringeMap(_ values: Adjustments, to input: CIImage, context: RenderContext) -> CIImage {
         let effective = values.effective
         let crop = Self.crop(effective, context: context)
-        let weight = Self.fringeWeight(fringeInput(values, to: input), values.colorFringes, scale: context.scale)
+        let weight = Self.fringeWeight(fringeInput(values, to: input, context: context), values.colorFringes,
+                                       scale: context.scale)
         return crop.apply(to: weight)
     }
 
@@ -148,9 +150,10 @@ extension AdjustmentRenderer {
     /// OQ2): the decoded image, aligned as `values` render, before any slot's
     /// graying and before every other adjustment, so a pick keeps matching
     /// the same fringe when later adjustments change. In the mask frame.
-    public func fringeInput(_ values: Adjustments, to input: CIImage) -> CIImage {
+    public func fringeInput(_ values: Adjustments, to input: CIImage, context: RenderContext) -> CIImage {
+        let corrected = Self.lensCorrected(values.effective, input, context: context)
         let alignment = values.effective.colorAlignment
-        return alignment.isIdentity ? input : Self.align(input, alignment)
+        return alignment.isIdentity ? corrected : Self.align(corrected, alignment)
     }
 
     /// A small patch of `okLab`'s color with the adjustments that render

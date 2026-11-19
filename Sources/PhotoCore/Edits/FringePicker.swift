@@ -219,7 +219,7 @@ public enum FringePicker {
         // Mask-frame points are on the whole sensor, whatever the camera cropped.
         settings.fullFrame = isRaw
         let decoded = try PreviewGenerator.decode(source, longEdge: nil, draft: false, settings: settings)
-        let image = renderer.fringeInput(values, to: decoded.image)
+        let image = renderer.fringeInput(values, to: decoded.image, context: decoded.context)
         let extent = image.extent.integral
         guard !extent.isInfinite, !extent.isEmpty else { throw PreviewGenerator.Failure.renderFailed }
         let width = Int(extent.width), height = Int(extent.height)

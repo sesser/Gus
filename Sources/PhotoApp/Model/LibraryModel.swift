@@ -634,6 +634,17 @@ final class LibraryModel {
     /// `batchAutoTitle` fitted to the toolbar (a long preset name shortened in the middle).
     private(set) var batchAutoToolbarTitle: String?
     @ObservationIgnored var batchAutoTask: Task<Void, Never>?
+    /// A paste or preset reading its targets for the lens frame question, or
+    /// asking it (issue #87, design §6): a task of its own, so it never ends
+    /// another batch (code review C10).
+    @ObservationIgnored var lensQuestionTask: Task<Void, Never>?
+    @ObservationIgnored var lensQuestionRun = BatchEdit.LatestRun()
+    /// That read's Activity row (design DQ-5): files read of those to read.
+    private(set) var lensReadProgress: (done: Int, total: Int, title: String, toolbarTitle: String?)?
+
+    func setLensReadProgress(_ progress: (done: Int, total: Int)?, title: String = "", toolbarTitle: String? = nil) {
+        lensReadProgress = progress.map { ($0.done, $0.total, title, toolbarTitle) }
+    }
     /// Which batch measurement is current: a cancelled one clears only its own state.
     @ObservationIgnored var batchAutoRun = BatchEdit.LatestRun()
 

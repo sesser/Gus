@@ -90,6 +90,9 @@ public enum SyntheticDNG {
         /// green, 2 blue), rows first. Red, green / green, blue by default.
         public var cfaPeriod: Int = 2
         public var cfaColors: [UInt8] = [0, 1, 1, 2]
+        /// Written as `OpcodeList3` (opcodes applied after demosaicing; see
+        /// `DNGOpcodes`), nil for none.
+        public var opcodeList3: Data?
 
         public init(width: Int, height: Int, seed: UInt64, dateTimeOriginal: String? = nil, orientation: Int = 1,
                     noise: Double = 0, writesNoiseProfile: Bool = false, iso: Int? = nil, scene: Scene = .pattern,
@@ -208,7 +211,8 @@ public enum SyntheticDNG {
         }
         ifd.subIFD(34665, exif)                    // ExifIFD
         ifd.bytes(50706, [1, 4, 0, 0])             // DNGVersion
-        ifd.bytes(50707, [1, 1, 0, 0])             // DNGBackwardVersion
+        // Opcode lists need a reader of DNG 1.3 or later.
+        ifd.bytes(50707, options.opcodeList3 == nil ? [1, 1, 0, 0] : [1, 3, 0, 0]) // DNGBackwardVersion
         ifd.ascii(50708, "Synthetic Bayer Generator") // UniqueCameraModel
         ifd.long(50714, [0])                       // BlackLevel
         ifd.long(50717, [65535])                   // WhiteLevel
@@ -245,6 +249,9 @@ public enum SyntheticDNG {
         }
         if let forward = color.forward2 {
             ifd.srational(50965, forward)          // ForwardMatrix2
+        }
+        if let opcodes = options.opcodeList3 {
+            ifd.undefined(51022, opcodes)          // OpcodeList3
         }
         if options.writesNoiseProfile {
             // NoiseProfile: variance = S·x + O per plane, x normalized to white.
@@ -335,11 +342,11 @@ public enum SyntheticDNG {
 /// Just enough of a little-endian TIFF writer for `SyntheticDNG`.
 struct TIFFWriter {
     enum FieldType: UInt16 {
-        case byte = 1, ascii = 2, short = 3, long = 4, rational = 5, srational = 10, double = 12
+        case byte = 1, ascii = 2, short = 3, long = 4, rational = 5, undefined = 7, srational = 10, double = 12
 
         var size: Int {
             switch self {
-            case .byte, .ascii: 1
+            case .byte, .ascii, .undefined: 1
             case .short: 2
             case .long: 4
             case .rational, .srational, .double: 8
@@ -366,6 +373,10 @@ struct TIFFWriter {
 
         mutating func bytes(_ tag: UInt16, _ values: [UInt8]) {
             entries.append(Entry(tag: tag, type: .byte, count: values.count, payload: .value(Data(values))))
+        }
+
+        mutating func undefined(_ tag: UInt16, _ data: Data) {
+            entries.append(Entry(tag: tag, type: .undefined, count: data.count, payload: .value(data)))
         }
 
         mutating func ascii(_ tag: UInt16, _ text: String) {
