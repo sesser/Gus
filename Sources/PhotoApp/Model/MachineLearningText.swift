@@ -76,16 +76,6 @@ enum MachineLearningText {
         localized: "Not used with machine learning. Your value is kept and applies again when you turn off Use machine learning.",
         comment: "Tooltip and VoiceOver help of the dimmed Color row; “Use machine learning” is the check box title")
 
-    /// The Decoder pop-up's item for the machine learning version.
-    static func decoderItem(_ version: String) -> String {
-        String(localized: "\(version) (machine learning)",
-               comment: "Decoder pop-up item for the RAW decoder's machine learning version; the argument is the version, e.g. “9.dng”. Pattern of “%@ (default)”")
-    }
-
-    static let decoderDimmedHelp = String(
-        localized: "Turn off Use machine learning to choose another decoder.",
-        comment: "Tooltip of the dimmed Decoder pop-up while machine learning noise reduction is asked for and not applied")
-
     static let spinner = String(
         localized: "Applying machine learning noise reduction",
         comment: "Tooltip and VoiceOver label of the loupe caption's spinner while a machine learning frame renders")

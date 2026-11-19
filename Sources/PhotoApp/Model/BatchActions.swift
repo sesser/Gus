@@ -35,7 +35,7 @@ extension LibraryModel {
         }
         let actionName = String(localized: "Reset Adjustments", comment: "Undo action name")
         changeAdjustments(ofVersions: batchSelection(action: actionName).versionIDs, actionName: actionName) {
-            Adjustments(stack: EditStack(operations: $0.preserved))
+            $0.resettingAll()
         }
     }
 

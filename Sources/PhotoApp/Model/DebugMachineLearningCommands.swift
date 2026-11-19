@@ -5,7 +5,6 @@ import PhotoCore
 /// design §11):
 ///
 /// - `ml on` / `ml off`: the check box's command (one undo step).
-/// - `ml decoder <version>`: a pick in the Decoder pop-up.
 /// - `ml override available|notOnThisMac|cameraNotSupported|fail|nomodel|nomodel-decode|macos26|clear`:
 ///   replaces this Mac's answer for every file, then reloads the open photo,
 ///   so one Mac can show every state. `fail`: available, and the machine
@@ -15,7 +14,7 @@ import PhotoCore
 ///   also forgets a missing model learned from a decode.
 /// - `ml ready`: waits (up to 5 s) until the editor has the focused photo ready, and no longer.
 /// - `ml wait`: waits (up to 30 s) until no machine learning frame is pending.
-/// - `print ml`: the state the inspector, pop-up, caption and badge show,
+/// - `print ml`: the state the inspector, caption and badge show,
 ///   read from the AppKit controls where there is one.
 @MainActor
 enum DebugMachineLearningCommands {
@@ -24,8 +23,6 @@ enum DebugMachineLearningCommands {
         switch words.first {
         case "on": editor.setMachineLearning(true)
         case "off": editor.setMachineLearning(false)
-        case "decoder":
-            if let version = words.dropFirst().first { editor.chooseDecoder(version) }
         case "override":
             let override: MachineLearningNoiseReduction.Override? = switch words.dropFirst().first {
             case "fail": .init(availability: .available, failsDecode: true)
@@ -55,7 +52,7 @@ enum DebugMachineLearningCommands {
                 try? await Task.sleep(for: .milliseconds(100))
             }
         default:
-            print("debug-script: ml expects on, off, decoder <version>, override <value> or wait")
+            print("debug-script: ml expects on, off, override <value>, ready or wait")
         }
     }
 
@@ -85,15 +82,6 @@ enum DebugMachineLearningCommands {
         } else {
             print("debug-script: ml color not shown")
         }
-        let versions = editor.rawDefaults?.decoderVersions ?? []
-        if let root, !versions.isEmpty, let decoder = find(NSPopUpButton.self, in: root, where: { popUp in
-            popUp.itemTitles.contains { title in versions.contains { title.hasPrefix($0) } }
-        }) {
-            print("debug-script: ml decoder '\(decoder.titleOfSelectedItem ?? "-")' enabled \(decoder.isEnabled)"
-                  + " items [\(decoder.itemTitles.joined(separator: ", "))] tip '\(decoder.toolTip ?? "-")'")
-        } else {
-            print("debug-script: ml decoder not shown")
-        }
         if let item = editor.item, let key = model.previewRequest(for: item, tier: .preview)?.key {
             let cache = model.previews.cache
             print("debug-script: ml preview cached \(cache.contains(key)) onDisk "
@@ -111,7 +99,7 @@ enum DebugMachineLearningCommands {
     /// file that is not a raw, `unavailable` or `unapplied` for a raw whose
     /// color data can't be used, white-balance-across-decoders design §6),
     /// its as-shot values, the Mode pop-up and its help, the caption under
-    /// it, the Temperature row, and the Profile heading's note.
+    /// it, and the Temperature row.
     private static func printDecoder(_ editor: AdjustmentEditor, window: NSWindow?) {
         let decoder = editor.isRaw ? "system" : editor.usesFallbackDecoder ? "fallback" : "not raw"
         let root = window?.contentView?.superview
@@ -136,8 +124,7 @@ enum DebugMachineLearningCommands {
         print("debug-script: decoder \(decoder) wb mode '\(modes?.titleOfSelectedItem ?? "-")'"
               + " enabled \(modes?.isEnabled ?? false) tip '\(modes?.toolTip ?? "-")'"
               + " modes [\(modes?.itemTitles.joined(separator: ", ") ?? "not shown")]"
-              + " temperature \(temperature?.debugState ?? "not shown") tint \(tint?.debugState ?? "not shown")"
-              + " note \(editor.usesFallbackDecoder ? "'\(FallbackDecoderText.note)'" : "none")")
+              + " temperature \(temperature?.debugState ?? "not shown") tint \(tint?.debugState ?? "not shown")")
     }
 
     private static func badge(_ editor: AdjustmentEditor) -> String {

@@ -57,7 +57,7 @@ struct EditStackCorpusTests {
 
         var everything = Adjustments()
         everything.crop = Crop(rect: CropRect(x: 0.1, y: 0.05, width: 0.8, height: 0.9), quarterTurns: 3, angle: 2.5)
-        everything.decode = RawDecode(look: .neutral, decoderVersion: "8")
+        everything.decode = RawDecode(storedLook: "neutral", decoderVersion: "8")
         everything.whiteBalance = WhiteBalance(preset: .custom, temperature: 5100, tint: 7,
                                                relativeTemperature: 10, relativeTint: -5)
         everything.exposure.ev = 0.33

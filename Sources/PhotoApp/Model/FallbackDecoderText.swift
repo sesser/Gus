@@ -1,16 +1,5 @@
 import Foundation
 
-/// What the Adjust tab says about a raw file the system's RAW decoder gives
-/// no image for, which LibRaw decodes instead (issues #161 and #170). Such a
-/// photo has one built-in profile and no decoder noise reduction; its white
-/// balance works as any raw's, so the note does not mention it
-/// (white-balance-across-decoders design §3).
-enum FallbackDecoderText {
-    static let note = String(
-        localized: "macOS can't decode this raw file, so it's shown with a built-in profile that can't be changed. Color noise reduction isn't available.",
-        comment: "Adjust tab, under the Profile heading, for a raw file the macOS raw decoder cannot read: the app decodes it itself with one built-in profile (no Profile or Decoder choice) and has no Color noise reduction. White balance works as for other raws")
-}
-
 /// The White Balance group's captions for a raw whose camera color data the
 /// app's decoder cannot use (white-balance-across-decoders design §6): the
 /// photo renders as shot and white balance cannot be changed. Each is also

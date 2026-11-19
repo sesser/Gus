@@ -45,28 +45,6 @@
       },
       "comment" : "Import report: a tool of a preset pack, then the app's controls it was approximated with"
     },
-    "%@ (default)" : {
-      "comment" : "RAW decoder version menu item; the argument is a version name",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ (default)"
-          }
-        }
-      }
-    },
-    "%@ (machine learning)" : {
-      "comment" : "Decoder pop-up item for the RAW decoder's machine learning version; the argument is the version, e.g. “9.dng”. Pattern of “%@ (default)”",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ (machine learning)"
-          }
-        }
-      }
-    },
     "%@ EV" : {
       "comment" : "Info tab: exposure compensation; the argument is a signed number such as +0.7",
       "localizations" : {
@@ -4040,17 +4018,6 @@
         }
       }
     },
-    "Decoder" : {
-      "comment" : "RAW decoder version menu; also its undo action name",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Decoder"
-          }
-        }
-      }
-    },
     "Defringe" : {
       "comment" : "Imported preset setting",
       "localizations" : {
@@ -5393,17 +5360,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Flash"
-          }
-        }
-      }
-    },
-    "Flat" : {
-      "comment" : "RAW profile: no base contrast",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Flat"
           }
         }
       }
@@ -7368,17 +7324,6 @@
         }
       }
     },
-    "macOS can't decode this raw file, so it's shown with a built-in profile that can't be changed. Color noise reduction isn't available." : {
-      "comment" : "Adjust tab, under the Profile heading, for a raw file the macOS raw decoder cannot read: the app decodes it itself with one built-in profile (no Profile or Decoder choice) and has no Color noise reduction. White balance works as for other raws",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "macOS can't decode this raw file, so it's shown with a built-in profile that can't be changed. Color noise reduction isn't available."
-          }
-        }
-      }
-    },
     "Made %lld copies." : {
       "comment" : "VoiceOver, after Duplicate on several photos",
       "localizations" : {
@@ -7959,17 +7904,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Names come from each file's title, or its file name. Click a name to change it."
-          }
-        }
-      }
-    },
-    "Neutral" : {
-      "comment" : "RAW profile: half the base contrast",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Neutral"
           }
         }
       }
@@ -9824,17 +9758,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ProPhoto RGB is so wide that 8 bits per channel can show banding. 16-bit TIFF avoids it."
-          }
-        }
-      }
-    },
-    "Profile" : {
-      "comment" : "RAW profile menu; also its undo action name",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Profile"
           }
         }
       }
@@ -12280,7 +12203,7 @@
       }
     },
     "Standard" : {
-      "comment" : "RAW profile: the decoder's default rendering",
+      "comment" : "Export sheet, Output sharpening amount: between Light and Strong",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -13471,17 +13394,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Turn off %@ to compare"
-          }
-        }
-      }
-    },
-    "Turn off Use machine learning to choose another decoder." : {
-      "comment" : "Tooltip of the dimmed Decoder pop-up while machine learning noise reduction is asked for and not applied",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Turn off Use machine learning to choose another decoder."
           }
         }
       }

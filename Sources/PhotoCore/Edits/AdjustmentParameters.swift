@@ -92,8 +92,9 @@ extension Crop {
 }
 
 extension RawDecode {
+    /// A stored Look (`storedLook`) is kept, not described: scripts can
+    /// neither list nor set it (issue #219, R8).
     public static let parameterDescriptions: [AdjustmentParameter] = [
-        .choice("look", Look.self, default: .standard),
         AdjustmentParameter("decoderVersion", .text, default: nil),
     ]
 }

@@ -15,16 +15,22 @@ public struct AdjustmentPreset: Hashable, Sendable, Identifiable {
     /// Values for `groups`; the other groups are at their defaults.
     public var adjustments: Adjustments
 
+    /// - Parameter keepingStoredDecode: Keep `adjustments`' stored decode (a
+    ///   Look or decoder an older build's Profile group saved), as a preset read
+    ///   from the catalog or a preset file does: it stays in the preset's stored
+    ///   data and applies nothing, except a legacy machine learning decoder,
+    ///   which still turns machine learning on (`Adjustments.replacing`; issue
+    ///   #219, R6). A new preset never carries one.
     public init(id: Int64? = nil, uuid: String = UUID().uuidString, name: String, collection: String = "",
-                groups: Set<Adjustments.Group> = Set(Adjustments.Group.presetGroups), adjustments: Adjustments) {
+                groups: Set<Adjustments.Group> = Set(Adjustments.Group.presetGroups), adjustments: Adjustments,
+                keepingStoredDecode: Bool = false) {
         self.id = id
         self.uuid = uuid
         self.name = name
         self.collection = collection
         self.groups = groups.subtracting([.spots])
-        // `copying` keeps a legacy machine learning decoder in Profile, so the
-        // preset still turns it on when applied (`replacing`).
-        self.adjustments = Adjustments.none.copying(groups, from: adjustments)
+        let values = Adjustments.none.copying(groups, from: adjustments)
+        self.adjustments = keepingStoredDecode ? values.keepingDecode(of: adjustments) : values
     }
 
     public var includesEveryGroup: Bool { groups == Set(Adjustments.Group.presetGroups) }
@@ -85,9 +91,12 @@ struct AdjustmentPresetRecord: Codable, FetchableRecord, MutablePersistableRecor
 
 extension Adjustments {
     /// These adjustments applied over `target`'s: everything is replaced except
-    /// the target's masks and its operations this build does not understand.
+    /// the target's masks, spots, stored decode and operations this build does
+    /// not understand.
     public func pasted(onto target: Adjustments) -> Adjustments {
-        var result = self
+        // The stored decode (a Look an older build saved) is never pasted and
+        // the target's stays (issue #219, R3, R6).
+        var result = keepingDecode(of: target)
         result.preserved = target.preserved
         // Masks and spots are drawn on one photo's content: paste leaves the
         // target's, spots with their on/off state (PRD R11, R18).
@@ -109,7 +118,7 @@ extension Catalog {
                     return AdjustmentPreset(id: record.id, uuid: record.uuid, name: record.name,
                                             collection: record.collection,
                                             groups: AdjustmentPreset.decodeGroups(record.groups),
-                                            adjustments: Adjustments(presetStack: stack))
+                                            adjustments: Adjustments(presetStack: stack), keepingStoredDecode: true)
                 }
         }
     }

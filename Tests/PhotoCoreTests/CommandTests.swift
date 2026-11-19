@@ -137,14 +137,15 @@ struct CommandTests {
 
     @Test("--set values are checked against the module descriptions",
           arguments: [
-              ("exposure.ev=1", nil), ("toneCurve.rgb=0,0,0.5,0.6,1,1", nil), ("rawDecode.look=flat", nil),
+              ("exposure.ev=1", nil), ("toneCurve.rgb=0,0,0.5,0.6,1,1", nil), ("rawDecode.decoderVersion=8", nil),
               ("whiteBalance.temperature=5000", nil),
               ("exposure.ev=9", "exposure.ev: 9.0 is outside -5.0 … 5.0"),
               ("exposure.ev=bright", "exposure.ev: not a number: bright"),
               ("exposure=1", "exposure=1 is not kind.parameter=value (or kind.parameter, kind, all to reset)"),
               ("nope.ev=1", "No adjustment module nope; see the adjustments command"),
               ("exposure.stops=1", "exposure has no parameter stops"),
-              ("rawDecode.look=fancy", "rawDecode.look: one of standard, neutral, flat"),
+              // A stored Look is kept, never set (issue #219, R8, AC8).
+              ("rawDecode.look=flat", "rawDecode has no parameter look"),
               ("toneCurve.rgb=0,0,1", "toneCurve.rgb: a list x0,y0,x1,y1,… of at least two points, each 0 … 1"),
               ("crop.x=0.1", "crop.x has no effect alone (a crop needs x, y, width and height)"),
           ] as [(String, String?)])
@@ -346,8 +347,13 @@ struct CommandTests {
         let modules = try #require(json["modules"]?.arrayValue)
         let kinds = Set(modules.compactMap { $0["kind"]?.stringValue })
         // Spots, like masks, are objects, not a module of parameters: their group only turns them off and on.
-        let expected = Set(Adjustments.Group.presetGroups.flatMap(\.kinds).map(\.rawValue) + [Crop.kind.rawValue])
+        // The stored decode has no group; scripts see its decoder version only, never a Look (issue #219, R8).
+        let expected = Set(Adjustments.Group.presetGroups.flatMap(\.kinds).map(\.rawValue)
+                           + [Crop.kind.rawValue, RawDecode.kind.rawValue])
         #expect(kinds == expected)
+        let decode = modules.first { $0["kind"] == "rawDecode" }
+        #expect(decode?["group"] == .null && decode?["section"] == .null)
+        #expect(decode?["parameters"]?.arrayValue?.compactMap { $0["name"]?.stringValue } == ["decoderVersion"])
         let exposure = modules.first { $0["kind"] == "exposure" }
         #expect(exposure?["group"] == "light" && exposure?["section"] == "develop")
         #expect(exposure?["parameters"]?.arrayValue?.first?["minimum"] == -5)
