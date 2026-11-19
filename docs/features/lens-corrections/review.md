@@ -263,3 +263,183 @@ undo names). Requirements issue: AC13's "DNG-opcode sample" has no by-eye
 distortion check; reword it (text proposed). Open for a person: M1 to M16 (real
 clicks on Source, dimmed-segment tooltips, the alert's keys and Cancel on a
 drag, 256 pt look). Details: `docs/features/lens-corrections/review.md`.
+
+## Follow-up (second pass, 2026-11-19, commit f0ccf8e)
+
+Reviewer: apple-ui-designer. Code only again: I had no shell, so nothing was
+built or run and every look, key and timing below is a manual check unless the
+code settles it. Read: `AdjustmentEditor.swift` (`change`, `commit`,
+`finishLensFrameQuestion`, `resetAll`, the kernel prepare, the magnifier tool),
+`LensCorrectionActions.swift`, `PresetActions.swift`, `AdjustmentActions.swift`,
+`ActivityToolbarItem.swift`, `ToolbarMetrics.swift`, `LensCorrectionText.swift`,
+the catalog, `USER_GUIDE.md`, status.md's findings table.
+
+### Verdict
+
+**Pass; F1 to F5 are closed.** Two small things to fix before sign-off (F6, F7:
+both in the new Activity progress for a paste or preset that reads files), two
+trivial comment nits (F8), and the grid-paste Undo limit is accepted as a known
+limit. The first-show state of the lens groups while the kernels compile shows no
+flash on success. Recorded in design.md §21 (DQ-5) and the Revisions list.
+
+### F1 to F5
+
+| # | Result | Evidence |
+|---|---|---|
+| F1 (no-op Reset All leaves the question off) | Closed | `commit` reads and clears `commitSkipsLensQuestion` before `guard adjustments != committed` (902 to 904); `resetAll` also clears it in a `defer` (725 to 726). Both orders are covered, so the flag can no longer outlive the call |
+| F2 / DQ-4 (Constrain to image starts a never-on group in Manual) | Closed | `setConstrainToImage` computes `startsInManual = !distortion.isOn && lensStatus(.distortion).startsInManual` and sets `source = .manual` in the same `change` (one undo step, "Turn On Constrain to Image"). `setLensAmount` does the same for a typed or scripted Amount while the group is not on (the design said Amount needed nothing; this is harmless hardening and I accept it). A Source click is explicit and unchanged |
+| F3 (stale "zoom" comment) | Closed for Constrain | Swift comment (`LensCorrectionText.swift` 21) and catalog comment (2685) read "scale the corrected photo to fill its frame". See F8 for the same kind of leftover on the magnifier string |
+| F4 (magnifier plate) | Closed | `fringeMagnifierTool` uses `!LensCorrectionPlan(...).isIdentity`, which is true while the plan has a warp or a gain (an Amount of 0 in Manual is identity, so the plate stays "Before edits", correct). User guide line 642 reads "while Distortion or Lens Vignetting applies" |
+| F5 (guide undo names) | Closed | `USER_GUIDE.md` 618 to 622 lists Turn On/Off Distortion, Distortion Source and Amount, Turn On/Off Constrain to Image, the four Lens Vignetting forms and **Reset Lens**. Matches §19.8 |
+
+### The new behaviours against the design
+
+**1. Activity progress for a paste or preset that reads files (design was silent;
+ruled DQ-5).** Built: a paste or preset on a grid selection reads the saved stacks,
+then only the files of photos that hold masks or spots and whose Distortion uses
+Auto (four at a time), and shows one job in Activity, id "auto", with the
+command's own title ("Paste Adjustments", "Apply Preset <name>"), the detail
+"N of M" and Stop. Nothing shows while no file needs reading, and the job is gone
+before the alert goes up.
+- *Title and wording: pass.* No new string. It is the row Color Alignment's
+  measuring paste already uses (same job, same title rule: the undo name, HIG-wise
+  the command and its object), so a person meets one pattern. "N of M" counts files
+  read, not the selection (a 200-photo paste can say "0 of 5"); it is true and the
+  title says which command it belongs to. Stop writes nothing and posts no message,
+  as the measuring paste does. Accepted.
+- *F6. Low, fix: a long preset name is not fitted to the toolbar.*
+  `applyAdjustmentPreset` passes only `actionName` to `confirmingLensFrameChange`,
+  which calls `setBatchAutoProgress(..., title: actionName)` with no
+  `toolbarTitle`. The toolbar item then shows the whole title
+  (`job.toolbarTitle ?? job.title`) in text that is `.fixedSize()` and "never cut"
+  (`toolbarStatusText`). A long preset name (Luminar packs bring long ones) widens
+  the capsule and pushes other toolbar items into the overflow. The preset path
+  that measures Color Alignment already avoids this with
+  `ToolbarMetrics.statusLine(name:)` (`PresetActions.swift` 43 to 45). Fix: give
+  `confirmingLensFrameChange` a `toolbarTitle` parameter and pass the same fitted
+  string from `applyAdjustmentPreset`; call `setBatchAutoProgress(..., toolbarTitle:)`
+  at both sites (195 and 202). Principle: consistency, and the toolbar must not
+  reflow on a long name.
+- *F7. Low, fix or ask: a plain Paste Adjustments on a grid selection now takes the
+  batch slot and cancels another batch.* `confirmingLensFrameChange` runs
+  `batchAutoTask?.cancel()` and `batchAutoRun.begin()` before it knows that any file
+  needs reading (172 to 174), for every grid paste (a preset only when it carries
+  Distortion). The slot is shared with Auto Exposure and the Color Alignment
+  measuring paste, and each new batch cancels the older one without a message.
+  Before this branch a plain paste never touched it, so starting a paste while
+  "Measuring exposure 40 of 200" runs now ends the measurement silently and the
+  row disappears. Fix: claim the slot (cancel the older task, begin a run) only
+  when `reads` is not empty; the stack read and the candidate test before it do not
+  need to be the batch task. Read from code, not reproduced; manual check M19.
+- *Flash, judgment (improvement, not a finding).* The job shows at once, with no
+  delay (the previews and keyword jobs wait `ActivityLog.backgroundDelay`, 5 s,
+  because nobody asked for them). Here the person asked, and a long read has
+  Stop, so showing at once is right; a read of a few files that ends in well under
+  a second makes the toolbar item blink in and out. If M18 looks jumpy, show the
+  job only after about a second (a constant of its own, not the 5 s one).
+
+**2. Changes ignored while the frame question is up: pass.** `change` returns at
+once while `isAskingLensFrame`, and a paste or preset does nothing. With a
+window-modal sheet up the mouse cannot reach the inspector, so what this stops is
+a menu key equivalent (⌘V, ⌥⌘R, `\` and so on) landing between the change and its
+answer. Silent is right: the sheet is the feedback, the person is asked to answer,
+and a beep or a queue would add noise or surprise (HIG Sheets: a sheet blocks the
+window it belongs to until dismissed). Two notes. (a) Undo, Redo and History
+revert reach `apply`, not `change`, so they are not guarded; if one got through
+while the sheet is up, `adjustments` and `committed` become the restored values,
+and the answer then finds nothing to apply or revert (`finishLensFrameQuestion`'s
+`adjustments != committed` guard), so the pending change evaporates, which is
+what Undo means. Harmless, and unlikely to be reachable. (b) Whether AppKit
+delivers a menu key equivalent to the window with a sheet up is the one thing
+code cannot settle: manual check M17 (status.md P4).
+
+**3. First show of the lens groups while the kernels compile: pass, no flash on
+success.** The editor starts the compile off the main actor when the first photo
+opens (`prepareLensKernelsOnce`); until it finishes, `lensStatus` counts the
+kernels as available, which is also the answer after a good compile. So the
+normal path (compile succeeds, about 2 s on the first launch after a build, a few
+ms after) shows the final state from the first frame and the revision bump
+redraws the same thing. The only visible change is the failure path: the caption
+turns to row 3 ("can't run", warning symbol) when the compile ends, one
+time. For that window the group may say "applies" for up to the compile's length
+before saying it does not; it is accurate again as soon as it is known, and a
+render that needs the kernels waits on the same compile, so the photo does not
+claim a correction it shows. Accepted. A first Distortion change made inside that
+~2 s window shows its photo after the compile ends: a delay, not a wrong state.
+Manual check M20 (first launch after a build). Edge, not worth a finding: if the
+editor that started the compile is gone before it ends (the library window closed
+within those seconds) the next editor is not nudged to redraw; only the failure
+path is affected.
+
+**4. Grid paste, Undo pressed during the read: accepted as a known limit.** A
+paste or preset on a grid selection now registers its undo step after the stacks
+are read (`changeAdjustments` registers up front; the new path does not), so ⌘Z
+pressed before that read returns undoes the step *before* the paste, and the
+paste then registers, which clears the Redo stack. Measured honestly, the window is
+a few milliseconds behind pending saves (no person presses ⌘Z faster), and a few
+seconds when files are read, which is the case where Activity shows the job with
+Stop, the way to say "never mind". The paste of a Color Alignment copy has had the
+same window since the chromatic-aberration feature. The loupe's own paste (the common case)
+is decided at once from the editor and has no window. I accept it, with F7's fix
+making it apply only to pastes that actually read, and the user guide need not
+mention it. If a cheap guard appears (cancel the pending read when Undo is chosen,
+or register the undo step first as `changeAdjustments` does), take it; I do not
+ask for it.
+
+### Findings for the engineer (new, most severe first)
+
+- **F7** (above): claim the batch slot only when a file has to be read.
+- **F6** (above): fit a preset's name to the toolbar for the paste or preset read.
+- **F8. Trivial, comments.** (a) `afterLensCorrection`'s doc comment and its
+  translator comment and catalog comment (`LensCorrectionText.swift` 183 and 185;
+  catalog 1836) still say "when Distortion applies"; the plate now shows for
+  Distortion or Lens Vignetting (F4). Same fix as F3. (b) In
+  `LensCorrectionActions.swift`, `setConstrainToImage` has its doc comment twice
+  (70 and 71), and `setLensAmount`'s doc comment (52 to 54) is two comments
+  joined; tidy both.
+
+### Manual checks for a person (updated list)
+
+M1 to M16 stand as written above, except:
+
+- **M5** also checks the other direction of the accepted deviation: Cancel puts the
+  check box, the Source segment and the photo back without a visible flip-flop.
+  Unchanged.
+- **M13**: History also lists "Turn Off Distortion" and "Reset Lens" (guide 618 to
+  622); read them against the Edit menu's Undo names.
+- **M14**: now built (F4). With Distortion on the plate says "After lens
+  correction"; with only Lens Vignetting on (Amount other than 0, or Auto with a
+  table) it says the same; with both off, or Amount 0 in Manual, "Before edits".
+- **M17 (new). Keys while the question is up.** With the alert showing (a spot on
+  the photo, a Distortion change), press ⌘V, ⌘Z, ⇧⌘Z, `\`, ⌥⌘R and an arrow key
+  with a real keyboard. Nothing changes; the sheet stays; Return then changes and
+  Esc cancels as in M4, with one undo step or none. Report anything that gets through
+  (status.md P4).
+- **M18 (new). Activity for a paste or preset that reads files.** In the grid,
+  copy a photo with Distortion Auto (or Manual), select five or more photos where
+  at least one holds a mask or spot, is not the open photo, and has Distortion
+  Auto on a Fujifilm RAF or DNG with a table, then paste. Activity shows "Paste
+  Adjustments" with "N of M" and Stop while the files are read, and the item
+  disappears before the alert. Stop: nothing changes, no message. Then apply a
+  preset carrying Distortion with a very long name: the toolbar capsule keeps
+  its width and the name is shortened in the middle (after F6). Say whether a
+  fast read makes the item blink (the flash judgment above).
+- **M19 (new). Batch slot (after F7).** Start Auto Exposure on a large selection
+  (it shows "Measuring exposure N of M"), then ⌘V a plain paste on another
+  selection: the measurement keeps running. Also check, before the fix, that it
+  does not (to confirm F7).
+- **M20 (new). First launch after a build.** Build the bundle, launch it on a
+  scratch library, open a photo and look at the Adjust tab's Lens heading for the
+  first three seconds: no flicker, no caption changing; then check a lens group
+  and see the photo correct itself, late at worst. With `lens force kernels` (the
+  debug script) the caption is row 3, as scripted.
+- **M21 (new). Grid paste then Undo.** Select 20 photos, ⌘V, then ⌘Z right away:
+  the paste is undone (not the step before it). Then the same with a selection of
+  mask-holding Fujifilm RAFs, pressing ⌘Z while Activity shows the read: record
+  what happens (the accepted limit; "the earlier step was undone" is expected).
+
+### Summary for the issue
+
+Design review of #87, second pass: **pass**; F1 to F5 are closed (DQ-4 for Constrain, magnifier plate, guide undo names, comments). New behaviours match the design: Activity row for a paste or preset reading files is the existing measuring row (title, "N of M", Stop); changes are ignored while the frame question is up; no flash while the kernels compile (failure shows row 3 once); grid-paste Undo during the read is an accepted known limit (DQ-5).
+To fix: F6 (fit a long preset name to the toolbar in that Activity row), F7 (a plain grid paste claims the batch slot and silently cancels Auto Exposure or another batch; claim it only when a file is read), F8 (stale comments).
+Open for a person: M17 to M21 added to M1 to M16 (keys while the sheet is up, the Activity row, first launch after a build). Details: `docs/features/lens-corrections/review.md`.

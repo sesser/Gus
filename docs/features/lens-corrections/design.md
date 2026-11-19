@@ -1081,8 +1081,24 @@ Owner rulings of 2026-11-19 on the requirements issues of §18:
   counted in a paste or preset question when only Auto would decide. §6 now says
   so.
 
+### Review rulings, second pass (designer, 2026-11-19, from `review.md` Follow-up)
+
+- **DQ-5 (behaviour the design did not describe).** (a) **Activity while a paste
+  or preset reads files.** A paste or preset on a selection that must read the
+  files of photos with masks or spots (Distortion on Auto) shows one Activity job
+  under the command's own title ("Paste Adjustments", "Apply Preset <name>"), the
+  detail "N of M" (files read, not the selection), a progress bar and Stop; it is
+  the row Color Alignment's measuring paste uses, with no new string. Stop writes
+  nothing and posts no message. A long preset name is fitted to the toolbar as the
+  measuring preset does. The job ends before the question's alert goes up. (b)
+  **While the question is up** nothing else changes the photo and a second paste
+  or preset does nothing, silently: the sheet is the feedback. (c) **A grid paste
+  or preset registers its undo step after its read**, so ⌘Z pressed before the
+  read returns undoes the step before it: accepted as a known limit (the loupe's
+  paste has no such window).
+
 Further design questions from implementation are recorded below as numbered
-rulings (DQ-5, ...) with their date.
+rulings (DQ-6, ...) with their date.
 
 ## Revisions
 
@@ -1113,3 +1129,7 @@ rulings (DQ-5, ...) with their date.
   accepted deviations from §6 (question asked after the change is on screen, not
   waiting behind other sheets, once per visit counted by masks and spots, offline
   photos not counted).
+- **2026-11-19 (design review, second pass).** DQ-5 recorded (§21): the Activity
+  row for a paste or preset that reads files, changes ignored while the question is
+  up, and the grid paste's undo window as a known limit. No section of the design
+  changes; F6 (fit a long preset name to the toolbar) follows from DQ-5 (a).
