@@ -7,6 +7,10 @@ import CoreImage
 /// (`LensKernels`), sampling by hand so the CPU reference
 /// (`Tests/PhotoCoreTests/Reference/LensCorrectionReference.swift`) can follow.
 extension AdjustmentRenderer {
+    /// The Distortion and Lens Vignetting kernels can run on this Mac (R11):
+    /// when false, those groups apply nothing and say so.
+    public static var lensCorrectionKernelsAvailable: Bool { LensKernels.isAvailable }
+
     /// Entries of the radial lookup tables. Between two entries the kernels
     /// interpolate linearly; for the manual models that is exact to 10⁻⁸ of
     /// the radius.

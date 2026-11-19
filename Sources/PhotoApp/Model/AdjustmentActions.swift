@@ -32,11 +32,14 @@ extension LibraryModel {
     func pasteAdjustments() {
         guard let copiedAdjustments else { return }
         let actionName = String(localized: "Paste Adjustments", comment: "Undo action name")
-        if copiedAdjustments.needsAlignmentMeasurement {
-            changeAdjustmentsMeasuringAlignment(actionName: actionName) { copiedAdjustments.pasted(onto: $0) }
-            return
+        // Asks first when it moves the frame of photos with masks or spots (lens-corrections design §6).
+        confirmingLensFrameChange({ copiedAdjustments.pasted(onto: $0) }) { [self] in
+            if copiedAdjustments.needsAlignmentMeasurement {
+                changeAdjustmentsMeasuringAlignment(actionName: actionName) { copiedAdjustments.pasted(onto: $0) }
+                return
+            }
+            applyAdjustments(copiedAdjustments, toVersions: batchSelection(action: actionName).versionIDs, actionName: actionName)
         }
-        applyAdjustments(copiedAdjustments, toVersions: batchSelection(action: actionName).versionIDs, actionName: actionName)
     }
 
     /// A paste or preset that carries automatic color alignment: each photo

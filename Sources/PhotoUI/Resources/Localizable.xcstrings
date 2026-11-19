@@ -581,6 +581,29 @@
         }
       }
     },
+    "%lld of the %lld photos have masks or spots. They are placed in the corrected frame, so they can move away from what they cover now. You can undo the change." : {
+      "comment" : "Alert message before a paste or preset that moves the corrected frame: photos whose frame would move and that hold masks or spots, over the photos receiving it",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld of the %lld photos has masks or spots. They are placed in the corrected frame, so they can move away from what they cover now. You can undo the change."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld of the %lld photos have masks or spots. They are placed in the corrected frame, so they can move away from what they cover now. You can undo the change."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld of them are originals in the library. Originals are never replaced, so those photos are written under numbered names." : {
       "comment" : "Export window: existing files alert message when some of the files are originals; how many",
       "localizations" : {
@@ -1809,6 +1832,17 @@
         }
       }
     },
+    "After lens correction" : {
+      "comment" : "Pixel magnifier plate, line 2, when Distortion applies: the magnifier shows the photo after lens correction",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After lens correction"
+          }
+        }
+      }
+    },
     "Album name" : {
       "comment" : "VoiceOver's label for an album's name field in the sidebar",
       "localizations" : {
@@ -1964,7 +1998,7 @@
       }
     },
     "Amount" : {
-      "comment" : "Slider: strength of sharpening or of a color grading wheel; also its undo action name",
+      "comment" : "Slider: strength of sharpening or of a color grading wheel; also its undo action name; also the manual amount of Distortion and Lens Vignetting",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2081,6 +2115,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aperture"
+          }
+        }
+      }
+    },
+    "Applied by the camera decoder, so Auto does nothing here. Choose Manual to add your own correction." : {
+      "comment" : "Lens correction caption: a raw the system decoder corrects, Auto stored",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Applied by the camera decoder, so Auto does nothing here. Choose Manual to add your own correction."
+          }
+        }
+      }
+    },
+    "Applied by the camera decoder. Auto does nothing here; your amount is added on top of it." : {
+      "comment" : "Lens correction caption: a raw the system decoder corrects, Manual chosen",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Applied by the camera decoder. Auto does nothing here; your amount is added on top of it."
+          }
+        }
+      }
+    },
+    "Applied by the camera's own table, so Auto does nothing here. Choose Manual to add your own correction." : {
+      "comment" : "Lens correction caption: a Fujifilm raw with its built-in correction, Auto stored",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Applied by the camera's own table, so Auto does nothing here. Choose Manual to add your own correction."
+          }
+        }
+      }
+    },
+    "Applied by the camera's own table. Auto does nothing here; your amount is added on top of it." : {
+      "comment" : "Lens correction caption: a Fujifilm raw with its built-in correction, Manual chosen",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Applied by the camera's own table. Auto does nothing here; your amount is added on top of it."
           }
         }
       }
@@ -2251,7 +2329,7 @@
       }
     },
     "Auto" : {
-      "comment" : "White balance",
+      "comment" : "White balance; also a lens correction Source choice: the camera's table in the file",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2279,6 +2357,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Auto White Balance"
+          }
+        }
+      }
+    },
+    "Auto isn't available: the camera decoder already corrects this photo." : {
+      "comment" : "Tooltip of the dimmed Auto segment, on a raw the system decoder corrects",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto isn't available: the camera decoder already corrects this photo."
+          }
+        }
+      }
+    },
+    "Auto isn't available: this file has no camera correction table." : {
+      "comment" : "Tooltip of the dimmed Auto segment of a lens correction group, on a file that is not a raw",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto isn't available: this file has no camera correction table."
+          }
+        }
+      }
+    },
+    "Auto isn't available: this photo is already corrected by the camera's own table." : {
+      "comment" : "Tooltip of the dimmed Auto segment, on a Fujifilm raw with its built-in correction",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto isn't available: this photo is already corrected by the camera's own table."
           }
         }
       }
@@ -2537,6 +2648,50 @@
         }
       }
     },
+    "Change" : {
+      "comment" : "Alert button: confirms a lens correction change on photos with masks or spots",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Change"
+          }
+        }
+      }
+    },
+    "Change distortion on a photo with masks or spots?" : {
+      "comment" : "Alert title before a lens correction that moves the frame of a photo with masks or spots",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Change distortion on a photo with masks or spots?"
+          }
+        }
+      }
+    },
+    "Change distortion on photos with masks or spots?" : {
+      "comment" : "Alert title before a paste or preset that moves the frame of photos with masks or spots",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Change distortion on photos with masks or spots?"
+          }
+        }
+      }
+    },
+    "Constrain to image" : {
+      "comment" : "Check box under Distortion: zoom so the corrected photo has no empty edge",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Constrain to image"
+          }
+        }
+      }
+    },
     "Distortion" : {
       "comment" : "Adjust tab group under Lens and preset group: straightens lines a lens bends; also undo names (Turn On Distortion)",
       "localizations" : {
@@ -2544,6 +2699,61 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Distortion"
+          }
+        }
+      }
+    },
+    "Distortion Amount" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Distortion Amount"
+          }
+        }
+      }
+    },
+    "Distortion Source" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Distortion Source"
+          }
+        }
+      }
+    },
+    "Distortion amount" : {
+      "comment" : "VoiceOver: the Amount slider of Distortion",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Distortion amount"
+          }
+        }
+      }
+    },
+    "Distortion amount value" : {
+      "comment" : "VoiceOver: the Amount field of Distortion",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Distortion amount value"
+          }
+        }
+      }
+    },
+    "Distortion source" : {
+      "comment" : "VoiceOver: the Source control of Distortion",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Distortion source"
           }
         }
       }
@@ -2614,6 +2824,83 @@
         }
       }
     },
+    "Lens Vignetting Amount" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lens Vignetting Amount"
+          }
+        }
+      }
+    },
+    "Lens Vignetting Source" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lens Vignetting Source"
+          }
+        }
+      }
+    },
+    "Lens correction could not be set up on this Mac, so this group changes nothing." : {
+      "comment" : "Lens correction caption, with a warning symbol: the correction can't run",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lens correction could not be set up on this Mac, so this group changes nothing."
+          }
+        }
+      }
+    },
+    "Lens vignetting amount" : {
+      "comment" : "VoiceOver: the Amount slider of Lens Vignetting",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lens vignetting amount"
+          }
+        }
+      }
+    },
+    "Lens vignetting amount value" : {
+      "comment" : "VoiceOver: the Amount field of Lens Vignetting",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lens vignetting amount value"
+          }
+        }
+      }
+    },
+    "Lens vignetting source" : {
+      "comment" : "VoiceOver: the Source control of Lens Vignetting",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lens vignetting source"
+          }
+        }
+      }
+    },
+    "Masks and spots are placed in the corrected frame, so this photo's can move away from what they cover now. You can undo the change." : {
+      "comment" : "Alert message before a lens correction that moves the frame of a photo with masks or spots",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Masks and spots are placed in the corrected frame, so this photo's can move away from what they cover now. You can undo the change."
+          }
+        }
+      }
+    },
     "No Filter" : {
       "comment" : "Adjust ▸ Black & White menu item: all five filters at 0",
       "localizations" : {
@@ -2621,6 +2908,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No Filter"
+          }
+        }
+      }
+    },
+    "No distortion table was found in this file." : {
+      "comment" : "VoiceOver announcement after turning on Distortion",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No distortion table was found in this file."
+          }
+        }
+      }
+    },
+    "No distortion table was found in this file. Choose Manual to set the amount by hand." : {
+      "comment" : "Distortion caption: Auto on a raw with no table",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No distortion table was found in this file. Choose Manual to set the amount by hand."
+          }
+        }
+      }
+    },
+    "No vignetting table was found in this file." : {
+      "comment" : "VoiceOver announcement after turning on Lens Vignetting",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No vignetting table was found in this file."
+          }
+        }
+      }
+    },
+    "No vignetting table was found in this file. Choose Manual to set the amount by hand." : {
+      "comment" : "Lens Vignetting caption: Auto on a raw with no table",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No vignetting table was found in this file. Choose Manual to set the amount by hand."
           }
         }
       }
@@ -2669,6 +3000,39 @@
         }
       }
     },
+    "Positive values lighten the corners; negative values darken them." : {
+      "comment" : "Tooltip and VoiceOver help of Lens Vignetting's Amount",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Positive values lighten the corners; negative values darken them."
+          }
+        }
+      }
+    },
+    "Positive values straighten lines that bow outward; negative values straighten lines that bow inward." : {
+      "comment" : "Tooltip and VoiceOver help of Distortion's Amount",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Positive values straighten lines that bow outward; negative values straighten lines that bow inward."
+          }
+        }
+      }
+    },
+    "Reading the camera's table" : {
+      "comment" : "Spinner tooltip and VoiceOver label while a lens correction table is read; no visible label",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reading the camera's table"
+          }
+        }
+      }
+    },
     "Red Filter" : {
       "comment" : "Adjust ▸ Black & White menu item; choose one filter alone",
       "localizations" : {
@@ -2713,6 +3077,83 @@
         }
       }
     },
+    "Set by hand. Positive values lighten the corners, negative values darken them." : {
+      "comment" : "Lens Vignetting caption: Manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set by hand. Positive values lighten the corners, negative values darken them."
+          }
+        }
+      }
+    },
+    "Set by hand. Positive values straighten lines that bow outward, negative values lines that bow inward." : {
+      "comment" : "Distortion caption: Manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set by hand. Positive values straighten lines that bow outward, negative values lines that bow inward."
+          }
+        }
+      }
+    },
+    "Set the correction by hand." : {
+      "comment" : "Tooltip of the Manual segment of a lens correction group's Source",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set the correction by hand."
+          }
+        }
+      }
+    },
+    "The camera's table in this file could not be read, so nothing is corrected. Choose Manual to set the amount by hand." : {
+      "comment" : "Lens correction caption, with a warning symbol: the file's table is damaged or not understood",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The camera's table in this file could not be read, so nothing is corrected. Choose Manual to set the amount by hand."
+          }
+        }
+      }
+    },
+    "This file has a camera correction table. Turn on Distortion to use it." : {
+      "comment" : "Distortion caption: the group is off and the file has a table",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This file has a camera correction table. Turn on Distortion to use it."
+          }
+        }
+      }
+    },
+    "This file has a camera vignetting table. Turn on Lens Vignetting to use it." : {
+      "comment" : "Lens Vignetting caption: the group is off and the file has a table",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This file has a camera vignetting table. Turn on Lens Vignetting to use it."
+          }
+        }
+      }
+    },
+    "This file has no camera correction table, so Auto isn't available. Choose Manual to set the amount by hand." : {
+      "comment" : "Lens correction caption: Auto stored on a file that is not a raw",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This file has no camera correction table, so Auto isn't available. Choose Manual to set the amount by hand."
+          }
+        }
+      }
+    },
     "This photo has no color, so the filters change nothing." : {
       "comment" : "Black & White caption when the photo's file is already monochrome",
       "localizations" : {
@@ -2720,6 +3161,61 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "This photo has no color, so the filters change nothing."
+          }
+        }
+      }
+    },
+    "Turn Off Constrain to Image" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn Off Constrain to Image"
+          }
+        }
+      }
+    },
+    "Turn On Constrain to Image" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn On Constrain to Image"
+          }
+        }
+      }
+    },
+    "Use the correction table the camera stored in this file." : {
+      "comment" : "Tooltip of the Auto segment of a lens correction group's Source",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use the correction table the camera stored in this file."
+          }
+        }
+      }
+    },
+    "Using the camera's correction table from this file." : {
+      "comment" : "Distortion caption: Auto uses the file's table",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Using the camera's correction table from this file."
+          }
+        }
+      }
+    },
+    "Using the camera's vignetting table from this file." : {
+      "comment" : "Lens Vignetting caption: Auto uses the file's table",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Using the camera's vignetting table from this file."
           }
         }
       }
@@ -2764,6 +3260,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Yellow filter: slightly darker skies, lighter yellows and skin."
+          }
+        }
+      }
+    },
+    "Zoom in slightly so the corrected photo has no empty edges." : {
+      "comment" : "Tooltip and VoiceOver help of Constrain to image",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zoom in slightly so the corrected photo has no empty edges."
           }
         }
       }
@@ -3033,7 +3540,7 @@
       }
     },
     "Cancel" : {
-      "comment" : "Alert button",
+      "comment" : "Alert button; also the lens correction frame question",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7788,7 +8295,7 @@
       }
     },
     "Manual" : {
-      "comment" : "White balance",
+      "comment" : "White balance; also a lens correction Source choice: set by hand",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -12346,7 +12853,7 @@
       }
     },
     "Source" : {
-      "comment" : "Import window toolbar help: the source pop-up",
+      "comment" : "Import window toolbar help: the source pop-up; also the Source row of the Distortion and Lens Vignetting groups (Auto or Manual)",
       "localizations" : {
         "en" : {
           "stringUnit" : {

@@ -110,11 +110,14 @@ public struct RawDefaults: Sendable, Hashable {
     /// Luminance's default under the machine learning decoder (nil when it
     /// is not available or does not offer the amount).
     public var machineLearningLuminanceNoiseReduction: Double?
+    /// The decoder applies its own lens correction to this raw
+    /// (`CameraLensState.decoderCorrects`, issue #87).
+    public var lensCorrectedByDecoder: Bool
 
     public init(temperature: Double, tint: Double, decoderVersions: [String],
                 luminanceNoiseReduction: Double?, colorNoiseReduction: Double?,
                 machineLearning: MachineLearningNoiseReduction.Availability = .notOnThisMac,
-                machineLearningLuminanceNoiseReduction: Double? = nil) {
+                machineLearningLuminanceNoiseReduction: Double? = nil, lensCorrectedByDecoder: Bool = false) {
         self.temperature = temperature
         self.tint = tint
         self.decoderVersions = decoderVersions
@@ -122,6 +125,7 @@ public struct RawDefaults: Sendable, Hashable {
         self.colorNoiseReduction = colorNoiseReduction
         self.machineLearning = machineLearning
         self.machineLearningLuminanceNoiseReduction = machineLearningLuminanceNoiseReduction
+        self.lensCorrectedByDecoder = lensCorrectedByDecoder
     }
 
     /// Nil exactly when `SystemRAWDecoder.reads(source)` is false.
@@ -137,7 +141,8 @@ public struct RawDefaults: Sendable, Hashable {
                   luminanceNoiseReduction: raw.isLuminanceNoiseReductionSupported
                       ? Double(raw.luminanceNoiseReductionAmount) * 100 : nil,
                   colorNoiseReduction: raw.isColorNoiseReductionSupported ? Double(raw.colorNoiseReductionAmount) * 100 : nil,
-                  machineLearning: availability)
+                  machineLearning: availability,
+                  lensCorrectedByDecoder: raw.isLensCorrectionSupported && raw.isLensCorrectionEnabled)
         if availability == .available, let version = MachineLearningNoiseReduction.machineLearningVersion(in: versions) {
             raw.decoderVersion = CIRAWDecoderVersion(rawValue: version)
             if raw.decoderVersion.rawValue == version, raw.isLuminanceNoiseReductionSupported {

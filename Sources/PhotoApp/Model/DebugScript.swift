@@ -210,6 +210,8 @@ enum DebugScript {
     /// lands in the command's undo group.
     private static func waitForBatchMeasuring(_ model: LibraryModel) async {
         try? await Task.sleep(for: .milliseconds(100))
+        // The lens frame question, until it is up (`alert press` answers it).
+        while model.lensQuestionTask != nil, !model.editor.isAskingLensFrame { try? await Task.sleep(for: .milliseconds(50)) }
         while model.batchAutoTask != nil { try? await Task.sleep(for: .milliseconds(100)) }
         try? await Task.sleep(for: .milliseconds(200))
     }

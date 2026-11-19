@@ -31,6 +31,12 @@ extension LibraryModel {
 
     /// Gives the selection (grid) or the photo on screen (loupe) the preset's groups.
     func applyAdjustmentPreset(_ preset: AdjustmentPreset) {
+        // Asks first when it moves the frame of photos with masks or spots (lens-corrections design §6).
+        guard preset.groups.contains(.distortion) else { return applyingAdjustmentPreset(preset) }
+        confirmingLensFrameChange({ preset.applied(onto: $0) }) { [self] in applyingAdjustmentPreset(preset) }
+    }
+
+    private func applyingAdjustmentPreset(_ preset: AdjustmentPreset) {
         if preset.groups.contains(.colorAlignment), preset.adjustments.needsAlignmentMeasurement {
             // Measured on each photo it reaches (chromatic-aberration R16).
             let toolbarTitle = ToolbarMetrics.statusLine(name: preset.name) {

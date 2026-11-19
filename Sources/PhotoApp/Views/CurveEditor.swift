@@ -203,6 +203,9 @@ struct AppKitSegmented: NSViewRepresentable {
     /// column past the pane (#218 sign-off finding). The labels themselves
     /// fit in a fifth of 256 pt.
     var fillsWidth = false
+    /// Whether each segment can be chosen; empty for all (a dimmed segment
+    /// keeps its place, lens-corrections design §3.2).
+    var enabledSegments: [Bool] = []
     let onSelect: (Int) -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -226,6 +229,9 @@ struct AppKitSegmented: NSViewRepresentable {
         control.selectedSegment = selection
         for (index, tip) in toolTips.enumerated() where index < control.segmentCount {
             control.setToolTip(tip, forSegment: index)
+        }
+        for index in 0..<control.segmentCount {
+            control.setEnabled(index < enabledSegments.count ? enabledSegments[index] : true, forSegment: index)
         }
         if let accessibilityLabel { control.setAccessibilityLabel(accessibilityLabel) }
     }
