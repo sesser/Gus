@@ -112,7 +112,7 @@ public actor LiveRegionRenderer {
     /// Whether a frame of a change under way, for settings the texture doesn't
     /// hold, should start a decode now: when its settings are the same as the
     /// previous moving frame's. Controls that change the decode with every
-    /// frame (White Balance, Profile, Noise Reduction: R4) never settle while
+    /// frame (White Balance, Noise Reduction: R4) never settle while
     /// they move, so they wait for the pause. Everything else (Highlights
     /// below 0, Exposure crossing 0, the first mask) changes the settings once,
     /// so one decode lands and the rest of the drag is sharp (R1, R2).

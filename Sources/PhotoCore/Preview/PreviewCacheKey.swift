@@ -47,8 +47,12 @@ public struct PreviewCacheKey: Hashable, Sendable, CustomStringConvertible {
     /// decodes are demosaiced by our own GPU kernels and get the baseline
     /// color noise reduction, gpu-demosaic, issue #196; a plain bump, every
     /// preview is made again, those of photos that render as before too,
-    /// since a key cannot say which decoder a file gets).
-    public static let currentPipelineVersion = 12
+    /// since a key cannot say which decoder a file gets; 13: a stored Look
+    /// (Neutral, Flat) no longer renders, remove-profile-group, issue #219;
+    /// such a stack is kept, so its render hash is unchanged and its cached
+    /// previews would show the old look; a plain bump, every preview is made
+    /// again).
+    public static let currentPipelineVersion = 13
 
     public let contentHash: String
     public let editStackHash: String

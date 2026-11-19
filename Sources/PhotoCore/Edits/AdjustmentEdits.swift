@@ -156,8 +156,8 @@ extension EditStack {
                 let value = try AdjustmentEdit.value(text, for: parameter, of: kind)
                 if kind == RawDecode.kind, name == "decoderVersion",
                    MachineLearningNoiseReduction.isMachineLearningVersion(text) {
-                    // One state (PRD R3): the machine learning decoder is
-                    // machine learning noise reduction on, as in the Decoder pop-up.
+                    // One state (ml-denoise PRD R3): the machine learning
+                    // decoder is machine learning noise reduction on.
                     stack.changeOperation(kind) { $0[name] = nil }
                     stack.changeOperation(NoiseReduction.kind) { $0["machineLearning"] = .bool(true) }
                     expected["\(kind.rawValue).\(name)"] = nil

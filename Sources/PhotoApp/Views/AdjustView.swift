@@ -174,13 +174,6 @@ private struct DevelopControls: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            if editor.isRaw {
-                GroupLabel(.profile, editor: editor)
-                profile
-                    .showsTurnedOff(.profile, editor: editor)
-            } else if editor.usesFallbackDecoder {
-                fallbackDecoderNote
-            }
             GroupLabel(.whiteBalance, editor: editor)
             VStack(alignment: .leading, spacing: 2) {
                 whiteBalance
@@ -210,71 +203,6 @@ private struct DevelopControls: View {
                 adjustSlider(editor, String(localized: "Saturation"), \.presence.saturation)
             }
             .showsTurnedOff(.presence, editor: editor)
-        }
-    }
-
-    /// In the Profile group's place for a raw the system's RAW decoder gives no
-    /// image for: nothing there could apply to LibRaw's decode, and the note
-    /// says so instead of the group going missing (issue #161).
-    private var fallbackDecoderNote: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            ControlGroupLabel(text: AdjustText.title(.profile))
-                .frame(height: InspectorMetrics.groupLabelHeight)
-                .padding(.top, InspectorMetrics.groupLabelTop)
-            Text(FallbackDecoderText.note)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.bottom, 2)
-        }
-        .accessibilityElement(children: .combine)
-    }
-
-    private var profile: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            LabeledPopUp(title: String(localized: "Profile")) {
-                AppKitPopUp(items: RawDecode.Look.allCases.map { .init(title: Self.lookTitle($0), tag: $0.rawValue) },
-                            selection: editor.adjustments.decode.look.rawValue) { tag in
-                    editor.change(String(localized: "Profile"), phase: .committed) {
-                        $0.decode.look = RawDecode.Look(rawValue: tag) ?? .standard
-                    }
-                }
-            }
-            if let defaults = editor.rawDefaults, defaults.offeredDecoderVersions.count > 1 {
-                LabeledPopUp(title: String(localized: "Decoder")) {
-                    decoderPopUp(defaults)
-                }
-            }
-        }
-    }
-
-    /// A second view of machine learning noise reduction's one state (ml-denoise
-    /// design §4): the machine learning version is selected while it applies,
-    /// otherwise the decoder that renders. It is listed only where it is available.
-    private func decoderPopUp(_ defaults: RawDefaults) -> some View {
-        let status = editor.machineLearning
-        let versions = defaults.offeredDecoderVersions
-        let learned = MachineLearningNoiseReduction.machineLearningVersion(in: versions)
-        let selection = status?.isApplied == true ? learned : nil
-        let isEnabled = status?.decoderChoiceIsEnabled ?? true
-        return AppKitPopUp(items: versions.reversed().map { version in
-            .init(title: version == defaults.defaultDecoderVersion
-                      ? String(localized: "\(version) (default)", comment: "RAW decoder version")
-                      : version == learned ? MachineLearningText.decoderItem(version) : version,
-                  tag: version)
-        }, selection: selection ?? editor.adjustments.decode.decoderVersion ?? defaults.defaultDecoderVersion,
-           isEnabled: isEnabled, help: isEnabled ? nil : MachineLearningText.decoderDimmedHelp) { tag in
-            editor.chooseDecoder(tag)
-        }
-        // SwiftUI sets a hosted control's enabled state from its environment too.
-        .disabled(!isEnabled)
-    }
-
-    static func lookTitle(_ look: RawDecode.Look) -> String {
-        switch look {
-        case .standard: String(localized: "Standard", comment: "RAW profile")
-        case .neutral: String(localized: "Neutral", comment: "RAW profile")
-        case .flat: String(localized: "Flat", comment: "RAW profile")
         }
     }
 

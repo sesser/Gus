@@ -89,13 +89,26 @@ struct RAWDecodeTests {
                 "8000 K: red/blue \(shade.redOverBlue), as shot \(asShot.redOverBlue)")
     }
 
-    /// Flat has no base boost, neutral half of it, standard all of it.
-    @Test("Flat, neutral and standard looks are ordered by contrast")
-    func looksOrderedByContrast() throws {
-        let flat = try Self.render { $0.decode.look = .flat }.lumaDeviation
-        let neutral = try Self.render { $0.decode.look = .neutral }.lumaDeviation
-        let standard = try Self.render { _ in }.lumaDeviation
-        #expect(flat < neutral && neutral < standard, "luma deviation: flat \(flat), neutral \(neutral), standard \(standard)")
+    /// A Look stored by a build with the Profile group renders byte for byte
+    /// as the same stack without it: the decoder's default (issue #219, R2, AC2).
+    @Test("A stored Look renders as the decoder's default (AC2)", arguments: ["flat", "neutral"])
+    func storedLookRendersAsDefault(look: String) throws {
+        func pixels(_ edit: (inout Adjustments) -> Void) throws -> [Float] {
+            var adjustments = Adjustments()
+            adjustments.exposure.ev = 0.3
+            adjustments.tone.contrast = 15
+            edit(&adjustments)
+            let image = try PreviewGenerator(engine: Goldens.engine).image(source: RAWGoldenCase.master,
+                                                                           stack: adjustments.editStack, longEdge: nil)
+            return ReferenceTests.renderLinear(image).pixels
+        }
+        let without = try pixels { _ in }
+        let stored = try pixels { $0.decode.storedLook = look }
+        #expect(stored == without)
+        // The stack still holds it, so its render hash differs: hence the cache version (R5).
+        var values = Adjustments()
+        values.decode.storedLook = look
+        #expect(values.editStack.renderHash != Adjustments().editStack.renderHash)
     }
 
     /// Negative exposure asks the decoder for extended range: highlights it

@@ -140,17 +140,6 @@ struct MachineLearningNoiseReductionTests {
         #expect(found.isEmpty, "\(found)")
     }
 
-    @Test("The Decoder pop-up offers the machine learning version only where it is available (review F2)")
-    func offeredDecoderVersions() {
-        var defaults = RawDefaults(temperature: 5000, tint: 0, decoderVersions: ["8.dng", "9.dng"],
-                                   defaultDecoderVersion: "8.dng", luminanceNoiseReduction: 0, colorNoiseReduction: 50,
-                                   machineLearning: .available)
-        #expect(defaults.offeredDecoderVersions == ["8.dng", "9.dng"])
-        defaults.machineLearning = .notOnThisMac
-        // One choice left: the pop-up does not show.
-        #expect(defaults.offeredDecoderVersions == ["8.dng"])
-    }
-
     @Test("Decoder versions: 9 and 9.dng are the machine learning decoder")
     func versions() {
         #expect(ML.isMachineLearningVersion("9.dng") && ML.isMachineLearningVersion("9"))
@@ -206,8 +195,6 @@ struct MachineLearningNoiseReductionTests {
         let settings = Self.adjustments { $0.noiseReduction.machineLearning = true }.decodeSettings
         #expect(settings.apply(to: asking, source: url) == .applied)
         #expect(asking.decoderVersion.rawValue == "9.dng")
-        // The pop-up's "(default)" is the pinned version.
-        #expect(RawDefaults(source: url)?.defaultDecoderVersion == today)
     }
 
     // MARK: One state with the Decoder pop-up (AC4)
@@ -221,7 +208,7 @@ struct MachineLearningNoiseReductionTests {
             """)
         let values = Adjustments(stack: stored)
         #expect(values.asksForMachineLearning)
-        #expect(values.decode.decoderVersion == nil && values.decode.look == .neutral)
+        #expect(values.decode.decoderVersion == nil && values.decode.storedLook == "neutral")
         #expect(values.decode.legacyMachineLearningVersion == nil)
         #expect(values.decodeSettings.machineLearning && values.decodeSettings.decoderVersion == nil)
         // Saved again, it is in the new form.
@@ -237,7 +224,8 @@ struct MachineLearningNoiseReductionTests {
             """)
         let values = Adjustments(stack: stored)
         #expect(!values.asksForMachineLearning)
-        #expect(values.isEnabled(.profile) && values.decodeSettings == .none)
+        #expect(values.decodeSettings == .none)
+        #expect(!values.editStack.operations.contains { $0.kind == RawDecode.kind })
     }
 
     @Test("A legacy stack whose Noise Reduction group was off reads as on inside the off group, which stays off (AC4, RI-E4)")
@@ -298,22 +286,28 @@ struct MachineLearningNoiseReductionTests {
         #expect(off.decoderVersion.rawValue == "7.dng")
     }
 
-    @Test("Profile-only presets, a paste of Profile and turning Profile off leave it on (AC4)")
-    func profileNeverTurnsItOff() {
+    @Test("A stored Profile-only preset and a paste leave machine learning and the stored Look as they are (AC4; #219 R4, R6)")
+    func storedDecodeNeverTurnsItOff() {
         let photo = Self.adjustments {
             $0.noiseReduction = NoiseReduction(luminance: 40, color: 25, machineLearning: true)
-            $0.decode.look = .neutral
+            $0.decode.storedLook = "neutral"
         }
-        let profilePreset = AdjustmentPreset(name: "Flat", groups: [.profile],
-                                             adjustments: Self.adjustments { $0.decode.look = .flat })
-        #expect(profilePreset.applied(onto: photo).asksForMachineLearning)
-        #expect(photo.replacing([.profile], from: .none).asksForMachineLearning)
-        var off = photo
-        off.setEnabled(.profile, false)
-        #expect(off.decodeSettings.machineLearning)
-        // And a Profile-only preset from a photo with it on does not carry it.
-        let fromPhoto = AdjustmentPreset(name: "From photo", groups: [.profile], adjustments: photo)
-        #expect(!fromPhoto.applied(onto: .none).asksForMachineLearning)
+        // A preset an older build saved with Profile only: its group is no longer known.
+        #expect(Adjustments.Group(rawValue: "profile") == nil)
+        let profilePreset = AdjustmentPreset(name: "Flat", groups: AdjustmentPreset.decodeGroups("profile"),
+                                             adjustments: Self.adjustments { $0.decode.storedLook = "flat" },
+                                             keepingStoredDecode: true)
+        #expect(profilePreset.adjustments.decode.storedLook == "flat")
+        #expect(profilePreset.applied(onto: photo) == photo)
+        // A paste of a photo with another stored Look keeps the target's.
+        let source = Self.adjustments {
+            $0.noiseReduction = NoiseReduction(luminance: 40, color: 25, machineLearning: true)
+            $0.decode = RawDecode(storedLook: "flat", decoderVersion: "7.dng")
+        }
+        #expect(source.pasted(onto: photo) == photo)
+        // And a new preset from a photo never carries its stored decode.
+        let fromPhoto = AdjustmentPreset(name: "From photo", adjustments: photo)
+        #expect(fromPhoto.adjustments.decode == RawDecode())
     }
 
     @Test("A pre-feature preset with Profile at 9.dng turns it on and leaves Luminance and Color (AC4)")
@@ -322,13 +316,15 @@ struct MachineLearningNoiseReductionTests {
             {"operations":[{"id":"00000000-0000-4000-8000-000000000001","isEnabled":true,"kind":"rawDecode",\
             "kindVersion":1,"parameters":{"decoderVersion":"9.dng","look":"flat"}}],"schemaVersion":1}
             """)
-        let preset = AdjustmentPreset(name: "Old", groups: [.profile], adjustments: Adjustments(presetStack: presetStack))
+        // Read as the catalog reads it: the stored group list named Profile only.
+        let preset = AdjustmentPreset(name: "Old", groups: AdjustmentPreset.decodeGroups("profile"),
+                                      adjustments: Adjustments(presetStack: presetStack), keepingStoredDecode: true)
         let target = Self.adjustments { $0.noiseReduction = NoiseReduction(luminance: 40, color: 25) }
         let applied = preset.applied(onto: target)
         #expect(applied.asksForMachineLearning)
         #expect(applied.noiseReduction.luminance == 40 && applied.noiseReduction.color == 25)
-        #expect(applied.decode.look == .flat && applied.decode.decoderVersion == nil)
-        #expect(applied.decode.legacyMachineLearningVersion == nil)
+        // Nothing of the stored decode is applied (issue #219, R6).
+        #expect(applied.decode == RawDecode())
 
         // Saved and read back, it still does (the catalog and preset files).
         let catalog = try Catalog.makeInMemory()
@@ -338,18 +334,6 @@ struct MachineLearningNoiseReductionTests {
         let file = try PresetFile(data: PresetFile(presets: [preset], store: LookTableStore(
             directory: FileManager.default.temporaryDirectory.appending(path: "ml-luts-\(UUID().uuidString)"))).data())
         #expect(file.adjustmentPresets().first?.applied(onto: target) == applied)
-    }
-
-    @Test("The Decoder pop-up: 9.dng turns it on, another version turns it off and becomes Profile's (AC4)")
-    func decoderChoice() {
-        var values = Self.adjustments { $0.decode.decoderVersion = "7.dng" }
-        values.chooseDecoder("9.dng", defaultVersion: "8.dng")
-        #expect(values.asksForMachineLearning && values.decode.decoderVersion == "7.dng")
-        values.chooseDecoder("6.dng", defaultVersion: "8.dng")
-        #expect(!values.asksForMachineLearning && values.decode.decoderVersion == "6.dng")
-        values.chooseDecoder("9", defaultVersion: "8")
-        values.chooseDecoder("8", defaultVersion: "8")
-        #expect(!values.asksForMachineLearning && values.decode.decoderVersion == nil)
     }
 
     @Test("develop: the machine learning decoder version is machine learning on; never a disagreeing pair (AC4, AC11)")
@@ -430,9 +414,6 @@ struct MachineLearningNoiseReductionTests {
         #expect(S(asks: true, groupIsOn: true, availability: .notOnThisMac).notAppliedReason == .notOnThisMac)
         #expect(S(asks: true, groupIsOn: false, availability: .notOnThisMac).notAppliedReason == nil)
         #expect(S(asks: true, groupIsOn: true, availability: .available).notAppliedReason == nil)
-        // The Decoder pop-up is dimmed exactly while the badge shows.
-        #expect(!S(asks: true, groupIsOn: true, availability: .cameraNotSupported).decoderChoiceIsEnabled)
-        #expect(S(asks: true, groupIsOn: false, availability: .cameraNotSupported).decoderChoiceIsEnabled)
     }
 
     // MARK: Not applied (AC7, AC7a)

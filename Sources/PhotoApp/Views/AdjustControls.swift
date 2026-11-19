@@ -838,7 +838,6 @@ struct AppKitCheckbox: NSViewRepresentable {
 enum AdjustText {
     static func title(_ group: Adjustments.Group) -> String {
         switch group {
-        case .profile: String(localized: "Profile")
         case .whiteBalance: String(localized: "White Balance")
         // UI names only (decision 15): the group stays `light` in edit stacks.
         case .light: String(localized: "Tone", comment: "Adjust tab group: exposure, contrast, highlights…")
@@ -861,7 +860,7 @@ enum AdjustText {
     static func title(_ section: Adjustments.Section) -> String {
         switch section {
         // UI names only (decision 15): the sections stay `develop` and `tone`.
-        case .develop: String(localized: "Light", comment: "Adjust tab heading: profile, white balance, tone, presence")
+        case .develop: String(localized: "Light", comment: "Adjust tab heading: white balance, tone, presence")
         case .tone: String(localized: "Tone Curve", comment: "Adjust tab heading")
         case .details: String(localized: "Details", comment: "Adjust tab heading")
         case .lens: String(localized: "Lens", comment: "Adjust tab heading for lens corrections: color fringes, color alignment")

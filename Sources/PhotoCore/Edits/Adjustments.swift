@@ -14,6 +14,9 @@ public struct Adjustments: Hashable, Sendable {
     /// Turns, straightening and crop. Not one of the `Group`s: presets never
     /// carry it, copy and paste does.
     public var crop = Crop()
+    /// What builds with a Profile group stored about the decode. Not one of
+    /// the `Group`s: presets, copy and paste never carry it (issue #219, R6);
+    /// Reset All Adjustments removes it.
     public var decode = RawDecode()
     /// Which camera profile the color step of a LibRaw decode uses. Not one
     /// of the `Group`s, and no build writes it yet (`CameraProfileReference`).
@@ -61,9 +64,9 @@ public struct Adjustments: Hashable, Sendable {
 
     /// The values of a preset's stored stack. Unlike a photo's, a preset
     /// saved before machine learning noise reduction had its own setting
-    /// keeps a machine learning decoder in its Profile group
+    /// keeps the machine learning decoder its Profile group chose
     /// (`RawDecode.legacyMachineLearningVersion`), so it still turns it on
-    /// when applied and is saved back as it was (PRD R3).
+    /// when applied and is saved back as it was (ml-denoise PRD R3).
     public init(presetStack stack: EditStack) {
         self.init(stack: stack, keepsLegacyDecoder: true)
     }
@@ -264,27 +267,37 @@ public struct Adjustments: Hashable, Sendable {
     }
 
     /// These adjustments with the modules of `groups` taken from `source`
-    /// (values and on/off); everything else, unknown operations included, stays.
+    /// (values and on/off); everything else, unknown operations and the
+    /// stored decode included, stays.
     ///
     /// A source read from a preset saved before machine learning noise
     /// reduction had its own setting, whose Profile group chose the machine
-    /// learning decoder, turns it on when Profile is replaced, and changes
-    /// nothing else in Noise Reduction (PRD R3).
+    /// learning decoder, turns it on and changes nothing else in Noise
+    /// Reduction (ml-denoise PRD R3). Such a preset's stored decode is there
+    /// only because it carried Profile (`AdjustmentPreset`), so the rule
+    /// holds without that group (issue #219, R4).
     public func replacing(_ groups: Set<Group>, from source: Adjustments) -> Adjustments {
         var copy = copying(groups, from: source)
-        if copy.decode.legacyMachineLearningVersion != nil {
-            copy.decode.legacyMachineLearningVersion = nil
+        if source.decode.legacyMachineLearningVersion != nil {
             copy.noiseReduction.machineLearning = true
         }
         return copy
     }
 
-    /// As `replacing`, keeping a legacy machine learning decoder as it is (a
-    /// preset's own values). Spots are never copied between photos, whatever
-    /// `groups` holds (PRD R11).
+    /// As `replacing`, without the legacy machine learning rule. Spots are
+    /// never copied between photos, whatever `groups` holds (PRD R11).
     func copying(_ groups: Set<Group>, from source: Adjustments) -> Adjustments {
         var copy = self
         for kind in groups.subtracting([.spots]).flatMap(\.kinds) { copy.copyModule(kind, from: source) }
+        return copy
+    }
+
+    /// These adjustments with `source`'s stored decode, on or off as there:
+    /// what a paste keeps of its target and a stored preset of its own
+    /// values (issue #219, R3, R6).
+    func keepingDecode(of source: Adjustments) -> Adjustments {
+        var copy = self
+        copy.copyModule(RawDecode.kind, from: source)
         return copy
     }
 
@@ -314,7 +327,7 @@ public struct Adjustments: Hashable, Sendable {
 
         public var groups: [Group] {
             switch self {
-            case .develop: [.profile, .whiteBalance, .light, .presence]
+            case .develop: [.whiteBalance, .light, .presence]
             case .tone: [.toneCurve]
             case .details: [.sharpening, .noiseReduction]
             case .lens: [.colorFringes, .colorAlignment]
@@ -329,7 +342,7 @@ public struct Adjustments: Hashable, Sendable {
 
     /// The controls under a heading that are turned on and off together.
     public enum Group: String, CaseIterable, Sendable {
-        case profile, whiteBalance, light, presence, toneCurve, sharpening, noiseReduction, colorMixer
+        case whiteBalance, light, presence, toneCurve, sharpening, noiseReduction, colorMixer
         /// The conversion to gray (issue #218): a preset group like the Color
         /// Mixer's, whose check box also turns it on (`setEnabled`).
         case blackAndWhite
@@ -346,7 +359,6 @@ public struct Adjustments: Hashable, Sendable {
 
         public var kinds: [EditOperationKind] {
             switch self {
-            case .profile: [RawDecode.kind]
             case .whiteBalance: [WhiteBalance.kind]
             case .light: [Exposure.kind, Tone.kind]
             case .presence: [Presence.kind]
@@ -425,6 +437,13 @@ public struct Adjustments: Hashable, Sendable {
         return copy
     }
 
+    /// Reset All Adjustments: every module back to its default, the stored
+    /// decode removed with them (issue #219, R3); only operations this build
+    /// does not understand stay.
+    public func resettingAll() -> Adjustments {
+        Adjustments(stack: EditStack(operations: preserved))
+    }
+
     /// True when a heading has anything away from its defaults.
     public func isModified(_ section: Section) -> Bool {
         resetting(section) != self
@@ -454,34 +473,22 @@ public protocol AdjustmentModule: Hashable, Sendable {
     var parameters: [String: EditParameter] { get }
 }
 
-/// How the RAW decoder renders the file before any other step.
+/// What builds with a Profile group stored about the RAW decode (issue #219).
+/// No control sets it any more: the operation is kept as stored, written back
+/// unchanged by every write but Reset All Adjustments, and only its decoder
+/// version still renders.
 public struct RawDecode: AdjustmentModule {
     public static let kind: EditOperationKind = "rawDecode"
 
-    /// Base renderings built from the decoder's own tone controls.
-    public enum Look: String, CaseIterable, Sendable {
-        /// The decoder's default tone and color.
-        case standard
-        /// Half of the decoder's base contrast boost: softer, more room to grade.
-        case neutral
-        /// No base boost: a linear response, for heavy grading.
-        case flat
-
-        /// The decoder's `boostAmount`, or nil to leave its default.
-        var boostAmount: Float? {
-            switch self {
-            case .standard: nil
-            case .neutral: 0.5
-            case .flat: 0
-            }
-        }
-    }
-
-    public var look = Look.standard
+    /// The Look a Profile group stored (`neutral`, `flat`), as stored. Never
+    /// rendered: every photo renders with the decoder's default (R2). Kept so
+    /// the stack is written back as it was (R3); not a parameter scripts see.
+    public var storedLook: String?
     /// One of the decoder's `supportedDecoderVersions` other than the machine
     /// learning one, or nil for its default (pinned below the machine
     /// learning version, `MachineLearningNoiseReduction.pinnedVersion`).
     /// Used while machine learning noise reduction is off or cannot apply.
+    /// Only a stack an older build saved, or `photocli`, sets one (R4).
     public var decoderVersion: String?
     /// The machine learning decoder version a preset saved before
     /// `NoiseReduction.machineLearning` existed chose here; nil otherwise.
@@ -490,13 +497,16 @@ public struct RawDecode: AdjustmentModule {
     /// machine learning on.
     public var legacyMachineLearningVersion: String?
 
-    public init(look: Look = .standard, decoderVersion: String? = nil) {
-        self.look = look
+    public init(storedLook: String? = nil, decoderVersion: String? = nil) {
+        self.storedLook = storedLook
         self.decoderVersion = decoderVersion
     }
 
+    /// The parameter a stored Look is kept under.
+    static let storedLookParameter = "look"
+
     init(_ values: ParameterValues) {
-        look = values.string("look").flatMap(Look.init(rawValue:)) ?? .standard
+        storedLook = values.string(Self.storedLookParameter)
         let version = values.string("decoderVersion")
         if let version, MachineLearningNoiseReduction.isMachineLearningVersion(version) {
             legacyMachineLearningVersion = version
@@ -507,7 +517,7 @@ public struct RawDecode: AdjustmentModule {
 
     public var parameters: [String: EditParameter] {
         var out = ParameterBuilder()
-        out.set("look", look.rawValue, default: Look.standard.rawValue)
+        out.set(Self.storedLookParameter, storedLook)
         out.set("decoderVersion", legacyMachineLearningVersion ?? decoderVersion)
         return out.values
     }

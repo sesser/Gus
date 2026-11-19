@@ -41,12 +41,13 @@ final class AdjustmentEditor {
     /// The photo being edited.
     private(set) var item: CatalogItem?
     /// The system's RAW decoder reads the photo's file, so the stack's decode
-    /// settings apply (`SystemRAWDecoder`): the Adjust tab offers Profile,
-    /// Decoder and the decoder's noise reduction. False for a raw LibRaw
-    /// decodes, which has none of those.
+    /// settings apply (`SystemRAWDecoder`): the Adjust tab offers the
+    /// decoder's noise reduction (Color, Use machine learning). False for a
+    /// raw LibRaw decodes, which has neither.
     private(set) var isRaw = false
     /// A raw file the system's RAW decoder gives no image for, decoded by
-    /// LibRaw (issue #161): the Adjust tab says what that leaves out.
+    /// LibRaw (issue #161): the machine learning captions say what that
+    /// leaves out.
     private(set) var usesFallbackDecoder = false
     /// What the White Balance group offers this photo: Kelvin and tint from
     /// the as-shot values for a raw by either decoder, relative values for
@@ -345,7 +346,7 @@ final class AdjustmentEditor {
 
     /// What machine learning noise reduction does for the values being
     /// edited (ml-denoise design §3): the inspector's check box, caption,
-    /// Color row and Decoder pop-up read it. Nil until the photo is ready.
+    /// and Color row read it. Nil until the photo is ready.
     private(set) var machineLearning: MachineLearningNoiseReduction.Status?
     /// Why the values on screen (a hover preview's included) asked for it
     /// and did not get it: the caption's badge and the canvas's VoiceOver
@@ -694,7 +695,7 @@ final class AdjustmentEditor {
 
     func resetAll() {
         change(String(localized: "Reset Adjustments", comment: "Undo action name"), phase: .committed) {
-            $0 = Adjustments(stack: EditStack(operations: $0.preserved))
+            $0 = $0.resettingAll()
         }
     }
 
@@ -996,15 +997,6 @@ final class AdjustmentEditor {
         change(isOn ? String(localized: "Turn On Machine Learning", comment: "Undo action name")
                     : String(localized: "Turn Off Machine Learning", comment: "Undo action name"),
                phase: .committed) { $0.noiseReduction.machineLearning = isOn }
-    }
-
-    /// The Decoder pop-up's choice: the machine learning version turns it on,
-    /// another turns it off and becomes Profile's decoder (R3), in one undo step.
-    func chooseDecoder(_ version: String) {
-        guard let defaults = rawDefaults else { return }
-        change(String(localized: "Decoder"), phase: .committed) {
-            $0.chooseDecoder(version, defaultVersion: defaults.defaultDecoderVersion)
-        }
     }
 
     /// Luminance's default for the values being edited: the machine learning

@@ -996,7 +996,8 @@ extension Adjustments {
             settings.temperature = whiteBalance.temperature.map(Float.init)
             settings.tint = whiteBalance.tint.map(Float.init)
         }
-        settings.boostAmount = decode.look.boostAmount
+        // No boost amount: a stored Look never renders, every photo has the
+        // decoder's default (issue #219, R2).
         // Keep what the sensor recorded above white, for recovery to bring back.
         if tone.highlights < 0 || exposure.ev < 0 {
             settings.extendedDynamicRange = 1

@@ -567,7 +567,7 @@ struct LibRawFallbackPipelineTests {
             // The relative values never render on a raw (R10): they stay in the stack and it renders as shot.
             #expect(try render { $0.whiteBalance = WhiteBalance(preset: .custom, relativeTemperature: 60, relativeTint: 30) } == plain)
             // The system decoder's own settings have nothing to act on.
-            #expect(try render { $0.decode.look = .flat } == plain)
+            #expect(try render { $0.decode.storedLook = "flat" } == plain)
             #expect(try render { $0.noiseReduction.color = 90 } == plain)
             // A white balance that is turned off is not applied.
             #expect(try render {
@@ -661,7 +661,7 @@ struct LibRawFallbackPipelineTests {
                 // The white balance is applied after the kept decode: the frame changes, the count does not.
                 let balanced = try await session.linearFrame(values)
                 #expect(balanced.dataProvider?.data as Data? != asShot.dataProvider?.data as Data?, "known \(String(describing: known))")
-                values.decode.look = .flat
+                values.decode.storedLook = "flat"
                 values.noiseReduction = NoiseReduction(luminance: 60, color: 40)
                 _ = try await session.render(values)
                 // Exposure below 0 asks a raw for extended range, a mask or crop for the whole sensor.
