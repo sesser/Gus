@@ -9,15 +9,24 @@ struct GoldenCase: Sendable, CustomTestStringConvertible {
     var name: String
     var scene: TestScene
     var adjustments: Adjustments
+    /// What the scene's "file" says about its lens (Auto's tables, issue #87).
+    var lens: CameraLensState?
 
     var testDescription: String { name }
 
-    init(_ name: String, _ scene: TestScene, _ edit: (inout Adjustments) -> Void) {
+    init(_ name: String, _ scene: TestScene, lens: CameraLensState? = nil, _ edit: (inout Adjustments) -> Void) {
         self.name = name
         self.scene = scene
+        self.lens = lens
         var adjustments = Adjustments()
         edit(&adjustments)
         self.adjustments = adjustments
+    }
+
+    /// The XF 35mm f/2's tables as Auto reads them (`SyntheticRAF`), green only.
+    static var fujifilm35: CameraLensState {
+        guard let raf = FujifilmRAF(data: SyntheticRAF.xe3()) else { return .tables(.none) }
+        return CameraLensState.fujifilm(raf)
     }
 
     /// A mask of `shapes` with local values from `values`, ids fixed so stacks repeat.
@@ -53,7 +62,7 @@ struct GoldenCase: Sendable, CustomTestStringConvertible {
 
     func render() -> CIImage {
         AdjustmentRenderer(lookTables: Self.lookTables).render(adjustments, to: scene.image().ciImage,
-                                                              context: RenderContext())
+                                                              context: RenderContext(lens: lens))
     }
 }
 
@@ -287,6 +296,29 @@ struct GoldenTests {
         GoldenCase("spots-healCropTurn-dustySky", .dustySky) {
             $0.crop = Crop(rect: CropRect(x: 0.1, y: 0.1, width: 0.8, height: 0.75), quarterTurns: 1, angle: 6)
             $0.spots.spots = [GoldenCase.spot(0, x: 170, y: 100, radius: 11, sourceX: 140, sourceY: 100)]
+        },
+
+        // Distortion and Lens Vignetting (docs/features/lens-corrections, AC13):
+        // manual barrel and pincushion on a grid, with and without Constrain to
+        // image, a manual vignetting gain, a Fujifilm table through Auto, and a
+        // correction under a spot and a crop (the spot's frame is the corrected one).
+        GoldenCase("lensDistortion-barrel-lensGrid", .lensGrid) {
+            $0.distortion = LensDistortion(isOn: true, source: .manual, amount: 60)
+        },
+        GoldenCase("lensDistortion-pincushionOpen-lensGrid", .lensGrid) {
+            $0.distortion = LensDistortion(isOn: true, source: .manual, amount: -50, constrain: false)
+        },
+        GoldenCase("lensVignetting-lighten-grayRamp", .grayRamp) {
+            $0.lensVignetting = LensVignetting(isOn: true, source: .manual, amount: 70)
+        },
+        GoldenCase("lensCorrections-fujifilmAuto-lensGrid", .lensGrid, lens: GoldenCase.fujifilm35) {
+            $0.distortion = LensDistortion(isOn: true)
+            $0.lensVignetting = LensVignetting(isOn: true)
+        },
+        GoldenCase("lensDistortion-spotCrop-dustySky", .dustySky) {
+            $0.distortion = LensDistortion(isOn: true, source: .manual, amount: 80)
+            $0.crop = Crop(rect: CropRect(x: 0.1, y: 0.1, width: 0.8, height: 0.75))
+            $0.spots.spots = [GoldenCase.spot(0, x: 80, y: 60, radius: 9, sourceX: 110, sourceY: 60)]
         },
 
         GoldenCase("crop-straighten-patchChart", .patchChart) {
