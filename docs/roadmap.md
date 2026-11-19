@@ -40,11 +40,11 @@ Principles (drawn from `README.md` and `CLAUDE.md`):
 
 ## Now (maximum three)
 
-Moved up by the owner 2026-11-18, #216 first (it replaces #89, DCP profiles, dropped the same day), then #87 and #88. The owner wants a PRD for every Now item before any work starts.
+Set by the owner 2026-11-18: #89 (DCP profiles) was dropped, then #216 (built-in looks) the same day; #219 and #218 replace them, ahead of #87. #88 went back to the head of Next because Now holds at most three. The owner wants a PRD for every Now item before any work starts.
 
-1. [#216](https://github.com/sesser/Gus/issues/216) `builtin-looks`: Built-in Landscape, Portrait and B&W looks (replaces #89)
+1. [#219](https://github.com/sesser/Gus/issues/219) `remove-profile-group`: Remove the Profile group; render every photo with the decoder's default
+1. [#218](https://github.com/sesser/Gus/issues/218) `bw-module`: A B&W module with film-filter colour sliders
 1. [#87](https://github.com/sesser/Gus/issues/87) `lens-corrections`: No correction of geometric distortion or lens vignetting, and no lens profiles
-1. [#88](https://github.com/sesser/Gus/issues/88) `ai-masks`: No subject, sky, object or people masks
 
 ## Next
 
@@ -53,10 +53,12 @@ virtual copies, then side-by-side comparison; the rest in the order it had). HDR
 side-by-side comparison on 2026-11-11, ahead of the rest.
 On 2026-11-17 the owner put healing (#86, shipped 2026-11-18), lens corrections (#87), AI masks (#88)
 and DCP profiles (#89) first, in that order.
-On 2026-11-18 the owner dropped #89 and replaced it with built-in looks (#216); #216, lens
-corrections and AI masks went to Now, #216 first.
+On 2026-11-18 the owner dropped #89, then #216 (built-in looks) the same day, in favour of
+removing the Profile group (#219) and a B&W module (#218). #219, #218 and lens corrections
+(#87) are in Now; AI masks (#88) went back to the head of Next because Now holds at most three.
 The small fixes and tooling items can each go as a bug fix (`docs/WORKFLOW.md`).
 
+1. [#88](https://github.com/sesser/Gus/issues/88) `ai-masks`: No subject, sky, object or people masks
 1. [#150](https://github.com/sesser/Gus/issues/150) `hdr-merge`: No way to merge several exposures of a scene into one tone-mapped HDR image, with automatic alignment and de-ghosting (owner, 2026-11-11)
 1. [#64](https://github.com/sesser/Gus/issues/64) `reads-beside-write-chain`: Five reads still take a photo's edits from the catalog without waiting for pending saves, so right after a change they can get the older…
 1. [#65](https://github.com/sesser/Gus/issues/65) `full-render-main-thread-stall`: At 100%, every arrival at a photo and every change that is let go freezes the window for about 0.4 s (about 1.3 s with machine learning…
@@ -117,7 +119,8 @@ Roughly ordered by dependency, then by how often a photographer would hit the ga
 |------|------|--------|
 | film-strip-size-slider | 2026-11-04 | Owner revision: the slider pushed the centered thumbnail off the photo's center; replaced by a drag handle with fixed steps. Issue #25 still asks for a slider. `UI_REDESIGN.md` §11 decision 3 |
 | write-metadata-to-originals | 2026-11-04 | Owner: conflicts with the referenced-masters principle (originals are never written). Sidecars carry the library's metadata. Was on CLAUDE.md "Not yet" and README "Not there yet" |
-| dcp-profiles ([#89](https://github.com/sesser/Gus/issues/89)) | 2026-11-18 | Owner: the spike showed a profile's look after the system decoder matches Lightroom only for the Canon; the owner prefers a few generic built-in looks plus LUTs. Replaced by [#216](https://github.com/sesser/Gus/issues/216) (`builtin-looks`). The spike is kept on branch `feature/dcp-profiles` |
+| dcp-profiles ([#89](https://github.com/sesser/Gus/issues/89)) | 2026-11-18 | Owner: the spike showed a profile's look after the system decoder matches Lightroom only for the Canon; the owner prefers a few generic built-in looks plus LUTs. Replaced by [#216](https://github.com/sesser/Gus/issues/216) (`builtin-looks`), itself dropped the same day. The spike is kept on branch `feature/dcp-profiles` |
+| builtin-looks ([#216](https://github.com/sesser/Gus/issues/216)) | 2026-11-18 | Owner direction: no built-in look profiles; Profile group removed ([#219](https://github.com/sesser/Gus/issues/219)) and B&W module ([#218](https://github.com/sesser/Gus/issues/218)) instead |
 | film-strip-left-anchor | 2026-11-04 | Owner decision: the focused photo is centered in the strip, not at the left edge as issue #25 asks. `UI_REDESIGN.md` §11 decision 2 |
 
 ## Shipped
