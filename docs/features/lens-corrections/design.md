@@ -217,7 +217,9 @@ at 256 pt in both designs.
   raw the camera decoder already corrects, a Fujifilm raw with its built-in
   correction; §5), checking the box starts the group in **Manual** in the same
   step, since Auto would be a dead end there (R9; owner ruling RI-1). Everywhere
-  else the first source is Auto (R3).
+  else the first source is Auto (R3). The rule is not only the check box's: **any
+  change that switches the group on from "never on"**, Constrain to image
+  included, follows it (DQ-4, §21).
 - **Tooltips** (HIG: one per segment): Auto "Use the correction table the camera
   stored in this file."; Manual "Set the correction by hand."
 - **Dimming.** The Auto segment alone is dimmed on a file where Auto cannot apply
@@ -453,7 +455,11 @@ useful (RI-3, which also offers the alternative of no alert).
 
 ### Where in a gesture
 
-- **A check box, a segment, a menu or paste:** asked before the change is made.
+- **A check box, a segment, a menu or paste:** asked when the change commits. As
+  built (accepted 2026-11-19, §21 "Review rulings"), the change is already on
+  screen when the question comes up, as for a drag; Cancel puts the saved values
+  back and records nothing. (A paste or preset to other photos writes nothing
+  until Change.)
 - **An Amount drag, a typed value or an arrow step in the field:** the live frames
   render as the person drags, so they *see* the correction and the masks moving;
   the question is asked **when the gesture commits** (mouse up, Return, the first
@@ -490,8 +496,17 @@ symbol sparingly").
   applies to all as one undo step with History entries per photo, as Paste does
   today. The counts are photos whose frame would move and that hold masks or
   spots, over the photos receiving the group.
-- **Sheets that are already up:** the question waits behind them (`LibraryModal`),
-  as the preset report does.
+- **Sheets that are already up:** as built (accepted 2026-11-19), the question does
+  not wait behind them (`LibraryModal`). It is asked from the inspector or the
+  menus, which a sheet blocks; the only gap is the short read between a paste or
+  preset command and its alert.
+- **Once per visit is counted by masks and spots.** The answer is remembered with
+  the photo's number of masks and spots; the question comes again when the count
+  is higher than at the answer (a mask or spot added), or on the next visit.
+  Removing one and adding another keeps the count and does not ask again.
+- **Offline photos in a paste or preset** are not counted in the question when
+  only Auto would decide whether their frame moves: their file cannot be read to
+  tell, and they render nothing new until their volume is back.
 - **A confirmation does not remember a suppression choice.** The HIG allows a
   "don't ask again" checkbox on repeating alerts; I did not add one, because there
   is no setting to undo it and a person who suppressed it once would never learn
@@ -593,7 +608,10 @@ User-visible consequences of R5, which the guide says once:
   magnifier plate says **"Before edits"** (CA §20). With Distortion applying, the
   pixels shown are the corrected ones, so I rule the plate then reads **"After
   lens correction"** (one new string, §14), and "Before edits" otherwise. The
-  engineer says if the picker samples before it.
+  engineer says if the picker samples before it. **Amended 2026-11-19 (review
+  F4):** the plate reads "After lens correction" when Distortion **or** Lens
+  Vignetting applies (a warp or a gain in the plan), since the gain runs first
+  too and the pixels are then not the photo's own.
 - **Vignetting's gain renders before Exposure and the tone sliders**, not after
   Effects' Vignette: lens falloff is part of the recorded light, the creative
   vignette is a look that comes last. The two never fight; the user guide says so.
@@ -715,7 +733,7 @@ name. Reuse an existing key and extend its comment where one exists ("Amount",
 | Masks and spots are placed in the corrected frame, so this photo's can move away from what they cover now. You can undo the change. | Alert message | |
 | %lld of the %lld photos have masks or spots. They are placed in the corrected frame, so they can move away from what they cover now. You can undo the change. | Alert message, plural forms | %lld counts photos |
 | Change | Alert button | Confirms a lens correction change |
-| After lens correction | Pixel magnifier plate, line 2, when Distortion applies | The magnifier shows the photo after lens correction |
+| After lens correction | Pixel magnifier plate, line 2, when Distortion or Lens Vignetting applies | The magnifier shows the photo after lens correction |
 | No distortion table was found in this file. | VoiceOver announcement (the caption's first sentence) | |
 
 Reused with no new text: "Cancel", "Turn On %@", "Turn Off %@", "Reset %@",
@@ -842,8 +860,8 @@ area renders). Please make these checkable, named by the existing pattern:
     an old all-settings preset turns them off.
 13. Strings, undo and History names read as §14; no hard-coded color; no new
     custom view; Increase Contrast, Reduce Transparency and Reduce Motion on.
-14. The Pixel Magnifier plate reads "After lens correction" when Distortion
-    applies.
+14. The Pixel Magnifier plate reads "After lens correction" when Distortion or
+    Lens Vignetting applies.
 15. Show Original removes the correction; Reset returns the identity stack
     (AC12).
 
@@ -1044,8 +1062,27 @@ Owner rulings of 2026-11-19 on the requirements issues of §18:
   ARW readers and a DNG's GainMap are follow-ups; the design and the user guide
   promise none of them (§4, §10, §17, §18, §19.2).
 
+### Review rulings (designer, 2026-11-19, from `review.md`)
+
+- **DQ-4 (what starts a group in Manual).** Any change that switches a lens group
+  on from "never on" follows the rule "starts in Manual where Auto can't apply"
+  (a non-raw file, a decoder-corrected raw, a Fujifilm built-in raw), in the same
+  undo step: the check box, and also **Constrain to image** on a group that is
+  not on. Otherwise the group would be on with Auto stored, no segment selected
+  and nothing happening, the dead end RI-5 and L3 exist to prevent. A Source
+  click is already explicit and an Amount is shown only in Manual, so neither
+  needs the rule. Built into §3.2.
+- **Magnifier plate (review F4).** "After lens correction" when Distortion or Lens
+  Vignetting applies (§10, §14, §17.14).
+- **Accepted deviations of the build from §6.** (a) A check box, segment, menu or
+  paste commit puts the change on screen and then asks; Cancel reverts. (b) The
+  question does not wait behind other sheets. (c) Once per visit is counted by the
+  photo's masks and spots (a higher count asks again). (d) Offline photos are not
+  counted in a paste or preset question when only Auto would decide. §6 now says
+  so.
+
 Further design questions from implementation are recorded below as numbered
-rulings (DQ-4, ...) with their date.
+rulings (DQ-5, ...) with their date.
 
 ## Revisions
 
@@ -1069,3 +1106,10 @@ rulings (DQ-4, ...) with their date.
   Olympus, Sony ARW and DNG GainMap readers are follow-ups, so §4 gains a scope
   note, §10 and §17 and §19.2 no longer promise those makers, and §18 lists the
   follow-up.
+- **2026-11-19 (design review).** Review rulings recorded (§21): DQ-4 (any change
+  that switches a group on, Constrain to image included, starts in Manual where
+  Auto can't apply; §3.2), the magnifier plate reads "After lens correction" when
+  Distortion or Lens Vignetting applies (§10, §14, §17.14), and the build's four
+  accepted deviations from §6 (question asked after the change is on screen, not
+  waiting behind other sheets, once per visit counted by masks and spots, offline
+  photos not counted).

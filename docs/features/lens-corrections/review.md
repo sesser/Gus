@@ -25,6 +25,10 @@ findings are an edge case in the once-per-visit flag (F1), one place where the
 "starts in Manual" rule is not applied (F2), a stale translator comment (F3), and
 a design amendment on the magnifier plate (F4). None blocks sign-off.
 
+**Recorded in design.md (2026-11-19, later):** F2 as DQ-4 (§3.2, §21), F4 (§10,
+§14, §17.14) and the four accepted deviations below (§6, §21 "Review rulings"),
+with a Revisions note.
+
 ## Findings for the engineer (most severe first)
 
 **F1. Low, hardening: a Reset All that changes nothing leaves the frame question
