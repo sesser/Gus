@@ -40,9 +40,7 @@ Principles (drawn from `README.md` and `CLAUDE.md`):
 
 ## Now (maximum three)
 
-Set by the owner 2026-11-18: #89 (DCP profiles) was dropped, then #216 (built-in looks) the same day; #219 and #218 replaced them, ahead of #87. Both are done (#218 ships with this pass; its issue closes with its pull request). #88 stays at the head of Next until the owner moves it up; Now holds at most three, so two places are free. The owner wants a PRD for every Now item before any work starts.
-
-1. [#87](https://github.com/sesser/Gus/issues/87) `lens-corrections`: No correction of geometric distortion or lens vignetting, and no lens profiles
+Empty. Set by the owner 2026-11-18: #89 (DCP profiles) was dropped, then #216 (built-in looks) the same day; #219, #218 and #87 replaced them. All three are done (#87 and #218 ship with their passes; each issue closes with its pull request). #88 is at the head of Next and is the natural next move into Now; the owner decides. Now holds at most three. The owner wants a PRD for every Now item before any work starts.
 
 ## Next
 
@@ -52,8 +50,8 @@ side-by-side comparison on 2026-11-11, ahead of the rest.
 On 2026-11-17 the owner put healing (#86, shipped 2026-11-18), lens corrections (#87), AI masks (#88)
 and DCP profiles (#89) first, in that order.
 On 2026-11-18 the owner dropped #89, then #216 (built-in looks) the same day, in favour of
-removing the Profile group (#219) and a B&W module (#218). Both shipped (2026-11-19); lens
-corrections (#87) is in Now, and AI masks (#88) is at the head of Next.
+removing the Profile group (#219) and a B&W module (#218). Both shipped (2026-11-19), and
+so did lens corrections (#87, 2026-11-19); Now is empty and AI masks (#88) is at the head of Next.
 The small fixes and tooling items can each go as a bug fix (`docs/WORKFLOW.md`).
 
 1. [#88](https://github.com/sesser/Gus/issues/88) `ai-masks`: No subject, sky, object or people masks

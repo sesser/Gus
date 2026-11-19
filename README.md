@@ -77,6 +77,11 @@ I built this with Claude. AI did the work, I did the orchestration.
   pixel magnifier showing the exact pixel and its values, or choose one from a
   short list, and it turns gray along high-contrast edges. Red/cyan and
   blue/yellow edges toward the corners are measured and corrected automatically.
+- Lens distortion and lens vignetting: set them by hand on any photo, or let
+  Auto read the camera's own table from the file (Fujifilm raws and DNGs
+  that carry one). Auto does nothing where macOS or Fujifilm's built-in table
+  already corrected the photo, so it never corrects twice. If a photo has
+  spots or masks, Gus asks before a change moves them
 - Masks: linear and radial gradients, a brush, and luminance and color
   ranges, combined by adding, subtracting or intersecting. Each mask
   carries its own exposure, tone, white balance, presence and sharpening.
@@ -140,8 +145,8 @@ app doesn't have open.
 ## Not there yet
 
 Removing larger objects (a remove brush) and automatic dust detection,
-distortion and lens vignetting corrections (other than the camera's
-own in Fujifilm raws macOS can't decode), lens profiles, DNG
+automatic lens corrections from other makers' tables (Sony, Panasonic,
+Olympus) and lens profiles, DNG
 export, automatic (subject/sky) masks, DCP camera profiles, hand-made and
 burst stacks, black and white for part of a photo (through a mask), mapping of Lightroom black and white settings on import,
 hierarchical keywords, importing straight from a camera over USB, a second
