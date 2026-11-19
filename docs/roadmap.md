@@ -40,9 +40,9 @@ Principles (drawn from `README.md` and `CLAUDE.md`):
 
 ## Now (maximum three)
 
-Moved up by the owner 2026-11-18, #89 first (its spike failed AC1 and it waits on a PRD revision; the owner wants a PRD for every Now item before any work starts), then #87 and #88.
+Moved up by the owner 2026-11-18, #216 first (it replaces #89, DCP profiles, dropped the same day), then #87 and #88. The owner wants a PRD for every Now item before any work starts.
 
-1. [#89](https://github.com/sesser/Gus/issues/89) `dcp-profiles`: Adobe .dcp camera profiles not supported
+1. [#216](https://github.com/sesser/Gus/issues/216) `builtin-looks`: Built-in Landscape, Portrait and B&W looks (replaces #89)
 1. [#87](https://github.com/sesser/Gus/issues/87) `lens-corrections`: No correction of geometric distortion or lens vignetting, and no lens profiles
 1. [#88](https://github.com/sesser/Gus/issues/88) `ai-masks`: No subject, sky, object or people masks
 
@@ -52,8 +52,9 @@ Order set by the owner 2026-11-06 (library and project operations first, then
 virtual copies, then side-by-side comparison; the rest in the order it had). HDR merge (#150) was put after
 side-by-side comparison on 2026-11-11, ahead of the rest.
 On 2026-11-17 the owner put healing (#86, shipped 2026-11-18), lens corrections (#87), AI masks (#88)
-and DCP profiles (#89) first, in that order; this lifts the earlier hold on #89.
-Lens corrections, AI masks and DCP profiles went to Now on 2026-11-18, DCP profiles first.
+and DCP profiles (#89) first, in that order.
+On 2026-11-18 the owner dropped #89 and replaced it with built-in looks (#216); #216, lens
+corrections and AI masks went to Now, #216 first.
 The small fixes and tooling items can each go as a bug fix (`docs/WORKFLOW.md`).
 
 1. [#150](https://github.com/sesser/Gus/issues/150) `hdr-merge`: No way to merge several exposures of a scene into one tone-mapped HDR image, with automatic alignment and de-ghosting (owner, 2026-11-11)
@@ -116,6 +117,7 @@ Roughly ordered by dependency, then by how often a photographer would hit the ga
 |------|------|--------|
 | film-strip-size-slider | 2026-11-04 | Owner revision: the slider pushed the centered thumbnail off the photo's center; replaced by a drag handle with fixed steps. Issue #25 still asks for a slider. `UI_REDESIGN.md` §11 decision 3 |
 | write-metadata-to-originals | 2026-11-04 | Owner: conflicts with the referenced-masters principle (originals are never written). Sidecars carry the library's metadata. Was on CLAUDE.md "Not yet" and README "Not there yet" |
+| dcp-profiles ([#89](https://github.com/sesser/Gus/issues/89)) | 2026-11-18 | Owner: the spike showed a profile's look after the system decoder matches Lightroom only for the Canon; the owner prefers a few generic built-in looks plus LUTs. Replaced by [#216](https://github.com/sesser/Gus/issues/216) (`builtin-looks`). The spike is kept on branch `feature/dcp-profiles` |
 | film-strip-left-anchor | 2026-11-04 | Owner decision: the focused photo is centered in the strip, not at the left edge as issue #25 asks. `UI_REDESIGN.md` §11 decision 2 |
 
 ## Shipped
