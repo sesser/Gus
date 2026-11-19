@@ -89,28 +89,57 @@ struct StoredLookTests {
         #expect(Adjustments(stack: saved).exposure.ev == 1.25)
     }
 
-    @Test("AC3: photocli develop keeps it, as do undo and redo writes")
-    func developAndUndoKeepIt() async throws {
+    @Test("AC3: photocli develop keeps it; its Reset All clears it")
+    func developKeepsIt() async throws {
         try await CommandTests.withLibrary { library in
             let id = library.versionIDs[0]
             let catalog = try Catalog.open(at: library.locations.catalogFileURL)
-            let original = Self.stored()
-            try await catalog.setEditStack(original, forVersion: id, historyLabel: "Old")
+            try await catalog.setEditStack(Self.stored(), forVersion: id, historyLabel: "Old")
             let developed = await library.run("develop", "--version", String(id), "--set", "exposure.ev=1")
             #expect(developed.output.exitCode == 0)
             let after = try #require(try await catalog.version(id: id)?.decodedEditStack())
             #expect(Self.storedLook(after) == .string("flat"))
             #expect(Adjustments(stack: after).exposure.ev == 1)
-            // Undo writes the stack before the edit back; redo the one after.
-            try await catalog.setEditStack(original, forVersion: id, historyLabel: "Undo Develop")
-            #expect(try await catalog.version(id: id)?.decodedEditStack().hasSameContent(as: original) == true)
-            try await catalog.setEditStack(after, forVersion: id, historyLabel: "Redo Develop")
-            #expect(Self.storedLook(try await catalog.version(id: id)?.decodedEditStack()) == .string("flat"))
-            // photocli's own Reset All clears it too.
             let reset = await library.run("develop", "--version", String(id), "--reset", "all")
             #expect(reset.output.exitCode == 0)
             #expect(try await catalog.version(id: id)?.decodedEditStack() == .identity)
         }
+    }
+
+    /// The writes the loupe's edit, undo and redo make, in the order
+    /// `AdjustmentEditor.apply` makes them: the edit saves the new values'
+    /// stack and registers the committed values' stack as its undo; undo saves
+    /// that and registers the edit's as its redo; each write is read back into
+    /// the editor's values. The undo manager itself is PhotoApp's (no test
+    /// target); `status.md` records the debug script's run of the real
+    /// commands on a photo with a stored Flat.
+    @Test("AC3: the loupe's edit, undo and redo writes keep it")
+    func editorUndoAndRedoKeepIt() async throws {
+        let (fixture, id) = try await Self.oneVersion()
+        let catalog = fixture.catalog
+        try await catalog.setEditStack(Self.stored(exposure: nil), forVersion: id, historyLabel: "Old")
+        func saved() async throws -> EditStack { try #require(try await catalog.version(id: id)?.decodedEditStack()) }
+
+        // The photo opens: the editor's committed values.
+        var committed = Adjustments(stack: try await saved())
+        var edited = committed
+        edited.exposure.ev = 0.5
+        let undoTo = committed.editStack
+        try await catalog.setEditStack(edited.editStack, forVersion: id, historyLabel: "Exposure")
+        committed = Adjustments(stack: try await saved())
+        let redoTo = committed.editStack
+        #expect(committed.decode.storedLook == "flat" && committed.exposure.ev == 0.5)
+
+        try await catalog.setEditStack(undoTo, forVersion: id, historyLabel: "Undo Exposure")
+        committed = Adjustments(stack: try await saved())
+        #expect(committed.decode.storedLook == "flat" && committed.exposure.ev == 0)
+        #expect(try await saved().hasSameContent(as: Self.stored(exposure: nil)))
+
+        try await catalog.setEditStack(redoTo, forVersion: id, historyLabel: "Redo Exposure")
+        committed = Adjustments(stack: try await saved())
+        #expect(committed.decode.storedLook == "flat" && committed.exposure.ev == 0.5)
+        #expect(try await catalog.editHistory(forVersion: id).map(\.label)
+                == ["Redo Exposure", "Undo Exposure", "Exposure", "Old"])
     }
 
     // MARK: AC11: history
