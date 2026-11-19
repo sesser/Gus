@@ -172,6 +172,28 @@ struct StoredLookTests {
         #expect(saved == .identity && Adjustments(stack: saved).isDefault)
     }
 
+    // MARK: AC5: the preview cache
+
+    @Test("AC5: a stored Look keeps its stack's render hash and changed its render, so the pipeline version is 13 and nothing cached under 12 is found")
+    func pipelineVersion() async throws {
+        // The stack, and so the key, is what it was (the corpus pins the hash);
+        // the pixels are not (`RAWDecodeTests.storedLookRendersAsDefault`).
+        let stack = Self.stored(exposure: nil)
+        #expect(Adjustments(stack: stack).editStack.renderHash == stack.renderHash)
+        #expect(PreviewCacheKey.currentPipelineVersion >= 13)
+        try await RepositoryFiles.withTemporaryDirectory { folder in
+            let cache = PreviewDiskCache(root: folder)
+            let hash = String(repeating: "ab", count: 32)
+            for tier in PreviewTier.allCases {
+                let old = try #require(PreviewCacheKey(contentHash: hash, editStackHash: stack.renderHash, tier: tier,
+                                                       pipelineVersion: 12))
+                try cache.store(Data([1, 2, 3]), for: old)
+                let current = try #require(PreviewCacheKey(contentHash: hash, editStackHash: stack.renderHash, tier: tier))
+                #expect(!cache.contains(current))
+            }
+        }
+    }
+
     // MARK: AC4: a stored decoder version still renders
 
     @Test("AC4: a stored non-machine-learning decoder version still reaches the decoder; a stored Look does not")

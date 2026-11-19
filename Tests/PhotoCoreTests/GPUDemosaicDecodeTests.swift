@@ -313,9 +313,9 @@ struct GPUDemosaicDecodeTests {
 
     // MARK: AC14
 
-    @Test("The pipeline version is 12 and nothing cached under 11 is found (AC14)")
+    @Test("The pipeline version is 12 or later and nothing cached under 11 is found (AC14)")
     func pipelineVersion() async throws {
-        #expect(PreviewCacheKey.currentPipelineVersion == 12)
+        #expect(PreviewCacheKey.currentPipelineVersion >= 12)
         try await RepositoryFiles.withTemporaryDirectory { folder in
             let cache = PreviewDiskCache(root: folder)
             let hash = String(repeating: "ab", count: 32), stack = String(repeating: "cd", count: 32)
