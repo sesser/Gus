@@ -40,7 +40,10 @@ Principles (drawn from `README.md` and `CLAUDE.md`):
 
 ## Now (maximum three)
 
-Nothing in progress.
+Moved up by the owner 2026-11-18, ahead of DCP profiles (#89), the head of Next.
+
+1. [#87](https://github.com/sesser/Gus/issues/87) `lens-corrections`: No correction of geometric distortion or lens vignetting, and no lens profiles
+1. [#88](https://github.com/sesser/Gus/issues/88) `ai-masks`: No subject, sky, object or people masks
 
 ## Next
 
@@ -49,10 +52,9 @@ virtual copies, then side-by-side comparison; the rest in the order it had). HDR
 side-by-side comparison on 2026-11-11, ahead of the rest.
 On 2026-11-17 the owner put healing (#86, shipped 2026-11-18), lens corrections (#87), AI masks (#88)
 and DCP profiles (#89) first, in that order; this lifts the earlier hold on #89.
+Lens corrections and AI masks went to Now on 2026-11-18.
 The small fixes and tooling items can each go as a bug fix (`docs/WORKFLOW.md`).
 
-1. [#87](https://github.com/sesser/Gus/issues/87) `lens-corrections`: No correction of geometric distortion or lens vignetting, and no lens profiles
-1. [#88](https://github.com/sesser/Gus/issues/88) `ai-masks`: No subject, sky, object or people masks
 1. [#89](https://github.com/sesser/Gus/issues/89) `dcp-profiles`: Adobe .dcp camera profiles not supported
 1. [#150](https://github.com/sesser/Gus/issues/150) `hdr-merge`: No way to merge several exposures of a scene into one tone-mapped HDR image, with automatic alignment and de-ghosting (owner, 2026-11-11)
 1. [#64](https://github.com/sesser/Gus/issues/64) `reads-beside-write-chain`: Five reads still take a photo's edits from the catalog without waiting for pending saves, so right after a change they can get the older…
