@@ -134,5 +134,107 @@ and design.md as ruled.
 
 ## Follow-up
 
-(For the second pass: each finding Fixed, Not fixed (and why) or Withdrawn, with
-the commit.)
+Second pass, 2026-11-19: f0ccf8e (the fixes for C1 to C9, Q1 to Q3 and the
+designer's F1 to F5; `status.md` "Review findings"). `swift build` passes; the
+full `swift test` passes, 1239 tests in 176 suites (71.0 s). No golden,
+fingerprint, migration or `currentPipelineVersion` change in the commit.
+
+**Verdict of the second pass: not ready for QA yet.** Every first-pass finding
+is closed. The batch read that fixes C2, though, brought two new Should-fix
+findings, C10 and C11. Both are small fixes in `confirmingLensFrameChange`.
+
+### First-pass findings
+
+| # | Result | Commit | Note |
+|---|---|---|---|
+| C1 | Fixed | f0ccf8e | The main actor now reads only `lensCorrectionKernelsKnownUnavailable` (an `Atomic` the `compiled` initializer sets, plus the debug fault), which never touches `compiled`. The only other reader of `lensCorrectionKernelsAvailable` is `photocli` (`RenderCommands`), which is not on the main actor. `prepareLensKernelsOnce` still starts the detached utility compile, and a main-actor `Task` bumps the observed `lensKernelsRevision` when it ends, so the groups redraw (row 3 if it failed). Until then the groups count the kernels as available, which is right for every machine where they compile. |
+| C2 | Fixed, with the new findings C10 and C11 below | f0ccf8e | Stacks are read, then `frameCandidates` runs detached. Files are read only for candidates with Auto, four at a time in a task group, through `CameraLensState.read(url)` (one `CIRAWFilter`). Progress is under the command's title, and Stop cancels it. `readLensState` is `nonisolated async` in a Swift 6.0 tools package (no `NonisolatedNonsendingByDefault`), so the reads run off the main actor. |
+| C3 | Fixed in the debug script. The app limit is accepted (see Known limit) | f0ccf8e | `waitForBatchWork` now runs after every grouped command and after a grouped `alert press`/`alert key`. Its loop ends because each run's `defer` clears `batchAutoTask` when it still owns the run, and the measuring paste the body may start takes the handle over. The loupe's photo alone is decided from `committed` and the editor's `lensState`, and `changeAdjustments` registers its undo synchronously, so ⌘V then ⌘Z in the loupe is right. |
+| C4 | Fixed | f0ccf8e | `commit` reads and clears the flag before its guard, and `resetAll` clears it in a `defer`. |
+| C5 | Fixed | f0ccf8e | Both `init(_ values:)` clamp to −100…100 (`storedAmountClamped`). A round trip writes the clamped value back the next time the photo is saved: the stored hash changes once and the render does not, as with Color Alignment. `Adjustments` equality compares clamped values, so the clamp never causes a write by itself. JSON cannot carry NaN, so `min`/`max` passing NaN through cannot happen. |
+| C6 | Fixed | f0ccf8e | A count of 4 or less reads `list.field` (`emptyOpcodeList`). The guard above it means the count is exactly 4 there. |
+| C7 | Fixed | f0ccf8e | `libRawLensState` uses `Output.hasLensCorrections` (`libRawBuiltIn`). The editor's first read keeps the file rule, as suggested. If LibRaw's correction failed, its caption can say "the camera's own table" while the render has `.tables(.none)`. Auto applies nothing in either case, so nothing renders twice. |
+| C8 | Fixed | f0ccf8e | The string and its catalog entry are gone. `LocalizationTests` passes. |
+| C9 | Fixed | f0ccf8e | `@TaskLocal taskFault` is read first by `fault`. No test sets the process-wide switch any more (grep), and both tests read it synchronously in the same task. The debug script's switch is unchanged. |
+| Q1 | Answered | — | Checked on the owner's files: the flags agree under the stack's settings. Version 9 could not be tried because no camera on hand is offered it. Renders read the flag from the filter that decodes, so they can never double-correct. Nothing more is needed here. |
+| Q2 | Fixed | f0ccf8e | See "lensFrame" below. |
+| Q3 | Guarded | f0ccf8e | `change` and `confirmingLensFrameChange` do nothing while the question is up. Whether a menu key equivalent reaches the window with the sheet up stays QA's P4. |
+
+### New findings (second pass)
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C10 | Should fix | `Model/LensCorrectionActions.swift:172-173` | Every Paste Adjustments on the grid, and every preset with Distortion, now cancels `batchAutoTask` and starts a new `batchAutoRun` before it has read anything. It does so whether or not the paste involves the lens, or will read a file or ask. On `develop` a paste that does not measure was synchronous and never touched a running batch, and before f0ccf8e this branch's read had its own `lensQuestionTask`. | Select 300 photos and run Auto Exposure (about a minute, with progress in Activity). Then select other photos and paste only an Exposure change. Auto Exposure's task sees `Task.isCancelled` and writes nothing, its `defer` no longer owns the run, and its Activity line is replaced and then cleared. Nothing tells the person their Auto Exposure was dropped. A running measuring paste or preset on other photos is dropped the same way. Fix: keep the read on a handle of its own, as the question task was, and have `waitForBatchWork` wait for it too. Alternatively, take over `batchAutoTask` only once there are files to read, though even then it ends someone else's measuring. | CLAUDE.md Undo: each step records what it changed. A command the person started must not vanish without a message. |
+| C11 | Should fix | `Model/LensCorrectionActions.swift:183, 212, 227` with `AdjustmentActions.swift:41`, `PresetActions.swift:53` and `AdjustmentActions.swift:56` | The question is asked about `targets`, captured when the command starts. `body()` then runs `pasteAdjustments`' or `applyingAdjustmentPreset`'s own `batchSelection(action:)` (or `changeAdjustmentsMeasuringAlignment`'s), which reads `actionTargets` again after the awaits. So the change lands on whatever is selected when the read ends or the answer comes. This was already on the branch at ad9b419, and I missed it in the first pass. C2's fix makes it easy to reach, because the read now takes seconds and shows in Activity while the grid stays usable. | Select 200 raws with spots and Distortion on Auto, and paste a preset with Distortion Manual. While Activity shows the read, click one other photo (no spots). The alert then says "N of 200", and Change applies the preset to the one clicked photo only, as one undo step. The 200 are unchanged. If the person instead presses Return to open the loupe and pastes there, the loupe's photo is pasted twice: once at once by the loupe path, and again when the grid read ends. Fix: take the version IDs (`batchSelection`) when the command starts and pass them to the body. `applyAdjustments(toVersions:)` already takes them, and `changeAdjustmentsMeasuringAlignment` needs an `ids` parameter. | PRD R6/AC6 (the question covers the photos changed); correctness |
+| C12 | Nit | `Model/LensCorrectionActions.swift:182-184` | `try? await writes.savedEditStacks` turns `CancellationError` into "could not read", and that branch runs `body()` without asking or checking `batchAutoRun.owns(run)`. `WriteChain.read` throws `CancellationError` when the task is cancelled (`try Task.checkCancellation()` before and after the fetch). | Paste A onto a selection with masks and Auto Distortion while saves are queued. Before A's read returns, apply preset B (or Auto Exposure). B cancels A, so A's read throws, and A's paste is applied anyway, unasked. Fix: `catch is CancellationError { return }`, and run `body()` only on a real read failure, as before. | AC6; the doc comment ("Stop … or a newer paste or preset ends it") |
+
+### The points asked about
+
+- **Batch task, run token, Stop.** The token logic is right: each `defer` clears
+  only its own run, and a measuring body started from inside the task takes the
+  handle over without being cancelled (it is a new unstructured `Task`). Stop
+  cancels the task, the chunk loop and the guard after it return, and the
+  `defer` clears the progress. At most four synchronous reads are still in
+  flight when Stop comes. Stop is not offered before the reads begin (no
+  progress yet) or while the alert is up (progress cleared), which is fine. The
+  problems are C10 (what it cancels), C11 (what the body applies to) and C12
+  (cancellation treated as a read failure).
+- **Activity progress.** It is shown only when files are read, under the
+  command's title, and counts reads. `lenses` is seeded with the open photo, so
+  the count would be one ahead whenever the open photo is among several
+  targets. That cannot happen: the loupe's targets are its one photo, which
+  takes the immediate path, and the editor is `idle` in the grid (`follow(nil)`).
+  Not a finding.
+- **Question state machine.** `markAskingLensFrame` brackets `WindowModal.run`.
+  `change` refuses while asking, so a spot nudge's timer or a menu change can't
+  raise a second alert. `finishLensFrameQuestion` clears the flag before it
+  restores or applies. Cancel restores through direct assignments, not
+  `change`, so the new guard doesn't block it. The loupe path's question
+  `Task` is not tracked. A second ⌘V before that `Task` first runs would ask
+  twice, but key events are delivered after the main queue drains, so I could
+  not make that happen.
+- **Loupe paste decided at once.** It is decided from `committed` and the
+  editor's `lensState`, with the same `lensFrameAnswer` rule as the batch path.
+  With no question, `body()` registers undo synchronously. With a question,
+  undo registers on Change, and the script groups that through `alert press`.
+  Correct.
+- **`lensCorrectionKernelsKnownUnavailable`.** It never compiles. The `Atomic` is
+  written with `.releasing` and read with `.acquiring`. The redraw comes from the
+  first editor's main-actor `Task`. The debug fault is honored. See C1.
+- **`CameraLensState.read(url)`.** It makes the same decision as
+  `SystemRAWDecoder.reads` (`givesImageUntouched` sets the filter up as
+  `RAWDecodeSettings.none`) and reads the same flags `RawDefaults` reads after
+  it. It builds a graph and never renders, and `RAWDecodeGraphTests` lists it
+  so. Non-raws are `.notRaw`, and raws the system can't decode get the file rule
+  (as C7 for the editor). It is used only off the main actor.
+- **`lensFrame` offset.** No existing render or golden changes. `lensFrame` is
+  called only by the Lens step, which returns its input for an identity plan, and
+  Distortion and Lens Vignetting are new on this branch. `cameraFrame` is set
+  only for a system decode of the whole sensor (`PreviewGenerator.swift:370`;
+  Olympus `AspectFrame`, Panasonic crop). It is nil for LibRaw (Fujifilm RAFs
+  already come out in the camera's frame, and their built-in correction does
+  not use `lensFrame`), for ImageIO and in every golden (no `cameraFrame` in the
+  golden tests). For a centered camera frame the new rectangle equals the old
+  one. `CameraFrame.rect` is oriented and y-from-top. The conversion
+  `minY + (1 − y − h)·H` matches how `Crop` places the same `CropRect`
+  (`Crop.swift:179-181`). `lensFrameOffCenter` pins it.
+- **`$taskFault`.** See C9. Renders that read it from another task (detached work
+  inside a render) see only the process switch. No test relies on that.
+- **Clamping on read.** See C5. Stack round-trip and hash are as for Color
+  Alignment. `setAmount` still refuses out-of-range values rather than clamping,
+  as before.
+- **Known limit: a grid paste's ⌘Z during the read undoes the previous step.**
+  Acceptable. It is the same as a measuring paste or preset (undo registers after
+  the per-photo awaits) and as `copyAdjustments`' chain read. The window is
+  normally the write chain's settle plus one catalog read (milliseconds). When
+  files are read, Activity shows it, as it does for measuring. It needs no
+  change, but it should stay in the user guide or `status.md` as a known limit.
+  Fixing C11 does not widen it.
+
+### For the main session
+
+- `/security-review`: nothing new beyond the first pass. The commit changes no
+  parser bounds except C6's (which only narrows the read), adds no subprocess,
+  no file writing and no network code. The opcode reader and the RAF check are the
+  branch's parsers, already in scope from the first pass.
+- No Design questions or Requirements issues.
