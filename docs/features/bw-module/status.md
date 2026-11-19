@@ -253,8 +253,9 @@ person should look at the narrowest inspector width (280 pt), which a script
 can't set. `swift test`: 1189 tests pass.
 
 **Related, not fixed here.** The Tone Curve's segmented control (RGB, Red,
-Green, Blue: four segments, about 260 pt intrinsic) would overflow the same way
-at the narrowest inspector width (256 pt of content). It already did before this
+Green, Blue: four segments, 276 pt intrinsic, as `buttons` shows) exactly fills
+the default inspector, and would overflow by about 20 pt at the narrowest
+inspector width (256 pt of content). It already did before this
 branch. It is proposed as a follow-up.
 
 ## Rulings (owner, 2026-11-18)
