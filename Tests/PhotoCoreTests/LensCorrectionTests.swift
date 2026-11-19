@@ -123,6 +123,19 @@ struct LensCorrectionTests {
         #expect(LensCorrectionPlan(manual.effective, lens: nil).warp?.radial == .manual(amount: 50))
     }
 
+    @Test("photocli develop: a value set switches the group on; on=false wins; the render says what applied")
+    func commandLine() throws {
+        let on = try EditStack.identity.applying([.set(kind: LensDistortion.kind, parameter: "source", value: "manual"),
+                                                  .set(kind: LensDistortion.kind, parameter: "amount", value: "20")])
+        #expect(Adjustments(stack: on).distortion == LensDistortion(isOn: true, source: .manual, amount: 20))
+        let off = try EditStack.identity.applying([.set(kind: LensVignetting.kind, parameter: "amount", value: "-30"),
+                                                   .set(kind: LensVignetting.kind, parameter: "on", value: "false")])
+        #expect(Adjustments(stack: off).lensVignetting == LensVignetting(amount: -30))
+        let json = RenderCommands.lensCorrectionsJSON(Adjustments(stack: on), lens: .decoderCorrects)
+        #expect(json == ["distortion": ["status": "decoderCorrectsManual", "applied": true],
+                         "vignetting": ["status": "decoderCorrectsAuto", "applied": false]])
+    }
+
     // MARK: The plan (R3, R4, R9; AC3, AC4, AC9)
 
     static let tables = CameraLensTables(origin: .dng, distortion: LensWarp(radial: .polynomial([1, -0.04, 0, 0]), fills: true),

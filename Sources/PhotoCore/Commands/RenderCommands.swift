@@ -232,7 +232,24 @@ enum RenderCommands {
         result["machineLearning"] = machineLearningJSON(rendering.machineLearning)
         result["decoder"] = .string(decoderName(rendering.decoder))
         if let demosaic = rendering.demosaic { result["demosaic"] = demosaicJSON(demosaic) }
+        result["lensCorrections"] = lensCorrectionsJSON(Adjustments(stack: stack), lens: rendering.lens)
         return .object(result)
+    }
+
+    /// Per lens correction group (issue #87, design §16): the source status
+    /// the Adjust tab shows by name (`LensCorrectionStatus.Caption`) and
+    /// whether the render applied the group.
+    static func lensCorrectionsJSON(_ values: Adjustments, lens: CameraLensState?) -> JSONValue {
+        let plan = LensCorrectionPlan(values.effective, lens: lens)
+        var object: [String: JSONValue] = [:]
+        for group in LensCorrectionStatus.Group.allCases {
+            let status = LensCorrectionStatus(group, values: values, lens: lens,
+                                              kernelsAvailable: AdjustmentRenderer.lensCorrectionKernelsAvailable)
+            let applied = group == .distortion ? plan.warp != nil : plan.gain != nil
+            object[group.rawValue] = ["status": .string(status.caption.rawValue),
+                                      "applied": .bool(applied && AdjustmentRenderer.lensCorrectionKernelsAvailable)]
+        }
+        return .object(object)
     }
 
     static func decoderName(_ decoder: PreviewGenerator.Decoder) -> String {

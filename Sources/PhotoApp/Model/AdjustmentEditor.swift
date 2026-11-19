@@ -311,6 +311,8 @@ final class AdjustmentEditor {
         var source: URL
         var settings: RAWDecodeSettings
         var alignment: ColorAlignment
+        /// The picker reads the image after the lens corrections (issue #87, AC5).
+        var lens: LensCorrectionPlan
     }
     /// The last click while picking found almost no color (design §4).
     private(set) var fringePickRefused = false
@@ -1807,7 +1809,11 @@ final class AdjustmentEditor {
     /// The fringe tool itself (the click, and the debug script's mask points).
     var fringeMagnifierTool: FringeMagnifierTool? {
         fringeSamplePixels.map {
-            FringeMagnifierTool(pixels: $0, crop: maskCrop, note: LensText.magnifierNote, refusal: LensText.almostNoColorState)
+            // Its pixels are the corrected ones while Distortion applies (lens-corrections design §10).
+            let corrected = LensCorrectionPlan(adjustments.effective, lens: lensState).warp != nil
+            return FringeMagnifierTool(pixels: $0, crop: maskCrop,
+                                       note: corrected ? LensCorrectionText.afterLensCorrection : LensText.magnifierNote,
+                                       refusal: LensText.almostNoColorState)
         }
     }
 
@@ -1829,7 +1835,8 @@ final class AdjustmentEditor {
         // What reaches the decode the samples are read from: a LibRaw photo's white balance too.
         var settings = SystemRAWDecoder.settings(adjustments.decodeSettings, reaching: url, systemReads: isRaw)
         settings.fullFrame = isRaw
-        let key = SamplePixelsKey(source: url, settings: settings, alignment: adjustments.effective.colorAlignment)
+        let key = SamplePixelsKey(source: url, settings: settings, alignment: adjustments.effective.colorAlignment,
+                                  lens: LensCorrectionPlan(adjustments.effective, lens: lensState))
         guard key != samplePixelsKey else { return }
         samplePixelsKey = key
         if fringeSamplePixels != nil { fringeSamplePixels = nil }

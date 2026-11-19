@@ -93,6 +93,11 @@ import PhotoUI
 ///     adjust …  original on|off  tab info|adjust   (see DebugAdjustCommands)
 ///     spots on|off|overlay on|off|print   spot add|select|delete|clear|mode|set|drag|source|nudge|enable …
 ///            (heal and clone spots; see DebugSpotCommands)
+///     lens print | lens distortion on|off|auto|manual|amount <n>|constrain on|off
+///          | lens vignetting on|off|auto|manual|amount <n> | lens force kernelfail|tablecorrupt|off
+///            (Distortion and Lens Vignetting through their controls' paths: a change that moves the frame of a
+///            photo with masks or spots asks first, answered with `alert press Change` or `alert press Cancel`;
+///            see DebugLensCorrectionCommands)
 ///     metadata <field> [<text>]   print metadata   sidecars on|off   (see DebugMetadataCommands)
 ///     dropfolders <path>[, <path>…]   (imports dropped items the way a drop from Finder does)
 ///     addfolder <path>      (adds a folder the way Add Folder Without Copying… does once its panel returns)
@@ -192,6 +197,7 @@ enum DebugScript {
                     || (endsRename.contains(String(words.first ?? "")) && model.sidebarRename != nil)
                     || (words.first == "accessibility" && words.count >= 4)
                     || (words.first == "history" && words.dropFirst().first == "revert")
+                    || DebugLensCorrectionCommands.changesPhoto(words.map(String.init))
                 if grouped { undoManager.beginUndoGrouping() }
                 await run(command, model: model)
                 // A Duplicate started by a key or a menu item registers its
@@ -506,6 +512,8 @@ enum DebugScript {
             await DebugMetadataCommands.run(verb, rest, model: model)
         case "adjust":
             await DebugAdjustCommands.run(rest, editor: model.editor)
+        case "lens":
+            await DebugLensCorrectionCommands.run(rest, model: model)
         case "spot":
             await DebugSpotCommands.run(rest, model: model)
         case "spots":

@@ -118,19 +118,20 @@ extension EditStack {
         var stack = self
         // The last edit of each parameter decides what it should be at the end.
         var expected: [String: (kind: EditOperationKind, name: String, value: EditParameter?)] = [:]
-        // Black & White's on state, decided by the edits alone (whatever the
-        // photo held before): `on` set or reset by name wins, otherwise a
-        // filter set means on. A reset of the module (or of everything)
+        // The on state of a module that has one (Black & White, Distortion,
+        // Lens Vignetting), decided by the edits alone (whatever the photo
+        // held before): `on` set or reset by name wins, otherwise another of
+        // its values set means on. A reset of the module (or of everything)
         // forgets both.
-        var blackAndWhiteOn: Bool?
-        var setsBlackAndWhiteFilter = false
+        var explicitOn: [EditOperationKind: Bool] = [:]
+        var setsValue: Set<EditOperationKind> = []
         for edit in edits {
             switch edit {
             case .resetAll:
                 stack = .identity
                 expected = [:]
-                blackAndWhiteOn = nil
-                setsBlackAndWhiteFilter = false
+                explicitOn = [:]
+                setsValue = []
             case .reset(let kind, let name):
                 guard let module = Adjustments.moduleDescription(kind) else { throw .unknownModule(kind.rawValue) }
                 if let name {
@@ -139,14 +140,12 @@ extension EditStack {
                     }
                     stack.changeOperation(kind) { $0[name] = nil }
                     expected["\(kind.rawValue).\(name)"] = nil
-                    if kind == BlackAndWhite.kind, name == "on" { blackAndWhiteOn = false }
+                    if Self.switchedKinds.keys.contains(kind), name == "on" { explicitOn[kind] = false }
                 } else {
                     stack.changeOperation(kind) { $0 = [:] }
                     expected = expected.filter { $0.value.kind != kind }
-                    if kind == BlackAndWhite.kind {
-                        blackAndWhiteOn = nil
-                        setsBlackAndWhiteFilter = false
-                    }
+                    explicitOn[kind] = nil
+                    setsValue.remove(kind)
                 }
             case .set(let kind, let name, let text):
                 guard let module = Adjustments.moduleDescription(kind) else { throw .unknownModule(kind.rawValue) }
@@ -167,25 +166,32 @@ extension EditStack {
                 }
                 stack.changeOperation(kind) { $0[name] = value }
                 expected["\(kind.rawValue).\(name)"] = (kind, name, value == parameter.defaultValue ? nil : value)
-                if kind == BlackAndWhite.kind {
-                    if name == "on" { blackAndWhiteOn = value == .bool(true) } else { setsBlackAndWhiteFilter = true }
+                if Self.switchedKinds.keys.contains(kind) {
+                    if name == "on" { explicitOn[kind] = value == .bool(true) } else { setsValue.insert(kind) }
                 }
             }
         }
         var after = Adjustments(stack: stack)
-        let storedOn = after.blackAndWhite.isOn
+        let storedOn = Self.switchedKinds.mapValues { after.isSwitchedOn($0) }
         after.enableModules(changedFrom: Adjustments(stack: self))
-        if let on = blackAndWhiteOn {
-            // `on=true` is the heading's Turn On: it also turns a turned-off group back on.
-            if on { after.setEnabled(.blackAndWhite, true) } else { after.blackAndWhite.isOn = false }
-        } else {
-            after.blackAndWhite.isOn = setsBlackAndWhiteFilter || storedOn
+        for (kind, group) in Self.switchedKinds {
+            if let on = explicitOn[kind] {
+                // `on=true` is the group's Turn On: it also turns a turned-off group back on.
+                if on { after.setEnabled(group, true) } else { after.setSwitchedOn(group, false) }
+            } else {
+                after.setSwitchedOn(group, setsValue.contains(kind) || storedOn[kind] == true)
+            }
         }
         for (kind, name, value) in expected.values where after.parameters(of: kind)[name] != value {
             throw .noEffect(kind: kind.rawValue, parameter: name)
         }
         return after.editStack
     }
+
+    /// The modules with an explicit on state, and their groups.
+    static let switchedKinds: [EditOperationKind: Adjustments.Group] = [
+        BlackAndWhite.kind: .blackAndWhite, LensDistortion.kind: .distortion, LensVignetting.kind: .lensVignetting,
+    ]
 
     /// Changes the parameters of the module's operation, adding one when the stack has none.
     private mutating func changeOperation(_ kind: EditOperationKind, _ change: (inout [String: EditParameter]) -> Void) {
@@ -195,6 +201,27 @@ extension EditStack {
             var parameters: [String: EditParameter] = [:]
             change(&parameters)
             operations.append(EditOperation(kind: kind, parameters: parameters))
+        }
+    }
+}
+
+extension Adjustments {
+    /// The on state of a group whose module has one (`EditStack.switchedKinds`).
+    func isSwitchedOn(_ group: Group) -> Bool {
+        switch group {
+        case .blackAndWhite: blackAndWhite.isOn
+        case .distortion: distortion.isOn
+        case .lensVignetting: lensVignetting.isOn
+        default: false
+        }
+    }
+
+    mutating func setSwitchedOn(_ group: Group, _ isOn: Bool) {
+        switch group {
+        case .blackAndWhite: blackAndWhite.isOn = isOn
+        case .distortion: distortion.isOn = isOn
+        case .lensVignetting: lensVignetting.isOn = isOn
+        default: break
         }
     }
 }

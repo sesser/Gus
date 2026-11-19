@@ -41,6 +41,8 @@ public struct PreviewGenerator: Sendable {
         /// Which decoder made the image, and for LibRaw's, which demosaic (R20).
         public var decoder: Decoder = .imageIO
         public var demosaic: LibRawDecoder.Demosaic?
+        /// What the file says about correcting its lens (issue #87).
+        public var lens: CameraLensState?
     }
 
     /// As `image`, with the machine learning outcome of the decode.
@@ -52,7 +54,7 @@ public struct PreviewGenerator: Sendable {
             image = image.scaledToFit(longEdge: longEdge)
         }
         return Rendering(image: image, machineLearning: decoded.machineLearning, decoder: decoded.decoder,
-                         demosaic: decoded.demosaic)
+                         demosaic: decoded.demosaic, lens: decoded.context.lens)
     }
 
     /// Encoded rendition for the disk cache.
