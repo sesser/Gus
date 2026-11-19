@@ -1,9 +1,9 @@
 # Lens corrections: geometric distortion and lens vignetting: design
 
 Owner: apple-ui-designer. Date: 2026-11-19. Issue: #87 (slug `lens-corrections`).
-Status: Designed. Five wording or scope points need the product manager (§18);
-RI-1 and RI-3 change what the owner will see, so please read those two first.
-None blocks the engineer from starting on the parts they do not touch.
+Status: Designed. The owner ruled all five requirements issues on 2026-11-19
+(§18, recorded in §21); §3.2, §4, §5, §6, §11, §14 to §17 and §19 are amended for
+RI-1 (Manual works on a raw that is already corrected; only Auto is inert there).
 
 **Inputs.**
 
@@ -58,8 +58,8 @@ caption) is this app's own Color Alignment, Color Grading and Spots pattern.
 | L5 | Amount is signed, **-100 to +100, default 0**. For Distortion positive straightens lines that bow outward (barrel), negative lines that bow inward (pincushion). For Lens Vignetting positive lightens the corners, negative darkens them (§3.3) |
 | L6 | **Constrain to image**, a check box under Distortion only, on by default, for both sources (§3.4) |
 | L7 | One caption under each Source row, one role at a time, always naming the source in use or why nothing is applied (§4) |
-| L8 | A group that the camera decoder, or Fujifilm's built-in correction, already covers is **inert**: its whole body is dimmed, its check box still works, its values are kept, its caption says so. Nothing is applied in either source (§5; see RI-1) |
-| L9 | A file that is not a raw has no Auto: the Auto segment is dimmed with a tooltip; Manual works (§5) |
+| L8 | On a raw that the camera decoder, or Fujifilm's built-in correction, already corrects, **Auto is inert and Manual works on top** (owner ruling RI-1, 2026-11-19). The group is not dimmed: its Auto segment is, its caption says Auto does nothing and Manual still works, and Auto never corrects a second time (§5) |
+| L9 | Auto cannot apply on three kinds of file: a non-raw file, a decoder-corrected raw, a Fujifilm built-in raw. There the Auto segment is dimmed with a tooltip naming the reason, a stored Auto shows no segment selected, and turning the group on starts in Manual (§3.2, §5) |
 | L10 | The mask and spot warning is an **alert sheet on the library window**, for Distortion only, asked only when the corrected frame would really change on a photo that has masks or spots, **once per visit to the photo**, once for a whole paste or preset, never for undo, redo or History (§6; see RI-3) |
 | L11 | A table that cannot be read, or kernels that cannot run, are told **on the group** with a warning symbol and words, never silently skipped (§4) |
 | L12 | No map, overlay or preview of where the correction samples from (R13, §12) |
@@ -210,19 +210,22 @@ at 256 pt in both designs.
 - **Choosing a segment** is one undo step ("Distortion Source" / "Lens Vignetting
   Source"), turns the group on if it was off (B10's rule), and keeps both modes'
   values. Choosing the selected segment changes nothing and records no step.
-- **Starting in Manual.** On a file where Auto cannot apply (a non-raw file, §5),
-  checking the box starts the group in **Manual** in the same step, since Auto
-  would be a dead end there (R9: no Auto for those files). Everywhere else the
-  first source is Auto (R3).
+- **Starting in Manual.** On a file where Auto cannot apply (a non-raw file, a
+  raw the camera decoder already corrects, a Fujifilm raw with its built-in
+  correction; §5), checking the box starts the group in **Manual** in the same
+  step, since Auto would be a dead end there (R9; owner ruling RI-1). Everywhere
+  else the first source is Auto (R3).
 - **Tooltips** (HIG: one per segment): Auto "Use the correction table the camera
   stored in this file."; Manual "Set the correction by hand."
-- **Dimming.** The Auto segment alone is dimmed on a file that has no Auto (§5),
-  with its own tooltip. A dimmed segment cannot be chosen. If the stack holds
-  Auto there (it came by paste or preset), no segment is selected (as Black &
-  White's segmented control shows none while the sliders are a mix) and the
-  caption says what to do (§4). The whole control is dimmed in an inert group
-  (§5). `AppKitSegmented` needs a per-segment enabled flag and a selection of -1
-  (the latter it already passes through).
+- **Dimming.** The Auto segment alone is dimmed on a file where Auto cannot apply
+  (§5), with a tooltip that names the reason. A dimmed segment cannot be chosen.
+  If the stack holds Auto there (the default of a photo never touched, or it came
+  by paste or preset), no segment is selected (as Black & White's segmented
+  control shows none while the sliders are a mix) and the caption says what to do
+  (§4). Manual is never dimmed, and the control is never dimmed as a whole (the
+  owner ruled that Manual works on a corrected raw). `AppKitSegmented` needs a
+  per-segment enabled flag and a selection of -1 (the latter it already passes
+  through).
 
 ### 3.3 Amount (L4, L5)
 
@@ -295,15 +298,17 @@ below, so the person always reads the most important true thing.
 
 | # | State (the group's source status) | Distortion | Lens Vignetting |
 |---|---|---|---|
-| 1 | The photo is already corrected by the system decoder | Applied by the camera decoder. This photo is already corrected, so this group changes nothing. | (same) |
-| 2 | A Fujifilm raw LibRaw decodes, with its built-in correction | Applied by the camera's own table. This photo is already corrected, so this group changes nothing. | (same) |
+| 1a | The photo is already corrected by the system decoder; Auto is stored or nothing is stored (no segment selected) | Applied by the camera decoder, so Auto does nothing here. Choose Manual to add your own correction. | (same) |
+| 1b | The same, Manual selected | Applied by the camera decoder. Auto does nothing here; your amount is added on top of it. | (same) |
+| 2a | A Fujifilm raw LibRaw decodes, with its built-in correction; Auto is stored or nothing is stored | Applied by the camera's own table, so Auto does nothing here. Choose Manual to add your own correction. | (same) |
+| 2b | The same, Manual selected | Applied by the camera's own table. Auto does nothing here; your amount is added on top of it. | (same) |
 | 3 | Kernels cannot run and this group would need them (Manual with an Amount other than 0, or Auto with a table) | (warning symbol) Lens correction could not be set up on this Mac, so this group changes nothing. | (same) |
 | 4 | Auto, the file's table is being read, and it takes longer than 0.5 s | Reading the camera's table… (mini spinner) | (same) |
 | 5 | Auto, a table exists but is damaged or not understood | (warning symbol) The camera's table in this file could not be read, so nothing is corrected. Choose Manual to set the amount by hand. | (same) |
 | 6 | Auto, table found, group on | Using the camera's correction table from this file. | Using the camera's vignetting table from this file. |
 | 7 | Auto, table found, group off | This file has a camera correction table. Turn on Distortion to use it. | This file has a camera vignetting table. Turn on Lens Vignetting to use it. |
 | 8 | Auto, a raw with no table | No distortion table was found in this file. Choose Manual to set the amount by hand. | No vignetting table was found in this file. Choose Manual to set the amount by hand. |
-| 9 | Auto stored on a file that cannot have Auto (a non-raw), no segment selected | This file has no camera correction table, so Auto isn't available. Choose Manual to set the amount by hand. | (same) |
+| 9 | Auto stored on a non-raw file (which cannot have Auto), no segment selected | This file has no camera correction table, so Auto isn't available. Choose Manual to set the amount by hand. | (same) |
 | 10 | Manual | Set by hand. Positive values straighten lines that bow outward, negative values lines that bow inward. | Set by hand. Positive values lighten the corners, negative values darken them. |
 
 Notes:
@@ -314,9 +319,17 @@ Notes:
   needs it. A person who wants the camera's result a little weaker finds the way
   in the user guide (§19), not in a caption that would be wrong on most photos.
 - **"Applied by the camera decoder"** (R4, AC4) is the first sentence of rows 1
-  and 2, in the PRD's words, followed by the consequence, because the first
-  sentence alone says a fact and not what to do. It reads the same for both groups
-  and for both sources: the whole group is inert (§5).
+  and 2, in the PRD's words, followed by the consequence for Auto and what Manual
+  does (owner ruling RI-1: Auto never applies on these photos, Manual works on
+  top). It reads the same for both groups. Rows 1b and 2b replace the Manual
+  caption (row 10) on these photos, because the person must know their amount is
+  *added* to the camera's correction; the sign sentence of row 10 is then only
+  in the Amount row's tooltip and help (§3.3, §14).
+- **Row 3 beats rows 1b and 2b** (a Manual amount that cannot run must say so),
+  but rows 1 and 2 beat every row below them, so the Auto-inert fact is never
+  hidden by a table that the file also carries (a decoder-corrected raw may still
+  hold a table; Auto must not apply it). Row 3's "Auto with a table" never occurs
+  on those photos, since Auto does not run there.
 - **Rows 3 and 5 carry `exclamationmark.triangle`** next to the text, in the
   Spots limit caption's pattern (healing §7), so the problem is never conveyed by
   color or position alone. They are the only warnings in the group. R11 and AC11:
@@ -338,7 +351,8 @@ Notes:
 
 ## 5. Every state
 
-What is true of the photo decides the group's body. "Inert" is the one new idea.
+What is true of the photo decides the group's body. The one new idea is that
+**Auto can be unavailable** (dimmed segment, no effect) while Manual always works.
 
 | Photo or state | Source control | Amount | Constrain | Check box | Caption row | Render |
 |---|---|---|---|---|---|---|
@@ -347,7 +361,7 @@ What is true of the photo decides the group's body. "Inert" is the one new idea.
 | **Raw, no table, Auto** | Auto selected | Hidden | Shown | Checked | 8 | Unchanged, and says why (AC3) |
 | **Manual** | Manual selected | Shown | Shown | Checked | 10 | Corrected by the amount |
 | **Group turned off (unchecked)** | Whatever was chosen | As that source | As is | Unchecked | 7 or 10, secondary | Without the group |
-| **Inert: the decoder corrects it (row 1), or Fujifilm's built-in correction (row 2)** | Dimmed whole, the stored source shown | Shown if Manual is stored, dimmed | Dimmed | Enabled (see below) | 1 or 2 | Never applied, in either source (R4, AC4) |
+| **A raw the decoder corrects (rows 1a, 1b), or Fujifilm's built-in correction (rows 2a, 2b)** | Auto segment dimmed, tooltip below; Manual enabled; no segment selected while Auto is stored, nothing stored included | Shown in Manual | Shown, enabled (it applies to the amount added on top) | Enabled | 1a or 2a; 1b or 2b with Manual | Auto never applies, so with Auto the render equals the render with the group off (R4, AC4); Manual adds the person's amount on top of the camera's correction (owner ruling RI-1) |
 | **Non-raw file (JPEG, HEIC, TIFF, the JPEG of a pair)** | Auto segment dimmed, tooltip below; Manual enabled | Shown in Manual | Shown | Enabled | 10, or 9 if Auto is stored | Manual only (R9, AC9) |
 | **Table unreadable (row 5)** | Auto selected, enabled | Hidden | Shown | Checked | 5 | Unchanged (R11, AC11) |
 | **Kernels cannot run (row 3)** | As stored | As stored | As stored | As stored | 3 | Unchanged (R11) |
@@ -357,26 +371,35 @@ What is true of the photo decides the group's body. "Inert" is the one new idea.
 | **A virtual copy, one file of a RAW+JPEG pair** | As its own file | | | | | Each has its own stack and its own lookup (R9, AC9) |
 | **A monochrome or HDR photo** | Nothing special | | | | | |
 
-- **An inert group still checks and unchecks.** The values and the on state are
-  stored and travel with Paste and presets to photos that *can* be corrected
-  (R8). Dimming the check box would make the group's state unreadable and unchangeable
-  while the photo is open. The person sees a checked box and a caption that says
-  "changes nothing", which is the PRD's own wording of AC4 ("the render with the
-  group on equals the render with it off").
-- **Inert is dimmed, not hidden.** The caption and the group stay in their place
-  so the layout does not change between photos of a folder shot with the same
-  camera, and so a person can see which of their photos the group affects.
-- **The Auto segment's tooltip when dimmed:** "Auto isn't available: this file
-  has no camera correction table."
+- **Auto being unavailable does not stop the group.** The check box, Manual, its
+  Amount and Constrain to image all work; the stored values travel with Paste and
+  presets to photos where Auto *can* apply (R8). With Auto stored on such a photo
+  (no segment selected), the render equals the render with the group off, which
+  is AC4's wording; the person is told by the caption (rows 1a, 2a) and can choose
+  Manual to add their own correction.
+- **No double correction.** Auto, the only source that applies the camera's table,
+  never runs on these photos, so the camera's correction is never applied twice by
+  the app. Manual is the person's deliberate amount, visible in the picture and
+  named as "added on top" in the caption, the same as Manual on a JPEG.
+- **The dimmed Auto segment stays in its place**, so the control looks the same
+  from photo to photo of a folder and the person can see which of their photos
+  Auto reaches.
+- **The Auto segment's tooltip when dimmed**, by reason: non-raw: "Auto isn't
+  available: this file has no camera correction table."; the camera decoder:
+  "Auto isn't available: the camera decoder already corrects this photo."; Fujifilm's
+  built-in table: "Auto isn't available: this photo is already corrected by the
+  camera's own table."
 - **How the app knows** which row applies (the decoder case, the table, the
   non-raw case) is the PRD's engineer questions. If the engineer cannot tell per
   file whether the system decoder corrected it, they raise a Design question and
   I rule; I do not design around "unknown" in advance, because the only safe
   default (treat as corrected) turns the group off for every system-decoded raw.
-- **Consequence of the PRD's rule, stated plainly (RI-1).** On the owner's
-  cameras most system-decoded raws may be inert, and Manual cannot be used on
-  them. That follows R4 and AC4 as written; I recommend the product manager rules
-  on whether Manual should work on top (as it does on a JPEG), §18.
+- **Ruled (RI-1, 2026-11-19).** The owner decided that Manual works on a raw the
+  camera decoder or Fujifilm's built-in table already corrects, with Auto inert
+  there. This design follows it. For the engineer: Manual applies to the image as
+  it comes from the decoder (already corrected), about the sensor's center like
+  every other lens step, in the same place in the render as on any other photo;
+  nothing in the decoder or the Fujifilm step changes (non-goal).
 
 ## 6. The warning when the frame changes (R6, AC6)
 
@@ -388,8 +411,9 @@ Distortion therefore moves the picture under every stored mask object and spot
 **all** of these are true:
 
 1. The change would **really move the corrected frame**: the net distortion
-   transform before and after differ (turning on Auto where there is no table, an
-   inert group, or Amount from 0 to 0, move nothing, so they never ask). The model
+   transform before and after differ (turning on Auto where there is no table or
+   where Auto is inert, or Amount from 0 to 0, move nothing, so they never ask;
+   Manual on a decoder-corrected raw does move it, and asks). The model
    says "frames differ", the UI does not guess from the control.
 2. The photo has **at least one mask object or spot** (counted whether the group
    is turned off or not).
@@ -513,8 +537,10 @@ position is in and show a ring landing on the same pixels after a correction
   correction; a photo with no table is **unchanged and its caption says no table
   was found** (row 8), and the manual Amount the stack carried is **kept, not
   applied** while Source is Auto (R8: "keeps the sliders' values"; RI-5 confirms
-  this reading). On a file where Auto cannot apply (a non-raw), the pasted Auto is
-  stored with no segment selected and the caption of row 9.
+  this reading). On a file where Auto cannot apply (a non-raw, a decoder-corrected
+  raw, a Fujifilm built-in raw), the pasted Auto is stored with no segment
+  selected and the caption of row 9, 1a or 2a; the pasted Manual Amount, if
+  Manual was pasted, applies (owner ruling RI-1).
 - **A photo that cannot be corrected** (its original is offline or cannot be read,
   so its table cannot be looked up) is **left unchanged by that command**, none of
   the command's groups apply to it, and Activity says so with the existing
@@ -660,7 +686,9 @@ name. Reuse an existing key and extend its comment where one exists ("Amount",
 | Positive values lighten the corners; negative values darken them. | Amount tooltip and help, Lens Vignetting | |
 | Constrain to image | Check box | Zoom in so there is no empty edge |
 | Zoom in slightly so the corrected photo has no empty edges. | Check box tooltip and help | |
-| The ten captions of §4 (distortion and vignetting forms of rows 6, 7, 8 and 10; the shared forms of rows 1, 2, 3, 4, 5, 9) | Group caption | Source status of a lens correction group |
+| The captions of §4 (distortion and vignetting forms of rows 6, 7, 8 and 10; the shared forms of rows 1a, 1b, 2a, 2b, 3, 4, 5, 9) | Group caption | Source status of a lens correction group |
+| Auto isn't available: the camera decoder already corrects this photo. | Auto tooltip when dimmed, decoder-corrected raw | |
+| Auto isn't available: this photo is already corrected by the camera's own table. | Auto tooltip when dimmed, Fujifilm built-in | |
 | Reading the camera's table | Spinner tooltip and VoiceOver label | No visible label |
 | Turn On Distortion, Turn Off Distortion, Turn On Lens Vignetting, Turn Off Lens Vignetting | Undo and History | Existing "Turn On %@" with the group's title |
 | Distortion Source, Distortion Amount, Lens Vignetting Source, Lens Vignetting Amount | Undo and History | |
@@ -701,9 +729,12 @@ style, group labels and undo names title style (P5).
    `WindowModal`; Cancel restores the control and the frame. The once-per-visit
    flag clears on a change of photo and on adding a mask or spot. Undo, redo and
    History never go through it.
-5. **Where the model must say "not available"**: the decoder case and Fujifilm's
-   built-in make the whole group inert, in both sources (§5). If the engineer
-   cannot tell the decoder case per file, raise it (§5).
+5. **Where the model must say "Auto not available"**: for a non-raw, the decoder
+   case and Fujifilm's built-in correction, Auto never applies; Manual does, on
+   the image as decoded (§5, owner ruling RI-1). The UI needs this per photo to
+   dim the Auto segment, pick the tooltip and caption row (1a, 1b, 2a, 2b, 9) and
+   start a newly checked group in Manual. If the engineer cannot tell the decoder
+   case per file, raise it (§5).
 6. **Table lookup per photo** at render time or at paste; say which in `status.md`
    (§9), and whether a read can take long enough for row 4.
 7. **Frames.** Crop, the mask and spot overlays, `CameraFrame`'s whole-sensor
@@ -773,8 +804,11 @@ area renders). Please make these checkable, named by the existing pattern:
 6. Every caption row of §4 appears in the state that §5 says, reads as written,
    names the source, and warnings (rows 3 and 5) carry the symbol and the words.
 7. A raw the system decoder corrects, and a Fujifilm raw LibRaw decodes, show the
-   inert group: dimmed body, enabled check box, caption row 1 or 2; the render
-   with the group on equals the render with it off (AC4).
+   Auto segment dimmed with the tooltip for its reason; the group is not dimmed;
+   turning it on starts in Manual (caption 1b or 2b); with Auto stored (a paste, or
+   nothing stored) no segment is selected, the caption is 1a or 2a, and the render
+   with the group on equals the render with it off (AC4); choosing Manual and an
+   Amount adds a correction on top of the decoder's (owner ruling RI-1).
 8. A JPEG, and the JPEG of a pair, show the Auto segment dimmed with its tooltip;
    turning the group on starts in Manual; a pasted Auto shows no selection and row
    9 (AC9).
@@ -782,7 +816,7 @@ area renders). Please make these checkable, named by the existing pattern:
    Constrain, Reset Lens, Paste and Apply Preset that move the frame show the §6
    alert with the right title and buttons; Cancel leaves the stack, the slider and
    the frame as they were; Change saves one undo step (AC6). It does not appear
-   for Vignetting, an inert group, a change that moves nothing, Undo, Redo,
+   for Vignetting, Auto where it is inert, a change that moves nothing, Undo, Redo,
    History, Reset All, or a second change on the same visit.
 10. A selection paste shows one alert with the counts; Cancel changes no photo.
 11. Paste and a preset give each receiving photo its own Auto result; a photo with
@@ -803,12 +837,22 @@ dark and Increase Contrast; the alert's look and keys with a real keyboard, a
 drag released with masks present and Cancel; each of the owner's five cameras'
 files beside its own JPEG (Auto within about 1 px in the outer quarter, by eye);
 Constrain to image on and off on a wide raw; a preset applied to a selection that
-mixes a table, no table and a JPEG; the slider's step at 100%. None asks for
+mixes a table, no table and a JPEG; the owner's X-E3 (Fujifilm built-in) and a
+system-decoded raw with Auto stored, then Manual on top, reading the dimmed Auto
+segment, its tooltip and the 1a, 1b, 2a, 2b captions at 256 pt; the slider's
+step at 100%. None asks for
 VoiceOver or macOS 15 and 26 (the owner's standing rule).
 
-## 18. Requirements issues (for the product manager)
+## 18. Requirements issues (all ruled by the owner, 2026-11-19)
+
+All five were ruled as designed, RI-1 in the option this section recommended;
+the rulings are in §21. The text below is kept as the question that was asked,
+and the design above is amended to the answers. The product manager amends R1,
+R3, R4, R6, R7, R14 and AC4 and AC6 in the issue body to match.
 
 1. **RI-1. R4 against R9: can Manual work on a photo that is already corrected?**
+   **Ruled: yes.** Manual works on a decoder- or Fujifilm-corrected raw; Auto is
+   inert there (§5).
    R4 says where the system decoder or Fujifilm's built-in table already corrects,
    "our step does not apply", and AC4 says the render with the group on equals
    the render with it off. R9 says a file the camera already corrected has no Auto
@@ -825,12 +869,13 @@ VoiceOver or macOS 15 and 26 (the owner's standing rule).
    (§5 rows 1 and 2, §4). Recommended: rule it, preferably yes for the decoder
    case; it needs no pipeline change. For Fujifilm's built-in table AC4 as
    written holds only for Auto. Please rule and amend R4 and AC4 either way.
-2. **RI-2. Wording.** (a) The second group is titled **Lens Vignetting**, not
+2. **RI-2. Wording. Ruled: accepted.** (a) The second group is titled **Lens Vignetting**, not
    "Vignetting": the Effects heading's **Vignette** is a group of its own and the
    two would sit side by side in the Save Preset list and in undo names (§1). (b)
    The check box reads **Constrain to image** (sentence style, P5; the PRD
    capitalizes it as a feature name). Please amend R1 and R7.
-3. **RI-3. R6 and AC6: an alert for an undoable change.** The HIG advises against
+3. **RI-3. R6 and AC6: an alert for an undoable change. Ruled: the narrow alert
+   of §6 is accepted.** The HIG advises against
    alerts for common, undoable actions, and its better pattern is to apply the
    change and tell the person, with undo as the way back. The PRD asks for a
    warning before the commit with Cancel, and I built it (§6), narrowly: only when
@@ -843,12 +888,13 @@ VoiceOver or macOS 15 and 26 (the owner's standing rule).
    back.") replaces the alert. The owner's warn-versus-lock question (PRD open
    questions) is answered: warn.
 4. **RI-4. R1 and R14: the check box is always shown and the module needs an
-   explicit on value.** Auto is the default and defaults are left out, so "on with
+   explicit on value. Ruled: accepted.** Auto is the default and defaults are left out, so "on with
    Auto" has no other representation; the check box cannot wait for an edit to
    appear (§3.1). It is Black & White's RI-3 over again. Please say so in R1 and
    R14 ("defaults left out" holds: on false is left out).
 5. **RI-5. R3 and R8: "keeps the sliders' values", and the first source on a
-   non-raw.** I read R8's "a photo with no table keeps the sliders' values" as
+   non-raw. Ruled: accepted** (and, with RI-1, the same start in Manual applies
+   to every file where Auto cannot apply). I read R8's "a photo with no table keeps the sliders' values" as
    *the manual Amount a stack carries is kept and travels but is not applied while
    Source is Auto* (R3: Auto with no table does nothing), not as a fallback that
    applies it. Please confirm. And on a file where Auto cannot apply (R9), checking
@@ -879,17 +925,22 @@ has four groups:
    straightens lines that bow outward (barrel), negative lines that bow inward; for
    Lens Vignetting positive lightens the corners, negative darkens them. Auto has
    no slider; to take the camera's correction a little weaker, switch to Manual and
-   set your own. Manual starts from its own value, not from the table's.
+   set your own. Manual starts from its own value, not from the table's. On a raw
+   the camera decoder already corrects, and on a Fujifilm raw with its built-in
+   correction, Auto does nothing (the Auto segment is dimmed and the caption says
+   so), but Manual still works: your amount is added on top of the camera's
+   correction. A new group on such a photo, or on a file that is not a raw, starts
+   in Manual.
 3. **Constrain to image** (Distortion): on by default, it zooms in just enough
    that the corrected photo has no empty edge; off keeps the lens's own scale and may
    leave a blank edge. Crop applies after correction.
 4. **What the caption tells you.** Which source is in use ("Using the camera's
    correction table from this file", "Set by hand"), and why nothing happens when
    it doesn't: no table in the file; already corrected by the camera decoder or by
-   Fujifilm's built-in table (these photos change nothing and offer no hand
-   correction); a file that is not a raw has no Auto (JPEGs are corrected in the
-   camera; set the amount by hand); a table that could not be read, or a Mac that
-   could not run the correction.
+   Fujifilm's built-in table (Auto does nothing there; Manual still works and
+   adds to the camera's correction); a file that is not a raw has no Auto (JPEGs
+   are corrected in the camera; set the amount by hand); a table that could not be
+   read, or a Mac that could not run the correction.
 5. **Masks and spots.** Their frame is the **corrected** frame. Changing Distortion
    on a photo that has masks or spots asks first, since they can move away from
    what they cover; Cancel leaves everything as it was, Change is one undo step.
@@ -928,10 +979,37 @@ README at Ship (product manager): one line in the feature list.
 
 ## 21. Rulings
 
-None yet. Design questions from implementation are recorded here as numbered
-rulings (DQ-1, ...) with their date, and the owner's rulings on §18.
+Owner rulings of 2026-11-19 on the requirements issues of §18:
+
+- **RI-1.** Manual **works** on a raw that the system decoder or Fujifilm's
+  built-in table already corrects; **Auto is inert** there. The group is not
+  dimmed: only the Auto segment is (tooltip by reason), a stored Auto shows no
+  segment selected, a newly checked group starts in Manual, and the captions are
+  rows 1a, 1b, 2a, 2b of §4. AC4 holds for Auto: the render with Auto equals the
+  render with the group off. Manual adds on top of the camera's correction and
+  takes the §6 warning like any frame change. Built into §3.2, §4, §5, §6, §9,
+  §11, §14 to §17 and §19.
+- **RI-2.** The group is **Lens Vignetting**; the check box is **Constrain to
+  image**.
+- **RI-3.** The narrow alert of §6 stands (only when the frame really moves on a
+  photo with masks or spots, once per visit, once for a whole paste or preset,
+  never for undo, redo, History or Reset All).
+- **RI-4.** The check box is always shown; the module carries an explicit on value.
+- **RI-5.** A stored Manual Amount is kept and not applied while Source is Auto;
+  a group checked on a file where Auto cannot apply starts in Manual.
+
+Design questions from implementation are recorded below as numbered rulings
+(DQ-1, ...) with their date.
 
 ## Revisions
 
-- **2026-11-19.** First design, from the approved PRD of 2026-11-18. Requirements
-  issues RI-1 to RI-5 stand with the product manager.
+- **2026-11-19.** First design, from the approved PRD of 2026-11-18.
+- **2026-11-19 (later).** Owner rulings on RI-1 to RI-5 recorded (§21, §18 marked
+  ruled). RI-1 changes the design: the whole-group "inert" state is gone. On a
+  decoder- or Fujifilm-corrected raw only Auto is inert (dimmed segment, stored
+  Auto shows no selection, new groups start in Manual) and Manual works on top.
+  Amended: summary L8 and L9, §3.2 (starting in Manual, dimming), §4 (rows 1 and 2
+  split into 1a, 1b, 2a, 2b and the notes), §5 (states and notes), §6 (trigger),
+  §9 (paste), §14 (two tooltips), §15 item 5, §17 checks 7 and 9 and the manual
+  checks, §19 items 2 and 4, §21. §11 and §16 need no change (a dimmed Auto
+  segment and the status rows were already covered).
