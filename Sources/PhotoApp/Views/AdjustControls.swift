@@ -842,6 +842,7 @@ enum AdjustText {
         case .sharpening: String(localized: "Sharpening")
         case .noiseReduction: String(localized: "Noise Reduction")
         case .colorMixer: String(localized: "Color Mixer", comment: "Adjust tab heading")
+        case .blackAndWhite: BlackAndWhiteText.title
         case .colorGrade: String(localized: "Color Grading", comment: "Adjust tab heading")
         case .lookTable: String(localized: "Look-Up Table")
         case .vignette: String(localized: "Vignette", comment: "Adjust tab group")
@@ -860,6 +861,7 @@ enum AdjustText {
         case .details: String(localized: "Details", comment: "Adjust tab heading")
         case .lens: String(localized: "Lens", comment: "Adjust tab heading for lens corrections: color fringes, color alignment")
         case .colorMixer: String(localized: "Color Mixer", comment: "Adjust tab heading")
+        case .blackAndWhite: BlackAndWhiteText.title
         case .colorGrading: String(localized: "Color Grading", comment: "Adjust tab heading")
         case .effects: String(localized: "Effects", comment: "Adjust tab heading")
         case .spots: String(localized: "Spots", comment: "Adjust tab heading and group: heal and clone spots; also the Adjust ▸ Spots submenu and undo names (Turn On Spots)")

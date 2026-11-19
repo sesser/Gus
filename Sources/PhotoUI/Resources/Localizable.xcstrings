@@ -2371,6 +2371,28 @@
         }
       }
     },
+    "Black & White" : {
+      "comment" : "Adjust tab heading and group: turns the photo to gray by a mix of colored filters; also the Adjust ▸ Black & White submenu and undo names (Turn On Black & White)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Black & White"
+          }
+        }
+      }
+    },
+    "Black & White Filter" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Black & White Filter"
+          }
+        }
+      }
+    },
     "Black and white (approximated)" : {
       "comment" : "Imported preset setting, converted approximately",
       "localizations" : {
@@ -2437,6 +2459,50 @@
         }
       }
     },
+    "Blue Filter" : {
+      "comment" : "Adjust ▸ Black & White menu item; choose one filter alone",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blue Filter"
+          }
+        }
+      }
+    },
+    "Blue filter" : {
+      "comment" : "VoiceOver name of the Black & White Blue slider",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blue filter"
+          }
+        }
+      }
+    },
+    "Blue filter value" : {
+      "comment" : "VoiceOver name of the Black & White Blue field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blue filter value"
+          }
+        }
+      }
+    },
+    "Blue filter: lighter skies and haze, darker reds and skin." : {
+      "comment" : "What a blue filter does to a black and white photo",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blue filter: lighter skies and haze, darker reds and skin."
+          }
+        }
+      }
+    },
     "Blue/yellow" : {
       "comment" : "Slider",
       "localizations" : {
@@ -2489,6 +2555,281 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bottom"
+          }
+        }
+      }
+    },
+    "Each filter lightens colors like itself and darkens the opposite ones. Color Grading can tint the result." : {
+      "comment" : "Black & White heading caption; “Color Grading” is the heading's name below",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each filter lightens colors like itself and darkens the opposite ones. Color Grading can tint the result."
+          }
+        }
+      }
+    },
+    "Green Filter" : {
+      "comment" : "Adjust ▸ Black & White menu item; choose one filter alone",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Green Filter"
+          }
+        }
+      }
+    },
+    "Green filter" : {
+      "comment" : "VoiceOver name of the Black & White Green slider",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Green filter"
+          }
+        }
+      }
+    },
+    "Green filter value" : {
+      "comment" : "VoiceOver name of the Black & White Green field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Green filter value"
+          }
+        }
+      }
+    },
+    "Green filter: lighter leaves and grass, darker reds and skin." : {
+      "comment" : "What a green filter does to a black and white photo",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Green filter: lighter leaves and grass, darker reds and skin."
+          }
+        }
+      }
+    },
+    "No Filter" : {
+      "comment" : "Adjust ▸ Black & White menu item: all five filters at 0",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Filter"
+          }
+        }
+      }
+    },
+    "Orange Filter" : {
+      "comment" : "Adjust ▸ Black & White menu item; choose one filter alone",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Orange Filter"
+          }
+        }
+      }
+    },
+    "Orange filter" : {
+      "comment" : "VoiceOver name of the Black & White Orange slider",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Orange filter"
+          }
+        }
+      }
+    },
+    "Orange filter value" : {
+      "comment" : "VoiceOver name of the Black & White Orange field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Orange filter value"
+          }
+        }
+      }
+    },
+    "Orange filter: darker skies, lighter skin and warm tones." : {
+      "comment" : "What an orange filter does to a black and white photo",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Orange filter: darker skies, lighter skin and warm tones."
+          }
+        }
+      }
+    },
+    "Red Filter" : {
+      "comment" : "Adjust ▸ Black & White menu item; choose one filter alone",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Red Filter"
+          }
+        }
+      }
+    },
+    "Red filter" : {
+      "comment" : "VoiceOver name of the Black & White Red slider",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Red filter"
+          }
+        }
+      }
+    },
+    "Red filter value" : {
+      "comment" : "VoiceOver name of the Black & White Red field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Red filter value"
+          }
+        }
+      }
+    },
+    "Red filter: much darker skies, lighter reds and skin, darker leaves." : {
+      "comment" : "What a red filter does to a black and white photo",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Red filter: much darker skies, lighter reds and skin, darker leaves."
+          }
+        }
+      }
+    },
+    "This photo has no color, so the filters change nothing." : {
+      "comment" : "Black & White caption when the photo's file is already monochrome",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This photo has no color, so the filters change nothing."
+          }
+        }
+      }
+    },
+    "Yellow Filter" : {
+      "comment" : "Adjust ▸ Black & White menu item; choose one filter alone",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yellow Filter"
+          }
+        }
+      }
+    },
+    "Yellow filter" : {
+      "comment" : "VoiceOver name of the Black & White Yellow slider",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yellow filter"
+          }
+        }
+      }
+    },
+    "Yellow filter value" : {
+      "comment" : "VoiceOver name of the Black & White Yellow field",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yellow filter value"
+          }
+        }
+      }
+    },
+    "Yellow filter: slightly darker skies, lighter yellows and skin." : {
+      "comment" : "What a yellow filter does to a black and white photo",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yellow filter: slightly darker skies, lighter yellows and skin."
+          }
+        }
+      }
+    },
+    "blackAndWhite.filter.blue" : {
+      "comment" : "Black & White filter names, as colored filters on a camera lens. Yellow and Orange are new; Red, Green and Blue already exist as Tone Curve channel names, so these have their own keys",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blue"
+          }
+        }
+      }
+    },
+    "blackAndWhite.filter.green" : {
+      "comment" : "Black & White filter names, as colored filters on a camera lens. Yellow and Orange are new; Red, Green and Blue already exist as Tone Curve channel names, so these have their own keys",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Green"
+          }
+        }
+      }
+    },
+    "blackAndWhite.filter.orange" : {
+      "comment" : "Black & White filter names, as colored filters on a camera lens. Yellow and Orange are new; Red, Green and Blue already exist as Tone Curve channel names, so these have their own keys",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Orange"
+          }
+        }
+      }
+    },
+    "blackAndWhite.filter.red" : {
+      "comment" : "Black & White filter names, as colored filters on a camera lens. Yellow and Orange are new; Red, Green and Blue already exist as Tone Curve channel names, so these have their own keys",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Red"
+          }
+        }
+      }
+    },
+    "blackAndWhite.filter.yellow" : {
+      "comment" : "Black & White filter names, as colored filters on a camera lens. Yellow and Orange are new; Red, Green and Blue already exist as Tone Curve channel names, so these have their own keys",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yellow"
+          }
+        }
+      }
+    },
+    "blackAndWhite.quickSet" : {
+      "comment" : "VoiceOver name of the Black & White segmented control: the five quick filters",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filter"
           }
         }
       }

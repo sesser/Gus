@@ -158,6 +158,11 @@ extension EditStack {
         }
         var after = Adjustments(stack: stack)
         after.enableModules(changedFrom: Adjustments(stack: self))
+        // Black & White's on state as set, when the edits set it: setting a
+        // filter switches it on only when they do not.
+        if let on = expected["\(BlackAndWhite.kind.rawValue).on"] {
+            after.blackAndWhite.isOn = on.value == .bool(true)
+        }
         for (kind, name, value) in expected.values where after.parameters(of: kind)[name] != value {
             throw .noEffect(kind: kind.rawValue, parameter: name)
         }

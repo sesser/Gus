@@ -9,7 +9,8 @@ import CoreImage.CIFilterBuiltins
 /// turns, straightening and crop, white
 /// balance (non-RAW; RAW files get it from their decode, `RenderContext.balancedByDecoder`), exposure, highlights and
 /// shadows, dehaze, clarity, the tone table (contrast, whites, blacks, curves),
-/// the color mixer, vibrance and saturation, color grading, the masks (local
+/// the color mixer, the black and white conversion, vibrance and saturation,
+/// color grading, the masks (local
 /// adjustments, in list order), the look-up table, the vignette, noise
 /// reduction (non-RAW), sharpening (then each mask's local sharpening) and
 /// grain. Modules that are turned off are rendered at their defaults, and the
@@ -125,6 +126,11 @@ public struct AdjustmentRenderer: EditStackRenderer {
         // takes the mixer's luminance changes as its mix.
         if !adjustments.colorMixer.isIdentity {
             image = Self.cube(image, ColorMixerCube.make(adjustments.colorMixer), colorSpace: Self.perceptualSpace)
+        }
+        // After the mixer, whose luminance changes move the grays (PRD R7);
+        // Color Grading, below, tints them. Off renders nothing (R13).
+        if adjustments.blackAndWhite.isOn {
+            image = Self.blackAndWhite(image, adjustments.blackAndWhite)
         }
         if presence.vibrance != 0 {
             let filter = CIFilter.vibrance()
