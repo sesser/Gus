@@ -391,7 +391,7 @@ shows a frame about every 50 ms.
 the loupe shows the photo's own pixels while you change a value, so you can
 judge fine detail without letting go. A heavy edit updates less often but keeps
 its detail. When you start a change, pan or zoom, part of the photo can look
-soft for a moment. On raw files, White Balance, Profile and Noise Reduction
+soft for a moment. On raw files, White Balance and Noise Reduction
 stay soft while the value moves, and the detail arrives once you hold still,
 even with the control still held (a raw the app decodes itself, below, keeps
 its detail while White Balance moves). If that takes more than half a second, a
@@ -399,6 +399,11 @@ small spinner shows in the caption, and the same after you let go while the
 photo's full detail arrives. The window keeps responding meanwhile, and moving
 to another photo at 100% doesn't pause it. The histogram always describes the whole
 photo, and at these zooms it can lag until you pause.
+
+A raw always opens with its decoder's own contrast and color rendering; the
+Adjust tab has no choice of base rendering, and photos edited in an earlier
+version with a flatter or more neutral base now open with the decoder's
+default, their other edits unchanged.
 
 **Raw files macOS can't decode**: when the macOS raw decoder has no image for a
 raw file (on macOS 27.2, the Fujifilm X-E3's lossless compressed files), the app decodes it with its own
@@ -412,7 +417,7 @@ fixed amount suited to each file's own noise; there is no control for it, and
 small colored details keep their color. Other sensors (and any file the
 graphics processor can't handle) are decoded the slower way, as before.
 Such a photo is shown with a
-built-in profile and a baseline look (brightness and contrast) made to sit
+baseline look (brightness and contrast) built in, made to sit
 close to, not identical with, a raw macOS decodes, so the two kinds start from
 about the same place in one library. The look was matched on Fujifilm files;
 a photo from another maker's camera can open up to half a stop darker than
@@ -428,9 +433,8 @@ to within a pixel or two of the full-size photo, a little more in the far
 corners. Blown highlights stay white right to the corners, at any white
 balance. A file shot in a
 camera's 1.25x crop mode, or one from an old Super CCD camera, is shown
-uncorrected in the frame its decoder gives, as are files of other makers. You adjust it like any other raw, with two differences. In the Adjust tab,
-under **Profile**, a note stands in place of its pop-ups (the built-in profile
-can't be changed), and Noise Reduction has **Luminance** only: **Use machine learning** is dimmed
+uncorrected in the frame its decoder gives, as are files of other makers. You adjust it like any other raw, with
+one difference: Noise Reduction has **Luminance** only. **Use machine learning** is dimmed
 unless a paste or preset turned it on; it then says it isn't applied, and
 Luminance applies instead. **White Balance** works as on any raw: the same
 entries under **Mode** (**As Shot**, **Auto**, **Daylight** to **Flash**,
@@ -455,8 +459,8 @@ Shot** removes it. Temperature and Tint set on one of these photos by an
 earlier build (before the Kelvin scale) no longer apply: **Mode** shows **As
 Shot**, and you pick the white balance again. Tone, Presence, Tone Curve, Color Mixer, Color Grading, masks,
 Lens, Effects, Sharpening and crop work as usual. Pasted adjustments or presets
-from a raw macOS decodes keep their Profile and Color noise reduction, which
-do nothing here. These
+from a raw macOS decodes keep their Color noise reduction, which
+does nothing here. These
 photos take longer to open, most of all at 100% or with a crop that needs the
 whole frame (several seconds for a 24-megapixel Fujifilm file); once open,
 changing White Balance does not decode them again. If a later macOS
@@ -496,10 +500,7 @@ keeping edges. It runs on this Mac, and the app never downloads anything for
 it. It is off unless you turn it on, photo by photo, and selecting or
 deselecting it is one undo step. While it applies, **Luminance** sets its
 amount and **Color** is dimmed: its value is kept and applies again when you
-deselect **Use machine learning**. The Decoder pop-up (Light ▸ Profile) shows
-the same setting as **9.dng (machine learning)** (or **9** for camera raw
-files); choosing it turns machine learning on, and choosing another version
-turns it off and uses that version. Rendering with it takes longer, often a
+deselect **Use machine learning**. Rendering with it takes longer, often a
 second or more: the photo you see stays on screen, a small spinner in the
 caption shows after half a second, and you can keep moving between photos and
 culling meanwhile. Copy and Paste Adjustments, presets that include Noise
@@ -553,8 +554,8 @@ is even when its color is in a range; only its outline can be grayed if it is a
 high-contrast edge. The colors are matched on the photo as it comes from the
 file, before the other adjustments, so changing Saturation, a look-up table or
 any later adjustment does not change what is grayed. (For a raw file, White
-Balance and Profile are applied as the file is decoded, before that point.
-After a large White Balance change or a different Profile, show the Fringe Map:
+Balance is applied as the file is decoded, before that point.
+After a large White Balance change, show the Fringe Map:
 if the fringe no longer shows white, pick or choose its color again.)
 
 **Fringe Map** (the toggle under the slots, **Adjust ▸ Show Fringe Map**, or the
@@ -599,8 +600,10 @@ app's preset files and Lightroom presets (`.lrtemplate`, `.xmp`, and
 `.dng` mobile presets), or folders of them. A folder becomes a collection unless
 its presets name their own, and a pack that holds a preset in several formats
 gives one copy. Lightroom settings with no equivalent here (calibration,
-masks, texture, crop, lens corrections and the like) are left out, and the
-import lists them.
+masks, texture, crop, lens corrections, profiles and creative looks and the
+like) are left out, and the import lists them. A standard profile (Adobe Color,
+Adobe Standard and the like) is what the photo shows anyway, so it is not
+listed.
 
 **Import Presets…** also reads preset packs (`.lnpc` files), several at once
 and alongside the other formats. Each pack becomes a collection named after
