@@ -147,6 +147,26 @@ Build and run on a scratch library, never your own: `Scripts/build-app.sh`, copy
 
 ## Follow-up
 
-Not yet run: no findings to rerun. The owner's sign-off, the commit signed off,
-its date and any checks left open are recorded here when the main session
-relays them.
+No findings to rerun.
+
+**Owner's sign-off, 2026-11-19.** The owner checked by eye on a `photobench`
+scratch library and signed off: "I also checked #219 and it's fine too".
+Commit signed off: `4ebbc1d` (branch head when recorded). It carries `916d262`
+(code review second pass) and the content of `f4b64b1` (review fixes), with
+this QA file; no source changed after `f4b64b1`.
+
+| P item | State |
+| --- | --- |
+| P1 (look half of AC1) | Checked by the owner, fine |
+| P2 (stored Flat or Neutral photo opens with the decoder's default; History) | Open: needs a photo with a stored Flat Look, seeded with the Scripts command; none was prepared, and the owner did not report it |
+| P3 (Include grid, "No settings") | Checked by the owner, fine |
+| P4 (No settings preset, no empty Undo step) | Checked by the owner, fine |
+| P5 (stored Flat Look: Light check box, reset arrow, Reset All Adjustments) | Open: same reason as P2; the owner did not report it |
+| P6 (Use machine learning, X-E3 caption) | Checked by the owner, fine |
+| P7 (Lightroom import summaries) | Checked by the owner, fine |
+
+The owner named no checks left open. P2 and P5 are listed open here because
+they need a seeded photo that was not prepared, unless the owner says they were
+done. Scripted checks stand for both (the stored value survives edits, undo and
+redo; `resetAll` true then false). No VoiceOver, macOS 15 or macOS 26 checks.
+The open checks go to the standing manual-checks issue (#82).
