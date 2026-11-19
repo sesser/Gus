@@ -86,6 +86,7 @@ extension AdjustmentRenderer {
         // warp keeps inside inside), plus the interpolation's neighbors.
         let roi: CIKernelROICallback = { index, rect in
             guard index == 0 else { return tableExtent }
+            guard !rect.isInfinite, !rect.isNull else { return extent.insetBy(dx: -2, dy: -2) }
             var box = CGRect.null
             for point in LensWarp.edgePoints(of: rect, count: 8) {
                 let source = warp.source(of: CGPoint(x: point.x, y: point.y), in: frame, scale: scale)
