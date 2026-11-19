@@ -368,5 +368,30 @@ or XF23 raw and a Lumix RW2 cover most of it.
 
 ## Follow-up
 
-(Empty: reruns after fixes, the owner's reports on P1 to P13 and the sign-off go
-here.)
+Reruns after fixes: none (no finding for the engineer; Q1 to Q4 are notes).
+
+### Owner's sign-off, 2026-11-19
+
+Recorded by qa-tester from the main session's relay; nothing committed by QA.
+
+- **Signed off:** 2026-11-19, `feature/lens-corrections` at **1c654cb** ("C17, the
+  record doc comment back above record"). QA ran at a97a56c, the last commit that
+  changed behavior; 1c654cb differs from it in `Sources/PhotoCore/Edits/BatchEdit.swift`
+  only by a doc-comment move (one line) and a line in `status.md`, so QA's results
+  stand for the signed-off commit (the fifth code review at 59b40c4 sits between
+  them).
+- **What the owner did:** built the bundle and checked by eye on a `photobench`
+  scratch library. His words: "Checked all the Ps except P5. Sign off on the
+  feature". He did not itemise results: he reported no findings on any of them.
+- **Checked by the owner, fine, no findings:** P1 (M10, AC13: with it, AC13's
+  by-eye vignetting check is done), P2, P3, P4, P6, P7, P8 (M11: with it, the live
+  half of AC10, live frames and the 100% region against fit, is done), P9, P10,
+  P11, P12 and P13. So all 14 acceptance criteria now pass; AC10 and AC13 closed by
+  the owner's by-eye report (P8 and P1), not by a measurement of mine.
+- **Left open:** **P5** (M4, M5, M17): the frame question with a real keyboard
+  (Return, Esc and ⌘., Cancel after a real slider drag, once per visit, keys while
+  the sheet is up). Its logic is covered by script A1, E2, F2 and F4 and by
+  `movesFrame`; what no script reaches is the real keys. Goes to the standing
+  manual-checks issue #82.
+- **Not checked, by the owner's standing rule:** VoiceOver and macOS 15 and 26
+  (CI is the first run on 15 and 26).
