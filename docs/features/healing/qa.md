@@ -7,7 +7,7 @@ Safety: every app launch used `--library-root` on a scratch library made by `pho
 
 ## Verdict
 
-Passes. All 15 acceptance criteria are met by a test, by a debug-script run on the bundle copy, or both; none failed and no finding for the engineer. What is left for a person is the look and feel a script cannot show (P1 to P7: real mouse, menus and keys with the window key, overlay legibility, the heading's layout, the limit's badge and sound, crop on screen, a real 24 MP raw) and the known limits below.
+Passes, and signed off by the owner on 2026-11-18 (see Follow-up). All 15 acceptance criteria are met by a test, by a debug-script run on the bundle copy, or both; none failed and no finding for the engineer. The look and feel a script cannot show (P1 to P7: real mouse, menus and keys with the window key, overlay legibility, the heading's layout, the limit's badge and sound, crop on screen, a real 24 MP raw) was done by the owner by hand: no check is left open. The known limits below stand.
 
 ## What I ran
 
@@ -183,6 +183,8 @@ wait 9; print responder; focus 8; loupe; wait 2; spots on; spot set size 3.5; sp
 
 ## For a person
 
+Status: P1 to P7 were all done by the owner by hand on a scratch library and signed off on 2026-11-18; none is open (see Follow-up). The steps stay as the record of what was checked.
+
 Per the standing rule, VoiceOver and macOS 15 / 26 are not asked here (CI covers the second). M12 (touch Mac) is not carried: no Mac has a touch screen, and the grab distance is the owner's ruling DQ-2. Build and run on a scratch library (zsh; about 1 GB under `/tmp/healing-qa`):
 
 ```
@@ -211,4 +213,6 @@ Open `dusty-sky.dng` or `dusty-sky.tif` in the loupe, Adjust tab. The three spec
 
 ## Follow-up
 
-Reruns after fixes, and the owner's sign-off (commit, date, checks left open), are recorded here when the main session relays them.
+Reruns after fixes: none. QA found nothing for the engineer, and no source or test commit followed it (QA ran at `399b29a`; the only later commit, `99db3b7`, is this file).
+
+**Owner's sign-off.** Signed off on 2026-11-18, on commit `99db3b7542eea5854c546bd3a831fa5b1979c1b3` (the head of `feature/healing`; its source, tests and scripts are those QA tested at `399b29a`). The owner's words: "P1-7 Check out... Sign off". P1 to P7 were done by hand on a scratch library and passed. No checks left open: VoiceOver and macOS 15 / 26 are never asked of the owner (CI covers the two systems), so nothing is added to the standing manual-checks issue (#82).
