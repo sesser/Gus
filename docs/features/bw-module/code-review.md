@@ -240,3 +240,66 @@ under a full parallel run). It does not block this branch.
 
 `/security-review` is still not needed: no parser, subprocess, network code
 or file writing was added.
+
+### Third pass, 2026-11-19 (owner's sign-off finding)
+
+Reviewed `69f1ef1` and `95fa5b9` only (c5a79b6..95fa5b9): `AppKitSegmented.fillsWidth`,
+its use by the quick-set control, `print inspectorwidth` in the debug script,
+and `status.md`. Build: `swift build` passes. Tests: one full `swift test`
+passed, 1189 tests in 174 suites. I did not launch the app (QA's job).
+
+**Verdict: ready for QA.** The fix is correct and contained, and the two
+commits add no finding.
+
+| # | State | Commit | Notes |
+|---|---|---|---|
+| Owner finding (Adjust column wider than the inspector with Black & White open) | Fixed | 69f1ef1 | See below. Status's before/after (`visible 300, controls −26…326, overflow` → `8…292, fits`) is the engineer's measurement; QA should repeat it with the heading open. |
+
+**Checked and fine.**
+
+- *Off by default.* `fillsWidth = false` is a stored default; the other three
+  callers (Tone Curve and Color Grading in `AdjustView.swift`, Spots mode in
+  `SpotsSection.swift`) don't pass it. With it off, `makeNSView` sets nothing new
+  and `sizeThatFits` returns nil, which is SwiftUI's default sizing (the
+  intrinsic size with the control's own priorities), so their layout is as
+  before.
+- *Sizing logic.* With it on, `sizeThatFits` returns the proposed width and the
+  intrinsic height, which doesn't depend on width. A nil proposal (ideal size) or
+  an infinite one (a stack's flexibility probe) falls back to the default; a
+  0 proposal returns 0. So the stack sees the control as running from 0 to
+  unbounded and gives it the column's width. Nothing in the method changes the
+  view, so there's no layout loop. Lowering the compression resistance only
+  matters on the fallback path, and there it agrees.
+- *Proposal chain.* `AppKitScrollView` pins the hosting view's leading and
+  trailing edges to the clip view and turns off `sizingOptions`. `Measured` is
+  `fixedSize(horizontal: false, vertical: true)`: only height is unbounded. No
+  `fixedSize` or `ViewThatFits` sits above the section (`AdjustView`,
+  `BlackAndWhiteSection`). So the proposal is always the clip width minus the
+  padding, whether the inspector is 280 to 420 pt wide or a window resize moves
+  it. `AppKitScrollView` itself is unchanged, so the Info tab and the grid-mode
+  Adjust tab are unaffected.
+- *Long or localized labels.* Below the labels' width, `fillEqually` segments
+  truncate inside the control instead of widening the column (design §3.2
+  allows this). Reduce Motion doesn't apply: nothing is animated.
+- *Debug command.* `print inspectorwidth` only reads: it converts frames and
+  prints. `print` isn't in `changing`, so it opens no undo group, which is
+  correct for a read. It uses the library window (`DebugScript.window`), not the
+  key window, so it works from a shell launch. It runs on the main actor
+  (`DebugScript` is `@MainActor`). It's listed in the header comment. It isn't
+  UI text, so the String Catalog doesn't apply.
+- *Observation, not a finding.* `Int(minX)` would trap if a visible
+  hosting-view scroll view held no visible `NSControl` (minX stays infinite).
+  Every such view in the window today has one: the grid-mode Adjust tab's
+  Open in Loupe button, the Presets buttons, the Info tab's fields. So I can't
+  reach it. A guard would make the tool safer if it is reused elsewhere.
+- *No test.* `PhotoCoreTests` is the only test target and doesn't depend on
+  PhotoApp (`Package.swift`), so a SwiftUI layout test isn't possible here. The
+  scripted `print inspectorwidth` stands in for one, and the 280 pt inspector
+  (which a script can't set) goes to the person's list in `qa.md`.
+- *Related, already on develop.* The Tone Curve's four-segment control is
+  276 pt intrinsic (95fa5b9) and would push the column out by about 20 pt at
+  the narrowest inspector. That's older than this branch, and the engineer
+  proposes it as a follow-up issue; `fillsWidth: true` there would be the
+  one-line fix.
+
+`/security-review` is still not needed.

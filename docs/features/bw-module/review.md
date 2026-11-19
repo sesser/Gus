@@ -290,3 +290,115 @@ Color Fringes swatches keeping true colors fits the design: the spec never cover
 them, and the render position is unchanged.
 Open for a person: M1 to M11 (M9 proves the F1 fix, M11 is new for the swatches); read, not run.
 Full review: docs/features/bw-module/review.md
+
+## Follow-up: third pass (2026-11-19, commits 69f1ef1 and 95fa5b9)
+
+Read-only, and this session had no shell (no `git`, no build, no bundle run). I
+read the changed code (`AppKitSegmented` in `CurveEditor.swift`,
+`BlackAndWhiteSection.swift`), design §3.2 and `status.md`'s "Owner finding at
+sign-off" rather than the diff, and ran nothing. Every width below is the
+engineer's measurement or my arithmetic, not mine at the bundle; M12 is the
+check that settles it. Whether anything outside those files changed in the two
+commits I couldn't enumerate; `95fa5b9` reads as a `status.md` correction (the
+Tone Curve control's width), and the only other code the finding names is the
+debug script's `print inspectorwidth`.
+
+**Verdict: passes.** The finding was real (a segmented control reporting an
+intrinsic width larger than its container makes SwiftUI widen the column, so the
+whole tab, not just this control, broke) and the fix is the right shape: the
+control is still a system `NSSegmentedControl`, now sized by the layout instead
+of by its own minimum. The design is unchanged.
+
+**Does the fix hold up?**
+
+- **Mechanism.** With `fillsWidth`, `sizeThatFits` answers the width it is
+  proposed, so SwiftUI's minimum-width probe (proposal 0) no longer returns 345 pt
+  and cannot force the column wider than the pane. A nil or infinite proposal
+  falls back to the intrinsic size, so any other container still gets today's
+  behavior. The flag is off by default; of the other three users (Color Grading,
+  Tone Curve, Spots) none sets it, so nothing else moves. The
+  compression-resistance line is belt and braces for AppKit hosting; SwiftUI's
+  `sizeThatFits` is what does the work. Height stays the intrinsic small-control
+  height, so the row doesn't change vertically. The control is still a standard
+  component with its tooltips and VoiceOver label (HIG: system components,
+  Consistency).
+- **Design §3.2 "full-width".** Now literally true at every pane width; before,
+  it was wider than full.
+
+**Legibility at the narrowest inspector (256 pt of content).**
+
+- Width: 256 / 5 = 51.2 pt a segment (276 / 5 = 55 pt at the default 300 pt, as
+  §3.2 says; 396 / 5 = about 79 pt at the widest). `inspectorColumnWidth` 280 to
+  420 minus 12 pt of padding each side gives the 256 to 396 pt.
+- English: "Orange" is the longest of the five and the only one near the limit. At
+  the 11 pt small size it is roughly 38 to 40 pt of text, so about 11 pt of
+  padding is left in a 51 pt segment. It fits, with less room than the
+  system's own segments usually leave. The engineer's offscreen drawing found all
+  five uncut; I agree it should be, and I rate it tight rather than comfortable.
+- German: the app's String Catalog has no German entries (English only), so there
+  are no German strings in the build to look at. The ones named in `status.md`
+  (Gelb, Orange, Rot, Grün, Blau) are the usual translations and are no longer
+  than the English, so they would fit as well. Treat that as an expectation, not
+  a result. Longer names in other languages (Spanish "Amarillo", "Naranja", about
+  45 pt) would be the first to truncate, as §3.2 already anticipated.
+- Judgment, not HIG: Apple's segments are normally at least about 65 pt in this
+  design (the engineer's measurement), so 51 pt is outside what the system
+  draws on its own. AppKit will draw narrower, but the selected segment's capsule
+  gets tight around "Orange". That is the thing to look at in M12.
+
+**Truncation and compression: acceptable.** Segments stay equal width
+(`.fillEqually`), and a label that doesn't fit truncates at the tail inside its
+own segment; the control never clips at its edges, never overflows, and never
+changes the pane. The full name stays available three ways: the tooltip, the
+VoiceOver name, and the slider label below (§3.2's wording). No selected-state
+or contrast concern is introduced. I'd prefer not to shorten the names or
+switch to a pop-up for the narrowest pane: that would give up the one-click
+compare the design chose the control for. If M12 shows "Orange" clipping in
+English at 256 pt, the fallback is the small-size font rather than the control.
+
+**Related and now larger: the Tone Curve control.** `status.md` says its four
+segments are 276 pt intrinsic and would overflow by about 20 pt at 256 pt, and
+that it did before this branch. That means the Adjust tab still widens, at the
+narrowest inspector width, as soon as the Tone Curve heading is open: the same
+bug the owner found, not caused here. It is a one-line change (`fillsWidth: true`
+there; its names are shorter than these) and the segments become 64 pt, so it is
+a safe fix. Not this branch's scope; I'd file it as a bug (title: "Tone Curve
+channel control widens the Adjust tab at the narrowest inspector width") and
+have the engineer apply the same flag to Color Grading and Spots only if they
+measure over 256 pt (they are three segments, so probably not). The debug
+script's `inspectorwidth` check is the test for all of it.
+
+**Design change: none.** §3.2 needs no amendment; its "truncates in its segment"
+sentence covers this, and the engineer did the narrowest-width check it asked
+for (offscreen, not on screen).
+
+**Manual checks, updated.** M1 to M11 unchanged. New:
+
+- **M12. Quick-set width at three inspector widths.** Open the Adjust tab on a
+  color photo with the Black & White heading open, then drag the inspector
+  divider.
+  - At the narrowest width (280 pt wide pane, 256 pt of content): the five names
+    read in full, "Orange" included, with no ellipsis; no horizontal clipping of
+    the tab (the Presets buttons, slider labels, value fields and the heading's
+    check box all fully visible and not shifted); the selected segment's capsule
+    still has air around its name. Choose each segment and look at the selected
+    state.
+  - At the default 300 pt: the row exactly fills the column (276 pt), the same
+    left and right edges as the sliders; nothing cut off.
+  - At a wide pane (420 pt): the segments stretch evenly, the row still lines up
+    with the sliders, nothing else moves.
+  - With the Tone Curve heading open instead: note whether it clips at the
+    narrowest width (expected, the follow-up above), and record it, don't fail
+    this branch for it.
+  - Switch the system's text size if offered, or run with Increase Contrast,
+    and look again at the narrowest width.
+
+Requirements issues: none. Proposed follow-up (new, not this branch): the Tone
+Curve control at the narrowest inspector width (bug), as above.
+
+## Summary for the issue (third pass)
+
+Design review, third pass, of #218: passes. The segmented quick-set now takes the offered width (`AppKitSegmented.fillsWidth`), so it can no longer widen the Adjust tab; design §3.2 is unchanged and no other control uses the flag.
+At 256 pt of content each segment is 51 pt: all five English names fit (Orange is tightest), German would fit too (no German entries ship yet), and a longer name truncates inside its segment as §3.2 allows.
+Open for a person: M12 (three inspector widths). Proposed follow-up: the Tone Curve control still overflows at the narrowest width (existing, one-line fix). Read, not run: no shell.
+Full review: docs/features/bw-module/review.md
