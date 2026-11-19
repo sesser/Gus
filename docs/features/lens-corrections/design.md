@@ -77,7 +77,7 @@ caption) is this app's own Color Alignment, Color Grading and Spots pattern.
 | **Auto** | Use the correction table the camera stored in this file | The PRD's word. The row label and the caption say what it uses, so "Auto" is never a bare promise |
 | **Manual** | Set the correction by hand | The PRD's word |
 | **Amount** | The hand-set strength, signed | The Masks heading's Amount is a different control; the row label stays short and the VoiceOver names are distinct (§11) |
-| **Constrain to image** | Zoom in just enough that the corrected photo has no empty edge | The PRD's phrase (R7), in the check box's sentence style (P5) |
+| **Constrain to image** | Scale the corrected photo so it fills its frame, with no empty edge | The PRD's phrase (R7), in the check box's sentence style (P5) |
 | **table** | The numbers a camera stores in the file to describe its lens | The PRD's word. Never "profile" (above) |
 
 In sentences, VoiceOver and the user guide: "distortion", "vignetting",
@@ -209,7 +209,10 @@ at 256 pt in both designs.
   alone does not say auto *what*, and the tab's other rows all have one. Judgment.
 - **Choosing a segment** is one undo step ("Distortion Source" / "Lens Vignetting
   Source"), turns the group on if it was off (B10's rule), and keeps both modes'
-  values. Choosing the selected segment changes nothing and records no step.
+  values. Choosing the selected segment of a group that is **on** changes nothing
+  and records no step. Clicking a segment (either, the selected one included)
+  while the group is **off** turns the group on, in the same single undo step
+  "Distortion Source" / "Lens Vignetting Source" (DQ-2, §21).
 - **Starting in Manual.** On a file where Auto cannot apply (a non-raw file, a
   raw the camera decoder already corrects, a Fujifilm raw with its built-in
   correction; §5), checking the box starts the group in **Manual** in the same
@@ -267,11 +270,14 @@ at 256 pt in both designs.
 
 A check box under Distortion's other rows, `AppKitCheckbox` at `SliderRow.height`,
 title **Constrain to image**, **on by default**, in both sources (the camera's
-table can leave a blank edge as well as a hand value). Its help: "Zoom in
-slightly so the corrected photo has no empty edges." What it means for the person:
+table can leave a blank edge as well as a hand value). Its help: "Scale the
+corrected photo to fill its frame, with no empty edge." (DQ-1, §21). What it means
+for the person:
 
-- **On:** the corrected photo keeps its frame's size and shape and fills it, a
-  little larger than before for barrel correction. The edges are never blank (AC7).
+- **On:** the corrected photo keeps its frame's size and shape and fills it, scaled
+  about the center the way the camera frames its own pictures (§15.8): slightly
+  smaller than the recorded picture for barrel correction, larger for pincushion.
+  The edges are never blank (AC7).
 - **Off:** the lines are straightened at the scale the lens recorded at the
   center, and the edges may show a blank border. The border is not filled with
   invented content (judgment: the PRD asks for no fill), and loupe, previews and
@@ -307,7 +313,7 @@ below, so the person always reads the most important true thing.
 | 5 | Auto, a table exists but is damaged or not understood | (warning symbol) The camera's table in this file could not be read, so nothing is corrected. Choose Manual to set the amount by hand. | (same) |
 | 6 | Auto, table found, group on | Using the camera's correction table from this file. | Using the camera's vignetting table from this file. |
 | 7 | Auto, table found, group off | This file has a camera correction table. Turn on Distortion to use it. | This file has a camera vignetting table. Turn on Lens Vignetting to use it. |
-| 8 | Auto, a raw with no table | No distortion table was found in this file. Choose Manual to set the amount by hand. | No vignetting table was found in this file. Choose Manual to set the amount by hand. |
+| 8 | Auto, a raw with no table this build reads (none in the file, or a maker's table it does not read yet: DQ-3) | No distortion table was found in this file. Choose Manual to set the amount by hand. | No vignetting table was found in this file. Choose Manual to set the amount by hand. |
 | 9 | Auto stored on a non-raw file (which cannot have Auto), no segment selected | This file has no camera correction table, so Auto isn't available. Choose Manual to set the amount by hand. | (same) |
 | 10 | Manual | Set by hand. Positive values straighten lines that bow outward, negative values lines that bow inward. | Set by hand. Positive values lighten the corners, negative values darken them. |
 
@@ -344,8 +350,18 @@ Notes:
   label "Reading the camera's table", after 0.5 s (SMP §5, CA §3). If the read is
   instant the row is never seen.
 - **The strings of rows 7 and 8 use the group's own noun** (distortion table,
-  vignetting table) because a Panasonic raw can carry one and not the other; the
-  two groups then show different rows.
+  vignetting table) because a file can carry one and not the other (a Fujifilm RAF's
+  table is for vignetting only in this build); the two groups then show different
+  rows.
+- **What Auto reads in this build (scope, owner ruling 2026-11-19).** Fujifilm RAF
+  tables (vignetting) and a DNG's WarpRectilinear (distortion) and FixVignetteRadial
+  (vignetting) opcodes. **Not yet read: Panasonic and Olympus maker-note tables,
+  Sony ARW tables and a DNG's GainMap opcode; those are follow-ups, and no text in
+  this design or the user guide promises them.** On such a raw, Auto cannot tell
+  "no table in the file" from "a table this build does not read", so row 8's
+  wording stays as it is ("No distortion table was found in this file.", DQ-3):
+  true of what the app can read, with Manual one click away. A later reader makes
+  row 8 rarer without a string change.
 - The caption never changes while a slider moves, so the layout does not jump
   during a drag.
 
@@ -586,8 +602,8 @@ User-visible consequences of R5, which the guide says once:
   Color Alignment's automatic measurement and double-correct the fringes. The
   group straightens lines with the table's green (reference) part only; fringes are
   Color Alignment's job, which exists. The engineer confirms this is possible
-  with the tables the owner's cameras store; if a maker's table cannot be
-  separated, they raise it as a Design question.
+  with the tables this build reads (a DNG's WarpRectilinear and the Fujifilm RAF
+  tables); if one cannot be separated, they raise it as a Design question.
 - **The optical center is the center of the whole sensor, before the crop**, as
   Color Alignment's (CA R9), so a crop never changes how a scene point is
   corrected.
@@ -684,8 +700,8 @@ name. Reuse an existing key and extend its comment where one exists ("Amount",
 | Distortion source, Lens vignetting source | VoiceOver, the control | |
 | Positive values straighten lines that bow outward; negative values straighten lines that bow inward. | Amount tooltip and help, Distortion | |
 | Positive values lighten the corners; negative values darken them. | Amount tooltip and help, Lens Vignetting | |
-| Constrain to image | Check box | Zoom in so there is no empty edge |
-| Zoom in slightly so the corrected photo has no empty edges. | Check box tooltip and help | |
+| Constrain to image | Check box | Scale the corrected photo to fill its frame |
+| Scale the corrected photo to fill its frame, with no empty edge. | Check box tooltip and help (the key is this English string, as every entry) | Replaces the earlier "Zoom in slightly so the corrected photo has no empty edges." (DQ-1) |
 | The captions of §4 (distortion and vignetting forms of rows 6, 7, 8 and 10; the shared forms of rows 1a, 1b, 2a, 2b, 3, 4, 5, 9) | Group caption | Source status of a lens correction group |
 | Auto isn't available: the camera decoder already corrects this photo. | Auto tooltip when dimmed, decoder-corrected raw | |
 | Auto isn't available: this photo is already corrected by the camera's own table. | Auto tooltip when dimmed, Fujifilm built-in | |
@@ -835,7 +851,10 @@ Manual checks for a person (M1 and on) go into `review.md` after the build; they
 will be, at least: the Lens heading at the narrowest and widest inspector, light,
 dark and Increase Contrast; the alert's look and keys with a real keyboard, a
 drag released with masks present and Cancel; each of the owner's five cameras'
-files beside its own JPEG (Auto within about 1 px in the outer quarter, by eye);
+files beside its own JPEG where this build reads a table (Fujifilm RAF vignetting,
+a DNG's distortion or vignetting; Auto within about 1 px in the outer quarter, by
+eye), and on the owner's Panasonic and Olympus raws Auto reads no table and the
+caption says "No distortion table was found in this file." (DQ-3);
 Constrain to image on and off on a wide raw; a preset applied to a selection that
 mixes a table, no table and a JPEG; the owner's X-E3 (Fujifilm built-in) and a
 system-decoded raw with Auto stored, then Manual on top, reading the dimmed Auto
@@ -910,6 +929,8 @@ Proposed follow-ups (new issues, not this branch):
 - **Show a source status on Color Fringes and Color Alignment** when the Lens
   kernels cannot run (they skip silently today: RI-CR1).
 - **Lightroom lens settings into Auto** in the preset import (PRD non-goal today).
+- **More table readers for Auto** (owner, 2026-11-19): Panasonic and Olympus maker
+  notes, Sony ARW, and a DNG's GainMap opcode. Not in this build (§4).
 
 ## 19. User guide points (`docs/USER_GUIDE.md`, by the engineer in the same change)
 
@@ -920,8 +941,11 @@ has four groups:
 1. **What and where.** The Lens heading now has **Distortion** and **Lens
    Vignetting** first, each with its own check box (always shown) and Source,
    then Color Fringes and Color Alignment. Photos you never touch render as before.
-2. **Source.** **Auto** reads the correction table your camera stored in the raw
-   file. **Manual** is one **Amount**, -100 to +100: for Distortion positive
+2. **Source.** **Auto** reads the correction table your camera stored in the file,
+   where the app can read it: a Fujifilm RAF's vignetting table, and a DNG's
+   distortion and vignetting opcodes. Other raws, Panasonic, Olympus and Sony
+   included, report that no table was found; use Manual there. Clicking a Source
+   segment while the group is off turns the group on. **Manual** is one **Amount**, -100 to +100: for Distortion positive
    straightens lines that bow outward (barrel), negative lines that bow inward; for
    Lens Vignetting positive lightens the corners, negative darkens them. Auto has
    no slider; to take the camera's correction a little weaker, switch to Manual and
@@ -931,8 +955,10 @@ has four groups:
    so), but Manual still works: your amount is added on top of the camera's
    correction. A new group on such a photo, or on a file that is not a raw, starts
    in Manual.
-3. **Constrain to image** (Distortion): on by default, it zooms in just enough
-   that the corrected photo has no empty edge; off keeps the lens's own scale and may
+3. **Constrain to image** (Distortion): on by default, it scales the corrected
+   photo so it fills its frame with no empty edge, the way the camera frames its own
+   pictures (slightly smaller than the recorded picture for barrel correction,
+   larger for pincushion); off keeps the lens's own scale and may
    leave a blank edge. Crop applies after correction.
 4. **What the caption tells you.** Which source is in use ("Using the camera's
    correction table from this file", "Set by hand"), and why nothing happens when
@@ -998,8 +1024,28 @@ Owner rulings of 2026-11-19 on the requirements issues of §18:
 - **RI-5.** A stored Manual Amount is kept and not applied while Source is Auto;
   a group checked on a file where Auto cannot apply starts in Manual.
 
-Design questions from implementation are recorded below as numbered rulings
-(DQ-1, ...) with their date.
+### Design questions from implementation (owner rulings, 2026-11-19)
+
+- **DQ-1 (Constrain to image's help).** The scale follows §15.8: the corrected
+  photo is scaled about the center to fill its frame, the way the camera frames its
+  own pictures, so for barrel correction it gets slightly smaller (pincushion:
+  larger). The "zoom in" wording is wrong and goes. Help text and tooltip, final:
+  **"Scale the corrected photo to fill its frame, with no empty edge."** (catalog
+  key: that English string). Built into §1, §3.4, §14 and §19.3.
+- **DQ-2 (a Source click while the group is off).** Clicking a Source segment,
+  the selected one included, while the group is off turns the group on, in one undo
+  step ("Distortion Source" / "Lens Vignetting Source"). §3.2 no longer says that
+  choosing a segment does nothing, except for a group that is already on.
+- **DQ-3 (row 8 on raws whose tables are not read).** The caption stays "No
+  distortion table was found in this file." (and the vignetting form) on a raw whose
+  maker's tables this build does not read; Manual is one click away. §4.
+- **Scope of Auto in this build.** It reads Fujifilm RAF tables (vignetting) and a
+  DNG's WarpRectilinear and FixVignetteRadial opcodes. Panasonic, Olympus and Sony
+  ARW readers and a DNG's GainMap are follow-ups; the design and the user guide
+  promise none of them (§4, §10, §17, §18, §19.2).
+
+Further design questions from implementation are recorded below as numbered
+rulings (DQ-4, ...) with their date.
 
 ## Revisions
 
@@ -1013,3 +1059,13 @@ Design questions from implementation are recorded below as numbered rulings
   §9 (paste), §14 (two tooltips), §15 item 5, §17 checks 7 and 9 and the manual
   checks, §19 items 2 and 4, §21. §11 and §16 need no change (a dimmed Auto
   segment and the status rows were already covered).
+- **2026-11-19 (engineer's questions).** Rulings DQ-1 to DQ-3 and the scope of
+  Auto recorded (§21). DQ-1: the Constrain to image help is now "Scale the corrected
+  photo to fill its frame, with no empty edge." (§1, §3.4, §14, §19.3; barrel
+  correction makes the photo slightly smaller, not larger). DQ-2: a Source click
+  while the group is off turns it on in one step (§3.2, §19.2). DQ-3: row 8's
+  wording stands on raws whose tables are not read (§4). Scope: Auto reads Fujifilm
+  RAF (vignetting) and DNG WarpRectilinear and FixVignetteRadial; Panasonic,
+  Olympus, Sony ARW and DNG GainMap readers are follow-ups, so §4 gains a scope
+  note, §10 and §17 and §19.2 no longer promise those makers, and §18 lists the
+  follow-up.
