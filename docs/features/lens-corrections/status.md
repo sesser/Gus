@@ -335,10 +335,11 @@ guide already describes the behavior as built.
 **DQ-2. The selected segment while the group is off.** Design §3.2 says choosing
 a segment turns the group on, and choosing the selected segment records
 nothing. With the group off, the stored source (Auto on a new raw) shows
-selected; built literally, clicking it does nothing, and the person uses the
-check box. Options: (a) as built; (b) clicking the selected segment of an off
-group turns it on ("Distortion Source"). Recommendation: (b), small, and it
-makes the control do what it looks like it offers. Waiting for the ruling.
+selected. Options: (a) clicking it does nothing, and the person uses the check
+box (the literal reading); (b) clicking the selected segment of an off group
+turns it on, one step "Distortion Source" (built: the control does what it looks
+like it offers; with the group on, the selected segment records nothing).
+Recommendation: (b), as built; a one-line change to (a) if the designer rules so.
 
 **DQ-3. The caption on a raw whose table this build does not read.** Sony A7 III
 files with the FE 35mm F2.8 ZA carry tables, but no reader exists (RQ-1), so
