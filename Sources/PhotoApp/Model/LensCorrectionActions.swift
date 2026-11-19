@@ -160,6 +160,8 @@ extension LibraryModel {
                                    then body: @escaping @MainActor ([CatalogItem]) -> Void) {
         // One question at a time (code review Q3): a paste or preset while it is up does nothing.
         guard !editor.isAskingLensFrame else { return }
+        // A newer command ends an older one's pending read, whichever path it takes (owner ruling, C13).
+        endPendingLensRead()
         let commandTargets = actionTargets.map { items[$0] }
         let targets = commandTargets.filter { !$0.isVideo }
         guard !targets.isEmpty else { return body(commandTargets) }
@@ -167,7 +169,6 @@ extension LibraryModel {
         if targets.count == 1, let open, targets[0].versionID == open {
             let before = editor.savedAdjustments
             guard editor.asksLensFrameQuestion(from: before, to: transform(before)) else { return body(commandTargets) }
-            lensQuestionTask?.cancel()
             let run = lensQuestionRun.begin()
             lensQuestionTask = Task {
                 defer { if lensQuestionRun.owns(run) { lensQuestionTask = nil } }
@@ -180,7 +181,6 @@ extension LibraryModel {
         let sources = Dictionary(uniqueKeysWithValues: targets.map { ($0.versionID, sourceURL(for: $0)) })
         let openLens = editor.lensState
         let openAnswer = editor.lensFrameAnswer
-        lensQuestionTask?.cancel()
         let run = lensQuestionRun.begin()
         lensQuestionTask = Task {
             defer {
@@ -211,6 +211,8 @@ extension LibraryModel {
             var lenses: [Int64: CameraLensState] = [:]
             if let open { lenses[open] = openLens }
             if !reads.isEmpty {
+                // Only while this read is the current one: a replaced read leaves no row (review F9).
+                guard lensQuestionRun.owns(run) else { return }
                 setLensReadProgress((0, reads.count), title: actionName, toolbarTitle: toolbarTitle)
                 var done = 0
                 for chunk in stride(from: 0, to: reads.count, by: 4).map({ Array(reads[$0..<min($0 + 4, reads.count)]) }) {
@@ -220,6 +222,7 @@ extension LibraryModel {
                         for await (id, state) in group { lenses[id] = state }
                     }
                     done += chunk.count
+                    guard lensQuestionRun.owns(run) else { return }
                     setLensReadProgress((done, reads.count), title: actionName, toolbarTitle: toolbarTitle)
                 }
             }
@@ -236,6 +239,19 @@ extension LibraryModel {
                 body(commandTargets)
             }
         }
+    }
+
+    /// Ends a paste's or preset's pending read for the frame question: nothing
+    /// is written for it and its Activity row goes. Every paste and preset
+    /// calls it first, whether or not it reads or asks (owner ruling on code
+    /// review C13), and not while the question is up (then the new command does
+    /// nothing).
+    func endPendingLensRead() {
+        guard lensQuestionTask != nil || lensReadProgress != nil else { return }
+        lensQuestionTask?.cancel()
+        lensQuestionTask = nil
+        _ = lensQuestionRun.begin()
+        setLensReadProgress(nil)
     }
 
     /// Asks; on Change runs `body` unless a newer command took over (`run`).

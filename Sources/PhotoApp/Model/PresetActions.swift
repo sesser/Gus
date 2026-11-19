@@ -32,7 +32,13 @@ extension LibraryModel {
     /// Gives the selection (grid) or the photo on screen (loupe) the preset's groups.
     func applyAdjustmentPreset(_ preset: AdjustmentPreset) {
         // Asks first when it moves the frame of photos with masks or spots (lens-corrections design §6).
-        guard preset.groups.contains(.distortion) else { return applyingAdjustmentPreset(preset) }
+        guard preset.groups.contains(.distortion) else {
+            // It ends an older paste's or preset's pending read too (owner ruling, code review C13),
+            // unless the frame question is up, when a preset does nothing.
+            guard !editor.isAskingLensFrame else { return }
+            endPendingLensRead()
+            return applyingAdjustmentPreset(preset)
+        }
         // A long name fitted to the toolbar for the read's Activity row (design DQ-5, review F6).
         let toolbarTitle = ToolbarMetrics.statusLine(name: preset.name) {
             String(localized: "Apply Preset \($0)", comment: "Undo action name")

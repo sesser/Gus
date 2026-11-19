@@ -616,8 +616,9 @@ to the photo (again after you add a mask or spot), once for a whole paste or
 preset with how many of the photos have masks or spots, and never for Undo, Redo,
 History or Reset All Adjustments. To know whether to ask, a paste or preset on a
 selection may first read the files of photos with masks or spots whose
-Distortion is on Auto; Activity then shows its progress under the command's
-name, and **Stop** ends it without changing anything. It changes the photos that
+Distortion is, or would be, on Auto; Activity then shows its progress under the command's
+name, and **Stop** ends it without changing anything, as does any newer paste or
+preset. It changes the photos that
 were selected when you gave the command, even if you select others meanwhile. Lens Vignetting never asks. Undo and History
 read **Turn On Distortion** and **Turn Off Distortion**, **Distortion Source**,
 **Distortion Amount**, **Turn On Constrain to Image** and **Turn Off Constrain to

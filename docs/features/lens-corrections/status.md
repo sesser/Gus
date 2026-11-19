@@ -21,7 +21,8 @@ opened or changed). Next: code review and the designer's review, then QA;
 | Baseline (develop c97d579 plus the design commits, before any change) | Pass (two existing warnings in `SmartAlbumTests.swift`, `VirtualCopiesTests.swift`) | 1204 tests in 175 suites pass |
 | After the 2026-11-19 rulings (ad9b419) | Pass, no new warnings | 1234 tests in 176 suites pass (71.9 s); `dngSample` passes opt-in on Adobe's sample; `Scripts/build-app.sh` passes |
 | After the first reviews (f0ccf8e) | Pass, no new warnings | 1239 tests in 176 suites pass (70.3 s); `Scripts/build-app.sh` passes |
-| Latest (after the second passes) | Pass, no new warnings | 1239 tests in 176 suites pass (73.1 s); `Scripts/build-app.sh` passes |
+| After the second passes (dc89c81) | Pass, no new warnings | 1239 tests in 176 suites pass (73.1 s); `Scripts/build-app.sh` passes |
+| Latest (after the third passes) | Pass, no new warnings | Two full runs: the first failed once in `DeferredRenderTests` ("Core Animation renders an unread deferred image when it draws it, and only then", `DeferredRenderTests.swift:158`, `extended.calls == hdrPulled`), the second passed, 1239 tests in 176 suites (72.6 s). That suite passed alone three times out of three; the branch changes none of its code (`RenderEngine.swift` and the test are untouched since develop), and the same flake is recorded in docs/features/bw-module/status.md. It is likely the unnamed failure the third-pass reviewer saw. `Scripts/build-app.sh` passes |
 
 `PreviewCacheKey.currentPipelineVersion` stays 13: a stack without the new
 operations renders byte for byte as before (the lens step returns its input
@@ -297,6 +298,12 @@ fresh copy, every launch with `--library-root`.
   other photo: the question still says "1 of the 107 photos…"; after Change,
   "Paste Adjustments", the selection is the one photo, and IMG_00003 (selected
   when the paste started, not after) has Distortion Manual 30, as does IMG_00017.
+- **S9** (C13, F9) IMG_00003 with Exposure +0.5 saved as preset "exp"; IMG_00002's
+  Manual Distortion 30 copied; IMG_00001 with a spot; grid, all 107 selected.
+  `lens pastethenpreset exp IMG_00017`: the paste's read was pending; after the
+  preset, no read task and no Activity row; no question; undo "Apply Preset exp";
+  IMG_00001 has no Distortion (the paste was not written); IMG_00017's stack holds
+  only Exposure 0.5.
 - **S5** (AC14) XF14 raw, Lens Vignetting never on: `lens vignetting manual`
   turns it on in Manual, undo "Lens Vignetting Source"; one `undo` puts it back
   off with Source Auto; `lens vignetting auto` twice: the first turns it on (one
@@ -331,7 +338,7 @@ fresh copy, every launch with `--library-root`.
 
 | # | What was done | Test or check |
 |---|---|---|
-| C10 / F7 | Fixed. The read and the question run on a task of their own again (`lensQuestionTask`, with its own run token `lensQuestionRun`); they never cancel or claim `batchAutoTask`, so a paste or preset never ends a running Auto Exposure or measuring paste. While files are read the read has its own Activity row, with the same title, "N of M" and Stop as a measuring paste's (design DQ-5), and Stop cancels only it. A newer paste or preset replaces an older one's read. The debug script waits for this task as for the batch task | by construction (no path of the read touches `batchAutoTask`); scripted S8 |
+| C10 / F7 | Fixed (and C13: every paste or preset ends a pending read). The read and the question run on a task of their own again (`lensQuestionTask`, with its own run token `lensQuestionRun`); they never cancel or claim `batchAutoTask`, so a paste or preset never ends a running Auto Exposure or measuring paste. While files are read the read has its own Activity row, with the same title, "N of M" and Stop as a measuring paste's (design DQ-5), and Stop cancels only it. A newer paste or preset replaces an older one's read. The debug script waits for this task as for the batch task | by construction (no path of the read touches `batchAutoTask`); scripted S8 |
 | C11 | Fixed. The command's targets are taken when it starts and passed to the change: `batchSelection(action:targets:)`, `changeAdjustmentsMeasuringAlignment(…, targets:)` and `applyingAdjustmentPreset(_:targets:)`. The question and the change are about the same photos whatever is selected or open when the answer comes | scripted S8 (`lens pastethenfocus`) |
 | C12 | Fixed. A `CancellationError` from reading the stacks ends the command with nothing written; only a real read failure goes on to the change (which reads and reports again), and only if no newer command took over | by reading; Stop writes nothing |
 | F6 | Fixed. A preset's name is fitted to the toolbar (`ToolbarMetrics.statusLine`) and passed as the read row's toolbar title | by reading |
@@ -339,6 +346,15 @@ fresh copy, every launch with `--library-root`.
 
 C11's check is a debug-script run, since the targets are captured in PhotoApp,
 which no test target imports.
+
+### Third passes (code-review.md C13, C14; review.md F9, G1)
+
+| # | What was done | Test or check |
+|---|---|---|
+| F9 | Fixed: both writes of the read's Activity row check that the read is still the current one (`lensQuestionRun.owns(run)`), so a replaced read leaves no row, and the row's Stop always cancels the current read | by reading; scripted S9 (no row after the newer command) |
+| C13 | Fixed as the owner ruled: every paste and preset ends a pending read first (`endPendingLensRead`: cancels it, starts a new run, removes its row), whatever path it then takes: the loupe's photo with no question, a selection of videos only, a preset without Distortion. Nothing is written for the older command. While the frame question is up, a paste or preset does nothing (as Q3) | scripted S9 (`lens pastethenpreset`) |
+| C14 | Fixed: the measuring paste marks the open photo as measuring, and as failed, only while it is one of the command's photos (checked when each is set) | by reading |
+| G1 | Fixed: the guide says "whose Distortion is, or would be, on Auto", and that a newer paste or preset ends the read too | — |
 
 ## Rulings (owner, 2026-11-19)
 

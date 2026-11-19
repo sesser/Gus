@@ -14,7 +14,7 @@ enum DebugLensCorrectionCommands {
     /// and an empty group here would be an undo step that does nothing.
     static func changesPhoto(_ words: [String], editor: AdjustmentEditor) -> Bool {
         // A paste: its own group, and the loop waits for its read (it may ask instead).
-        if words.first == "lens", words.dropFirst().first == "pastethenfocus" { return true }
+        if words.first == "lens", ["pastethenfocus", "pastethenpreset"].contains(words.dropFirst().first ?? "") { return true }
         guard words.first == "lens", ["distortion", "vignetting"].contains(words.dropFirst().first ?? "") else { return false }
         guard let next = predicted(Array(words.dropFirst()), editor: editor) else { return true }
         // A change that changes nothing records nothing (an empty group would be an undo step).
@@ -58,6 +58,22 @@ enum DebugLensCorrectionCommands {
         switch words.first {
         case "print":
             printState(editor)
+        case "pastethenpreset":
+            // Paste Adjustments on the selection, then at once another photo selected
+            // and a preset applied to it, before the paste's read ends: the newer
+            // command ends the older read, so only the preset is written (owner ruling, C13).
+            let presetName = words.dropFirst().first ?? ""
+            let name = words.dropFirst(2).joined(separator: " ")
+            guard let preset = model.adjustmentPresets.first(where: { $0.name == presetName }) else {
+                return print("debug-script: lens no preset \(presetName)")
+            }
+            model.pasteAdjustments()
+            let pending = model.lensQuestionTask != nil
+            if let index = model.items.firstIndex(where: { PhotoName.display($0) == name }) { model.setFocus(index) }
+            model.applyAdjustmentPreset(preset)
+            print("debug-script: lens paste read pending \(pending), after the preset \(model.lensQuestionTask != nil)"
+                  + " row \(model.lensReadProgress != nil)")
+            await DebugScript.waitForBatchWork(model)
         case "pastethenfocus":
             // Paste Adjustments, then at once another photo selected, before the
             // command's read of its targets ends: the question and the change must

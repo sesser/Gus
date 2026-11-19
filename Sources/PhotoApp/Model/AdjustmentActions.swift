@@ -64,7 +64,15 @@ extension LibraryModel {
         let catalog = self.catalog
         let writes = self.writes
         let generator = previews.interactiveGenerator
-        let inLoupe = mode == .loupe
+        // The loupe's photo shows the measuring (and a failure) only while it is
+        // one of this command's photos: after a frame question's read the open
+        // photo may be another (code review C14).
+        let targetIDs = Set(sources.map(\.0))
+        let opensTarget = { [weak self] () -> Bool in
+            guard let self, mode == .loupe, let open = editor.item?.versionID else { return false }
+            return targetIDs.contains(open)
+        }
+        let inLoupe = opensTarget()
         batchAutoTask?.cancel()
         let run = batchAutoRun.begin()
         setBatchAutoProgress((0, sources.count), title: actionName, toolbarTitle: toolbarTitle)
@@ -104,7 +112,7 @@ extension LibraryModel {
                 report(Self.unreadableDetail(summary, names: unreadable), action: actionName, warning: true,
                        announcing: summary)
             }
-            if inLoupe, !unreadable.isEmpty { editor.noteAlignmentMeasureFailed() }
+            if opensTarget(), !unreadable.isEmpty { editor.noteAlignmentMeasureFailed() }
             let alignments = measured.alignments
             changeAdjustments(ofVersions: measured.versionsToChange(from: sources.map(\.0)), actionName: actionName) { id, values in
                 let changed = transform(values)

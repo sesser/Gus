@@ -94,6 +94,7 @@ import PhotoUI
 ///     spots on|off|overlay on|off|print   spot add|select|delete|clear|mode|set|drag|source|nudge|enable …
 ///            (heal and clone spots; see DebugSpotCommands)
 ///     lens print | lens pastethenfocus <file name>   (Paste, then another photo selected at once)
+///          | lens pastethenpreset <preset> <file name>   (Paste, then another photo and a preset at once)
 ///          | lens distortion on|off|auto|manual|amount <n>|constrain on|off
 ///          | lens vignetting on|off|auto|manual|amount <n> | lens force kernelfail|tablecorrupt|off
 ///            (Distortion and Lens Vignetting through their controls' paths: a change that moves the frame of a
