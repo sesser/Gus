@@ -18,6 +18,7 @@ import PhotoCore
 ///     adjust grade shadows|midtones|highlights <hue> <amount> [<luminance>]
 ///     adjust mix red|orange|yellow|green|aqua|blue|purple|magenta <hue> <saturation> <luminance>
 ///     adjust auto exposure|wb   (waits for the measurement)
+///     adjust bw …               (Black & White; see DebugBlackAndWhiteCommands)
 ///     adjust reset all|develop|tone|details|colorMixer|colorGrading|effects
 ///     adjust crop begin|done|cancel|reset|show   (begin waits for the crop frame)
 ///     adjust crop rect <x> <y> <width> <height>  (unit coordinates of the turned frame)
@@ -130,6 +131,8 @@ enum DebugAdjustCommands {
             editor.change(actionName, phase: .committed) { $0.toneCurve[channel] = points }
         case "fringe", "align":
             await DebugLensCommands.adjust(name, arguments, editor: editor)
+        case "bw":
+            DebugBlackAndWhiteCommands.run(arguments, editor: editor)
         case "crop":
             await runCrop(arguments, editor: editor)
         case "mask":

@@ -60,6 +60,12 @@ struct LibraryMenuState: Equatable {
     var spotMode: SpotMode
     var spotCount: Int
     var visibleSpotCount: Int
+    /// Adjust ▸ Black & White ▸ (bw-module design §8): the loupe photo's
+    /// conversion applies, the quick-set in effect, every filter at 0. Shown
+    /// only while the photo is editable.
+    var blackAndWhiteApplies: Bool
+    var blackAndWhiteQuickSet: BlackAndWhite.Filter?
+    var blackAndWhiteHasNoFilter: Bool
     /// Reset All Adjustments has something to reset. In the loupe: the photo's
     /// adjustments are not at their defaults. In the grid the items can't
     /// tell (their hash leaves out turned-off groups), so it is true.
@@ -208,6 +214,9 @@ struct LibraryMenuState: Equatable {
         spotMode = model.editor.shownSpotMode
         spotCount = canEditLoupePhoto ? model.editor.adjustments.spots.spots.count : 0
         visibleSpotCount = isEditingSpots ? model.editor.visibleSpots.count : 0
+        blackAndWhiteApplies = canEditLoupePhoto && model.editor.adjustments.blackAndWhiteApplies
+        blackAndWhiteQuickSet = canEditLoupePhoto ? model.editor.blackAndWhiteQuickSet : nil
+        blackAndWhiteHasNoFilter = canEditLoupePhoto && model.editor.blackAndWhiteHasNoFilter
         canResetAll = model.mode == .grid ? targetsIncludePhoto
             : canEditLoupePhoto && !isCropping && !model.editor.adjustments.isDefault
         showsMaskOverlay = model.editor.showsMaskOverlay

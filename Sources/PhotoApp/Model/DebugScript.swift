@@ -1190,8 +1190,14 @@ enum DebugScript {
             let name = title.isEmpty ? (button.accessibilityLabel() ?? button.toolTip ?? "") : title
             // Dimmed buttons and tooltips that say something other than the name.
             let tip = button.toolTip.flatMap { $0 == name ? nil : " tip '\($0)'" } ?? ""
+            // A segmented control's selection and a check box's state, for headings that show them.
+            let selection = (button as? NSSegmentedControl).map { " selected \($0.selectedSegment)" } ?? ""
+            let checkState = (button as? NSButton).flatMap { box in
+                box.allowsMixedState ? " state \(box.state == .on ? "on" : box.state == .mixed ? "mixed" : "off")" : nil
+            } ?? ""
             print("debug-script: button '\(name)' at \(Int(frame.midX)),\(Int(window.frame.height - frame.midY))"
-                  + " width \(Int(frame.width)) \(type(of: button))" + (button.isEnabled ? "" : " disabled") + tip)
+                  + " width \(Int(frame.width)) \(type(of: button))" + (button.isEnabled ? "" : " disabled") + tip
+                  + selection + checkState)
         }
         for subview in view.subviews { printButtons(in: subview, window: window) }
     }

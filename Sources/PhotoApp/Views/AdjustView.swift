@@ -93,6 +93,8 @@ struct AdjustView: View {
                                 .showsTurnedOff(.colorMixer, editor: editor)
                         }
                         InspectorSeparator()
+                        BlackAndWhiteSection(editor: editor)
+                        InspectorSeparator()
                         AdjustSection(.colorGrading, editor: editor) {
                             ColorGradeControls(editor: editor)
                                 .showsTurnedOff(.colorGrade, editor: editor)
