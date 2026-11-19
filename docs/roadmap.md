@@ -40,14 +40,14 @@ Principles (drawn from `README.md` and `CLAUDE.md`):
 
 ## Now (maximum three)
 
-1. [#86](https://github.com/sesser/Gus/issues/86) `healing`: No spot removal or healing (first of the owner's 2026-11-17 order, PRD approved 2026-11-18)
+Nothing in progress.
 
 ## Next
 
 Order set by the owner 2026-11-06 (library and project operations first, then
 virtual copies, then side-by-side comparison; the rest in the order it had). HDR merge (#150) was put after
 side-by-side comparison on 2026-11-11, ahead of the rest.
-On 2026-11-17 the owner put healing (#86, now in Now), lens corrections (#87), AI masks (#88)
+On 2026-11-17 the owner put healing (#86, shipped 2026-11-18), lens corrections (#87), AI masks (#88)
 and DCP profiles (#89) first, in that order; this lifts the earlier hold on #89.
 The small fixes and tooling items can each go as a bug fix (`docs/WORKFLOW.md`).
 

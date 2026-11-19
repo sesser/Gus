@@ -210,7 +210,8 @@ compatible and never put `#` comment lines inside pasted command snippets.
 - `Sources/PhotoCore` — library with no AppKit/SwiftUI: branding, catalog
   (GRDB), import, metadata, `Edits/` (edit stack, adjustments, renderer, live
   render session, look-up tables, `Masks/`: local adjustments, mask shapes,
-  the brush rasterizer), `Presets/` (preset files, Lightroom preset
+  the brush rasterizer; `Spots/`: heal and clone spots, their renderer and
+  automatic source), `Presets/` (preset files, Lightroom preset
   reading and mapping), preview pipeline, `Sidecars/` (XMP),
   `CardImport/` (templates, copying), `Export/` (rendering, naming, metadata
   and watermarks for exports), `Suggestions/` (Vision), `Video/`.
@@ -932,7 +933,59 @@ fine (#82, `docs/features/luminar-preset-import/qa.md`). The opt-in
 packs are never committed) finds all 40 presets of the four packs equal to the
 prototype's within rounding.
 
-Not yet: AI masks, healing, lens corrections (distortion, lens vignetting,
+Spot healing and cloning (`docs/features/healing/`, issue #86, branch
+`feature/healing`): a Spots heading in the Adjust tab (Edit Spots, `H`; Adjust
+▸ Spots, palette toolbar item) places circular Heal or Clone spots by clicking
+the photo, each with a size, feather and opacity. Heal copies the source's
+texture and blends it into the surroundings (the source plus a harmonic
+membrane of the boundary differences); Clone copies as it is. The source is
+chosen automatically on placement (a clean nearby patch clear of the spot,
+every other spot and the edges, scored by context match; deterministic) and
+can be dragged elsewhere; Adjust ▸ Spots ▸ Choose Source Automatically (one
+undo step) asks the same question again, for keyboard and VoiceOver users.
+Select, move, resize, change mode and delete, with the keyboard too (⌥-arrows
+move, ⌥⌘-arrows move the source; bare `V` shows or hides the overlay, in
+Adjust ▸ Spots); one undo step and History entry each. The heading's check
+box turns every spot off and on without losing them (Turn Off / On Spots;
+`spots` is an `Adjustments.Group`, off renders byte for byte as no spots).
+One `spots` operation, schema 2 like masks, strict read, never written over
+when unreadable, at most 100 spots (`SpotLimits.spots`; the 101st is refused
+with a message). Positions are in the mask frame (oriented decode before the
+crop), so spots stay on the same picture content under crop, turns and
+Straighten; a raw with spots decodes its whole sensor. Rendered first among
+the adjustments, after the Lens heading's steps and before white balance,
+tone, masks and the crop, in `AdjustmentRenderer.spotStep` (one renderer for
+loupe, live frames at 100%, previews, export and `photocli render`; every
+decoder alike). Paste, presets and sync leave spots and their on/off out
+(`Group.presetGroups`); spots are per file (a RAW+JPEG pair's other file is
+unchanged; a virtual copy starts with the original's and is independent), are
+never written to sidecars or originals, and can't be edited while comparing.
+Kernels are written from published sources only (Pérez et al. 2003, Farbman et
+al. 2009, Criminisi et al. 2004 for the source match; the list is in
+`status.md`), compiled at run time. Code in PhotoCore `Edits/Spots/`
+(`Spots.swift`, `SpotGeometry.swift`, `SpotRenderer.swift`,
+`SpotSourceFinder.swift`) and PhotoApp (`Model/SpotEditing.swift`,
+`SpotActions.swift`, `DebugSpotCommands.swift`; `Loupe/SpotOverlayView.swift`;
+`Views/SpotsSection.swift`). A CPU reference agrees within a derived tolerance;
+three new goldens (`spots-heal-dustySky`, `spots-clone-dustySky`,
+`spots-healCropTurn-dustySky`); `photobench scenes` writes the dusty sky. No
+migration, no pipeline bump, no existing golden moved; photos without spots
+render byte for byte as before. Debug script: `spots`, `spot …`. Rulings: DQ-1
+(Show / Hide Spot Overlay stays in Adjust ▸ Spots as bare `V`), DQ-2 (one 10 pt
+grab distance for every event, touch included). Known: many spots are slow (100
+spots cost about 102 ms of render at 2560 × 1707, a drag at 100% 44 to 56 ms
+a frame with 93; accepted, one-pass render is #211); a nudge chosen from the
+menu with a key still held shares one ⌘Z with the next change (C1 residual);
+a spot's center held inside the crop can sit a hair off at an extreme aspect
+ratio (C7, nit); a VoiceOver press on empty canvas adds no spot (adding needs a
+pointer, R-3; Add Spot at Center of View is #210); if the spot kernels can't
+compile, spots are skipped with no message (as RI-CR1); no `photocli spot`
+commands; spot names wait for #92 (presets and paste of spots). Not built:
+Remove brush (#208), Visualize Spots (#209). Shipped; the owner signed off
+2026-11-18, P1 to P7 done, 15 of 15 criteria pass (`docs/features/healing/qa.md`).
+VoiceOver, macOS 15 and macOS 26 are covered by CI only.
+
+Not yet: AI masks, automatic dust detection, a Remove brush, lens corrections (distortion, lens vignetting,
 profiles; only the camera's own tables in Fujifilm raws LibRaw decodes), DNG export, `.dcp` profiles
 (a profile's hue/saturation and look tables are not applied, #89),
 a sharper X-Trans demosaic (#199),
