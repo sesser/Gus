@@ -162,7 +162,7 @@ private struct PresetRow: View {
             Spacer()
             Menu {
                 Menu("Include") {
-                    ForEach(Adjustments.Group.allCases, id: \.self) { group in
+                    ForEach(Adjustments.Group.presetGroups, id: \.self) { group in
                         Toggle(AdjustText.title(group), isOn: Binding(
                             get: { preset.groups.contains(group) },
                             set: { isOn in

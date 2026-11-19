@@ -587,6 +587,8 @@ struct SectionHeader<Check: View, Trailing: View>: View {
     let family: InspectorFamily
     var turnOff: (title: String, action: () -> Void)?
     var reset: (() -> Void)?
+    /// The context menu's title for `reset`; "Reset" when nil.
+    var resetTitle: String? = nil
     /// The trailing control's width: a reset's 20 pt, nil for its own (a count).
     var trailingWidth: CGFloat? = InspectorMetrics.resetSlot
     @ViewBuilder let check: Check
@@ -611,7 +613,7 @@ struct SectionHeader<Check: View, Trailing: View>: View {
         .contentShape(Rectangle())
         .contextMenu {
             if let turnOff { Button(turnOff.title, action: turnOff.action) }
-            if let reset { Button("Reset", action: reset) }
+            if let reset { Button(resetTitle ?? String(localized: "Reset"), action: reset) }
             if turnOff != nil || reset != nil { Divider() }
             Button("Collapse All") { InspectorExpansion.shared.setAll(family, expanded: false) }
             Button("Expand All") { InspectorExpansion.shared.setAll(family, expanded: true) }
@@ -846,6 +848,7 @@ enum AdjustText {
         case .grain: String(localized: "Grain", comment: "Adjust tab group")
         case .colorFringes: String(localized: "Color Fringes", comment: "Adjust tab group under Lens: picked fringe colors turned gray near high-contrast edges")
         case .colorAlignment: String(localized: "Color Alignment", comment: "Adjust tab group under Lens: lines up red and blue with green toward the corners")
+        case .spots: String(localized: "Spots", comment: "Adjust tab heading and group: heal and clone spots; also the Adjust ▸ Spots submenu and undo names (Turn On Spots)")
         }
     }
 
@@ -859,6 +862,7 @@ enum AdjustText {
         case .colorMixer: String(localized: "Color Mixer", comment: "Adjust tab heading")
         case .colorGrading: String(localized: "Color Grading", comment: "Adjust tab heading")
         case .effects: String(localized: "Effects", comment: "Adjust tab heading")
+        case .spots: String(localized: "Spots", comment: "Adjust tab heading and group: heal and clone spots; also the Adjust ▸ Spots submenu and undo names (Turn On Spots)")
         }
     }
 
@@ -870,8 +874,8 @@ enum AdjustText {
             String(localized: "These edits were saved by a newer version of \(name). Editing is off so they are not lost.",
                    comment: "Adjust tab and status line; %@ is the app's name")
         case .exceedsLimits:
-            String(localized: "These edits hold more masks or brush points than this version of \(name) allows. Editing is off so they are not lost.",
-                   comment: "Adjust tab and status line; %@ is the app's name")
+            String(localized: "These edits hold more masks, brush points or spots than this version of \(name) allows. Editing is off so they are not lost.",
+                   comment: "Adjust tab and status line, for a stack over the mask or spot limits (healing design §7); %@ is the app's name")
         case .damaged:
             String(localized: "These edits cannot be read. Editing is off so they are not lost.",
                    comment: "Adjust tab and status line")

@@ -59,7 +59,8 @@ public struct EditStack: Codable, Hashable, Sendable {
         /// An operation this build knows holds something it cannot read
         /// (masks: `MaskReadError.invalid`).
         case invalidOperation(String)
-        /// More masks, components, samples or brush points than `MaskLimits` allows.
+        /// More masks, components, samples or brush points than `MaskLimits`
+        /// allows, or more spots than `SpotLimits`.
         case exceedsLimits(String)
     }
 
@@ -107,6 +108,7 @@ public struct EditStack: Codable, Hashable, Sendable {
         for operation in stack.operations {
             do {
                 try LocalAdjustments.validate(operation)
+                try Spots.validate(operation)
             } catch .invalid(let reason) {
                 throw DecodingFailure.invalidOperation(reason)
             } catch .exceedsLimits(let reason) {

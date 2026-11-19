@@ -118,6 +118,16 @@ struct LibraryToolbar: CustomizableToolbarContent {
             .toggleStyle(.button)
             .disabled(state.mode == .grid ? !state.focusedIsPhoto : !state.canEditLoupePhoto)
         }
+        // A tool used on some photos: palette only, as Crop (healing design §6).
+        ToolbarItem(id: "editSpots", showsByDefault: false) {
+            Toggle(isOn: Binding(get: { state.isEditingSpots }, set: { _ in model.toggleEditingSpots() })) {
+                Label(SpotText.editSpots, systemImage: "bandage")
+            }
+            .toggleStyle(.button)
+            .help(String(localized: "Click spots in the photo to heal or clone them (H)",
+                         comment: "Tooltip of the Edit Spots toggle"))
+            .disabled(!(state.canEditSpots || state.isEditingSpots))
+        }
         ToolbarItem(id: "rotateLeft", showsByDefault: false) {
             Button { model.rotate(clockwise: false) } label: { Label("Rotate Left", systemImage: "rotate.left") }
                 .disabled(state.mode == .grid ? !state.targetsIncludePhoto : !state.canEditLoupePhoto)

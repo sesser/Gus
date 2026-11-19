@@ -77,6 +77,8 @@ struct AdjustView: View {
                         InspectorSeparator()
                         CropSection(editor: editor)
                         InspectorSeparator()
+                        SpotsSection(editor: editor)
+                        InspectorSeparator()
                         AdjustSection(.develop, editor: editor) {
                             DevelopControls(editor: editor)
                         }

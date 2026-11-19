@@ -76,6 +76,12 @@ I built this with Claude. AI did the work, I did the orchestration.
 - Masks: linear and radial gradients, a brush, and luminance and color
   ranges, combined by adding, subtracting or intersecting. Each mask
   carries its own exposure, tone, white balance, presence and sharpening.
+- Spot healing and cloning: click a dust spot or blemish and Gus fills it
+  from a clean patch nearby, chosen for you; drag the source if you want
+  another, switch a spot between Heal and Clone, and set its size, feather
+  and opacity. Spots stay on the same picture content when you crop or
+  rotate, can be turned off to compare, and are left out of copy, paste and
+  presets (at most 100 per photo; many spots slow the loupe down)
 - A History panel in the loupe's inspector lists a photo's saved edits and
   keeps them across restarts; click an earlier entry to go back to it, and
   undo that if you change your mind
@@ -129,7 +135,8 @@ app doesn't have open.
 
 ## Not there yet
 
-Healing, distortion and lens vignetting corrections (other than the camera's
+Removing larger objects (a remove brush) and automatic dust detection,
+distortion and lens vignetting corrections (other than the camera's
 own in Fujifilm raws macOS can't decode), lens profiles, DNG
 export, automatic (subject/sky) masks, DCP camera profiles, hand-made and
 burst stacks,

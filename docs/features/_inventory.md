@@ -187,6 +187,15 @@ Abbreviations: P1–P6 = `docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR
 | Masks heading and overlay | List with rename, on/off, reorder, delete; handles, brush cursor, red overlay | P6 UI; UIR §4 |
 | Limits | 32 masks, 16 components, 8 color samples, 200 000 brush points | P6 decision 2 |
 
+## Spots (healing and cloning)
+
+| Capability | What it does | Source |
+|---|---|---|
+| Heal and Clone spots | Circular spots placed by clicking in the loupe (Edit Spots, `H`); each has a size, feather, opacity and mode. Heal blends the source's texture into the surroundings; Clone copies it. Rendered first among adjustments, before white balance and the crop, in the mask frame, so they stay on picture content under crop and turns. Every decoder alike | `healing/` (#86); UG; `Edits/Spots/` |
+| Automatic source | A clean nearby patch clear of the spot, others and the edges; deterministic. Drag the source to override; Adjust ▸ Spots ▸ Choose Source Automatically picks again (one undo step) | `healing/status.md`; `Edits/Spots/SpotSourceFinder.swift` |
+| Spots heading and overlay | List and controls in the Adjust tab, on/off check box (Turn Off / On Spots), overlay of spots and sources (`V`), keyboard moves (⌥-arrows, ⌥⌘-arrows), VoiceOver buttons per spot | `healing/design.md`; `Views/SpotsSection.swift`, `Loupe/SpotOverlayView.swift` |
+| Limits and rules | 100 spots; a `spots` group left out of paste, presets and sync; per file; never in sidecars; not editable while comparing; unreadable stacks never written over. Many spots are slow (#211). Manual-check and follow-ups: #208, #209, #210, #211 | `healing/status.md` |
+
 ## Presets and look-up tables
 
 | Capability | What it does | Source |

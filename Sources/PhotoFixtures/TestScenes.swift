@@ -83,6 +83,9 @@ public enum TestScene: String, CaseIterable, Sendable {
     /// Scene (d): every pixel has a known, distinct color out to the outermost
     /// rows and columns (`pixelGridColor`), for the pixel magnifier.
     case pixelGrid
+    /// A smooth sky gradient with faint fixed-seed grain and three soft dark
+    /// dust specks (`dustSpecks`), for heal and clone spots (docs/features/healing).
+    case dustySky
 
     public static let defaultWidth = 256
     public static let defaultHeight = 192
@@ -98,6 +101,7 @@ public enum TestScene: String, CaseIterable, Sendable {
         case .fringeSubjects: FringeScene.image(width, height, subjects: true)
         case .lateralColor: Self.lateralColor(width: width, height: height)
         case .pixelGrid: Self.pixelGrid(width, height)
+        case .dustySky: Self.dustySky(width, height)
         }
     }
 
@@ -262,6 +266,35 @@ public enum TestScene: String, CaseIterable, Sendable {
         }
         return fill(width, height, supersample: 4) { x, y in
             SIMD3(channel(x, y, red), pattern(x, y), channel(x, y, blue))
+        }
+    }
+
+    /// The dust specks of `dustySky`: centers and radii in pixels of the default size.
+    public static let dustSpecks: [(x: Double, y: Double, radius: Double)] = [(80, 60, 6), (170, 100, 8), (40, 150, 5)]
+
+    /// The sky of `dustySky` without its specks, at (x, y) of a `width` × `height` frame (perceptual).
+    public static func clearSky(x: Double, y: Double, width: Int, height: Int, grain: Double) -> SIMD3<Double> {
+        let u = x / Double(width), v = y / Double(height)
+        let base = SIMD3(0.36 + 0.10 * u, 0.56 + 0.08 * v, 0.88 - 0.12 * v * v)
+        return base * (1 + 0.02 * grain)
+    }
+
+    private static func dustySky(_ width: Int, _ height: Int) -> LinearImage {
+        var random = SplitMix64(seed: 0x5EED_0D57)
+        let grid = 128
+        let grain = (0..<(grid * grid)).map { _ in Double(random.next() % 10_000) / 10_000 - 0.5 }
+        let unit = Double(width) / Double(defaultWidth)
+        return fill(width, height, supersample: 2) { x, y in
+            let g = grain[min(Int(y / Double(height) * Double(grid)), grid - 1) * grid
+                + min(Int(x / Double(width) * Double(grid)), grid - 1)]
+            var color = clearSky(x: x, y: y, width: width, height: height, grain: g)
+            for speck in dustSpecks {
+                let distance = hypot(x - speck.x * unit, y - speck.y * unit) / (speck.radius * unit)
+                // Darkest in the middle, gone at the radius.
+                let t = min(max(1 - distance, 0), 1)
+                color *= 1 - 0.45 * t * t * (3 - 2 * t)
+            }
+            return decode(color)
         }
     }
 

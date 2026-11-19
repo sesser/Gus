@@ -6,7 +6,8 @@ import UniformTypeIdentifiers
 
 /// Writes the chromatic aberration test scenes as photo files, for checks in
 /// the app (docs/features/chromatic-aberration: scenes (a)–(c), and the
-/// manual checks M2 and the debug-script checks that need them).
+/// manual checks M2 and the debug-script checks that need them), and the
+/// dusty sky of the spots (docs/features/healing) as a TIFF, a JPEG and a DNG.
 enum SceneFiles {
     static func run(_ arguments: Arguments) async throws -> [String: any Sendable] {
         guard let output = arguments.values["output"] else { throw BenchError("scenes needs --output DIR") }
@@ -23,6 +24,7 @@ enum SceneFiles {
             ("lateral-color", TestScene.lateralColor(width: width, height: height)),
             ("lateral-color-2", TestScene.lateralColor(width: width, height: height, red: -0.002, blue: 0.0025)),
             ("pixel-grid", TestScene.pixelGrid.image(width: width, height: height)),
+            ("dusty-sky", TestScene.dustySky.image(width: width, height: height)),
         ]
         for (name, image) in scenes {
             guard let cgImage = image.cgImage(colorSpace: space) else { continue }
@@ -33,6 +35,16 @@ enum SceneFiles {
         let dng = folder.appending(path: "fringes.dng")
         try SyntheticDNG.write(to: dng, options: .init(width: width, height: height, seed: 1, scene: .testScene(.fringes)))
         written.append(dng.lastPathComponent)
+        // The dusty sky through each kind of decode: ImageIO (JPEG) and the system RAW decoder (DNG).
+        let dusty = TestScene.dustySky.image(width: width, height: height)
+        if let cgImage = dusty.cgImage(colorSpace: CGColorSpace(name: CGColorSpace.sRGB)!) {
+            let jpeg = folder.appending(path: "dusty-sky.jpg")
+            try SyntheticImages.write(cgImage, to: jpeg, type: .jpeg)
+            written.append(jpeg.lastPathComponent)
+        }
+        let dustyDNG = folder.appending(path: "dusty-sky.dng")
+        try SyntheticDNG.write(to: dustyDNG, options: .init(width: width, height: height, seed: 2, scene: .testScene(.dustySky)))
+        written.append(dustyDNG.lastPathComponent)
         print("Wrote \(written.joined(separator: ", ")) to \(folder.path)")
         return ["files": written]
     }

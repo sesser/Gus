@@ -54,6 +54,7 @@ extension LibraryModel {
             if editor.showsOriginal { editor.showsOriginal = false }
             editor.endSharpeningMap()
             editor.armFringePicker(nil)
+            editor.isEditingSpots = false
             // The loupe's photo refits into the pane it goes to; from the grid both appear at once.
             let animates = isLoupe && focusedItem?.isVideo == false && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
             comparisonEntersFrom = animates ? focusedItem.flatMap { state.side(of: $0.versionID) } : nil

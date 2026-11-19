@@ -396,6 +396,33 @@ public actor LiveRenderSession {
                        cancellation: cancellation, prefill: index)
     }
 
+    /// The automatic source of the spot `id` of `adjustments` (healing PRD
+    /// R3, R16, R17): `SpotSourceFinder` over the full-size decode for the
+    /// values' settings, after the Lens heading's steps, avoiding the other
+    /// spots and preferring the crop. Placement passes the values with the
+    /// new spot already in them and Choose Source Automatically the values
+    /// as they are, so for the same spot both ask the same question of the
+    /// same decode and get the same answer (AC14). The spots are read as
+    /// turned on whatever the check box says, so the frame is always the
+    /// whole sensor they are stored in. Nil when no source is allowed.
+    public func spotSource(for id: UUID, in adjustments: Adjustments) throws -> MaskPoint? {
+        guard let spot = adjustments.spots.spots.first(where: { $0.id == id }) else { return nil }
+        var values = adjustments
+        values.setEnabled(.spots, true)
+        let stack = values.editStack
+        let renderer = generator.renderer
+        let wanted = renderer.decodeSettings(for: stack)
+        let base = try self.base(for: BaseKey(settings: decoder.decodeKey(wanted), draft: false,
+                                              longEdge: decodeLongEdge(renderer.geometry(for: stack))))
+        let (decoded, context) = try source(of: base, level: 0, settings: wanted)
+        let effective = values.effective
+        let image = AdjustmentRenderer.lens(effective, decoded, context: context)
+        return SpotSourceFinder.source(for: spot.center, size: spot.size,
+                                       others: values.spots.spots.filter { $0.id != id },
+                                       crop: AdjustmentRenderer.crop(effective, context: context), image: image,
+                                       engine: generator.engine)
+    }
+
     /// Steps the draft level down after a frame over `draftDropThreshold`, and
     /// back up only when the next larger frame would take under
     /// `draftRaiseThreshold`.

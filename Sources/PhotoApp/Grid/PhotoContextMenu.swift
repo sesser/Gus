@@ -22,9 +22,21 @@ enum PhotoContextMenu {
     }
 
     /// For the photo in the loupe: the grid's items, then zoom, original and crop.
-    static func loupe(model: LibraryModel) -> NSMenu {
+    /// - Parameter onSpot: The click was on a spot, which is selected
+    ///   first: its commands lead (healing design §6).
+    static func loupe(model: LibraryModel, onSpot: Bool = false) -> NSMenu {
         let state = LibraryMenuState(model)
         let menu = NSMenu()
+        if onSpot, state.hasSelectedSpot {
+            for mode in SpotMode.allCases {
+                let item = ActionMenuItem(SpotText.mode(mode)) { model.editor.setSpotMode(mode) }
+                item.state = state.spotMode == mode ? .on : .off
+                menu.addItem(item)
+            }
+            menu.addItem(ActionMenuItem(SpotText.chooseSource) { model.editor.chooseSpotSourceAutomatically() })
+            menu.addItem(ActionMenuItem(SpotText.delete) { model.editor.deleteSelectedSpot() })
+            menu.addItem(.separator())
+        }
         addPhotoItems(to: menu, model: model, state: state)
         // Last, whichever way the menu ends below.
         defer { addRemoveItem(to: menu, model: model, state: state) }
@@ -66,6 +78,14 @@ enum PhotoContextMenu {
             menu.addItem(ActionMenuItem(state.isCropping ? String(localized: "Finish Cropping") : String(localized: "Crop")) {
                 model.crop()
             })
+        }
+        if state.isEditingSpots {
+            menu.addItem(ActionMenuItem(SpotText.finishEditing) { model.toggleEditingSpots() })
+            menu.addItem(ActionMenuItem(state.showsSpotOverlay ? SpotText.hideOverlay : SpotText.showOverlay) {
+                model.toggleSpotOverlay()
+            })
+        } else if state.canEditSpots {
+            menu.addItem(ActionMenuItem(SpotText.editSpots) { model.toggleEditingSpots() })
         }
         return menu
     }

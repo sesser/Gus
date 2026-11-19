@@ -4,7 +4,8 @@ import CoreImage.CIFilterBuiltins
 /// Renders `Adjustments` with built-in Core Image filters.
 ///
 /// The order is fixed, whatever the order of operations in the stack: color
-/// alignment and fringe removal (on the decoded image, `LensRenderer.swift`), the
+/// alignment and fringe removal (on the decoded image, `LensRenderer.swift`),
+/// the heal and clone spots (`SpotRenderer`, also in the mask frame), the
 /// turns, straightening and crop, white
 /// balance (non-RAW; RAW files get it from their decode, `RenderContext.balancedByDecoder`), exposure, highlights and
 /// shadows, dehaze, clarity, the tone table (contrast, whites, blacks, curves),
@@ -76,8 +77,15 @@ public struct AdjustmentRenderer: EditStackRenderer {
     /// color grading): the image the mask step starts from and its ranges
     /// select on. `adjustments` are the effective ones.
     public func upstream(_ adjustments: Adjustments, to input: CIImage, crop: Crop, context: RenderContext) -> CIImage {
-        let image = crop.apply(to: Self.lens(adjustments, input, context: context))
+        let image = crop.apply(to: Self.spotStep(adjustments, Self.lens(adjustments, input, context: context)))
         return globalSteps(adjustments, image, extent: image.extent, context: context, estimates: nil)
+    }
+
+    /// The spots over the image after the Lens heading's steps, in the mask
+    /// frame. `adjustments` are the effective ones: spots turned off are gone.
+    static func spotStep(_ adjustments: Adjustments, _ image: CIImage) -> CIImage {
+        let spots = adjustments.spots.renderedSpots
+        return spots.isEmpty ? image : SpotRenderer.apply(spots, to: image)
     }
 
     /// White balance through color grading over `image`. With `estimates`
@@ -974,7 +982,7 @@ extension Adjustments {
     private var rawDecodeSettings: RAWDecodeSettings {
         var settings = RAWDecodeSettings()
         // The crop's rectangle and the masks are in the frame of the whole sensor.
-        settings.fullFrame = !crop.isIdentity || !local.renderedMasks.isEmpty
+        settings.fullFrame = !crop.isIdentity || !local.renderedMasks.isEmpty || !spots.renderedSpots.isEmpty
             // Color alignment is centered on the lens's axis, the middle of the
             // whole sensor, whatever the camera cropped (R9).
             || !colorAlignment.isIdentity

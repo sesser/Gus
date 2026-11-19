@@ -341,6 +341,52 @@ with a 4:3 sensor show the camera's crop; on Olympus, OM System and Panasonic
 raw files, cropping starts from that frame over the whole sensor, so it can be
 widened. Other raw formats are cropped within the frame their decoder gives.
 
+**Spots** (after Crop & Straighten, folded until first used) removes dust
+specks and small blemishes. **Edit Spots** (the heading's button, `H`,
+**Adjust ▸ Spots ▸ Edit Spots**, the loupe's context menu, or a toolbar item
+from View ▸ Customize Toolbar…) turns the tool on in the loupe: the pointer
+becomes a crosshair with a ring the size of the next spot. **Finish Editing
+Spots** (the same item while the tool is on, or the button again) turns it
+off. A click on the
+photo adds a spot there, picks a clean area nearby to copy from (its
+**source**, never overlapping the spot or another spot, inside the photo, and
+inside the crop when it can), selects it and shows the source as a ring with
+a cross and an arrow to the spot. Each spot is **Heal** (the copied texture
+takes on the tone and color around the spot) or **Clone** (the source copied
+as it is), shown as a solid or a dashed ring; **Size** (the radius, in
+percent of the photo's longer side), **Feather** (how much of the edge fades)
+and **Opacity** set it. The controls change the selected spot, or the next
+one when none is selected ("New spot" above them says which); new spots
+start with the values last set. Drag inside a ring to move the spot (its
+source moves with it), the small handle on the selected ring to resize it,
+and the source ring to copy from somewhere else; the source stops at its own
+spot and at the photo's edge. **Choose Source Automatically** (Adjust ▸ Spots
+and the ⋯ menu) picks a fresh source for the selected spot, the same one a
+new spot there would get. ⌥ and the arrow keys move the selected spot, ⌥⌘
+and the arrows its source, one screen point at a time (⇧ for ten); Delete
+(⌫) deletes it, while Remove from Album waits until no spot is selected.
+**Select Next / Previous Spot** step through the spots in the crop. `V`
+(**Adjust ▸ Spots ▸ Hide Spot Overlay**, or the eye beside the trash button)
+hides the rings to judge the result; then every click adds. Esc deselects the spot, then turns the tool off; moving to another
+photo, cropping, review and comparing turn it off too. Every change is one
+undo step and a History entry (Add Spot, Move Spot, Resize Spot, Move Spot
+Source, Change Spot Mode, Choose Spot Source, Delete Spot…). The heading's
+check box turns all spots off to compare and back on (Turn Off / On Spots),
+and its reset is **Delete All Spots**. A photo holds up to 100 spots: at the
+limit a click beeps, the heading says so and the loupe's caption shows
+**Spot Limit**; delete one to add another. If no clean area fits (a very
+large spot), nothing is added and the heading says why. Spots are fixed
+before every other adjustment and the crop, so they stay on the same
+content when the photo is cropped or turned later, and they show in
+previews, exports and `photocli render`. Presets and Paste Adjustments leave
+spots out and never change a photo's own; Duplicate gives the copy the
+original's spots, then each has its own. Spots are per file (the two files
+of a RAW+JPEG pair have their own) and never go into sidecars. Adding a spot
+needs a click or a touch; everything after that can be done from the
+keyboard and VoiceOver, where each spot on the photo is a button with
+actions. Many spots slow the loupe down: with about 90, a drag at 100%
+shows a frame about every 50 ms.
+
 **Editing at 100%**: at 100% and closer (`Z`, or **View ▸ Zoom to 100%**),
 the loupe shows the photo's own pixels while you change a value, so you can
 judge fine detail without letting go. A heavy edit updates less often but keeps
@@ -745,7 +791,8 @@ adjustments, `query projects` and `query images` (smart-album rules as JSON),
 `develop` (set and reset adjustments; `--dry-run` only shows the result),
 `rate`, `flag`, `label`, `export`, and `mask list`, `mask add`, `mask set` and
 `mask remove` (a version's local adjustments; `--dry-run` only shows the
-result). `noiseReduction.machineLearning=true` turns on machine learning noise
+result). `render` and `export` draw a version's spots; spots are made and
+changed in the app only. `noiseReduction.machineLearning=true` turns on machine learning noise
 reduction; `render` and `export` report in their JSON whether it was applied,
 and why not. `export --policy overwrite` replaces existing files but never an
 original in the library: such a photo is written under a numbered name and

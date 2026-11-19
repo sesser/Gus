@@ -20,6 +20,7 @@ extension LibraryModel {
         // Review shows photos only (prd.md R9); picking a fringe color is cancelled.
         editor.endSharpeningMap()
         editor.armFringePicker(nil)
+        editor.isEditingSpots = false
         if mode != .loupe { openLoupe() }
         apply(layout, in: window)
     }

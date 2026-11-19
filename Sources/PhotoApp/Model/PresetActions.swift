@@ -354,7 +354,7 @@ enum PresetText {
     static func groups(_ preset: AdjustmentPreset) -> String {
         if preset.includesEveryGroup { return String(localized: "All settings") }
         if preset.groups.isEmpty { return String(localized: "No settings") }
-        return Adjustments.Group.allCases.filter(preset.groups.contains).map(AdjustText.title).joined(separator: ", ")
+        return Adjustments.Group.presetGroups.filter(preset.groups.contains).map(AdjustText.title).joined(separator: ", ")
     }
 }
 
@@ -382,7 +382,7 @@ struct PresetSaveDialog {
         collectionField.addItems(withObjectValues: collections)
         collectionField.completes = true
 
-        let groups = Adjustments.Group.allCases
+        let groups = Adjustments.Group.presetGroups
         let boxes = groups.map { group in
             let box = NSButton(checkboxWithTitle: AdjustText.title(group), target: nil, action: nil)
             box.state = modified.contains(group) ? .on : .off

@@ -30,7 +30,10 @@ public enum AccessibilityProbe {
             }
         }
         func visitViews(_ view: NSView) {
-            if !view.isHiddenOrHasHiddenAncestor, view.isAccessibilityElement() { add(view) }
+            // With its children: an AppKit element inside SwiftUI (the loupe's canvas)
+            // is not reached by the walk above without an assistive app, nor are the
+            // elements it returns (the spots, healing design review F1).
+            if !view.isHiddenOrHasHiddenAncestor, view.isAccessibilityElement() { visit(view, depth: 0) }
             for subview in view.subviews { visitViews(subview) }
         }
         visit(window, depth: 0)

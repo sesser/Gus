@@ -81,7 +81,8 @@ let usage = """
 
       scenes     --output DIR [--size WxH]
                  Writes the chromatic aberration test scenes (fringes, fringe subjects, pixel grid, lateral color
-                 at two amounts) as TIFFs, and the fringes as a DNG (default 1536x1152).
+                 at two amounts) and the spots' dusty sky as TIFFs, the fringes and the dusty sky as DNGs and
+                 the dusty sky as a JPEG (default 1536x1152).
 
       synthesize --library-root ROOT --count N
                  Grows the catalog to N versions by cloning existing rows with new content

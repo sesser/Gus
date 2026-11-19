@@ -440,7 +440,8 @@ struct LibraryCommands: Commands {
             .disabled(!can { $0.hasTargets && !$0.albums.isEmpty })
             Button("Remove from Album") { model?.removeFromCurrentAlbum() }
                 .keyboardShortcut(.delete, modifiers: [])
-                .disabled(!canByKey { $0.hasTargets && $0.isInAlbum && !$0.isComparing })
+                // While a spot is selected the loupe's ⌫ deletes it instead (healing design §6).
+                .disabled(!canByKey { $0.hasTargets && $0.isInAlbum && !$0.isComparing && !$0.hasSelectedSpot })
             Divider()
             // Checkmarks for the file the pairs show, mixed when they differ (design.md I14).
             Menu("RAW+JPEG Pair") {
@@ -477,6 +478,82 @@ struct LibraryCommands: Commands {
     /// outside a crop session.
     private func adjustsTargets(_ state: LibraryMenuState) -> Bool {
         state.mode == .grid ? state.targetsIncludePhoto : state.canEditLoupePhoto && !state.isCropping
+    }
+
+    /// Adjust ▸ Spots ▸ (healing design §6). The submenu's title stays enabled
+    /// (D-Q5); items that can't act are listed and dimmed.
+    private var spotsMenu: some View {
+        Menu(SpotText.title) {
+            Button(menu?.state.isEditingSpots == true ? SpotText.finishEditing : SpotText.editSpots) {
+                model?.toggleEditingSpots()
+            }
+            .keyboardShortcut("h", modifiers: [])
+            .disabled(!canByKey { $0.canEditSpots || $0.isEditingSpots })
+            Button(menu?.state.showsSpotOverlay == true ? SpotText.hideOverlay : SpotText.showOverlay) {
+                model?.toggleSpotOverlay()
+            }
+            .keyboardShortcut("v", modifiers: [])
+            .disabled(!canByKey { $0.isEditingSpots })
+            Divider()
+            Menu(String(localized: "Spot Mode", comment: "Adjust ▸ Spots ▸ submenu: Heal, Clone")) {
+                ForEach(SpotMode.allCases, id: \.self) { mode in
+                    Toggle(SpotText.mode(mode), isOn: Binding(get: { menu?.state.spotMode == mode },
+                                                               set: { _ in model?.editor.setSpotMode(mode) }))
+                }
+            }
+            .disabled(!can { $0.canEditSpots && ($0.isEditingSpots || $0.hasSelectedSpot) })
+            Button(SpotText.chooseSource) { model?.editor.chooseSpotSourceAutomatically() }
+                .disabled(!can { $0.hasSelectedSpot })
+            Divider()
+            Button(SpotText.selectNext) { model?.editor.selectSpot(next: true) }
+                .disabled(!can { $0.isEditingSpots && $0.visibleSpotCount > 1 })
+            Button(SpotText.selectPrevious) { model?.editor.selectSpot(next: false) }
+                .disabled(!can { $0.isEditingSpots && $0.visibleSpotCount > 1 })
+            Menu(SpotText.moveSpot) { nudgeItems(source: false) }
+                .disabled(!canByKey { $0.hasSelectedSpot })
+            Menu(String(localized: "Move Source", comment: "Adjust ▸ Spots ▸ submenu: moves the selected spot's source")) {
+                nudgeItems(source: true)
+            }
+            .disabled(!canByKey { $0.hasSelectedSpot })
+            Divider()
+            // ⌫ is handled by the loupe while a spot is selected, and shown on no item (design §6).
+            Button(SpotText.delete) { model?.editor.deleteSelectedSpot() }
+                .disabled(!can { $0.hasSelectedSpot })
+            Button(SpotText.deleteAll) { model?.editor.deleteAllSpots() }
+                .disabled(!can { $0.canEditLoupePhoto && !$0.isCropping && !$0.isComparing && $0.spotCount > 0 })
+        }
+    }
+
+    /// Left, Right, Up, Down on ⌥ (the spot) or ⌥⌘ (its source) arrows.
+    @ViewBuilder
+    private func nudgeItems(source: Bool) -> some View {
+        let modifiers: EventModifiers = source ? [.option, .command] : .option
+        Button(String(localized: "Left", comment: "Adjust ▸ Spots ▸ Move Spot / Move Source item")) {
+            nudge(.left, source: source)
+        }
+        .keyboardShortcut(.leftArrow, modifiers: modifiers)
+        Button(String(localized: "Right", comment: "Adjust ▸ Spots ▸ Move Spot / Move Source item")) {
+            nudge(.right, source: source)
+        }
+        .keyboardShortcut(.rightArrow, modifiers: modifiers)
+        Button(String(localized: "Up", comment: "Adjust ▸ Spots ▸ Move Spot / Move Source item")) {
+            nudge(.up, source: source)
+        }
+        .keyboardShortcut(.upArrow, modifiers: modifiers)
+        Button(String(localized: "Down", comment: "Adjust ▸ Spots ▸ Move Spot / Move Source item")) {
+            nudge(.down, source: source)
+        }
+        .keyboardShortcut(.downArrow, modifiers: modifiers)
+    }
+
+    /// A key held down repeats into one undo step, saved when the loupe sees
+    /// the key go up; an item chosen with the mouse is one step at once
+    /// (code review C1).
+    private func nudge(_ direction: LibraryModel.SpotNudge, source: Bool) {
+        guard let model else { return }
+        let event = NSApp.currentEvent
+        model.nudgeSpot(direction, source: source, large: event?.modifierFlags.contains(.shift) ?? false)
+        if event?.type != .keyDown { model.editor.commitSpotNudge() }
     }
 
     private func cull(_ action: CullingAction) {
@@ -529,6 +606,7 @@ struct LibraryCommands: Commands {
             Button("Rotate Right") { model?.rotate(clockwise: true) }
                 .keyboardShortcut("]", modifiers: .command)
                 .disabled(!can { $0.mode == .grid ? $0.targetsIncludePhoto : $0.canEditLoupePhoto })
+            spotsMenu
             Menu("New Mask") {
                 ForEach(MaskShapeKind.allCases, id: \.self) { kind in
                     Button(kind.title) { model?.editor.addMask(kind) }
