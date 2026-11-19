@@ -42,7 +42,6 @@ Principles (drawn from `README.md` and `CLAUDE.md`):
 
 Set by the owner 2026-11-18: #89 (DCP profiles) was dropped, then #216 (built-in looks) the same day; #219 and #218 replace them, ahead of #87. #88 went back to the head of Next because Now holds at most three. The owner wants a PRD for every Now item before any work starts.
 
-1. [#219](https://github.com/sesser/Gus/issues/219) `remove-profile-group`: Remove the Profile group; render every photo with the decoder's default
 1. [#218](https://github.com/sesser/Gus/issues/218) `bw-module`: A B&W module with film-filter colour sliders
 1. [#87](https://github.com/sesser/Gus/issues/87) `lens-corrections`: No correction of geometric distortion or lens vignetting, and no lens profiles
 
