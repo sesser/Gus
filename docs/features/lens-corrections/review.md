@@ -443,3 +443,104 @@ M1 to M16 stand as written above, except:
 Design review of #87, second pass: **pass**; F1 to F5 are closed (DQ-4 for Constrain, magnifier plate, guide undo names, comments). New behaviours match the design: Activity row for a paste or preset reading files is the existing measuring row (title, "N of M", Stop); changes are ignored while the frame question is up; no flash while the kernels compile (failure shows row 3 once); grid-paste Undo during the read is an accepted known limit (DQ-5).
 To fix: F6 (fit a long preset name to the toolbar in that Activity row), F7 (a plain grid paste claims the batch slot and silently cancels Auto Exposure or another batch; claim it only when a file is read), F8 (stale comments).
 Open for a person: M17 to M21 added to M1 to M16 (keys while the sheet is up, the Activity row, first launch after a build). Details: `docs/features/lens-corrections/review.md`.
+
+## Follow-up (third pass, 2026-11-19, commits dc89c81 and 6dfb005)
+
+Reviewer: apple-ui-designer. Code and guide only again (no shell: nothing built
+or run; every look, key and timing is a manual check unless the code settles it).
+Read: `LensCorrectionActions.swift` (`confirmingLensFrameChange`, `setLensAmount`,
+`setConstrainToImage`), `PresetActions.swift`, `LibraryModel.swift` (the
+`lensQuestion*` and `lensReadProgress` state), `ActivityToolbarItem.swift`,
+`LensCorrectionText.swift`, the catalog, `AdjustmentActions.swift`,
+`BatchActions.swift`, `USER_GUIDE.md` 160, 336 to 339, 612 to 629, 688 to 690.
+
+### Verdict
+
+**Pass; F6, F7 and F8 are closed.** One new low finding (F9, a superseded read
+can leave a stale Activity row), one wording nit in the guide (G1). Neither blocks
+sign-off.
+
+### F6, F7, F8
+
+| # | Result | Evidence |
+|---|---|---|
+| F6 (long preset name in the read's Activity row) | Closed | `confirmingLensFrameChange` takes `toolbarTitle`; `applyAdjustmentPreset` builds it with `ToolbarMetrics.statusLine(name:)` and the same "Apply Preset %@" key as the Color Alignment path (`PresetActions` 37 to 41); it goes to `setLensReadProgress(..., toolbarTitle:)` at both sites (214, 223); `ActivityToolbarItem` 137 passes `read.toolbarTitle` into the job, so the capsule is fitted and the popover keeps the full title. A paste has no name to fit. Manual check M18 |
+| F7 (a plain paste cancels other batches) | Closed, by a stronger fix than I asked for | The question now runs on its own task and run counter (`lensQuestionTask`, `lensQuestionRun`), and its progress is its own Activity job (id "lensread", Stop cancels `lensQuestionTask`). Nothing in `confirmingLensFrameChange` touches `batchAutoTask`, `batchAutoRun` or `setBatchAutoProgress` any more, so Auto Exposure and a measuring paste keep running (`BatchActions` 91 to 94 and `AdjustmentActions` 68 to 72 are their only claimants, and the body's own measuring path still takes the slot only when it really measures, as before). Two jobs can show at once ("auto" and "lensread"), each with its own Stop, which is honest. Manual check M19 |
+| F8 (stale comments) | Closed | `afterLensCorrection` doc, translator comment and catalog comment (1836) say "Distortion or Lens Vignetting"; `setLensAmount` and `setConstrainToImage` have one coherent doc comment each |
+
+### User guide wording (6dfb005) against the UI and the rest of the guide
+
+- **Terms: pass.** "Activity" (the toolbar's Activity item, guide 160 and 689),
+  **Stop** (the row's button, as at 160, 28 and 797), **Change** and **Cancel**,
+  **Reset All Adjustments** (336 to 339), Paste Adjustments and Apply Preset,
+  Distortion, Auto and Lens Vignetting all match the UI. "Under the command's
+  name" is what the row shows: the undo name ("Paste Adjustments", "Apply
+  Preset <name>") with "N of M".
+- **"Stop ends it without changing anything": true.** Stop cancels the task
+  before `body` runs, and a Cancel in the alert likewise changes nothing. It also
+  posts no message, as the measuring paste's Stop does (the guide says nothing about
+  a message, fine).
+- **"Changes the photos that were selected when you gave the command": true.**
+  `commandTargets` is read once at the start and passed to `body`, including the
+  measuring path (`targets:`). The sentence sits after the Activity sentence, so it
+  reads as part of the paste story; it is also true of every paste and preset, so a
+  reader of the Adjust section's paste text (336 to 339) is not told. Acceptable;
+  do not duplicate it.
+- **G1. Nit: "whose Distortion is on Auto" is slightly narrower than the rule.**
+  The code reads a file when Distortion uses Auto before or after the change
+  (`usesAuto`), so a paste that brings Auto onto a photo whose Distortion is off
+  also reads it. Suggest "whose Distortion is, or would be, on Auto". Wording only;
+  the behavior and the guide's promise ("may first read") are right.
+- No term clash: the guide never calls this "Measuring"; that word stays with
+  Auto Exposure and Color Alignment. Good, since the row for a lens read says "N of
+  M" under the command name and not "Measuring".
+
+### New finding
+
+**F9. Low, from code (not reproduced): a superseded read can leave its Activity
+row behind.** `confirmingLensFrameChange` starts a new run by cancelling the older
+task (183 to 185), and the older task's `defer` clears the row only if it still owns
+the run (187 to 190). But the older task writes `setLensReadProgress` at 214 (before
+its first chunk) and at 223 (after each chunk) with no ownership check, and a
+chunk can finish after the newer command already ran. Sequence: a paste with files
+to read shows "0 of 5"; the person selects other photos and pastes again within the
+chunk's time; the newer command has nothing to read, reaches 227 and clears the row;
+the older chunk then ends and writes "4 of 5" over the empty state, returns at the
+next guard, and its `defer` does not clear (it no longer owns the run). The row is
+now stuck, and its Stop cancels `lensQuestionTask`, which is nil or the finished new
+task, so Stop does nothing until the next paste. Rare (a second command inside one
+chunk of up to four file reads) but the result is a job that never ends, which
+people read as a hung app. Fix: guard `lensQuestionRun.owns(run)` before both
+`setLensReadProgress` calls with a title (214 and 223), or make `setLensReadProgress`
+take the run and ignore a stale one. Manual check M22.
+
+### Manual checks for a person (updated list)
+
+M1 to M16 stand with the second pass's amendments (M5, M13, M14). Changes:
+
+- **M17** stands (keys while the question is up).
+- **M18** stands; the phrase "(after F6)" is now just the expected result: the
+  popover row shows the full preset name, the toolbar capsule keeps its width and
+  shortens it in the middle.
+- **M19** now has one sequence only (F7 is fixed): start Auto Exposure on a large
+  selection ("Measuring exposure N of M"), then paste on another selection that
+  reads files: both rows show, each Stop ends its own, and the measurement is not
+  cancelled by the paste or by its Stop. Also ⌘V on a selection that reads nothing:
+  the measurement continues and no row appears for the paste.
+- **M20** and **M21** stand. M21's "the earlier step was undone" expectation is the
+  accepted limit, now only for pastes that read files.
+- **M22 (new). Superseded read (F9).** With a selection whose paste reads files
+  (several Fujifilm RAFs with a spot, Distortion Auto), paste, and while Activity
+  shows "0 of N" select other photos with no masks or spots and paste again. Activity
+  must end up with no row. If a stale "N of M" stays and Stop does nothing, F9
+  stands; if it cannot be made to happen by hand, record that and leave it to the
+  fix's test.
+- **M23 (new, optional). The guide's two sentences.** Read lines 617 to 621 of
+  the guide against what M18 shows: the row's name, "N of M", Stop; and that
+  selecting other photos during the read does not change which photos the paste
+  reaches.
+
+### Summary for the issue
+
+Design review of #87, third pass: **pass**; F6 (preset name fitted in the read's Activity row), F7 (the read runs on its own task and never touches the Auto Exposure or measuring batch) and F8 (comments) are closed. The guide's new wording (a paste or preset may first read files; Activity shows the command's name, "N of M" and Stop; the photos selected when the command was given) matches the UI and the code; nit G1 ("is, or would be, on Auto").
+New, low: F9 (a read superseded by a newer paste can leave a stale Activity row; guard the two progress writes by run). Open for a person: M17 to M21 stand, M19 simplified, M22 and M23 added. Details: `docs/features/lens-corrections/review.md`.
