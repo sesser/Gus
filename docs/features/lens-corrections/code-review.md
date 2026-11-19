@@ -321,3 +321,57 @@ Activity row that never ends and a Stop that does nothing.
   wants a rule, it is a Design question for DQ-5.
 - Next: F9 to the engineer (a two-line guard), with C13 and C14 optional, then
   qa-tester. If they are fixed, a fourth pass needs only the new commit.
+
+## Follow-up, fourth pass
+
+Fourth pass, 2026-11-19: 27d80e3 only (F9, C13 as the owner ruled, C14, G1, and
+the debug command `lens pastethenpreset`). `swift build` passes. One full
+`swift test`: 1239 tests in 176 suites, 1 issue, the known flake
+`DeferredRenderTests` ("Core Animation renders an unread deferred image when it
+draws it, and only then", `DeferredRenderTests.swift:158`). Nothing else failed.
+The commit touches no test, golden, migration or `currentPipelineVersion`.
+
+**Verdict of the fourth pass: ready for QA.** F9, C13, C14 and G1 are fixed.
+C14's fix opens one narrow case that `develop` did not have (C15, Nit, a one-line
+fix). C16 is a Nit that only the debug script reaches as far as I can tell.
+
+### Third-pass findings
+
+| # | Result | Commit | Note |
+|---|---|---|---|
+| F9 (designer) | Fixed | 27d80e3 | Both writes of the read's row (`LensCorrectionActions.swift:215-216`, `225-226`) check `lensQuestionRun.owns(run)` first, with no await between check and write, so only the current run writes the row. Stop (`ActivityToolbarItem.swift:140`) cancels `lensQuestionTask`, which is always the current run's task: it is assigned synchronously right after `begin()`, before its body can run. A replaced run never clears or reassigns the task (its `defer` checks `owns`). Stop mid-read: line 219 or 229 returns, the `defer` still owns the run and clears the row and the task. Stop during the detached `frameCandidates`: the row can appear for one turn, then 219 returns and the `defer` clears it. Nothing is written. |
+| C13 | Fixed | 27d80e3 | `endPendingLensRead()` cancels the task, sets it to nil, begins a new run and clears the row. It runs at `LensCorrectionActions.swift:164`, after the 162 question guard and before any path splits. That covers the videos-only return (167), the loupe paths with and without a question (169-177), and the grid read. It also runs in `applyAdjustmentPreset`'s direct path for presets without Distortion (`PresetActions.swift:38-39`), behind the same question guard. Every entry point goes through `pasteAdjustments` or `applyAdjustmentPreset` (menu bar, context menu, toolbar, Adjust tab, Presets heading, debug script; grep). `applyingAdjustmentPreset` is private. There is no other path. Nothing is written for the older command. A task cancelled while it reads stacks throws `CancellationError` and returns. A task cancelled later fails `owns` at 215, 219, 225, 229 or 264. Its `defer` does nothing. Two `begin()`s in a row (the end, then the new command's own run) are harmless, because `LatestRun` is a counter. `cancel()` on a nil task does nothing. The two cancels removed from the loupe and grid paths are now done by the end function, so there is no double cancel. Undo is unaffected: the end function touches no undo state, and the loupe path with no question still runs `body` and registers its step before the call returns (C3). Not covered, and not part of the ruling: a measuring body already started by an older read runs on `batchAutoTask` and can still land after a newer plain preset. That is `develop`'s rule. One narrow case is C16. |
+| C14 | Fixed, see C15 | 27d80e3 | `opensTarget()` checks `mode == .loupe` and that the editor's photo is one of `sources`. It is evaluated when measuring is set (75, 79) and again when the failure is set (115). The `defer` clears measuring only if it set it (`inLoupe`). A photo opened later starts with both flags cleared (`AdjustmentEditor.swift:620-621`). After a read, a grid paste no longer marks a photo it doesn't reach. A loupe paste whose open photo changes while measuring no longer marks the new photo as failed. Swift 6 accepts the `[weak self]` closure. It is formed and called on the main actor only. |
+| G1 (designer) | Fixed | 27d80e3 | `USER_GUIDE.md` now reads "whose Distortion is, or would be, on Auto", matching `usesAuto` (before or after). "as does any newer paste or preset" matches C13. While the question is up, a paste or preset does nothing. The guide speaks of the read, and the read is over by then, so the wording holds. |
+
+### Checked in this pass
+
+- **Nothing happens while the question is up.** Both entry points test
+  `editor.isAskingLensFrame` before ending anything (162, `PresetActions.swift:38`).
+  `askLensFrameQuestion` sets the flag before the alert and clears it before
+  `body`, with no await between the clear and `body`.
+- **`lens pastethenpreset`.** `changesPhoto` returns true, so the command gets
+  one undo group, the same rule as `pasteadjust` and `pastethenfocus`. The preset
+  without Distortion registers its step synchronously in that group. A preset
+  with Distortion that reads or asks is waited for by the command's own
+  `waitForBatchWork` and the loop's, inside the group. If it asks, `alert press`
+  registers the step in its own group, and this group closes empty, as with
+  `pasteadjust`. No path registers outside a group. If the paste writes at once
+  (in the loupe with no question), paste and preset share one group, so one ⌘Z
+  undoes both. That is harmless for a script. The S9 setup (grid, 107 selected)
+  takes the grid read, which is the case it is there to show.
+
+### New findings (fourth pass)
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C15 | Nit | `Model/AdjustmentActions.swift:115` | C14's fix evaluates `opensTarget()` again when the measurement ends. It then marks the open photo as failed when any target's original couldn't be read, not only when this photo's couldn't. On `develop`, `inLoupe` was taken when the command was given. In the loupe the command has one target, the open photo, so the two tests agreed. Now a grid command reaches the editor too. No lens corrections are needed for this. | In the grid, select 20 raws. One of them, U, has an original that can't be read (catalogued, then truncated). Paste a copy with Align automatically on. While Activity shows "N of 20", press Return on Q, another of the 20, to open it. The measuring ends: U is reported, and Q is measured and changed. Q's Color Alignment caption still says "This photo could not be measured." (`LensText.swift:243, 257`). `catalogChanged` doesn't clear the flag, so the caption stays until Q's alignment changes or Q is opened again. On `develop`, the grid command never marked Q. | C14; correctness of what the inspector says. Fix: mark failed only when the open photo is one of the failures, for example `if let open = editor.item?.versionID, opensTarget(), measured.versionsToChange(from: [open]).isEmpty`, or expose the failed ids from `AlignmentMeasurements`. |
+| C16 | Nit | `Model/LensCorrectionActions.swift:173-175, 258-262` | The loupe path that asks only creates its task. The question goes up (`markAskingLensFrame(true)`) when the task first runs. A newer command in the same main-actor turn gets past the 162 guard and ends the read. The cancelled task still runs and shows the alert, because neither `askLensFrameQuestion` nor `WindowModal.run` checks cancellation or `owns(run)` before the alert. Change then does nothing (264). Until the alert is answered, every paste or preset does nothing. | Loupe, P has a mask, the copy holds Distortion Manual 30 with P's Distortion off, and preset "exp" has no Distortion. Run `lens pastethenpreset exp P`. "exp" is written to P. Then a frame question appears for the paste that was ended, and Change writes nothing. Through ordinary input this needs ⌘V and a preset handled before the main actor runs the queued task. I could not show that happens. The grid path is safe: a task cancelled before it starts throws from the stack read. Before 27d80e3, the same stale question could apply the paste. | C13 (the ended command shows nothing). Fix: in `askLensFrameQuestion`, `guard lensQuestionRun.owns(run), !Task.isCancelled else { return }` before `markAskingLensFrame(true)`. |
+
+### For the main session
+
+- `/security-review`: nothing new. This commit adds no parser, subprocess, file
+  writing or network code.
+- No Design questions or Requirements issues.
+- Next: qa-tester. C15 and C16 are optional one-line fixes. If they are made, a
+  fifth pass needs only that commit.
