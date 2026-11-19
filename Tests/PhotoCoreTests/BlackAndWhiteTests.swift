@@ -408,6 +408,18 @@ struct BlackAndWhiteTests {
         #expect(Self.withinTolerance(rendered[x, y].x, Self.render(Self.converted([.red: 100]), input)[x, y].x))
     }
 
+    @Test("A mask's White Balance comes after the conversion, so it tints the gray where it applies (user guide)")
+    func maskWhiteBalanceTints() {
+        let input = TestScene.patchChart.image()
+        var values = Self.converted()
+        values.local.masks = [GoldenCase.mask([.radial(RadialGradient(center: MaskPoint(x: 0.5, y: 0.5), radiusX: 2,
+                                                                       radiusY: 2))]) {
+            $0.temperature = 60
+        }]
+        let pixel = Self.patch(Self.render(values, input), column: 3, row: 0)
+        #expect(pixel.x > pixel.z * 1.02, "a warm tint over the neutral patch: \(pixel)")
+    }
+
     @Test("Grain after it stays gray: equal red, green and blue (R14, AC14)",
           arguments: [Grain(strength: 100), Grain(strength: 200, roughness: 10, size: 2)])
     func grainStaysGray(grain: Grain) {

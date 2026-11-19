@@ -35,6 +35,8 @@ struct BlackAndWhiteSection: View {
                              help: String(localized: "Reset \(title)"), isEnabled: isModified) {
                     editor.reset(.blackAndWhite)
                 }
+                // Dimmed until there is something to reset (design §3.1), as the Spots heading's.
+                .disabled(!isModified)
             }
             if isExpanded {
                 BlackAndWhiteControls(editor: editor)
