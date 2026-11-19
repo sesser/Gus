@@ -221,3 +221,72 @@ crop session, monochrome file, Red/Green strength, undo steps, no-op click after
 the fix, presets and paste). I couldn't run git or the PRD fetch; reviewed against
 design.md and status.md.
 Full review: docs/features/bw-module/review.md
+
+## Follow-up: second pass (2026-11-18, commit 9e7bfe9)
+
+Read-only again, no shell: I read the changed code, tests, catalog, guide and
+`status.md` rather than the diff, and ran nothing. "Closed" below means the code
+now says what I asked for; the behavior at the bundle is M9.
+
+| Finding | Result | Evidence |
+|---|---|---|
+| F1: a no-change slider gesture turned the conversion on | Closed | `Adjustments.setBlackAndWhite` writes only `blackAndWhite[filter] = value`; the `isOn = true` line is gone and `BlackAndWhiteActions.setBlackAndWhite` just calls it inside `change`. `enableModules(changedFrom:)` switches the conversion on only when the filters differ and neither state was on, so a real change still turns it on in the same step (B10). `noChangeGestureChangesNothing` covers never-used at 0, turned off at the same value, and a real change from both |
+| F2: "Tone heading" in the guide | Closed | `USER_GUIDE.md` now says "the Light heading's tone sliders". Paragraph split in two (what it does; where it sits and what reaches it). The terms I checked in review still match the UI. The guide also gained the sentence that a click leaving a value as it was does nothing, which is true of the code |
+| F3: stale translator comment | Closed | The catalog's five filter entries and `BlackAndWhiteText.name` now read "colored filters on a camera lens"; the "Yellow and Orange are new" text is gone from the Sources tree (design.md §13 still carries the old sentence; it is the spec, and the catalog is what ships) |
+
+**No-change gesture, design §3.1 and B10: pass.** The three routes I named
+(press and release of the knob, double-click reset of a filter at 0, Return in an
+unedited field) all reach `change` with the same value. The subscript write leaves
+`amounts` equal, `enableModules` flips nothing, `next == adjustments`, and
+`change` skips the whole save branch (`if next != adjustments`), so there is no
+undo step and no History entry. The same value on a turned-off group leaves it
+off, as §3.1 says moving a control turns it on only when the control changes. The
+other two routes (`chooseBlackAndWhite`, `clearBlackAndWhiteFilters`) guard on the
+state already in effect, as before. One residual to know about, not a defect: the
+test mirrors the editor's write-then-`enableModules` sequence in PhotoCore rather
+than driving the editor, so the guarantee that `change` records nothing rests on
+the `next != adjustments` check, which I read in `AdjustmentEditor.change`. The
+debug-script run `status.md` reports (`adjust bw set red 0`) was not run by me.
+
+**Color Fringes swatches keeping true colors: no conflict with the design.**
+`design.md` never mentions the fringe swatches (its "swatch" hits are the Color
+Mixer's row), and §2's render position is untouched: the conversion still renders
+after the Color Mixer in the photo, and `LensRenderer.swatch` only omits it from
+the small patch (it already omits crop, alignment, fringes, masks, vignette,
+sharpening, grain and noise reduction). The reason holds on Mac conventions too: a
+swatch labels the color the fringe step targets, and that step runs before the
+conversion, so a gray swatch would show the person a color that isn't the one they
+picked, and two slots would look identical. Judgment, not HIG: the swatch still
+follows the other color adjustments (a Saturation of -100 would still gray it), so
+the rule is "true to the fringe color, except the tone and color edits", slightly
+less clean than "pre-adjustment" but the ruling is the owner's and it fixes the
+visible case. `fringeSwatchesKeepColor` pins equality with and without the
+conversion and that the purple is not gray. The user guide says it ("The Color
+Fringes swatches keep showing their colors") and that is accurate. No String
+Catalog or UI text changed with it.
+
+**Verdict: passes.** F1, F2 and F3 are closed; nothing new found; no design
+requirement changed status (table rows 3 and 15 and 16 now pass outright).
+
+**Manual checks, updated.** M1 to M8 and M10 unchanged. M9 stands as written (it is
+the one that proves F1 at the bundle) and gains the History half: after the three
+no-op gestures, History has no new entry and Edit ▸ Undo is not "Undo Black & White
+Filter". New:
+
+- **M11. Fringe swatches under Black & White.** On a photo with a Color Fringes
+  slot filled (Purple, say), turn Black & White on: the photo goes gray, and the
+  slot's swatch in the Lens heading stays purple. Turn it off: the swatch is
+  unchanged. Other tint-changing edits (Saturation to -100) still gray the swatch;
+  that is expected.
+
+Requirements issues: none. The proposed follow-ups in the first review stand.
+
+## Summary for the issue (second pass)
+
+Design review, second pass, of #218: passes. F1 (a no-change slider gesture turned
+the photo gray), F2 (user guide heading name) and F3 (translator comment) are closed
+in 9e7bfe9; a no-change gesture now records no step or History entry (design §3.1, B10).
+Color Fringes swatches keeping true colors fits the design: the spec never covered
+them, and the render position is unchanged.
+Open for a person: M1 to M11 (M9 proves the F1 fix, M11 is new for the swatches); read, not run.
+Full review: docs/features/bw-module/review.md

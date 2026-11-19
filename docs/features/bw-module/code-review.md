@@ -136,5 +136,107 @@ outside the library.
 
 ## Follow-up
 
-(For the second pass: each finding with Fixed, Not fixed (and why) or
-Withdrawn, and the commit.)
+Second pass, 2026-11-18, on `9e7bfe9` (f7fc8f3..9e7bfe9, one commit: the
+fixes for C1 to C4, the designer's F1 to F3 and the owner's ruling on the
+Color Fringes swatches). Build: `swift build` passes. Tests: one full `swift
+test` passed, 1189 tests in 174 suites, `Deferred renders` included.
+`BlackAndWhiteTests` (27) passed alone three times out of three.
+
+**Verdict: ready for QA.** All four findings are closed, and the commit adds
+no new finding.
+
+| # | State | Commit | Notes |
+|---|---|---|---|
+| C1 | Fixed | 9e7bfe9 | `setBlackAndWhite` writes only the value (`Adjustments.setBlackAndWhite`), so the switch-on now comes only from `change`'s `enableModules`, which needs `filtersDiffer`. A press, double-click or Return that leaves the value as it was gives `next == adjustments`. Nothing is rendered and no step is recorded, because `commit` has nothing to save. The other entry points (`chooseBlackAndWhite`, `clearBlackAndWhiteFilters`, `toggleBlackAndWhite`) are unchanged and still guard against no-ops. A drag out and back still leaves the group on, which is how every other group behaves after a drag on a turned-off module. `noChangeGestureChangesNothing` checks the helper plus `enableModules` in the order `change` runs them. It cannot see the editor's closure, but that closure is now one call to the helper. The engineer's debug-script run (`adjust bw set red 0` → `on false`, no step) is the end-to-end check, and QA should repeat it. |
+| C2 | Fixed | 9e7bfe9 | Reproduced again with `photocli develop` on a scratch library. Version 1 was at `{on, red: 100}` and version 2 was fresh. `--reset blackAndWhite --set blackAndWhite.green=50 --dry-run` gives `{on: true, green: 50}` on both, and `--reset all --set blackAndWhite.red=40` gives `{on: true, red: 40}`. The result no longer depends on what the photo held. |
+| C3 | Fixed | 9e7bfe9 | `photocli render … --stack` with a turned-off `{on: true, red: 50}` and `--set blackAndWhite.on=true` now gives `isEnabled: true`, which renders gray. |
+| C4 | Fixed | 9e7bfe9 | Now `>= 12`. That no longer catches a bump made on this branch, but the diff does: `PreviewCacheKey.swift` is untouched (base..HEAD). This test now just survives #219's 13. |
+
+**The new `on` logic in `EditStack.applying`.** I traced each path and ran
+most of them through `photocli develop --dry-run` and `photocli render
+--stack`. The only callers are `runDevelop` (every `--reset` before every
+`--set`) and `runRender` (sets only).
+
+- *Set, then reset.* A module reset or `--reset all` after a set clears both
+  `blackAndWhiteOn` and `setsBlackAndWhiteFilter`, so nothing is left
+  (`scriptedOnState`). A filter reset by name after a filter set does not
+  clear the flag, so `{on: true}` is left behind. Neither CLI command can
+  issue that order, so only a direct caller of the API could reach it. Not
+  a finding.
+- *Reset everything, then set.* `--reset all --set blackAndWhite.red=40`
+  gives `{on, red: 40}` (above). `--reset all --set exposure.ev=1` leaves
+  Black & White at identity, since `storedOn` is false.
+- *An explicit `on=false` with a filter set*, in either order, or
+  `--reset blackAndWhite.on --set blackAndWhite.red=40`, gives `{red: 40}`
+  and renders in color: `on` set by name wins. The `expected` check passes
+  because `false` is the default and is left out.
+- *Turned-off interplay (`render --stack`, operation `isEnabled: false`).*
+  Starting from `{on, red: 50}` turned off:
+  - `on=true` turns it on (C3).
+  - `red=60` turns it on.
+  - `red=50` (no change) keeps it turned off and unchanged, as in the app.
+  - `on=false` gives `{red: 50}` turned on, which renders the same color.
+  - `exposure.ev=1` leaves it as it was.
+
+  One corner: a turned-off `{red: 50}` with `on` false, plus `red=50`, gives
+  `{on, red: 50}` still turned off. `isOn` is set after `enableModules`, so
+  the group stays off: the stack changes but not its render hash. The app
+  can't produce that state, since its Turn Off keeps `on` true, and
+  `photocli`'s `on=false` clears the turned-off state. Only a hand-written
+  stack has it. Not a finding.
+- *Edits that don't touch the group* keep `storedOn` (`{on, red: 100}`
+  stays).
+- *Two differences from the app, both following the rule in the user guide
+  ("setting a filter turns it on unless the same command sets or resets
+  `blackAndWhite.on`").*
+  - `--set blackAndWhite.red=0` on a fresh photo gives `{on: true}`, which
+    renders gray. In the app, the same no-change gesture does nothing.
+  - `--reset blackAndWhite.red` on `{red: 100}` with `on` false stays off,
+    while a double-click on the slider in the app switches it on.
+
+  An explicit command is taken as intent, and a reset by name is not a set.
+  I take both as by design, so they are not findings.
+
+**Swatch change (owner ruling).** `LensRenderer.swatch` has one caller,
+`FringePicker.swatch`, which `AdjustmentEditor.refreshFringeSwatches` calls.
+No golden, render path or export reaches it. The commit adds no PNG and no
+fingerprint, and `GoldenTests` passed in the full run. Clearing
+`blackAndWhite` on `values.effective` is safe: `effective` has already
+dropped the module from `disabled`. A stack whose only change is Black &
+White now takes the `isDefault` early return, which is the plain patch.
+`fringeSwatchesKeepColor` would fail without the change (the swatch would be
+R = G = B). It compares two renders of one identical 4×4 float graph exactly
+and passed in four runs.
+
+**Determinism.** The three new tests use no sleeps, clocks or randomness. Two
+are pure value checks. The swatch test is the 4×4 render above, which has no
+tiling. The one-level 8-bit variance recorded in #65 was on 24 MP Core
+Animation renders.
+
+**`DeferredRenderTests` flake: plausibly pre-existing; I did not run it on
+develop.** It passed in my full run.
+
+- The test the engineer names, `coreAnimationRendersDeferredImages`, makes
+  its own `RenderEngine` and counting providers. It asserts how often Core
+  Animation and Core Image pull an image's provider, which is undocumented
+  behavior.
+- Nothing on its path changed on this branch. The branch's sources are the
+  Black & White files, `Adjustments`, `AdjustmentEdits`,
+  `AdjustmentParameters`, `AdjustmentRenderer`, `LensRenderer`,
+  `SourceColorModel` and the app's UI. It does not touch `RenderEngine`,
+  `PreviewGenerator` or the test.
+- The same file already has a recorded load-dependent flake:
+  `matchesCoreAnimationsRender` failed 2 of 5 full runs in
+  `docs/features/dehaze-above-white/code-review.md` and
+  `full-render-main-thread-stall` C1.
+- What the branch adds is GPU load running at the same time: the Black &
+  White suite renders for about 56 s of the 69 s run.
+- A run on develop wouldn't settle it either way: one pass there proves
+  nothing about a failure seen in one run of three.
+
+If it fails again on this branch or on develop, it should become its own
+bug issue (`DeferredRenderTests.coreAnimationRendersDeferredImages` fails
+under a full parallel run). It does not block this branch.
+
+`/security-review` is still not needed: no parser, subprocess, network code
+or file writing was added.
