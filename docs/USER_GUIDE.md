@@ -567,7 +567,8 @@ them, and a photo you never touch renders exactly as before.
 
 **Distortion** straightens lines a lens bends, and **Lens Vignetting** brightens
 the corners a lens darkens (it is not the creative **Vignette** under Effects,
-which comes last). Their check boxes are always shown: checking one turns it on.
+which comes last). Their check boxes are always shown: checking one turns it on, and so does
+choosing a Source segment or moving its Amount while it is off.
 Each has a **Source**: **Auto** uses the correction table your camera stored in
 the raw file; **Manual** shows one **Amount**, -100 to +100. For Distortion,
 positive values straighten lines that bow outward (barrel), negative values lines
@@ -595,8 +596,9 @@ X-E3, whose tables correct vignetting) and the lens corrections stored in DNG
 files; for other raws it says no table was found.
 
 **Constrain to image** (under Distortion, on by default) scales the corrected
-photo so it exactly fills its frame, the way the camera frames its own pictures:
-no empty edge, and as little of the photo lost as it can. Off, the photo keeps the
+photo to fill its frame, with no empty edge, the way the camera frames its own
+pictures: as little of the photo is lost as it can (correcting barrel
+distortion it comes out slightly smaller, pincushion slightly larger). Off, the photo keeps the
 lens's scale at its center and may show a black edge (correcting pincushion). Your
 crop applies after the correction, and Distortion never moves red against green:
 that is Color Alignment's job.

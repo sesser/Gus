@@ -136,6 +136,53 @@ struct LensCorrectionTests {
                          "vignetting": ["status": "decoderCorrectsAuto", "applied": false]])
     }
 
+    @Test("A Source segment chosen while the group is off turns it on with that source; on, the selected one changes nothing (R15, AC14)")
+    func choosingSource() throws {
+        // Never on: Auto shows selected; choosing it, or Manual, turns the group on.
+        let never = Adjustments()
+        let auto = try #require(never.choosingLensSource(.distortion, .auto))
+        #expect(auto.distortionApplies && auto.distortion.source == .auto)
+        let manual = try #require(never.choosingLensSource(.lensVignetting, .manual))
+        #expect(manual.lensVignettingApplies && manual.lensVignetting.source == .manual)
+        // Unchecked with values kept: on again, the Amount kept.
+        var unchecked = Self.values(distortion: LensDistortion(isOn: true, source: .manual, amount: 25))
+        unchecked.setEnabled(.distortion, false)
+        let back = try #require(unchecked.choosingLensSource(.distortion, .auto))
+        #expect(back.distortionApplies && back.distortion.source == .auto && back.distortion.amount == 25)
+        // One step: the values before are what an undo writes back, off with their source.
+        let undone = Adjustments(stack: unchecked.editStack)
+        #expect(!undone.distortionApplies && undone.distortion.source == .manual && undone.distortion.amount == 25)
+        // On with that source already: nothing to record.
+        #expect(auto.choosingLensSource(.distortion, .auto) == nil)
+        #expect(auto.choosingLensSource(.distortion, .manual)?.distortion.source == .manual)
+    }
+
+    /// A real DNG with lens opcodes (opt-in: `DNG_OPCODE_SAMPLE=path`, never
+    /// committed): the system decoder reads it and leaves its opcodes off
+    /// (status.md Q1), and Auto takes the warp of its green plane only (L15).
+    /// Adobe's sample `03_jxl_bayer_raw_integer.dng` has a three-plane warp
+    /// whose green plane moves nothing (only red and blue are scaled, lateral
+    /// color): Auto then finds no distortion table, as it should.
+    @Test("A real DNG's WarpRectilinear: Auto takes its green plane", .enabled(if: ProcessInfo.processInfo.environment["DNG_OPCODE_SAMPLE"] != nil))
+    func dngSample() throws {
+        let url = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["DNG_OPCODE_SAMPLE"]))
+        let raw = try #require(CIRAWFilter(imageURL: url))
+        RAWDecodeSettings.none.apply(to: raw)
+        let corrects = raw.isLensCorrectionSupported && raw.isLensCorrectionEnabled
+        #expect(!corrects)
+        let state = CameraLensState.read(url, systemDecodes: true, decoderCorrects: corrects)
+        let tables = try #require(state.tables)
+        let values = Self.values(distortion: LensDistortion(isOn: true))
+        let image = try #require(RAWDecodeGraph.output(of: raw)).scaledToFit(longEdge: 600)
+        let corrected = AdjustmentRenderer.lensCorrected(values, image, context: RenderContext(isRaw: true, lens: state))
+        if let warp = tables.distortion {
+            #expect(!warp.isIdentity && corrected !== image && corrected.extent == image.extent)
+        } else {
+            #expect(corrected === image)
+            #expect(LensCorrectionStatus(.distortion, values: values, lens: state, kernelsAvailable: true).caption == .noTable)
+        }
+    }
+
     // MARK: The plan (R3, R4, R9; AC3, AC4, AC9)
 
     static let tables = CameraLensTables(origin: .dng, distortion: LensWarp(radial: .polynomial([1, -0.04, 0, 0]), fills: true),

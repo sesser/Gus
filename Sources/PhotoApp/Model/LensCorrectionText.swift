@@ -19,7 +19,7 @@ enum LensCorrectionText {
     static let amountTitle = String(localized: "Amount", comment: "Slider label: the strength of an adjustment (a mask's amount, a lens correction's manual amount)")
     static let constrainTitle = String(localized: "Constrain to image",
                                        comment: "Check box under Distortion: zoom so the corrected photo has no empty edge")
-    static let constrainHelp = String(localized: "Zoom in slightly so the corrected photo has no empty edges.",
+    static let constrainHelp = String(localized: "Scale the corrected photo to fill its frame, with no empty edge.",
                                       comment: "Tooltip and VoiceOver help of Constrain to image")
     static let readingLabel = String(localized: "Reading the camera's table",
                                      comment: "Spinner tooltip and VoiceOver label while a lens correction table is read; no visible label")

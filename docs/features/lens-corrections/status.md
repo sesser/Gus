@@ -6,21 +6,20 @@ Owner: swift-macos-engineer. Branch `feature/lens-corrections` (off develop
 c97d579). Spec: the PRD (issue #87, revised 2026-11-19) and
 [design.md](design.md) (amended 2026-11-19).
 
-**State: In progress (built; waiting on rulings).** Everything the PRD and the
-design ask for is built and tested, with Auto reading Fujifilm tables and DNG
-opcodes. The open technical questions are answered below from the code and the
+**State: Done** (2026-11-19). Everything the PRD and the design ask for is built
+and tested, as the owner ruled on 2026-11-19 (see Rulings): Auto reads Fujifilm
+RAF tables and DNG opcodes; the other makers' readers and DNG `GainMap` are
+follow-ups. The open technical questions are answered below from the code and the
 owner's files (read through a copy of the catalog; nothing in the library was
-opened or changed). Two Requirements issues (RQ-1 which maker tables, RQ-2 DNG
-GainMap) and three Design questions (DQ-1 to DQ-3) are open; none blocks review
-of what is built, but RQ-1 decides whether more readers belong on this branch,
-so the state stays In progress until it is ruled.
+opened or changed). Next: code review and the designer's review, then QA;
+`/security-review` applies (a DNG opcode list parser and RAF tag reads).
 
 ## Build and test
 
 | When | `swift build` | `swift test` |
 |---|---|---|
 | Baseline (develop c97d579 plus the design commits, before any change) | Pass (two existing warnings in `SmartAlbumTests.swift`, `VirtualCopiesTests.swift`) | 1204 tests in 175 suites pass |
-| Latest (fdd86c7) | Pass, no new warnings | 1232 tests in 176 suites pass (67.5 s); `Scripts/build-app.sh` passes |
+| Latest (after the 2026-11-19 rulings) | Pass, no new warnings | 1234 tests in 176 suites pass (71.9 s); `dngSample` passes opt-in on Adobe's sample; `Scripts/build-app.sh` passes |
 
 `PreviewCacheKey.currentPipelineVersion` stays 13: a stack without the new
 operations renders byte for byte as before (the lens step returns its input
@@ -179,7 +178,7 @@ A selection of -1 already shows no segment selected.
   `AppKitSegmented.enabledSegments`, the magnifier plate ("After lens
   correction"), `Model/DebugLensCorrectionCommands.swift`.
 - **Fixtures and tests**: `DNGOpcodes` and `SyntheticDNG.Options.opcodeList3`,
-  `TestScene.lensGrid`, `LensCorrectionTests` (28 tests, 40 cases with arguments),
+  `TestScene.lensGrid`, `LensCorrectionTests` (30 tests, 42 cases with arguments; `dngSample` opt-in),
   `Reference/LensCorrectionReference.swift`, five goldens.
 - **Docs**: `docs/USER_GUIDE.md` (the Lens paragraph, Distortion and Lens
   Vignetting, the magnifier note, the All settings preset note).
@@ -199,7 +198,8 @@ A selection of -1 already shows no segment selected.
   the X-E3's own JPEG to a third of a pixel (`EmbeddedLensCorrection.outputScale`;
   equal to it to 10⁻⁹ in `fujifilmWarp`). It fills the frame exactly: for barrel
   correction the picture comes out slightly smaller (more of it kept), for
-  pincushion slightly larger. For an off-center or tangential DNG warp, the
+  pincushion slightly larger (help: "Scale the corrected photo to fill its frame,
+  with no empty edge."). For an off-center or tangential DNG warp, the
   smallest scale at which 256 edge points read from inside. See DQ-1.
 - **The empty edge (Constrain off).** Opaque black, the same in the loupe,
   previews, export and `photocli` (one kernel). A sample within half a pixel
@@ -242,7 +242,7 @@ A selection of -1 already shows no segment selected.
 |---|---|---|
 | AC1 | `explicitOn` (identity stack; on stored explicitly), `untouched` (no lens step without the groups), every existing golden unchanged, no pipeline bump | Pass |
 | AC2 | `distortionMatchesReference` (five amounts on `lensGrid`, CPU reference, bound derived from float), `vignettingMatchesReference`, `vignettingScale`; goldens `lensDistortion-barrel-lensGrid`, `lensVignetting-lighten-grayRamp` | Pass |
-| AC3 | `rafState`, `dngFile` (tables found), `captions` (no table row 8, row 6), `manualAmountKeptInAuto`; non-raw starts in Manual: `segments` and the scripted check S2 | Pass |
+| AC3 | `rafState`, `dngFile`, `dngSample` (opt-in) (tables found or not), `otherStates` (a Panasonic or Olympus raw: no table), `captions` (row 8 "No distortion table was found…", row 6), `manualAmountKeptInAuto`; non-raw starts in Manual: `segments` and the scripted check S2 | Pass |
 | AC4 | `autoPlan`, `untouched` (Auto on decoder-corrected and built-in raws renders as off; Manual matches the reference on top); real files: `photocli render` of the owner's 12-32 RW2 with Auto: `decoderCorrectsAuto`, not applied (S4) | Pass |
 | AC5 | `pickerSeesCorrectedImage` (fringe input and alignment measurement read the corrected image), `vignettingBeforeExposure` (the reference's order; the other order differs) | Pass |
 | AC6 | `movesFrame`; scripted S2, S3 (question at commit, Cancel restores and records nothing, Change one step, once per visit, Reset Lens and Reset All and History never, a paste asks once with counts) | Pass (scripted) |
@@ -252,7 +252,8 @@ A selection of -1 already shows no segment selected.
 | AC10 | One renderer: every decode sets `RenderContext.lens`; previews, live frames, the 100% region, export and `photocli` all render through `AdjustmentRenderer` | By construction; no new test of the 100% region against fit (proposed P5) |
 | AC11 | `kernelFailure`, `corruptSwitch`, `rafState` (damaged), `dngFile` (damaged), captions rows 3 and 5; `lens force` in the debug script | Pass |
 | AC12 | `resetAndRoundTrip` (identity hash); unknown newer stacks are refused by the existing reader (unchanged) | Pass |
-| AC13 | Five goldens (fdd86c7), CPU references in `Reference/LensCorrectionReference.swift`; by eye on real files is the owner's (P1) | Goldens pass |
+| AC13 | Five goldens (fdd86c7), CPU references in `Reference/LensCorrectionReference.swift`, `dngSample` (see the note under Rulings); by eye: Lens Vignetting with Auto on the XF14 and XF23 files against the camera's JPEG is the owner's (P1) | Goldens pass |
+| AC14 | `choosingSource` (off, never on or unchecked: a segment turns the group on with that source in one change; the values before are what one Undo writes back; on with that source: nothing); the editor uses the same rule (`setLensSource`); scripted S5 | Pass |
 
 ## Scripted checks (debug script)
 
@@ -279,11 +280,49 @@ fresh copy, every launch with `--library-root`.
   the 107 photos has masks or spots…", Change: undo "Paste Adjustments".
 - **S4** `photocli render` of the 12-32 RW2 with `lensDistortion.on=true`:
   `decoderCorrectsAuto` for both groups, nothing applied.
+- **S5** (AC14) XF14 raw, Lens Vignetting never on: `lens vignetting manual`
+  turns it on in Manual, undo "Lens Vignetting Source"; one `undo` puts it back
+  off with Source Auto; `lens vignetting auto` twice: the first turns it on (one
+  step), the second records nothing. `buttons` shows Constrain to image's tooltip
+  "Scale the corrected photo to fill its frame, with no empty edge."
 - `print inspectorwidth` with the Lens heading open: visible 283, `fits` (the
   widest control is the Tone Curve's segmented control). The narrowest
   inspector can't be set by script (P2).
 
-## Requirements issues
+## Rulings (owner, 2026-11-19)
+
+- **RQ-1:** ship Fujifilm RAF and DNG opcodes now. Panasonic, Olympus and Sony
+  readers are follow-ups, with no code on this branch (follow-ups F2, F3).
+- **RQ-2:** DNG `GainMap` is deferred (follow-up F4).
+- **DQ-1:** the Constrain to image help reads "Scale the corrected photo so it
+  fills its frame, with no empty edge." (the designer may tighten it). Changed
+  in `LensCorrectionText.constrainHelp`, the String Catalog (the old key replaced)
+  and the user guide.
+- **DQ-2:** keep as built: choosing a Source segment while the group is off turns
+  it on, one step ("Distortion Source"); with the group on, the selected segment
+  records nothing. The user guide says so.
+- **DQ-3:** keep caption row 8 ("No distortion table was found…") on raws whose
+  tables this build does not read.
+
+The PRD's rev2 (issue body, 2026-11-19) records these: R3 and AC3 name the
+tables read (Fujifilm RAF, DNG `WarpRectilinear` and `FixVignetteRadial`), the
+other makers' readers and `GainMap` are non-goals, AC13's by-eye check is Lens
+Vignetting on the XF14 and XF23 files, and R15/AC14 is DQ-2's rule (tested by
+`choosingSource`, with the rule moved into PhotoCore as
+`Adjustments.choosingLensSource`). The designer tightened DQ-1's help to "Scale
+the corrected photo to fill its frame, with no empty edge.", which is in the code,
+the catalog and the user guide. Re-read against the code: nothing else in the PRD
+or design.md disagrees with what is built. One note for AC13's "the DNG-opcode
+sample": the real DNG on this Mac with a `WarpRectilinear` (Adobe's sample
+`03_jxl_bayer_raw_integer.dng`) has a green plane that moves nothing (only red and
+blue are scaled), so Auto rightly finds no distortion table there (`dngSample`,
+opt-in, `DNG_OPCODE_SAMPLE=path`). Distortion read from a table is covered by the
+synthetic opcode lists (`dngOpcodeParsing`, `dngFile`), the Fujifilm table render
+(`fujifilmWarp`) and the CPU references.
+
+The questions as they were asked are kept below.
+
+## Requirements issues (ruled, see Rulings)
 
 **RQ-1. Which maker tables Auto reads in this pass.** The PRD names Panasonic,
 Olympus and Fujifilm first. On the owner's files:
@@ -317,7 +356,7 @@ is on this Mac, and applying it after the decode would only approximate it.
 Built: `FixVignetteRadial` for vignetting. Proposed: `GainMap` as a follow-up if
 a real file needs it.
 
-## Design questions
+## Design questions (ruled, see Rulings)
 
 **DQ-1. Constrain to image's words for barrel correction.** The scale follows
 §15.8 (the camera's framing: fill the frame exactly), which for barrel
@@ -326,8 +365,8 @@ correction no empty edge appears even with the box off (the corners' content is
 pushed out instead). The help "Zoom in slightly so the corrected photo has no
 empty edges." is then wrong for the commonest case. Options: (a) keep the
 words (cost: none; inaccurate for barrel); (b) new help, for example "Scale the
-corrected photo so it fills its frame, with no empty edge." (one string; built
-as the design's for now); (c) zoom in only (`max(scale, 1)`), so barrel
+corrected photo so it fills its frame, with no empty edge." (one string, now in the code: see Rulings);
+(c) zoom in only (`max(scale, 1)`), so barrel
 correction is not scaled (cost: no longer the camera's framing; the X-E3
 comparison would be 1.5% of the radius off). Recommendation: (b). The user
 guide already describes the behavior as built.
@@ -361,6 +400,28 @@ presence check per maker). Recommendation: (a), revisit with RQ-1's follow-ups.
 - **P5** At 100% and fit, a live drag of Amount and an export of the same setting
   agree (AC10), on a wide raw.
 
+## Proposed follow-ups (new issues, not this branch)
+
+- **F1 (bug).** "Color Alignment's lensAlign kernel can read a stale input area."
+  Its area callback depends on the alignment values, which are not in Core
+  Image's graph digest: a context can reuse the area an earlier render of the
+  same image with other values needed and repeat its edge pixels (the fault this
+  branch works around for the warp, see Engineering decisions). A live drag of
+  Red/cyan or Blue/yellow on a JPEG is where it would show.
+- **F2 (enhancement).** "Auto lens corrections from Sony ARW tables"
+  (`DistortionCorrParams`, `VignettingCorrParams`): the owner's A7 III files with
+  the FE 35mm F2.8 ZA carry them and the system decoder does not apply them; the
+  only reader that would change the owner's photos today (RQ-1).
+- **F3 (enhancement).** "Panasonic and Olympus lens tables for raws the system
+  decoder can't read": inert on every owner file today; Olympus's tables are
+  undocumented (RQ-1).
+- **F4 (enhancement).** "DNG GainMap for Lens Vignetting", if a real file needs
+  it (RQ-2).
+- **F5 to F8 (enhancement), from design §18:** Auto Lens Correction on a grid
+  selection (Adjust menu); a Strength slider for Auto; the kernel-failure status
+  on Color Fringes and Color Alignment (they skip silently, RI-CR1); Lightroom
+  lens settings imported as Auto.
+
 ## README
 
 No change to requirements, build commands or the repository layout. At Ship: one
@@ -368,7 +429,7 @@ line in the feature list (Distortion and Lens Vignetting in the Lens heading).
 
 ## Open items and limits
 
-- Auto reads Fujifilm and DNG tables only (RQ-1, RQ-2).
+- Auto reads Fujifilm and DNG tables only (ruled: RQ-1, RQ-2; follow-ups F2 to F4).
 - The frame question does not wait behind another sheet (`LibraryModal`); none
   can be up when it is asked from the tab or the menus.
 - "Reading the camera's table" (design §4 row 4) is not built: the state is

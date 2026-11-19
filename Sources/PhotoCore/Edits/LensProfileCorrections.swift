@@ -133,6 +133,21 @@ extension LensVignetting {
 }
 
 extension Adjustments {
+    /// These values after a Source segment is chosen (design §3.2, PRD R15): that
+    /// source, and the group on (a group that is off is turned on, also by its
+    /// selected segment). Nil when nothing changes: the group is on with that
+    /// source already, so no undo step is recorded.
+    public func choosingLensSource(_ group: Group, _ source: LensCorrectionSource) -> Adjustments? {
+        var next = self
+        switch group {
+        case .distortion: next.distortion.source = source
+        case .lensVignetting: next.lensVignetting.source = source
+        default: return nil
+        }
+        next.setEnabled(group, true)
+        return next == self ? nil : next
+    }
+
     /// Distortion renders: switched on and not turned off. Says nothing about
     /// whether this photo's file lets Auto apply (`LensCorrectionPlan`).
     public var distortionApplies: Bool {

@@ -36,20 +36,12 @@ extension AdjustmentEditor {
         announceStatus(group)
     }
 
-    /// A Source segment. The selected one again changes nothing; a dimmed
-    /// Auto can't be chosen (design §3.2).
+    /// A Source segment. A dimmed Auto can't be chosen (design §3.2).
     func setLensSource(_ group: LensGroup, _ source: LensCorrectionSource) {
-        let status = lensStatus(group)
-        if source == .auto, status.autoUnavailable != nil { return }
-        let current = group == .distortion ? adjustments.distortion.source : adjustments.lensVignetting.source
-        guard current != source || !status.isChecked else { return }
-        change(LensCorrectionText.sourceUndoName(group), phase: .committed) { values in
-            switch group {
-            case .distortion: values.distortion.source = source
-            case .vignetting: values.lensVignetting.source = source
-            }
-            values.setEnabled(group.adjustmentGroup, true)
-        }
+        if source == .auto, lensStatus(group).autoUnavailable != nil { return }
+        // Off: the segment turns the group on (PRD R15); on with that source: nothing.
+        guard let next = adjustments.choosingLensSource(group.adjustmentGroup, source) else { return }
+        change(LensCorrectionText.sourceUndoName(group), phase: .committed) { $0 = next }
         announceStatus(group)
     }
 

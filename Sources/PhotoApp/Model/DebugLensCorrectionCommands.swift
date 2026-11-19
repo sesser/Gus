@@ -15,6 +15,8 @@ enum DebugLensCorrectionCommands {
     static func changesPhoto(_ words: [String], editor: AdjustmentEditor) -> Bool {
         guard words.first == "lens", ["distortion", "vignetting"].contains(words.dropFirst().first ?? "") else { return false }
         guard let next = predicted(Array(words.dropFirst()), editor: editor) else { return true }
+        // A change that changes nothing records nothing (an empty group would be an undo step).
+        guard next != editor.adjustments else { return false }
         return !editor.asksLensFrameQuestion(from: editor.savedAdjustments, to: next)
     }
 

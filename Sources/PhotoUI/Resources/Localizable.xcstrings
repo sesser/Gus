@@ -3077,6 +3077,17 @@
         }
       }
     },
+    "Scale the corrected photo to fill its frame, with no empty edge." : {
+      "comment" : "Tooltip and VoiceOver help of Constrain to image",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scale the corrected photo to fill its frame, with no empty edge."
+          }
+        }
+      }
+    },
     "Set by hand. Positive values lighten the corners, negative values darken them." : {
       "comment" : "Lens Vignetting caption: Manual",
       "localizations" : {
@@ -3260,17 +3271,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Yellow filter: slightly darker skies, lighter yellows and skin."
-          }
-        }
-      }
-    },
-    "Zoom in slightly so the corrected photo has no empty edges." : {
-      "comment" : "Tooltip and VoiceOver help of Constrain to image",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Zoom in slightly so the corrected photo has no empty edges."
           }
         }
       }
