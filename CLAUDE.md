@@ -404,8 +404,8 @@ more metadata columns, albums, smart albums and the Dates tree, XMP sidecars
 with review of outside changes, copying imports from cards and folders, videos
 (catalogued and played).
 
-Phase 3, first pass: global adjustments in the loupe's Adjust tab (profile,
-white balance, exposure with Auto, tone, presence, tone curve with histogram,
+Phase 3, first pass: global adjustments in the loupe's Adjust tab (a profile
+group, removed later by #219; white balance, exposure with Auto, tone, presence, tone curve with histogram,
 sharpening, noise reduction, color grading), an Effects heading (look-up table
 collections with a browser window, import and management; vignette; grain),
 per-group on/off check boxes, before/after, copy/paste and presets.
@@ -718,8 +718,7 @@ Balance, live session, 100% renderer, fringe picker, Color Alignment). A LibRaw
 photo is a rendered image like a JPEG: it renders, edits, exports and saves
 history, but flatter than the system's, with White Balance As Shot, Auto and
 Custom only and Temperature and Tint relative (a Kelvin value pasted onto it
-is kept and does nothing, and the reverse), no Profile or Decoder choice and no
-Color noise reduction; Use machine learning is dimmed ("Not available for this
+is kept and does nothing, and the reverse) and no Color noise reduction; Use machine learning is dimmed ("Not available for this
 camera."), and a pasted setting says it isn't applied and Luminance applies
 instead. Fujifilm RAFs LibRaw decodes get the camera's own frame (6000x4000
 for the X-E3) and the lens corrections the camera stored in the file
@@ -985,9 +984,46 @@ Remove brush (#208), Visualize Spots (#209). Shipped; the owner signed off
 2026-11-18, P1 to P7 done, 15 of 15 criteria pass (`docs/features/healing/qa.md`).
 VoiceOver, macOS 15 and macOS 26 are covered by CI only.
 
+Profile group removed (`docs/features/remove-profile-group/`, issue #219,
+branch `feature/remove-profile-group`): the Adjust tab has no Profile group (no
+Look pop-up, no Decoder pop-up, no note for raws LibRaw decodes), and the
+Light heading starts at White Balance. No render uses a stored `look`: the
+decoder's boost amount is never set, so every photo renders with its decoder's
+default (`RawDecode.storedLook`, read as stored text; `AdjustmentRenderer`
+sets no boost). A photo saved with Look Neutral or Flat renders with more
+contrast than before; its value is kept and written back unchanged by every
+write (edit, undo, history revert, paste, batch, `photocli develop`), and only
+Reset All Adjustments (`Adjustments.resettingAll()`, the loupe's menu and ⋯
+command and the grid batch) clears it, by removing the whole `rawDecode`
+operation with its decoder version. A stored `decoderVersion` that is not the
+machine learning one is still honoured; machine learning noise reduction is
+chosen only with Use machine learning and works as before. Profile is no
+preset group: an old preset or `.guspreset` with `rawDecode` values imports
+without error, keeps them in its stored data and applies nothing from `look`
+(a legacy machine learning decoder in a preset still turns machine learning
+on; the owner accepted that an old preset whose Profile was unticked in
+Include now does so too, C1). Lightroom import maps no profile to a Look; a
+name outside the Standard family (Standard, Adobe Color, Adobe Standard,
+default, embedded) is reported as "Profiles and creative looks", the family
+is not. `photocli adjustments` lists `rawDecode` with `decoderVersion` only,
+and `--set rawDecode.look=…` fails as an unknown parameter (the owner kept
+`decoderVersion` settable, RI-E1). `RawDefaults.offeredDecoderVersions` and the
+editor's `chooseDecoder` are gone. The render hash still covers a stored Look
+(unchanged, so the corpus hashes hold), but its render changed, so
+`PreviewCacheKey.currentPipelineVersion` is 13, a plain bump: every preview is
+made again once. The `raw-lookNeutral` and `raw-lookFlat` goldens were deleted
+in a commit of their own; no other golden moved. No catalog migration, no
+stored stack rewritten. Shipped, checks pending: P2 and P5 (a photo with a
+stored Flat Look, seeded with the command in `qa.md`: its History and Reset
+All Adjustments by hand) in #82 and `docs/features/remove-profile-group/qa.md`.
+The owner signed off by eye on 2026-11-19 (P1, P3, P4, P6 and P7 checked, fine).
+Covered by CI only: VoiceOver, macOS 15 and macOS 26.
+
 Not yet: AI masks, automatic dust detection, a Remove brush, lens corrections (distortion, lens vignetting,
 profiles; only the camera's own tables in Fujifilm raws LibRaw decodes), DNG export, `.dcp` profiles
-(a profile's hue/saturation and look tables are not applied, #89),
+and built-in look profiles (dropped 2026-11-18, #89 and #216; a profile's
+hue/saturation and look tables are not applied), a Profile group or any
+Neutral or Flat base look (#219 removed it; the loss is accepted),
 a sharper X-Trans demosaic (#199),
 general (hand-made or burst) stacks, hierarchical
 keywords, PTP cameras, a second backup destination. Writing metadata into

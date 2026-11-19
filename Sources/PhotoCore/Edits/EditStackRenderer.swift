@@ -33,10 +33,13 @@ public struct RenderContext: Sendable, Hashable {
 public struct RAWDecodeSettings: Sendable, Hashable {
     public var temperature: Float?
     public var tint: Float?
+    /// The decoder's base contrast boost. No edit stack sets it (issue #219,
+    /// R2): only measurements of the decoder's own response do
+    /// (`BaselineLookMeasurementTests`).
     public var boostAmount: Float?
-    /// The Profile group's decoder choice: used while machine learning is
-    /// not asked for or cannot apply. Never a machine learning version
-    /// (`Adjustments` reads one as `machineLearning`).
+    /// A stored decoder version (`RawDecode.decoderVersion`): used while
+    /// machine learning is not asked for or cannot apply. Never a machine
+    /// learning version (`Adjustments` reads one as `machineLearning`).
     public var decoderVersion: String?
     /// Decode with the machine learning version where the file offers it
     /// (`MachineLearningNoiseReduction`); `luminanceNoiseReduction` is then its amount.
@@ -97,8 +100,8 @@ public struct RAWDecodeSettings: Sendable, Hashable {
     /// machine learning request.
     ///
     /// The decoder version is, in order: the machine learning version when
-    /// asked for and available for this file; else the Profile group's
-    /// choice; else the decoder's default, pinned below the machine learning
+    /// asked for and available for this file; else the stored decoder
+    /// version; else the decoder's default, pinned below the machine learning
     /// version (`MachineLearningNoiseReduction.pinnedVersion`). A filter
     /// whose `decoderVersion` was changed before the call is treated as
     /// having that default, which is how tests stand in for a later macOS.

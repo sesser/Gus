@@ -370,11 +370,12 @@ struct CameraRawPresetTests {
         #expect(values.noiseReduction == NoiseReduction(luminance: 10))
         #expect(values.vignette == Vignette(amount: -18, size: 40))
         #expect(values.grain.strength == 20 && values.grain.size == 1)
-        #expect(values.decode.look == .neutral)
-        #expect(conversion.groups == [.profile, .whiteBalance, .light, .presence, .toneCurve, .colorMixer, .colorGrade,
+        // "Camera Neutral" is not carried over and is reported (issue #219, R7).
+        #expect(values.decode == RawDecode())
+        #expect(conversion.groups == [.whiteBalance, .light, .presence, .toneCurve, .colorMixer, .colorGrade,
                                       .sharpening, .noiseReduction, .vignette, .grain])
         // The empty gradient changes nothing, so it is not reported.
-        #expect(conversion.unsupported == [.texture, .calibration])
+        #expect(conversion.unsupported == [.profile, .texture, .calibration])
     }
 
     @Test func readsAndConvertsXMP() throws {

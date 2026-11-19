@@ -5,7 +5,8 @@ import Foundation
 public enum CameraRawFeature: String, CaseIterable, Sendable {
     /// Auto white balance or auto tone, measured per photo there.
     case autoSettings
-    /// A camera profile or creative look other than the standard ones.
+    /// A camera profile or creative look; every one is left out except the
+    /// standard ones, which are not reported.
     case profile
     case texture
     /// Camera calibration (primaries and shadow tint).
@@ -103,24 +104,19 @@ public enum CameraRawMapping {
             notes()
         }
 
+        /// Profile names that ask for what the decoder renders by default, so
+        /// nothing is lost and nothing is reported (issue #219, R7).
+        static let standardProfiles: Set<String> = ["standard", "adobe color", "adobe standard", "default", "embedded"]
+
+        /// No profile is carried over: every photo renders with its decoder's
+        /// default (issue #219). Any profile or look outside the standard
+        /// family is reported; a monochrome one is reported as black and
+        /// white (`notes`), not twice.
         mutating func profile() {
-            guard let name = profileName?.lowercased() else { return }
-            let look: RawDecode.Look?
-            if name.contains("flat") {
-                look = .flat
-            } else if name.contains("neutral") {
-                look = .neutral
-            } else if ["standard", "adobe color", "default", "embedded", "monochrome"].contains(where: name.contains) {
-                look = .standard
-            } else {
-                look = nil
-            }
-            if let look {
-                adjustments.decode.look = look
-                groups.insert(.profile)
-            } else {
-                unsupported.insert(.profile)
-            }
+            guard let name = profileName?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(), !name.isEmpty,
+                  !Self.standardProfiles.contains(name), !name.contains("monochrome")
+            else { return }
+            unsupported.insert(.profile)
         }
 
         mutating func whiteBalance() {

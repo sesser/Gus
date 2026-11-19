@@ -232,18 +232,6 @@ extension Adjustments {
     /// or not the Noise Reduction group is on and whether or not it can apply.
     public var asksForMachineLearning: Bool { noiseReduction.machineLearning }
 
-    /// The Decoder pop-up's choice (PRD R3, design §4): the machine learning
-    /// version turns machine learning on; any other turns it off and becomes
-    /// the Profile group's decoder (nil for `defaultVersion`).
-    public mutating func chooseDecoder(_ version: String, defaultVersion: String) {
-        if MachineLearningNoiseReduction.isMachineLearningVersion(version) {
-            noiseReduction.machineLearning = true
-        } else {
-            noiseReduction.machineLearning = false
-            decode.decoderVersion = version == defaultVersion ? nil : version
-        }
-    }
-
     /// These values for a file that is not RAW: machine learning noise
     /// reduction never applies to one, so it is never stored on one (PRD R10).
     public func forNonRawFile() -> Adjustments {
@@ -259,7 +247,7 @@ extension Adjustments {
 }
 
 extension MachineLearningNoiseReduction {
-    /// What the inspector, the Decoder pop-up and the loupe show for one
+    /// What the inspector and the loupe show for one
     /// photo's values (design §3 and §11): every surface reads this one rule.
     public struct Status: Hashable, Sendable {
         /// The values ask for it (`Adjustments.asksForMachineLearning`).
@@ -330,9 +318,5 @@ extension MachineLearningNoiseReduction {
             if case .notApplied(let reason) = state { return reason }
             return nil
         }
-
-        /// The Decoder pop-up is dimmed while machine learning is asked for and
-        /// not applied (design §4), so only the check box turns it off.
-        public var decoderChoiceIsEnabled: Bool { notAppliedReason == nil }
     }
 }

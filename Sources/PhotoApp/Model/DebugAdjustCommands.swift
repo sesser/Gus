@@ -10,9 +10,9 @@ import PhotoCore
 ///                               vignette, vignette-size, roundness, grain, grain-shadows,
 ///                               grain-midtones, grain-highlights, roughness, grain-color, grain-size)
 ///     adjust lutspace srgb|displayP3|adobeRGB|proPhoto
-///     adjust off|on <group>     (profile, whiteBalance, light, presence, toneCurve, sharpening,
+///     adjust off|on <group>     (whiteBalance, light, presence, toneCurve, sharpening,
 ///                               noiseReduction, colorMixer, colorGrade, lookTable, vignette, grain)
-///     adjust look standard|neutral|flat       adjust wb <preset>   (stores the mode as a paste would, whatever the file)
+///     adjust wb <preset>        (stores the mode as a paste would, whatever the file)
 ///     adjust wb pick <preset>   (as the Mode pop-up does: the group's own rule for this photo)
 ///     adjust curve rgb|red|green|blue <x,y> <x,y> …
 ///     adjust grade shadows|midtones|highlights <hue> <amount> [<luminance>]
@@ -79,10 +79,6 @@ enum DebugAdjustCommands {
         case "lutspace":
             let space = LookTable.ColorSpace(rawValue: arguments.first ?? "") ?? .sRGB
             editor.change(actionName, phase: .committed) { $0.lookTable.colorSpace = space }
-        case "look":
-            editor.change(actionName, phase: .committed) {
-                $0.decode.look = RawDecode.Look(rawValue: arguments.first ?? "") ?? .standard
-            }
         case "wb":
             if arguments.first == "pick" {
                 // The Mode pop-up's rule (`WhiteBalanceControls.picking`); Auto measures.

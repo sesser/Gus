@@ -102,10 +102,6 @@ public struct RawDefaults: Sendable, Hashable {
     public var temperature: Double
     public var tint: Double
     public var decoderVersions: [String]
-    /// The version a photo without a decoder choice decodes with: the
-    /// decoder's default, pinned below the machine learning version
-    /// (`MachineLearningNoiseReduction.pinnedVersion`).
-    public var defaultDecoderVersion: String
     /// 0 … 100, nil when the decoder does not offer it for this camera.
     public var luminanceNoiseReduction: Double?
     public var colorNoiseReduction: Double?
@@ -115,21 +111,13 @@ public struct RawDefaults: Sendable, Hashable {
     /// is not available or does not offer the amount).
     public var machineLearningLuminanceNoiseReduction: Double?
 
-    /// The versions the Decoder pop-up offers: the machine learning one only
-    /// where it is available (ml-denoise design §4). The pop-up shows when
-    /// this has more than one.
-    public var offeredDecoderVersions: [String] {
-        decoderVersions.filter { !MachineLearningNoiseReduction.isMachineLearningVersion($0) || machineLearning == .available }
-    }
-
-    public init(temperature: Double, tint: Double, decoderVersions: [String], defaultDecoderVersion: String,
+    public init(temperature: Double, tint: Double, decoderVersions: [String],
                 luminanceNoiseReduction: Double?, colorNoiseReduction: Double?,
                 machineLearning: MachineLearningNoiseReduction.Availability = .notOnThisMac,
                 machineLearningLuminanceNoiseReduction: Double? = nil) {
         self.temperature = temperature
         self.tint = tint
         self.decoderVersions = decoderVersions
-        self.defaultDecoderVersion = defaultDecoderVersion
         self.luminanceNoiseReduction = luminanceNoiseReduction
         self.colorNoiseReduction = colorNoiseReduction
         self.machineLearning = machineLearning
@@ -146,7 +134,6 @@ public struct RawDefaults: Sendable, Hashable {
         let availability = MachineLearningNoiseReduction.availability(for: source, decoderVersions: versions)
         self.init(temperature: Double(raw.neutralTemperature), tint: Double(raw.neutralTint),
                   decoderVersions: versions,
-                  defaultDecoderVersion: raw.decoderVersion.rawValue,
                   luminanceNoiseReduction: raw.isLuminanceNoiseReductionSupported
                       ? Double(raw.luminanceNoiseReductionAmount) * 100 : nil,
                   colorNoiseReduction: raw.isColorNoiseReductionSupported ? Double(raw.colorNoiseReductionAmount) * 100 : nil,

@@ -145,7 +145,8 @@ public struct PresetFile: Codable, Sendable {
             }
             let groups = preset.groups.map { names in Set(names.compactMap(Adjustments.Group.init(rawValue:))) }
             return AdjustmentPreset(name: preset.name, collection: preset.collection ?? "",
-                                    groups: groups ?? Set(Adjustments.Group.presetGroups), adjustments: adjustments)
+                                    groups: groups ?? Set(Adjustments.Group.presetGroups), adjustments: adjustments,
+                                    keepingStoredDecode: true)
         }
     }
 }

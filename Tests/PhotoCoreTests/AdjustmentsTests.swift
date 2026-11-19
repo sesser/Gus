@@ -8,7 +8,7 @@ import Testing
 struct AdjustmentsModelTests {
     private func full() -> Adjustments {
         var adjustments = Adjustments()
-        adjustments.decode = RawDecode(look: .neutral, decoderVersion: "8.dng")
+        adjustments.decode = RawDecode(storedLook: "neutral", decoderVersion: "8.dng")
         adjustments.whiteBalance = .raw(.tungsten)
         adjustments.exposure.ev = 0.5
         adjustments.tone = Tone(contrast: 10, highlights: -20, shadows: 30, whites: 5, blacks: -5)
@@ -73,6 +73,11 @@ struct AdjustmentsModelTests {
             adjustments = adjustments.resetting(section)
             #expect(!adjustments.isModified(section))
         }
+        // The stored decode belongs to no heading (issue #219): only Reset All removes it.
+        var remainder = Adjustments()
+        remainder.decode = full().decode
+        #expect(adjustments == remainder)
+        adjustments.decode = RawDecode()
         #expect(adjustments.editStack.renderHash == EditStack.identity.renderHash)
     }
 
@@ -97,12 +102,12 @@ struct AdjustmentsModelTests {
         let stack = EditStack(operations: [
             EditOperation(kind: "exposure", parameters: ["ev": .string("lots")]),
             EditOperation(kind: "toneCurve", parameters: ["rgb": .list([.number(0), .bool(true)])]),
-            EditOperation(kind: "rawDecode", parameters: ["look": .string("sepia")]),
+            EditOperation(kind: "rawDecode", parameters: ["look": .number(2)]),
         ])
         let adjustments = Adjustments(stack: stack)
         #expect(adjustments.exposure.ev == 0)
         #expect(adjustments.toneCurve.isIdentity)
-        #expect(adjustments.decode.look == .standard)
+        #expect(adjustments.decode.storedLook == nil)
     }
 
     @Test func curvePointsAreSortedAndClamped() {
@@ -117,12 +122,13 @@ struct AdjustmentsModelTests {
         #expect(Adjustments().decodeSettings == .none)
         var adjustments = Adjustments()
         adjustments.whiteBalance = .raw(.daylight)
-        adjustments.decode.look = .flat
+        adjustments.decode.storedLook = "flat"
         adjustments.noiseReduction.color = 30
         let settings = adjustments.decodeSettings
         #expect(settings.temperature == 5500)
         #expect(settings.tint == 0)
-        #expect(settings.boostAmount == 0)
+        // A stored Look never reaches the decoder (issue #219, R2).
+        #expect(settings.boostAmount == nil)
         #expect(settings.colorNoiseReduction == 0.3)
         #expect(settings.luminanceNoiseReduction == nil)
         #expect(settings.extendedDynamicRange == nil)
@@ -482,9 +488,10 @@ struct AdjustmentRendererTests {
             warm.whiteBalance = WhiteBalance(preset: .custom, temperature: 9000, tint: 0)
             let warmed = try average(warm)
             #expect(warmed.x / warmed.z > asShot.x / asShot.z * 1.05)
+            // A stored Look renders as the decoder's default (issue #219, R2).
             var flat = Adjustments()
-            flat.decode.look = .flat
-            #expect(try average(flat).y < asShot.y)
+            flat.decode.storedLook = "flat"
+            #expect(try average(flat) == asShot)
         }
     }
 
@@ -573,7 +580,7 @@ struct AutoAdjustTests {
             #expect(WhiteBalance.temperatureRange.contains(temperature))
             #expect(balance.tint != nil)
             let defaults = try #require(RawDefaults(source: dng))
-            #expect(defaults.decoderVersions.contains(defaults.defaultDecoderVersion))
+            #expect(!defaults.decoderVersions.isEmpty)
         }
     }
 
