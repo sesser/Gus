@@ -279,12 +279,17 @@ public enum TestScene: String, CaseIterable, Sendable {
     private static func lensGrid(_ width: Int, _ height: Int) -> LinearImage {
         let unit = Double(width) / Double(defaultWidth)
         let cx = Double(width) / 2, cy = Double(height) / 2
-        return fill(width, height, supersample: 4) { x, y in
-            let u = abs(x - cx) / unit, v = abs(y - cy) / unit
-            let onLine = u.truncatingRemainder(dividingBy: 16) < 1 || v.truncatingRemainder(dividingBy: 16) < 1
-            let tint = x / Double(width)
-            return onLine ? decode(SIMD3(0.12, 0.12, 0.14))
-                : decode(SIMD3(0.82 + 0.06 * (1 - tint), 0.80, 0.78 + 0.08 * tint))
+        let line: SIMD3<Double> = decode(SIMD3<Double>(0.12, 0.12, 0.14))
+        // Explicit types: Swift 6.2's type checker (PR #230).
+        return fill(width, height, supersample: 4) { (x: Double, y: Double) -> SIMD3<Double> in
+            let u: Double = abs(x - cx) / unit
+            let v: Double = abs(y - cy) / unit
+            let onLine: Bool = u.truncatingRemainder(dividingBy: 16) < 1 || v.truncatingRemainder(dividingBy: 16) < 1
+            if onLine { return line }
+            let tint: Double = x / Double(width)
+            let red: Double = 0.82 + 0.06 * (1 - tint)
+            let blue: Double = 0.78 + 0.08 * tint
+            return decode(SIMD3<Double>(red, 0.80, blue))
         }
     }
 

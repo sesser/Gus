@@ -23,7 +23,8 @@ opened or changed). Next: code review and the designer's review, then QA;
 | After the first reviews (f0ccf8e) | Pass, no new warnings | 1239 tests in 176 suites pass (70.3 s); `Scripts/build-app.sh` passes |
 | After the second passes (dc89c81) | Pass, no new warnings | 1239 tests in 176 suites pass (73.1 s); `Scripts/build-app.sh` passes |
 | After the third passes (27d80e3) | Pass, no new warnings | Two full runs: the first failed once in `DeferredRenderTests` ("Core Animation renders an unread deferred image when it draws it, and only then", `DeferredRenderTests.swift:158`, `extended.calls == hdrPulled`), the second passed, 1239 tests in 176 suites (72.6 s). That suite passed alone three times out of three; the branch changes none of its code (`RenderEngine.swift` and the test are untouched since develop), and the same flake is recorded in docs/features/bw-module/status.md. It is likely the unnamed failure the third-pass reviewer saw. `Scripts/build-app.sh` passes |
-| Latest (after the fourth pass) | Pass, no new warnings | Focused lens suites: 47 tests pass. Full runs: the first failed only in `DeferredRenderTests` (the known flake, #229: lines 150 and 158), the second passed, 1240 tests in 176 suites (73.2 s). `Scripts/build-app.sh` passes |
+| After the fourth pass (a97a56c) | Pass, no new warnings | Focused lens suites: 47 tests pass. Full runs: the first failed only in `DeferredRenderTests` (the known flake, #229: lines 150 and 158), the second passed, 1240 tests in 176 suites (73.2 s). `Scripts/build-app.sh` passes |
+| Latest (CI fix for Swift 6.2) | Pass, no new warnings | Lens suites, goldens and Fujifilm step: 67 tests pass; full run: 1240 tests in 176 suites pass (71.4 s) |
 
 `PreviewCacheKey.currentPipelineVersion` stays 13: a stack without the new
 operations renders byte for byte as before (the lens step returns its input
@@ -368,6 +369,38 @@ which no test target imports.
 | C15 | Fixed: the measuring paste marks the open photo "could not be measured" only when its own original is one that could not be read (`BatchEdit.AlignmentMeasurements.failed(_:)`), not when any target's failed | `measurementFailuresByPhoto` |
 | C16 | Fixed: `askLensFrameQuestion` returns before the question goes up when its read was ended or replaced before its task ran (`lensQuestionRun.owns(run)`, `Task.isCancelled`) | scripted S10 |
 | C17 | Fixed: the `record` doc line ("`alignment` nil: the original could not be measured.") is back above `record`; `failed(_:)` keeps its own (comment only) | `swift build` |
+
+### CI fix (PR #230, macOS 15 job, Swift 6.2)
+
+The macOS 15 job's compiler (Swift 6.2) gave up on
+`LensCorrectionRenderer.reach(of:from:)` ("unable to type-check this expression
+in reasonable time"): one expression built SIMD2 corners in an array literal and
+mapped them through a closure doing SIMD arithmetic. The local toolchain (Swift
+6.4) compiles it. Fixed by splitting such expressions into typed steps, with the
+same operations in the same order (no behaviour change; every golden and CPU
+reference passes unchanged):
+
+- `LensCorrectionRenderer.reach`: corners as typed `SIMD2<Double>` and a loop with
+  `lensDistance` (a new scalar helper in `LensWarp.swift`). The kernel arguments
+  of `applyGain` and `applyWarp` are built as typed `CIVector`s and an `[Any]`
+  before the call (they mixed Double-to-CGFloat conversions inside the array
+  literal).
+- `LensWarp.swift`: `toSensor`/`fromSensor`, `LensFrameGeometry.center(of:)`,
+  `LensWarp.source(ofNormalized:)` (the tangential terms as typed parts, grouped
+  as before), `scale(in:)` (a loop instead of `map`/`max`, and the edge test in
+  scalars), `source(of:in:scale:)` and `LensGain.gain(at:in:)`.
+- `CameraLensState.swift`: the DNG geometry's reach and center offset.
+- `PhotoFixtures/TestScenes.swift`: the `lensGrid` closure with explicit types.
+- `DebugLensCorrectionCommands.swift`: the long `+` chains of interpolated
+  strings in `lens print` and `lens pastethenpreset` are parts joined.
+- Tests: `nearEdge` and `LensCorrectionReference.warp`'s bounds test in typed
+  Doubles (they mixed CGFloat and Double).
+
+Found by reading the branch's new code for SIMD arithmetic in closures, mixed
+literal arithmetic and string `+` chains, and by a local build with
+`-warn-long-expression-type-checking=100`, where none of the branch's PhotoCore
+code is flagged any more. No Swift 6.2 toolchain is on this Mac, so the CI rerun
+is the check.
 
 ## Rulings (owner, 2026-11-19)
 

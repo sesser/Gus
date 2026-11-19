@@ -100,6 +100,16 @@ public enum LensGainModel: Hashable, Sendable {
     }
 }
 
+/// The distance between two points. Written out in scalars, with explicit
+/// types: Swift 6.2's type checker gave up on the same SIMD expressions in a
+/// closure (CI on macOS 15, PR #230).
+@inline(__always)
+func lensDistance(_ a: SIMD2<Double>, _ b: SIMD2<Double>) -> Double {
+    let dx: Double = a.x - b.x
+    let dy: Double = a.y - b.y
+    return (dx * dx + dy * dy).squareRoot()
+}
+
 /// Where a correction's radii are measured from and in what unit, relative
 /// to the frame it is applied to: the optical center's offset from the
 /// frame's center and the unit radius, both in units of the frame's half
@@ -143,12 +153,16 @@ public struct LensFrameGeometry: Hashable, Sendable {
     /// A sensor vector in the decoded image's coordinates (the transpose).
     func fromSensor(_ v: SIMD2<Double>) -> SIMD2<Double> {
         let m = toSensor
-        return SIMD2(m.0 * v.x + m.2 * v.y, m.1 * v.x + m.3 * v.y)
+        let x: Double = m.0 * v.x + m.2 * v.y
+        let y: Double = m.1 * v.x + m.3 * v.y
+        return SIMD2<Double>(x, y)
     }
 
     func toSensor(_ v: SIMD2<Double>) -> SIMD2<Double> {
         let m = toSensor
-        return SIMD2(m.0 * v.x + m.1 * v.y, m.2 * v.x + m.3 * v.y)
+        let x: Double = m.0 * v.x + m.1 * v.y
+        let y: Double = m.2 * v.x + m.3 * v.y
+        return SIMD2<Double>(x, y)
     }
 
     /// The unit radius in pixels of `frame`.
@@ -159,7 +173,10 @@ public struct LensFrameGeometry: Hashable, Sendable {
     /// The optical center in Core Image coordinates of `frame`.
     func center(of frame: CGRect) -> SIMD2<Double> {
         let halfDiagonal = hypot(Double(frame.width), Double(frame.height)) / 2
-        return SIMD2(Double(frame.midX), Double(frame.midY)) + fromSensor(centerOffset) * halfDiagonal
+        let offset: SIMD2<Double> = fromSensor(centerOffset)
+        let x: Double = Double(frame.midX) + offset.x * halfDiagonal
+        let y: Double = Double(frame.midY) + offset.y * halfDiagonal
+        return SIMD2<Double>(x, y)
     }
 }
 
@@ -188,13 +205,16 @@ public struct LensWarp: Hashable, Sendable {
     /// units of the radius, about the optical center, decoded orientation,
     /// Core Image's y up) is taken from, in the same units.
     func source(ofNormalized d: SIMD2<Double>) -> SIMD2<Double> {
-        let u = geometry.toSensor(d)
-        let r2 = u.x * u.x + u.y * u.y
-        let ratio = radial.ratio(r2.squareRoot())
-        let kt = tangential
-        let s = u * ratio + SIMD2(kt.x * 2 * u.x * u.y + kt.y * (r2 + 2 * u.x * u.x),
-                                  kt.y * 2 * u.x * u.y + kt.x * (r2 + 2 * u.y * u.y))
-        return geometry.fromSensor(s)
+        let u: SIMD2<Double> = geometry.toSensor(d)
+        let r2: Double = u.x * u.x + u.y * u.y
+        let ratio: Double = radial.ratio(r2.squareRoot())
+        let kt0: Double = tangential.x, kt1: Double = tangential.y
+        // The same operations, in the same order, as one SIMD expression had them.
+        let tx: Double = kt0 * 2 * u.x * u.y + kt1 * (r2 + 2 * u.x * u.x)
+        let ty: Double = kt1 * 2 * u.x * u.y + kt0 * (r2 + 2 * u.y * u.y)
+        let sx: Double = u.x * ratio + tx
+        let sy: Double = u.y * ratio + ty
+        return geometry.fromSensor(SIMD2<Double>(sx, sy))
     }
 
     /// The scale the corrected picture is shown at in `frame`: 1, or with
@@ -215,17 +235,28 @@ public struct LensWarp: Hashable, Sendable {
             let halfDiagonal = hypot(Double(frame.width), Double(frame.height)) / 2
             let unit = geometry.radiusUnit * halfDiagonal
             let short = Double(min(frame.width, frame.height)) / 2 / unit, corner = halfDiagonal / unit
-            return (0..<200).map { radial.ratio(short + (corner - short) * Double($0) / 199) }.max() ?? 1
+            var largest = -Double.infinity
+            for step in 0..<200 {
+                let rho: Double = short + (corner - short) * Double(step) / 199
+                largest = max(largest, radial.ratio(rho))
+            }
+            return largest
         }
         let radius = geometry.radius(of: frame)
         let center = geometry.center(of: frame)
         let edge = Self.edgePoints(of: frame)
+        let minX = Double(frame.minX) - 0.01, maxX = Double(frame.maxX) + 0.01
+        let minY = Double(frame.minY) - 0.01, maxY = Double(frame.maxY) + 0.01
         func fits(_ scale: Double) -> Bool {
-            edge.allSatisfy { point in
-                let p = center + source(ofNormalized: (point - center) / (radius * scale)) * radius
-                return p.x >= Double(frame.minX) - 0.01 && p.x <= Double(frame.maxX) + 0.01
-                    && p.y >= Double(frame.minY) - 0.01 && p.y <= Double(frame.maxY) + 0.01
+            let unit: Double = radius * scale
+            for point in edge {
+                let d = SIMD2<Double>((point.x - center.x) / unit, (point.y - center.y) / unit)
+                let s: SIMD2<Double> = source(ofNormalized: d)
+                let px: Double = center.x + s.x * radius
+                let py: Double = center.y + s.y * radius
+                if px < minX || px > maxX || py < minY || py > maxY { return false }
             }
+            return true
         }
         var low = 0.25, high = 4.0
         guard fits(high) else { return 1 }
@@ -254,9 +285,10 @@ public struct LensWarp: Hashable, Sendable {
     public func source(of point: CGPoint, in frame: CGRect, scale: Double) -> CGPoint {
         let radius = geometry.radius(of: frame)
         let center = geometry.center(of: frame)
-        let d = (SIMD2(Double(point.x), Double(point.y)) - center) / (radius * scale)
-        let p = center + source(ofNormalized: d) * radius
-        return CGPoint(x: p.x, y: p.y)
+        let unit: Double = radius * scale
+        let d = SIMD2<Double>((Double(point.x) - center.x) / unit, (Double(point.y) - center.y) / unit)
+        let s: SIMD2<Double> = source(ofNormalized: d)
+        return CGPoint(x: center.x + s.x * radius, y: center.y + s.y * radius)
     }
 }
 
@@ -275,8 +307,8 @@ public struct LensGain: Hashable, Sendable {
     /// The gain at `point` (Core Image coordinates) of `frame`.
     public func gain(at point: CGPoint, in frame: CGRect) -> Double {
         let center = geometry.center(of: frame)
-        let d = SIMD2(Double(point.x), Double(point.y)) - center
-        return model.gain((d.x * d.x + d.y * d.y).squareRoot() / geometry.radius(of: frame))
+        let distance: Double = lensDistance(SIMD2<Double>(Double(point.x), Double(point.y)), center)
+        return model.gain(distance / geometry.radius(of: frame))
     }
 
     /// A value `v` with `gain` applied: lifted at most to the decode's white

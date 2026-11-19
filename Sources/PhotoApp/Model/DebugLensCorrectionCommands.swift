@@ -71,8 +71,9 @@ enum DebugLensCorrectionCommands {
             let pending = model.lensQuestionTask != nil
             if let index = model.items.firstIndex(where: { PhotoName.display($0) == name }) { model.setFocus(index) }
             model.applyAdjustmentPreset(preset)
-            print("debug-script: lens paste read pending \(pending), after the preset \(model.lensQuestionTask != nil)"
-                  + " row \(model.lensReadProgress != nil)")
+            let after: Bool = model.lensQuestionTask != nil
+            let row: Bool = model.lensReadProgress != nil
+            print("debug-script: lens paste read pending \(pending), after the preset \(after) row \(row)")
             await DebugScript.waitForBatchWork(model)
         case "pastethenfocus":
             // Paste Adjustments, then at once another photo selected, before the
@@ -122,9 +123,13 @@ enum DebugLensCorrectionCommands {
 
     static func printState(_ editor: AdjustmentEditor) {
         let plan = LensCorrectionPlan(editor.adjustments.effective, lens: editor.lensState)
-        print("debug-script: lens state \(describe(editor.lensState)) kernels \(!AdjustmentRenderer.lensCorrectionKernelsKnownUnavailable)"
-              + " asking \(editor.isAskingLensFrame) answered \(editor.lensFrameAnswer.map(String.init) ?? "no")"
-              + " warp \(plan.warp != nil) gain \(plan.gain != nil)")
+        // Parts joined, not `+` chains: Swift 6.2's type checker (PR #230).
+        let kernels: Bool = !AdjustmentRenderer.lensCorrectionKernelsKnownUnavailable
+        let answered: String = editor.lensFrameAnswer.map { String($0) } ?? "no"
+        let parts: [String] = ["debug-script: lens state \(describe(editor.lensState))", "kernels \(kernels)",
+                               "asking \(editor.isAskingLensFrame)", "answered \(answered)",
+                               "warp \(plan.warp != nil)", "gain \(plan.gain != nil)"]
+        print(parts.joined(separator: " "))
         for group in LensCorrectionStatus.Group.allCases {
             let status = editor.lensStatus(group)
             let values = editor.adjustments
@@ -133,11 +138,13 @@ enum DebugLensCorrectionCommands {
                 : (values.lensVignetting.isOn, values.lensVignetting.source, values.lensVignetting.amount)
             let constrain = group == .distortion ? " constrain \(values.distortion.constrain)" : ""
             let applies = group == .distortion ? plan.warp != nil : plan.gain != nil
-            print("debug-script: lens \(group.rawValue) on \(isOn) checked \(status.isChecked) applies \(applies)"
-                  + " source \(source.rawValue) amount \(amount)\(constrain) row \(status.caption.rawValue)"
-                  + " segment \(status.selectedSegment.map(String.init) ?? "none")"
-                  + " autoEnabled \(status.autoUnavailable == nil) autoUnavailable \(status.autoUnavailable?.rawValue ?? "-")"
-                  + " amountShown \(status.showsAmount) warning \(status.caption.isWarning)")
+            let segment: String = status.selectedSegment.map { String($0) } ?? "none"
+            let unavailable: String = status.autoUnavailable?.rawValue ?? "-"
+            let line: [String] = ["debug-script: lens \(group.rawValue) on \(isOn) checked \(status.isChecked) applies \(applies)",
+                                  "source \(source.rawValue) amount \(amount)\(constrain) row \(status.caption.rawValue)",
+                                  "segment \(segment)", "autoEnabled \(status.autoUnavailable == nil) autoUnavailable \(unavailable)",
+                                  "amountShown \(status.showsAmount) warning \(status.caption.isWarning)"]
+            print(line.joined(separator: " "))
             print("debug-script: lens \(group.rawValue) caption \(LensCorrectionText.caption(status.caption, group: group))")
         }
     }

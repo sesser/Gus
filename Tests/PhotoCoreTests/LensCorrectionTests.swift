@@ -317,8 +317,10 @@ struct LensCorrectionTests {
         var near = Set<Int>()
         for row in 0..<height {
             for column in 0..<width {
-                let p = warp.source(of: CGPoint(x: Double(column) + 0.5, y: Double(height - 1 - row) + 0.5), in: frame, scale: scale)
-                let distances = [p.x, p.y, Double(width) - p.x, Double(height) - p.y].map(abs)
+                let point = CGPoint(x: Double(column) + 0.5, y: Double(height - 1 - row) + 0.5)
+                let p: CGPoint = warp.source(of: point, in: frame, scale: scale)
+                let x = Double(p.x), y = Double(p.y)
+                let distances: [Double] = [abs(x), abs(y), abs(Double(width) - x), abs(Double(height) - y)]
                 if distances.contains(where: { $0 < 1e-3 }) { near.insert(row * width + column) }
             }
         }

@@ -60,9 +60,15 @@ extension AdjustmentRenderer {
 
     /// The farthest a point of `extent` is from `center`, in pixels.
     static func reach(of extent: CGRect, from center: SIMD2<Double>) -> Double {
-        [SIMD2(Double(extent.minX), Double(extent.minY)), SIMD2(Double(extent.maxX), Double(extent.minY)),
-         SIMD2(Double(extent.minX), Double(extent.maxY)), SIMD2(Double(extent.maxX), Double(extent.maxY))]
-            .map { (($0 - center) * ($0 - center)).sum().squareRoot() }.max() ?? 1
+        // Explicit types and no closure: Swift 6.2 could not type-check this
+        // as one expression (CI on macOS 15, PR #230).
+        let minX = Double(extent.minX), maxX = Double(extent.maxX)
+        let minY = Double(extent.minY), maxY = Double(extent.maxY)
+        let corners: [SIMD2<Double>] = [SIMD2<Double>(minX, minY), SIMD2<Double>(maxX, minY),
+                                        SIMD2<Double>(minX, maxY), SIMD2<Double>(maxX, maxY)]
+        var farthest: Double = 0
+        for corner in corners { farthest = max(farthest, lensDistance(corner, center)) }
+        return farthest > 0 ? farthest : 1
     }
 
     static func applyGain(_ image: CIImage, _ gain: LensGain, frame: CGRect) -> CIImage? {
@@ -74,9 +80,12 @@ extension AdjustmentRenderer {
         let count = lensTableCount, last = Double(count - 1)
         let table = lensTable(count) { gain.model.gain(Double($0) / last * reach) }
         let tableExtent = table.extent
+        // Each argument typed on its own line (Swift 6.2's type checker, PR #230).
+        let centerVector = CIVector(x: CGFloat(center.x), y: CGFloat(center.y))
+        let params = CIVector(x: CGFloat(1 / radius), y: CGFloat(last / reach), z: CGFloat(last))
+        let arguments: [Any] = [image, table, centerVector, params]
         return kernel.apply(extent: extent, roiCallback: { index, rect in index == 0 ? rect : tableExtent },
-                            arguments: [image, table, CIVector(x: center.x, y: center.y),
-                                        CIVector(x: 1 / radius, y: last / reach, z: last)])?.cropped(to: extent)
+                            arguments: arguments)?.cropped(to: extent)
     }
 
     static func applyWarp(_ image: CIImage, _ warp: LensWarp, frame: CGRect) -> CIImage? {
@@ -115,12 +124,15 @@ extension AdjustmentRenderer {
         hasher.combine(frame.width); hasher.combine(frame.height)
         let key = RAWDecodeGraph.Key(serial: UInt64(bitPattern: Int64(hasher.finalize())) & ((1 << 44) - 1))
         let input = RAWDecodeGraph.keyed(image, with: key).clampedToExtent()
+        // Each argument typed on its own line (Swift 6.2's type checker, PR #230).
+        let centerVector = CIVector(x: CGFloat(center.x), y: CGFloat(center.y))
+        let matrix = CIVector(x: CGFloat(m.0), y: CGFloat(m.1), z: CGFloat(m.2), w: CGFloat(m.3))
+        let params = CIVector(x: CGFloat(1 / (radius * scale)), y: CGFloat(radius), z: CGFloat(last / reach), w: CGFloat(last))
+        let tangential = CIVector(x: CGFloat(warp.tangential.x), y: CGFloat(warp.tangential.y))
+        let bounds = CIVector(x: extent.minX, y: extent.minY, z: extent.maxX, w: extent.maxY)
+        let arguments: [Any] = [input, table, centerVector, matrix, params, tangential, bounds]
         return kernel.apply(extent: extent, roiCallback: roi,
-                            arguments: [input, table, CIVector(x: center.x, y: center.y),
-                                        CIVector(x: m.0, y: m.1, z: m.2, w: m.3),
-                                        CIVector(x: 1 / (radius * scale), y: radius, z: last / reach, w: last),
-                                        CIVector(x: warp.tangential.x, y: warp.tangential.y),
-                                        CIVector(x: extent.minX, y: extent.minY, z: extent.maxX, w: extent.maxY)])?
+                            arguments: arguments)?
             .cropped(to: extent)
     }
 }

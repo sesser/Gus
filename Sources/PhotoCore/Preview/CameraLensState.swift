@@ -214,14 +214,18 @@ enum DNGLensOpcodes {
         let orientationValue = ifd0.first { $0.tag == Tag.orientation }.flatMap { reader.values($0).first } ?? 1
         let orientation = CGImagePropertyOrientation(rawValue: orientationValue) ?? .up
         func geometry(center cx: Double, _ cy: Double) -> LensFrameGeometry {
-            let center = SIMD2(cx * Double(area.width), cy * Double(area.height))
-            let corners = [SIMD2(0.0, 0.0), SIMD2(Double(area.width), 0), SIMD2(0, Double(area.height)),
-                           SIMD2(Double(area.width), Double(area.height))]
-            let reach = corners.map { (($0 - center) * ($0 - center)).sum().squareRoot() }.max() ?? 1
-            let halfDiagonal = hypot(Double(crop.width), Double(crop.height)) / 2
-            let frameCenter = SIMD2(Double(crop.midX), Double(crop.midY))
-            return LensFrameGeometry(centerOffset: (center - frameCenter) / halfDiagonal, radiusUnit: reach / halfDiagonal,
-                                     orientation: orientation)
+            // Explicit types and plain loops (Swift 6.2's type checker, PR #230).
+            let width = Double(area.width), height = Double(area.height)
+            let center = SIMD2<Double>(cx * width, cy * height)
+            let corners: [SIMD2<Double>] = [SIMD2<Double>(0, 0), SIMD2<Double>(width, 0), SIMD2<Double>(0, height),
+                                            SIMD2<Double>(width, height)]
+            var reach: Double = 0
+            for corner in corners { reach = max(reach, lensDistance(corner, center)) }
+            if reach == 0 { reach = 1 }
+            let halfDiagonal: Double = hypot(Double(crop.width), Double(crop.height)) / 2
+            let offset = SIMD2<Double>((center.x - Double(crop.midX)) / halfDiagonal,
+                                       (center.y - Double(crop.midY)) / halfDiagonal)
+            return LensFrameGeometry(centerOffset: offset, radiusUnit: reach / halfDiagonal, orientation: orientation)
         }
         var tables = CameraLensTables(origin: .dng)
         if let w = parsed.warp {

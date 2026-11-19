@@ -40,7 +40,8 @@ enum LensCorrectionReference {
                 let point = CGPoint(x: Double(column) + 0.5, y: Double(height - 1 - row) + 0.5)
                 let p = warp.source(of: point, in: frame, scale: scale)
                 for channel in 0..<3 {
-                    let inside = p.x >= 0 && p.y >= 0 && p.x <= Double(width) && p.y <= Double(height)
+                    let x = Double(p.x), y = Double(p.y)
+                    let inside: Bool = x >= 0 && y >= 0 && x <= Double(width) && y <= Double(height)
                     pixels[(row * width + column) * 4 + channel] = inside ? sample(source, channel, at: p) : 0
                 }
             }
