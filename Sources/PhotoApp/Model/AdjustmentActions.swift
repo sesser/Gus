@@ -112,7 +112,8 @@ extension LibraryModel {
                 report(Self.unreadableDetail(summary, names: unreadable), action: actionName, warning: true,
                        announcing: summary)
             }
-            if opensTarget(), !unreadable.isEmpty { editor.noteAlignmentMeasureFailed() }
+            // Only when the open photo is itself one whose original could not be read (code review C15).
+            if opensTarget(), let open = editor.item?.versionID, measured.failed(open) { editor.noteAlignmentMeasureFailed() }
             let alignments = measured.alignments
             changeAdjustments(ofVersions: measured.versionsToChange(from: sources.map(\.0)), actionName: actionName) { id, values in
                 let changed = transform(values)

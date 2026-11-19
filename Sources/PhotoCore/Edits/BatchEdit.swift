@@ -30,6 +30,10 @@ public enum BatchEdit {
         public init() {}
 
         /// `alignment` nil: the original could not be measured.
+        /// The original of `id` could not be read (code review C15: only that
+        /// photo's caption says it could not be measured).
+        public func failed(_ id: Int64) -> Bool { failed.contains(id) }
+
         public mutating func record(_ alignment: ColorAlignment?, id: Int64, name: String) {
             if let alignment {
                 alignments[id] = alignment

@@ -257,6 +257,9 @@ extension LibraryModel {
     /// Asks; on Change runs `body` unless a newer command took over (`run`).
     private func askLensFrameQuestion(affected: Int, of total: Int, includesOpen: Bool, run: Int,
                                       then body: @MainActor () -> Void) async {
+        // A read ended before its task ran (a newer paste or preset in the same
+        // turn) shows no question (code review C16).
+        guard lensQuestionRun.owns(run), !Task.isCancelled else { return }
         editor.markAskingLensFrame(true)
         let alert = AdjustmentEditor.lensFrameAlert(affected: affected, of: total)
         let response = await WindowModal.run(alert, in: windowObserver.window)

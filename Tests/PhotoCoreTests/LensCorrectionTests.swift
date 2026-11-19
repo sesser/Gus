@@ -196,6 +196,14 @@ struct LensCorrectionTests {
         #expect(LensCorrectionPlan(values, lens: nil).warp?.radial == .manual(amount: 100))
     }
 
+    @Test("A measuring paste says which photos failed, so only their caption says so (code review C15)")
+    func measurementFailuresByPhoto() {
+        var measured = BatchEdit.AlignmentMeasurements()
+        measured.record(ColorAlignment(automatic: true, red: 2), id: 7, name: "q.ORF")
+        measured.record(nil, id: 8, name: "u.ORF")
+        #expect(!measured.failed(7) && measured.failed(8) && !measured.failed(9))
+    }
+
     // MARK: The plan (R3, R4, R9; AC3, AC4, AC9)
 
     static let tables = CameraLensTables(origin: .dng, distortion: LensWarp(radial: .polynomial([1, -0.04, 0, 0]), fills: true),

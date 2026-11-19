@@ -22,7 +22,8 @@ opened or changed). Next: code review and the designer's review, then QA;
 | After the 2026-11-19 rulings (ad9b419) | Pass, no new warnings | 1234 tests in 176 suites pass (71.9 s); `dngSample` passes opt-in on Adobe's sample; `Scripts/build-app.sh` passes |
 | After the first reviews (f0ccf8e) | Pass, no new warnings | 1239 tests in 176 suites pass (70.3 s); `Scripts/build-app.sh` passes |
 | After the second passes (dc89c81) | Pass, no new warnings | 1239 tests in 176 suites pass (73.1 s); `Scripts/build-app.sh` passes |
-| Latest (after the third passes) | Pass, no new warnings | Two full runs: the first failed once in `DeferredRenderTests` ("Core Animation renders an unread deferred image when it draws it, and only then", `DeferredRenderTests.swift:158`, `extended.calls == hdrPulled`), the second passed, 1239 tests in 176 suites (72.6 s). That suite passed alone three times out of three; the branch changes none of its code (`RenderEngine.swift` and the test are untouched since develop), and the same flake is recorded in docs/features/bw-module/status.md. It is likely the unnamed failure the third-pass reviewer saw. `Scripts/build-app.sh` passes |
+| After the third passes (27d80e3) | Pass, no new warnings | Two full runs: the first failed once in `DeferredRenderTests` ("Core Animation renders an unread deferred image when it draws it, and only then", `DeferredRenderTests.swift:158`, `extended.calls == hdrPulled`), the second passed, 1239 tests in 176 suites (72.6 s). That suite passed alone three times out of three; the branch changes none of its code (`RenderEngine.swift` and the test are untouched since develop), and the same flake is recorded in docs/features/bw-module/status.md. It is likely the unnamed failure the third-pass reviewer saw. `Scripts/build-app.sh` passes |
+| Latest (after the fourth pass) | Pass, no new warnings | Focused lens suites: 47 tests pass. Full runs: the first failed only in `DeferredRenderTests` (the known flake, #229: lines 150 and 158), the second passed, 1240 tests in 176 suites (73.2 s). `Scripts/build-app.sh` passes |
 
 `PreviewCacheKey.currentPipelineVersion` stays 13: a stack without the new
 operations renders byte for byte as before (the lens step returns its input
@@ -304,6 +305,10 @@ fresh copy, every launch with `--library-root`.
   preset, no read task and no Activity row; no question; undo "Apply Preset exp";
   IMG_00001 has no Distortion (the paste was not written); IMG_00017's stack holds
   only Exposure 0.5.
+- **S10** (C16) Loupe on IMG_00001 (a spot, Distortion off), the copy holding
+  Manual Distortion 30, preset "exp" (Exposure only): `lens pastethenpreset exp
+  IMG_00001`. The paste's question task was pending; after the preset no task, no
+  row, no alert (`alert none`); Distortion stays off; undo "Apply Preset exp".
 - **S5** (AC14) XF14 raw, Lens Vignetting never on: `lens vignetting manual`
   turns it on in Manual, undo "Lens Vignetting Source"; one `undo` puts it back
   off with Source Auto; `lens vignetting auto` twice: the first turns it on (one
@@ -355,6 +360,13 @@ which no test target imports.
 | C13 | Fixed as the owner ruled: every paste and preset ends a pending read first (`endPendingLensRead`: cancels it, starts a new run, removes its row), whatever path it then takes: the loupe's photo with no question, a selection of videos only, a preset without Distortion. Nothing is written for the older command. While the frame question is up, a paste or preset does nothing (as Q3) | scripted S9 (`lens pastethenpreset`) |
 | C14 | Fixed: the measuring paste marks the open photo as measuring, and as failed, only while it is one of the command's photos (checked when each is set) | by reading |
 | G1 | Fixed: the guide says "whose Distortion is, or would be, on Auto", and that a newer paste or preset ends the read too | — |
+
+### Fourth pass (code-review.md C15, C16)
+
+| # | What was done | Test or check |
+|---|---|---|
+| C15 | Fixed: the measuring paste marks the open photo "could not be measured" only when its own original is one that could not be read (`BatchEdit.AlignmentMeasurements.failed(_:)`), not when any target's failed | `measurementFailuresByPhoto` |
+| C16 | Fixed: `askLensFrameQuestion` returns before the question goes up when its read was ended or replaced before its task ran (`lensQuestionRun.owns(run)`, `Task.isCancelled`) | scripted S10 |
 
 ## Rulings (owner, 2026-11-19)
 
