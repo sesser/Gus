@@ -488,8 +488,10 @@ and the Color Mixer, so a Color Mixer luminance change still lightens or darkens
 that color's gray (its hue and saturation then change nothing), and before
 Vibrance, Saturation (which do nothing to gray) and Color Grading, which tints
 the gray; the masks, Look-Up Table, Vignette and Grain come after it too, so a
-mask's White Balance tints the gray where it applies and Grain stays gray
-unless its Color is up. Black & White is for the whole photo: masks have no such
+mask's White Balance tints the gray where it applies (its Saturation and
+Vibrance do nothing there) and Grain stays gray unless its Color is up. A Red,
+Green or Blue channel curve in Tone Curve comes before it, so it acts like one
+more filter rather than tinting the gray; use Color Grading to tint. Black & White is for the whole photo: masks have no such
 control. Undo and History name the changes **Turn On Black & White**, **Turn
 Off Black & White**, **Black & White Filter** (a slider, a filter, **No
 Filter**) and **Reset Black & White**; the heading's reset turns it off with

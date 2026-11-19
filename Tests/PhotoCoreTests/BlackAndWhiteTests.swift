@@ -378,7 +378,11 @@ struct BlackAndWhiteTests {
         saturated.presence.saturation = 60
         saturated.presence.vibrance = 40
         let rendered = Self.render(saturated, input)
+        // AC7: the gray values are those without Saturation and Vibrance.
+        let unsaturated = Self.render(Self.converted([.red: 50]), input)
         for i in stride(from: 0, to: rendered.pixels.count, by: 4) {
+            #expect(Self.withinTolerance(rendered.pixels[i], unsaturated.pixels[i]),
+                    "\(rendered.pixels[i]) against \(unsaturated.pixels[i])")
             #expect(abs(rendered.pixels[i] - rendered.pixels[i + 1]) <= abs(rendered.pixels[i]) * 0x1p-9 + 0x1p-20)
             #expect(abs(rendered.pixels[i] - rendered.pixels[i + 2]) <= abs(rendered.pixels[i]) * 0x1p-9 + 0x1p-20)
         }

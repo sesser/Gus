@@ -5,19 +5,22 @@ Issue: #218
 Owner: swift-macos-engineer. Branch `feature/bw-module`. Spec: the PRD (issue
 #218, revised 2026-11-18) and [design.md](design.md).
 
-**State: In progress.** Everything is built and every acceptance criterion has
-a passing test or a scripted check. The one thing left is a ruling: R7 says the
-conversion comes "before the tone curve", but the renderer applies the Color
-Mixer after the tone curve, so a step after the Color Mixer cannot also come
-before the tone curve (RI-1 below). What is built puts it right after the Color
-Mixer. If RI-1 is accepted as built, this moves to Done with no code change.
+**State: Done** (2026-11-18). Everything is built and every acceptance
+criterion has a passing test or a scripted check. The owner ruled on every open
+question on 2026-11-18 (see Rulings), and the PRD (R3, R7, R10, AC7) and
+design.md (§2, §3.1, §6, §15, §19, §21) were amended to match. Rereading both
+after the rulings found two things to bring in line, both done: the AC7 test now
+also checks that Saturation and Vibrance leave the gray values unchanged, and the
+user guide now says that a mask's Saturation and Vibrance do nothing on a gray
+photo and that a per-channel Tone Curve acts like one more filter. Next: code
+review and the designer's review, then QA.
 
 ## Build and test
 
 | When | `swift build` | `swift test` |
 |---|---|---|
 | Baseline (develop at d2d0db2, before any change) | Pass, no warnings | Not run on its own. The first full run with this branch's model in place failed only on two of this branch's own checks (an existing test that walks every heading, and missing catalog strings), both fixed |
-| Latest (2026-11-18, the docs commit) | Pass, no new warnings (two existing warnings in `SmartAlbumTests.swift` and `VirtualCopiesTests.swift` remain) | 1186 tests in 174 suites pass (`BlackAndWhiteTests`: 24) |
+| Latest (2026-11-18, after the rulings) | Pass, no new warnings (two existing warnings in `SmartAlbumTests.swift` and `VirtualCopiesTests.swift` remain) | 1186 tests in 174 suites pass (`BlackAndWhiteTests`: 24) |
 | Bundle | `Scripts/build-app.sh` passes; `vtool` shows sdk 27.2, minos 15.0 | |
 
 `PreviewCacheKey.currentPipelineVersion` is still 12. No migration. No existing
@@ -25,7 +28,7 @@ golden moved: `GoldenTests` failed only on the three new cases until they were
 recorded with `UPDATE_GOLDENS=1` in their own commit. That run also rewrote the
 eight RAW golden fingerprints, because this Mac is now on macOS 27.2.1 (26B131)
 and they were made on 27.2 (26B123). Those rewrites were reverted, not
-committed (see the proposed follow-ups).
+committed; the main session has the follow-up proposed in the engineer's report.
 
 ## What was built
 
@@ -136,7 +139,7 @@ actor while the photo loads. It is never true for a raw.
 | AC4 (R5) | `directions` (each filter's direction on the red, green, blue, yellow and sky patches; Red darkens blue more than Orange, Orange more than Yellow) and `mixesMatchReference` (27 cases against the reference) | Pass |
 | AC5 (R2) | `amountsAreRangeChecked`: the model refuses values outside 0 to 100, NaN and infinity; stored values read back unchanged; `photocli`'s parser refuses 150 and −5. The UI field clamps (`SliderRow`) | Pass |
 | AC6 (R6) | `quickSets` (one at 100, the rest at 0, on). Debug script: `adjust bw filter red` gives `quickSet red segment 2`; an undo after a quick-set restores the earlier values and on state; choosing the selected one changes nothing (`chooseBlackAndWhite` returns early, and `commit` registers no step without a change) | Pass |
-| AC7 (R7) | `colorMixerFeedsTheMix`: a red luminance −60 darkens the red patch's gray, the gray equals the reference applied to the mixer's color result, and turning the group off gives exactly the mixer-only render. `stepsAfterIt`: Color Grading tints the gray; Saturation and Vibrance leave it gray. R7's "before the tone curve" is not met: see RI-1 | AC passes; R7 wording open |
+| AC7 (R7, as amended) | `colorMixerFeedsTheMix`: a red luminance −60 darkens the red patch's gray, the gray equals the reference applied to the mixer's color result, and turning the group off gives exactly the mixer-only render. `stepsAfterIt`: Color Grading tints the gray; with Saturation +60 and Vibrance +40 every gray value equals the one without them, within the reference tolerance | Pass |
 | AC8 (R8) | `luminanceMix` (gray ramp to 4.0 kept: brightest pixel > 3.9) and `mixesMatchReference` (unclipped, R = G = B) | Pass |
 | AC9 (R9) | `everyDecoder`: a JPEG, a raw LibRaw decodes, and the system decoder's DNG when it reads it, through `PreviewGenerator` at full size. On each, the converted render equals the reference applied to that decoder's color render. Render contexts for raw and non-raw give identical results. Videos: batch edits already skip them (`BatchEdit`, unchanged) | Pass |
 | AC10 (R10) | `notALocalControl` (no local control of the group's names). `masksWorkOnTheGray` (a mask's exposure and contrast over the conversion keep it gray; outside the mask the result is the global conversion alone) | Pass |
@@ -192,7 +195,21 @@ passed `--library-root`.
 6. Full Keyboard Access reaches the check box, the segments, the sliders and the
    fields.
 
+## Rulings (owner, 2026-11-18)
+
+- **RI-1 (R7, render position): keep as built.** The conversion renders right
+  after the Color Mixer and before Vibrance, Saturation and Color Grading.
+  R7 and AC7 are amended on the issue.
+- **RI-2 (R3, weights): keep Rec. 709.** R3 is amended to say so.
+- **DQ-1 (a mask's White Balance): keep it tinting the gray.** design.md §6,
+  §19.6 and §21 are amended, and R10 records it. The user guide already said so.
+- **DQ-2 (the reset arrow): this heading's dimmed reset is right.** The other
+  headings' resets staying enabled is a separate bug, which the main session is
+  filing.
+
 ## Open questions
+
+None left. The entries below are kept as asked, with their rulings above.
 
 ### Requirements issues (for the product manager)
 
