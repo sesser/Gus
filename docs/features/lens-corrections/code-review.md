@@ -401,3 +401,93 @@ touches no golden, tolerance, migration or `currentPipelineVersion`.
 - `/security-review`: nothing new (no parser, subprocess, file writing or network code).
 - No Design questions or Requirements issues.
 - Next: qa-tester. C17 is optional; a fix that only moves the comment needs no further pass.
+
+## Follow-up, sixth pass (CI fix)
+
+Sixth pass, 2026-11-19: 192b3cc only (Swift 6.2 on macOS 15 could not
+type-check `LensCorrectionRenderer.swift:63`; long expressions split into typed
+steps). `swift build` passes. `swift test --filter
+"LensCorrection|Lens|EmbeddedLens|GoldenTests|ReferenceTests"`: 84 tests in 10
+suites, all passed. Full run not repeated (as asked). No golden, tolerance,
+migration or `currentPipelineVersion` touched.
+
+**Verdict of the sixth pass: behaviour-preserving; no new findings.** Every
+rewritten expression performs the same IEEE operations on the same operands,
+grouped as before, for every input the callers can reach.
+
+### Checked in this pass
+
+- `lensDistance(a, b)` (LensWarp.swift:106) equals the old
+  `((a - b) * (a - b)).sum().squareRoot()`: the SIMD ops are lane-wise
+  subtract and multiply, `sum()` of two lanes is one addition, and IEEE
+  addition is commutative, so the result is bit-identical.
+- `reach(of:from:)` (LensCorrectionRenderer.swift:62) seeds at 0 and falls back
+  to 1 when the result is 0; the old code took the first corner and `?? 1` (never
+  hit on four elements). They differ only when all four corners sit on the
+  center or the center is NaN. Neither can happen: both callers guard
+  `!extent.isInfinite, !extent.isEmpty`, and `center(of:)` is finite (finite
+  geometry, finite frame). In `CameraLensState` (DNG geometry) `area` is
+  guarded `> 0`, so `if reach == 0 { reach = 1 }` is dead code and the reach is
+  the old one; the center offset is the same lane-wise expression.
+- `scale(in:)` loop versus `map`/`max() ?? 1`: 200 steps, never empty, so `?? 1`
+  was unreachable. Ties: `Swift.max` returns the later of two equal values,
+  `Sequence.max()` the first; they are the same number (±0 only if the largest
+  ratio is 0, which no model gives near the frame). NaN is handled differently
+  (old: NaN if the first ratio is NaN; new: NaN skipped, −∞ if all are). The
+  `fits` rewrite (De Morgan of the old `allSatisfy`) also differs only on NaN
+  (old: does not fit; new: fits). Neither is reachable. Every ratio is finite
+  for finite ρ > 0: manual from a finite Amount; DNG polynomials with finite
+  coefficients bounded by `parse` (`isFinite`, |k| ≤ 2, k0 in 0.5…2); Fujifilm
+  tables checked finite (`FujifilmRAF.swift:110`); bisection with a factor of 0
+  gives +∞ in a comparison, never NaN. ρ is finite and > 0 (frame guarded
+  non-empty, `radiusUnit` > 0 and finite from every constructor).
+- `source(ofNormalized:)`: `tx`, `ty`, `sx`, `sy` repeat the old lanes term
+  for term, left-to-right, with the same parenthesization (`kt0 * 2 * u.x *
+  u.y + kt1 * (r2 + 2 * u.x * u.x)`, then `u * ratio + t`). `fromSensor`,
+  `toSensor`, `center(of:)`, `source(of:in:scale:)` and `LensGain.gain(at:in:)`
+  are the same lane-wise expressions. Swift emits no FP contraction, so
+  splitting statements cannot change fusing.
+- Kernel arguments: `applyGain` is `[image, table, float2 center, float3
+  params]` and `applyWarp` is `[input, table, center, m, params, tangential,
+  bounds]`, same order and arity as before, matching `lensGain(sampler,
+  sampler, float2, float3, …)` and `lensWarp(sampler, sampler, float2, float4,
+  float4, float2, float4, …)` in `LensKernels.swift`. The explicit `CGFloat(…)`
+  replaces the implicit Double-to-CGFloat conversion (the same 64-bit value).
+  No Float conversion and no table code changed.
+- `TestScene.lensGrid`: the line color is computed once instead of per sample.
+  `decode` is pure, and the paper color uses the same arithmetic. Goldens and
+  references that use the scene pass unchanged.
+- Debug-script output: the joined parts give the same bytes as the old `+`
+  chains (each old continuation began with one space). `map { String($0) }`
+  is the same as `map(String.init)` for these values.
+- Tests: `nearEdge` and `LensCorrectionReference` convert CGFloat to Double
+  without loss. The tests check the same thing as before.
+
+### Other expressions that an older Swift 6.2 might reject (notes, not findings)
+
+Read from the branch's added lines against `origin/develop`:
+
+- `LensCorrectionRenderer.swift:45` (`lensFrame`): one `CGRect(x:y:width:height:)`
+  with four arguments, each mixing `CropRect`'s Doubles, `CGRect`'s CGFloats and
+  integer literals (`(1 - camera.y - camera.height) * extent.height`) through
+  implicit Double-to-CGFloat conversion. This is the likeliest remaining one. The
+  CI log named only line 63, and Swift reports every expression that times out,
+  so 6.2 probably managed this one. If the rerun fails, split it the same way.
+- `LensWarp.swift:277` (`edgePoints`): `points += [SIMD2(…), …]` with four
+  generic `SIMD2` inits in one literal. The arguments are all Double, so the
+  risk is low.
+- A clean build of every target, tests included, with
+  `-warn-long-expression-type-checking=150` (Swift 6.4 here) flags no expression
+  anywhere. 6.2 is slower than 6.4, so this narrows the risk but does not prove
+  6.2 passes. The CI rerun is the check.
+- No `+` chains of string literals remain in the branch's added lines. The
+  other array literals (DNG test opcode lists, the Swift Testing `arguments:`
+  tuples) are homogeneous.
+
+### For the main session
+
+- `/security-review`: nothing new (no parser, subprocess, file writing or
+  network code changed in behaviour).
+- No Design questions or Requirements issues.
+- Next: the CI rerun on PR #230. QA is not needed (no behaviour change), and
+  Ship's record stands.
