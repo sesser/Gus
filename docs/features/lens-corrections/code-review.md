@@ -375,3 +375,29 @@ fix). C16 is a Nit that only the debug script reaches as far as I can tell.
 - No Design questions or Requirements issues.
 - Next: qa-tester. C15 and C16 are optional one-line fixes. If they are made, a
   fifth pass needs only that commit.
+
+## Follow-up, fifth pass
+
+Fifth pass, 2026-11-19: a97a56c only. `swift build` passes. `swift test --filter
+"LensCorrectionTests|LensCommandTests|LensReviewFixesTests|LensTests|EmbeddedLensTests|BatchCommandTests|BatchEdit"`:
+80 tests in 9 suites, all passed. Full run not repeated (as asked). The commit
+touches no golden, tolerance, migration or `currentPipelineVersion`.
+
+**Verdict of the fifth pass: ready for QA.** C15 and C16 are fixed; no new race.
+
+| # | Status | Commit | Note |
+|---|---|---|---|
+| C15 | Fixed | a97a56c | `AdjustmentActions.swift:116` marks the open photo only when `measured.failed(open)`, the set `record(nil, …)` fills, the same one `versionsToChange` leaves out. The open photo is read on the main actor right after the last `owns(run)` check, with no await between, so it is the photo on screen when the result lands, and only that photo's own failure marks it. In the C15 trace Q is measured and stays unmarked; U, if it were the one opened, is marked. A target skipped because its stack can't be read is never recorded, so it is not marked, as on `develop`. Test `measurementFailuresByPhoto` (LensCorrectionTests.swift:200) is sound: one measured, one failed and one unknown id give false, true, false; it pins the rule the call site uses. The call site itself is in PhotoApp, which has no test target, as for C14. |
+| C16 | Fixed | a97a56c | `askLensFrameQuestion` (LensCorrectionActions.swift:262) returns before `markAskingLensFrame(true)` when the run was replaced or the task cancelled. `endPendingLensRead` does both (cancel, `begin()`), so a task ended in the same main-actor turn shows nothing and leaves the flag clear, and the newer command is not blocked. From the guard to the flag there is no suspension point, so nothing can end the run between them; once the flag is set, the 162 guard and `PresetActions.swift:38` keep newer commands out, and the 267 `owns` check stays for the answer. Both callers (the loupe path, 175, and the grid read, 237) pass their own `run`. The editor's separate `askLensFrameQuestion(_:versionID:)` (line 110, the live-change path) is unchanged and not reached by C16. |
+
+### New finding (fifth pass)
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C17 | Nit | `PhotoCore/Edits/BatchEdit.swift:32-35` | The new `failed(_:)` was inserted between `record`'s doc line ("`alignment` nil: the original could not be measured.") and `record`. That line now heads `failed(_:)`'s doc comment, and `record` has none. | Quick Help for `failed(_:)` opens with a sentence about a parameter it doesn't have; `record` loses its note. No behavior. | Fix optional: move the line back above `record`. |
+
+### For the main session
+
+- `/security-review`: nothing new (no parser, subprocess, file writing or network code).
+- No Design questions or Requirements issues.
+- Next: qa-tester. C17 is optional; a fix that only moves the comment needs no further pass.
