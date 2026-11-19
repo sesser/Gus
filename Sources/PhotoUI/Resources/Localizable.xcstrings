@@ -1833,7 +1833,7 @@
       }
     },
     "After lens correction" : {
-      "comment" : "Pixel magnifier plate, line 2, when Distortion applies: the magnifier shows the photo after lens correction",
+      "comment" : "Pixel magnifier plate, line 2, when Distortion or Lens Vignetting applies: the magnifier shows the photo after lens correction",
       "localizations" : {
         "en" : {
           "stringUnit" : {

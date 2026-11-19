@@ -93,7 +93,8 @@ import PhotoUI
 ///     adjust …  original on|off  tab info|adjust   (see DebugAdjustCommands)
 ///     spots on|off|overlay on|off|print   spot add|select|delete|clear|mode|set|drag|source|nudge|enable …
 ///            (heal and clone spots; see DebugSpotCommands)
-///     lens print | lens distortion on|off|auto|manual|amount <n>|constrain on|off
+///     lens print | lens pastethenfocus <file name>   (Paste, then another photo selected at once)
+///          | lens distortion on|off|auto|manual|amount <n>|constrain on|off
 ///          | lens vignetting on|off|auto|manual|amount <n> | lens force kernelfail|tablecorrupt|off
 ///            (Distortion and Lens Vignetting through their controls' paths: a change that moves the frame of a
 ///            photo with masks or spots asks first, answered with `alert press Change` or `alert press Cancel`;
@@ -228,7 +229,7 @@ enum DebugScript {
     /// C3). Not while the frame question is up: `alert press` answers it, and
     /// waits in its own group.
     static func waitForBatchWork(_ model: LibraryModel) async {
-        while model.batchAutoTask != nil, !model.editor.isAskingLensFrame {
+        while model.batchAutoTask != nil || model.lensQuestionTask != nil, !model.editor.isAskingLensFrame {
             try? await Task.sleep(for: .milliseconds(50))
         }
     }

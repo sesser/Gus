@@ -49,9 +49,9 @@ extension AdjustmentEditor {
         announceStatus(group)
     }
 
-    /// The Amount slider or its field (Manual).
-    /// Shown only in Manual; a group never switched on that it switches on
-    /// (a script, a typed value) follows DQ-4 as Constrain to image does.
+    /// The Amount slider or its field, shown in Manual only. A change that
+    /// switches on a group never switched on (a script, a typed value) starts
+    /// it in Manual where Auto can't apply, as Constrain to image does (DQ-4).
     func setLensAmount(_ group: LensGroup, _ value: Double, phase: EditPhase) {
         let isOn = group == .distortion ? adjustments.distortion.isOn : adjustments.lensVignetting.isOn
         let startsInManual = !isOn && lensStatus(group).startsInManual
@@ -67,7 +67,6 @@ extension AdjustmentEditor {
         }
     }
 
-    /// Constrain to image (Distortion).
     /// Constrain to image (Distortion). On a group never switched on, it
     /// switches it on (`enableModules`), and where Auto can't apply it starts
     /// in Manual in the same step, as the check box does (design §3.2 DQ-4,
@@ -143,25 +142,37 @@ extension LibraryModel {
     /// the corrected frame of photos that have masks or spots (design §6, AC6).
     /// Cancel runs nothing.
     ///
+    /// The photos are the command's targets when it starts, and `body` gets
+    /// them: the question and the change are about the same photos whatever
+    /// is selected or open when the answer comes (code review C11).
+    ///
     /// The loupe's photo alone is decided at once from the editor, which holds
     /// its saved values and its file's state: the change then registers its
     /// undo step before this returns, so ⌘Z right after ⌘V undoes it (code
-    /// review C3). A selection is read off the main actor: the saved stacks,
-    /// then, only for photos with masks or spots whose Distortion uses Auto,
-    /// their files, four at a time with progress in Activity under the
-    /// command's title; Stop there, or a newer paste or preset, ends it
-    /// (`batchAutoTask`, code review C2).
-    func confirmingLensFrameChange(actionName: String, _ transform: @escaping @Sendable (Adjustments) -> Adjustments,
-                                   then body: @escaping @MainActor () -> Void) {
+    /// review C3). A selection is read off the main actor on a task of its own
+    /// (`lensQuestionTask`), which never touches another batch (Auto Exposure,
+    /// a measuring paste; code review C10): the saved stacks, then, only for
+    /// photos with masks or spots whose Distortion uses Auto, their files, four
+    /// at a time, with an Activity row under the command's title (design DQ-5).
+    /// Stop on that row, or a newer paste or preset, ends it and writes nothing.
+    func confirmingLensFrameChange(actionName: String, toolbarTitle: String? = nil,
+                                   _ transform: @escaping @Sendable (Adjustments) -> Adjustments,
+                                   then body: @escaping @MainActor ([CatalogItem]) -> Void) {
         // One question at a time (code review Q3): a paste or preset while it is up does nothing.
         guard !editor.isAskingLensFrame else { return }
-        let targets = actionTargets.map { items[$0] }.filter { !$0.isVideo }
-        guard !targets.isEmpty else { return body() }
+        let commandTargets = actionTargets.map { items[$0] }
+        let targets = commandTargets.filter { !$0.isVideo }
+        guard !targets.isEmpty else { return body(commandTargets) }
         let open = editor.state == .ready ? editor.item?.versionID : nil
         if targets.count == 1, let open, targets[0].versionID == open {
             let before = editor.savedAdjustments
-            guard editor.asksLensFrameQuestion(from: before, to: transform(before)) else { return body() }
-            Task { await askLensFrameQuestion(affected: 1, of: 1, includesOpen: true, run: nil, then: body) }
+            guard editor.asksLensFrameQuestion(from: before, to: transform(before)) else { return body(commandTargets) }
+            lensQuestionTask?.cancel()
+            let run = lensQuestionRun.begin()
+            lensQuestionTask = Task {
+                defer { if lensQuestionRun.owns(run) { lensQuestionTask = nil } }
+                await askLensFrameQuestion(affected: 1, of: 1, includesOpen: true, run: run) { body(commandTargets) }
+            }
             return
         }
         let catalog = self.catalog
@@ -169,18 +180,26 @@ extension LibraryModel {
         let sources = Dictionary(uniqueKeysWithValues: targets.map { ($0.versionID, sourceURL(for: $0)) })
         let openLens = editor.lensState
         let openAnswer = editor.lensFrameAnswer
-        batchAutoTask?.cancel()
-        let run = batchAutoRun.begin()
-        batchAutoTask = Task {
+        lensQuestionTask?.cancel()
+        let run = lensQuestionRun.begin()
+        lensQuestionTask = Task {
             defer {
-                if batchAutoRun.owns(run) {
-                    setBatchAutoProgress(nil)
-                    batchAutoTask = nil
+                if lensQuestionRun.owns(run) {
+                    setLensReadProgress(nil)
+                    lensQuestionTask = nil
                 }
             }
             // After pending saves, as the change itself reads them.
-            guard let stored = try? await writes.savedEditStacks(forVersions: targets.map(\.versionID), in: catalog) else {
-                return body()
+            let stored: StoredEditStacks
+            do {
+                stored = try await writes.savedEditStacks(forVersions: targets.map(\.versionID), in: catalog)
+            } catch is CancellationError {
+                // Stopped, or a newer command took over: nothing is written (code review C12).
+                return
+            } catch {
+                // The change reads them again and reports what it can't.
+                guard lensQuestionRun.owns(run) else { return }
+                return body(commandTargets)
             }
             let candidates = await Task.detached(priority: .userInitiated) {
                 Self.frameCandidates(stored.stacks, transform: transform, open: open, openAnswer: openAnswer)
@@ -192,37 +211,41 @@ extension LibraryModel {
             var lenses: [Int64: CameraLensState] = [:]
             if let open { lenses[open] = openLens }
             if !reads.isEmpty {
-                setBatchAutoProgress((0, reads.count), title: actionName)
+                setLensReadProgress((0, reads.count), title: actionName, toolbarTitle: toolbarTitle)
+                var done = 0
                 for chunk in stride(from: 0, to: reads.count, by: 4).map({ Array(reads[$0..<min($0 + 4, reads.count)]) }) {
-                    guard !Task.isCancelled, batchAutoRun.owns(run) else { return }
+                    guard !Task.isCancelled, lensQuestionRun.owns(run) else { return }
                     await withTaskGroup(of: (Int64, CameraLensState).self) { group in
                         for (id, url) in chunk { group.addTask { (id, await Self.readLensState(url)) } }
                         for await (id, state) in group { lenses[id] = state }
                     }
-                    setBatchAutoProgress((min(lenses.count, reads.count), reads.count), title: actionName)
+                    done += chunk.count
+                    setLensReadProgress((done, reads.count), title: actionName, toolbarTitle: toolbarTitle)
                 }
             }
-            guard !Task.isCancelled, batchAutoRun.owns(run) else { return }
+            guard !Task.isCancelled, lensQuestionRun.owns(run) else { return }
+            setLensReadProgress(nil)
             let affected = candidates.filter { candidate in
                 let lens = lenses[candidate.id]
                 return LensCorrectionPlan(candidate.before.effective, lens: lens)
                     .movesFrame(comparedWith: LensCorrectionPlan(candidate.after.effective, lens: lens))
             }.count
-            setBatchAutoProgress(nil)
-            guard affected > 0 else { return body() }
+            guard affected > 0 else { return body(commandTargets) }
             await askLensFrameQuestion(affected: affected, of: targets.count,
-                                       includesOpen: open.map { sources.keys.contains($0) } ?? false, run: run, then: body)
+                                       includesOpen: open.map { sources.keys.contains($0) } ?? false, run: run) {
+                body(commandTargets)
+            }
         }
     }
 
     /// Asks; on Change runs `body` unless a newer command took over (`run`).
-    private func askLensFrameQuestion(affected: Int, of total: Int, includesOpen: Bool, run: Int?,
+    private func askLensFrameQuestion(affected: Int, of total: Int, includesOpen: Bool, run: Int,
                                       then body: @MainActor () -> Void) async {
         editor.markAskingLensFrame(true)
         let alert = AdjustmentEditor.lensFrameAlert(affected: affected, of: total)
         let response = await WindowModal.run(alert, in: windowObserver.window)
         editor.markAskingLensFrame(false)
-        guard response == .alertFirstButtonReturn, run.map(batchAutoRun.owns) ?? true else { return }
+        guard response == .alertFirstButtonReturn, lensQuestionRun.owns(run) else { return }
         if includesOpen { editor.noteLensFrameAnswered() }
         body()
     }

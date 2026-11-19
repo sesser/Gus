@@ -180,7 +180,8 @@ enum LensCorrectionText {
     static let change = String(localized: "Change", comment: "Alert button: confirms a lens correction change on photos with masks or spots")
     static let cancel = String(localized: "Cancel")
 
-    /// The pixel magnifier plate's second line while Distortion applies (design §10).
+    /// The pixel magnifier plate's second line while Distortion or Lens
+    /// Vignetting applies (design §10, review F4).
     static let afterLensCorrection = String(localized: "After lens correction",
-                                            comment: "Pixel magnifier plate, line 2, when Distortion applies: the magnifier shows the photo after lens correction")
+                                            comment: "Pixel magnifier plate, line 2, when Distortion or Lens Vignetting applies: the magnifier shows the photo after lens correction")
 }

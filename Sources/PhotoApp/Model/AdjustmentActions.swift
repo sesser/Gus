@@ -33,12 +33,13 @@ extension LibraryModel {
         guard let copiedAdjustments else { return }
         let actionName = String(localized: "Paste Adjustments", comment: "Undo action name")
         // Asks first when it moves the frame of photos with masks or spots (lens-corrections design §6).
-        confirmingLensFrameChange(actionName: actionName, { copiedAdjustments.pasted(onto: $0) }) { [self] in
+        confirmingLensFrameChange(actionName: actionName, { copiedAdjustments.pasted(onto: $0) }) { [self] targets in
             if copiedAdjustments.needsAlignmentMeasurement {
-                changeAdjustmentsMeasuringAlignment(actionName: actionName) { copiedAdjustments.pasted(onto: $0) }
+                changeAdjustmentsMeasuringAlignment(actionName: actionName, targets: targets) { copiedAdjustments.pasted(onto: $0) }
                 return
             }
-            applyAdjustments(copiedAdjustments, toVersions: batchSelection(action: actionName).versionIDs, actionName: actionName)
+            applyAdjustments(copiedAdjustments, toVersions: batchSelection(action: actionName, targets: targets).versionIDs,
+                             actionName: actionName)
         }
     }
 
@@ -51,9 +52,10 @@ extension LibraryModel {
     /// "the original could not be read". In the loupe, the inspector shows
     /// the measuring and, when it fails, "This photo could not be measured."
     /// `toolbarTitle` is `actionName` fitted to the toolbar, when it can be long.
-    func changeAdjustmentsMeasuringAlignment(actionName: String, toolbarTitle: String? = nil,
+    /// `targets` are the command's photos when it asked first (code review C11).
+    func changeAdjustmentsMeasuringAlignment(actionName: String, toolbarTitle: String? = nil, targets: [CatalogItem]? = nil,
                                              _ transform: @escaping @Sendable (Adjustments) -> Adjustments) {
-        let selection = batchSelection(action: actionName, needsMaster: { _ in true })
+        let selection = batchSelection(action: actionName, targets: targets, needsMaster: { _ in true })
         let sources = selection.versionIDs.compactMap { id -> (Int64, URL, String)? in
             guard let item = item(versionID: id), let url = sourceURL(for: item) else { return nil }
             return (id, url, PhotoName.inFull(item))

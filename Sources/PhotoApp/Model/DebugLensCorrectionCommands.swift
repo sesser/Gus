@@ -13,6 +13,8 @@ enum DebugLensCorrectionCommands {
     /// is then registered by `alert press Change` (in that command's group),
     /// and an empty group here would be an undo step that does nothing.
     static func changesPhoto(_ words: [String], editor: AdjustmentEditor) -> Bool {
+        // A paste: its own group, and the loop waits for its read (it may ask instead).
+        if words.first == "lens", words.dropFirst().first == "pastethenfocus" { return true }
         guard words.first == "lens", ["distortion", "vignetting"].contains(words.dropFirst().first ?? "") else { return false }
         guard let next = predicted(Array(words.dropFirst()), editor: editor) else { return true }
         // A change that changes nothing records nothing (an empty group would be an undo step).
@@ -56,6 +58,16 @@ enum DebugLensCorrectionCommands {
         switch words.first {
         case "print":
             printState(editor)
+        case "pastethenfocus":
+            // Paste Adjustments, then at once another photo selected, before the
+            // command's read of its targets ends: the question and the change must
+            // still be about the photos selected when it started (code review C11).
+            let name = words.dropFirst().joined(separator: " ")
+            let before = model.actionTargetVersionIDs
+            model.pasteAdjustments()
+            if let index = model.items.firstIndex(where: { PhotoName.display($0) == name }) { model.setFocus(index) }
+            print("debug-script: lens pasted onto \(before.count), now selected \(model.actionTargetVersionIDs.count)")
+            await DebugScript.waitForBatchWork(model)
         case "force":
             switch words.dropFirst().first {
             case "kernelfail": LensCorrectionDebug.fault = .kernelFailure

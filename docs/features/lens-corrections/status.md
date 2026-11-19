@@ -20,7 +20,8 @@ opened or changed). Next: code review and the designer's review, then QA;
 |---|---|---|
 | Baseline (develop c97d579 plus the design commits, before any change) | Pass (two existing warnings in `SmartAlbumTests.swift`, `VirtualCopiesTests.swift`) | 1204 tests in 175 suites pass |
 | After the 2026-11-19 rulings (ad9b419) | Pass, no new warnings | 1234 tests in 176 suites pass (71.9 s); `dngSample` passes opt-in on Adobe's sample; `Scripts/build-app.sh` passes |
-| Latest (after the code and design reviews) | Pass, no new warnings | 1239 tests in 176 suites pass (70.3 s); `Scripts/build-app.sh` passes |
+| After the first reviews (f0ccf8e) | Pass, no new warnings | 1239 tests in 176 suites pass (70.3 s); `Scripts/build-app.sh` passes |
+| Latest (after the second passes) | Pass, no new warnings | 1239 tests in 176 suites pass (73.1 s); `Scripts/build-app.sh` passes |
 
 `PreviewCacheKey.currentPipelineVersion` stays 13: a stack without the new
 operations renders byte for byte as before (the lens step returns its input
@@ -291,6 +292,11 @@ fresh copy, every launch with `--library-root`.
   "Paste Adjustments". A scripted `pasteadjust` answered Cancel leaves its own
   command's group empty, which the script's undo stack shows as an empty step
   (a scripting artifact: ⌘V in the app has no group of its own).
+- **S8** (C10, C11) Grid, all 107 selected, IMG_00001 with a spot; `lens
+  pastethenfocus IMG_00017` pastes Manual Distortion 30 and at once selects one
+  other photo: the question still says "1 of the 107 photos…"; after Change,
+  "Paste Adjustments", the selection is the one photo, and IMG_00003 (selected
+  when the paste started, not after) has Distortion Manual 30, as does IMG_00017.
 - **S5** (AC14) XF14 raw, Lens Vignetting never on: `lens vignetting manual`
   turns it on in Manual, undo "Lens Vignetting Source"; one `undo` puts it back
   off with Source Auto; `lens vignetting auto` twice: the first turns it on (one
@@ -305,7 +311,7 @@ fresh copy, every launch with `--library-root`.
 | # | What was done | Test or check |
 |---|---|---|
 | C1 | Fixed. The tab never compiles the kernels: `LensKernels` records when its compile ends (an atomic), and the editor asks `lensCorrectionKernelsKnownUnavailable`, false until a compile has finished (a failed one shows row 3 then). The editor starts the compile off the main actor when a photo opens, as before, and bumps `lensKernelsRevision` when it ends, so the groups redraw. Renders (off the main actor) still compile on first use | `kernelFailure` (the known flag); scripted `lens print` |
-| C2 | Fixed. A selection's read now runs as the batch task (`batchAutoTask`, `batchAutoRun`): the saved stacks, then only for photos with masks or spots whose Distortion uses Auto, their files, four at a time, through `CameraLensState.read(url)` (one `CIRAWFilter`, not `RawDefaults`), with progress in Activity under the command's title. Stop there or a newer paste or preset ends it (the run token keeps a second command from clearing the first's state); a paste or preset while the question is up does nothing | `standaloneRead`; scripted S7 |
+| C2 | Fixed (its task changed again by C10). A selection's read now runs as the batch task (`batchAutoTask`, `batchAutoRun`): the saved stacks, then only for photos with masks or spots whose Distortion uses Auto, their files, four at a time, through `CameraLensState.read(url)` (one `CIRAWFilter`, not `RawDefaults`), with progress in Activity under the command's title. Stop there or a newer paste or preset ends it (the run token keeps a second command from clearing the first's state); a paste or preset while the question is up does nothing | `standaloneRead`; scripted S7 |
 | C3 | Fixed in the script, mostly fixed in the app. The debug script's loop now waits after every grouped command (key, menu, context menu, paste, preset) while a batch task reads or measures, unless the frame question is up; `alert press` and `alert key` wait in their own group after the answer. In the app, the loupe's photo alone (⌘V in the loupe, the common case) is decided at once from the editor, which holds its saved values and file state, so the paste registers its undo step before the command returns and ⌘Z right after ⌘V undoes it. **Not fixed for a selection in the grid**: there the stacks are read first, so ⌘Z pressed before that read returns (normally a few milliseconds behind pending saves, longer when files are read, with Activity showing it) undoes the step before the paste. The same is true today of a paste or preset that measures Color Alignment. Holding Undo during the read needs the window's own undo manager or the Edit menu, which the app does not own; noted as a limit | scripted S6, S7 |
 | C4 / F1 | Fixed: `commit` reads and clears the skip flag before any return, and `resetAll` clears it in a `defer` | by reading (the path needs an operation this build does not know); scripted Reset All earlier (S3) |
 | C5 | Fixed: stored amounts are clamped to −100 … +100 on read, as Color Alignment's values | `storedAmountClamped` |
@@ -320,6 +326,19 @@ fresh copy, every launch with `--library-root`.
 | Q1 | Answered: no disagreement on the owner's files. On an E-M5 III ORF, a GX7 II RW2 and X-E3 RAFs (XF35, XF14), the flags are the same under `RAWDecodeSettings.none`, under the stack's settings (Kelvin, the whole-sensor request, machine learning asked) and under the older decoder version (7 or 6). None of these cameras is offered the machine learning decoder (versions 7 and 8 only), so version 9 could not be tried; renders read the flag from the filter that decodes, so a render never applies Auto over the decoder's correction | probe, 2026-11-19 |
 | Q2 | Fixed rather than assumed: `lensFrame` places the camera's frame where it lies (`CropRect.x`/`y`, y from the top), so the center and radius are the camera frame's with or without a whole-sensor decode | `lensFrameOffCenter` |
 | Q3 | Guarded: while the question is up, `change` does nothing (a menu key equivalent included) and a paste or preset does nothing, so the answer decides one change under its own name. Whether AppKit delivers a menu key equivalent with the sheet up stays a check with a real keyboard (P4) | scripted S6 (a Lens Vignetting change while asking is ignored) |
+
+### Second passes (code-review.md C10 to C12, review.md F6 to F8)
+
+| # | What was done | Test or check |
+|---|---|---|
+| C10 / F7 | Fixed. The read and the question run on a task of their own again (`lensQuestionTask`, with its own run token `lensQuestionRun`); they never cancel or claim `batchAutoTask`, so a paste or preset never ends a running Auto Exposure or measuring paste. While files are read the read has its own Activity row, with the same title, "N of M" and Stop as a measuring paste's (design DQ-5), and Stop cancels only it. A newer paste or preset replaces an older one's read. The debug script waits for this task as for the batch task | by construction (no path of the read touches `batchAutoTask`); scripted S8 |
+| C11 | Fixed. The command's targets are taken when it starts and passed to the change: `batchSelection(action:targets:)`, `changeAdjustmentsMeasuringAlignment(…, targets:)` and `applyingAdjustmentPreset(_:targets:)`. The question and the change are about the same photos whatever is selected or open when the answer comes | scripted S8 (`lens pastethenfocus`) |
+| C12 | Fixed. A `CancellationError` from reading the stacks ends the command with nothing written; only a real read failure goes on to the change (which reads and reports again), and only if no newer command took over | by reading; Stop writes nothing |
+| F6 | Fixed. A preset's name is fitted to the toolbar (`ToolbarMetrics.statusLine`) and passed as the read row's toolbar title | by reading |
+| F8 | Fixed. The `afterLensCorrection` comment (Swift and catalog) says Distortion or Lens Vignetting; `setConstrainToImage`'s doc comment is one paragraph; `setLensAmount`'s doc comment rewritten | — |
+
+C11's check is a debug-script run, since the targets are captured in PhotoApp,
+which no test target imports.
 
 ## Rulings (owner, 2026-11-19)
 

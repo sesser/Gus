@@ -131,6 +131,14 @@ struct ActivityToolbarItem: View {
                                     progress: Double(progress.done) / Double(max(progress.total, 1)),
                                     stop: { model.batchAutoTask?.cancel() }))
         }
+        // A paste or preset reading files for the lens frame question: the same
+        // row as a measuring paste's, on a task of its own (lens-corrections DQ-5).
+        if let read = model.lensReadProgress {
+            jobs.append(ActivityJob(id: "lensread", title: read.title, toolbarTitle: read.toolbarTitle,
+                                    detail: String(localized: "\(read.done) of \(read.total)"),
+                                    progress: Double(read.done) / Double(max(read.total, 1)),
+                                    stop: { model.lensQuestionTask?.cancel() }))
+        }
         let now = Date()
         if let progress = model.warming, let start = model.warmingStarted,
            ActivityLog.shows(background: true, startedAt: start, now: now) {
