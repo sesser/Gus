@@ -33,6 +33,13 @@ struct EditStackCorpusTests {
         var result: [(String, EditStack)] = [("identity", .identity)]
         result += GoldenTests.cases.map { ($0.name, $0.adjustments.editStack) }
         result += GoldenTests.rawCases.map { ($0.name, $0.adjustments.editStack) }
+        // A stored Look, from builds that had the Profile group: no longer
+        // rendered, so no golden, but read and written back unchanged (issue
+        // #219, R3). The names are those of the goldens they once were.
+        for look in ["flat", "neutral"] {
+            let stored = EditStack(operations: [EditOperation(kind: "rawDecode", parameters: ["look": .string(look)])])
+            result.append(("raw-look\(look.prefix(1).uppercased() + look.dropFirst())", stored))
+        }
 
         var off = Adjustments()
         off.exposure.ev = 1

@@ -288,11 +288,12 @@ struct GoldenTests {
         },
     ]
 
-    /// The decoder's own settings: Kelvin white balance, the base look (its
-    /// boost), extended range (asked for by negative exposure), and its noise
-    /// reduction. Not covered: `decoderVersion` (the versions offered depend on
-    /// the macOS release; see `DecoderFingerprint`) and the whole-sensor decode
-    /// (`CameraFrame`, which only Olympus, OM System and Panasonic files have).
+    /// The decoder's own settings: Kelvin white balance, extended range (asked
+    /// for by negative exposure), and its noise reduction. A stored Look no
+    /// longer renders (issue #219), so it has no golden. Not covered:
+    /// `decoderVersion` (the versions offered depend on the macOS release; see
+    /// `DecoderFingerprint`) and the whole-sensor decode (`CameraFrame`, which
+    /// only Olympus, OM System and Panasonic files have).
     static let rawCases: [RAWGoldenCase] = [
         RAWGoldenCase("raw-asShot") { _ in },
         RAWGoldenCase("raw-kelvin3200") { $0.whiteBalance = WhiteBalance(preset: .custom, temperature: 3200, tint: 0) },
@@ -300,8 +301,6 @@ struct GoldenTests {
             $0.whiteBalance = WhiteBalance(preset: .custom, temperature: 8000, tint: 30)
         },
         RAWGoldenCase("raw-tungstenPreset") { $0.whiteBalance = .raw(.tungsten) },
-        RAWGoldenCase("raw-lookFlat") { $0.decode.look = .flat },
-        RAWGoldenCase("raw-lookNeutral") { $0.decode.look = .neutral },
         RAWGoldenCase("raw-extendedRange-exposureMinus1") { $0.exposure.ev = -1 },
         RAWGoldenCase("raw-noiseReduction") { $0.noiseReduction = NoiseReduction(luminance: 80, color: 80) },
     ]
