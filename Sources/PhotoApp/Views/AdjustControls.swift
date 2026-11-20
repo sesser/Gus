@@ -122,6 +122,10 @@ struct AdjustSlider: NSViewRepresentable {
 
 /// Dimensions of the inspector's rows (section 4 of docs/UI_REDESIGN.md).
 enum InspectorMetrics {
+    /// The inspector column's narrowest width (`inspectorColumnWidth`); its
+    /// content is this less `padding` on each side, and less a legacy
+    /// scroller's width when one shows (#223).
+    static let minimumColumnWidth: CGFloat = 280
     static let padding: CGFloat = 12
     static let labelWidth: CGFloat = 80
     static let gap: CGFloat = 6
