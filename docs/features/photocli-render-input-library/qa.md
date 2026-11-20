@@ -160,4 +160,18 @@ away from the real library.
 
 ## Follow-up
 
-(Reruns after fixes, and the owner's sign-off, go here.)
+Reruns after fixes: none needed; QA raised no findings (Q-list empty).
+
+Sign-off: the owner signed off on 2026-11-19, after QA and code review, with
+"Sign off, open the PR". Commit signed off: `4c35a26` (head of
+`bug/photocli-render-input-library`; it adds only this file after `a669660`,
+the code review nits, so the source and tests are those of `a669660`).
+
+Checks left open: none. No manual checks existed (no UI; there is no "For a
+person" list).
+
+Accepted cost: the owner accepted N1 (a file render without `--library-root`
+can overwrite a master of the standard library), which is option A of RI-1 and
+narrows the #166 ruling. N2 (the built `photocli` was not run on a file render
+without `--library-root`; the hermetic test covers the code path) stands as
+recorded above.
