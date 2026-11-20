@@ -80,4 +80,17 @@ synthetic JPEG to the temporary folder only).
 
 ## Follow-up
 
-(For the engineer's fixes, if any.)
+Second pass, 2026-11-19: commit `4203906` (only commit since `b7545d0` that
+touches source, tests or the engineer's files; `079420c` is this file).
+`swift test --filter LensAlignStaleAreaTests` run twice: 3 tests (4 cases)
+pass, about 0.70 s each. Before the runs there were no
+`align-stale-area-*.jpg` files left in `$TMPDIR` (the earlier runs' files were
+already gone), and after them there were none either.
+
+| # | Result | Commit | Notes |
+| --- | --- | --- | --- |
+| C1 | Fixed | `4203906` | The `static let jpeg` is replaced by `withJPEG(_:)`. It writes to a unique path (`UUID`), so runs in parallel can't collide. A failed write now throws instead of being swallowed by `try?`. The `defer` removing the file is registered after the write and before `body`, so the file goes whether `body` returns or throws. Every render that reads the file is inside the closure: the JPEG case of `tileSeesTheInputArea` (decode and both renders in `expectTileSeesInputArea`), and the whole drag loop of `jpegDragInOneContext`. The decoder reads lazily, so this matters, and the code gets it right. The doc comment now says what the code does. The blurred-scene case is unchanged. |
+| C2 | Fixed | `4203906` | `status.md` now gives one `Float` step at 0.005 as 2⁻³¹ ≈ 4.7 × 10⁻¹⁰, which is about 1.7 × 10⁻⁶ px at a 6000 × 4000 corner (3606 px) and 4.2 × 10⁻⁶ px at a 15000 × 10000 corner (9014 px). I checked each figure. The conclusion stands. |
+
+No new findings. The verdict stands: ready for QA. `/security-review` is
+still not needed.
