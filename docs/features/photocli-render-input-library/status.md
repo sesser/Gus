@@ -198,6 +198,17 @@ the test, with an injected library location.
 | `--version` (with or without `--library-root`) and a file render with `--library-root` still refuse masters by place and content | `namedLibraryAndVersionRendersStillProtectMasters`, `anyMasterByPlace`, `masterByContent`, `versionOntoItsOwnMaster` |
 | A `--version` render still reads the standard library when none is named | `unreadableStandardLibraryIsNotRead`, `namedLibraryAndVersionRendersStillProtectMasters` |
 
+## Review fixes
+
+From `code-review.md` (both optional nits):
+
+| # | Finding | Fix |
+| --- | --- | --- |
+| C1 | `unreadableStandardLibraryIsNotRead`'s `--version` half checked only the exit code | Also expects the code `failed` on standard error |
+| C2 | `Catalog.openForReading` has no caller; say why it stays | Its comment says it is kept for #234 (read commands should open the catalog with it instead of migrating) |
+
+Results: `swift build` clean; `swift test --filter "RenderOutputProtectionTests|RenderInputLibraryTests"`: 10 tests in 2 suites passed (no full run: a test assertion and a comment only).
+
 ## Open questions
 
 - None. For a person (optional): none; no UI, and `photocli` against the

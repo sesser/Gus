@@ -132,6 +132,7 @@ struct RenderOutputProtectionTests {
             let versionOut = library.root.deletingLastPathComponent().appending(path: "version.png")
             let version = await cli.run(["render", "--version", "1", "--out", versionOut.path])
             #expect(version.exitCode == 1, "\(version.standardOutput)")
+            #expect(version.standardError.contains("\"failed\""), "\(version.standardError)")
             #expect(!FileManager.default.fileExists(atPath: versionOut.path))
             #expect(try Data(contentsOf: locations.catalogFileURL) == garbage)
             let files = try FileManager.default.contentsOfDirectory(atPath: locations.catalogDirectory.path)

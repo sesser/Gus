@@ -20,7 +20,9 @@ public final class Catalog: Sendable {
     /// if they are absent (a closed WAL database), and every reader writes the
     /// `-shm` file (the WAL index), so the folder is not left untouched. For
     /// reading a library the caller must not change; no command uses it since
-    /// #222 (a file render reads no library unless named). Reads assume the
+    /// #222 (a file render reads no library unless named). Kept for #234: the
+    /// read commands (`query`, `mask list`, `render --version`, `--dry-run`)
+    /// should open the catalog with it instead of migrating. Reads assume the
     /// schema this build knows; a catalog too old or too new for a query makes
     /// that query throw.
     public static func openForReading(at url: URL) throws -> Catalog {
