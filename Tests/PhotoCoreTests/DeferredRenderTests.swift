@@ -11,7 +11,8 @@ import Testing
 /// The loupe's full-resolution rendition is rendered where it is made, not by
 /// Core Animation at its first draw on the main thread, and shows the pixels
 /// that first draw showed, within one level (docs/features/full-render-main-thread-stall/status.md,
-/// issue #65).
+/// issue #65). The HDR rendition holds its own pixels, so Core Animation never
+/// renders it again (docs/features/deferred-render-flake/status.md, issue #229).
 ///
 /// Core Image's short `createCGImage` defers an image with a side over 4096
 /// pixels (measured on macOS 27.2, not documented), so the sizes here are over
@@ -122,11 +123,8 @@ struct DeferredRenderTests {
     }
 
     /// What `drawnByCoreAnimation` stands for: Core Animation renders a deferred
-    /// image itself when it draws it (the old stall), and does not render one
-    /// again whose pixels were read first. The second is why the HDR rendition,
-    /// whose headroom is read off the main thread (`makeHDRCGImage`), keeps its
-    /// deferred call.
-    @Test("Core Animation renders an unread deferred image when it draws it, and only then")
+    /// image itself when it draws it (the old stall).
+    @Test("Core Animation renders an unread deferred image when it draws it")
     func coreAnimationRendersDeferredImages() throws {
         let engine = RenderEngine(contextCount: 1, name: "deferred-test")
         let unread = CountingProvider()
@@ -137,25 +135,86 @@ struct DeferredRenderTests {
         #expect(unread.calls.withLock { $0 } == 0)
         _ = try Self.drawnByCoreAnimation(lazy)
         #expect(unread.calls.withLock { $0 } > 0, "Core Animation drew a deferred image without rendering it")
+    }
 
-        let read = CountingProvider()
-        let readImage = Self.counted(read)
-        let early = try #require(engine.withContext {
-            $0.createCGImage(readImage, from: readImage.extent, format: .BGRA8, colorSpace: RenderEngine.outputColorSpace)
+    /// A deferred image made the way `makeHDRCGImage` made the HDR rendition
+    /// before #229 (half float, extended linear Display P3), its pixels read
+    /// once; the source that counts how often it is asked, and how often that
+    /// read asked it.
+    private static func readDeferredHDR(_ engine: RenderEngine) throws
+        -> (source: CountingProvider, image: CGImage, pulled: Int) {
+        let source = CountingProvider()
+        let image = counted(source)
+        let rendered = try #require(engine.withContext {
+            $0.createCGImage(image, from: image.extent, format: .RGBAh, colorSpace: RenderEngine.hdrColorSpace)
         })
-        _ = early.dataProvider?.data
-        let pulled = read.calls.withLock { $0 }
+        _ = rendered.dataProvider?.data
+        let pulled = source.calls.withLock { $0 }
         #expect(pulled > 0)
-        _ = try Self.drawnByCoreAnimation(early)
-        #expect(read.calls.withLock { $0 } == pulled, "Core Animation rendered an image again whose pixels were read")
+        return (source, rendered, pulled)
+    }
 
-        // The HDR rendition itself, tagged copy included.
+    /// Sentinels made right after the rendition, and the cap on rounds.
+    static let sentinelCount = 40
+    /// Other renders per round, in a context of their own.
+    static let rendersPerRound = 8
+
+    /// Renders other images, in a context of their own, in rounds, until Core
+    /// Image's process-wide pool has taken back the surface of one of
+    /// `sentinels` (read once each, after the image under test was made), or
+    /// the sentinels run out. Returns whether it did, and how many other
+    /// renders that took.
+    ///
+    /// The pool gives back its least recently used surfaces first (measured on
+    /// macOS 27.2: of two read images left alone, never the newer one alone),
+    /// and reading an image whose surface is still there makes it the most
+    /// recent: one image read after every round was never taken back in 800
+    /// renders.
+    /// So each sentinel is read once, oldest first: the first one found
+    /// rendered again shows the pool has turned over everything older and
+    /// untouched, the old deferred HDR rendition included.
+    private static func turnOverSurfacePool(sentinels: [(source: CountingProvider, image: CGImage, pulled: Int)]) throws
+        -> (Bool, Int) {
+        let other = RenderEngine(contextCount: 1, name: "deferred-test-other")
+        var renders = 0
+        for sentinel in sentinels {
+            for _ in 0..<rendersPerRound {
+                _ = try readDeferredHDR(other)
+                renders += 1
+            }
+            _ = sentinel.image.dataProvider?.data
+            if sentinel.source.calls.withLock({ $0 }) > sentinel.pulled { return (true, renders) }
+        }
+        return (false, renders)
+    }
+
+    /// The HDR rendition (`makeHDRCGImage`, tagged copy included) is rendered
+    /// before it is returned, off the main thread, and nothing goes back to its
+    /// source afterwards, however long it waits in the memory cache. Reading a
+    /// deferred image's pixels is not enough for that: Core Image keeps them in
+    /// a purgeable surface of its process-wide pool, which other renders take
+    /// back, and the next reader (Core Animation's commit, on the main thread)
+    /// renders the image again. The sentinels, deferred renditions made the old
+    /// way just after this one, show the pool has turned over past it, so the
+    /// check can tell (docs/features/deferred-render-flake/status.md, Q1).
+    @Test("The HDR rendition is rendered before it is returned, and never again")
+    func hdrRenditionOwnsItsPixels() throws {
+        let engine = RenderEngine(contextCount: 1, name: "deferred-test")
         let extended = CountingProvider()
         let hdr = try #require(engine.makeHDRCGImage(Self.counted(extended)))
         let hdrPulled = extended.calls.withLock { $0 }
-        #expect(hdrPulled > 0)
+        #expect(hdrPulled > 0, "makeHDRCGImage returned without rendering")
+
+        let sentinels = try (0..<Self.sentinelCount).map { _ in try Self.readDeferredHDR(engine) }
+        let (turnedOver, renders) = try Self.turnOverSurfacePool(sentinels: sentinels)
+        let system = ProcessInfo.processInfo.operatingSystemVersionString
+        try #require(turnedOver,
+                     "Core Image kept every read deferred image's pixels through \(renders) other renders on \(system): this test can't tell whether the HDR rendition holds its own and needs revisiting")
+
+        _ = hdr.dataProvider?.data
         _ = try Self.drawnByCoreAnimation(hdr)
-        #expect(extended.calls.withLock { $0 } == hdrPulled, "Core Animation rendered the HDR rendition again")
+        #expect(extended.calls.withLock { $0 } == hdrPulled,
+                "reading or drawing the HDR rendition went back to its source after \(renders) other renders")
     }
 
     /// Whether a run asked for the large renders (`LARGE_RENDER_TESTS=1`), as
