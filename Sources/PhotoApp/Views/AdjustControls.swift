@@ -498,18 +498,23 @@ struct AdjustSection<Content: View>: View {
         let values = editor.adjustments
         let modified = section.groups.filter { values.isModified($0) }
         let isOn = !modified.isEmpty && modified.allSatisfy { values.isEnabled($0) }
+        let canReset = values.isModified(section)
         VStack(alignment: .leading, spacing: 0) {
             SectionHeader(title: title, isExpanded: $isExpanded, family: .adjust,
                           turnOff: modified.isEmpty ? nil
                               : (isOn ? String(localized: "Turn Off") : String(localized: "Turn On"),
                                  { editor.setEnabled(section, !isOn) }),
-                          reset: values.isModified(section) ? { editor.reset(section) } : nil) {
+                          reset: canReset ? { editor.reset(section) } : nil) {
                 SectionToggle(section: section, editor: editor)
             } trailing: {
                 AppKitButton(symbol: "arrow.counterclockwise", style: .borderless, tint: .secondaryLabelColor,
-                             help: String(localized: "Reset \(title)"), isEnabled: values.isModified(section)) {
+                             help: String(localized: "Reset \(title)"), isEnabled: canReset) {
                     editor.reset(section)
                 }
+                // Dimmed with nothing to reset (issue #221). `isEnabled` alone doesn't hold:
+                // SwiftUI writes its environment's enabled state onto the hosted button
+                // (`adoptEnvironment`) after `updateNSView`, so the environment must agree.
+                .disabled(!canReset)
             }
             if isExpanded {
                 content
