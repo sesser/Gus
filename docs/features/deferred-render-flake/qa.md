@@ -1,7 +1,8 @@
 # DeferredRenderTests fails intermittently in full runs: QA
 
 Owner: qa-tester. Date: 2026-11-19. Step 4 of `docs/WORKFLOW.md` (bug fix, issue #229).
-Tested: `bug/deferred-render-flake` at `192f4dd` (fix `8e33ead`, status `57acf76`, code review `192f4dd`),
+Tested: `bug/deferred-render-flake` at `192f4dd` (fix `8e33ead`, status `57acf76`, code review `192f4dd`; first pass) and at
+`d887683` (test rewritten in `0a5978c`; rerun, see Follow-up),
 on an Apple M4 Pro, macOS 27.2.1 (26B131), Xcode SDK 27.2. The machine was shared with other agents'
 builds and tests throughout (load averages 5 to 17). No app was launched (the fix changes no UI), so the
 owner's library and caches were never opened: nothing under `~/Library/Application Support/Gus` or
@@ -9,11 +10,10 @@ owner's library and caches were never opened: nothing under `~/Library/Applicati
 
 ## Verdict
 
-Does not pass yet. The fix itself checks out: the HDR rendition has the same pixels, format, color space
-and headroom as before and cannot go back to its source. But the new test `hdrRenditionOwnsItsPixels`
-is itself flaky on the fixed branch (its control fails 3 of 25 runs of the suite alone and 1 of 2 full
-runs) and misses the bug 3 of 13 times on develop's code, so the bug's own acceptance, "the test is
-deterministic and fails without the fix", is not met (Q1).
+Ready for the owner's sign-off, as of the rerun on `0a5978c` (code review second pass `d887683`; see
+Follow-up). The first pass (`192f4dd`) did not pass: its test was flaky (Q1). The first-pass numbers below
+are kept as the record. After the engineer's rewrite, with the fix 25 of 25 suite runs and 2 of 2 full runs
+pass, and without the fix 25 of 25 suite runs fail at the HDR check. Only P1 (optional) is left for a person.
 
 ## Acceptance criteria
 
@@ -21,9 +21,9 @@ The Bug section of `status.md` has no numbered criteria; B1 to B8 are its claims
 
 | AC | How | Evidence | Result |
 | --- | --- | --- | --- |
-| B1. Full `swift test` no longer fails in `DeferredRenderTests` (steps 1) | Test | Full runs on the branch: run 1 passed (1243 tests, 73.2 s); run 2 failed with one issue, `DeferredRenderTests.swift:184` (the new control), nothing else (log `scratchpad/logs/full-2.log`). The old failing lines 150 and 158 did not occur | Fail (Q1: flakes at a new line) |
-| B2. The test is deterministic (expected, first sentence) | Test | `DeferredRenderTests/hdrRenditionOwnsItsPixels`, suite alone with the fix, 25 runs: 22 passed, 3 failed at line 184 (control "Core Image kept a read deferred image's pixels through other renders") | Fail (Q1) |
-| B3. The test fails without the fix (Test that fails without the fix) | Test | Scratch copy of `192f4dd` with develop's `RenderEngine.swift` (`9002877`), suite alone, 13 runs: 8 failed at the HDR check (line 189), 2 failed at the control (line 184), 3 **passed** (runs 3, 12, 13) | Fail (Q1: misses the bug 3 of 13) |
+| B1. Full `swift test` no longer fails in `DeferredRenderTests` (steps 1) | Test | Full runs on the branch: run 1 passed (1243 tests, 73.2 s); run 2 failed with one issue, `DeferredRenderTests.swift:184` (the new control), nothing else (log `scratchpad/logs/full-2.log`). The old failing lines 150 and 158 did not occur | Fail on `192f4dd` (Q1); Pass on `0a5978c`: 2 of 2 full runs passed |
+| B2. The test is deterministic (expected, first sentence) | Test | `DeferredRenderTests/hdrRenditionOwnsItsPixels`, suite alone with the fix, 25 runs: 22 passed, 3 failed at line 184 (control "Core Image kept a read deferred image's pixels through other renders") | Fail on `192f4dd` (Q1); Pass on `0a5978c`: 25 of 25 passed |
+| B3. The test fails without the fix (Test that fails without the fix) | Test | Scratch copy of `192f4dd` with develop's `RenderEngine.swift` (`9002877`), suite alone, 13 runs: 8 failed at the HDR check (line 189), 2 failed at the control (line 184), 3 **passed** (runs 3, 12, 13) | Fail on `192f4dd` (Q1); Pass on `0a5978c`: 25 of 25 failed at the HDR check (line 216) |
 | B4. The HDR rendition is rendered where it is made and never again by Core Animation, whatever else renders (expected, second sentence) | Test | With the fix the HDR check (line 189) never failed in 25 suite runs and 2 full runs; `makeHDRCGImage` backs the image with a `CFData` that has no way back to the source (read in `RenderEngine.swift:184-198`). `hdrPulled > 0` shows it renders before returning. Behavior holds; the test's detection is the problem | Pass |
 | B5. Same render: pixels, format, color space and headroom tag unchanged by the fix | Test | Scratch probe (script 3): a 5472 x 3648 HDR image with a patch at (4, 3, 2) gave identical size, bits (16/64), bytes per row, bitmap info, color space (extended linear Display P3), headroom (4.0), byte count and an FNV-1a hash of all pixels on develop's `makeHDRCGImage` and on the branch's | Pass |
 | B6. `coreAnimationRendersDeferredImages` still shows Core Animation renders an unread deferred image (the old stall) after its second half was removed | Test | `DeferredRenderTests/coreAnimationRendersDeferredImages`, passed in every run; `renderedWhereMade` (the SDR route, #65) and the within-one-level comparison also passed in every run | Pass |
@@ -33,7 +33,7 @@ The Bug section of `status.md` has no numbered criteria; B1 to B8 are its claims
 
 ## Findings
 
-**Q1. `hdrRenditionOwnsItsPixels` is flaky on the fixed branch and does not always fail without the fix.**
+**Q1 (Fixed in `0a5978c`, confirmed in Follow-up). `hdrRenditionOwnsItsPixels` is flaky on the fixed branch and does not always fail without the fix.**
 Found: the test's control (lines 181 to 185) requires that 96 other renders make Core Image render a
 read, deferred image again. That is Core Image's process-wide surface pool and is not deterministic.
 - Steps: `swift test --filter DeferredRenderTests` on the branch, repeated (script 1); or a full `swift test`
@@ -107,5 +107,27 @@ Not needed for sign-off if no such file exists: the unit test covers the mechani
 
 ## Follow-up
 
-Open: Q1 is not fixed (it is new). Reruns after the engineer's fix: Q1 (25 suite runs and two full runs
-with the fix, 13 without), P1 (owner, optional).
+### Rerun of Q1 on `0a5978c` / `d887683` (2026-11-19)
+
+The engineer replaced the fixed 96 renders and the control with sentinels: 40 deferred half-float images made
+right after the rendition and read once, then rounds of 8 other renders until the pool gives back one
+sentinel's surface (oldest first), and only then the HDR check at line 216. Same machine (M4 Pro, macOS
+27.2.1, SDK 27.2), load averages 2 to 10 (lower than in the first pass). Logs in `scratchpad/logs/r2-*.log`.
+
+| Run | Result |
+| --- | --- |
+| With the fix (the checkout), `swift test --skip-build --filter DeferredRenderTests` x25 | **25 of 25 passed** (6 tests, one gated off; the HDR test 2.46 to 2.86 s, the suite 4.4 s) |
+| Without the fix: scratch copy of the branch's `Sources` and `Tests` (identical but for `RenderEngine.swift`, checked with `diff -rq`), `RenderEngine.swift` from `9002877`, same command x25 | **25 of 25 failed**, each at `DeferredRenderTests.swift:216` (`extended.calls == hdrPulled`, the HDR check). None passed, none failed at the "turned over" requirement |
+| With the fix, full `swift test` x2 | 1243 tests in 177 suites **passed** both times (72.6 s and 70.3 s, load 2 and 10 at the start); the HDR test passed in 2.5 s each |
+
+Q1: **Fixed.** The first pass saw 3 of 25 and 1 of 2 failures with the fix and 3 of 13 passes without it; neither
+occurred in 52 runs here. Caveat, not a finding: the pool's behavior is undocumented and measured on this Mac
+only; the test now says "needs revisiting" (and fails at the `#require`) if a macOS stops recycling surfaces,
+so a CI failure on macOS 15 or 26 at that line is the test's premise, not the fix (as the code review noted).
+Open: P1 (owner, optional). No other findings; nothing for the designer or product manager.
+
+Counts for the claims B1 to B9: 8 Pass by test (B1 to B8, B5 by the first pass's scratch probe, which the rewrite does not
+affect: `RenderEngine.swift` is unchanged between `192f4dd` and `0a5978c`), 0 by script, 1 open for a person
+(B9, P1), 0 failed.
+
+The owner's sign-off (commit, date, checks left open) will be recorded here when the main session relays it.
