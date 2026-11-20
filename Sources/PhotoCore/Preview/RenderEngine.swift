@@ -170,10 +170,28 @@ public final class RenderEngine: @unchecked Sendable {
     /// Renders to a half-float `CGImage` in extended linear Display P3, tagged with
     /// its content headroom: the brightest component relative to SDR white, which
     /// Core Animation needs to tone map the image to what the display can show.
+    ///
+    /// Rendered here and now, and the returned image holds its own pixels. The
+    /// short `createCGImage` defers an image with a side over 4096 pixels, and
+    /// reading its pixels once is not enough: Core Image keeps them in a
+    /// purgeable surface of its process-wide pool, which later renders (in any
+    /// context) take back, and the next reader renders the image again. For a
+    /// rendition waiting in the memory cache that reader is Core Animation's
+    /// commit on the main thread (`DeferredRenderTests`,
+    /// docs/features/deferred-render-flake/status.md). So the pixels read for
+    /// the headroom become the image's own; the deferred image, and its claim
+    /// on the pool, go when this returns.
     public func makeHDRCGImage(_ image: CIImage) -> CGImage? {
-        guard let rendered = withContext({
+        guard let deferred = withContext({
                   $0.createCGImage(image, from: image.extent.integral, format: .RGBAh, colorSpace: Self.hdrColorSpace)
               }),
+              let pixels = deferred.dataProvider?.data,
+              let provider = CGDataProvider(data: pixels),
+              let rendered = CGImage(width: deferred.width, height: deferred.height,
+                                     bitsPerComponent: deferred.bitsPerComponent, bitsPerPixel: deferred.bitsPerPixel,
+                                     bytesPerRow: deferred.bytesPerRow, space: deferred.colorSpace ?? Self.hdrColorSpace,
+                                     bitmapInfo: deferred.bitmapInfo, provider: provider, decode: nil,
+                                     shouldInterpolate: deferred.shouldInterpolate, intent: deferred.renderingIntent),
               let headroom = Self.maximumComponent(of: rendered)
         else { return nil }
         return CGImageCreateCopyWithContentHeadroom(max(headroom, 1), rendered) ?? rendered
