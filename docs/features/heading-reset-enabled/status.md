@@ -6,7 +6,8 @@ Owner: swift-macos-engineer. Bug fix (no PRD or design; `docs/WORKFLOW.md`
 "Bug fixes"). Branch `bug/heading-reset-enabled`, cut from `develop` at
 `d62cd4d`.
 
-**Status: Done.** Next: code-reviewer, then qa-tester. The fix changes only
+**Status: Done.** Code review done (`code-review.md`; C1 fixed, C2 kept as
+asked). Next: code-reviewer's second pass on the C1 commit, then qa-tester. The fix changes only
 whether seven buttons are dimmed, to what the existing designs already say
 (bw-module design §3.1 and DQ-2, chromatic-aberration design §"Off", remove-profile-group
 design: "reset dimmed" on an unmodified heading), so a design review is
@@ -82,10 +83,11 @@ on, so Details offers its reset.
 (`Tests/PhotoCoreTests/HeadingResetTests.swift`; PhotoApp has no test target,
 so it reads the sources, like `LibraryModalTests`): every
 `AppKitButton(symbol: "arrow.counterclockwise", …)` under
-`Sources/PhotoApp/Views` must carry `.disabled(…)`, and there are four
-(Crop, Spots, `AdjustSection`, Black & White). Checked: with the
-`AdjustControls.swift` change stashed it fails at the `AdjustSection` reset;
-with it, it passes. The behavior itself is checked by the debug script
+`Sources/PhotoApp/Views` must carry, in its own modifier chain,
+`.disabled(!x)` where `x` is its `isEnabled:` argument, and there are four
+(Crop, Spots, `AdjustSection`, Black & White). Checked: with `develop`'s
+`AdjustControls.swift` it fails at the `AdjustSection` reset; with the fix,
+it passes. The behavior itself is checked by the debug script
 (below), which is what showed the bug.
 
 ## Changes
@@ -112,6 +114,8 @@ with it, it passes. The behavior itself is checked by the debug script
   check), 5 passed.
 - Full `swift test` (2026-11-19, with the fix): 1246 tests in 177 suites passed (72.7 s); `DeferredRenderTests` (#229) did not flake.
 - `swift build`: no new warnings in the changed file.
+- After C1: `swift build` clean; `swift test --filter HeadingResetTests`: 7
+  tests passed.
 
 ## Debug-script checks
 
@@ -135,6 +139,13 @@ Note on B4: `click` is not one of the debug script's undo-grouped commands,
 so `print undo` after a scripted click shows no step; the reset's undo step
 is the existing `editor.reset(section)` path, unchanged and covered by the
 `adjust reset …` command.
+
+## Review findings
+
+| Finding | Answer |
+|---|---|
+| C1 (code review, nit): the source check took any `.disabled(` within 8 lines of the button, not its argument | Fixed. The check now reads the call: `SwiftCallScanner` in `HeadingResetTests.swift` finds each `AppKitButton(…)` (skipping comments and string literals), takes its argument list, skips its trailing closure, and reads the chain of `.modifier(…)` calls that follows it, stopping at the next statement. The reset must carry `.disabled(!x)` (or `!(x)`, white space ignored) where `x` is its own `isEnabled:` argument. A second test pins the scanner on a sample: comments and a block comment between the button and its modifiers, a call with parentheses in the action, `.padding` before `.disabled`, and another view's `.disabled(!canReset)` on the next line not counted for the button. Run against `AdjustControls.swift` variants: `develop`'s fails; `.disabled(canReset)` (inverted) fails; three more comment lines before `.disabled(!canReset)` pass. `swift test --filter HeadingResetTests`: 7 passed. The helper is not named `SourceScanner`, which is PhotoCore's import scanner. |
+| C2 (code review, nit): `found.count == 4` is a tripwire | Kept as is, as the review asks. The scanner reads the argument list, so the button is found even if `symbol:` moves to a line of its own. |
 
 ## For a person
 
