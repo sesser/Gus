@@ -73,8 +73,12 @@ things. One is `center`, from the input's extent: an argument, and part of the
 input's own graph. The other is `reach`, from the red and blue magnifications,
 which the kernel takes as `Float` arguments. Any change that changes the area
 also changes the digest. The only gap is two `Double` values that round to the
-same `Float`. Their reach differs by less than 10⁻⁶ of a pixel at any corner,
-which the callback's 2 px margin covers (bilinear needs 1 px).
+same `Float`. Their magnifications differ by at most one `Float` step at the
+largest value, 0.005: 2⁻³¹, about 4.7 × 10⁻¹⁰. At a corner d pixels from the
+center, the area's edge then moves by d × 4.7 × 10⁻¹⁰. That is about 1.7 × 10⁻⁶ px
+at a 6000 × 4000 corner (3606 px), and about 4.2 × 10⁻⁶ px at a 150 MP 3:2
+frame's (15000 × 10000, 9014 px), the decoder's cap. The callback's 2 px margin
+covers it (bilinear needs 1 px).
 
 #87's warp was exposed for a different reason. Its area depends on the
 correction table, and the table is a bitmap image whose contents are not in the
@@ -155,4 +159,18 @@ No changes to requirements, build commands or the repository layout.
 
 ## Review findings
 
-None yet.
+Code review (`code-review.md`): no blockers, two nits, both fixed.
+
+- **C1 (nit), fixed.** `LensAlignStaleAreaTests.swift`: the doc comment said the
+  temporary JPEG was removed when the suite's process ended, but nothing
+  removed it. It is now written per use by `withJPEG`, to a unique path, and
+  removed by a `defer` after the body returns or throws. The body covers every
+  render, because the decoder reads the file lazily.
+- **C2 (nit), fixed.** The rounding figure under "Root cause" said "less than
+  10⁻⁶ of a pixel at any corner". It now gives one `Float` step at 0.005 (about
+  4.7 × 10⁻¹⁰): about 1.7 × 10⁻⁶ px at a 6000 × 4000 corner and 4.2 × 10⁻⁶ px
+  at a 150 MP frame's. The conclusion stands.
+
+After the fixes, `swift test --filter LensAlignStaleAreaTests` passes (3 tests,
+4 cases) and the full `swift test` passes (1252 tests in 179 suites), and no
+`align-stale-area-*.jpg` is left in the temporary folder.

@@ -45,13 +45,15 @@ struct LensAlignStaleAreaTests {
 
     static func fresh() -> RenderEngine { RenderEngine(contextCount: 1, name: "align-fresh") }
 
-    /// A JPEG written for the test, removed when the suite's process ends.
-    static let jpeg: URL = {
+    /// Runs `body` with a JPEG written for it, and removes the file after
+    /// `body` returns or throws (the decoder reads it lazily, during renders).
+    static func withJPEG<T>(_ body: (URL) throws -> T) throws -> T {
         let url = FileManager.default.temporaryDirectory
-            .appending(path: "align-stale-area-\(ProcessInfo.processInfo.processIdentifier).jpg", directoryHint: .notDirectory)
-        try? SyntheticImages.writeJPEG(to: url, width: width, height: height, seed: 228)
-        return url
-    }()
+            .appending(path: "align-stale-area-\(UUID().uuidString).jpg", directoryHint: .notDirectory)
+        try SyntheticImages.writeJPEG(to: url, width: width, height: height, seed: 228)
+        defer { try? FileManager.default.removeItem(at: url) }
+        return try body(url)
+    }
 
     /// The tile's pixels depend on the area the kernel asks for: with an area
     /// that ignores the values (the identity's), the corner comes out wrong,
@@ -59,9 +61,17 @@ struct LensAlignStaleAreaTests {
     /// Without this, the tests below could pass on an input that hides a stale area.
     @Test("The tile shows an input area too small for the values", arguments: [false, true])
     func tileSeesTheInputArea(jpeg: Bool) throws {
-        let input = jpeg ? try PreviewGenerator(engine: Self.fresh()).image(source: Self.jpeg, stack: .identity,
-                                                                             longEdge: nil)
-                         : Self.input
+        if jpeg {
+            try Self.withJPEG { url in
+                try Self.expectTileSeesInputArea(PreviewGenerator(engine: Self.fresh()).image(source: url, stack: .identity,
+                                                                                               longEdge: nil))
+            }
+        } else {
+            try Self.expectTileSeesInputArea(Self.input)
+        }
+    }
+
+    static func expectTileSeesInputArea(_ input: CIImage) throws {
         let kernel = try LensKernels.kernel("lensAlign")
         let extent = input.extent
         let center = CIVector(x: extent.midX, y: extent.midY)
@@ -93,15 +103,17 @@ struct LensAlignStaleAreaTests {
     func jpegDragInOneContext() throws {
         let shared = RenderEngine(contextCount: 1, name: "align-shared")
         let generator = PreviewGenerator(engine: shared)
-        for values in Self.drag {
-            var adjustments = Adjustments()
-            adjustments.colorAlignment = ColorAlignment(red: values.red, blue: values.blue)
-            let image = try generator.image(source: Self.jpeg, stack: adjustments.editStack, longEdge: nil)
-            let tile = Self.tile.offsetBy(dx: image.extent.minX, dy: image.extent.minY)
-            let rendered = Self.render(image, shared, bounds: tile)
-            let expected = Self.render(image, Self.fresh(), bounds: tile)
-            let differing = zip(rendered, expected).filter { $0 != $1 }.count
-            #expect(differing == 0, "\(values): \(differing) components differ from a fresh context's render")
+        try Self.withJPEG { url in
+            for values in Self.drag {
+                var adjustments = Adjustments()
+                adjustments.colorAlignment = ColorAlignment(red: values.red, blue: values.blue)
+                let image = try generator.image(source: url, stack: adjustments.editStack, longEdge: nil)
+                let tile = Self.tile.offsetBy(dx: image.extent.minX, dy: image.extent.minY)
+                let rendered = Self.render(image, shared, bounds: tile)
+                let expected = Self.render(image, Self.fresh(), bounds: tile)
+                let differing = zip(rendered, expected).filter { $0 != $1 }.count
+                #expect(differing == 0, "\(values): \(differing) components differ from a fresh context's render")
+            }
         }
     }
 }
