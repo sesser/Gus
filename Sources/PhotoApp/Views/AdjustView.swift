@@ -334,7 +334,7 @@ private struct ColorGradeControls: View {
         let name = String(localized: "Color Grading")
         VStack(alignment: .leading, spacing: 8) {
             AppKitSegmented(labels: ColorGrade.Range.allCases.map(Self.title),
-                            selection: ColorGrade.Range.allCases.firstIndex(of: range) ?? 1) { index in
+                            selection: ColorGrade.Range.allCases.firstIndex(of: range) ?? 1, fillsWidth: true) { index in
                 range = ColorGrade.Range.allCases[index]
             }
             ColorWheel(hue: wheel.hue, amount: wheel.amount) { hue, amount, phase in
@@ -542,7 +542,7 @@ private struct ToneCurveControls: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             AppKitSegmented(labels: ToneCurve.Channel.allCases.map(Self.title),
-                            selection: ToneCurve.Channel.allCases.firstIndex(of: channel) ?? 0) { index in
+                            selection: ToneCurve.Channel.allCases.firstIndex(of: channel) ?? 0, fillsWidth: true) { index in
                 channel = ToneCurve.Channel.allCases[index]
             }
             CurveEditor(points: editor.adjustments.toneCurve[channel], channel: channel,

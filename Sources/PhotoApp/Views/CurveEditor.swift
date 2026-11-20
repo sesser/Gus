@@ -197,11 +197,16 @@ struct AppKitSegmented: NSViewRepresentable {
     /// VoiceOver's name for the control; nil for none.
     var accessibilityLabel: String?
     /// Takes exactly the width offered, narrower than its intrinsic width if
-    /// need be. In the current design a segment is at least about 65 pt wide
-    /// whatever its label, so five segments ask for 325 pt, more than the
-    /// inspector's 256 to 396 pt of content: SwiftUI would widen the whole
-    /// column past the pane (#218 sign-off finding). The labels themselves
-    /// fit in a fifth of 256 pt.
+    /// need be. With `.fillEqually` every segment is as wide as the widest
+    /// label plus about 24 pt of padding (in the app, current design), and
+    /// SwiftUI never makes the control narrower than that: five segments ask
+    /// for 345 pt, four (Tone Curve) 244 pt, three (Color Grading) 256.5 pt,
+    /// while the inspector's content is 256 to 396 pt wide, 17 pt less with a
+    /// legacy scroller. Wider than the column, the control widens the whole
+    /// column past the pane, clipped on both sides (#218 sign-off finding,
+    /// #223). Narrower, the labels use up the padding before they are cut;
+    /// `print inspectorwidth <folder>` in the debug script draws each
+    /// control at the narrowest width to check.
     var fillsWidth = false
     /// Whether each segment can be chosen; empty for all (a dimmed segment
     /// keeps its place, lens-corrections design §3.2).

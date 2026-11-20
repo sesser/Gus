@@ -19,8 +19,10 @@ import PhotoUI
 ///     print <what>          (state for checks: selection, keywords, undo, suggestions, items, hdr, announcement,
 ///                           title (title, subtitle, filter and sort), activity, messages (every
 ///                           Activity row), empty (the browser's empty state), menustate (what the menus read),
-///                           inspector (shown, tab, Keywords expanded), inspectorwidth (each inspector
-///                           tab's visible width and how far its controls reach: `overflow` when wider),
+///                           inspector (shown, tab, Keywords expanded), inspectorwidth [<folder>] (each
+///                           inspector tab's visible width and how far its controls reach: `overflow` when
+///                           wider; then each segmented control's width, need and verdict at the narrowest
+///                           pane, and with a folder a drawing of each there, segmented-<n>.png),
 ///                           loupe [<x> <y>]: mode, magnification, visible rect, image point under x y)
 ///     suggest               (analyzes the selection and waits)      accept <keyword>
 ///     album <name>          (from the selection)    smartalbum <name>  (rating ≥ 3)     remove
@@ -811,6 +813,9 @@ enum DebugScript {
                 print("debug-script: filmstrip setting \(model.showsFilmStrip) stored \(model.filmStripSize) shown \(strip != nil)"
                       + (strip.map { " " + $0.debugState } ?? "") + " fits \(model.loupeFitCount)")
                 model.loupeFitCount = 0
+            } else if rest.first == "inspectorwidth" {
+                let folder = rest.dropFirst().first.map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) }
+                if let root = window?.contentView?.superview { printScrollWidths(in: root, drawingTo: folder) }
             } else if rest.first == "metadata" {
                 await DebugMetadataCommands.printSummary(model: model)
             } else if rest.first == "ml" {
@@ -1209,27 +1214,108 @@ enum DebugScript {
     /// For each visible scroll view around SwiftUI content (the inspector's
     /// tabs): its visible width and how far the AppKit controls inside reach,
     /// so content wider than the pane shows as `overflow` (#218 sign-off).
-    private static func printScrollWidths(in view: NSView) {
+    /// Then one line per segmented control inside (#223), since a script
+    /// can't set the pane's width (see `printSegmentedWidth`); with a folder,
+    /// also a drawing of each at the narrowest width.
+    private static func printScrollWidths(in view: NSView, drawingTo folder: URL?) {
         if let scroll = view as? NSScrollView, !scroll.isHiddenOrHasHiddenAncestor,
            let document = scroll.documentView, String(describing: type(of: document)).contains("NSHostingView") {
             let clip = scroll.contentView
             var minX = CGFloat.infinity, maxX = -CGFloat.infinity, widest: (String, CGFloat) = ("-", 0)
+            var segmented: [NSSegmentedControl] = []
             func visit(_ child: NSView) {
                 if child is NSControl, !child.isHiddenOrHasHiddenAncestor {
                     let frame = child.convert(child.bounds, to: clip)
                     minX = min(minX, frame.minX)
                     maxX = max(maxX, frame.maxX)
                     if frame.width > widest.1 { widest = (String(describing: type(of: child)), frame.width) }
+                    if let control = child as? NSSegmentedControl { segmented.append(control) }
                 }
                 child.subviews.forEach(visit)
             }
             visit(document)
             let width = clip.bounds.width
-            print("debug-script: inspectorwidth visible \(Int(width)) controls \(Int(minX))...\(Int(maxX))"
-                  + " widest \(widest.0) \(Int(widest.1))" + (minX < -0.5 || maxX > width + 0.5 ? " overflow" : " fits"))
+            // A legacy scroller (a mouse attached, or Show scroll bars:
+            // Always) takes its width from the pane, so the visible width is
+            // the pane's less the scroller's.
+            let pane = scroll.frame.width
+            let scroller = scroll.scrollerStyle == .legacy && scroll.hasVerticalScroller ? "legacy" : "overlay"
+            guard minX.isFinite else {
+                print("debug-script: inspectorwidth pane \(Int(pane)) scroller \(scroller) visible \(Int(width)) no controls")
+                return
+            }
+            print("debug-script: inspectorwidth pane \(Int(pane)) scroller \(scroller) visible \(Int(width))"
+                  + " controls \(Int(minX))...\(Int(maxX)) widest \(widest.0) \(Int(widest.1))"
+                  + (minX < -0.5 || maxX > width + 0.5 ? " overflow" : " fits"))
+            // The visible width when the pane is at its narrowest: the
+            // scroller, if it takes room, takes the same then.
+            let narrowestVisible = width - (pane - InspectorMetrics.minimumColumnWidth)
+            for (index, control) in segmented.enumerated() {
+                printSegmentedWidth(control, in: clip, narrowestVisible: narrowestVisible,
+                                    drawingTo: folder?.appendingPathComponent("segmented-\(index).png"))
+            }
             return
         }
-        view.subviews.forEach(printScrollWidths)
+        view.subviews.forEach { printScrollWidths(in: $0, drawingTo: folder) }
+    }
+
+    /// One segmented control at the inspector's narrowest width. `width` is
+    /// its width now; `needs` its intrinsic width, which with `.fillEqually`
+    /// is the segment count times (the widest label plus the control's
+    /// padding), so a control that keeps its width can't be narrower;
+    /// `x` where it starts in the visible area. The column's leading edge
+    /// stays put as the pane narrows, so `room` is the column's trailing edge
+    /// in the narrowest visible width less `x`; read it only when the line
+    /// above says `fits`. `segment` is the room divided among the segments
+    /// and `label` the widest label's text width in the control's font: a
+    /// `fillsWidth` control shrinks below `needs` into its padding before a
+    /// label is cut, so look at the drawing for that. Verdict: `fits`;
+    /// `overflow` (a control that keeps its width would widen the column,
+    /// #223); `compressed` (a `fillsWidth` control narrower than its
+    /// intrinsic width: check the drawing).
+    private static func printSegmentedWidth(_ control: NSSegmentedControl, in clip: NSClipView,
+                                            narrowestVisible: CGFloat, drawingTo url: URL?) {
+        let frame = control.convert(control.bounds, to: clip)
+        let needs = control.intrinsicContentSize.width
+        let fills = control.contentCompressionResistancePriority(for: .horizontal) < .defaultHigh
+        let room = narrowestVisible - InspectorMetrics.padding - frame.minX
+        let labels = (0..<control.segmentCount).map { control.label(forSegment: $0) ?? "" }
+        let font = control.font ?? .systemFont(ofSize: NSFont.systemFontSize(for: control.controlSize))
+        let label = labels.map { ($0 as NSString).size(withAttributes: [.font: font]).width }.max() ?? 0
+        let segment = room / CGFloat(max(control.segmentCount, 1))
+        let verdict = needs <= room + 0.5 ? "fits" : fills ? "compressed" : "overflow"
+        let points = { (value: CGFloat) in String(format: "%.1f", value) }
+        print("debug-script: inspectorwidth segmented \(labels.joined(separator: "/")) width \(points(frame.width))"
+              + " needs \(points(needs)) x \(points(frame.minX)) \(fills ? "fillsWidth" : "keepsWidth")"
+              + " narrowest room \(points(room)) segment \(points(segment)) label \(points(label)) \(verdict)")
+        if let url { drawSegmented(like: control, width: room, to: url) }
+    }
+
+    /// Draws a copy of a segmented control (labels, size, font, selection,
+    /// appearance) at a width, to see whether its labels are cut there: at
+    /// the narrowest room, the width a control that fills the column gets.
+    private static func drawSegmented(like control: NSSegmentedControl, width: CGFloat, to url: URL) {
+        let labels = (0..<control.segmentCount).map { control.label(forSegment: $0) ?? "" }
+        let copy = NSSegmentedControl(labels: labels, trackingMode: control.trackingMode, target: nil, action: nil)
+        copy.controlSize = control.controlSize
+        copy.font = control.font
+        copy.segmentDistribution = control.segmentDistribution
+        copy.selectedSegment = control.selectedSegment
+        copy.appearance = control.effectiveAppearance
+        for index in 0..<control.segmentCount { copy.setEnabled(control.isEnabled(forSegment: index), forSegment: index) }
+        let margin: CGFloat = 4
+        copy.frame = NSRect(x: margin, y: margin, width: width.rounded(.down), height: control.bounds.height)
+        // On the window's background: the labels are drawn for it.
+        let backdrop = Backdrop(frame: NSRect(x: 0, y: 0, width: copy.frame.maxX + margin, height: copy.frame.maxY + margin))
+        backdrop.appearance = control.effectiveAppearance
+        backdrop.addSubview(copy)
+        guard let rep = backdrop.bitmapImageRepForCachingDisplay(in: backdrop.bounds) else { return }
+        backdrop.cacheDisplay(in: backdrop.bounds, to: rep)
+        guard let data = rep.representation(using: .png, properties: [:]), (try? data.write(to: url)) != nil else {
+            print("debug-script: could not write \(url.path)")
+            return
+        }
+        print("debug-script: wrote \(url.path) at width \(Int(width.rounded(.down))) (copy needs \(Int(copy.intrinsicContentSize.width.rounded(.up))))")
     }
 
     private static func printButtons(in view: NSView, window: NSWindow) {
@@ -1327,8 +1413,6 @@ enum DebugScript {
         case "inspector":
             print("debug-script: inspector shown \(model.showsInspector) tab \(model.inspectorTab) keywords expanded "
                   + "\(InspectorExpansion.shared.isExpanded(InspectorView.keywordsKey, family: .info, default: true))")
-        case "inspectorwidth":
-            if let root = window?.contentView?.superview { printScrollWidths(in: root) }
         case "fringe":
             DebugLensCommands.printState(model: model)
         case "magnifier":
@@ -1463,5 +1547,13 @@ enum DebugScript {
             return
         }
         WindowSnapshot.write(window, to: url)
+    }
+}
+
+/// The window's background behind a drawing of a control (`drawSegmented`).
+private final class Backdrop: NSView {
+    override func draw(_ dirtyRect: NSRect) {
+        NSColor.windowBackgroundColor.setFill()
+        dirtyRect.fill()
     }
 }
