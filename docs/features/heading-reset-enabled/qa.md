@@ -127,4 +127,4 @@ Branch: Light only (IMG_00001, edited) / none (IMG_00002) / none (RAW_00003) / L
 
 ## Follow-up
 
-(Reruns after fixes, and the owner's sign-off, are recorded here.)
+**Owner's sign-off, 2026-11-19.** Commit signed off: `e74875b` (QA for #221), which adds only this file after `8628df2` (the last commit to change source or tests). The owner built the bundle and ran it on a `photobench` scratch library and checked **P1** by eye: "They start out dimmed and undim when an edit is made". P1 is checked, fine, for that look. He did not report light, dark and Increase Contrast separately, so those three are recorded as covered only by what he reported, not as checked one by one. He then chose "Sign off, open the PR". No checks are left open. VoiceOver, macOS 15 and macOS 26 are not part of this fix's checks (CI covers the last two). There were no findings.
