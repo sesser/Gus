@@ -6,8 +6,9 @@ Owner: swift-macos-engineer. Bug fix (no PRD or design, `docs/WORKFLOW.md`
 "Bug fixes"). Branch `bug/deferred-render-flake`, from `develop` at `9002877`
 (includes #222).
 
-**Status: Done.** Next: code-reviewer; no UI changed, so no design review; then
-qa-tester.
+**Status: Done** (again, after QA finding Q1, see Review findings). Next:
+code-reviewer's second pass (the test changed), then qa-tester to rerun Q1; no
+UI changed, so no design review.
 
 States: Not started · In progress · Done · Blocked · Deferred.
 
@@ -71,18 +72,35 @@ is a different cause, already fixed by `072518d`: a byte-for-byte comparison
 of two Core Image renders that vary by one level. It has not been seen since.
 
 **Test that fails without the fix.** `DeferredRenderTests.hdrRenditionOwnsItsPixels`
-("The HDR rendition is rendered before it is returned, and never again"). It
-makes the HDR rendition from a counting provider, then makes Core Image
-render and read 96 other 5472 × 3648 images in a context of its own
-(`renderOthers`, a stand-in for the rest of the app or of a parallel run),
-then reads and draws the rendition through `CARenderer` and requires that its
-source was not asked again. A control in the same test, a plain deferred
-image read before those renders, must be rendered again after them, so the
-test can tell (a macOS that stops recycling those surfaces fails the control
-with "needs revisiting" instead of passing blind). With develop's
-`makeHDRCGImage` the test failed **10 of 10** runs of the suite alone, always
-at the HDR check (`DeferredRenderTests.swift:188` at that commit), the control
-holding every time.
+("The HDR rendition is rendered before it is returned, and never again"), as
+rewritten for Q1. It makes the HDR rendition from a counting provider, then 40
+**sentinels**: deferred renditions made the way develop's `makeHDRCGImage`
+made it (half float, extended linear Display P3, 5472 × 3648, pixels read
+once), so each is newer than the rendition. Then, in rounds, it has Core Image
+render and read 8 other such images in a context of its own (a stand-in for
+the rest of the app or of a parallel run) and reads the next sentinel, oldest
+first, once (`turnOverSurfacePool`). It stops at the first sentinel whose
+source is asked again: the pool has then turned over past the rendition. Only
+then does it read and draw the rendition through `CARenderer` and require that
+its source was not asked again. If no sentinel is taken back within 40 rounds
+(320 other renders), it stops with "needs revisiting" (`#require`) instead of
+passing blind. Without the fix the committed test failed **25 of 25** suite
+runs, always at the HDR check (`DeferredRenderTests.swift:216`), never at the
+turnover check (and the measuring build 25 of 25 suite runs and 2 of 2 full
+runs, the same way); see Verification.
+
+Why sentinels, measured on this Mac (scratch probes, not committed):
+- The pool gives back its least recently used surfaces first: of two read
+  images left alone, never the newer one alone (16 runs at 32 to 160 other
+  renders: neither yet in 8, both in 7, only the older in 1).
+- Reading an image whose surface is still in the pool makes it the most recent
+  again: one image read after every round of 8 was never taken back in 800
+  other renders (11 of 11 runs, half float or 8-bit, either kind of other
+  render). So "render until the control is asked again" with one control never
+  ends.
+- So each sentinel is read once only. A sentinel taken back, newer than the
+  rendition and never read since it was made, shows a deferred rendition would
+  have been taken back too.
 
 ## The fix
 
@@ -106,7 +124,7 @@ holding every time.
     does not render one again whose pixels were read", is removed: it is not
     true (above), and nothing relies on it any more. Its HDR check moved, with
     the eviction the full run made by chance now made on purpose, into
-    `hdrRenditionOwnsItsPixels` (above).
+    `hdrRenditionOwnsItsPixels` (above; rewritten for Q1).
   - The suite stays `.serialized`. Making it run apart from the other render
     suites was not needed: the fixed rendition does not depend on what else
     renders, and the test now makes the pressure itself.
@@ -144,18 +162,40 @@ folder (`logs/before-N.log`, `logs/after-full-N.log`, `logs/without-fix-N.log`,
 | --- | --- |
 | Baseline `swift build` at `9002877` | Pass |
 | Baseline: 8 full `swift test` on develop's code (`9002877`) | 1242 tests in 177 suites, **8 of 8 passed** (67 to 74 s), load averages 18 to 71. The flake did not show in these 8: it needs enough other rendering to land between the read and the draw, which the deterministic repro above makes on purpose |
-| New test, develop's `makeHDRCGImage`, suite alone ×10 | **10 of 10 failed** at the HDR check; control held 10 of 10 |
-| With the fix, suite alone ×10 | 10 of 10 passed (6 tests, one gated off; 3.8 to 4.2 s, the 96 renders take about 2.4 s) |
-| With the fix, full `swift test` ×1 (`8e33ead`) | 1243 tests in 177 suites passed (67.3 s, load 25) |
-| With the fix, 8 full `swift test` (`8e33ead`) | 1243 tests in 177 suites, **8 of 8 passed** (68.7 to 72.1 s), load averages 19 to 33; `hdrRenditionOwnsItsPixels` passed in each (3.1 to 4.0 s), its control holding each time |
-| `swift build`, `swift build --build-tests` | Pass, no new warnings |
+| First test (`8e33ead`, 96 fixed renders and a control read before the rendition) | Superseded by Q1. Recorded here: develop's `makeHDRCGImage` 10 of 10 failed at the HDR check; with the fix 10 of 10 suite runs and 9 of 9 full runs passed on this Mac. QA found it flaky (Q1) |
+| Q1 rewrite, measuring build (a temporary print of the turnover count; each sentinel then compared with one pull, since tidied to the count its read made), develop's `makeHDRCGImage`, suite alone ×25 | **25 of 25 failed**, each at the HDR check, none at the turnover check; the pool turned over after 8 to 120 other renders (median 40); load averages 5 to 9 |
+| Measuring build, develop's `makeHDRCGImage`, full `swift test` ×2 | **2 of 2 failed**, one issue each, at the HDR check, nothing else; turned over after 8 renders; load averages 34 to 48 |
+| Measuring build with the fix, suite alone ×25 | **25 of 25 passed**; turned over after 32 to 56 other renders; load averages 5 to 10 |
+| Measuring build with the fix, full `swift test` ×3 | **3 of 3 passed**, 1243 tests in 177 suites (66.8 to 72.3 s); turned over after 8 to 32 renders; load averages 4 to 22 |
+| **Committed test**, develop's `makeHDRCGImage` (`9002877`), suite alone ×25 | **25 of 25 failed**, each with one issue at the HDR check (`:216`), none at the turnover check; load averages 2 to 3 |
+| **Committed test** with the fix, suite alone ×25 | **25 of 25 passed**; the test 2.53 to 2.97 s, the suite 4.15 to 4.59 s; load averages 3 to 13 |
+| **Committed test** with the fix, full `swift test` ×2 | **2 of 2 passed**, 1243 tests in 177 suites (71.6 and 71.8 s); load averages 9 to 12 |
+| `swift build --build-tests` | Pass, no new warnings (the two existing ones in `SmartAlbumTests` and `VirtualCopiesTests` remain) |
+
+Test time: the rewritten test takes about 2.3 to 3.2 s alone and 2.4 to 2.6 s
+in a full run (the 40 sentinels about 1.5 s of it), against 2.4 to 4 s for the
+first version; the cap (320 renders) would take about 13 s, reached in no run.
+Full runs stay at 67 to 73 s. Logs: this session's scratch folder, `logs/q1/`
+(measuring build) and `logs/q1b/` (committed test).
+
+## Review findings
+
+| # | From | Finding | Answer |
+| --- | --- | --- | --- |
+| Q1 | qa-tester (`qa.md`) | `hdrRenditionOwnsItsPixels` was flaky: with the fix its control failed 3 of 25 suite runs and 1 of 2 full runs; without the fix it passed 3 of 13 (missed the bug). 96 fixed renders don't make the pool take surfaces back every time | Fixed in the test (the fix itself is unchanged, and QA confirmed it). Two causes: the count was fixed, and the control was made **before** the rendition, so with the pool giving back the oldest surface first the control could go while the rendition stayed (the 3 misses) or neither went (the control failures). QA's suggestion, rendering until the control is asked again, does not work as such: reading the control while its surface is still there makes it the newest again, and it was never taken back in 800 renders. Now 40 sentinels made after the rendition, each read once, oldest first, in rounds of 8 other renders, until one is taken back (cap 320, then "needs revisiting"); the HDR check runs only after that. Measured on the committed test: without the fix 25 of 25 suite runs fail at the HDR check, none at the turnover check; with it 25 of 25 suite runs and 2 of 2 full runs pass (plus the measuring build: 25 and 2 of 2 full runs failing without, 25 and 3 full runs passing with; Verification) |
+
+Code review (`code-review.md`): no findings. Its CI note (the control rests on
+undocumented pool behavior measured only on macOS 27.2) still applies to the
+turnover check: if CI fails at "needs revisiting", the pool behaves
+differently there, not the fix.
 
 ## Checks for review and QA
 
 - Run the new test alone and in a full run; it should never fail with the fix.
 - To see it fail without the fix: put develop's `makeHDRCGImage` back
   (`git show 9002877:Sources/PhotoCore/Preview/RenderEngine.swift`) and run
-  `swift test --filter DeferredRenderTests`: the HDR check fails every time.
+  `swift test --filter DeferredRenderTests`: the HDR check fails every time,
+  the turnover check never.
 - No manual check in the app: the stall it removes needs an HDR photo over
   4096 pixels at 100%, other full renders, then a return to it; nothing a
   person sees changes otherwise. Optional for QA if a full-resolution HDR
