@@ -5,8 +5,8 @@ extension CommandEnvironment {
     /// The only way tests build a command environment. A command given no
     /// `--library-root` falls back on the environment's standard library, and
     /// with no `defaultLibraryRoot` that is the owner's real one
-    /// (`LibraryLocations.standard()`): `render --out` reads it to refuse
-    /// originals (#166). Here the standard library is `standardLibrary`, by
+    /// (`LibraryLocations.standard()`): `render --version`, `query` and the
+    /// write commands use it. Here the standard library is `standardLibrary`, by
     /// default a folder that is never created, so no test reads the real
     /// library whatever its arguments. `HermeticCommandTests` fails on any
     /// other construction in the tests.
