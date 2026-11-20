@@ -114,3 +114,89 @@ over 4096 pixels can render their source again after other renders". Body:
   a real raw, then decide whether to own the pixels the way this fix does.
 
 Engineer's fixes: none needed.
+
+## Second pass: `0a5978c` (QA finding Q1)
+
+Date: 2026-11-19. Reviewed: `192f4dd..0a5978c`, one commit: `hdrRenditionOwnsItsPixels` rewritten
+(`DeferredRenderTests.swift:140-218`) and `status.md`. `qa.md` (`7f8eea6`) read for Q1.
+Build and tests: `swift build --build-tests` clean. With the fix, `swift test --filter DeferredRenderTests`
+8 of 8 passed (the test 2.15 to 2.82 s, load about 1.8); one full `swift test`: 1243 tests in 177
+suites passed (70.5 s; the test 2.91 s; load 1.4 rising to 11). Without the fix (`RenderEngine.swift`
+from `9002877`, which matches the local `develop`'s, put back, then restored with `git checkout`;
+worktree clean): 8 of 8 suite runs failed, each with exactly one issue at `DeferredRenderTests.swift:216`
+(the HDR check), none at the turnover `#require` (line 211); the pool turned over after 48 (2 runs)
+or 56 (6 runs) other renders.
+
+**Verdict.** Ready for QA's rerun of Q1. The rewrite answers both of Q1's failure modes, the assertion
+is as strict as before, and the app fix is untouched. No new findings.
+
+**Checked and fine.**
+
+- **App fix unchanged.** `git diff 8e33ead..HEAD -- Sources/` is empty; `makeHDRCGImage` is as reviewed in
+  the first pass.
+- **Why the old control failed (the engineer's diagnosis holds).** The control was made and read
+  *before* the rendition, so under least-recently-used reclaiming it was the first to go: 96 renders
+  could take the control and leave the rendition (QA's 3 misses without the fix), or take neither
+  (QA's 3 of 25 control failures with it). The fixed count of 96 made both depend on load.
+- **The sentinel reasoning.**
+  - Without the fix the rendition is read once inside `makeHDRCGImage` and not touched again until
+    line 214. Every sentinel is made and read after it, so all are newer.
+  - Round k reads sentinel k once. Sentinels 0..k-1 were refreshed by their own reads. Sentinel k
+    has not been touched since it was made, and the rendition is older still. So if the pool gives
+    back the least recently used surface first, sentinel k going back means the rendition went
+    back before it.
+  - Reading each sentinel once only is what makes this work: one control read every round becomes
+    the newest again and is never taken back (the engineer's 800-render measurement). That is also
+    why QA's "render until the control is asked again" could not end.
+  - Pressure from other suites in a full run makes surfaces go sooner. It does not change the order,
+    so it does not break the argument.
+- **Strict, and never passes blind.**
+  - The HDR check (line 216) is the same equality as before (`== hdrPulled`, no tolerance).
+  - The turnover check is a `#require`: a recorded failure that stops the test, not a skip or a
+    warning. If no sentinel is taken back within 40 rounds (320 renders), the test fails with
+    "needs revisiting" before it reaches the HDR check. It cannot pass without having seen the pool
+    turn over.
+  - The cap leaves room. The most renders measured before a turnover is 120 (status.md), against
+    the cap of 320. My runs took 48 and 56. At about 13 s, the cap's cost is bounded.
+  - With the fix the HDR check cannot fail: the image is backed by a `CFData`. So the only failure
+    left with the fix is the "needs revisiting" path, which is the right signal.
+- **Remaining dependence (accepted, not a finding).** The test now relies on one undocumented
+  property: the pool reclaims in least-recently-used order. If a macOS reclaimed a newer sentinel
+  while keeping the older rendition, the test would pass without the fix (a missed regression),
+  not fail.
+  - Evidence on this Mac: 25 of 25 (engineer) and 8 of 8 (here) suite runs, plus 2 of 2 full runs,
+    caught the bug without the fix, at the HDR check every time.
+  - Evidence elsewhere: none. CI on macOS 15 and 26 is the first run off this Mac (the first pass's
+    Questions note, restated in status.md). On CI the likelier symptoms are the "needs revisiting"
+    `#require` (a paravirtual GPU's pool behaving differently) or `pulled > 0` failing in
+    `readDeferredHDR` (a failed render). Both are loud, and neither points at the fix.
+- **Deterministic as far as the test controls it.**
+  - No sleeps and no clocks; the loop is bounded.
+  - Each sentinel's re-render is told apart by its own counter (`calls > pulled`, against the count
+    its own read made).
+  - The suite stays `.serialized`, so its own tests don't interleave.
+  - `readDeferredHDR` builds the old rendition exactly as develop's `makeHDRCGImage` did: `.RGBAh`,
+    `hdrColorSpace`, 5472 × 3648, read once.
+- **Test time.**
+  - 2.15 to 2.91 s here, against 2.2 s for the first version in the first pass.
+  - The 40 sentinels are about 1.5 s of that (status.md). The cap is about 13 s and was never
+    reached.
+  - The full run's time did not change (70.5 s).
+- **Memory.**
+  - Each sentinel and each other render is a 160 MB half-float surface in Core Image's purgeable
+    pool. The CFData each read makes is dropped straight away.
+  - Peak resident memory is the pool's business: it reclaims on its own after 8 to 120 renders.
+  - The first version made about 97 such surfaces at 80 MB. This one makes about 80 to 100 at
+    160 MB.
+  - Not a concern on this Mac. On a 7 GB CI runner it is covered by the CI watch above.
+- **status.md.**
+  - The Bug section's test description, Verification and the Q1 row agree with the code.
+  - The line numbers it gives (`:216`) are right.
+  - The "Checks for review and QA" steps reproduce what I saw.
+
+**Findings (second pass).** None.
+
+**Follow-up.** First pass: no findings, nothing to confirm. Q1 is QA's finding; from the code side it is
+addressed by `0a5978c`, and QA's rerun (25 suite runs and two full runs with the fix, 13 without)
+confirms it in `qa.md`. The first pass's proposed issue (kept decodes over 4096 pixels in
+`LiveRenderSession` and `LinearRawDecode`) and the CI watch item still stand.
