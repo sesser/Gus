@@ -209,4 +209,21 @@ Spots headings open. Covers the designer's M1 to M5 (`review.md`) and
 
 ## Follow-up
 
-Reruns after fixes and the owner's sign-off are recorded here. Nothing yet.
+Reruns after fixes and the owner's sign-off are recorded here.
+
+**Owner's sign-off, 2026-11-19.** Commit signed off: `a025dcb6c8faef16bc44d6b31bd8b52be71aaa6b`
+(`bug/tone-curve-channel-control-width`). The owner built the bundle, ran it on a
+scratch library and checked P1 to P4 by eye (narrowest pane with the legacy and the
+overlay scroller, Black & White beside them, appearance and Increase Contrast with
+Spots and Lens): all pass. No checks are left open. As ruled, VoiceOver, macOS 15
+and macOS 26 were not asked of the owner and are covered by CI only.
+
+| P | Covers | Result |
+| --- | --- | --- |
+| P1 | M1 | Pass (owner, by eye) |
+| P2 | M2 | Pass (owner, by eye) |
+| P3 | M3 | Pass (owner, by eye) |
+| P4 | M4, M5 | Pass (owner, by eye) |
+
+Findings: none were open at sign-off beyond what the Findings section already
+records. This entry was written by qa-tester; the main session commits it.
