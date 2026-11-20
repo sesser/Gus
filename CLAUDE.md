@@ -509,7 +509,19 @@ as with `swift run`, included) or one with `--debug-script` or
 unless the launch is scripted, then exit 64 (`Launch/LibraryLaunchGuard.swift`
 in PhotoCore, asked first by `AppLauncher`, the app's `@main`;
 `LibraryModel.open` checks again). `photocli`, `photobench` and the
-standalone importer are not guarded.
+standalone importer are not guarded. `photocli render <file>` reads no
+library unless `--library-root` names one (#222, bug fix, branch
+`bug/photocli-render-input-library`, `docs/features/photocli-render-input-library/`):
+there only the file being rendered is refused as `--out`; `--version` renders
+and named libraries keep #166's check of every master. Before, that check
+opened the standard catalog read-only, and SQLite still wrote its `-shm`
+file. The owner's ruling of 2026-11-19 narrows his #166 ruling of
+2026-11-15 and accepts its cost: a file render without `--library-root` onto
+a master of the standard library now overwrites it. Other `photocli` commands
+still fall back on the standard library as documented. Follow-ups: #233 (an
+environment variable that guards agents' `photocli` runs against the standard
+library) and #234 (read commands open the catalog as a writer, so they can
+migrate it).
 
 Chromatic aberration and color fringes (`docs/features/chromatic-aberration/`,
 PR #48): a Lens heading in the Adjust tab with two groups, applied to the
@@ -701,9 +713,11 @@ ordinary file and is replaced; a 0-byte master protects every empty file;
 network volumes untimed; a file that becomes a master's between the check and
 the write is replaced (accepted); Activity doesn't say when Replace numbered
 photos. Open follow-ups: double Return can start two exports, and the count
-before the alert can't be stopped; `photocli render --out` can overwrite a
-master; the importer's hashing loops may hold whole files in memory;
-`photocli` reads masters at the recorded mount path.
+before the alert can't be stopped; `photocli render --out` overwriting a
+master was fixed later (#166, then narrowed by #222: see the Library launch
+guard entry); the importer's hashing loops may hold whole files in memory;
+`photocli` reads masters at the recorded mount path (where it checks them
+at all).
 
 Raws macOS can't decode (`docs/features/raf-not-rendering/`, bug fix, issue
 #161, branch `bug/raf-not-rendering`): on macOS 27.2 the system's RAW decoder
