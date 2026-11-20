@@ -67,14 +67,12 @@ struct RenderInputLibraryTests {
             try SyntheticImages.writeJPEG(to: input, width: 64, height: 48, seed: 1)
             let out = folder.appending(path: "out.png")
             let cli = CommandLineInterface(environment: .hermetic(currentDirectory: folder, standardLibrary: root))
-            _ = await cli.run(["render", input.path, "--out", out.path, "--long-edge", "32"])
+            let output = await cli.run(["render", input.path, "--out", out.path, "--long-edge", "32"])
+            #expect(output.exitCode == 0, "\(output.standardError)")
 
             let after = try FolderState(root)
-            // Fails today: the #166 check opens the standard catalog read-only, and SQLite still writes
-            // its `-shm` (wal-index). Remove the wrapper with the fix; it fails once the issue is gone.
-            withKnownIssue("#222: render <file> without --library-root opens the standard library") {
-                #expect(after == before, "before: \(before)\nafter: \(after)")
-            }
+            #expect(after == before, "before: \(before)\nafter: \(after)")
+            #expect(FileManager.default.fileExists(atPath: out.path), "the file was not rendered")
         }
     }
 }

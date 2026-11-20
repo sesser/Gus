@@ -226,20 +226,6 @@ public struct CommandEnvironment: Sendable {
         }
     }
 
-    /// Opens the library `arguments` name (or the standard one) for reading
-    /// only, never migrating, creating or writing the catalog
-    /// (`Catalog.openForReading`; SQLite may add its `-wal` and `-shm` files).
-    /// Nil when there is no catalog there: no library, so nothing in it.
-    public func openLibraryForReading(_ arguments: CommandArguments) throws(CommandError) -> OpenLibrary? {
-        let locations = try libraryLocations(arguments)
-        guard FileManager.default.fileExists(atPath: locations.catalogFileURL.path) else { return nil }
-        do {
-            return OpenLibrary(locations: locations, catalog: try Catalog.openForReading(at: locations.catalogFileURL))
-        } catch {
-            throw CommandError(.failed, "Could not open the catalog: \(error)")
-        }
-    }
-
     func lockLibrary(_ arguments: CommandArguments) throws(CommandError) -> LibraryLock {
         let locations = try libraryLocations(arguments)
         guard FileManager.default.fileExists(atPath: locations.catalogFileURL.path) else {

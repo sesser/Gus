@@ -17,10 +17,12 @@ public final class Catalog: Sendable {
     /// Opens an existing catalog for reading only: no catalog or folder is
     /// created, no migration runs, nothing in the catalog is written, and any
     /// write throws. SQLite may create the catalog's `-wal` and `-shm` files
-    /// if they are absent (a closed WAL database). For asking a library that the
-    /// caller must not change (`photocli render`'s check of the standard
-    /// library). Reads assume the schema this build knows; a catalog too old
-    /// or too new for a query makes that query throw.
+    /// if they are absent (a closed WAL database), and every reader writes the
+    /// `-shm` file (the WAL index), so the folder is not left untouched. For
+    /// reading a library the caller must not change; no command uses it since
+    /// #222 (a file render reads no library unless named). Reads assume the
+    /// schema this build knows; a catalog too old or too new for a query makes
+    /// that query throw.
     public static func openForReading(at url: URL) throws -> Catalog {
         var configuration = makeConfiguration()
         configuration.readonly = true

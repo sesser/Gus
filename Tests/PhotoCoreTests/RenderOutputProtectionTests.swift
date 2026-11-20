@@ -2,8 +2,9 @@ import Foundation
 import Testing
 @testable import PhotoCore
 
-/// `photocli render --out` never writes over a catalogued master (issue #166),
-/// nor, with no library, over the file it renders.
+/// `photocli render --out` never writes over the file it renders, nor over a
+/// master of the library the command reads (issue #166). A file rendered
+/// without `--library-root` reads no library (issue #222).
 @Suite("Render output protection")
 struct RenderOutputProtectionTests {
     typealias Library = CommandTests.TemporaryLibrary
@@ -75,15 +76,27 @@ struct RenderOutputProtectionTests {
     /// The catalog's files, to show nothing was written to them.
     static func catalogBytes(_ library: Library) throws -> [Data?] {
         let file = library.locations.catalogFileURL
-        return try ["", "-wal"].map { suffix in
+        return try ["", "-wal", "-shm"].map { suffix in
             let url = URL(fileURLWithPath: file.path + suffix)
             return FileManager.default.fileExists(atPath: url.path) ? try Data(contentsOf: url) : nil
         }
     }
 
-    @Test("A file render with no --library-root asks the standard library, read-only, by place and by content")
-    func standardLibraryAskedForAFileRender() async throws {
+    /// Renders `arguments` onto `out` and checks it was refused with `outputIsMaster` and `out` kept its bytes.
+    static func expectRefused(_ cli: CommandLineInterface, out: URL, _ arguments: [String],
+                              sourceLocation: SourceLocation = #_sourceLocation) async throws {
+        let before = try Data(contentsOf: out)
+        let output = await cli.run(["render"] + arguments + ["--out", out.path, "--long-edge", "64"])
+        #expect(output.exitCode == 1, "\(out.lastPathComponent): \(output.standardOutput)", sourceLocation: sourceLocation)
+        #expect(output.standardError.contains("outputIsMaster"), "\(output.standardError)", sourceLocation: sourceLocation)
+        #expect(try Data(contentsOf: out) == before, "\(out.lastPathComponent) was written", sourceLocation: sourceLocation)
+    }
+
+    @Test("A file render with no --library-root reads no library: only the input is refused (#222)")
+    func fileRenderAsksNoLibrary() async throws {
         try await CommandTests.withLibrary { library in
+            // The standard library holds these masters, but a file render without --library-root doesn't read it
+            // (owner's ruling on #222, 2026-11-19, narrowing #166's): they are ordinary files to it.
             let cli = Self.cli(standardLibrary: library.root, in: library)
             let input = library.photos.appending(path: "IMG_0001.jpg").path
             let copy = library.root.deletingLastPathComponent().appending(path: "copy.jpg")
@@ -92,32 +105,56 @@ struct RenderOutputProtectionTests {
             for out in [library.photos.appending(path: "IMG_0002.jpg"), copy] {
                 let before = try Data(contentsOf: out)
                 let output = await cli.run(["render", input, "--out", out.path, "--long-edge", "64"])
-                #expect(output.exitCode == 1, "\(out.lastPathComponent): \(output.standardOutput)")
-                #expect(output.standardError.contains("outputIsMaster"), "\(output.standardError)")
-                #expect(try Data(contentsOf: out) == before)
+                #expect(output.exitCode == 0, "\(out.lastPathComponent): \(output.standardError)")
+                #expect(try Data(contentsOf: out) != before, "\(out.lastPathComponent) was not written")
             }
-            let ordinary = library.root.deletingLastPathComponent().appending(path: "ordinary.png")
-            let output = await cli.run(["render", input, "--out", ordinary.path, "--long-edge", "64"])
-            #expect(output.exitCode == 0, "\(output.standardError)")
-            #expect(try Self.catalogBytes(library) == catalogBefore, "the standard library's catalog was written")
+            try await Self.expectRefused(cli, out: URL(fileURLWithPath: input), [input])
+            #expect(try Self.catalogBytes(library) == catalogBefore, "the standard library's catalog was touched")
         }
     }
 
-    @Test("A standard library that exists but can't be read refuses the render, and nothing is written")
-    func unreadableStandardLibraryRefuses() async throws {
+    @Test("A standard library that can't be read doesn't stop a file render; a --version render still fails")
+    func unreadableStandardLibraryIsNotRead() async throws {
         try await CommandTests.withLibrary { library in
             let damaged = library.root.deletingLastPathComponent().appending(path: "Damaged", directoryHint: .isDirectory)
             let locations = LibraryLocations.rooted(at: damaged)
             try locations.createDirectories()
             let garbage = Data("this is not a database, not even a little".utf8)
             try garbage.write(to: locations.catalogFileURL)
+            let cli = Self.cli(standardLibrary: damaged, in: library)
             let out = library.root.deletingLastPathComponent().appending(path: "out.png")
-            let output = await Self.cli(standardLibrary: damaged, in: library)
-                .run(["render", library.photos.appending(path: "IMG_0001.jpg").path, "--out", out.path])
-            #expect(output.exitCode == 1, "\(output.standardOutput)")
-            #expect(output.standardError.contains("\"failed\""), "\(output.standardError)")
-            #expect(!FileManager.default.fileExists(atPath: out.path))
+            let output = await cli.run(["render", library.photos.appending(path: "IMG_0001.jpg").path,
+                                        "--out", out.path, "--long-edge", "64"])
+            #expect(output.exitCode == 0, "\(output.standardError)")
+            #expect(FileManager.default.fileExists(atPath: out.path))
+
+            // A version lives in a library, so --version still reads the standard one, and fails on this.
+            let versionOut = library.root.deletingLastPathComponent().appending(path: "version.png")
+            let version = await cli.run(["render", "--version", "1", "--out", versionOut.path])
+            #expect(version.exitCode == 1, "\(version.standardOutput)")
+            #expect(!FileManager.default.fileExists(atPath: versionOut.path))
             #expect(try Data(contentsOf: locations.catalogFileURL) == garbage)
+            let files = try FileManager.default.contentsOfDirectory(atPath: locations.catalogDirectory.path)
+            #expect(files == [locations.catalogFileURL.lastPathComponent], "\(files)")
+        }
+    }
+
+    @Test("A library the command reads still protects its masters: --library-root, and --version with or without it")
+    func namedLibraryAndVersionRendersStillProtectMasters() async throws {
+        try await CommandTests.withLibrary { library in
+            let cli = Self.cli(standardLibrary: library.root, in: library)
+            let input = library.photos.appending(path: "IMG_0001.jpg").path
+            let master = library.photos.appending(path: "IMG_0002.jpg")
+            let copy = library.root.deletingLastPathComponent().appending(path: "copy.jpg")
+            try FileManager.default.copyItem(at: library.photos.appending(path: "IMG_0003.jpg"), to: copy)
+            let version = String(library.versionIDs[0])
+            for out in [master, copy] {
+                // A file with the library named.
+                try await Self.expectRefused(cli, out: out, [input, "--library-root", library.root.path])
+                // A version from the standard library (no --library-root) and from a named one.
+                try await Self.expectRefused(cli, out: out, ["--version", version])
+                try await Self.expectRefused(cli, out: out, ["--version", version, "--library-root", library.root.path])
+            }
         }
     }
 
@@ -139,7 +176,7 @@ struct RenderOutputProtectionTests {
     @Test("With no library anywhere the input itself is refused (same path, other case, a hard link)")
     func inputItselfWithoutLibrary() async throws {
         try await CommandTests.withLibrary { library in
-            // A standard library location with no catalog: nothing is catalogued, so only the input is refused.
+            // A file render without --library-root reads no library (#222); the input alone is refused.
             let cli = CommandLineInterface(environment: .hermetic(
                 currentDirectory: library.root.deletingLastPathComponent(),
                 standardLibrary: library.root.deletingLastPathComponent().appending(path: "NoLibrary")))
@@ -153,7 +190,7 @@ struct RenderOutputProtectionTests {
                 #expect(output.standardError.contains("outputIsMaster"), "\(out): \(output.standardError)")
                 #expect(try Data(contentsOf: input) == before)
             }
-            // With no catalog the rule is the input only: another file is written, and nothing is created.
+            // Another file is written, and nothing is created at the standard location.
             let other = library.root.deletingLastPathComponent().appending(path: "other.png")
             let output = await cli.run(["render", input.path, "--out", other.path, "--long-edge", "64"])
             #expect(output.exitCode == 0, "\(output.standardError)")
