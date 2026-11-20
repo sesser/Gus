@@ -26,11 +26,14 @@ enum RenderCommands {
         parameters: [
             CommandParameter("input", .path, "A master file to render (or --version).", positional: true),
             CommandParameter("version", .integer, "A version id from the library (or a file)."),
-            CommandParameter("libraryRoot", .path, "The library folder; the app's standard library when left out."),
+            CommandParameter("libraryRoot", .path, """
+                The library folder. With --version, the app's standard library when left out; a file is rendered \
+                without reading any library unless this names one.
+                """),
             CommandParameter("out", .path, """
-                Where to write the image. Never an original: the file being rendered, or a master in the library \
-                (by place or by content; the standard library, read only, when no library is named), is refused \
-                (outputIsMaster).
+                Where to write the image. Never an original: the file being rendered is refused, and so is a master \
+                of the library the command reads (--version or --library-root), by place or by content \
+                (outputIsMaster). A file rendered without --library-root is checked against itself only.
                 """, required: true),
             CommandParameter("longEdge", .integer, "Largest side in pixels; full resolution when left out."),
             CommandParameter("stack", .path, "An edit stack (JSON) used instead of the version's own."),
@@ -181,8 +184,7 @@ enum RenderCommands {
             throw CommandError(.fileNotFound, "No file at \(source.path)")
         }
         // Before rendering, which can take seconds: an output that is refused is refused at once.
-        try await refuseOriginal(out, source: source, library: library, environment: environment,
-                                 arguments: arguments)
+        try await refuseOriginal(out, source: source, library: library)
         if let stackPath = arguments.string("stack") {
             do {
                 stack = try EditStack.decode(from: Data(contentsOf: environment.url(stackPath)))
@@ -292,40 +294,25 @@ enum RenderCommands {
     /// and a name the file system takes for the same, `MasterFiles`) or by
     /// identity (a hard link, or a link to it).
     ///
-    /// Every master in a library's catalog is refused too, by place (at its
-    /// recorded mount and where its volume is mounted now) or by content
-    /// (`holdsContent(ofFileAt:)`), as export asks. The library is the one the
-    /// command opened (`--version`, `--library-root`); otherwise the standard
-    /// one (the environment's default), opened read-only for this question
-    /// alone: no migration, no lock, nothing in the catalog written (owner's
-    /// ruling on #166). SQLite may create the catalog's `-wal` and `-shm`
-    /// files beside it if they are absent.
-    /// Where no catalog exists nothing is catalogued, so only the input is
-    /// refused. A catalog that exists but can't be read, or a standard
-    /// location that can't be found, can't show `--out` safe: refused.
-    static func refuseOriginal(_ out: URL, source: URL, library: OpenLibrary?,
-                               environment: CommandEnvironment, arguments: CommandArguments) async throws(CommandError) {
+    /// When the command opened a library (`--version`, or `--library-root`),
+    /// every master in its catalog is refused too, by place (at its recorded
+    /// mount and where its volume is mounted now) or by content
+    /// (`holdsContent(ofFileAt:)`), as export asks.
+    ///
+    /// A file rendered without `--library-root` reads no library at all
+    /// (owner's ruling on #222, 2026-11-19, narrowing the #166 ruling): even a
+    /// read-only open of the standard catalog writes its `-shm` file. So only
+    /// the input is refused there.
+    static func refuseOriginal(_ out: URL, source: URL, library: OpenLibrary?) async throws(CommandError) {
         if MasterFiles([source]).contains(out) || isSameFile(out, source) {
             throw CommandError(.outputIsMaster, """
                 --out is the file being rendered, \(source.path); originals are never written. Choose another file.
                 """)
         }
-        let checked: OpenLibrary
-        if let library {
-            checked = library
-        } else {
-            do throws(CommandError) {
-                guard let standard = try environment.openLibraryForReading(arguments) else { return }
-                checked = standard
-            } catch {
-                throw CommandError(.failed, """
-                    Could not tell whether --out is an original in the library, so nothing was written: \(error.message)
-                    """)
-            }
-        }
+        guard let library else { return }
         let masters: MasterFiles
         do {
-            masters = try await checked.catalog.masterFiles(mounted: VolumeAvailability.mountedVolumes())
+            masters = try await library.catalog.masterFiles(mounted: VolumeAvailability.mountedVolumes())
         } catch {
             throw CommandError(.failed, "Could not read the library's masters, so nothing was written: \(error)")
         }
