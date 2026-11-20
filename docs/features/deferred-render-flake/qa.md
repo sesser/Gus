@@ -130,4 +130,12 @@ Counts for the claims B1 to B9: 8 Pass by test (B1 to B8, B5 by the first pass's
 affect: `RenderEngine.swift` is unchanged between `192f4dd` and `0a5978c`), 0 by script, 1 open for a person
 (B9, P1), 0 failed.
 
-The owner's sign-off (commit, date, checks left open) will be recorded here when the main session relays it.
+### Owner's sign-off
+
+Signed off by the owner on 2026-11-19 ("Sign off, open the PR"), at commit `a19fc75`, relayed by the main session.
+Between the last commit I tested (`d887683`) and `a19fc75` only this file changed (`git diff d887683..a19fc75 --stat`),
+so the tested source and tests are the ones signed off.
+Checks left open: P1 (a full-resolution HDR file over 4096 pixels at 100%, optional), skipped by the owner; it stays
+open for a person and goes on the standing manual-checks issue (#82). VoiceOver, macOS 15 and macOS 26 are covered by
+CI only (CI's first run of `hdrRenditionOwnsItsPixels` on macOS 15 and 26: a failure at its "needs revisiting"
+requirement would be the test's premise about Core Image's pool, not the fix).
