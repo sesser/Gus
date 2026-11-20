@@ -111,12 +111,15 @@ extension AdjustmentRenderer {
             }
             return box.insetBy(dx: -2, dy: -2).intersection(extent.insetBy(dx: -2, dy: -2))
         }
-        // The area a render reads depends on the warp, and the callback that
-        // says so is not in the graph's digest: a context would read the area an
+        // The area a render reads depends on the warp's table, and neither the
+        // callback nor the table image's contents are in the graph's digest (its
+        // scalar and vector arguments are): two warps with the same arguments and
+        // different tables share a digest, so a context would read the area an
         // earlier render of the same input with another warp needed, and repeat
-        // its edge (observed in `LensCorrectionTests`; the RAW decoder's fault,
-        // `RAWDecodeGraph`). A clamp keyed on the warp gives each warp's input a
-        // digest of its own, and the same warp the same one.
+        // its edge (observed in `LensCorrectionTests`, Manual 60 then -60 without
+        // Constrain; the RAW decoder's fault, `RAWDecodeGraph`; issue #228). A
+        // clamp keyed on the warp gives each warp's input a digest of its own,
+        // and the same warp the same one.
         var hasher = Hasher()
         hasher.combine(warp)
         hasher.combine(scale)

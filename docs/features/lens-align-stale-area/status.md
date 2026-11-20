@@ -6,11 +6,18 @@ Owner: swift-macos-engineer. Bug fix (no PRD or design, `docs/WORKFLOW.md`
 "Bug fixes"). Branch `bug/lens-align-stale-area`, cut from `develop` at
 `1a1dc44`.
 
-**Status: Blocked** on a ruling (see Requirements issues). The fault the issue
-describes does not occur: `lensAlign` cannot read an earlier render's input
-area, because everything its area callback depends on is in the graph's digest.
-No source changed. The branch adds three guard tests and this file. No UI
-changed, so no design review.
+**Status: Done.** The fault the issue describes does not occur: `lensAlign`
+cannot read an earlier render's input area, because everything its area
+callback depends on is in the graph's digest. The owner ruled RQ-1 option (a)
+on 2026-11-19: #228 is closed as not planned (not reproducible), and this
+branch keeps the guard tests. No behavior or rendering changed: the branch adds
+three guard tests, this file, and one comment in
+`LensCorrectionRenderer.applyWarp` (comment only). No UI changed, so no design
+review.
+
+**Pull request: test-only.** The issue is already closed, so the description
+must not say `Closes #228`. Refer to it as "Follow-up to #228 (closed as not
+planned)".
 
 States: Not started · In progress · Done · Blocked · Deferred.
 
@@ -108,6 +115,7 @@ to 4 levels. That change would need a pipeline bump and the owner.
 | Baseline 2, `1a1dc44`, clean | pass | 1249 tests in 178 suites, pass |
 | After 1, with the guard tests | pass, no new warnings | 1252 tests in 179 suites, pass |
 | After 2, with the guard tests | pass | 1252 tests in 179 suites, pass |
+| After the ruling and the `applyWarp` comment | pass | 1252 tests in 179 suites, pass |
 
 `swift test --filter LensAlignStaleAreaTests`: 3 tests (4 cases), pass,
 about 0.7 s alone.
@@ -127,6 +135,19 @@ No debug-script check: no UI or behavior changed.
 
   Recommendation: (a). The tests cost under a second, and they guard against
   a later change that would bring the fault in for real.
+
+  **Ruling (owner, 2026-11-19): option (a).** #228 is closed as not planned
+  (not reproducible). The guard tests stay, on this branch, as a test-only
+  pull request without `Closes #228`. Code review and QA follow; there is no
+  sign-off or Ship.
+
+## Comment clarified
+
+`LensCorrectionRenderer.applyWarp` now says exactly why the warp needs its key.
+The area depends on the warp's table, and neither the area callback nor the
+table image's contents are in the digest. Its scalar and vector arguments are.
+Two warps with the same arguments and different tables therefore share a
+digest. This change is comment only: no code, behavior or rendering changed.
 
 ## README
 
