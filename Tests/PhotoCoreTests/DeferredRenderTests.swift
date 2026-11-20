@@ -11,7 +11,8 @@ import Testing
 /// The loupe's full-resolution rendition is rendered where it is made, not by
 /// Core Animation at its first draw on the main thread, and shows the pixels
 /// that first draw showed, within one level (docs/features/full-render-main-thread-stall/status.md,
-/// issue #65).
+/// issue #65). The HDR rendition holds its own pixels, so Core Animation never
+/// renders it again (docs/features/deferred-render-flake/status.md, issue #229).
 ///
 /// Core Image's short `createCGImage` defers an image with a side over 4096
 /// pixels (measured on macOS 27.2, not documented), so the sizes here are over
@@ -122,11 +123,8 @@ struct DeferredRenderTests {
     }
 
     /// What `drawnByCoreAnimation` stands for: Core Animation renders a deferred
-    /// image itself when it draws it (the old stall), and does not render one
-    /// again whose pixels were read first. The second is why the HDR rendition,
-    /// whose headroom is read off the main thread (`makeHDRCGImage`), keeps its
-    /// deferred call.
-    @Test("Core Animation renders an unread deferred image when it draws it, and only then")
+    /// image itself when it draws it (the old stall).
+    @Test("Core Animation renders an unread deferred image when it draws it")
     func coreAnimationRendersDeferredImages() throws {
         let engine = RenderEngine(contextCount: 1, name: "deferred-test")
         let unread = CountingProvider()
@@ -137,25 +135,58 @@ struct DeferredRenderTests {
         #expect(unread.calls.withLock { $0 } == 0)
         _ = try Self.drawnByCoreAnimation(lazy)
         #expect(unread.calls.withLock { $0 } > 0, "Core Animation drew a deferred image without rendering it")
+    }
 
-        let read = CountingProvider()
-        let readImage = Self.counted(read)
-        let early = try #require(engine.withContext {
-            $0.createCGImage(readImage, from: readImage.extent, format: .BGRA8, colorSpace: RenderEngine.outputColorSpace)
+    /// Other large renders, in a context of their own, each read once: what
+    /// the rest of the app (or of a parallel test run) does to Core Image's
+    /// process-wide surfaces meanwhile. 96 renders of the test's size made
+    /// Core Image render a read deferred image again in every run measured
+    /// (docs/features/deferred-render-flake/status.md); 8 never did.
+    static func renderOthers(count: Int = 96) throws {
+        let other = RenderEngine(contextCount: 1, name: "deferred-test-other")
+        for _ in 0..<count {
+            let image = counted(CountingProvider())
+            let rendered = try #require(other.withContext {
+                $0.createCGImage(image, from: image.extent, format: .BGRA8, colorSpace: RenderEngine.outputColorSpace)
+            })
+            _ = rendered.dataProvider?.data
+        }
+    }
+
+    /// The HDR rendition (`makeHDRCGImage`, tagged copy included) is rendered
+    /// before it is returned, off the main thread, and nothing goes back to its
+    /// source afterwards, however long it waits in the memory cache. Reading a
+    /// deferred image's pixels is not enough for that: Core Image keeps them in
+    /// a purgeable surface of its process-wide pool, which other renders take
+    /// back, and the next reader (Core Animation's commit, on the main thread)
+    /// renders the image again. The control shows that still happens, so the
+    /// test can tell.
+    @Test("The HDR rendition is rendered before it is returned, and never again")
+    func hdrRenditionOwnsItsPixels() throws {
+        let engine = RenderEngine(contextCount: 1, name: "deferred-test")
+        let control = CountingProvider()
+        let controlImage = Self.counted(control)
+        let read = try #require(engine.withContext {
+            $0.createCGImage(controlImage, from: controlImage.extent, format: .BGRA8, colorSpace: RenderEngine.outputColorSpace)
         })
-        _ = early.dataProvider?.data
-        let pulled = read.calls.withLock { $0 }
-        #expect(pulled > 0)
-        _ = try Self.drawnByCoreAnimation(early)
-        #expect(read.calls.withLock { $0 } == pulled, "Core Animation rendered an image again whose pixels were read")
+        _ = read.dataProvider?.data
+        let controlPulled = control.calls.withLock { $0 }
+        #expect(controlPulled > 0)
 
-        // The HDR rendition itself, tagged copy included.
         let extended = CountingProvider()
         let hdr = try #require(engine.makeHDRCGImage(Self.counted(extended)))
         let hdrPulled = extended.calls.withLock { $0 }
-        #expect(hdrPulled > 0)
+        #expect(hdrPulled > 0, "makeHDRCGImage returned without rendering")
+
+        try Self.renderOthers()
+        _ = read.dataProvider?.data
+        let system = ProcessInfo.processInfo.operatingSystemVersionString
+        #expect(control.calls.withLock { $0 } > controlPulled,
+                "Core Image kept a read deferred image's pixels through other renders on \(system): this test can't tell whether the HDR rendition holds its own and needs revisiting")
+
+        _ = hdr.dataProvider?.data
         _ = try Self.drawnByCoreAnimation(hdr)
-        #expect(extended.calls.withLock { $0 } == hdrPulled, "Core Animation rendered the HDR rendition again")
+        #expect(extended.calls.withLock { $0 } == hdrPulled, "reading or drawing the HDR rendition went back to its source")
     }
 
     /// Whether a run asked for the large renders (`LARGE_RENDER_TESTS=1`), as
