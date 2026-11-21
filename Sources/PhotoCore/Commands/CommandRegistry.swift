@@ -251,6 +251,8 @@ public struct OpenLibrary: Sendable {
     public var catalog: Catalog
 
     public var lookTables: LookTableStore { LookTableStore(locations: locations) }
+    /// Stored detection results of mask components (issue #88).
+    public var maskRasters: MaskRasterStore { MaskRasterStore(catalog: catalog) }
 }
 
 /// A failure, reported as `{"error": message, "code": code}`.

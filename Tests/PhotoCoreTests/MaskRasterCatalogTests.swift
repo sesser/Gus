@@ -49,9 +49,9 @@ struct MaskRasterCatalogTests {
             try Row.fetchAll(db, sql: "SELECT id, versionId, label, createdAt, stack FROM editHistory")
                 + Row.fetchAll(db, sql: "SELECT id, editStack, editStackHash FROM version")
         }
-        let rowsBefore = try await old.read(snapshot)
+        let rowsBefore = try old.read(snapshot)
         let catalog = try Catalog(database: old)
-        let rowsAfter = try await catalog.database.read(snapshot)
+        let rowsAfter = try catalog.database.read(snapshot)
         #expect(rowsAfter == rowsBefore)
         #expect(try await catalog.maskRasterDigests().isEmpty)
         let column = try await catalog.database.read { db in
