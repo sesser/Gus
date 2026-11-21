@@ -155,6 +155,11 @@ final class LibraryModel {
     let writes = WriteChain()
     let lookTableLibrary = LookTableLibraryModel()
     let presetPreviews = PresetPreviewModel()
+    /// How the Adjust tab's Presets heading shows presets: names or
+    /// thumbnails. One app-wide preference, kept across launches (#241).
+    var presetsView = PresetsViewChoice.choice(stored: UserDefaults.standard.object(forKey: PresetsViewChoice.defaultsKey)) {
+        didSet { UserDefaults.standard.set(presetsView.rawValue, forKey: PresetsViewChoice.defaultsKey) }
+    }
     let export = ExportModel()
     /// The video loupe's player (View ▸ Play / Pause).
     let playback = VideoPlayback()
