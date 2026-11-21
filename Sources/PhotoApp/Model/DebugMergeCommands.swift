@@ -30,7 +30,8 @@ import PhotoUI
 ///     merge cancelsheet            (presses Cancel: prints whether a job runs)
 ///     print merge                  (running or not, step, detail, fraction, whether Merge is on and why
 ///                                   not, the selection, File ▸ Stop's job, whether a removal may start,
-///                                   the undo action name)
+///                                   the undo action name; with the sheet up, its reference, whether the
+///                                   disk has answered for it, Merge and the slow-check spinner)
 @MainActor
 enum DebugMergeCommands {
     static func run(_ words: [String], model: LibraryModel) async {
@@ -67,7 +68,8 @@ enum DebugMergeCommands {
             }
             merge.chooseReference(frame.versionID)
             if words.dropFirst(2).first == "nowait" {
-                print("debug-script: merge reference \(frame.displayName) chosen; merge on \(merge.canStart)")
+                print("debug-script: merge reference \(frame.displayName) chosen; merge on \(merge.canStart)"
+                      + " spinner \(merge.isCheckingSlowly ? "on" : "off")")
                 return
             }
             await settle(merge)
@@ -227,7 +229,8 @@ enum DebugMergeCommands {
         }
         let disk = merge.sheet.map { !$0.isDiskChecked ? "checking" : $0.diskRefusal == nil ? "clear" : "refused" } ?? "-"
         print("debug-script: merge message \(merge.refusal.map(MergeText.refusal) ?? "none")"
-              + "; note \(selection.sameExposure ? MergeText.sameExposureNote : "none"); disk \(disk)")
+              + "; note \(selection.sameExposure ? MergeText.sameExposureNote : "none"); disk \(disk)"
+              + " spinner \(merge.isCheckingSlowly ? "on" : "off")")
         print("debug-script: merge name \(nameLine(merge)) folder \(selection.referenceFrame.folder.path)"
               + " formats tiff dng (dng offered true) format \(merge.format.rawValue) merge on \(merge.canStart)")
         print("debug-script: merge align \(merge.options.align ? "on" : "off") deghost \(merge.options.deghost ? "on" : "off")"
@@ -247,5 +250,10 @@ enum DebugMergeCommands {
               + " focus \(model.focusedItem.map(PhotoName.display) ?? "-")"
               + " stop \(model.newestStoppableJob.map { "\($0)" } ?? "-") canRemove \(model.canRemoveFromLibrary)"
               + " undo '\(model.undoManager.undoActionName)'")
+        if let sheet = merge.sheet {
+            print("debug-script: merge sheet reference \(sheet.reference.displayName)"
+                  + " disk \(sheet.isDiskChecked ? "answered" : "checking") merge on \(merge.canStart)"
+                  + " spinner \(merge.isCheckingSlowly ? "on" : "off")")
+        }
     }
 }

@@ -48,7 +48,7 @@ final class MergeModel {
     /// The targets' versions when the sheet opened (the landing rule compares them).
     private(set) var targetIDs: [Int64] = []
     /// A disk check has taken over half a second (the sheet's small spinner).
-    private(set) var isCheckingSlowly = false
+    var isCheckingSlowly: Bool { sheet?.spinner == .shown }
     /// The reference's thumbnail for the header; the previous reference's
     /// stays until the new one is ready (design §5.8).
     private(set) var previewImage: CGImage?
@@ -135,7 +135,6 @@ final class MergeModel {
         guard let library, library.canMerge else { return }
         stopSheetTasks()
         sheet = nil
-        isCheckingSlowly = false
         previewImage = nil
         announcementPending = false
         announcedRefusal = nil
@@ -176,7 +175,7 @@ final class MergeModel {
         guard var next = sheet, next.chooseReference(versionID) else { return }
         sheet = next
         loadPreview()
-        askDisk()
+        askDisk(restartingSpinner: true)
         updateName()
         scheduleAnnouncement()
     }
@@ -184,15 +183,15 @@ final class MergeModel {
     /// Asks the disk what the current reference still needs (design §6.2,
     /// §5.8): whether every master can be read (once) and whether the
     /// reference's folder can be written to (once per folder), off the main
-    /// actor. The spinner shows only when that takes over half a second.
-    private func askDisk() {
+    /// actor. The spinner shows only when that takes over half a second, timed
+    /// again from a change of reference (`restartingSpinner`).
+    private func askDisk(restartingSpinner: Bool = false) {
         guard var sheet else { return }
         let preflight = MergePreflight.disk
         let delay = debugDiskDelay
         if sheet.unreadable == nil, !askedReadable {
             askedReadable = true
             let frames = sheet.selection.frames
-            startSlowTimer()
             diskTasks.append(Task {
                 let unreadable = await Task.detached { preflight.firstUnreadable(frames)?.versionID }.value
                 guard !Task.isCancelled else { return }
@@ -200,42 +199,51 @@ final class MergeModel {
                 diskAnswered()
             })
         }
-        guard let folder = sheet.folderToAsk else { return }
-        sheet.asking(folder)
-        self.sheet = sheet
-        startSlowTimer()
-        diskTasks.append(Task {
-            let writable = await Task.detached {
-                if delay > .zero { try? await Task.sleep(for: delay) }
-                return preflight.isWritableFolder(folder)
-            }.value
-            guard !Task.isCancelled, var current = self.sheet else { return }
-            let decides = current.record(folder: folder, writable: writable)
-            self.sheet = current
-            if !decides {
-                debugDiscarded.append(folder.lastPathComponent)
-            }
-            diskAnswered()
-        })
+        if let folder = sheet.folderToAsk {
+            sheet.asking(folder)
+            self.sheet = sheet
+            diskTasks.append(Task {
+                let writable = await Task.detached {
+                    if delay > .zero { try? await Task.sleep(for: delay) }
+                    return preflight.isWritableFolder(folder)
+                }.value
+                guard !Task.isCancelled, var current = self.sheet else { return }
+                let decides = current.record(folder: folder, writable: writable)
+                self.sheet = current
+                if !decides {
+                    debugDiscarded.append(folder.lastPathComponent)
+                }
+                diskAnswered()
+            })
+        }
+        decideSpinner(restart: restartingSpinner)
     }
     /// Case 8 has been asked for this sheet (it doesn't depend on the reference).
     @ObservationIgnored private var askedReadable = false
 
-    private func startSlowTimer() {
-        guard slowTask == nil else { return }
+    /// The spinner decided again (`MergeSheetState.decideSpinner`); a new
+    /// half-second wait replaces the one running, and one that is no longer
+    /// needed stops. A wait that has ended holds nothing: the next starts.
+    private func decideSpinner(restart: Bool) {
+        guard var sheet else { return }
+        let wait = sheet.decideSpinner(restart: restart)
+        self.sheet = sheet
+        if wait != nil || sheet.spinner == .hidden {
+            slowTask?.cancel()
+            slowTask = nil
+        }
+        guard let wait else { return }
         slowTask = Task {
             try? await Task.sleep(for: .milliseconds(500))
             guard !Task.isCancelled else { return }
-            if sheet?.isDiskChecked == false { isCheckingSlowly = true }
+            self.sheet?.spinnerWaitEnded(wait)
         }
     }
 
     private func diskAnswered() {
+        decideSpinner(restart: false)
         guard let sheet else { return }
         if sheet.isDiskChecked {
-            slowTask?.cancel()
-            slowTask = nil
-            isCheckingSlowly = false
             // What the sheet says before anything is chosen is its own reading (§11).
             if !announcementPending { announcedRefusal = sheet.refusal }
         }

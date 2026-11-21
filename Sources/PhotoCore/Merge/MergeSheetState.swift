@@ -108,6 +108,50 @@ public struct MergeSheetState: Sendable, Equatable {
         return nil
     }
 
+    // MARK: The small spinner
+
+    /// The small spinner by the buttons (design §5.4, §5.8): hidden while the
+    /// disk has answered for the current reference; otherwise shown only once
+    /// a half-second wait started for this check has ended with no answer.
+    public enum Spinner: Sendable, Equatable {
+        case hidden
+        /// The wait with this number runs; only it may show the spinner.
+        case waiting(Int)
+        case shown
+    }
+
+    public private(set) var spinner: Spinner = .hidden
+    private var spinnerWaits = 0
+
+    /// Decides the spinner again after the disk was asked or answered, or the
+    /// reference changed (`restart`: the half second starts again for the new
+    /// reference's check, the rule of the first open applied again, §5.8).
+    /// Returns the number of a new wait the caller times, or nil when none is
+    /// needed: the disk has answered (hidden), the spinner already shows, or a
+    /// wait runs and `restart` is false.
+    public mutating func decideSpinner(restart: Bool) -> Int? {
+        if isDiskChecked {
+            spinner = .hidden
+            return nil
+        }
+        switch spinner {
+        case .shown: return nil
+        case .waiting where !restart: return nil
+        case .hidden, .waiting:
+            spinnerWaits += 1
+            spinner = .waiting(spinnerWaits)
+            return spinnerWaits
+        }
+    }
+
+    /// The half-second wait `number` has ended: the spinner shows if that wait
+    /// is still the current one and the disk hasn't answered. A wait that a
+    /// newer one replaced, or that an answer ended, changes nothing.
+    public mutating func spinnerWaitEnded(_ number: Int) {
+        guard spinner == .waiting(number) else { return }
+        spinner = isDiskChecked ? .hidden : .shown
+    }
+
     // MARK: What the sheet shows
 
     /// The message in the header, the first that applies (§6): the
