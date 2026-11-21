@@ -17,12 +17,13 @@ extension MemoryHeavy {
             frames.map { HDRBracket.image($0, width: width, height: height).ciImage }
         }
 
-        static func merge(_ bracket: [HDRBracket.Frame], reference: Int, width: Int = width, height: Int = height)
-            throws -> (HDRMerger, HDRMerger.Plan, CIImage) {
+        static func merge(_ bracket: [HDRBracket.Frame], reference: Int, width: Int = width, height: Int = height,
+                          options: MergeOptions = .standard) throws -> (HDRMerger, HDRMerger.Plan, CIImage) {
             let merger = HDRMerger()
             let images = frames(bracket, width: width, height: height)
             let copies = images.map { MergeBitmap.render($0, context: merger.context)! }
-            let plan = try merger.plan(measuring: copies, reference: reference, metadataExposures: bracket.map { _ in nil })
+            let plan = try merger.plan(measuring: copies, reference: reference, metadataExposures: bracket.map { _ in nil },
+                                       options: options)
             return (merger, plan, try merger.radiance(plan, frames: images))
         }
 
@@ -67,27 +68,27 @@ extension MemoryHeavy {
 }
 
 extension MemoryHeavy.HDRMergerTests {
-    /// The frames' tone-mapped merge rendered on the GPU, and the CPU
-    /// reference's, with the same plan.
-    @Test("AC10: the merge and tone mapping match their CPU reference")
-    func matchesReference() throws {
-        let bracket = [HDRBracket.Frame(ev: -2, shift: SIMD2(3.25, -2.5), rotationDegrees: 0.3), HDRBracket.Frame(ev: 0),
-                       HDRBracket.Frame(ev: 2, shift: SIMD2(-2, 1.75))]
-        let linear = bracket.map { HDRBracket.image($0, width: Self.width, height: Self.height) }
-        let merger = HDRMerger()
-        let copies = linear.map { MergeBitmap(width: $0.width, height: $0.height, pixels: $0.pixels) }
-        let plan = try merger.plan(measuring: copies, reference: 1, metadataExposures: [nil, nil, nil])
+    /// How far the GPU's merge and tone mapping are from the CPU reference's
+    /// for one plan, each as a share of the pixel's tolerance (1 is at the
+    /// limit), over the well-conditioned pixels.
+    struct ReferenceAgreement {
+        var radiance: Double
+        var mapped: Double
+        var compared: Int
+        var total: Int
+    }
+
+    static func referenceAgreement(_ linear: [LinearImage], plan: HDRMerger.Plan, merger: HDRMerger) throws
+        -> ReferenceAgreement {
+        let width = linear[plan.reference].width
         let radiance = try merger.radiance(plan, frames: linear.map(\.ciImage))
         let mapped = try merger.toneMapped(plan, radiance: radiance)
         let gpuRadiance = try #require(MergeBitmap.render(radiance, context: merger.context))
         let gpu = try #require(MergeBitmap.render(mapped, context: merger.context))
         let conditioned = MergeReference.radianceAndConditioning(frames: linear, plan: plan)
         let cpuRadiance = conditioned.map(\.0)
-        let cpu = MergeReference.toneMapped(cpuRadiance, plan: plan.toneMap, width: Self.width)
+        let cpu = MergeReference.toneMapped(cpuRadiance, plan: plan.toneMap, width: width)
         let compared = conditioned.indices.filter { conditioned[$0].1 }
-        print("compared \(compared.count) of \(conditioned.count) pixels")
-        // Most pixels are well conditioned; the rest sit on a clipping edge.
-        #expect(compared.count >= conditioned.count * 95 / 100)
         // Float32 on the GPU against Double here: about 20 roundings of 2^-24
         // each, and Metal's log and exp within 4 ulp (2^-21 relative) on the
         // tone-mapping path: a relative tolerance of 2^-17 (7.6e-6) covers
@@ -108,10 +109,27 @@ extension MemoryHeavy.HDRMergerTests {
                 worstMapped = max(worstMapped, abs(Double(m[c]) - t) / (abs(t) + absolute / relative) / allowed)
             }
         }
-        print("worst (as a share of each pixel's tolerance) radiance at \(worstAt % Self.width),\(worstAt / Self.width): \(gpuRadiance.rgb(worstAt)) vs \(cpuRadiance[worstAt]); ghosts \(plan.ghosts.map { $0[worstAt % Self.width, worstAt / Self.width] })")
-        print("worst relative difference: radiance \(worstRadiance), tone mapped \(worstMapped)")
-        #expect(worstRadiance <= 1)
-        #expect(worstMapped <= 1)
+        print("worst (as a share of each pixel's tolerance) radiance at \(worstAt % width),\(worstAt / width): \(gpuRadiance.rgb(worstAt)) vs \(cpuRadiance[worstAt])")
+        print("compared \(compared.count) of \(conditioned.count) pixels; worst relative difference: radiance \(worstRadiance), tone mapped \(worstMapped)")
+        return ReferenceAgreement(radiance: worstRadiance, mapped: worstMapped, compared: compared.count,
+                                  total: conditioned.count)
+    }
+
+    /// The frames' tone-mapped merge rendered on the GPU, and the CPU
+    /// reference's, with the same plan.
+    @Test("AC10: the merge and tone mapping match their CPU reference")
+    func matchesReference() throws {
+        let bracket = [HDRBracket.Frame(ev: -2, shift: SIMD2(3.25, -2.5), rotationDegrees: 0.3), HDRBracket.Frame(ev: 0),
+                       HDRBracket.Frame(ev: 2, shift: SIMD2(-2, 1.75))]
+        let linear = bracket.map { HDRBracket.image($0, width: Self.width, height: Self.height) }
+        let merger = HDRMerger()
+        let copies = linear.map { MergeBitmap(width: $0.width, height: $0.height, pixels: $0.pixels) }
+        let plan = try merger.plan(measuring: copies, reference: 1, metadataExposures: [nil, nil, nil])
+        let agreement = try Self.referenceAgreement(linear, plan: plan, merger: merger)
+        // Most pixels are well conditioned; the rest sit on a clipping edge.
+        #expect(agreement.compared >= agreement.total * 95 / 100)
+        #expect(agreement.radiance <= 1)
+        #expect(agreement.mapped <= 1)
     }
 
     /// Next to an edge: the 3 x 3 neighborhood's luminance varies by more
@@ -201,14 +219,29 @@ extension MemoryHeavy.HDRMergerTests {
         #expect(black == 0)
     }
 
-    @Test("AC8: a moving object shows once, from the reference, and the rest matches a merge with nothing moving")
-    func ghostFree() throws {
+    /// Where the moving object of a bracket ends up in a merge with `reference`
+    /// (relative differences, worst of each area): inside the object at the
+    /// reference's place against the reference frame itself (`object`); at
+    /// the other frames' places against a merge of the same plan with no
+    /// ghosts and nothing moving (`ghosts`); and everywhere far from every
+    /// object against that clean merge (`elsewhere`, over `compared` pixels).
+    struct GhostCheck {
+        var object: Float
+        var ghosts: Float
+        var elsewhere: Float
+        var compared: Int
+        var plan: HDRMerger.Plan
+        var merged: MergeBitmap
+    }
+
+    static let ghostPlaces = [SIMD2(0.13, 0.42), SIMD2(0.27, 0.42), SIMD2(0.41, 0.42)]
+
+    static func ghostCheck(evs: [Double], reference: Int, options: MergeOptions = .standard) throws -> GhostCheck {
         // Apart by more than two radii and the masks' growth, on the wall.
-        let a = SIMD2(0.13, 0.42), b = SIMD2(0.27, 0.42), c = SIMD2(0.41, 0.42)
-        let moving = [HDRBracket.Frame(ev: -2, object: a), HDRBracket.Frame(ev: 0, object: b),
-                      HDRBracket.Frame(ev: 2, object: c)]
+        let places = ghostPlaces
+        let moving = zip(evs, places).map { HDRBracket.Frame(ev: $0, object: $1) }
         let still = moving.map { HDRBracket.Frame(ev: $0.ev) }
-        let (merger, plan, radiance) = try Self.merge(moving, reference: 1)
+        let (merger, plan, radiance) = try Self.merge(moving, reference: reference, options: options)
         // The same measurements, no ghosts, frames where nothing moved: what the
         // merge gives where its masks are empty.
         var stillPlan = plan
@@ -216,31 +249,29 @@ extension MemoryHeavy.HDRMergerTests {
         let stillRadiance = try merger.radiance(stillPlan, frames: Self.frames(still))
         let merged = try #require(MergeBitmap.render(radiance, context: merger.context))
         let clean = try #require(MergeBitmap.render(stillRadiance, context: merger.context))
-        let withObject = HDRBracket.image(HDRBracket.Frame(ev: 0, object: b), width: Self.width, height: Self.height)
+        let withObject = HDRBracket.image(moving[reference], width: Self.width, height: Self.height)
         let radius = HDRBracket.movingObjectRadius * Double(Self.width)
         let grow = Double(max(2, Self.width / 256) * 2 + 4)
         var objectWorst: Float = 0, cleanWorst: Float = 0, compared = 0
-        var cleanAt: (Int, Int, SIMD3<Float>, SIMD3<Float>) = (0, 0, .zero, .zero)
         for y in 0..<Self.height {
             for x in 0..<Self.width {
                 let p = SIMD2(Double(x) + 0.5, Double(y) + 0.5)
-                let distances = [a, b, c].map { simd_distance(p, $0 * SIMD2(Double(Self.width), Double(Self.height))) }
+                let distances = places.map { simd_distance(p, $0 * SIMD2(Double(Self.width), Double(Self.height))) }
                 let m = merged.rgb(x: x, y: y)
-                if distances[1] < radius - 1.5 {
+                if distances[reference] < radius - 1.5 {
                     // Inside the object at the reference's place: the object, not a blend.
                     let t = withObject[x, y]
                     objectWorst = max(objectWorst, simd_reduce_max(abs(m - SIMD3(t.x, t.y, t.z)) / SIMD3(t.x, t.y, t.z)))
                 } else if distances.allSatisfy({ $0 > radius + grow }) {
                     compared += 1
                     let t = clean.rgb(x: x, y: y)
-                    let e = simd_reduce_max(abs(m - t) / (t + 1e-4))
-                    if e > cleanWorst { cleanWorst = e; cleanAt = (x, y, m, t) }
+                    cleanWorst = max(cleanWorst, simd_reduce_max(abs(m - t) / (t + 1e-4)))
                 }
             }
         }
         // Where the other frames' objects were, the wall, as without them.
         var ghostWorst: Float = 0
-        for center in [a, c] {
+        for (index, center) in places.enumerated() where index != reference {
             let cx = Int(center.x * Double(Self.width)), cy = Int(center.y * Double(Self.height))
             for y in (cy - 5)...(cy + 5) {
                 for x in (cx - 5)...(cx + 5) {
@@ -249,12 +280,18 @@ extension MemoryHeavy.HDRMergerTests {
                 }
             }
         }
-        print("clean worst at \(cleanAt); exposures \(plan.frames.map(\.exposure))")
-        print("ghost masks \(plan.ghosts.map { $0.values.reduce(0, +) }); object \(objectWorst), ghosts \(ghostWorst), elsewhere \(cleanWorst) over \(compared)")
-        #expect(objectWorst < 0.05)
-        #expect(ghostWorst < 0.05)
+        print("evs \(evs) reference \(reference) \(options): exposures \(plan.frames.map(\.exposure)); ghost masks \(plan.ghosts.map { $0.values.reduce(0, +) }); object \(objectWorst), ghosts \(ghostWorst), elsewhere \(cleanWorst) over \(compared)")
+        return GhostCheck(object: objectWorst, ghosts: ghostWorst, elsewhere: cleanWorst, compared: compared, plan: plan,
+                          merged: merged)
+    }
+
+    @Test("AC8: a moving object shows once, from the reference, and the rest matches a merge with nothing moving")
+    func ghostFree() throws {
+        let check = try Self.ghostCheck(evs: [-2, 0, 2], reference: 1)
+        #expect(check.object < 0.05)
+        #expect(check.ghosts < 0.05)
         // The same math on the same pixels: float rounding only.
-        #expect(cleanWorst < 1e-5)
+        #expect(check.elsewhere < 1e-5)
     }
 }
 

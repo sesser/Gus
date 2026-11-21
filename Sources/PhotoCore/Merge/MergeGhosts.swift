@@ -13,7 +13,11 @@ import Foundation
 /// generation with camera and object movement"). Where the reference is
 /// clipped or black the test is one-sided: a frame that is clearly darker
 /// than the reference's clipping level, or clearly brighter than its black,
-/// disagrees with it.
+/// disagrees with it. Where the frame itself is clipped or black, the same:
+/// a clipped frame whose lowest value is clearly above the reference, or a
+/// black one whose highest is clearly below it, disagrees (revision
+/// 2026-11-21: with any frame as the reference, a darker reference meets
+/// brighter frames that clip where something moved, and the reverse).
 ///
 /// Measured on the reduced copies, slightly blurred so a fraction of a pixel
 /// of alignment error doesn't count at edges, then cleaned (isolated pixels
@@ -91,19 +95,34 @@ public enum MergeGhosts {
         let lowF = trusted.lowerBound * clip, highF = trusted.upperBound * clip
         let lowR = trusted.lowerBound * referenceClip, highR = trusted.upperBound * referenceClip
         let floorValue = floor * referenceClip
+        let factor: Float = 1.5
         for index in 0..<plane.values.count {
             guard frame.blurred.pixels[index * 4 + 3] > 0.99 else { continue }
-            // The frame must itself be trustworthy all around to say anything.
-            guard frame.low[index] > lowF, frame.high[index] < highF else { continue }
+            // Where the frame is black or clipped here or next to here, its
+            // values are only a bound on the light: a black frame's an upper
+            // bound, a clipped one's a lower bound. Each test below uses only
+            // what the frame's values can still say, so a still scene never
+            // disagrees with itself, whichever frame is the reference (A13).
+            let frameBlack = frame.low[index] <= lowF
+            let frameClipped = frame.high[index] >= highF
+            if frameBlack && frameClipped { continue }
             var differs = false
             if reference.high[index] >= highR {
                 // The reference clips here or next to here: the frame disagrees
                 // only if all around it is clearly below that level.
-                differs = frame.high[index] / exposure * 1.5 < highR
+                differs = !frameClipped && frame.high[index] / exposure * factor < highR
             } else if reference.low[index] <= lowR {
                 // The reference is black here or next to here: the frame
                 // disagrees only if all around it is clearly above black.
-                differs = frame.low[index] / exposure > lowR * 1.5
+                differs = !frameBlack && frame.low[index] / exposure > lowR * factor
+            } else if frameClipped {
+                // The frame clips where the reference doesn't: it disagrees if
+                // even its lowest value is clearly above the reference's highest.
+                differs = frame.low[index] / exposure > reference.high[index] * factor
+            } else if frameBlack {
+                // The frame is black where the reference isn't: it disagrees if
+                // even its highest value is clearly below the reference's lowest.
+                differs = frame.high[index] / exposure * factor < reference.low[index]
             } else {
                 let x = frame.blurred.rgb(index) / exposure, r = reference.blurred.rgb(index)
                 for c in 0..<3 where abs(log(x[c] + floorValue) - log(r[c] + floorValue)) > threshold {

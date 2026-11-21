@@ -10,9 +10,11 @@ import os
 ///
 /// Steps, each on the frames' reduced copies (`MergeLimits.measureLongEdge`)
 /// except the last:
-/// 1. **Align** every frame onto the reference (`MergeAlignment`).
+/// 1. **Align** every frame onto the reference (`MergeAlignment`), unless
+///    `MergeOptions.align` is off.
 /// 2. **Exposure and clipping** of each frame against the reference (`MergeExposure`).
-/// 3. **Ghosts**: where a frame disagrees with the reference (`MergeGhosts`).
+/// 3. **Ghosts**: where a frame disagrees with the reference (`MergeGhosts`),
+///    unless `MergeOptions.deghost` is off.
 /// 4. **Tone statistics** of the merged light on the copy (`MergeToneMap.plan`).
 /// 5. At full resolution, the frames are moved, weighted and summed in one
 ///    Core Image graph (`radiance`), and tone mapped (`toneMapped`); nothing is
@@ -111,8 +113,17 @@ public struct HDRMerger: Sendable {
     /// Measures a merge from the frames' reduced copies (linear, all of one
     /// size). `metadataExposures` are the files' exposure values, for when
     /// the pixels can't tell.
-    /// `aligned` is told how many frames are lined up so far.
+    /// `aligned` is told how many frames are lined up so far (never, with
+    /// `options.align` off).
+    ///
+    /// With `options.align` off no movement is measured: every frame's
+    /// homography is the identity and none is refused for not lining up
+    /// (R9, A14). With `options.deghost` off the ghost masks are empty, so the
+    /// merge is the plain exposure-weighted blend (R10); the reference keeps
+    /// its floor weight, which matters only where no other frame has any
+    /// weight at all (`MergeMath.referenceFloorWeight`).
     public func plan(measuring bitmaps: [MergeBitmap], reference: Int, metadataExposures: [Double?],
+                     options: MergeOptions = .standard,
                      aligned report: (_ done: Int) -> Void = { _ in }) throws -> Plan {
         try MergeKernels.compile()
         let copies = bitmaps.map { $0.ciImage() }
@@ -120,28 +131,36 @@ public struct HDRMerger: Sendable {
         for (index, bitmap) in bitmaps.enumerated() where bitmap.width != ref.width || bitmap.height != ref.height {
             throw Failure.sizeMismatch(frame: index)
         }
-        let homographies: [MergeAlignment.Homography]
-        do {
-            homographies = try MergeAlignment.align(bitmaps, reference: reference, progress: report)
-        } catch MergeAlignment.Failure.misaligned(let frame) {
-            throw Failure.misaligned(frame: frame)
-        }
-        try Task.checkCancellation()
         let measureSize = CGSize(width: ref.width, height: ref.height)
         let extent = CGRect(origin: .zero, size: measureSize)
-        let aligned = try zip(copies, homographies).map { image, homography -> MergeBitmap in
-            guard let bitmap = MergeBitmap.render(Self.warp(image, by: homography, to: extent), context: context,
-                                                  bounds: extent) else {
-                throw Failure.renderFailed
+        let homographies: [MergeAlignment.Homography]
+        let aligned: [MergeBitmap]
+        if options.align {
+            do {
+                homographies = try MergeAlignment.align(bitmaps, reference: reference, progress: report)
+            } catch MergeAlignment.Failure.misaligned(let frame) {
+                throw Failure.misaligned(frame: frame)
             }
-            return bitmap
+            try Task.checkCancellation()
+            aligned = try zip(copies, homographies).map { image, homography -> MergeBitmap in
+                guard let bitmap = MergeBitmap.render(Self.warp(image, by: homography, to: extent), context: context,
+                                                      bounds: extent) else {
+                    throw Failure.renderFailed
+                }
+                return bitmap
+            }
+        } else {
+            homographies = Array(repeating: .identity, count: bitmaps.count)
+            aligned = bitmaps
         }
         let clips = MergeExposure.clipLevels(aligned)
         let exposures = MergeExposure.exposures(aligned, clips: clips, reference: reference, metadata: metadataExposures)
         let plans = (0..<copies.count).map { index in
             MergeFramePlan(exposure: exposures[index], clip: clips[index], homography: homographies[index])
         }
-        let ghosts = MergeGhosts.masks(aligned, plans: plans, reference: reference)
+        let ghosts = options.deghost
+            ? MergeGhosts.masks(aligned, plans: plans, reference: reference)
+            : aligned.map { MergePlane(width: $0.width, height: $0.height) }
         try Task.checkCancellation()
 
         // The merged light on the copy, through the same kernels as at full size.

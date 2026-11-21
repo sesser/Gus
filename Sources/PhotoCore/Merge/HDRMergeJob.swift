@@ -26,13 +26,28 @@ public struct MergeProgress: Sendable, Equatable {
     /// The fraction at the start of each step, and the reading and aligning
     /// steps' share per frame: reading (both decodes of every frame) and
     /// measuring take most of a merge; rendering and writing are quick on
-    /// the GPU.
-    static let readingShare = 0.5
-    static let aligningShare = 0.3
-    static let merging = 0.8
-    static let toneMapping = 0.83
-    static let saving = 0.86
-    static let adding = 0.97
+    /// the GPU. Without alignment (`MergeOptions.align` off) its share is
+    /// left out and the rest scaled up, so the bar still runs from 0 to 1
+    /// (design §7.1); the measuring that remains counts as Merging.
+    public struct Schedule: Sendable, Equatable {
+        public var readingShare: Double
+        public var aligningShare: Double
+        public var merging: Double
+        public var toneMapping: Double
+        public var saving: Double
+        public var adding: Double
+
+        public init(aligns: Bool) {
+            let aligning = aligns ? 0.3 : 0
+            let scale = 1 / (1 - 0.3 + aligning)
+            readingShare = 0.5 * scale
+            aligningShare = aligning * scale
+            merging = (0.5 + aligning) * scale
+            toneMapping = (0.53 + aligning) * scale
+            saving = (0.56 + aligning) * scale
+            adding = (0.67 + aligning) * scale
+        }
+    }
 }
 
 /// One HDR merge, from the selected photos to a new photo in the library
@@ -105,7 +120,9 @@ public struct HDRMergeJob: Sendable {
 
     /// Runs the merge. `catalogue` runs the catalog write (the app puts it on
     /// its write chain, after every change made before it).
-    public func run(_ selection: MergeSelection, format: MergeFormat,
+    /// `options`: alignment and de-ghosting (R9, R10); the sheet's defaults
+    /// unless given. With alignment off the job has no Aligning step.
+    public func run(_ selection: MergeSelection, format: MergeFormat, options: MergeOptions = .standard,
                     progress: @escaping @Sendable (MergeProgress) -> Void = { _ in },
                     catalogue: @escaping @Sendable (@escaping @Sendable () async throws -> MergedMaster) async throws
                         -> MergedMaster = { try await $0() }) async throws -> Result {
@@ -117,6 +134,7 @@ public struct HDRMergeJob: Sendable {
         let referenceFrame = selection.referenceFrame
         let merger = HDRMerger()
         let sources = frames.map { MergeDecoder.source(of: $0.url) }
+        let schedule = MergeProgress.Schedule(aligns: options.align)
 
         // Reading: each frame's reduced copy and its full-resolution pixels, one
         // frame at a time so only one decoder's buffers are held at once.
@@ -127,7 +145,7 @@ public struct HDRMergeJob: Sendable {
         var budget = MergeLimits.frameMemoryBudget
         for (index, frame) in frames.enumerated() {
             progress(MergeProgress(phase: .reading(index + 1, count),
-                                   fraction: MergeProgress.readingShare * Double(index) / Double(count)))
+                                   fraction: schedule.readingShare * Double(index) / Double(count)))
             try Task.checkCancellation()
             do {
                 copies.append(try merger.measuringCopy(of: frame.url, source: sources[index]))
@@ -151,15 +169,17 @@ public struct HDRMergeJob: Sendable {
             throw Failure.differentSize(name: frames[index].displayName, reference: referenceFrame.displayName)
         }
 
-        // Aligning, exposure, ghosts and tone statistics on the copies.
-        progress(MergeProgress(phase: .aligning(1, count), fraction: MergeProgress.readingShare))
+        // Aligning, exposure, ghosts and tone statistics on the copies. With
+        // alignment off there is no Aligning step: the measuring is Merging's.
+        progress(MergeProgress(phase: options.align ? .aligning(1, count) : .merging,
+                               fraction: schedule.readingShare))
         let plan: HDRMerger.Plan
         do {
             plan = try merger.plan(measuring: copies, reference: reference,
-                                   metadataExposures: frames.map(\.metadataExposure)) { done in
+                                   metadataExposures: frames.map(\.metadataExposure), options: options) { done in
                 progress(MergeProgress(phase: .aligning(min(done + 1, count), count),
-                                       fraction: MergeProgress.readingShare
-                                           + MergeProgress.aligningShare * Double(done) / Double(count)))
+                                       fraction: schedule.readingShare
+                                           + schedule.aligningShare * Double(done) / Double(count)))
             }
         } catch HDRMerger.Failure.misaligned(let index) {
             throw Failure.misaligned(name: frames[index].displayName, reference: referenceFrame.displayName)
@@ -171,14 +191,14 @@ public struct HDRMergeJob: Sendable {
         copies = []
         try Task.checkCancellation()
 
-        progress(MergeProgress(phase: .merging, fraction: MergeProgress.merging))
+        progress(MergeProgress(phase: .merging, fraction: schedule.merging))
         let radiance = try graph { try merger.radiance(plan, frames: full) }
-        progress(MergeProgress(phase: .toneMapping, fraction: MergeProgress.toneMapping))
+        progress(MergeProgress(phase: .toneMapping, fraction: schedule.toneMapping))
         let mapped = format == .tiff ? try graph { try merger.toneMapped(plan, radiance: radiance) } : radiance
         try Task.checkCancellation()
 
         // Saving: the reference's metadata, read now, and the file.
-        progress(MergeProgress(phase: .saving, fraction: MergeProgress.saving))
+        progress(MergeProgress(phase: .saving, fraction: schedule.saving))
         let values = try await catalog.libraryValues(forVersion: referenceFrame.versionID)
         let metadata = MergeOutput.Metadata(sourceProperties: MergeOutput.Metadata.properties(of: referenceFrame.url),
                                             values: values)
@@ -212,7 +232,7 @@ public struct HDRMergeJob: Sendable {
         full = []
 
         // The file is in place: from here on the job finishes, whatever Stop says.
-        progress(MergeProgress(phase: .adding, fraction: MergeProgress.adding))
+        progress(MergeProgress(phase: .adding, fraction: schedule.adding))
         let master: NewMaster
         do {
             master = try await newMaster(url, reference: referenceFrame)

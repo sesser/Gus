@@ -34,8 +34,8 @@ enum MergeReference {
 
     /// With each pixel's value: whether it is conditioned, and the relative
     /// error the float sample positions alone can put on it (each frame's
-    /// samples' spread times its position's rounding, weighted as the merge
-    /// weighs the frame).
+    /// samples' spread, per channel, times its position's rounding, weighted
+    /// as the merge weighs the frame).
     static func radianceAndConditioning(frames: [LinearImage], plan: HDRMerger.Plan) -> [(SIMD3<Double>, Bool, Double)] {
         let width = frames[plan.reference].width, height = frames[plan.reference].height
         let exposures = plan.frames.map(\.exposure)
@@ -81,7 +81,12 @@ enum MergeReference {
                     // Across a steep edge that moves the mix by spread × error.
                     let peaks = [c00, c10, c01, c11].map { $0.max() }
                     let positionError = max(p.x, p.y) * pow(2, -20)
-                    let sampleError = (peaks.max()! - peaks.min()!) * positionError
+                    // The mix of each channel moves by that channel's spread
+                    // over the four taps (the brightest channels' spread can be
+                    // far smaller: a red edge under an even blue).
+                    let taps = [c00, c10, c01, c11]
+                    let spread = (0..<3).map { c in taps.map { $0[c] }.max()! - taps.map { $0[c] }.min()! }.max()!
+                    let sampleError = max(spread, peaks.max()! - peaks.min()!) * positionError
                     let ghost = min(max(Double(plan.ghosts[index][x, row]), 0), 1)
                     let h = hat(peak / framePlan.clip, openTop: index == darkest, openBottom: index == brightest)
                     if h > 0, h < conditionedHat { conditioned = false }

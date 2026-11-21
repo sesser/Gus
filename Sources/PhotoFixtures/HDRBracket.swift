@@ -144,17 +144,24 @@ public enum HDRBracket {
         return LinearImage(width: width, height: height, pixels: pixels)
     }
 
-    /// The scene radiance itself, unclipped, at the reference frame's pixels.
-    public static func radianceImage(width: Int, height: Int) -> LinearImage {
+    /// The scene radiance itself, unclipped, at the pixels of a frame with
+    /// `frame`'s shift and rotation (the unmoved reference's when nil); no
+    /// moving object.
+    public static func radianceImage(width: Int, height: Int, as frame: Frame? = nil) -> LinearImage {
         let aspect = Double(width) / Double(height)
+        let center = SIMD2(Double(width) / 2, Double(height) / 2)
+        let angle = (frame?.rotationDegrees ?? 0) * .pi / 180
+        let (c, s) = (cos(angle), sin(angle))
+        let shift = frame?.shift ?? .zero
         var pixels = [Float](repeating: 1, count: width * height * 4)
         for y in 0..<height {
             for x in 0..<width {
                 var sum = SIMD3<Double>.zero
                 for sy in 0..<2 {
                     for sx in 0..<2 {
-                        sum += radiance(u: (Double(x) + (Double(sx) + 0.5) / 2) / Double(width),
-                                        v: (Double(y) + (Double(sy) + 0.5) / 2) / Double(height), aspect: aspect)
+                        let p = SIMD2(Double(x) + (Double(sx) + 0.5) / 2, Double(y) + (Double(sy) + 0.5) / 2)
+                        let q = scenepoint(p, center: center, cos: c, sin: s, shift: shift)
+                        sum += radiance(u: q.x / Double(width), v: q.y / Double(height), aspect: aspect)
                     }
                 }
                 let i = (y * width + x) * 4
