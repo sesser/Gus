@@ -35,12 +35,30 @@ against 522 shown). See "Design review of the revision" below. Next:
 code-reviewer (second pass, these commits), the designer (confirm F6 to F8,
 M15), then qa-tester.
 
+**2026-11-21: code review's sixth pass (C14, C16): Done.** C14: de-ghosting a
+still JPEG-like bracket with the brightest frame as reference no longer clips a
+band along the bright window (the black-frame test reads the frame's black
+level, and the frame-bound tests are kept out of pixels only that frame holds);
+the linear fixtures' extreme-reference results are unchanged. C16: the slow-disk
+spinner is decided again on every change of reference, and an ended wait never
+blocks the next. See "Sixth review pass" below. Next: code-reviewer (second
+pass on these commits), then qa-tester; no layout or text changed, so no
+design review.
+
 ## Baseline
 
 - `swift build` on `develop` at `ed423d7` (plus the design commit): clean.
 - `swift test` before any change: 1253 tests in 179 suites passed (70.6 s).
 
-## Latest results (2026-11-21, after the design review's F6 to F8)
+## Latest results (2026-11-21, after code review's sixth pass: C14, C16)
+
+- `swift build`: clean; no new warnings.
+- `swift test`: 1346 tests in 194 suites passed (676.7 s). No golden moved;
+  `UPDATE_GOLDENS` was not run; `PreviewCacheKey.currentPipelineVersion`
+  unchanged (13).
+- `Scripts/build-app.sh`: builds; debug-script checks in "Sixth review pass".
+
+## Results after the design review's F6 to F8 (2026-11-21)
 
 - `swift build`: clean; no new warnings.
 - `swift test`: 1342 tests in 194 suites passed (502.3 s; the two new tests
@@ -457,6 +475,18 @@ still scene neither test can fire (a clipped frame's light over its exposure
 is at most the scene's, a black frame's at least, up to noise, and noise near
 black only masks frames that carry almost no weight there).
 
+**Corrected after code review C14 (sixth pass):** the last sentence holds only
+for values proportional to the light (raws). A JPEG's camera curve crushes its
+toe below proportional by any amount, so a black frame's own values are no
+upper bound, and the black-frame test fired across a still wall. The black
+frame's test now reads only its black level: it disagrees where the reference,
+all around, is clearly brighter than the light that level can hide
+(`reference.low > lowF / exposure * 1.5`, the form the reference-black test
+already had). And what the frame's own black or clipping says is cleaned and
+grown on its own and kept only where some other frame has a trusted value, so
+a mask that grows past its evidence can't hand a pixel to the reference's
+clipped values. See "Sixth review pass" below for the numbers.
+
 Measured on the synthetic walker (600 x 400, objects on a dim wall), object
 error inside the reference's object / ghost error at the other frames' places:
 
@@ -469,9 +499,20 @@ error inside the reference's object / ghost error at the other frames' places:
 | ±1 EV, +1 EV | 0.13 / 0.0003 | ~1e-7 / 0.0003 |
 
 Where nothing moved, every case is the same merge as one with no ghosts (0.0).
+The C14 correction leaves every number in this table as it was.
 So, answering A13: with this change an extreme reference no longer makes
 de-ghosting visibly worse on the fixture; on real files that is for the owner's
-eye (M12, M13). Merges with the default options are not bit-for-bit what they
+eye (M12, M13). For non-linear frames (JPEG brackets), after C14: on a still
+bracket with a toe (`L·L/(L + c)`, c 0.01 and 0.005) or a shoulder, no mask
+fires and nothing moves, with any frame as the reference
+(`stillNonLinearBracket`); de-ghosting never takes a pixel from the reference
+where the masked frame is the only one with a trusted value, however its mask
+grew. What stays for JPEG brackets is older than this change and the same with
+the rule before it: a strong S-curve (toe and shoulder together) makes the
+two-sided test see still mid-tones disagree, and an area de-ghosting takes
+from fewer frames differs in tone from the blend around it. Both come from not
+recovering the camera's response (proposed follow-up below), not from the
+choice of reference rule. Merges with the default options are not bit-for-bit what they
 were before: the masks now also cover moving things where a frame is near black
 or near clipping (the default case above: the object went from 1.7% off to
 exact). Merged files are new files, so nothing cached or stored changes; no
@@ -563,7 +604,11 @@ choosing by keyboard with Full Keyboard Access, Return with the table focused;
 the folder refusal following the reference, the spinner on a slow volume;
 a real merge with the +2 EV frame as reference compared by eye with the
 default; the two boxes on real files; the height on a 13-inch laptop and in a
-short window). Initial focus: D-H13 withdrew "focus on Merge"; what to check
+short window). M12 and M13 also with a JPEG bracket (the camera's own JPEGs,
+not raws) of a scene with a bright window or sky, the brightest frame as the
+reference, De-ghost on: no clipped band along the bright area's edge, and
+compared with De-ghost off where nothing moved (code review C14; the fixture
+can't stand in for a real camera's curve). Initial focus: D-H13 withdrew "focus on Merge"; what to check
 is M10 (Return and Esc with the table focused: after a click on a row, after
 Tab, on opening). After the design review's fixes also M15 (each caption
 inside its control's group row, no divider between them; no "Photos" header
@@ -657,6 +702,141 @@ Also re-run on the new bundle, unchanged: choosing rows by name and number (the
 Name, Folder, flagged rows, Merge on, the announcement and the discarded-answer
 line as before), Cancel, and the folder refusal following the reference on
 `TwoFolders-0`.
+
+### Sixth review pass (2026-11-21, `code-review.md` "Sixth pass")
+
+`079bf79` and the Core Image files are untouched (that fix moves to bug #253's
+branch).
+
+**C14 (Should fix): de-ghosting a still JPEG bracket with an extreme
+reference.** Fixed as the review suggested, both halves
+(`MergeGhosts.disagreement`, `masks`, `usableElsewhere`):
+
+1. The black-frame test reads the frame's black level, not its crushed values:
+   the frame disagrees where the reference's lowest value around is above
+   `lowF / exposure × 1.5`. The clipped-frame test is unchanged
+   (`frame.low / exposure > reference.high × 1.5`): a shoulder lifts a
+   clipped frame's unclipped neighbors, which the frame's lowest value
+   already bounds, and the shoulder case below shows no mask.
+2. The two tests that rest on the frame's own black or clipping go into a
+   plane of their own, cleaned (3 x 3 majority) and grown as before, and are
+   kept only where some other frame's brightest channel is within `trusted`
+   of its clipping level. They can fire only where the reference is neither
+   black nor clipped all around (the reference's own one-sided tests come
+   first), so this removes only what growth and feathering carried past the
+   evidence. Item 1 alone left the S-curve case below worse than the rule
+   before `be5bf92` (98 pixels moved where the reference clips, worst 29%);
+   with item 2 it matches it. The extra cleaning and growth run only for a
+   frame where one of those tests fired; not timed.
+
+New test `MergeChoicesTests.stillNonLinearBracket` (in `HDRMergerTests`): a
+still −2/0/+2 EV bracket with a camera-like response (toe `L·L/(L + c)`, c
+0.01 and 0.005; shoulder `L·(1 + s)/(L + s)`, s 1), each frame as the
+reference; no pixel may move by more than 1% against the same plan with no
+masks, anywhere and where the reference clips. On `c1d10c3` it fails with 5
+issues (toe 0.01 with the default and the +2 EV reference, toe 0.005 with +2
+EV); it passes now. Measured (mask pixels per frame; pixels moved by over
+1%, of them where the reference clips; worst relative change):
+
+| Response, reference | Rule before `be5bf92` | `c1d10c3` | Now |
+|---|---|---|---|
+| toe 0.01, −2 EV | none | none | none |
+| toe 0.01, 0 EV (default) | none | [5560, 0, 0]; 41, 0; 0.39 | none |
+| toe 0.01, +2 EV | none | [146291, 2086, 0]; 1637, 1067; 0.95 | none |
+| toe 0.005, −2 or 0 EV | none | none | none |
+| toe 0.005, +2 EV | none | [130529, 0, 0]; 439, 34; 0.93 | none |
+| shoulder 1, every reference | none | none | none |
+| toe 0.01 and shoulder 1, −2 EV | [0, 0, 16096]; 15183, 0; 0.50 | the same | the same |
+| toe 0.01 and shoulder 1, 0 EV | [15910, 0, 1859]; 1437, 0; 0.42 | [76930, 0, 1859]; 2321, 114; 0.54 | as before `be5bf92` |
+| toe 0.01 and shoulder 1, +2 EV | [17273, 33010, 0]; 23559, 66; 0.13 | [163458, 65555, 0]; 37737, 2279; 0.94 | [17273, 33787, 0]; 24152, 66; 0.13 |
+
+("none": no mask pixel, nothing moved.) The S-curve rows are not in the test:
+there the two-sided test sees still mid-tones disagree under every rule
+(response recovery is the proposed follow-up). The default reference is now
+untouched by the toe (it was 41 pixels, worst 39%).
+
+The linear walker, where the point of `be5bf92` was (object error inside the
+reference's object / ghost error at the other frames' places / difference
+from the clean merge where nothing moved), is unchanged by C14:
+
+| Bracket, reference | `c1d10c3` | Now |
+|---|---|---|
+| ±2 EV, 0 EV (`ghostFree`) | 0.0 / 0.0076 / 0.0 | 0.0 / 0.0076 / 0.0 |
+| ±2 EV, −2 EV (`extremeReferences`) | 9.3e-8 / 0.0052 / 0.0 | 9.3e-8 / 0.0052 / 0.0 |
+| ±2 EV, +2 EV (`extremeReferences`) | 0.0 / 0.00011 / 0.0 | 0.0 / 0.00011 / 0.0 |
+| ±1 EV, −1 EV (`ghostsFollowTheReference`) | 1.3e-7 / 0.0057 / 0.0 | 1.3e-7 / 0.0057 / 0.0 |
+| ±1 EV, +1 EV (`ghostsFollowTheReference`) | 9.3e-8 / 0.00026 / 0.0 | 9.3e-8 / 0.00026 / 0.0 |
+
+Only some mask sums moved, at the objects' edges, because the bound tests are
+now cleaned on their own (±2 EV default: frame +2 6820.6 → 6768.0; ±1 EV,
+−1 EV reference: 6711.7 and 6712.7 → 6617.6 and 6482.1); every error above is
+the same to the printed digit.
+
+A probe not kept as a test, the walker with a toe (c 0.01 and 0.005), each
+reference: the ghost error at the other frames' places is 0.37, 0.41 and
+0.0092 (c 0.01; references −2, 0, +2 EV) and 0.28, 0.31 and 0.0085 (c 0.005),
+the same under the rule before `be5bf92`, under `c1d10c3` and now. That is
+the toe's own disagreement between frames (an area taken from fewer frames
+differs in tone from the blend of all), not an object left behind; the masks
+cover the objects under every rule.
+
+**C15 (Nit, no change asked).** Noted: a tolerance correction goes in a
+commit of its own with a one-line reason from now on.
+
+**C16 (Nit): the slow-disk spinner across reference changes.** The rule moved
+into `MergeSheetState` (PhotoCore), so it can be tested: `spinner` is
+`hidden`, `waiting(n)` or `shown`. `decideSpinner(restart:)` runs after the
+disk is asked, after each answer, and on every change of reference
+(`restart` true): hidden as soon as the disk has answered for the current
+reference; otherwise a new numbered half-second wait starts (on a change of
+reference, or when none runs), unless the spinner already shows, which stays
+rather than blinking. `spinnerWaitEnded(n)` shows it only if wait `n` is still
+the current one and the disk hasn't answered, so a wait that ended for an
+earlier reference holds nothing and blocks nothing. `MergeModel` keeps only
+the timer (`slowTask`, replaced or cancelled on each decision) and reads
+`isCheckingSlowly` from the state. Tests: `spinnerHidesForAnAnsweredFolder`
+(trace A: slow folder, spinner on, back to an answered folder: hidden at once,
+Merge on, the slow folder's late answer changes nothing),
+`spinnerWaitsAgainForEachCheck` (trace B: slow /c, back to answered /a within
+the half second, the first wait ends and shows nothing, then slow /b: a new
+wait and the spinner after it; /c's late answer leaves it, /b's hides it),
+`spinnerAcrossPendingFolders` (two folders still being asked: the wait
+restarts; back to one being asked with the spinner on: it stays). The tests
+pin the new rule; the old one lived in the app target, which `swift test`
+doesn't load, so they can't be run against it. `print merge` now prints the
+sheet's reference, disk state, Merge and the spinner; `merge sheet` and
+`merge reference … nowait` print the spinner.
+
+**Results.** `swift build` clean, no new warnings. Full `swift test`: 1346
+tests in 194 suites passed (676.7 s; the four new: `stillNonLinearBracket` and
+the three spinner tests). No golden moved, `UPDATE_GOLDENS` not run,
+`PreviewCacheKey.currentPipelineVersion` unchanged (13); merges are new files,
+so nothing cached or stored changes. `Scripts/build-app.sh` builds.
+
+**Debug-script checks (sixth pass)**, on a copy of the new bundle
+(`me.sesser.gus.debugtest.merge`, re-signed ad hoc) and fresh copies of a
+scratch library from `photobench generate --output $S/src --jpeg 2 --dng 0
+--heic 0 --videos 0 --brackets 1` and `photobench import`, every launch with
+`--library-root`:
+
+- Trace A (`search TWOFOLDERS; wait 1; selectall; merge sheet; merge slowdisk
+  3000; merge reference 3 nowait; print merge; wait 0.8; print merge; merge
+  reference 2 nowait; print merge; wait 3; print merge`): `Open` checking with
+  the spinner off, then on after the pause; back to TWOFOLDERS_102 (`Locked`,
+  answered at open): `disk answered … spinner off` at once, and still off after
+  `Open`'s late answer. (Merge stays off there because `Locked` is read-only;
+  the fixture has no second writable folder.)
+- Trace B, with two folders (`merge reference 3 nowait; merge reference 2
+  nowait; wait 0.8; print merge; merge reference 3 nowait; print merge; wait
+  0.8; print merge; wait 3; print merge`): after the first wait ended on the
+  answered reference, spinner off; back to `Open`, still being asked from the
+  first visit (no new folder check, which is where the old code started no
+  timer): off at once, **on** after the pause, then `disk answered merge on
+  true spinner off` when `Open` answers.
+- Merges still run: `Jpeg-0` with JPEG_103 (+2 EV) as reference and `Raw-0`
+  with the default, De-ghost on, both written beside their reference. The
+  fixture's JPEGs have no camera curve (linear light through the sRGB profile),
+  so they are no eye check for C14; that is M12/M13 on a real camera's JPEGs.
 
 ## Bug: tiles at 100% (owner sign-off P5, 2026-11-21)
 
@@ -933,7 +1113,11 @@ Ruled at design review (D-H1 to D-H4, design.md §19), as built:
   tone curve skews the measured exposures (0.35 against a nominal 0.5 on the
   owner's E-M10 JPEGs) and can brighten clipped cloud patches. Debevec and
   Malik 1997's response recovery (or Robertson et al. 2003) on the measuring
-  copies would fix it.
+  copies would fix it. It would also take away what C14 left for JPEG
+  brackets: a strong S-curve makes de-ghosting see still mid-tones disagree
+  (24,152 of 240,000 pixels moved by over 1% on the fixture with the brightest
+  reference, 23,559 with the rule before `be5bf92`), and areas taken from fewer
+  frames differ in tone from the blend.
 - **Find merged photos** (enhancement, RI-H3 of the design, ruled for later):
   a stored link to the frames, a mark on the cell and a smart-album rule; needs
   a migration.
