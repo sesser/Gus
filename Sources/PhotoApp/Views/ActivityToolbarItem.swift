@@ -120,6 +120,14 @@ struct ActivityToolbarItem: View {
                                     progress: Double(progress.done) / Double(max(progress.total, 1)),
                                     stop: { model.export.cancel() }))
         }
+        // An HDR merge: its steps, weighted, and Stop (hdr-merge design §7.1).
+        if let progress = model.merge.progress {
+            let name = model.merge.jobName ?? ""
+            jobs.append(ActivityJob(id: "merge", title: MergeText.jobTitle(name),
+                                    toolbarTitle: ToolbarMetrics.statusLine(name: name) { MergeText.jobTitle($0) },
+                                    detail: MergeText.detail(progress.phase), progress: progress.fraction,
+                                    stop: { model.merge.cancel() }))
+        }
         if let progress = model.batchAutoProgress {
             // Paste or a preset measuring color alignment shows under the command's own title.
             let title = model.batchAutoTitle

@@ -392,3 +392,74 @@ final class ProgressLog: @unchecked Sendable {
     func add(_ progress: MergeProgress) { lock.withLock { reports.append(progress) } }
     var count: Int { lock.withLock { reports.count } }
 }
+
+@Suite("photocli merge", .serialized)
+struct MergeCommandTests {
+    @Test("AC14: photocli merge writes a fixture series and prints the path; refuses while the library is locked")
+    func mergesFromTheCommandLine() async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let photos = root.appending(path: "Photos", directoryHint: .isDirectory)
+            try FileManager.default.createDirectory(at: photos, withIntermediateDirectories: true)
+            for (index, frame) in HDRMergeJobTests.bracket.enumerated() {
+                let image = HDRBracket.image(frame, width: MergeLibrary.width, height: MergeLibrary.height)
+                try HDRBracket.writeDNG(image, frame: frame, to: photos.appending(path: "IMG_000\(index + 1).dng"),
+                                        date: "2026:05:01 10:00:0\(index)")
+            }
+            let locations = LibraryLocations.rooted(at: root.appending(path: "Library", directoryHint: .isDirectory))
+            try locations.createDirectories()
+            let catalog = try Catalog.open(at: locations.catalogFileURL)
+            _ = try await Importer(catalog: catalog, metadataReader: ImageIOMetadataReader()).importFolder(photos)
+            let ids = try await catalog.libraryItems(matching: LibraryFilter(groupsPairs: false)).map(\.versionID)
+            let cli = CommandLineInterface(environment: .hermetic(currentDirectory: root))
+            let arguments = ["merge"] + ids.flatMap { ["--version", String($0)] }
+                + ["--library-root", locations.catalogDirectory.deletingLastPathComponent().path]
+
+            let lock = try LibraryLock.acquire(locations)
+            let refused = await cli.run(arguments)
+            #expect(refused.exitCode == 1 && refused.standardError.contains("libraryLocked"))
+            #expect(!FileManager.default.fileExists(atPath: photos.appending(path: "IMG_0002_HDR.tif").path))
+            lock.release()
+
+            let output = await cli.run(arguments)
+            #expect(output.exitCode == 0, "\(output.standardError)")
+            let json = try JSONValue.parse(output.standardOutput)
+            let path = try #require(json["path"]?.stringValue)
+            #expect(URL(fileURLWithPath: path).lastPathComponent == "IMG_0002_HDR.tif")
+            #expect(FileManager.default.fileExists(atPath: path))
+            #expect(json["format"] == "tiff")
+            #expect(json["frames"]?.arrayValue?.count == 3)
+            #expect(json["versionID"]?.numberValue != nil)
+
+            let mixed = await cli.run(["merge", "--version", String(ids[0]), "--library-root",
+                                       locations.catalogDirectory.deletingLastPathComponent().path])
+            #expect(mixed.exitCode != 0 && mixed.standardError.contains("tooFew"))
+        }
+    }
+}
+
+@Suite("HDR merge rules")
+struct MergeRuleTests {
+    @Test("Quitting asks while a merge runs, after imports and exports")
+    func quitAsks() {
+        #expect(QuitConfirmation.needed(app: .library, trigger: .quit, isCopying: false, isMerging: true) == .merging)
+        #expect(QuitConfirmation.needed(app: .library, trigger: .quit, isCopying: false, isExporting: true,
+                                        isMerging: true) == .exporting)
+        #expect(QuitConfirmation.needed(app: .library, trigger: .closeImportWindow, isCopying: false,
+                                        isMerging: true) == nil)
+    }
+
+    @Test("No removal starts while a merge runs")
+    func removalWaits() {
+        #expect(!RemovalAvailability.canStart(isRemoving: false, isAddingFolders: false, isCopying: false,
+                                              isMerging: true))
+        #expect(RemovalAvailability.canStart(isRemoving: false, isAddingFolders: false, isCopying: false))
+    }
+
+    @Test("The merged photo takes the selection only when nothing was touched (design §8.3)")
+    func landing() {
+        #expect(MergeLanding.selects(started: [1, 2, 3], now: [3, 2, 1], showsGrid: true, shown: true))
+        #expect(!MergeLanding.selects(started: [1, 2, 3], now: [4], showsGrid: true, shown: true))
+        #expect(!MergeLanding.selects(started: [1, 2, 3], now: [1, 2, 3], showsGrid: false, shown: true))
+        #expect(!MergeLanding.selects(started: [1, 2, 3], now: [1, 2, 3], showsGrid: true, shown: false))
+    }
+}

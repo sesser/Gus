@@ -18,6 +18,11 @@ public struct MergeProgress: Sendable, Equatable {
     public var phase: Phase
     public var fraction: Double
 
+    public init(phase: Phase, fraction: Double) {
+        self.phase = phase
+        self.fraction = fraction
+    }
+
     /// The fraction at the start of each step, and the reading and aligning
     /// steps' share per frame: reading (both decodes of every frame) and
     /// measuring take most of a merge; rendering and writing are quick on

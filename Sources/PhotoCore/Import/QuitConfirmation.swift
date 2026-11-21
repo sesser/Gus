@@ -10,13 +10,15 @@ public enum QuitConfirmation: Equatable, Sendable {
     case importing
     /// The library app: "Quit While Exporting?".
     case exporting
+    /// The library app: "Quit While Merging?" (issue #150).
+    case merging
 
     public enum App: Sendable { case library, importer }
     public enum Trigger: Sendable { case quit, closeImportWindow }
 
     /// Nil: go ahead without asking.
     public static func needed(app: App, trigger: Trigger, isCopying: Bool, isAddingFolders: Bool = false,
-                              isExporting: Bool = false) -> QuitConfirmation? {
+                              isExporting: Bool = false, isMerging: Bool = false) -> QuitConfirmation? {
         switch app {
         case .importer:
             // Closing the importer's only window quits it.
@@ -25,7 +27,8 @@ public enum QuitConfirmation: Equatable, Sendable {
             // Closing the library's Import window keeps the copy going.
             guard trigger == .quit else { return nil }
             if isCopying || isAddingFolders { return .importing }
-            return isExporting ? .exporting : nil
+            if isExporting { return .exporting }
+            return isMerging ? .merging : nil
         }
     }
 

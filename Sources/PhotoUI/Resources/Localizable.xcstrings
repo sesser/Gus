@@ -6367,7 +6367,7 @@
       }
     },
     "From %@" : {
-      "comment" : "Export sheet: the sidebar source",
+      "comment" : "Export and Merge to HDR sheets: the sidebar source",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -15405,6 +15405,637 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "“%@” is not a PNG image."
+          }
+        }
+      }
+    },
+    "Merge to HDR…" : {
+      "comment" : "File menu and the grid's context menu: merges the selected photos into one new photo",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merge to HDR…"
+          }
+        }
+      }
+    },
+    "Merge to HDR" : {
+      "comment" : "Undo action name (Edit ▸ Undo Merge to HDR) and the title of the merge's Activity rows",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merge to HDR"
+          }
+        }
+      }
+    },
+    "Stop Merge" : {
+      "comment" : "File menu (⌘.): stops the running HDR merge",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop Merge"
+          }
+        }
+      }
+    },
+    "Merge %lld Photos to HDR" : {
+      "comment" : "Merge to HDR sheet: its title; how many photos are merged (a RAW+JPEG pair counts once)",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Merge %lld Photo to HDR"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Merge %lld Photos to HDR"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Photos" : {
+      "comment" : "Merge to HDR sheet: the section listing the photos",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photos"
+          }
+        }
+      }
+    },
+    "Result" : {
+      "comment" : "Merge to HDR sheet: the section about the file written",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Result"
+          }
+        }
+      }
+    },
+    "Type" : {
+      "comment" : "Merge to HDR sheet: column of the photos' file types",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Type"
+          }
+        }
+      }
+    },
+    "Compensation" : {
+      "comment" : "Merge to HDR sheet: column of the photos' exposure compensation",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compensation"
+          }
+        }
+      }
+    },
+    "Reference" : {
+      "comment" : "Merge to HDR sheet: after the name of the photo that names the result and the others are lined up to",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reference"
+          }
+        }
+      }
+    },
+    "Problem" : {
+      "comment" : "VoiceOver: the value of a photo row the sheet's message is about",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Problem"
+          }
+        }
+      }
+    },
+    "“%@” names the result and is the photo the others are lined up to." : {
+      "comment" : "Merge to HDR sheet: caption under the photos; the reference photo's name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” names the result and is the photo the others are lined up to."
+          }
+        }
+      }
+    },
+    "These photos have the same exposure settings. Merging them won't widen the range of light." : {
+      "comment" : "Merge to HDR sheet: a note when every photo has the same shutter, aperture, ISO and compensation",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These photos have the same exposure settings. Merging them won't widen the range of light."
+          }
+        }
+      }
+    },
+    "DNG" : {
+      "comment" : "Merge to HDR sheet: a file format",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DNG"
+          }
+        }
+      }
+    },
+    "16-bit, Display P3, tone-mapped. Looks right in any app." : {
+      "comment" : "Merge to HDR sheet: caption of the TIFF format",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "16-bit, Display P3, tone-mapped. Looks right in any app."
+          }
+        }
+      }
+    },
+    "16-bit floating point, not tone-mapped. Tone it in the Adjust tab." : {
+      "comment" : "Merge to HDR sheet: caption of the DNG format",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "16-bit floating point, not tone-mapped. Tone it in the Adjust tab."
+          }
+        }
+      }
+    },
+    "Saved next to “%@”. The originals are not changed, and your adjustments are not used: the photos are merged as they were shot." : {
+      "comment" : "Merge to HDR sheet: caption under the result; the reference photo's name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saved next to “%@”. The originals are not changed, and your adjustments are not used: the photos are merged as they were shot."
+          }
+        }
+      }
+    },
+    "The photos are in several folders. The result goes in the reference's." : {
+      "comment" : "Merge to HDR sheet: caption when the photos are in more than one folder",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The photos are in several folders. The result goes in the reference's."
+          }
+        }
+      }
+    },
+    "Merge" : {
+      "comment" : "Merge to HDR sheet: the button that starts the merge",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merge"
+          }
+        }
+      }
+    },
+    "Select at least two different photos. A RAW+JPEG pair counts as one." : {
+      "comment" : "Merge to HDR sheet: refusal, fewer than two photos once pairs count once",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select at least two different photos. A RAW+JPEG pair counts as one."
+          }
+        }
+      }
+    },
+    "At most %lld photos can be merged at once. Select fewer." : {
+      "comment" : "Merge to HDR sheet: refusal, too many photos; the limit",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "At most %lld photo can be merged at once. Select fewer."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "At most %lld photos can be merged at once. Select fewer."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "“%@” is a video. Only photos can be merged." : {
+      "comment" : "Merge to HDR sheet: refusal; the video's name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” is a video. Only photos can be merged."
+          }
+        }
+      }
+    },
+    "“%@” is a copy of “%@”, the same file. Select each photo once." : {
+      "comment" : "Merge to HDR sheet: refusal; the copy's name, then its original's",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%1$@” is a copy of “%2$@”, the same file. Select each photo once."
+          }
+        }
+      }
+    },
+    "These photos are a mix of raw and non-raw files. Select only raws, or only JPEG, HEIC or TIFF files." : {
+      "comment" : "Merge to HDR sheet: refusal",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These photos are a mix of raw and non-raw files. Select only raws, or only JPEG, HEIC or TIFF files."
+          }
+        }
+      }
+    },
+    "“%@” is a different size from “%@”. Merged photos must be the same size." : {
+      "comment" : "Merge to HDR sheet: refusal; the photo's name, then the reference's",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%1$@” is a different size from “%2$@”. Merged photos must be the same size."
+          }
+        }
+      }
+    },
+    "“%@” is offline. Connect its drive and try again." : {
+      "comment" : "Merge to HDR sheet: refusal; the offline photo's name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” is offline. Connect its drive and try again."
+          }
+        }
+      }
+    },
+    "%lld of these photos are offline. Connect their drives and try again." : {
+      "comment" : "Merge to HDR sheet: refusal; how many photos are offline",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld of these photos is offline. Connect its drive and try again."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld of these photos are offline. Connect their drives and try again."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "“%@” can't be read. Check that the file is still there." : {
+      "comment" : "Merge to HDR sheet: refusal; the photo's name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” can't be read. Check that the file is still there."
+          }
+        }
+      }
+    },
+    "The merged photo would be saved next to “%@”, in “%@”, which can't be written to. It may be on a read-only disk, or you may not have permission." : {
+      "comment" : "Merge to HDR sheet: refusal; the reference photo's name, then its folder's",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The merged photo would be saved next to “%1$@”, in “%2$@”, which can't be written to. It may be on a read-only disk, or you may not have permission."
+          }
+        }
+      }
+    },
+    "Merge to “%@”" : {
+      "comment" : "Activity: the running merge's title; the file it writes",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merge to “%@”"
+          }
+        }
+      }
+    },
+    "Reading %lld of %lld" : {
+      "comment" : "Activity: a merge reading its photos",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reading %lld of %lld"
+          }
+        }
+      }
+    },
+    "Aligning %lld of %lld" : {
+      "comment" : "Activity: a merge lining its photos up",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aligning %lld of %lld"
+          }
+        }
+      }
+    },
+    "Merging" : {
+      "comment" : "Activity: a merge combining its photos",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merging"
+          }
+        }
+      }
+    },
+    "Tone mapping" : {
+      "comment" : "Activity: a merge tone mapping its result",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tone mapping"
+          }
+        }
+      }
+    },
+    "Saving" : {
+      "comment" : "Activity: a merge writing its file",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saving"
+          }
+        }
+      }
+    },
+    "Adding to the library" : {
+      "comment" : "Activity: a merge cataloguing its file",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adding to the library"
+          }
+        }
+      }
+    },
+    "Merged %lld photos into %@." : {
+      "comment" : "Activity: a merge finished; how many photos, the file's full path",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Merged %lld photo into %@."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Merged %lld photos into %@."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "The merge was stopped. Nothing was added to the library." : {
+      "comment" : "Activity: a merge was stopped",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The merge was stopped. Nothing was added to the library."
+          }
+        }
+      }
+    },
+    "The photos couldn't be merged. Nothing was added to the library." : {
+      "comment" : "Activity: a merge failed; the reason follows",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The photos couldn't be merged. Nothing was added to the library."
+          }
+        }
+      }
+    },
+    "“%@” doesn't line up with “%@”. Merge photos of the same scene." : {
+      "comment" : "Activity: why a merge failed; the photo's name, then the reference's",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%1$@” doesn't line up with “%2$@”. Merge photos of the same scene."
+          }
+        }
+      }
+    },
+    "“%@” couldn't be read." : {
+      "comment" : "Activity: why a merge failed; the photo's name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” couldn't be read."
+          }
+        }
+      }
+    },
+    "There isn't enough space on “%@”." : {
+      "comment" : "Activity: why a merge failed; the disk's name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There isn't enough space on “%@”."
+          }
+        }
+      }
+    },
+    "The file couldn't be saved: %@." : {
+      "comment" : "Activity: why a merge failed; the system's reason",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The file couldn't be saved: %@."
+          }
+        }
+      }
+    },
+    "There wasn't enough memory to merge these photos." : {
+      "comment" : "Activity: why a merge failed",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There wasn't enough memory to merge these photos."
+          }
+        }
+      }
+    },
+    "The merged photo was saved at %@ but couldn't be added to the library. Add the folder again to import it." : {
+      "comment" : "Activity warning: the merge's file is complete but the catalog write failed; its full path",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The merged photo was saved at %@ but couldn't be added to the library. Add the folder again to import it."
+          }
+        }
+      }
+    },
+    "“%@” was removed from the library. The file is still at %@." : {
+      "comment" : "Activity: after Undo of a merge; the file's name, then its full path",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%1$@” was removed from the library. The file is still at %2$@."
+          }
+        }
+      }
+    },
+    "“%@” couldn't be added back because the file has changed or is missing." : {
+      "comment" : "Activity warning: Redo of a merge whose file changed; the file's name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” couldn't be added back because the file has changed or is missing."
+          }
+        }
+      }
+    },
+    "Merged to “%@”." : {
+      "comment" : "VoiceOver, after a merge; the file's name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merged to “%@”."
+          }
+        }
+      }
+    },
+    "The photos couldn't be merged." : {
+      "comment" : "VoiceOver, after a merge failed",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The photos couldn't be merged."
+          }
+        }
+      }
+    },
+    "The merge was stopped." : {
+      "comment" : "VoiceOver, after a merge was stopped",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The merge was stopped."
+          }
+        }
+      }
+    },
+    "1/%lld s" : {
+      "comment" : "Merge to HDR sheet: an exposure time under a second",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1/%lld s"
+          }
+        }
+      }
+    },
+    "Quit While Merging?" : {
+      "comment" : "Quit alert in the library app: an HDR merge runs",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quit While Merging?"
+          }
+        }
+      }
+    },
+    "The merge is stopped and nothing is added." : {
+      "comment" : "Quit alert in the library app: an HDR merge runs",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The merge is stopped and nothing is added."
+          }
+        }
+      }
+    },
+    "Keep Merging" : {
+      "comment" : "Quit alert button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep Merging"
           }
         }
       }

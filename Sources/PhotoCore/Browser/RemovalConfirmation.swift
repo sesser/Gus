@@ -99,9 +99,13 @@ public enum RemovalAvailability {
     /// removal asked for then would read what it takes before the copies are
     /// in the catalog, and its confirmation would not count them
     /// (virtual-copies AC6).
+    ///
+    /// `isMerging`: an HDR merge runs. A removal that took the reference's
+    /// project could leave neither the library unchanged nor the merged
+    /// photo catalogued (hdr-merge design §7.4).
     public static func canStart(isRemoving: Bool, isAddingFolders: Bool, isCopying: Bool,
-                                isDuplicating: Bool = false) -> Bool {
-        !(isRemoving || isAddingFolders || isCopying || isDuplicating)
+                                isDuplicating: Bool = false, isMerging: Bool = false) -> Bool {
+        !(isRemoving || isAddingFolders || isCopying || isDuplicating || isMerging)
     }
 }
 

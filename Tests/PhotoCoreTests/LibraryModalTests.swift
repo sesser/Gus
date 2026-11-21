@@ -29,7 +29,7 @@ struct LibraryModalTests {
             }
         }
         let cases = try Self.cases()
-        #expect(cases == ["export", "lookTables", "sidebarSheet", "sidebarDeletion", "removal", "importSummary"])
+        #expect(cases == ["export", "lookTables", "sidebarSheet", "sidebarDeletion", "removal", "importSummary", "merge"])
         // Every modal listed, plus the preset manager itself.
         #expect(presenterLines.count == cases.count + 1, """
             The library window presents \(presenterLines.count) sheets, dialogs and alerts but LibraryModal lists \
@@ -37,7 +37,7 @@ struct LibraryModalTests {
             """)
         // Sheets other than the preset manager close through `modalDidClose()`.
         let sheets = presenterLines.filter { $0.contains(".sheet(") && !$0.contains("showsPresetSheet") }
-        #expect(sheets.count == 3)
+        #expect(sheets.count == 4)
         #expect(sheets.allSatisfy { $0.contains("onDismiss: { model.modalDidClose() }") })
         let main = try String(contentsOf: RepositoryFiles.url(Self.views[0]), encoding: .utf8)
         #expect(main.contains(".onChange(of: model.dialogIsUp)"))

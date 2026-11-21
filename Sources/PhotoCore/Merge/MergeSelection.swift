@@ -234,3 +234,16 @@ public enum MergeNaming {
                               fileExists: fileExists)
     }
 }
+
+/// Whether the merged photo takes the selection when it lands (design §8.3):
+/// only when the person has left things as they were, so a merge that ends
+/// while they work elsewhere never moves what they are looking at.
+public enum MergeLanding {
+    /// `started`: the targets' versions when the merge started. `now`: the
+    /// targets now. `showsGrid`: the grid is on screen (in the loupe the
+    /// loupe stays on its photo). `shown`: the source on screen holds the
+    /// merged photo and no filter hides it.
+    public static func selects(started: [Int64], now: [Int64], showsGrid: Bool, shown: Bool) -> Bool {
+        showsGrid && shown && Set(started) == Set(now) && !started.isEmpty
+    }
+}

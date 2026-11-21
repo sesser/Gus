@@ -99,14 +99,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         true
     }
 
-    /// ⌘Q while an import or an export runs asks first (section 8, "Quitting
+    /// ⌘Q while an import, an export or a merge runs asks first (section 8, "Quitting
     /// while copying"); closing the Import window keeps copying.
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard let library = Self.library, !QuitGuard.allowsQuit,
               let confirmation = QuitConfirmation.needed(app: .library, trigger: .quit,
                                                          isCopying: library.cardImport.isImporting,
                                                          isAddingFolders: library.isImporting,
-                                                         isExporting: library.export.isExporting)
+                                                         isExporting: library.export.isExporting,
+                                                         isMerging: library.merge.isMerging)
         else { return .terminateNow }
         Task { @MainActor in
             // The window ⌘Q came from, a visible one if none is key; the
@@ -118,6 +119,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             library.cardImport.cancelImport()
             library.cancelImport()
             library.export.cancel()
+            library.merge.cancel()
             NSApp.terminate(nil)
         }
         // Cancelled now and asked again after Stop and Quit: with

@@ -156,6 +156,8 @@ final class LibraryModel {
     let lookTableLibrary = LookTableLibraryModel()
     let presetPreviews = PresetPreviewModel()
     let export = ExportModel()
+    /// File ▸ Merge to HDR…: the sheet's state and the merge running behind it (issue #150).
+    let merge = MergeModel()
     /// The video loupe's player (View ▸ Play / Pause).
     let playback = VideoPlayback()
     /// Adjustments taken by Copy Adjustments.
@@ -206,6 +208,10 @@ final class LibraryModel {
     /// files in the way is stopped and never answers (issue #163).
     var showsExportSheet = false {
         didSet { if !showsExportSheet { export.cancelRequest() } }
+    }
+    /// The Merge to HDR sheet is up (`LibraryModal.merge`).
+    var showsMergeSheet = false {
+        didSet { if !showsMergeSheet { merge.sheetClosed() } }
     }
     /// What the last preset import did, shown in an alert.
     var presetImportSummary: PresetImportSummary?
@@ -742,6 +748,7 @@ final class LibraryModel {
         lookTableLibrary.library = self
         presetPreviews.library = self
         export.library = self
+        merge.library = self
     }
 
     /// Opens the catalog at the standard location (or `--library-root`).
@@ -1218,6 +1225,7 @@ final class LibraryModel {
         running[.export] = export.progressStarted
         running[.addFolders] = importProgress == nil ? nil : importStarted
         running[.cardImport] = cardImport.progressStarted
+        running[.merge] = merge.started
         return StoppableJob.newest(running)
     }
 
@@ -1226,6 +1234,7 @@ final class LibraryModel {
         case .export: export.cancel()
         case .addFolders: cancelImport()
         case .cardImport: cardImport.cancelImport()
+        case .merge: merge.cancel()
         }
     }
 

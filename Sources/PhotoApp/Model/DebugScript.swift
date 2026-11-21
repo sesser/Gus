@@ -16,6 +16,8 @@ import PhotoUI
 ///     history [wait|open|close|revert <n>]   (the loupe's History panel: prints its state and rows, newest first;
 ///                           open and close are View ▸ Show / Hide History's action; revert <n> clicks row n, 0-based)
 ///     undo | redo           inspector on|off        keyword <n>   (sidebar keyword n, 0-based)
+///     merge sheet|format tiff|dng|start [nowait]|wait|stop|cancelsheet   (File ▸ Merge to HDR…; see
+///                           DebugMergeCommands; `print merge` prints its state)
 ///     print <what>          (state for checks: selection, keywords, undo, suggestions, items, hdr, announcement,
 ///                           title (title, subtitle, filter and sort), activity, messages (every
 ///                           Activity row), empty (the browser's empty state), menustate (what the menus read),
@@ -187,7 +189,8 @@ enum DebugScript {
             // keyboard from a project's or an album's name field saves the rename.
             let changing: Set<String> = ["key", "addkeywords", "text", "pairfile", "accept", "album", "projectalbum", "smartalbum", "remove",
                                          "adjust", "lut", "pasteadjust", "preset", "menupick", "lutwindow", "metadata",
-                                         "menupress", "contextmenu", "filmstripclick", "ml", "sidebarfocus", "duplicate", "spot"]
+                                         "menupress", "contextmenu", "filmstripclick", "ml", "sidebarfocus", "duplicate", "spot",
+                                         "merge"]
             for command in commands where !command.isEmpty {
                 let words = command.split(separator: " ")
                 // "accessibility <role> <n> <action>" runs an action; listing changes nothing.
@@ -799,6 +802,10 @@ enum DebugScript {
             DebugLibraryOpsCommands.printRemoval(model)
         case "duplicate":
             await DebugCopyCommands.duplicate(rest, model: model)
+        case "merge":
+            await DebugMergeCommands.run(rest, model: model)
+        case "print" where rest.first == "merge":
+            DebugMergeCommands.printState(model)
         case "print" where rest.first == "copies":
             DebugCopyCommands.printCopies(model, window: window)
         case "print":

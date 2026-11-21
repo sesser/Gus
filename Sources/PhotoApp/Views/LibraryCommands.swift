@@ -122,6 +122,11 @@ struct LibraryCommands: Commands {
             Button(DuplicateText.title) { model?.duplicateTargets() }
                 .keyboardShortcut("d", modifiers: .command)
                 .disabled(!canByKey { $0.canDuplicate })
+            // Whichever pane has the keyboard, as Export…: the sheet shows the
+            // photos it acts on before anything happens (hdr-merge design §3).
+            Button(MergeText.menuTitle) { model?.merge.begin() }
+                .keyboardShortcut("l", modifiers: [.command, .shift])
+                .disabled(!can { $0.canMerge })
             // The photo targets' files (library-ops design §2.1). Show in
             // Finder means the sidebar's project while the sidebar has the keyboard.
             Button(LibraryOpsText.showInFinder) {
@@ -164,13 +169,14 @@ struct LibraryCommands: Commands {
         }
     }
 
-    /// "Stop Export", "Stop Adding Folders" or "Stop Import"; "Stop" when
+    /// "Stop Export", "Stop Adding Folders", "Stop Import" or "Stop Merge"; "Stop" when
     /// nothing runs.
     private var stopTitle: String {
         switch can() ? menu?.state.stoppableJob : nil {
         case .export: String(localized: "Stop Export", comment: "File menu (⌘.): stops the running export")
         case .addFolders: String(localized: "Stop Adding Folders", comment: "File menu (⌘.): stops adding folders")
         case .cardImport: String(localized: "Stop Import")
+        case .merge: MergeText.stopMenu
         case nil: String(localized: "Stop")
         }
     }

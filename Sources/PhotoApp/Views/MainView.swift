@@ -41,6 +41,9 @@ struct MainView: View {
         .sheet(isPresented: $model.showsExportSheet, onDismiss: { model.modalDidClose() }) {
             ExportSheet(model: model)
         }
+        .sheet(isPresented: $model.showsMergeSheet, onDismiss: { model.modalDidClose() }) {
+            MergeSheet(model: model)
+        }
         .sheet(isPresented: $model.showsLookTableSheet, onDismiss: { model.modalDidClose() }) {
             LookTableBrowserSheet(model: model)
         }

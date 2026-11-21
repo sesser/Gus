@@ -99,7 +99,7 @@ private struct ExportHeader: View {
 
     /// "From All Photos · 3 videos are skipped".
     private var subtitle: String {
-        let source = String(localized: "From \(model.title(for: model.sidebarSelection))", comment: "Export sheet: the sidebar source")
+        let source = String(localized: "From \(model.title(for: model.sidebarSelection))", comment: "Export and Merge to HDR sheets: the sidebar source")
         let skipped = model.export.skippedVideos
         guard skipped > 0 else { return source }
         return [source, String(localized: "\(skipped) videos are skipped", comment: "Export sheet: videos are not exported")]
@@ -108,7 +108,7 @@ private struct ExportHeader: View {
 }
 
 /// An error next to the row it concerns: a warning sign and the text.
-private struct IssueText: View {
+struct IssueText: View {
     let text: String
 
     var body: some View {
@@ -123,7 +123,7 @@ private struct IssueText: View {
 }
 
 /// A caption under the row it explains: 11 pt secondary.
-private struct Caption: View {
+struct Caption: View {
     let text: String
 
     var body: some View {
