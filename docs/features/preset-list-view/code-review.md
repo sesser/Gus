@@ -112,4 +112,25 @@ default width the row now wraps, where before this branch it fit on one line.
 
 ## Follow-up
 
-(After the engineer's fixes.)
+Second pass, 2026-11-20, on `5ac8d7a` ("Review fixes for the preset list
+view"), the only commit after `a755063`. Build and tests: `swift build`
+clean; `swift test` 1271 tests in 182 suites (seven new). The first full run
+reported one issue, and its log was not kept. The five full runs after it,
+logged, all passed. The new suites are pure and have no timing, so
+this looks like the known flaky render tests (#229), not this commit.
+
+| # | Result | Commit | Note |
+|---|---|---|---|
+| C1 | Fixed | `5ac8d7a` | The verdict is now a pure rule, `InspectorSegmentedWidth.verdict` in PhotoCore. A control counts as `trailing` only when it is not `fillsWidth`, is at its own width (within 0.5 pt of `needs`), starts away from the column's leading padding and ends at the trailing padding. The two cases from the finding are pinned in `InspectorSegmentedWidthTests`: Tone Curve before #223 (x 12, 259 wide, needs 244, room 239) gives `overflow`, and Spots' Heal / Clone gives `fits`. The Presets switch (x 215, 56 wide, ending at 271) gives `trailing`. `fillsWidth` controls are never `trailing`. The printed words for `fits`, `overflow` and `compressed` are the enum's raw values, the same as before, so the QA scripts for #223 and #218 still read the same. |
+| C2 | Fixed | `5ac8d7a` | Now subtracts `[.numericPad, .function]` before the empty test, as `LoupeView.swift:1124` already does. Keypad Enter and fn-Return (`"\u{3}"`) now apply a focused row. Other modified keys still go to `super`, because the character test is unchanged. See C4 for the one flag still not stripped. |
+| C3 | Fixed | `5ac8d7a` | `preset row … focus` is now outside the undo group. The match is `words.last == "focus"`, the same test `DebugPresetViewCommands.runRow` uses to pick its action (`arguments.last`). A preset whose name ends in "focus" is still pressed only by `… press`, which stays grouped. |
+| — | Checked | `5ac8d7a` | `PresetsBarGeometryTests.measuredSizesWrapAtTheDefaultColumn` pins the measured sizes: 276.5 pt for one line, the switch beside Import at 276, 259 and 239 pt. It agrees with the figures in this review's Questions and with the designer's ruling on DQ-1 (a). The rest of the commit is docs: `design.md` (the ruling), `review.md` and `status.md`. |
+
+New finding from this pass:
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C4 | Nit | `Sources/PhotoApp/Views/PresetList.swift:154` | Caps Lock is not stripped. `.capsLock` (bit 16) is inside `deviceIndependentFlagsMask` and is set on every key event while Caps Lock is on. `CullingKeymap.action` (`CullingAction.swift:44-45`) already subtracts `[.capsLock, .numericPad, .function]`. | With Caps Lock on, Return or Enter on a focused row goes to `super.keyDown` and nothing is applied. Space still works, because NSButton handles it. Fix: add `.capsLock` to the subtracted set. | Correctness |
+
+Verdict after the second pass: C1 to C3 are closed. C4 is a nit and does not
+block QA.

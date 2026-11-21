@@ -148,11 +148,10 @@ final class PresetListRowButton: ImageTile.HoverButton {
         didSet { if isHighlighted != oldValue { needsDisplay = true } }
     }
 
-    /// Return and Enter apply the focused row as Space does.
+    /// Return and keypad Enter apply the focused row as Space does, with Caps
+    /// Lock on too (`PresetRowKey`).
     override func keyDown(with event: NSEvent) {
-        // Keypad Enter carries `.numericPad` and fn-Return `.function`: neither is a modifier the person chose.
-        if event.modifierFlags.intersection(.deviceIndependentFlagsMask).subtracting([.numericPad, .function]).isEmpty,
-           event.charactersIgnoringModifiers == "\r" || event.charactersIgnoringModifiers == "\u{3}" {
+        if PresetRowKey.applies(characters: event.charactersIgnoringModifiers, modifierFlags: event.modifierFlags.rawValue) {
             performClick(nil)
         } else {
             super.keyDown(with: event)

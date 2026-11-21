@@ -9,8 +9,8 @@ Owner: swift-macos-engineer. Branch `feature/preset-list-view` (off
 **State: Done** (2026-11-20). Every acceptance criterion is built and has a
 unit test or a scripted check (below). Three checks only a person can make are
 listed under "For a person". DQ-1 is closed (the designer ruled (a), accept).
-The first code review's findings C1 to C3 are fixed (see Review findings).
-Next: the code reviewer's second pass, then QA.
+The code review's findings C1 to C4 are fixed (see Review findings); the
+second pass confirmed C1 to C3 and found C4. Next: QA.
 
 ## Build and test
 
@@ -18,7 +18,8 @@ Next: the code reviewer's second pass, then QA.
 |---|---|---|
 | Baseline (branch at a58ce8d, before any change) | Pass | 1253 tests in 179 suites pass |
 | After the first pass (2026-11-20) | Pass, no warnings | 1264 tests in 181 suites pass (the 11 new: `PresetsViewChoiceTests` 5, `PresetsBarGeometryTests` 6) |
-| Latest (2026-11-20, after the review fixes) | Pass, no warnings | 1271 tests in 182 suites pass (7 more: `InspectorSegmentedWidthTests` 6, `PresetsBarGeometryTests.measuredSizesWrapAtTheDefaultColumn`) |
+| After C1 to C3 (2026-11-20) | Pass, no warnings | 1271 tests in 182 suites pass (7 more: `InspectorSegmentedWidthTests` 6, `PresetsBarGeometryTests.measuredSizesWrapAtTheDefaultColumn`) |
+| Latest (2026-11-20, after C4) | Pass, no warnings | 1276 tests in 183 suites pass (5 more: `PresetRowKeyTests`) |
 | Bundle | `Scripts/build-app.sh` passes | |
 
 No migration. `PreviewCacheKey.currentPipelineVersion` unchanged (13). No
@@ -47,8 +48,9 @@ golden touched, `UPDATE_GOLDENS` not run. No rendering changed.
     the pressed fill (`secondarySystemFill`), the name (callout, label color,
     tail truncation, 20 pt kept for the mark) and the applied mark
     (`checkmark.circle.fill`, 12 pt, accent color), with a rounded focus ring.
-    Return and keypad Enter apply a focused row (the keypad and fn flags are
-    not counted as modifiers); Space is AppKit's own.
+    Return and keypad Enter apply a focused row, with Caps Lock on too
+    (`PresetRowKey` in PhotoCore: Caps Lock, keypad and fn flags are not
+    chosen modifiers); Space is AppKit's own.
     `PresetListMetrics` holds the row's numbers and measures the heading's
     title inset from an AppKit button built like the heading.
   - `Views/AdjustControls.swift`: `ImageTile.HoverButton` is open for the row,
@@ -77,8 +79,10 @@ golden touched, `UPDATE_GOLDENS` not run. No rendering changed.
 - **PhotoCore** `Browser/InspectorSegmentedWidth.swift` (review fix C1): the
   `print inspectorwidth` verdict as a pure rule, so the #223 overflow is pinned
   by tests.
+- **PhotoCore** `Presets/PresetRowKey.swift` (review fix C4): which keys
+  apply a focused list row, as a pure rule over the event's flags.
 - **Tests**: `PresetsViewChoiceTests` (5), `PresetsBarGeometryTests` (7),
-  `InspectorSegmentedWidthTests` (6).
+  `InspectorSegmentedWidthTests` (6), `PresetRowKeyTests` (5).
 - **Docs**: `docs/USER_GUIDE.md`, the Presets paragraph (both views, the
   default change for people used to thumbnails, the kept choice, hover, the
   mark, the context menu, keyboard, no pictures rendered in the list).
@@ -206,7 +210,8 @@ From `code-review.md` (first pass) and `review.md`:
 | Finding | Fix | Check |
 |---|---|---|
 | C1 (Should fix): `print inspectorwidth`'s `trailing` exemption also matched keeps-width controls stretched across the column (Spots' Heal / Clone; Tone Curve before #223), hiding the #223 overflow | The verdict moved to `InspectorSegmentedWidth.verdict` in PhotoCore. `trailing` now needs a control at its own width (within 0.5 pt of its intrinsic width), starting away from the column's leading edge and ending at its trailing edge | `InspectorSegmentedWidthTests`: the old Tone Curve layout (keeps width, x 12, 259 pt, needs 244, room 239) reports `overflow`; Heal / Clone `fits`; the switch `trailing`; fills-width controls `compressed`. Scripted on the bundle with Spots open: `Heal/Clone ... keepsWidth ... fits`, `Thumbnails/List ... trailing` |
-| C2 (Nit): keypad Enter never applied a row (`.numericPad` / `.function` are in the device-independent mask) | Those two flags are taken out before the test for no modifiers | Code; the debug script's `key` has no keypad Enter. Return still applies (scripted) |
+| C2 (Nit): keypad Enter never applied a row (`.numericPad` / `.function` are in the device-independent mask) | Those two flags are taken out before the test for no modifiers (now in `PresetRowKey`, C4) | `PresetRowKeyTests`; Return still applies (scripted) |
+| C4 (Nit, second pass): with Caps Lock on, Return and Enter on a focused row did nothing | The rule moved to `PresetRowKey.applies` (PhotoCore), which ignores `.capsLock` with `.numericPad` and `.function`, as `CullingKeymap` does | `PresetRowKeyTests` (5): Return, keypad Enter and fn-Return apply, with Caps Lock too; Command, Option, Control and Shift (with or without Caps Lock) don't; Space, Tab, letters don't. Scripted on the bundle: Return on a focused row applies ('Apply Preset Look 06'), Shift-Return does not |
 | C3 (Nit): `preset row <name> focus` opened an undo group, so the next `undo` consumed an empty step | Excluded from undo groups like `preset view` and `preset heading` | Scripted: apply Look 03, focus Look 05, `undo`: undo '-' redo 'Apply Preset Look 03' |
 | Design review, optional: pin arrangement 2 at the measured widths | `PresetsBarGeometryTests.measuredSizesWrapAtTheDefaultColumn`: one line from 276.5 pt; 276, 259 and 239 pt give arrangement 2 | Test |
 | Design review, conditional (2 pt focus ring inset, only if M2 shows it) | Nothing now, as asked | Waits on M2 |
