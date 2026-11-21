@@ -553,3 +553,153 @@ damaged file still reaches `xmp:CreateDate`.
   follow-up.
 - No `/security-review` is needed for this pass: no parser, subprocess, file
   placement or network code changed.
+
+## Sixth pass: the sheet revision
+
+Owner: code-reviewer. Date: 2026-11-21. Reviewed: `feature/hdr-merge`,
+`a787feb..d9b1461` (`be5bf92` engine, `498dc9f` reference and `photocli`,
+`51c4297` sheet, `d9b1461` Name line, debug script, guide, status), against the
+PRD as revised 2026-11-21 and design §20 (D-H6 to D-H10). `079bf79` (the Core
+Image fix moving to bug #253) is not reviewed here. Build and tests: `swift
+build` clean on `d9b1461`; full `swift test` 1340 tests in 193 suites, 1339
+passed and 1 failed (512.2 s). The failure is `079bf79`'s `ImageIOFullDecodeTests`
+"An EXIF orientation is still applied to the full-size decode" (bytes differ
+under the full run's load). It passed 3 times out of 3 run alone, so it is
+flaky, and it belongs to bug #253, not to this range. Every test this range adds
+or changes passed. Also run here: two throwaway probes of the de-ghost rule, in
+a clone of the worktree in the scratchpad (since deleted). Each compared the
+masks of the rule before `be5bf92` and after it on still brackets, and how far
+each merge's light is from the same plan with no masks:
+
+- **Probe 1.** No movement, alignment off, ±1 and ±2 EV, each frame as the
+  reference. The frames were linear, linear with noise σ 0.002, or given a
+  camera-like toe `L·L/(L+c)` (c 0.005 or 0.01, with and without that noise).
+- **Probe 2.** The hand-held ±1 and ±2 EV brackets of `alignmentFollowsTheReference`,
+  aligned, linear.
+
+The app was not launched (QA's job). Note for the main session: while this pass
+ran, uncommitted changes appeared in the worktree (`MergeSheet.swift`,
+`MergeModel.swift`, `MergeSelection.swift`, `MergeSelectionTests.swift`, the
+String Catalog, `design.md`, `review.md`), timestamped after the full test run
+ended. This pass covers `d9b1461` as committed.
+
+### Verdict
+
+Ready for QA once C14 is decided. The reference choice, the two boxes, the
+align-off and de-ghost-off paths, `photocli`'s three choices, the sheet state
+and the progress rescale are correct and tested. One should-fix (C14): the
+de-ghost change that every merge gets is exact on linear frames. On frames
+whose response bends near black (a JPEG bracket's camera curve) with the
+brightest frame as the reference, it clips a band along the bright window that
+the old rule left alone. Two nits: C15 (the CPU reference's bound changed in a
+code commit; it is justified) and C16 (the slow-disk spinner across reference
+changes).
+
+### Findings (sixth pass)
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C14 | Should fix | `Sources/PhotoCore/Merge/MergeGhosts.swift:106-125` | The new one-sided tests treat a black frame's values as an upper bound on the light and a clipped frame's as a lower bound. That holds only when the values are proportional to the light. `status.md` says "on a still scene neither test can fire". That is true for raws, but not for a JPEG bracket (R8 allows them; the PRD leaves response-curve recovery to a follow-up), whose camera curve crushes the toe below proportional. The black-frame branch (`frame.high / exposure * 1.5 < reference.low`) then fires across a still wall. The 3 x 3 cleaning, the growth and the feather carry the mask into the window, where the dark frame is the only unclipped one. There the merge falls back on the reference's floor weight, so it takes the reference's clipped pixels. | Probe 1, still scene, toe c = 0.01, ±2 EV, the +2 EV frame as reference (the PRD's own scenario of choosing the bright frame): the −2 EV frame's mask covers 147,051 of 240,000 pixels (old rule: 0). 1,836 pixels move by more than 1% against the plan with no masks, 366 of them in the window, worst 95% (old rule: 0). With c = 0.005: 131,204 mask pixels and 317 moved, 198 in the window, worst 93%. In light terms this is a clipped band along the window's edge, about the mask growth wide (2 px at 600 px; `growRadius` is 8 on a 2048-pixel copy, about 23 px on a 6000-pixel frame). With the default reference the same toe gives 5,512 mask pixels but only 5 moved pixels, worst 1.3%, so the defaults are barely touched. Linear frames, with or without noise σ 0.002, and every hand-held linear case in probe 2 give the same masks under both rules, to the pixel, except two hand-held ±1 EV cases (81 more mask pixels each; moved pixels 26 against 28, and 86 against 85). With noise σ 0.002 the toe case shows no difference either, so how often real JPEGs trip it is open. Nothing checks this today: every de-ghost test uses linear fixture frames. Suggestions (the engineer's choice): add a still-bracket test with a nonlinear response (a toe like the probe's, extreme reference) that requires no mask, or no moved pixel, in the window. Then narrow the black-frame test, for example by comparing the reference against what the frame's black threshold can hide (`reference.low > lowF / exposure * 1.5`, the form the reference-black branch already uses with `lowR`) rather than against the frame's own crushed values, and check the clipped-frame branch the same way against a shoulder. Or keep the one-sided masks out of pixels where the masked frame is the only unclipped one. Whatever is chosen, A13's answer in `status.md` should say what holds for non-linear frames, and M12/M13 should include a JPEG bracket with the brightest frame as reference. | PRD A13, R8, R10, AC8; correctness |
+| C15 | Nit (recorded, no change asked) | `Tests/PhotoCoreTests/Reference/MergeReference.swift:84-89`, in `be5bf92` with engine code | The CPU reference's per-pixel bound changed in the same commit as the engine change. That is the pattern the review rules flag ("a loosened tolerance … in the same commit as a code change"). I checked it. It is a correction, not a loosening to hide an error. The bilinear mix of channel c moves with the sample position by at most that channel's spread over the four taps. The old bound used the spread of each tap's brightest channel, which bounds only the brightest channel (a red edge under an even blue escapes it). The new bound is the derived one, `max(spread, peaks…)` reduces to the per-channel spread (max is 1-Lipschitz), and since the allowance is divided by the pixel's brightest value and then applied to each channel's own value, it stays conservative for the smaller channels. Measured: AC8a's worst pixel is 0.31 of its tolerance, AC10's 0.37 (was 0.61). `status.md` records the probe of the failing pixel and the two tries not kept. No golden moved. Next time, a separate commit with a one-line reason. | CLAUDE.md "Checking image code" (tolerances changed only on purpose) |
+| C16 | Nit | `Sources/PhotoApp/Model/MergeModel.swift:216-232` (`startSlowTimer`, `diskAnswered`) | The spinner state is shared across references, but only cleared when the current reference's disk answers are in. A change of reference doesn't re-decide it, and a timer that has fired stays in `slowTask`, so `startSlowTimer`'s `slowTask == nil` guard blocks the next one. | Traced with three folders. (A) The reference moves to slow folder B, the spinner shows at 0.5 s, then the reference moves back to a folder already answered writable: Merge turns on and the spinner keeps spinning beside it until B answers, forever on a hung volume. (B) The reference moves to slow B, then within 0.5 s to answered folder C (the timer fires, finds C answered, sets nothing, stays in `slowTask`), then to another slow folder D: no timer starts, and D's check runs with Merge off and no spinner (design §5.8: "the small spinner … appears only after about half a second", applied again on each change). Suggestion: set `slowTask = nil` when it fires, and re-decide `isCheckingSlowly` (false when `isDiskChecked`) in `chooseReference`. `merge slowdisk` can show both. | Design §5.4, §5.8 |
+
+### Checked and fine (sixth pass)
+
+- **Align off.** `plan` makes no Vision request, the homographies are
+  `.identity`, the copies are used as they are (not warped), no `misaligned` is
+  thrown, and the `aligned` callback is never called. `withoutAlignment` checks
+  the kernels against the CPU reference with identity movements (worst 0.03),
+  and `unrelatedWithoutAlignment` and the job and `photocli` tests merge an
+  unrelated frame. The other refusals still apply with both boxes off
+  (`refusalsWithoutAlignment`: size, offline, video, read-only before any
+  read).
+- **De-ghost off.** The masks are empty `MergePlane`s of the copy's size and the
+  rest of the plan is identical (`plain.frames == checked.frames`). The
+  reference's floor weight stays, so the reference decides only pixels where no
+  other frame has weight, which R10 allows. Against de-ghost on, the result
+  differs by 0.0 where nothing moved.
+- **The de-ghost change on linear frames.** It is deterministic (plain CPU
+  loops, no randomness). With the default reference on the walker it is exact,
+  and it matches the old rule to the pixel on every linear still bracket I
+  probed with no movement. On the hand-held ±1 EV bracket it masks 81 more
+  pixels, with moved pixels 26 against 28 and 86 against 85. The extreme-reference record (`extremeReferences`)
+  printed `elsewhere 0.0` for both ±2 EV extremes in this run, although the test
+  doesn't assert it. Merges are new files, so no cached or stored render
+  changes, and `currentPipelineVersion` correctly stays 13. `status.md`
+  documents the change and its table. The gap is only C14.
+- **Pre-existing, not this pass's.** Probe 2 also shows the default reference
+  of a hand-held ±2 EV still bracket moving 40 pixels by over 1% (6 in the
+  window) through masks at edges where a fraction of a pixel of alignment error
+  remains. The old and new rules give identical numbers. This is what the
+  comment in `alignmentFollowsTheReference` refers to. It is worth an eye in
+  M12/M13, not a finding against this range.
+- **Progress without alignment.** `Schedule(aligns: false)` scales the
+  remaining shares by 1/0.7. The measuring that remains reports as Merging,
+  starting at the reading share, so the bar never goes back
+  (`unrelatedMergesWithoutAlignment`: monotonic, ends at 1, no `.aligning`;
+  `MergeProgressScheduleTests`). With alignment on the values equal the old
+  constants.
+- **The reference in the job and `photocli`.** `MergeSelection.choosingReference`
+  returns nil for a version that isn't a frame. The sheet ignores it
+  (`chooseReference`), and `photocli` throws `invalidValue` before
+  `job.run`, so nothing is read or written (checked in code and by
+  `referenceAndSwitches`). A pair's JPEG given as `--reference` resolves to its
+  raw, as the frames do. The job's own preflight repeats case 8 and case 9 for
+  the chosen reference, so a folder that turned read-only after the sheet's
+  check is still refused before any read (`readOnlyFollowsTheReference`).
+- **Sheet races.** Everything runs on `MergeModel`'s main actor. The disk is
+  asked in `Task.detached`, and answers come back to the main actor.
+  `MergeSheetState` keys folder answers by standardized path, asks each folder
+  once, keeps an answer that arrives for a superseded reference as a fact about
+  its folder, and lets it decide nothing on screen. Merge stays off until the
+  current reference's folder is answered. Name answers are keyed by reference
+  and format, so a late one is ignored, and each change cancels the previous
+  name task. The preview ignores a thumbnail for a superseded reference.
+  Closing or reopening cancels every sheet task and makes a new state (AC3c,
+  AC9a). A detached folder check on a hung volume isn't cancelled by that, but
+  its answer is dropped and it holds nothing. `folderAskedOnce`, `nameFollows`
+  and `folderRefusalFollows` pin the rules. The view's `@State` row is put back
+  when the table clears or the model refuses a row, which the debug script
+  showed holding.
+- **An empty frame list.** `begin` now closes the sheet instead of building a
+  state with no frames, which would have indexed `frames[defaultReference]`.
+- **Different sizes.** Named from the chosen reference, every other-size frame
+  flagged (`sizeRefusalFollows`), as design §6.1 case 6 and §6.4 say.
+- **`photocli merge`.** Three new parameters through the registry
+  (`--reference`, `--no-align`, `--no-deghost`). The JSON gains `align` and
+  `deghost` and is otherwise unchanged, and the misaligned failure names
+  `--no-align` (D-H10). The summary and `USER_GUIDE.md` describe them. The
+  command is still `.write` (library lock).
+- **Strings.** Six keys added, three replaced, the old three removed. Each has
+  a comment. "Reference %@. Result %@." uses positional arguments. There is no
+  product name, the texts match design §20 word for word, and
+  `LocalizationTests` and `BrandingTests` passed in the full run.
+- **Swift 6.2 and CI.** Checked by reading only; Xcode 26.3 isn't on this Mac.
+  `Table(_:selection:)`, `.onChange(of:initial:)`, `.toggleStyle(.checkbox)`
+  and `Task.sleep(for:)` are all from macOS 14 or earlier. There is no
+  `Test.cancel`, `@concurrent`, `nonisolated` or macOS 27 symbol. The one new
+  `@unchecked Sendable` is the test-only `PhaseLog`, lock-guarded, with its
+  reason written.
+- **Persisted names and dependencies.** No preference for the reference or
+  the boxes (Format keeps `merge.format`). No migration, no new package.
+- **Debug script.** `merge reference`, `align`, `deghost`, `slowdisk` and
+  `table` change sheet state only, never photos, so they need no undo group.
+  `merge start` is as before.
+- **Fixtures.** `photobench generate --brackets` adds `TwoFolders-n` (`Locked`
+  made 0555 in the generated scratch folder only). `radianceImage(as:)`
+  defaults to the old behavior.
+
+### Still open for the main session
+
+- C14 is for the engineer. Whether a JPEG bracket's de-ghost may trade halos
+  for ghosts with an extreme reference is also A13's question for the product
+  manager if the engineer can't make both hold.
+- `079bf79`'s `ImageIOFullDecodeTests` orientation test flaked once in the full
+  run (passed 3 of 3 alone). That is for bug #253's branch.
+- Unchanged: the #88 `maskRasters` heads-up, F5's place in the guide
+  (designer), and filing the `WriteChain.read`-from-its-own-tail follow-up.
+- No `/security-review` is needed for this pass. It adds no parser,
+  subprocess or network code, and placement is unchanged. The result still
+  goes beside the reference, now any frame of the series, whose folder comes
+  from the catalog and passes `isPlainPlace`. `--reference` is an integer
+  checked against the series before anything is read.
