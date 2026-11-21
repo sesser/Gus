@@ -1,10 +1,29 @@
 # HDR merge: design
 
-Owner: apple-ui-designer. Date: 2026-11-20.
+Owner: apple-ui-designer. Date: 2026-11-20. Revised 2026-11-21.
 Issue: #150. Status: complete (second pass 2026-11-20: §6.1 cases 6a and 6b,
-§7.3 reasons, §13 strings, D-H5, RI-H4). Four requirements issues are open for the
+§7.3 reasons, §13 strings, D-H5, RI-H4; revision 2026-11-21: the reference
+choice and the Auto-align and De-ghost check boxes, see the note below and
+§20). Four requirements issues are open for the
 product manager (§17). §1–§16 already assume the default given for each, so the
 engineer can start; a different ruling changes only the lines §17 names.
+
+**Revision 2026-11-21 (owner rulings of that date, revised PRD of the same
+date).** The PRD now lets the person choose any listed frame as the
+**reference** (R3), and adds two check boxes, **Auto-align** and **De-ghost**
+(R9, R10), both checked every time the sheet opens, not remembered. `photocli`
+takes the same three choices (R17); with Auto-align off no frame is refused for
+failing to line up (A14); an extreme reference is not warned about (A13). What
+changed in this file: the term "naming photo" is gone (one concept, the
+reference); §1 (two rows added); §5 (the diagram, §5.2 made selectable, §5.3's
+Name, Folder and caption, and new §5.5 to §5.8: how the reference is chosen,
+the two boxes, the height, what updates when the reference changes); §6
+(cases 6 and 9 follow the reference, new §6.4); §7.1 and §7.3 (phases, one
+failure text); §10, §11 (accessibility), §13 (strings), §14 (script),
+§15 (guide), §16 (H17 to H21, manual checks M8 to M14), §17 (the PRD's open questions 6 to 9 answered)
+and the rulings in §20 (D-H6 to D-H10). The rest stands as
+written. Where a line below still says what the first revision said and §20
+disagrees, §20 holds.
 
 **Inputs.**
 
@@ -45,8 +64,10 @@ existing popover row.
 | Where the command lives | **File ▸ Merge to HDR…**, ⇧⌘L, second item of the photo-file group, right after Duplicate. Also in the grid's context menu, after Duplicate. Not in the toolbar, the loupe, the sidebar or the Photo menu | §2, §3 |
 | When it is off, and when it refuses | Dimmed only when the reason is plain from the selection: fewer than two photos selected, a merge already running, a sheet up. Everything else (mixed raw and non-raw, offline, read-only folder, more than 9, a video among several, a copy beside its own original, frames of different sizes) is answered **in the sheet**, which names the frames at fault and keeps Merge off. Nothing is written until the person presses Merge | §4, §6 |
 | Format choice | In the sheet, a segmented **TIFF / DNG** control, TIFF first and the default. When the DNG writer is not built (the engineer's spike, Open question 1), the control is absent and the sheet says what the file is | §5 |
+| Choosing the reference (Open question 9, 2026-11-21) | **Click the frame's row in the Photos table** (a single-selection table: the selected row is the reference, always exactly one). The row keeps a "Reference" mark in words. Arrow keys move it, VoiceOver selects the row. No pop-up, no separate control | §5.5, D-H6 |
+| Auto-align and De-ghost (Open question 9) | Two system check boxes, **Auto-align** and **De-ghost**, in the Photos section under the table's caption (not in Result), each with a one-sentence caption that says what unchecking does. Both checked on every open | §5.6, D-H7 |
 | Progress and cancel | A job in the toolbar's Activity item, determinate, phase named in the popover; Stop in the popover and **File ▸ Stop Merge** (⌘.). A cancel or a failure leaves the library unchanged and posts one Activity row | §7 |
-| The new master afterward | An ordinary photo of the naming photo's project and folder, in capture-date order beside its frames, named `IMG_1234_HDR`, with a TIFF or DNG type badge. It is **selected and scrolled into view only if the person has not changed the selection or the source** while it ran; otherwise Activity says where it is | §8 |
+| The new master afterward | An ordinary photo of the reference's project and folder, in capture-date order beside its frames, named `IMG_1234_HDR`, with a TIFF or DNG type badge. It is **selected and scrolled into view only if the person has not changed the selection or the source** while it ran; otherwise Activity says where it is | §8 |
 | Marking it | By name and type badge only. No "merged" mark, because no provenance is stored (A6) and no migration is planned | §8.2, RI-H3 |
 | Undo | One step, "Merge to HDR": the photo leaves the library, the file stays, Activity names its path | §9 |
 | Empty states | None needed: the item is dimmed with nothing to act on, and the sheet always has frames to show | §4 |
@@ -54,11 +75,16 @@ existing popover row.
 | macOS 15 | No conditional UI: every component exists on 15 and gets the earlier look there | §12 |
 
 **The words.** The command is **Merge to HDR…**, and what it makes is a **merged
-photo**. A frame is one of the selected photos. The **reference** is the frame
-that names the result and that the others are lined up to (PRD R3, A9). Words
+photo**. A frame is one of the selected photos. The **reference** is the one
+frame the person chooses (by default the 0 EV one): it names the result, says
+where it is saved, supplies its metadata, is what the others are lined up to
+when Auto-align is on and is where moving things are taken from when De-ghost
+is on (PRD R3, A9). There is no separate "naming photo". Words
 not used in the UI, the guide or strings: "bracket" as a noun in menus (the
-guide may say a "bracketed series" once, since photographers do), "ghost" and
-"registration" (the app says what happens: "doesn't line up"), "stack" (that is
+guide may say a "bracketed series" once, since photographers do), "ghost"
+except inside the control's name **De-ghost** (the PRD's and the owner's word,
+which photographers know; its caption says in plain words what it does;
+D-H7) and "registration" (the app says what happens: "doesn't line up"), "stack" (that is
 #90), and "version". A merged TIFF is **tone-mapped**, which the sheet and the
 guide say once in plain words, because the app's other "HDR" words (the loupe's
 HDR badge, View ▸ Show HDR Highlights) are about how a screen shows light, not
@@ -188,24 +214,33 @@ sheet **freezes its frames** when it opens, as Export does; it is added to
 │          ⚠ <the refusal, when there is one>              │
 ├──────────────────────────────────────────────────────────┤
 │ Photos                                                   │
-│  Photo          Type   Shutter   Compensation            │
-│  IMG_1233       RAW    1/250 s   −2 EV                   │
-│  IMG_1234 Reference RAW 1/60 s   0 EV                    │
-│  IMG_1235       RAW    1/15 s    +2 EV                   │
-│  “IMG_1234” names the result and is the photo the        │
-│  others are lined up to.                                 │
+│  Photo               Type   Shutter   Compensation       │
+│  IMG_1233            RAW    1/250 s   −2 EV              │
+│ ▌IMG_1234  Reference RAW    1/60 s    0 EV   (selected)  │
+│  IMG_1235            RAW    1/15 s    +2 EV              │
+│  “IMG_1234” names the result and where it is saved.      │
+│  Click another photo to change it.                       │
+│  ☑ Auto-align                                            │
+│    Lines the other photos up to the reference. Off:      │
+│    merged as they are.                                   │
+│  ☑ De-ghost                                              │
+│    Moving things, such as people, come from the          │
+│    reference only. Off: plain blend.                     │
 │ Result                                                   │
 │  Format        [ TIFF | DNG ]                            │
 │  16-bit, Display P3, tone-mapped. Looks right in any app.│
 │  Name          IMG_1234_HDR.tif                          │
 │  Folder        …/Trip/Day 2                              │
-│  Saved next to “IMG_1234”. The originals are not         │
-│  changed, and your adjustments are not used: the photos  │
-│  are merged as they were shot.                           │
+│  The originals are not changed, and your adjustments are │
+│  not used: the photos are merged as they were shot.      │
 ├──────────────────────────────────────────────────────────┤
 │                                    [ Cancel ]  [ Merge ] │
 └──────────────────────────────────────────────────────────┘
 ```
+
+The reference is the selected row (the bar and "(selected)" in the sketch stand
+for the system's selection highlight, which this design does not draw by hand).
+The sheet is 560 pt wide and at most 600 pt tall (§5.7).
 
 ### 5.1 Header
 
@@ -222,12 +257,16 @@ sheet **freezes its frames** when it opens, as Export does; it is added to
 ### 5.2 Photos section
 
 - A `Table` of the frames in **capture order** (earliest first; the order
-  that decides "first" in R3), no selection, no sorting, 24 pt rows, as many
+  that decides "first" in R3), **with single selection: the selected row is
+  the reference** (§5.5; it was "no selection" in the first revision), no
+  sorting, and the rows never reorder when the reference changes, 24 pt rows, as many
   rows as frames (2 to 9; above 9 the first nine plus the refusal), with a
   height that fits them and scrolls past 250 pt.
 - **Columns:** **Photo** (the display name, `PhotoName.display`, so a copy
   reads "IMG_0412 copy"; the reference's name is followed by a secondary
-  "Reference"), **Type** (RAW, JPEG, HEIC, TIFF: the grid's badge words, so a
+  "Reference" that is never truncated: the name gives way first, cut in the
+  middle with its full text as a tooltip, and the mark is `fixedSize`; the
+  owner's screenshot showed it cut to "Referen…"), **Type** (RAW, JPEG, HEIC, TIFF: the grid's badge words, so a
   pair reads RAW), **Shutter** (the frame's exposure time, "1/250 s"), and
   **Compensation** ("−2 EV", "0 EV", "+2 EV", from the metadata; "—" when the
   file has none). Aperture and ISO are not columns: a bracket varies shutter
@@ -236,9 +275,15 @@ sheet **freezes its frames** when it opens, as Export does; it is added to
 - **A flagged row** (the frame a refusal is about) starts with
   `exclamationmark.triangle`, and its accessibility value says "Problem". The
   message in the header says what the problem is. Never color alone.
-- **Caption under the table:** "“‹reference›” names the result and is the
-  photo the others are lined up to." 11 pt secondary, like the Export sheet's
-  captions.
+- **Caption under the table:** "“‹reference›” names the result and where it
+  is saved. Click another photo to change it." 11 pt secondary, like the Export
+  sheet's captions, one line at 560 pt for a name of ordinary length. It
+  replaces "names the result and is the photo the others are lined up to": the
+  lining up is now the Auto-align caption's (§5.6), since it can be turned
+  off. It also tells a person that the rows can be clicked, which a table
+  doesn't show by itself; the role "Reference" is the row's own mark, so the
+  caption doesn't repeat it. The metadata the result takes is said by the
+  guide (§15), not the sheet (height, §5.7).
 - **A non-blocking note** (information, `info.circle`, 11 pt secondary, in the
   same place as the caption) when every frame has the same shutter, aperture,
   ISO and compensation and none of them is missing: "These photos have the
@@ -260,7 +305,7 @@ sheet **freezes its frames** when it opens, as Export does; it is added to
   The color space is **Display P3**, tagged with its profile (A7: my
   proposal). It is the working space's output space, it keeps a wide-gamut
   raw's colors that sRGB would clip, and every color-managed viewer reads the
-  tag. Using the naming photo's own space would mean a raw (which has none)
+  tag. Using the reference's own space would mean a raw (which has none)
   and a JPEG (sRGB) get different files from the same command. No control: the
   sheet carries no color-space choice in v1.
 - **If the DNG writer is not built** (the spike's answer, PRD Open question 1),
@@ -272,20 +317,23 @@ sheet **freezes its frames** when it opens, as Export does; it is added to
   format (`IMG_1234_HDR.tif`, or `IMG_1234_HDR-2.tif` when that exists, by
   `MergeNaming`'s numbering, which counts a file or master of the same stem
   in any format as taken, and `MasterFiles`'s rule: D-H5). It changes with the
-  format. The name is decided again when the merge starts (the folder may
+  format and with the reference (§5.8). The name is decided again when the merge starts (the folder may
   change in a minute); the caption says nothing about that, because the
   difference is rare and the Activity row names the real file.
-- **Folder.** The naming photo's folder, as a path truncated at its head, with
+- **Folder.** The reference's folder (it follows the chosen reference, §5.8), as a path truncated at its head, with
   the full path as its tooltip (the Export sheet's folder row, without the
   Choose button). There is **no folder chooser**: R2 puts the result beside the
   reference. A series from several folders gets one more caption sentence: "The
   photos are in several folders. The result goes in the reference's."
-- **Caption under the section:** "Saved next to “‹reference›”. The originals
-  are not changed, and your adjustments are not used: the photos are merged as
-  they were shot." This is the first time the app writes a new file into a
-  source folder, so the sheet says where and that nothing else changes. The
-  second sentence states A2, which people will otherwise discover by
-  surprise (a white balance fixed on one frame is not carried).
+- **Caption under the section:** "The originals are not changed, and your
+  adjustments are not used: the photos are merged as they were shot." This is
+  the first time the app writes a new file into a source folder; the Folder row
+  and the Photos caption now say where ("saved beside it"), so the first
+  half of the first revision's caption ("Saved next to “‹reference›”.") is
+  dropped as a repeat, which also saves a line of height (§5.7). The sentence
+  states A2, which people will otherwise discover by surprise (a white balance
+  fixed on one frame is not carried). The "several folders" sentence stays,
+  and follows the chosen reference.
 
 ### 5.4 Buttons
 
@@ -301,6 +349,204 @@ sheet **freezes its frames** when it opens, as Export does; it is added to
 - Choosing Merge closes the sheet at once and starts the job (§7). The sheet
   does not stay open with progress: the person can go on working, as after
   Export.
+
+### 5.5 Choosing the reference (revision 2026-11-21, D-H6)
+
+**The control is the Photos table itself: click a frame's row and it is the
+reference.** The table is a single-selection `Table` (`selection:` bound to
+the model's reference), and the selected row is the reference, always exactly
+one.
+
+- **Why this one.** The person chooses by comparing: which frame is the 0 EV
+  one, in which has the walker stepped out of the way. Everything they compare
+  by is in this table (name, type, shutter, compensation) and the thumbnail in
+  the header already follows the reference. Choosing in the place where the
+  evidence is is direct manipulation (HIG's principle that people act on the
+  thing they see), costs no second control, and keeps the row's "Reference"
+  mark and the choice one and the same thing, so they can never disagree.
+  Selecting an item from a list to make it the chosen one is also the
+  standard Mac meaning of table selection. The effect shows at once just
+  below it, in the Name and Folder rows (§5.8).
+- **Rejected.** (a) A **Reference pop-up** in the Result section: a correct,
+  standard control, but it lists names alone (IMG_1233, IMG_1234,
+  IMG_1235), so the person must match a name to a row to know what they are
+  choosing, and the table's mark plus a pop-up would be two controls for one fact for
+  VoiceOver to read. It is the fallback if the table's selection proves
+  unworkable (see the engineer note). (b) A **radio column** in the table: a
+  radio is a control, and a table cell that looks like one but is not one
+  (or a hand-built one) is custom chrome that forfeits system behavior.
+  (c) A **context-menu or Photo-menu action** ("Use as Reference"): hidden
+  and one more step; a context menu must not be the only route to a
+  setting (HIG Context menus). Not added even as a second route: one way is
+  enough for a nine-row list. (d) A **button** "Use as Reference" beside the
+  table: a control whose only job is to give the selection a meaning.
+- **The cost of selection, and the answer.** A table's selection usually
+  means "act on this". The caption under the table (§5.2) says what the click
+  does, and the mark "Reference" stays on the row in words, so the state is
+  readable when the selection highlight is gray (the table isn't first
+  responder, or the window isn't key), with Increase Contrast and
+  without color.
+- **Rules.**
+  - Initial value: the default of R3 (the 0 EV frame, else the first by
+    capture time), every time the sheet opens, whatever was chosen before
+    (AC3c). Nothing is stored; there is no preference.
+  - **Never empty.** ⌘-clicking the selected row, clicking the empty space
+    under the rows, or any other way to deselect leaves the reference where it
+    was (the selection binding ignores `nil`).
+  - **Every listed row can be chosen**, including a row a refusal flags and
+    the darkest or brightest frame (A13: no warning, ruling 2026-11-21).
+    Choosing a flagged frame doesn't clear the refusal about it; it shows the
+    refusal that now applies (§6.4).
+  - The rows keep their capture order; the chosen row doesn't move to the top.
+  - A video in the series (a refusal, case 3) can still be the selected
+    row; the sheet refuses and Merge is off either way.
+- **Keyboard.** The table is a Tab stop. Up and Down arrows (and type-select,
+  Home and End) move the selection, so move the reference, **immediately**:
+  there is no separate commit and no "reference not yet chosen" state. Esc still
+  closes the sheet, and the sheet then forgets the choice (AC3c). Return
+  still presses Merge, the default button, also with the table focused (a
+  table does not take Return when nothing is being edited; manual check M10).
+  Initial focus stays on **Merge** when it is enabled, else **Cancel**
+  (§11), so the sheet opens with the default reference and a person who
+  doesn't touch it is not asked to decide anything.
+- **VoiceOver.** Rows are selectable table rows: VO-Space selects one. A row
+  is read as name, "Reference" for the chosen one, type, shutter,
+  compensation, and "selected" by the system. After a change the sheet posts
+  one announcement (§11).
+- **Pointer.** One click selects (no double-click, no drag, no hover
+  affordance; hover-dependent affordances are not used). Touch-display Macs:
+  a row is 24 pt high like every Mac table row and the system gives the
+  table its touch behavior; no custom hit area.
+- **Engineer note (a risk, not a requirement).** SwiftUI's `Table` lets
+  ⌘-click deselect and may show no selection while the binding refuses it.
+  If the binding cannot hold "always one" on macOS 15 and 26, restore the
+  previous value in `onChange` (a visible flicker of one frame is
+  acceptable). If a reliable always-one table selection can't be had, return
+  a design question: the fallback is the Reference pop-up of (a), with the
+  mark kept on the row.
+
+### 5.6 Auto-align and De-ghost (revision 2026-11-21, D-H7)
+
+Two **system check boxes** (`Toggle` with the checkbox style), **Auto-align**
+and **De-ghost**, in that order (the order the work happens: lining up, then
+combining), in the **Photos section, under the table's caption**, not in the
+Result section.
+
+- **Why there and not in Result.** Result is about the file that gets written
+  (Format, Name, Folder), and the owner's two choices are about what is done
+  to the photos relative to the reference. Under the table they read in the
+  order of the task: which photos, which is the reference, how they are
+  combined; then what is written. Putting them in Result above Format would
+  separate Format from its own caption; below Format they would sit between
+  the file's name and the file's folder choices, as if they were about the
+  file. A third section would add a header (about 20 pt) for two lines.
+  Judgment, not Apple policy.
+- **Labels:** "Auto-align" and "De-ghost" (the PRD's proposal; D-H7 on the
+  word "ghost"). Sentence-style, no verbs needed for a check box
+  (HIG Toggles: label a check box with what it turns on).
+- **Captions** (11 pt secondary, one line each at 560 pt, indented to the
+  label's text under the box; they say what the box does and what
+  unchecking does):
+  - Auto-align: "Lines the other photos up to the reference. Off: merged as
+    they are."
+  - De-ghost: "Moving things, such as people, come from the reference only.
+    Off: plain blend."
+  Reasons: A14 (off means as they are, with no check that the scene matches,
+  said by "merged as they are") and R10 (off means no region takes its pixels
+  from the reference alone, said by "plain blend"). The captions do not say
+  "tripod": the box's own effect is the information, and a person with a
+  tripod knows. If a caption wraps in another language the form scrolls
+  (§5.7).
+- **State:** both checked every time the sheet opens, as the model is made
+  for the sheet and nothing is persisted (R9, R10, AC9a). Unlike Format,
+  which is a remembered preference (§5.3): the owner ruled these two reset.
+  They are independent; any of the four combinations can be merged. Never
+  dimmed: not by a refusal, not by the format, not by the other box.
+- **Nothing else on the sheet changes with them.** No refusal depends on
+  either (the different-scene refusal is found by doing the work, §6.3; the
+  size and offline refusals apply with Auto-align off too, AC7b), the Name
+  and Folder rows don't change, and with both off the reference still names
+  the result, gives its folder and metadata (A9). No warning when either is
+  off. Both off gives no extra text.
+- **Activity follows them** (§7.1): with Auto-align off the job has no
+  "Aligning" phase and says "Merging" after reading; with De-ghost off the
+  phases are unchanged.
+- **VoiceOver.** The box is read as "Auto-align, checked, checkbox"; its
+  caption is its accessibility hint (`accessibilityHint` with the caption
+  text, the separate caption text hidden from VoiceOver so it is not read
+  twice). Space toggles it; both are Tab stops after the table.
+
+### 5.7 Height at the default size (revision 2026-11-21, D-H8)
+
+The sheet stays **560 pt wide** and its **ideal height goes from 560 to 600 pt**
+(`minHeight` stays 420). It never grows past that, for any content: more
+frames, a two-line refusal in the header, or longer captions only make the
+**Form scroll**, between the header and the buttons, which stay in place (the
+header's refusal is the first thing read and must stay on screen, §5.1). 600 pt
+is about two thirds of the roughly 900 pt a current 13-inch laptop's screen
+offers below the menu bar at its default scaling, and still fits on the
+smallest scaled laptop display (about 770 pt) with the library window's title
+bar above it. A library window shorter than the sheet clamps it to the window
+and the Form scrolls (manual check M14).
+
+Budget at the default (3 frames, nothing flagged), in points, estimated from
+the Export sheet's construction and the current `MergeSheet` metrics, to be
+measured by the engineer (`print` of the form's content height, §14):
+
+| Part | pt |
+|---|---|
+| Header (44 pt thumbnail + 14 pt padding twice) | 72 |
+| Photos section: inset and title 36, table 100 (3 rows × 24 + 28), reference caption 14 | 150 |
+| Two check boxes, each 20 + a one-line caption 14 | 68 |
+| Row spacing in the Photos section | 30 |
+| Result section: inset and title 36, Format 24, its caption 14, Name 20, Folder 20, the shared caption (two lines) 28 | 142 |
+| Row spacing in the Result section | 30 |
+| Gap between sections, bottom inset | 30 |
+| Divider, buttons (control 28 + padding) | 58 |
+| **Total** | **580** |
+
+So the common case (three frames) needs no scrolling, with about 20 pt of
+slack for metric differences. The first revision's sheet needed about 520
+(its ideal height was 560). With nine frames the table grows to its 250 pt
+cap and the Form scrolls (about 150 pt). The "same exposure" note (+16 pt) and
+a two-line refusal (+14 pt) use the slack or scroll. To keep it so, two lines
+were cut from the first revision: the Photos caption was two lines and is
+now one, and "Saved next to “‹reference›”." is dropped from the Result
+caption (the Folder row says it); and the check boxes' captions are one line
+each. If the engineer's measure
+shows the default case scrolling, the order to cut is: the Result caption's
+second sentence is kept, the checkbox captions are shortened further, and only
+then is the ideal height raised, in steps of 20 and never past 640 (a
+design question before that).
+
+### 5.8 What updates when the reference changes (revision 2026-11-21, D-H9)
+
+One choice, so everything that came from the old reference follows the new
+one **at once**, in the same update, with nothing to confirm:
+
+| Where | What changes |
+|---|---|
+| Table | the selection and the "Reference" mark move to the row; nothing reorders |
+| Header | the thumbnail becomes the new reference's (the old one stays until the new one is ready, never a blank); the title, count and "From …" don't change |
+| Table caption | names the new reference |
+| Name row | the new reference's stem plus `_HDR` and the format's extension, numbered by `MergeNaming` in the **new** reference's folder (so `IMG_1235_HDR.tif` may read `IMG_1235_HDR-2.tif` where the other folder differs) |
+| Folder row, tooltip, and the "several folders" sentence | the new reference's folder |
+| Refusal in the header and flagged rows | decided again (§6.4): the folder-writability refusal (case 9) and the size refusal's wording (case 6) follow the reference; the others stay |
+| Merge | stays off until the new reference's folder check (§6.2) has finished, then follows the refusals |
+| Auto-align, De-ghost, Format | unchanged |
+| What gets written | the metadata, project, folder and name of the new reference (R3; AC3a); the sheet doesn't list them beyond the Name and Folder rows |
+
+- **Speed.** The disk check of a folder runs once per folder for the life of
+  the sheet and its answer is kept, so moving the reference among frames of
+  one folder (the usual series) is instant; a frame in another folder checks
+  that folder off the main thread. The Name's number comes from the same
+  directory read. An answer that arrives after the reference has changed again
+  is discarded (it carries the reference it was for). While the check for a new
+  folder runs, Name shows the unnumbered candidate in secondary color, and
+  Merge is off; the small spinner by the buttons appears only after about half
+  a second (§5.4). This is the same rule as the first open, applied again.
+- **Pressing Merge** repeats the check for the reference as it is then (§6.2,
+  unchanged).
 
 ## 6. Refusals
 
@@ -319,7 +565,7 @@ sentence-style, names the frame in curly quotes, and says what to do.
 | 3 | A video among the targets (R14) | "“‹name›” is a video. Only photos can be merged." | the video(s) |
 | 4 | A copy beside its own original, or two copies of one photo (they are one file; merging reads the master, A2) | "“‹copy›” is a copy of “‹original›”, the same file. Select each photo once." | the copy |
 | 5 | A mix of raw and non-raw frames (R8, A4) | "These photos are a mix of raw and non-raw files. Select only raws, or only JPEG, HEIC or TIFF files." | the non-raw frames when raws are the majority or tie, else the raws |
-| 6 | Frames of different sizes (see RI-H2) | "“‹name›” is a different size from “‹reference›”. Merged photos must be the same size." | the frame that differs |
+| 6 | Frames of different sizes (see RI-H2) | "“‹name›” is a different size from “‹reference›”. Merged photos must be the same size." Measured **from the chosen reference** (revision 2026-11-21): the message names the first frame (capture order) whose size differs from the reference's. Whether this refusal applies does not depend on the reference (some frame differs from any choice); who is named and flagged does | every frame whose size differs from the reference's |
 | 6a | A frame over the pixel limit (`MergeLimits.maximumPixels`, 150 MP; security review M1; ruling D-H5) | "“‹name›” is too large to merge. A photo can have at most ‹150› megapixels." | the frames over the limit |
 | 6b | The frames' pixels together would take more than the memory budget (`MergeLimits.frameMemoryBudget`: half this Mac's memory; D-H5) | "These photos are too large to merge together on this Mac. Select fewer." | all frames |
 | 7 | An offline photo (R14) | one: "“‹name›” is offline. Connect its drive and try again." Several: "‹N› of these photos are offline. Connect their drives and try again." (plural; the first is named in the table) | the offline frames |
@@ -331,8 +577,8 @@ sentence-style, names the frame in curly quotes, and says what to do.
   shows why.
 - A copy as the **only** link to its master is fine (case 4 is only about two
   items of one master); the copy's file stem and metadata come from its master
-  and from the copy's own rating, flag and label (R7 reads "the naming
-  photo", and that is the item the person selected).
+  and from the copy's own rating, flag and label (R7 reads "the reference", and
+  when the copy is chosen as the reference that is the item the person selected).
 - **Order matters.** Count and kind (1–3) come before content (4–6b) and
   availability (7), so one message answers the most basic problem first. 6a
   and 6b follow 6 (a frame of another size is the more useful thing to say
@@ -351,7 +597,7 @@ check; the second, if it fails, closes the sheet and posts an Activity warning
 | # | Case | Message | Flagged rows |
 |---|---|---|---|
 | 8 | A master can't be read (missing, no permission; R14) | "“‹name›” can't be read. Check that the file is still there." | that frame |
-| 9 | The naming photo's folder can't be written (read-only volume, no permission; R14, AC12) | "The merged photo would be saved next to “‹reference›”, in “‹folder›”, which can't be written to. It may be on a read-only disk, or you may not have permission." | the reference |
+| 9 | The **reference's** folder can't be written (read-only volume, no permission; R14, AC12). Decided again whenever the reference changes (§6.4) | "The merged photo would be saved next to “‹reference›”, in “‹folder›”, which can't be written to. It may be on a read-only disk, or you may not have permission." | the reference |
 
 - A write check is made by what the file system says about the folder
   (writable, not read-only volume), not by creating a file: a refused merge
@@ -365,9 +611,45 @@ check; the second, if it fails, closes the sheet and posts an Activity warning
 - **Frames that can't be aligned** (a different scene, R9) are found only by
   doing the work. They fail the job and Activity names the frame (§7.3).
   Offering a "check alignment" step before the merge would cost most of its
-  time for the rare case.
+  time for the rare case. **With Auto-align off this never happens**: no
+  step measures a shift, so no frame is refused for failing to line up and a
+  merge of unrelated scenes goes ahead as given (R9, A14, ruling 2026-11-21;
+  the box's caption says "merged as they are", and no warning is added). The
+  other refusals still apply (AC7b).
 - **A corrupt file** that opens but fails to decode: the same, named in
   Activity.
+
+### 6.4 When the reference changes (revision 2026-11-21, D-H9)
+
+Refusals are decided from the frames and the reference together. Only two
+depend on the reference (R14); the rest are fixed for the life of the sheet:
+
+| Refusal | Depends on the reference? | When it changes |
+|---|---|---|
+| 1 to 5, 6a, 6b, 7 (count, kind, video, copy, raw mix, size limit, memory, offline) | No | never while the sheet is open |
+| 6 (different size) | The frame named and flagged, and the wording | at once, from memory |
+| 8 (a master can't be read) | No | never |
+| 9 (the folder can't be written) | Yes: the reference's folder | after that folder's check (§5.8) |
+
+- **A refusal that no longer applies goes away** when the reference changes:
+  the header text is replaced (by the next refusal in §6's order, or by
+  nothing), the flagged rows update, and Merge is on once the folder check is
+  done (AC12: choosing a frame in a writable folder when the first reference's
+  folder is read-only lifts case 9; the reverse brings it on). The text names
+  the **chosen** reference ("The merged photo would be saved next to
+  “IMG_1235”, in …").
+- **Case 9 flags the reference's row**, so choosing another row moves the
+  flag with the reference; the old reference's row is unflagged unless another
+  refusal is about it.
+- **A frame in a read-only folder is a legitimate non-reference.** Only the
+  reference's folder is written to (R2), so a series with one frame on a card
+  mounted read-only merges when the reference isn't that frame.
+- **Order is unchanged** (§6.1, §6.2): the first applicable refusal is the one
+  shown. A selection refusal that is not about the reference (a video, an
+  offline frame) stays on screen whichever frame is chosen, which is right:
+  changing the reference can't fix it.
+- **Messages and their words are re-read** by VoiceOver when they change
+  (§11).
 
 ## 7. Running the merge: Activity
 
@@ -381,7 +663,11 @@ notification in v1 (judgment: Export has neither).
 - **A job in the Activity item** (`ActivityJob`, id `merge`), **determinate**:
   the bar is the fraction of the pipeline's phases, weighted by cost (the
   engineer sets the weights from the spike: read and decode, align, merge and
-  de-ghost, tone map, write; the bar never moves backward).
+  de-ghost, tone map, write; the bar never moves backward). **With Auto-align
+  off there is no align phase** (revision 2026-11-21): its weight is left
+  out when the job starts, so the bar still runs from 0 to 1 and the detail
+  goes from "Reading" to "Merging". De-ghost off changes no phase (it is part
+  of "Merging").
 - **Title** in the popover: `Merge to “‹IMG_1234_HDR.tif›”`. In the toolbar the
   name is fitted by `ToolbarMetrics.statusLine(name:)` (middle-truncated), as
   `Export to “…”` is.
@@ -421,8 +707,11 @@ row is the record.
   the one case below. One **warning** row titled "Merge to HDR": "The photos
   couldn't be merged. Nothing was added to the library." followed by the
   reason as a second sentence:
-  - **Alignment (R9):** "“‹name›” doesn't line up with “‹reference›”. Merge
-    photos of the same scene."
+  - **Alignment (R9; only with Auto-align on):** "“‹name›” doesn't line up
+    with “‹reference›”. Merge photos of the same scene, or turn off
+    Auto-align." (revision 2026-11-21: the second clause is the new remedy,
+    since the sheet now has the switch; the person can open the sheet again
+    with it off.)
   - **Read:** "“‹name›” couldn't be read."
   - **Space:** "There isn't enough space on “‹volume›”."
   - **Write:** "The file couldn't be saved: ‹system reason›."
@@ -455,7 +744,7 @@ row is the record.
   (ruling D-H1, §19). Same host rules as the others (the front-most sheet,
   never an About window).
 - **Removing photos or a project** is dimmed while a merge runs (§10): a
-  removal that takes the naming photo's project out from under the merge could
+  removal that takes the reference's project out from under the merge could
   not leave "library unchanged" and the file both true. This is LO §8's
   mechanism (`RemovalAvailability`).
 
@@ -463,9 +752,10 @@ row is the record.
 
 ### 8.1 Where it appears
 
-- A new master is catalogued in the naming photo's project (R6), so it
+- A new master is catalogued in the reference's project (R6, whichever frame
+  the person chose), so it
   appears in All Photos, that project, the Dates tree and any smart album
-  whose rule it meets, like any import. It carries the naming photo's capture
+  whose rule it meets, like any import. It carries the reference's capture
   date (R7), so with the default capture-date sort it lands **beside its
   frames**; with a file-name sort it lands after `IMG_1234` (the suffix sorts
   after the stem). No special placement.
@@ -493,7 +783,7 @@ from them.
 
 - **Selected and scrolled into view** when **all** hold when the merge ends:
   the library window is showing the grid or the loupe with a source that
-  contains the new photo (All Photos, the naming photo's project, its date), no
+  contains the new photo (All Photos, the reference's project, its date), no
   filter hides it, and **the selection is still exactly the frames** the merge
   was started from (the person hasn't clicked elsewhere). The new photo
   replaces the selection and takes the focus. **In the loupe (and in review
@@ -512,7 +802,7 @@ from them.
   build it, the row's path and the search field are the way; nothing else
   depends on it.
 - A filter that hides the new photo (a rating filter, a flag filter) isn't
-  changed: the new photo has the naming photo's rating, flag and label (R7),
+  changed: the new photo has the reference's rating, flag and label (R7),
   so it matches whatever made that photo visible, as a copy does (VC §4.2).
   The "stays visible until the filter changes" rule covers it like any photo.
 - **Sidecar:** with sidecars on, the new master gets its `.xmp` as any new
@@ -559,20 +849,36 @@ photos shows no item enabled.
 | Duplicate | Not blocked: a copy makes another version of a master; the merge reads files, not versions |
 | Quit, window close | Asks (§7.4) |
 | A source photo's file changes or goes missing mid-merge | The job fails naming the frame (§7.3 "Read"); nothing is written |
-| The volume of the naming folder unmounts mid-merge | Write fails; §7.3 "Write"; no partial file (the temporary file is removed or, if the volume went, its absence is the result) |
+| The volume of the reference's folder unmounts mid-merge | Write fails; §7.3 "Write"; no partial file (the temporary file is removed or, if the volume went, its absence is the result) |
 | Sidecar sync | The result is a normal photo for it (A8) |
+| The reference's folder becomes unwritable, or its volume unmounts, while the sheet is up | Found when Merge is pressed (the second check, §6.2): the sheet closes and Activity warns; a frame chosen as reference in the meantime is checked, not the one from the first check |
+| The sheet is up and the person changes the sidebar source or the selection | Not possible: the sheet is window-modal and its frames are frozen (§5), the reference with them |
 
 ## 11. Accessibility
 
 - **Menu item and context item:** standard system items, so VoiceOver reads
   them with their key. Reachable by VO-M and, for the grid, VO-Shift-M.
 - **Sheet reading order:** title, subtitle, the refusal or note (header, so it
-  is read before the controls), the table, the Result section, the buttons.
-  Initial focus is on **Merge** when it is enabled, else on **Cancel**.
-- **The table** is a system `Table`: VoiceOver reads each row as name, type,
-  shutter, compensation, and the reference's "Reference". A flagged row's
-  accessibility value is "Problem" (the symbol is decoration and hidden).
-  Column headers are real headers.
+  is read before the controls), the table and its caption, Auto-align,
+  De-ghost, the Result section, the buttons. Initial focus is on **Merge**
+  when it is enabled, else on **Cancel**. Tab order: table, Auto-align,
+  De-ghost, Format, Cancel, Merge.
+- **The table** is a system `Table` with single selection (§5.5): VoiceOver
+  reads each row as name, type, shutter, compensation, the reference's
+  "Reference" and the system's "selected"; VO-Space on another row chooses it.
+  A flagged row's accessibility value is "Problem" (the symbol is decoration
+  and hidden). Column headers are real headers. The table's accessibility
+  label is "Photos"; its hint, "Choose the reference".
+- **When the reference changes** (§5.8; by click, arrow or VO-Space), one
+  announcement after the folder check has finished and the answer is known,
+  debounced about 0.3 s so arrowing through several rows says only the last:
+  "Reference ‹name›. Result ‹file name›." and, when a refusal now shows or
+  has just gone, its text or "Merge is available." The announcement is not
+  posted for the first selection when the sheet opens (the sheet's own
+  reading covers it).
+- **Check boxes** (§5.6): system toggles labelled "Auto-align" and
+  "De-ghost", the caption as the hint; VoiceOver says "checked" or
+  "unchecked" on a change, and nothing else on the sheet moves.
 - **Segmented Format control:** a system `Picker` with the label "Format";
   VoiceOver reads the selected segment and the caption below it.
 - **Merge is dimmed with a reason on screen:** the reason is the header text
@@ -583,8 +889,9 @@ photos shows no item enabled.
   isn't looking at Activity), on failure "The photos couldn't be merged.", on
   stop "The merge was stopped."
 - **Full Keyboard Access:** every route works without a pointer: ⇧⌘L, the
-  File item, Return and Esc in the sheet, ⌘. to stop, Tab through Format,
-  Cancel and Merge.
+  File item, Return and Esc in the sheet, ⌘. to stop, Tab to the table and
+  Up and Down to choose the reference, Space on a check box, Tab through
+  Format, Cancel and Merge.
 - **Color is never the signal:** flagged rows carry a symbol and text; the
   note and refusal carry a symbol and words.
 - **Increase Contrast, Reduce Transparency, Reduce Motion:** the sheet,
@@ -631,14 +938,21 @@ catalog's plural variations, and no string has two plural numbers.
   the Export sheet's key if its comment allows, else a new key).
 - **Sheet body:** "Photos" (section); "Result" (section); "Photo", "Type",
   "Shutter", "Compensation" (column titles); "Reference" (a row's role);
-  "“%@” names the result and is the photo the others are lined up to." (caption);
+  "“%@” names the result and where it is saved. Click another photo to change
+  it." (caption; replaces "“%@” names the result and is the photo the others
+  are lined up to."; the old key is removed); "Auto-align"; "Lines the other
+  photos up to the reference. Off: merged as they are." (its caption and
+  accessibility hint); "De-ghost"; "Moving things, such as people, come from
+  the reference only. Off: plain blend." (its caption and hint); "Choose the
+  reference" (the table's accessibility hint);
   "These photos have the same exposure settings. Merging them won't widen the
   range of light." (note); "Format"; "TIFF"; "DNG"; "16-bit, Display P3,
   tone-mapped. Looks right in any app."; "16-bit floating point, not
   tone-mapped. Tone it in the Adjust tab."; "TIFF (16-bit, Display P3,
-  tone-mapped)" (the row when DNG isn't built); "Name"; "Folder"; "Saved
-  next to “%@”. The originals are not changed, and your adjustments are not
-  used: the photos are merged as they were shot."; "The photos are in several
+  tone-mapped)" (the row when DNG isn't built); "Name"; "Folder"; "The
+  originals are not changed, and your adjustments are not used: the photos are
+  merged as they were shot." (replaces the key that began "Saved next to
+  “%@”."); "The photos are in several
   folders. The result goes in the reference's."; "Merge" (button); reuse
   "Cancel".
 - **Refusals** (§6): "Select at least two different photos. A RAW+JPEG pair
@@ -661,7 +975,8 @@ catalog's plural variations, and no string has two plural numbers.
 - **Activity (results):** "Merged %lld photos into %@." (plural; the path);
   "The merge was stopped. Nothing was added to the library."; "The photos
   couldn't be merged. Nothing was added to the library."; "“%1$@” doesn't line
-  up with “%2$@”. Merge photos of the same scene."; "“%@” couldn't be read.";
+  up with “%2$@”. Merge photos of the same scene, or turn off Auto-align."
+  (replaces the key without the last clause); "“%@” couldn't be read.";
   "There isn't enough space on “%@”."; "The file couldn't be saved: %@.";
   "There wasn't enough memory to merge these photos."; "The merged photo was
   saved at %@ but couldn't be added to the library. Add the folder again to
@@ -675,7 +990,9 @@ catalog's plural variations, and no string has two plural numbers.
   added."; "Keep Merging" (button; the second button is the shared "Stop and
   Quit", D-H1).
 - **VoiceOver:** "Merged to “%@”."; "The photos couldn't be merged."; "The merge
-  was stopped.".
+  was stopped."; "Reference %1$@. Result %2$@." and "Merge is available."
+  (the announcements after a change of reference, §11; a refusal's own text
+  follows when one shows).
 - **Types:** the type column reuses the grid's words (RAW, JPEG, HEIC, TIFF);
   no new keys.
 - **Dates and exposure formatting:** shutter as "1/250 s", compensation as
@@ -690,9 +1007,11 @@ text. Additions, all in a new `DebugMergeCommands.swift`:
 
 | Command | Does | Prints |
 |---|---|---|
-| `merge sheet` | opens the sheet for the current selection (what the menu item does) | frames in order with type, shutter, compensation and role; the refusal text and its flagged frames, or "none"; the pre-flight status; the result's name, folder and format choices offered; whether DNG is offered |
+| `merge sheet` | opens the sheet for the current selection (what the menu item does) | frames in order with type, shutter, compensation and role (the reference marked); the refusal text and its flagged frames, or "none"; the pre-flight status; the result's name, folder and format choices offered; whether DNG is offered; `align` and `deghost` (both `on` when the sheet opens, always); the form's content height against the sheet's ideal height (§5.7) |
 | `merge format tiff\|dng` | sets the sheet's format | the Name line and caption |
-| `merge start` | presses Merge | the job's id, title and the first detail |
+| `merge reference <name or 1-based row>` | chooses the reference the way a click on the row does (revision 2026-11-21) | the new reference, the Name and Folder lines, the refusal text and flagged frames (or "none"), whether Merge is enabled once the folder check is done; the answer that arrives for a superseded reference is shown as discarded |
+| `merge align on\|off`, `merge deghost on\|off` | sets a check box | the box's state and the other's |
+| `merge start` | presses Merge | the job's id, title and the first detail (with `align off` the details skip "Aligning") |
 | `merge wait` | waits for the job to end (with a timeout) | the result path, or the Activity warning, or "stopped" |
 | `merge stop` | the Stop path (the same closure as the popover's) | the Activity row |
 | `merge cancelsheet` | presses Cancel | confirms no job and no file |
@@ -704,7 +1023,10 @@ text. Additions, all in a new `DebugMergeCommands.swift`:
 - **A bracket fixture.** `photobench` already writes a scratch library; it
   needs a `--brackets <n>` option that adds synthetic series (3 raws with
   known shifts and a moving object, 3 JPEGs, a mixed set for refusals, one
-  with a read-only folder for case 9, one offline) so the owner's sign-off
+  with a read-only folder for case 9, one offline; and, for the reference
+  choice of 2026-11-21, a series of three raws in two folders, one of them
+  read-only, whose default reference is in the read-only one, and a series
+  whose 0 EV frame is not the first in time) so the owner's sign-off
   and QA can run the whole feature on a scratch library, never the real one
   (WORKFLOW Sign-off). The PRD's AC7 and AC8 scenes (`PhotoFixtures`) are the
   same data.
@@ -727,8 +1049,18 @@ these terms against the UI:
   what it does (two to nine photos of one scene, lined up and combined into
   one new photo), who it is for, and the steps (select, choose, pick TIFF or
   DNG, Merge).
-- **What is written:** a new file beside the **reference** photo (the 0 EV one,
-  else the earliest), named `‹name›_HDR` and numbered (`_HDR-2`) if the name
+- **The reference and the two check boxes (2026-11-21):** the reference is
+  the photo you click in the sheet's table (by default the 0 EV one, else the
+  earliest; the sheet forgets the choice every time it closes). It names the
+  result, is the folder and project the result goes in, gives it its
+  metadata, is what the others are lined up to (Auto-align) and where moving
+  things are taken from (De-ghost). **Auto-align** and **De-ghost** are
+  checked every time the sheet opens. Auto-align off merges the photos as they
+  are (for a tripod) and refuses nothing for failing to line up; De-ghost off
+  blends the photos with no photo taking priority where things moved. The
+  guide may use "ghost" only in the name De-ghost.
+- **What is written:** a new file beside the **reference** photo,
+  named `‹name›_HDR` and numbered (`_HDR-2`) if the name
   is taken; never a master changed; the first time the app writes into a
   source folder. The sentence the README gets at Ship (PRD "Dependencies").
 - **What it uses:** the files as shot, not your adjustments (A2); all raws or
@@ -767,9 +1099,14 @@ so checks use `merge …`, `menuitems`, `activity` and `print`, or are manual
 | H11 | Quit and removal while running (§7.4, §10) | Unit test: `QuitConfirmation.needed` returns `.merging`. `menuitems "Remove from Library…"` dimmed during a merge. `about quitask` equivalent for merge asks "Quit While Merging?" |
 | H12 | The result as a photo (R13, AC11) | Opens in the loupe, takes an edit and Undo, History lists it, exports; existing goldens unchanged (`swift test`) |
 | H13 | Strings (§13) | `LocalizationTests` passes (every literal has an entry); plurals render for 1 and several where they exist |
-| H14 | `photocli merge` (R17, AC14) | `photocli merge` prints one JSON object with `path`, `frames`, `reference`, `format`; refused with the same texts for the cases of §6; refuses while the app has the library open |
+| H14 | `photocli merge` (R17, AC14) | `photocli merge` prints one JSON object with `path`, `frames`, `reference`, `format`, `align`, `deghost`; refused with the same texts for the cases of §6; refuses while the app has the library open. Takes a reference (a file in the series; a name that is not one of the frames is an error saying so), and an off switch for each of align and de-ghost; without them it behaves as the sheet's defaults (D-H10) |
 | H15 | `photobench` brackets and the script commands (§14) | `merge sheet` and `merge start` work on a `photobench --brackets` library |
 | H16 | `docs/USER_GUIDE.md` (§15) | Checked at design review |
+| H17 | The reference is the table's single selection (§5.5): default from R3, never empty, rows keep order, every listed row selectable | Unit test of the model: default is the 0 EV frame (not the first in time), else the first by capture time; choosing another frame sets it; a `nil` choice leaves it; reopening gives the default again (AC3, AC3c). `merge reference` and `merge sheet` print the mark on the chosen row |
+| H18 | What follows the reference (§5.8, §6.4) | Unit test: name, folder, project and the size refusal's naming and flags follow the reference (AC3a); on the two-folder fixture the case 9 refusal appears and clears as the reference moves between the read-only and the writable folder, and the text names the chosen frame (AC12); an answer for a superseded reference is discarded; the check for a folder runs once per folder. `merge reference` on the fixture prints each state |
+| H19 | The check boxes (§5.6) | Unit test: both on at every open, independent, not stored (AC9a); `merge align off` and `merge deghost off` change nothing but their own value; nothing else on the sheet changes |
+| H20 | Activity with Auto-align off (§7.1) | `merge start` after `merge align off` shows details "Reading", "Merging", "Tone mapping", "Saving", with no "Aligning", and a bar that still ends at 1; the alignment-failure text appears only with it on |
+| H21 | Sheet height (§5.7) | `merge sheet` prints the form's content height at 3 frames against the ideal height; it is within the 600 pt ideal, so no scrolling, and the sheet's `idealHeight` is 600, `minHeight` 420, width 560 |
 
 **Manual checks for review.md** (a person at the bundle; the script can't
 do these): M1 the sheet's look (header, table, the flagged-row symbol, the
@@ -779,6 +1116,50 @@ and ⌘.; M4 the quit question with a real ⌘Q during a merge; M5 the result's
 look in the loupe and in another viewer (TIFF "looks normal", DNG "flat"); M6
 the toolbar's Activity item fitting a long name; M7 undo, redo and merge again
 (`_HDR-2`) with real menus.
+
+**Added by the 2026-11-21 revision** (a person at the bundle, on a scratch
+library from `photobench --brackets`; VoiceOver, macOS 15 and macOS 26 are
+not listed, per the owner's standing rule: the announcements' text and
+posting are covered by unit tests, the rest by CI):
+
+- **M8, the sheet's look at the default size.** Three frames: the sheet is
+  560 pt wide, shows everything (table, both check boxes with their captions,
+  Result) without scrolling, with the "Reference" mark whole (not
+  "Referen…") even with a long file name; the check box captions are indented
+  to their labels and on one line; the same in Increase Contrast and with
+  Reduce Transparency. Then nine frames: the Form scrolls, the header and the
+  buttons stay.
+- **M9, choosing by pointer.** Click each row: the highlight and the mark move
+  together, the header thumbnail, Name, Folder and the table caption follow
+  at once, nothing reorders. ⌘-click the chosen row and click the empty space
+  under the rows: one row stays chosen. The caption makes clear the rows can
+  be clicked (is it discoverable? say so if not: then the pop-up fallback,
+  §5.5).
+- **M10, choosing by keyboard (Full Keyboard Access on).** Tab goes table,
+  Auto-align, De-ghost, Format, Cancel, Merge. In the table Up and Down move
+  the reference; Space on a check box toggles it; with the table focused,
+  Return presses Merge (report if it doesn't, §5.5), Esc closes. Close and
+  reopen: the reference is the default again (0 EV, not the first in time)
+  and both boxes are checked.
+- **M11, the reference and the folder refusal.** On the two-folder series
+  (default reference in the read-only folder): the refusal shows, naming the
+  default reference; choosing the frame in the writable folder lifts it and
+  turns Merge on; choosing the other brings it back. On a slow volume (a
+  FAT32 image or a network share) the spinner shows only after a pause,
+  Merge stays off meanwhile and the Name row isn't stale when it comes on.
+- **M12, a real merge with another reference.** Merge the walker series with
+  the +2 EV frame as reference: the result is named from it, is in its folder
+  and project, the Info tab shows that frame's metadata, and the walker is
+  where he is in that frame (by eye). The same with the default: it differs.
+- **M13, the two boxes.** Auto-align on with a series of unrelated scenes:
+  refused, the Activity row naming the frame and ending "or turn off
+  Auto-align". Auto-align off with the same: merged as given, Activity shows no
+  "Aligning". Walker series with De-ghost on and off: the moving figure is
+  single (on) or blended (off); where nothing moved the two results look the same.
+- **M14, height.** On a 13-inch laptop at its default scaling, and with the
+  library window made short, the sheet is never taller than 600 pt or the
+  window, fits on screen, and the Form scrolls with the header and buttons
+  in place, including with a two-line refusal and the same-exposure note.
 
 ## 17. Requirements issues (for the product manager)
 
@@ -793,7 +1174,19 @@ the toolbar's Activity item fitting a long name; M7 undo, redo and merge again
 the owner may overrule, recorded so a different answer changes only the lines
 named: the key ⇧⌘L (§3), Display P3 for the TIFF and no color-space control
 (§5.3), and the Format choice being remembered between merges instead of
-resetting to TIFF each time (§5.3).
+resetting to TIFF each time (§5.3). The 2026-11-21 revision adds two more of
+the same kind (§20): the reference is chosen by clicking the table's row,
+with a Reference pop-up as the fallback (D-H6), and the sheet is 40 pt taller,
+600 pt (D-H8). Note the one asymmetry the owner's ruling creates: Format is
+remembered between merges, Auto-align and De-ghost reset to checked every
+time.
+
+**The PRD's questions of 2026-11-21 (6 to 9) as this design answers them:**
+6 (photocli takes the options): built as the PRD proposes (H14, D-H10);
+7 (Auto-align off still refuses a different scene): no, it does not (§6.3,
+A14); 8 (a warning for an extreme reference): none (§5.5, A13); 9 (where the
+reference is chosen, the labels, the captions): §5.5 to §5.7. None needs a
+change to the PRD.
 
 **One thing for the engineer to answer in `status.md`:** whether the DNG
 writer exists (§5.3 has both variants), and whether an import or an export
@@ -930,3 +1323,79 @@ file's tags to detect our own DNG would add disk work to opening the sheet
 (A-H2) and a marker the PRD does not specify; that is **RI-H4** for the
 product manager, default "no detection". The guide gets one sentence (review
 finding F5).
+
+## 20. Revision 2026-11-21: the reference choice and the two check boxes
+
+Rulings on the questions of the revised PRD (its Open question 9, and the
+placement questions in the brief of 2026-11-21). Cite them as D-H6 … D-H10.
+The HIG has no page that settles these; each is judgment from its general
+guidance (Tables and lists, Toggles, Sheets, Context menus, Accessibility),
+labelled as such. This section wins where an earlier section still reads as
+the first revision.
+
+**D-H6. The reference is chosen by clicking its row in the Photos table.**
+Single selection, always one row, the row's "Reference" mark kept in words.
+Reasons: the person chooses by comparing, and everything they compare by is
+in that table; choosing where the evidence is is direct manipulation, needs no
+second control, and makes the mark and the choice one thing; selecting an
+item in a list to choose it is the ordinary Mac meaning of a table's
+selection, and the system gives keyboard (arrows, type-select, Tab) and
+VoiceOver (VO-Space) behavior for nothing. Rejected: a Reference pop-up
+(names alone, a second control for one fact, the fallback if the table's
+"always one" selection can't be had, §5.5), a radio column (a fake control),
+a context-menu or menu-bar action as the only route (hidden), a "Use as
+Reference" button (a control to give the selection a meaning). Fixes the
+screenshot's "Referen…": the mark never truncates. The choice is never stored
+(AC3c). Every listed row can be chosen (A13). Detail: §5.5.
+
+**D-H7. Auto-align and De-ghost are two system check boxes in the Photos
+section under the table, each with a one-line caption saying what unchecking
+does.** Not in Result: Result is about the file, these are about what is done
+to the photos relative to the reference, and under the table they read in the
+order of the task. Labels are the PRD's, "Auto-align" and "De-ghost". The word
+"ghost" is allowed as the control's name only (§1's rule is relaxed for it and
+nowhere else): the owner and the PRD use it and photographers know it; its
+caption says what it does in plain words ("Moving things, such as people,
+come from the reference only. Off: plain blend."). Captions: "Lines the other
+photos up to the reference. Off: merged as they are." and the one above. No
+warning for turning either off, no dimming, no effect on any refusal except
+that with Auto-align off no frame is refused for failing to line up (A14).
+Checked on every open; not stored (the owner's ruling), unlike Format. Detail:
+§5.6.
+
+**D-H8. The sheet's ideal height goes from 560 to 600 pt; width stays at 560;
+it never grows further.** The content at three frames needs about 580 pt
+(estimate in §5.7); the Form scrolls for more frames, longer text or a
+refusal, with the header and buttons fixed. Two lines were cut to pay for the
+two boxes (the Photos caption is one line; "Saved next to “‹reference›”." is
+dropped from the Result caption). If the engineer's measure shows scrolling
+at three frames, shorten the captions first and raise the height in steps of
+20 pt only up to 640, and then ask. Judgment: 600 pt is about two thirds of the
+height of a current 13-inch laptop display and fits the smallest scaled
+one.
+
+**D-H9. What follows the reference, and when.** Everything that came from the
+one reference follows the new choice at once (§5.8): the thumbnail, the
+caption, Name (numbered in the new folder), Folder, and the refusals that
+depend on it (case 9 wholly, case 6's naming and flags; §6.4). Merge is off
+until the new reference's folder check is done; the check runs once per
+folder per sheet; a late answer for a superseded reference is discarded. A
+frame in a read-only folder is a legitimate non-reference: only the
+reference's folder is written (R2). One announcement for VoiceOver after the
+answer is known, debounced (§11).
+
+**D-H10. `photocli merge` takes the same three choices (R17, Open question
+6, as proposed).** A reference (a file of the series), and an off switch
+for each of align and de-ghost; without them, the sheet's defaults. The flag
+names are the engineer's, following the command registry's conventions; the
+JSON gains `align` and `deghost`. A reference that isn't one of the frames is
+an error that says so (the sheet can't produce it). The text of every refusal
+is the sheet's. The Activity failure for a frame that doesn't line up gains
+a remedy, "…, or turn off Auto-align.", because the sheet now has the switch
+(§7.3); `photocli`'s message for the same failure names its own flag for
+turning alignment off instead.
+
+**D-H5c, amended.** A person can now choose a merged DNG as the reference
+(it is a listed row), and then the Name row reads `…_HDR_HDR`, the same plain
+signal as before and now one the person made on purpose. No detection is
+added (RI-H4 stands).
