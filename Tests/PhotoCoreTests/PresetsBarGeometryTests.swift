@@ -81,4 +81,17 @@ struct PresetsBarGeometryTests {
         let size = PresetsBarGeometry.size(forWidth: 80, sizes)
         #expect(size.width == PresetsBarGeometry.neededWidth(.switchBesideManage, sizes))
     }
+
+    /// The sizes measured in the app (status.md): one line needs 276.5 pt, so
+    /// the default column's 276 pt (overlay scroller) and 259 pt (legacy) both
+    /// show the switch beside Import, Manage under them (design review, DQ-1 (a)).
+    @Test func measuredSizesWrapAtTheDefaultColumn() {
+        let measured = PresetsBarGeometry.Sizes(save: CGSize(width: 58.5, height: 24), importButton: CGSize(width: 67.5, height: 24),
+                                                manage: CGSize(width: 74.5, height: 24), viewSwitch: CGSize(width: 56, height: 24))
+        #expect(PresetsBarGeometry.neededWidth(.oneLine, measured) == 276.5)
+        #expect(PresetsBarGeometry.arrangement(forWidth: 276.5, measured) == .oneLine)
+        #expect(PresetsBarGeometry.arrangement(forWidth: 276, measured) == .switchBesideImport)
+        #expect(PresetsBarGeometry.arrangement(forWidth: 259, measured) == .switchBesideImport)
+        #expect(PresetsBarGeometry.arrangement(forWidth: 239, measured) == .switchBesideImport)
+    }
 }

@@ -203,8 +203,9 @@ enum DebugScript {
                 let endsRename: Set<String> = ["renameproject", "renamealbum", "sidebarpane", "sidebarsection", "review"]
                 let grouped = (changing.contains(String(words.first ?? ""))
                     && !DebugLensCommands.contextMenuChangesNothing(words.map(String.init))
-                    // The Presets heading's view choice and its collections' headings change no photo.
-                    && !(words.first == "preset" && ["view", "heading"].contains(words.dropFirst().first ?? "")))
+                    // The Presets heading's view choice, its collections' headings and focusing a row change no photo.
+                    && !(words.first == "preset" && ["view", "heading"].contains(words.dropFirst().first ?? ""))
+                    && !(words.first == "preset" && words.dropFirst().first == "row" && words.last == "focus"))
                     || (endsRename.contains(String(words.first ?? "")) && model.sidebarRename != nil)
                     || (words.first == "accessibility" && words.count >= 4)
                     || (words.first == "history" && words.dropFirst().first == "revert")
@@ -1300,13 +1301,14 @@ enum DebugScript {
         let font = control.font ?? .systemFont(ofSize: NSFont.systemFontSize(for: control.controlSize))
         let label = labels.map { ($0 as NSString).size(withAttributes: [.font: font]).width }.max() ?? 0
         let segment = room / CGFloat(max(control.segmentCount, 1))
-        // A control that keeps its width at the column's trailing edge (the
-        // Presets view switch) moves with that edge as the pane narrows, so
-        // `room` from where it is now means nothing: `print presetsbar`
-        // checks its line.
-        let trailing = !fills && abs(frame.maxX - (clip.bounds.width - InspectorMetrics.padding)) < 0.5
-        let verdict = trailing ? "trailing (see print presetsbar)"
-            : needs <= room + 0.5 ? "fits" : fills ? "compressed" : "overflow"
+        // `trailing`: the Presets view switch, which moves with the column's
+        // trailing edge; `print presetsbar` checks its line.
+        let verdict = switch InspectorSegmentedWidth.verdict(frame: frame, needs: needs, fillsWidth: fills,
+                                                             visibleWidth: clip.bounds.width, room: room,
+                                                             padding: InspectorMetrics.padding) {
+        case .trailing: "trailing (see print presetsbar)"
+        case let other: other.rawValue
+        }
         let points = { (value: CGFloat) in String(format: "%.1f", value) }
         print("debug-script: inspectorwidth segmented \(labels.joined(separator: "/")) width \(points(frame.width))"
               + " needs \(points(needs)) x \(points(frame.minX)) \(fills ? "fillsWidth" : "keepsWidth")"

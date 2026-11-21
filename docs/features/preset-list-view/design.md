@@ -399,3 +399,45 @@ their VoiceOver names (§8).
    While comparing, the Adjust tab shows no Presets heading, so there is no
    hover to test; only cropping applies. Suggested rewording: "While cropping,
    hover does what it does today for thumbnails."
+
+## 16. Rulings (2026-11-20, from the engineer's Design questions)
+
+**16.1 DQ-1: the one-line button row at the default column. Ruled (a),
+accept.** Measured, the one-line arrangement needs 276.5 pt, not the roughly
+260 pt §3 estimated (that estimate was mine and was wrong). At the default
+300 pt column Manage... therefore sits under Save..., with the switch at the
+right of the first line. Why not (b) or (c):
+
+- Neither gives one line at the default width for everyone. The room is 276 pt
+  with an overlay scroller (trackpad) and 259 pt with a legacy one (mouse, or
+  "Always show scroll bars"). (b) and (c) fit only the first, so the same window
+  would show one line or two depending on a system setting, which is the less
+  predictable result. Mouse users are a large share of a desktop photo app's
+  users.
+- (b) fits with a 0.5 pt margin, so a longer translation, a font change or
+  rounding flips it. A constant tuned to half a point is not a rule. (c) shrinks
+  the control's targets (28 to 26 pt) for the same one-line gain.
+- The wrap is the designed behavior (§3), costs one 30 pt line at the top of a
+  scrolling column, and keeps every control at its full size.
+
+The constant stays 8 pt. If the owner later wants one line at the default
+width, the lever is the inspector's default width (about 18 pt wider covers
+both scrollers), not this gap. That is outside this slice.
+
+**16.2 One `Layout` instead of `ViewThatFits`: accepted.** The reason that
+matters most is not the one in §8. `ViewThatFits` builds a different view tree
+per variant, so the switch and the push buttons would be new AppKit views
+whenever the width crosses a threshold: a focused switch would lose the
+keyboard focus while the inspector is dragged, and each variant would be laid
+out and measured separately. One tree with one pure, tested rule keeps the
+same controls and focus in every arrangement. Amendment to §8 (Order): §8 asked
+for the switch after Manage... "in every variant". In the two-line arrangement
+the switch sits at the right of the first line, above Manage..., so reading
+and Tab order that follow the layout (Save, Import, switch, Manage) are as
+correct as the tree order and match what a sighted person reads. Either
+order is acceptable. What is required: every control is reachable once, in an
+order that is the same each time for a given arrangement. Do not add
+`accessibilitySortPriority` or a custom key-view loop to force the tree order.
+
+**16.3 Applied mark follows saves, `PresetItemRules.markedAgainst` reading the
+saved hash: accepted.** Same intent as §4.2 (saved values, never live ones).

@@ -150,7 +150,8 @@ final class PresetListRowButton: ImageTile.HoverButton {
 
     /// Return and Enter apply the focused row as Space does.
     override func keyDown(with event: NSEvent) {
-        if event.modifierFlags.intersection(.deviceIndependentFlagsMask).isEmpty,
+        // Keypad Enter carries `.numericPad` and fn-Return `.function`: neither is a modifier the person chose.
+        if event.modifierFlags.intersection(.deviceIndependentFlagsMask).subtracting([.numericPad, .function]).isEmpty,
            event.charactersIgnoringModifiers == "\r" || event.charactersIgnoringModifiers == "\u{3}" {
             performClick(nil)
         } else {
