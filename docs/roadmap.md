@@ -40,7 +40,11 @@ Principles (drawn from `README.md` and `CLAUDE.md`):
 
 ## Now (maximum three)
 
-Empty. Set by the owner 2026-11-18: #89 (DCP profiles) was dropped, then #216 (built-in looks) the same day; #219, #218 and #87 replaced them. All three are done (#87 and #218 ship with their passes; each issue closes with its pull request). #88 is at the head of Next and is the natural next move into Now; the owner decides. Now holds at most three. The owner wants a PRD for every Now item before any work starts.
+Set by the owner 2026-11-20 (replacing #219, #218 and #87, all done). A PRD is required for every Now item before any work starts: all three have one.
+
+1. [#88](https://github.com/sesser/Gus/issues/88) `ai-masks`: No subject, sky, object or people masks (PRD approved 2026-11-18)
+1. [#241](https://github.com/sesser/Gus/issues/241) `preset-list-view`: The Presets heading only shows thumbnails; a compact list (the default) with a switch, and hover preview in both (PRD ready; owner, 2026-11-20)
+1. [#150](https://github.com/sesser/Gus/issues/150) `hdr-merge`: No way to merge several exposures of a scene into one tone-mapped HDR image, with automatic alignment and de-ghosting (PRD approved 2026-11-20; owner, 2026-11-11)
 
 ## Next
 
@@ -51,11 +55,10 @@ On 2026-11-17 the owner put healing (#86, shipped 2026-11-18), lens corrections 
 and DCP profiles (#89) first, in that order.
 On 2026-11-18 the owner dropped #89, then #216 (built-in looks) the same day, in favour of
 removing the Profile group (#219) and a B&W module (#218). Both shipped (2026-11-19), and
-so did lens corrections (#87, 2026-11-19); Now is empty and AI masks (#88) is at the head of Next.
+so did lens corrections (#87, 2026-11-19).
+On 2026-11-20 the owner set Now to AI masks (#88), the preset list view (#241) and HDR merge (#150); they are no longer in Next.
 The small fixes and tooling items can each go as a bug fix (`docs/WORKFLOW.md`).
 
-1. [#88](https://github.com/sesser/Gus/issues/88) `ai-masks`: No subject, sky, object or people masks
-1. [#150](https://github.com/sesser/Gus/issues/150) `hdr-merge`: No way to merge several exposures of a scene into one tone-mapped HDR image, with automatic alignment and de-ghosting (owner, 2026-11-11)
 1. [#64](https://github.com/sesser/Gus/issues/64) `reads-beside-write-chain`: Five reads still take a photo's edits from the catalog without waiting for pending saves, so right after a change they can get the older…
 1. [#65](https://github.com/sesser/Gus/issues/65) `full-render-main-thread-stall`: At 100%, every arrival at a photo and every change that is let go freezes the window for about 0.4 s (about 1.3 s with machine learning…
 1. [#66](https://github.com/sesser/Gus/issues/66) `adjust-tab-rebuild-on-arrival`: With the inspector open on Adjust, every arrival at a photo rebuilds the whole Adjust tab (the editor goes loading, then ready) and its…
