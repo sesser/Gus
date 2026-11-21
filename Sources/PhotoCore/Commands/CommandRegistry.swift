@@ -186,10 +186,14 @@ public struct CommandInvocation: Sendable {
 public struct CommandEnvironment: Sendable {
     public var currentDirectory: URL
     public var defaultLibraryRoot: URL?
+    /// What `mask add --shape subject|people|background` detects with (tests give their own).
+    public var maskDetector: any MaskDetecting
 
-    public init(currentDirectory: URL, defaultLibraryRoot: URL? = nil) {
+    public init(currentDirectory: URL, defaultLibraryRoot: URL? = nil,
+                maskDetector: any MaskDetecting = VisionMaskDetector()) {
         self.currentDirectory = currentDirectory
         self.defaultLibraryRoot = defaultLibraryRoot
+        self.maskDetector = maskDetector
     }
 
     /// `path` resolved against the current directory, with `~` expanded.

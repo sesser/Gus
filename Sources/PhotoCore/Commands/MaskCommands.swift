@@ -15,8 +15,9 @@ enum MaskCommands {
         access: .read,
         parameters: [CommandParameter("version", .integer, "The version id.", required: true), LibraryCommands.libraryRoot],
         run: { invocation in
-            let (_, _, stack) = try await load(invocation)
-            return ["masks": masksJSON(Adjustments(stack: stack).local)]
+            let (library, _, stack) = try await load(invocation)
+            let local = Adjustments(stack: stack).local
+            return ["masks": masksJSON(local, results: try await results(of: local, in: library.catalog))]
         })
 
     static let add = CommandSpec(
@@ -24,12 +25,16 @@ enum MaskCommands {
         summary: """
             Adds a mask with one component, or with --mask a component to an existing mask. --params takes the \
             shape's parameters as a JSON object (see adjustments, local.shapes); --set takes the mask's local values \
-            and amount (exposure=0.5, amount=80). Not undoable.
+            and amount (exposure=0.5, amount=80). subject, people and background are found in the photo on this Mac \
+            (no --params) and stored in the library; with --dry-run the photo is looked at and nothing is stored. Not \
+            undoable.
             """,
         access: .writeUnlessDryRun,
         parameters: [
             CommandParameter("version", .integer, "The version id.", required: true),
-            CommandParameter("shape", .string, "linear, radial, brush, luminanceRange or colorRange.", required: true),
+            CommandParameter("shape", .string, """
+                linear, radial, brush, luminanceRange, colorRange, or subject, people or background (found in the photo).
+                """, required: true),
             CommandParameter("params", .json, "The shape's parameters, a JSON object."),
             CommandParameter("operation", .string, "add (default), subtract or intersect."),
             CommandParameter("invert", .flag, "Invert this component."),
@@ -77,7 +82,7 @@ enum MaskCommands {
 
     /// Applies `change` to the stored mask objects, reads them back strictly,
     /// and saves unless it is a dry run.
-    static func change(_ invocation: CommandInvocation, creating: Bool,
+    static func change(_ invocation: CommandInvocation, creating: Bool, detected: Detected? = nil,
                        _ change: (inout [[String: EditParameter]]) throws(CommandError) -> Void) async throws -> JSONValue {
         let (library, id, before) = try await load(invocation)
         var adjustments = Adjustments(stack: before)
@@ -99,13 +104,83 @@ enum MaskCommands {
         let dryRun = invocation.arguments.flag("dryRun")
         let changed = after != before
         if changed, !dryRun {
+            // The result first: a stack never names a row that isn't there. If
+            // the stack's write fails, the app's next launch removes the row.
+            if let raster = detected?.raster { try await library.catalog.storeMaskRaster(raster) }
             try await library.catalog.setEditStack(after, forVersion: id, historyLabel: EditHistory.maskCommandLabel)
         }
-        return [
-            "versionID": JSONValue(id), "masks": masksJSON(local), "editStack": try JSONValue(encoding: after),
+        var known = try await results(of: local, in: library.catalog)
+        if let raster = detected?.raster { known[raster.digest] = raster.instances }
+        var out: [String: JSONValue] = [
+            "versionID": JSONValue(id), "masks": masksJSON(local, results: known), "editStack": try JSONValue(encoding: after),
             "renderHash": .string(after.renderHash), "changed": .bool(changed), "written": .bool(changed && !dryRun),
             "dryRun": .bool(dryRun),
         ]
+        if let detected { out["detection"] = detected.json }
+        return .object(out)
+    }
+
+    // MARK: Detection (issue #88)
+
+    /// A detection for `mask add`: the result to store, or why there is none.
+    struct Detected {
+        var kind: MaskDetectionKind
+        var raster: MaskRaster?
+        var failure: MaskDetectionError?
+
+        var state: String {
+            switch failure {
+            case .unavailable: "unavailable"
+            case .failed, .unreadable: "failed"
+            case nil: (raster?.instances ?? 0) > 0 ? "found" : "empty"
+            }
+        }
+
+        var json: JSONValue {
+            var object: [String: JSONValue] = ["kind": .string(kind.rawValue), "state": .string(state)]
+            if let raster {
+                object["raster"] = .string(raster.digest)
+                object["instances"] = JSONValue(raster.instances)
+                object["width"] = JSONValue(raster.width)
+                object["height"] = JSONValue(raster.height)
+            }
+            if let failure { object["reason"] = .string(failure.detail) }
+            return .object(object)
+        }
+    }
+
+    /// Looks at the version's master for `kind` (R4). A detection that fails or
+    /// can't run here is still a component, with no result (R6).
+    static func detect(_ kind: MaskDetectionKind, _ invocation: CommandInvocation) async throws -> Detected {
+        let library = try invocation.environment.openLibrary(invocation.arguments)
+        let id = Int64(invocation.arguments.integer("version") ?? 0)
+        guard let details = try await library.catalog.details(forVersion: id) else {
+            throw CommandError(.versionNotFound, "No version \(id)")
+        }
+        let stack = try details.version.readableEditStack()
+        let source = details.volume.url(forRelativePath: details.image.relativePath)
+        guard FileManager.default.fileExists(atPath: source.path) else {
+            throw CommandError(.fileNotFound, "--shape \(kind.rawValue) looks at the original; no file at \(source.path)")
+        }
+        do {
+            let raster = try await MaskDetectionRun.run(kind, source: source, adjustments: Adjustments(stack: stack),
+                                                        engine: RenderEngine(contextCount: 1, name: "command-line"),
+                                                        detector: invocation.environment.maskDetector)
+            return Detected(kind: kind, raster: raster)
+        } catch let failure as MaskDetectionError {
+            return Detected(kind: kind, failure: failure)
+        }
+    }
+
+    /// The instance count of every stored result `local` names; a digest with no row is left out (missing).
+    static func results(of local: LocalAdjustments, in catalog: Catalog) async throws -> [String: Int] {
+        var found: [String: Int] = [:]
+        for digest in local.maskRasterDigests {
+            if let raster = try await catalog.maskRaster(digest: digest), MaskRasterStore.entry(raster) != nil {
+                found[digest] = raster.instances
+            }
+        }
+        return found
     }
 
     static func runAdd(_ invocation: CommandInvocation) async throws -> JSONValue {
@@ -115,7 +190,15 @@ enum MaskCommands {
             throw CommandError(.invalidValue, "--shape must be one of \(MaskShape.names.joined(separator: ", "))")
         }
         var component: [String: EditParameter] = ["shape": .string(shape)]
-        if let params = arguments.values["params"] {
+        var detected: Detected?
+        if let kind = MaskDetectionKind(rawValue: shape) {
+            guard arguments.values["params"] == nil else {
+                throw CommandError(.invalidValue, "--shape \(shape) takes no --params: the photo decides the result")
+            }
+            let detection = try await detect(kind, invocation)
+            if let raster = detection.raster { component["raster"] = .string(raster.digest) }
+            detected = detection
+        } else if let params = arguments.values["params"] {
             guard case .object(let object) = EditParameter(params) else {
                 throw CommandError(.invalidValue, "--params must be a JSON object")
             }
@@ -124,7 +207,7 @@ enum MaskCommands {
         if let operation = arguments.string("operation") { component["operation"] = .string(operation) }
         if arguments.flag("invert") { component["invert"] = .bool(true) }
         let settings = try arguments.strings("set").map(parseSetting)
-        return try await change(invocation, creating: true) { masks throws(CommandError) in
+        return try await change(invocation, creating: true, detected: detected) { masks throws(CommandError) in
             if let reference = arguments.string("mask") {
                 let index = try find(reference, in: masks)
                 var components: [EditParameter] = []
@@ -212,10 +295,27 @@ enum MaskCommands {
         }
     }
 
-    static func masksJSON(_ local: LocalAdjustments) -> JSONValue {
+    /// The masks as stored, each detection component with its state
+    /// (`found`, `empty`, `failed`, `missing`) and, with a result, its
+    /// instances; `results` holds the instance count of each stored result.
+    static func masksJSON(_ local: LocalAdjustments, results: [String: Int] = [:]) -> JSONValue {
         .array(local.masks.enumerated().map { index, mask in
             var object = JSONValue(EditParameter.object(mask.parameters)).objectValue ?? [:]
             object["index"] = JSONValue(index)
+            if case .array(var components)? = object["components"] {
+                for (position, component) in mask.components.enumerated() {
+                    guard let detection = component.shape.detection,
+                          case .object(var listed) = components[position] else { continue }
+                    if let digest = detection.raster, let instances = results[digest] {
+                        listed["state"] = .string(instances > 0 ? "found" : "empty")
+                        listed["instances"] = JSONValue(instances)
+                    } else {
+                        listed["state"] = .string(detection.raster == nil ? "failed" : "missing")
+                    }
+                    components[position] = .object(listed)
+                }
+                object["components"] = .array(components)
+            }
             return .object(object)
         })
     }
@@ -252,6 +352,10 @@ enum MaskCommands {
                                           number("smoothness", LuminanceRange.range, 0.1)]),
                 "colorRange": .array([["name": "samples", "type": "list of OkLab [L, a, b]"],
                                       number("tolerance", ColorRange.toleranceRange, 30)]),
+                // Found in the photo: no parameters of their own; the stack holds the result's digest.
+                "subject": .array([["name": "raster", "type": "digest", "default": .null]]),
+                "people": .array([["name": "raster", "type": "digest", "default": .null]]),
+                "background": .array([["name": "raster", "type": "digest", "default": .null]]),
             ],
             "limits": ["masks": JSONValue(MaskLimits.masks), "componentsPerMask": JSONValue(MaskLimits.componentsPerMask),
                        "colorSamples": JSONValue(MaskLimits.colorSamples),
