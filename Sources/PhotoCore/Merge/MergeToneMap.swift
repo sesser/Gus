@@ -1,5 +1,4 @@
 import Foundation
-import simd
 
 /// The fixed tone mapping that turns the merged light into a picture any
 /// viewer shows normally (R12; PRD Open question 3: one global-plus-local
@@ -86,11 +85,6 @@ public struct MergeToneMap: Sendable, Equatable {
                             guideA: a, guideB: b)
     }
 
-    /// The highlight roll-off above `knee`.
-    public static func shoulder(_ x: Float) -> Float {
-        x <= knee ? x : knee + (1 - knee) * (1 - exp(-(x - knee) / (1 - knee)))
-    }
-
     /// The guided filter's coefficients for `guide` filtering itself, averaged
     /// over each window (He et al. 2010, Algorithm 1): the base is
     /// `meanA · I + meanB`.
@@ -106,22 +100,5 @@ public struct MergeToneMap: Sendable, Equatable {
             b.values[i] = (1 - a.values[i]) * mean.values[i]
         }
         return (a.boxMean(radius: radius), b.boxMean(radius: radius))
-    }
-
-    /// One pixel's mapped color: the kernel `mergeToneMap`, in plain Swift,
-    /// with the guide's coefficients at that pixel.
-    public func map(_ radiance: SIMD3<Float>, a: Float, b: Float) -> SIMD3<Float> {
-        let e = simd_max(radiance, .zero)
-        let l = MergeBitmap.luminance(e)
-        guard l > 0 else { return .zero }
-        let logL = log(max(l, Self.floorLuminance))
-        let base = a * logL + b
-        let ld = Self.shoulder(exp(Float(compression) * (base - Float(top)) + (logL - base) * Float(detail)))
-        var rgb = e * (ld / l)
-        let m = max(rgb.x, rgb.y, rgb.z)
-        if m > 1 {
-            rgb = ld >= 1 ? SIMD3(repeating: 1) : ld + (rgb - ld) * ((1 - ld) / (m - ld))
-        }
-        return rgb
     }
 }

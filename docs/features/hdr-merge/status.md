@@ -6,12 +6,21 @@ Owner: swift-macos-engineer. Branch `feature/hdr-merge` (worktree `Gus-hdr-merge
 Spec: the PRD (issue #150 body, approved and revised 2026-11-20) and
 [`design.md`](design.md).
 
-**State: In progress.**
+**State: Done** (2026-11-20). Every criterion built and tested; nothing blocked. Next: code review and design review, then QA.
 
 ## Baseline
 
 - `swift build` on `develop` at `ed423d7` (plus the design commit): clean.
 - `swift test` before any change: 1253 tests in 179 suites passed (70.6 s).
+
+## Latest results (2026-11-20, at Done)
+
+- `swift build`: clean; no new warnings (the two in `SmartAlbumTests` and
+  `VirtualCopiesTests` were there before).
+- `swift test`: 1291 tests in 186 suites passed (222.6 s). No golden moved;
+  `UPDATE_GOLDENS` was not run; `PreviewCacheKey.currentPipelineVersion`
+  unchanged (13).
+- `Scripts/build-app.sh all`: builds both apps.
 
 ## Spikes
 
@@ -172,7 +181,7 @@ Written from published sources only; no code from another project.
 
 | AC | State | Test or check |
 |---|---|---|
-| AC1 | In progress | Menu and context item built; debug-script check pending |
+| AC1 | Done | Debug script (below): `print merge` gives canMerge false for one photo and for one video ("fewer than two"), while the sheet is up ("sheet up") and while a merge runs ("running"); true with three; the sheet opens with a video among three and refuses. The grid's context menu lists Merge to HDR… after Duplicate. `menuitems` shows the item and ⇧⌘L (enabled state not readable from a shell launch: no key window) |
 | AC2 | Done | `HDRMergeJobTests.mergesToTIFF` (hashes unchanged, folder, `_HDR-2`), `existingFileUntouched`, `MergeSelectionTests.naming` |
 | AC3 | Done | `mergesToTIFF` (0 EV frame second in time names it), `firstByTimeNames`, `MergeSelectionTests.orderAndReference`, `earliestWithoutCompensation` |
 | AC4 | Done | `mergesToTIFF` (16-bit, three samples, Display P3, catalogued with hash in the project), `mergesToDNG`, `sidecarWhenEnabled` |
@@ -184,8 +193,61 @@ Written from published sources only; no code from another project.
 | AC10 | Done | `HDRMergerTests.matchesReference` (CPU reference `Reference/MergeReference.swift`), `holdsTheRange`, `recoversRadiance` |
 | AC11 | Done | `resultIsAPhoto` (renders, edit with history, export); goldens unchanged |
 | AC12 | Done | `MergeSelectionTests` (every refusal and their order), `readOnlyFolderRefused` |
-| AC13 | Done | `undoAndRedo` (catalog); app undo pending the debug-script check |
-| AC14 | In progress | `photocli merge` built; test pending |
+| AC13 | Done | `undoAndRedo` (catalog); debug script: `print undo` reads "Merge to HDR", Undo takes the photo out (selection back to the three frames, Activity names the path, the file stays), Redo puts it back |
+| AC14 | Done | `MergeCommandTests.mergesFromTheCommandLine` (path printed, refused while locked, refused for one frame) |
+
+Rules behind the UI, unit-tested in PhotoCore: `MergeRuleTests` (the quit
+question while merging, removal off while merging, the landing rule),
+`BrowserStateTests` (File ▸ Stop's job), `LibraryModalTests` (the sheet is a
+`LibraryModal`), `RAWDecodeGraphTests` (the merge's decoder keys its image).
+
+## Debug-script checks
+
+Run 2026-11-20 on a copy of the bundle (`CFBundleIdentifier`
+`me.sesser.gus.debugtest`, re-signed ad hoc) against a scratch library:
+`photobench generate --output $S/src --jpeg 2 --dng 0 --heic 0 --videos 1 --brackets 1`,
+then `photobench import --library-root $S/lib --source $S/src`, a fresh copy
+of the library per run, every launch with `--library-root`.
+
+- `search RAW_1; selectall; merge sheet`: three frames in capture order,
+  RAW_102 (0 EV) the reference, no message, disk clear, name
+  `RAW_102_HDR.tif`, formats TIFF and DNG; `merge format dng` changes the name
+  to `.dng` and the caption; `merge start`: "Merge to “RAW_102_HDR.tif”",
+  "Reading 1 of 3", then "Merged 3 photos into …/RAW_102_HDR.tif."; the new
+  photo is the selection; `undo`/`redo` as AC13.
+- Refusals in the sheet, Merge off, nothing written: Mixed-0 (the raw
+  flagged), ReadOnly-0 (case 9, the reference flagged), two JPEGs and a video
+  (the video named and flagged), a photo and its own copy (named, the copy
+  flagged; the same-exposure note shows too). Unrelated-0 merges until
+  aligning, then Activity: "“UNRELATED_103” doesn't line up with
+  “UNRELATED_102”. Merge photos of the same scene.", no file.
+- `merge start nowait; print merge; merge stop`: while running, File ▸ Stop's
+  job is the merge and Remove from Library is off; after Stop, "The merge was
+  stopped. Nothing was added to the library.", no file and no partial file in
+  the folder.
+- Merging again with the earlier files on disk writes `RAW_102_HDR-2.tif`,
+  then `-3`.
+- `merge start nowait`, then another search and `focus 0`, then `merge wait`:
+  the selection stays on the photo picked meanwhile (design §8.3); the DNG is
+  catalogued (`print items`).
+- `about quitask merging`: "Quit While Merging?", "The merge is stopped and
+  nothing is added.", Keep Merging, on the library window.
+
+## For a person (not scriptable here)
+
+- M1 to M7 of design §16 (the sheet's look, a real ⇧⌘L with a real keyboard and
+  with the search field focused, Stop with a real mouse and ⌘., ⌘Q during a
+  merge, the result's look in the loupe and in another viewer, the Activity
+  item with a long name, undo/redo/merge again from real menus). Menu enabled
+  states need a key window, which a shell launch on this Mac didn't get.
+- A real hand-held bracket of 24 MP raws for time and memory (Spike 3 has 16 MP).
+- A failure with a full disk image (the "Space" message) and a master deleted
+  mid-merge (the "Read" message): built, not run.
+
+## Not built
+
+- R18 (Could): the "Show in Library" action on the Activity row. Without it
+  the row's path and the search field find the photo (design §8.3 allows this).
 
 ## Requirements issues
 
@@ -224,6 +286,18 @@ None blocking. Recorded deviations, for the designer to confirm at review:
   what the app writes needs a sentence (PRD "Dependencies").
 - `photocli merge` and `photobench merge` are new commands.
 
+## Proposed follow-ups
+
+- **Recover the camera's response curve for JPEG brackets** (enhancement):
+  non-raw frames are linearized by their color profile only, so a camera's
+  tone curve skews the measured exposures (0.35 against a nominal 0.5 on the
+  owner's E-M10 JPEGs) and can brighten clipped cloud patches. Debevec and
+  Malik 1997's response recovery (or Robertson et al. 2003) on the measuring
+  copies would fix it.
+- **Find merged photos** (enhancement, RI-H3 of the design, ruled for later):
+  a stored link to the frames, a mark on the cell and a smart-album rule; needs
+  a migration.
+
 ## Open questions
 
-None yet.
+None.

@@ -18,19 +18,6 @@ public struct MergeBitmap: Sendable, Equatable {
         self.pixels = pixels
     }
 
-    public init(width: Int, height: Int, fill: SIMD4<Float> = .zero) {
-        self.width = width
-        self.height = height
-        var pixels = [Float](repeating: 0, count: width * height * 4)
-        for index in 0..<(width * height) {
-            pixels[index * 4] = fill.x
-            pixels[index * 4 + 1] = fill.y
-            pixels[index * 4 + 2] = fill.z
-            pixels[index * 4 + 3] = fill.w
-        }
-        self.pixels = pixels
-    }
-
     public var count: Int { width * height }
 
     @inline(__always)

@@ -5,9 +5,9 @@ import Foundation
 /// compiled from source at run time, each in a library of its own, as
 /// `LensKernels` are (Core Image ran one kernel of a library for another).
 ///
-/// The math follows the CPU side exactly (`MergeMath`), so the CPU reference
-/// in the tests (`Tests/PhotoCoreTests/Reference/MergeReference.swift`) can
-/// follow the kernels to float rounding.
+/// The math is `MergeMath`'s and `MergeToneMap`'s; the CPU reference in the
+/// tests (`Tests/PhotoCoreTests/Reference/MergeReference.swift`) follows the
+/// kernels to float rounding.
 enum MergeKernels {
     enum Failure: Error, Equatable {
         case compileFailed(String)
@@ -47,7 +47,7 @@ enum MergeKernels {
         constant float3 lumaWeights = float3(0.2627, 0.6780, 0.0593);
         constant float tapShare = 0.015625;
 
-        /// MergeMath.hat: 1 - (2z - 1)^12 inside (0, 1), else 0; flat at 1 on
+        /// The broad hat (MergeMath): 1 - (2z - 1)^12 inside (0, 1), else 0; flat at 1 on
         /// the upper half when `openTop`, on the lower half when `openBottom`.
         float mergeHat(float z, float openTop, float openBottom) {
             if (openTop > 0.5f && z >= 0.5f) { return 1.0f; }
@@ -72,7 +72,7 @@ enum MergeKernels {
         // to a clipped one is taken for clipped, since between them the
         // frame's value means nothing.
         // A pixel whose four samples are not all inside the frame adds
-        // nothing. MergeMath.weight.
+        // nothing (MergeMath).
         "mergeAccumulate": """
         [[stitchable]] float4 mergeAccumulate(coreimage::sampler sum, coreimage::sampler frame,
                                               coreimage::sampler ghost, float3 h0, float3 h1, float3 h2,
@@ -110,7 +110,7 @@ enum MergeKernels {
             return float4(sum.rgb / sum.a, 1.0f);
         }
         """,
-        // Radiance to a picture: MergeToneMap.map.
+        // Radiance to a picture (MergeToneMap).
         "mergeToneMap": """
         [[stitchable]] float4 mergeToneMap(coreimage::sample_t radiance, coreimage::sample_t guide,
                                            float compression, float top, float detail, float floorLuminance,

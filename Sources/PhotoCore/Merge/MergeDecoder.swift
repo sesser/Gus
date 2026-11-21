@@ -103,10 +103,4 @@ public enum MergeDecoder {
         let value = Double(raw.baselineExposure)
         return value.isFinite ? value : 0
     }
-
-    /// The size in pixels a full-resolution `linearImage` has, oriented,
-    /// from the file's header (or LibRaw's frame), nil when unknown.
-    public static func size(of url: URL) -> CGSize? {
-        PreviewGenerator.nativeSize(url)
-    }
 }

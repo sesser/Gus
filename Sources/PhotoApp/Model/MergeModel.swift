@@ -285,7 +285,13 @@ final class MergeModel {
             let sidecars = library.sidecars
             let mounted = library.onlineVolumeIDs
             library.writes.enqueue {
-                _ = try? await sidecars.writeSidecars(forImages: [master.imageID], mountedVolumes: mounted)
+                do {
+                    _ = try await sidecars.writeSidecars(forImages: [master.imageID], mountedVolumes: mounted)
+                } catch {
+                    // A sidecar that couldn't be written is flagged by the sync itself;
+                    // this is the catalog failing under it.
+                    Self.log.error("Merge: the sidecar step failed: \(String(describing: error), privacy: .public)")
+                }
             }
         }
         let step = MergeStep(master: master, url: result.url, frames: frames)
