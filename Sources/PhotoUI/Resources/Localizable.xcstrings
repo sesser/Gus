@@ -16039,6 +16039,17 @@
           }
         }
       }
+    },
+    "The library already has a photo with the same content." : {
+      "comment" : "Activity: why a merge failed; its file was the same as a photo already in the library",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The library already has a photo with the same content."
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

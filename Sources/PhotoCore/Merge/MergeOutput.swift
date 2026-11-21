@@ -5,7 +5,7 @@ import ImageIO
 import UniformTypeIdentifiers
 
 /// The file a merge writes (PRD R5): a tone-mapped 16-bit TIFF in Display P3,
-/// or a linear 32-bit floating-point DNG of the merged light.
+/// or a linear 16-bit floating-point DNG of the merged light (ruling D-H4).
 public enum MergeFormat: String, Sendable, Hashable, CaseIterable, Codable {
     case tiff
     case dng
@@ -40,10 +40,19 @@ public enum MergeOutput {
         /// The library's values for the reference: rating, flag, label,
         /// keywords and the descriptive fields.
         public var values: SidecarValues
+        /// This merge's own: a new document id (`xmpMM:DocumentID` and
+        /// `InstanceID`) and the time it was made (`xmp:CreateDate`), so two
+        /// merges of the same frames are two files, never one content the
+        /// catalog takes once (code review C1).
+        public var documentID: UUID
+        public var created: Date
 
-        public init(sourceProperties: [String: any Sendable], values: SidecarValues) {
+        public init(sourceProperties: [String: any Sendable], values: SidecarValues, documentID: UUID = UUID(),
+                    created: Date = Date()) {
             self.sourceProperties = sourceProperties
             self.values = values
+            self.documentID = documentID
+            self.created = created
         }
 
         /// The properties of `url`'s first image, as ImageIO reads them.
@@ -121,8 +130,7 @@ public enum MergeOutput {
     /// loupe's HDR view.
     /// `exposure` is added to it: the reference's own default exposure.
     public static func writeDNG(_ radiance: CIImage, context: CIContext, metadata: Metadata, to url: URL,
-                                brightest: Double = 1, exposure: Double = 0,
-                                bitsPerSample: Int = dngBitsPerSample) throws {
+                                brightest: Double = 1, exposure: Double = 0) throws {
         let extent = radiance.extent.integral
         let width = Int(extent.width), height = Int(extent.height)
         let white = max(1, brightest.isFinite ? brightest : 1)
@@ -134,8 +142,7 @@ public enum MergeOutput {
             "inputBVector": CIVector(x: 0, y: 0, z: 1 / white, w: 0),
         ]) : radiance
         try writeInPlace(url) { temporary in
-            var writer = try LinearDNGWriter(url: temporary, width: width, height: height, bitsPerSample: bitsPerSample,
-                                             metadata: dngMetadata)
+            var writer = try LinearDNGWriter(url: temporary, width: width, height: height, metadata: dngMetadata)
             do {
                 var rows = [Float](repeating: 0, count: width * bandHeight * 4)
                 try renderInBands(scaled, extent: extent) { band, _ in
@@ -153,12 +160,6 @@ public enum MergeOutput {
             }
         }
     }
-
-    /// The DNG's samples are half floats: the system's RAW decoder (macOS
-    /// 27.2) gives no image for 32-bit floating-point DNGs, which the PRD
-    /// asked for, and does for 16-bit ones, as Lightroom writes its HDR
-    /// merges (status.md, "Spike 1"; Requirements issue RI-E1).
-    public static let dngBitsPerSample = 16
 
     /// Rows rendered at a time: a band's intermediates are all Core Image
     /// holds, where a whole image would take several full-size buffers
@@ -246,15 +247,25 @@ public enum MergeOutput {
             tiff[kCGImagePropertyTIFFCompression] = 1
             return tiff
         }()
-        return (export.properties, xmp(metadata.values))
+        return (export.properties, xmp(metadata))
     }
 
-    /// Every library value as XMP, as a sidecar holds them.
-    static func xmp(_ values: SidecarValues) -> CGImageMetadata? {
+    /// Every library value as XMP, as a sidecar holds them, with the merge's
+    /// document id and creation time.
+    static func xmp(_ metadata: Metadata) -> CGImageMetadata {
         let document = XMPDocument.empty()
-        document.apply(values, previous: nil)
-        guard document.hasProperties else { return nil }
-        return CGImageMetadataCreateFromXMPData(document.rootElementData() as CFData)
+        document.apply(metadata.values, previous: nil)
+        let base = document.hasProperties ? CGImageMetadataCreateFromXMPData(document.rootElementData() as CFData) : nil
+        let xmp = base.flatMap { CGImageMetadataCreateMutableCopy($0) } ?? CGImageMetadataCreateMutable()
+        let mediaManagement = "http://ns.adobe.com/xap/1.0/mm/" as CFString
+        CGImageMetadataRegisterNamespaceForPrefix(xmp, mediaManagement, "xmpMM" as CFString, nil)
+        let id = "xmp.did:" + metadata.documentID.uuidString.lowercased()
+        CGImageMetadataSetValueWithPath(xmp, nil, "xmpMM:DocumentID" as CFString, id as CFString)
+        CGImageMetadataSetValueWithPath(xmp, nil, "xmpMM:InstanceID" as CFString,
+                                        ("xmp.iid:" + metadata.documentID.uuidString.lowercased()) as CFString)
+        let date = ISO8601DateFormatter().string(from: metadata.created)
+        CGImageMetadataSetValueWithPath(xmp, nil, "xmp:CreateDate" as CFString, date as CFString)
+        return xmp
     }
 
     static func dngMetadata(_ metadata: Metadata) -> LinearDNGWriter.Metadata {
@@ -285,9 +296,7 @@ public enum MergeOutput {
         result.artist = metadata.values.creator
         result.copyright = metadata.values.rights
         result.caption = metadata.values.caption
-        if let xmp = xmp(metadata.values) {
-            result.xmp = CGImageMetadataCreateXMPData(xmp, nil) as Data?
-        }
+        result.xmp = CGImageMetadataCreateXMPData(xmp(metadata), nil) as Data?
         return result
     }
 }

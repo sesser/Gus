@@ -22,9 +22,13 @@ public struct RemovedMaster: Hashable, Sendable {
 }
 
 public enum MergeCatalogFailure: Error, Equatable, Sendable {
-    /// The file's path or content is already in the catalog (another import
-    /// took it meanwhile); the id of that photo's default version, when found.
+    /// The file's path is already in the catalog: another import catalogued
+    /// this very file meanwhile; the id of that photo's default version.
     case alreadyInLibrary(versionID: Int64?)
+    /// Another master has the file's content: the catalog takes each content
+    /// once, so the file can't be added (code review C1; every merge's file
+    /// has a document id of its own, so this means something else went wrong).
+    case sameContent
 }
 
 extension Catalog {
@@ -39,11 +43,12 @@ extension Catalog {
             try Self.insertMaster(db, master, volumeID: volumeID, projectID: projectID, importRunID: nil,
                                   importedAt: importedAt, into: &result)
             guard let imageID = result.insertedImageIDs.first, let versionID = result.insertedVersionIDs.first else {
-                let existing = try Int64.fetchOne(db, sql: """
+                let atPath = try Int64.fetchOne(db, sql: """
                     SELECT version.id FROM version JOIN image ON image.id = version.imageId
-                    WHERE version.isDefault AND ((image.volumeId = ? AND image.relativePath = ?) OR image.contentHash = ?)
+                    WHERE version.isDefault AND image.volumeId = ? AND image.relativePath = ? AND image.contentHash = ?
                     """, arguments: [volumeID, master.relativePath, master.contentHash])
-                throw MergeCatalogFailure.alreadyInLibrary(versionID: existing)
+                guard let atPath else { throw MergeCatalogFailure.sameContent }
+                throw MergeCatalogFailure.alreadyInLibrary(versionID: atPath)
             }
             try db.execute(sql: "UPDATE version SET rating = ?, flag = ?, colorLabel = ? WHERE id = ?",
                            arguments: [values.rating.rawValue, values.flag.rawValue, values.colorLabel.rawValue, versionID])

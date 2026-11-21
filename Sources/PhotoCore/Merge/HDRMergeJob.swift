@@ -56,6 +56,9 @@ public struct HDRMergeJob: Sendable {
         case noMemory
         /// The file is complete at `path` but couldn't be catalogued.
         case catalogFailed(path: String, reason: String)
+        /// The catalog refused the file: another master has its content. The
+        /// file was removed again (code review C1).
+        case sameContent
     }
 
     /// How a merge ended well.
@@ -85,7 +88,9 @@ public struct HDRMergeJob: Sendable {
     public func resultURL(for selection: MergeSelection, format: MergeFormat) async throws -> URL {
         let folder = selection.referenceFrame.folder
         let masters = try await catalog.masterFiles(mounted: mountedVolumes()).names(in: folder)
-        return folder.appending(path: selection.resultName(format: format, masters: masters), directoryHint: .notDirectory)
+        let files = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
+        return folder.appending(path: selection.resultName(format: format, masters: masters, files: files),
+                                directoryHint: .notDirectory)
     }
 
     /// Runs the merge. `catalogue` runs the catalog write (the app puts it on
@@ -205,6 +210,15 @@ public struct HDRMergeJob: Sendable {
             return Result(url: url, master: merged, existingVersionID: nil, frameCount: count)
         } catch MergeCatalogFailure.alreadyInLibrary(let versionID) {
             return Result(url: url, master: nil, existingVersionID: versionID, frameCount: count)
+        } catch MergeCatalogFailure.sameContent {
+            // Nothing in the library refers to the file, which this job just made:
+            // it goes, so no uncatalogued file stays beside the masters.
+            do {
+                try FileManager.default.removeItem(at: url)
+            } catch {
+                Self.log.error("Merge: couldn't remove the refused file \(url.path, privacy: .public): \(String(describing: error), privacy: .public)")
+            }
+            throw Failure.sameContent
         } catch {
             throw Failure.catalogFailed(path: url.path, reason: error.localizedDescription)
         }

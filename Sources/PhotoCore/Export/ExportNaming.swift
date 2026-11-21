@@ -195,16 +195,6 @@ public enum ExportNaming {
     }
 
     /// `name`, or `name-2`, `name-3`… (before the extension), whichever is
-    /// neither a file in `directory` nor a library master's name there: for a
-    /// single new file that must replace nothing (an HDR merge, issue #150).
-    public static func freeName(_ name: String, in directory: URL, masters: MasterFiles.Names,
-                                fileExists: (URL) -> Bool = { FileManager.default.fileExists(atPath: $0.path) }) -> String {
-        unique(name, avoiding: []) {
-            masters.contains($0) || fileExists(directory.appending(path: $0, directoryHint: .notDirectory))
-        }
-    }
-
-    /// `name`, or `name-2`, `name-3`… (before the extension), whichever is
     /// neither taken in the batch nor `inUse`.
     private static func unique(_ name: String, avoiding taken: Set<String>, inUse: (String) -> Bool) -> String {
         if !taken.contains(name.lowercased()), !inUse(name) { return name }

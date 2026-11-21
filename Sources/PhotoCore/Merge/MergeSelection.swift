@@ -214,24 +214,36 @@ public struct MergeSelection: Sendable, Hashable {
 
     /// The file name a merge of this selection gets now in the reference's
     /// folder (R3, R4): the reference's stem, `_HDR` and the format's
-    /// extension, numbered past any file or library master already there.
-    public func resultName(format: MergeFormat, masters: MasterFiles.Names,
-                           fileExists: (URL) -> Bool = { FileManager.default.fileExists(atPath: $0.path) }) -> String {
+    /// extension, numbered past any file in the folder (`files`, its names)
+    /// or library master there with that stem (`MergeNaming`).
+    public func resultName(format: MergeFormat, masters: MasterFiles.Names, files: [String]) -> String {
         MergeNaming.name(stem: (referenceFrame.fileName as NSString).deletingPathExtension, format: format,
-                         in: referenceFrame.folder, masters: masters, fileExists: fileExists)
+                         masters: masters, files: files)
     }
 }
 
 /// The merged file's name (R3, R4).
+///
+/// Numbered (`_HDR-2`, `-3`…, export's numbering) whenever any file or library
+/// master in the folder has the same **stem**, whatever its extension, not
+/// only the same name: two masters of one stem would share a sidecar
+/// (`IMG_1234_HDR.xmp`), and a TIFF and a DNG merged from one bracket would
+/// read and write each other's values (code review C3).
 public enum MergeNaming {
     public static let suffix = "_HDR"
 
-    /// `stem_HDR.ext`, or `stem_HDR-2.ext`, `-3`… when that name is a file in
-    /// `folder` or a library master's there (`ExportNaming`'s numbering).
-    public static func name(stem: String, format: MergeFormat, in folder: URL, masters: MasterFiles.Names,
-                            fileExists: (URL) -> Bool = { FileManager.default.fileExists(atPath: $0.path) }) -> String {
-        ExportNaming.freeName(stem + suffix + "." + format.fileExtension, in: folder, masters: masters,
-                              fileExists: fileExists)
+    public static func name(stem: String, format: MergeFormat, masters: MasterFiles.Names, files: [String]) -> String {
+        let taken = Set(files.map { MasterFiles.folded(($0 as NSString).deletingPathExtension) })
+        func isFree(_ candidate: String) -> Bool {
+            !taken.contains(MasterFiles.folded(candidate)) && !masters.containsStem(candidate)
+        }
+        var candidate = stem + suffix
+        var number = 2
+        while !isFree(candidate) {
+            candidate = stem + suffix + "-\(number)"
+            number += 1
+        }
+        return candidate + "." + format.fileExtension
     }
 }
 

@@ -258,8 +258,8 @@ extension HDRMergerTests {
 
 @Suite("HDR merge DNG")
 struct MergeDNGTests {
-    @Test("The linear DNG decodes in the system RAW decoder with the light it was given", arguments: [16, 32])
-    func dngRoundTrip(bits: Int) throws {
+    @Test("The 16-bit linear DNG decodes in the system RAW decoder with the light it was given (Spike 1)")
+    func dngRoundTrip() throws {
         let folder = FileManager.default.temporaryDirectory.appending(path: "merge-dng-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }
@@ -268,13 +268,19 @@ struct MergeDNGTests {
         let merger = HDRMerger()
         try MergeOutput.writeDNG(radiance.ciImage, context: merger.context,
                                  metadata: MergeOutput.Metadata(sourceProperties: [:], values: SidecarValues()), to: url,
-                                 brightest: 3.6, bitsPerSample: bits)
-        let raw = try #require(CIRAWFilter(imageURL: url))
-        print("bits \(bits) native \(raw.nativeSize) supported \(SystemRAWDecoder.reads(url)) layout \(String(describing: DNGLayout(contentsOf: url)))")
-        let decoded = try MergeDecoder.linearImage(url, source: MergeDecoder.source(of: url), longEdge: nil)
+                                 brightest: 3.6)
+        #expect(SystemRAWDecoder.reads(url))
+        #expect(DNGLayout(contentsOf: url)?.hasFloatingPointRaw == true)
+        // The linear decode leaves out BaselineExposure: the samples, the light over 3.6.
+        let decoded = try MergeDecoder.linearImage(url, source: .systemRAW, longEdge: nil)
         let bitmap = try #require(MergeBitmap.render(decoded, context: merger.context))
         for (x, y) in [(50, 50), (300, 80), (200, 250)] {
-            print("bits \(bits) at \(x),\(y): decoded \(bitmap.rgb(x: x, y: y)) written \(radiance[x, y])")
+            let written = radiance[x, y], read = bitmap.rgb(x: x, y: y) * 3.6
+            // Half floats round by 2^-11; the system decoder's own highlight
+            // handling moved the brightest by up to 1.5% when measured.
+            for c in 0..<3 {
+                #expect(abs(read[c] - written[c]) <= 0.03 * written[c], "at \(x),\(y) channel \(c): \(read) vs \(written)")
+            }
         }
     }
 }

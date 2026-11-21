@@ -243,6 +243,18 @@ final class MergeModel {
         await task?.value
     }
 
+    /// Waits for the running merge to end, or for `timeout`, whichever is first
+    /// (Stop and Quit: a stopped merge cleans up before the app goes).
+    func waitUntilDone(timeout: Duration) async {
+        guard let task else { return }
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { await task.value }
+            group.addTask { try? await Task.sleep(for: timeout) }
+            await group.next()
+            group.cancelAll()
+        }
+    }
+
     private func update(_ next: MergeProgress) {
         guard progress != nil else { return }
         // Reports hop to the main actor one by one: never backward.
@@ -337,6 +349,8 @@ final class MergeModel {
             model.persist {
                 if isUndo {
                     step.removed = try await catalog.removeMergedMaster(imageID: step.master.imageID)
+                    // Nothing was there to take out (a Redo couldn't put it back): nothing to say.
+                    guard step.removed != nil else { return }
                     model.report(MergeText.removedFromLibrary(step.url.lastPathComponent, path: step.url.path),
                                  action: MergeText.title)
                     await self?.hide(step)

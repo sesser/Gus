@@ -120,6 +120,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             library.cancelImport()
             library.export.cancel()
             library.merge.cancel()
+            // A stopped merge removes its hidden partial file, or finishes the
+            // photo it already put beside the masters (design §7.1), before the
+            // app goes: at most one band or the catalog step (code review C2).
+            await library.merge.waitUntilDone(timeout: .seconds(10))
             NSApp.terminate(nil)
         }
         // Cancelled now and asked again after Stop and Quit: with

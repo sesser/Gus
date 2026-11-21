@@ -153,6 +153,14 @@ struct HDRMergeJobTests {
         let again = try await library.job.run(selection, format: .tiff)
         #expect(again.url.lastPathComponent == "IMG_0002_HDR-2.tif")
         #expect(try await library.hashes()["IMG_0002_HDR.tif"] == after["IMG_0002_HDR.tif"])
+        // C1: a photo of its own, with a row of its own, and a file of its own content.
+        let second = try #require(again.master)
+        #expect(second.imageID != master.imageID)
+        #expect(try await library.hashes()["IMG_0002_HDR-2.tif"] != after["IMG_0002_HDR.tif"])
+        // C3: a DNG of the same bracket gets a stem of its own.
+        let dng = try await library.job.run(selection, format: .dng)
+        #expect(dng.url.lastPathComponent == "IMG_0002_HDR-3.dng")
+        #expect(dng.master != nil)
     }
 
     @Test("AC2: an existing file with the result's name is left alone")
@@ -313,6 +321,21 @@ struct HDRMergeJobTests {
             try await library.job.run(selection, format: .tiff) { reads.add($0) }
         }
         #expect(reads.count == 0)
+    }
+
+    @Test("C1: the catalog refusing a second master of the same content says so")
+    func sameContentRefused() async throws {
+        let library = try await MergeLibrary.make(Self.bracket)
+        defer { library.remove() }
+        let images = try await library.catalog.allImages()
+        let image = try #require(images.first)
+        let copy = NewMaster(relativePath: "elsewhere/" + image.fileName, fileSize: image.fileSize,
+                             modifiedAt: image.modifiedAt, contentHash: image.contentHash, metadata: .empty)
+        await #expect(throws: MergeCatalogFailure.sameContent) {
+            try await library.catalog.insertMergedMaster(copy, volumeID: image.volumeId, projectID: image.projectId,
+                                                         values: SidecarValues())
+        }
+        #expect(try await library.catalog.allImages().count == images.count)
     }
 
     @Test("AC13: Undo takes the photo out of the library and leaves the file; Redo brings it back unless the file changed")

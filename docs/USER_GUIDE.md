@@ -262,10 +262,13 @@ the reference alone, so it shows once.
 
 - **TIFF** (16-bit, Display P3, tone-mapped) is a picture ready to view in any
   app. **DNG** (16-bit floating point, not tone-mapped) holds the merged light
-  as it is: it opens dark and flat, and you tone it in the Adjust tab, where the
-  loupe shows its highlights on an HDR display. The choice is remembered.
+  as it is: it opens as bright as the reference but flat, its highlights
+  untoned, and you tone it in the Adjust tab, where the loupe shows its
+  highlights on an HDR display. The choice is remembered.
 - The result is a new file written next to the reference, named after it with
-  `_HDR` (`IMG_1234_HDR.tif`), or `_HDR-2`, `_HDR-3`… when that name is taken.
+  `_HDR` (`IMG_1234_HDR.tif`), or `_HDR-2`, `_HDR-3`… when a file of that name,
+  in any format, is already there (a DNG merged after a TIFF of the same photos
+  is `IMG_1234_HDR-2.dng`, so the two never share a sidecar).
   It is the first file the app writes into a folder of originals; no original
   is ever changed or replaced. The photos are merged as they were shot: their
   adjustments in the library are not used.
@@ -275,8 +278,10 @@ the reference alone, so it shows once.
   when sidecars are written and it has values to hold. It is not added to the
   reference's albums, and nothing in the library links it to the photos it came
   from: search for `_HDR` to find merges. When the merge ends it becomes the
-  selection, unless you have selected something else meanwhile; Activity says
-  where the file is.
+  selection in the grid, unless you have selected something else meanwhile;
+  while the loupe, review or a comparison is showing, nothing moves (the
+  selection and the photo on screen stay as they are). Activity says where the
+  file is.
 - Only photos merge, all raws or all non-raws (JPEG, HEIC, TIFF), never both;
   a RAW+JPEG pair counts once, as its raw. The sheet says why when a selection
   can't be merged, and Merge stays off: a video among the photos, more than
@@ -958,7 +963,8 @@ adjustments, `query projects` and `query images` (smart-album rules as JSON),
 `develop` (set and reset adjustments; `--dry-run` only shows the result),
 `rate`, `flag`, `label`, `export`, `merge` (an HDR merge of `--version`s, as
 **File ▸ Merge to HDR…** makes it, `--format tiff` or `dng`; prints the written
-file's `path`; it writes no sidecar), and `mask list`, `mask add`, `mask set` and
+file's `path`; it writes no sidecar; stopped with Control-C it can leave a
+hidden `.…partial` file beside the reference, which you can delete), and `mask list`, `mask add`, `mask set` and
 `mask remove` (a version's local adjustments; `--dry-run` only shows the
 result). `render` and `export` draw a version's spots; spots are made and
 changed in the app only. `noiseReduction.machineLearning=true` turns on machine learning noise

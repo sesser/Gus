@@ -141,17 +141,34 @@ struct MergeSelectionTests {
     func naming() {
         let selection = MergeSelection(frames: [Self.frame(1, "IMG_1233", second: 1, compensation: -2),
                                                 Self.frame(2, "IMG_1234", second: 2, compensation: 0)])
-        #expect(selection.resultName(format: .tiff, masters: MasterFiles.none.names(in: URL(fileURLWithPath: "/shoot")),
-                                     fileExists: { _ in false }) == "IMG_1234_HDR.tif")
-        #expect(selection.resultName(format: .dng, masters: MasterFiles.none.names(in: URL(fileURLWithPath: "/shoot")),
-                                     fileExists: { _ in false }) == "IMG_1234_HDR.dng")
-        let existing: Set<String> = ["IMG_1234_HDR.tif"]
-        #expect(selection.resultName(format: .tiff, masters: MasterFiles.none.names(in: URL(fileURLWithPath: "/shoot")),
-                                     fileExists: { existing.contains($0.lastPathComponent) }) == "IMG_1234_HDR-2.tif")
+        let none = MasterFiles.none.names(in: URL(fileURLWithPath: "/shoot"))
+        #expect(selection.resultName(format: .tiff, masters: none, files: []) == "IMG_1234_HDR.tif")
+        #expect(selection.resultName(format: .dng, masters: none, files: []) == "IMG_1234_HDR.dng")
+        #expect(selection.resultName(format: .tiff, masters: none, files: ["IMG_1234_HDR.tif"]) == "IMG_1234_HDR-2.tif")
         // A master whose file is gone still owns its name.
         let masters = MasterFiles([URL(fileURLWithPath: "/shoot/IMG_1234_HDR.tif"),
                                    URL(fileURLWithPath: "/shoot/IMG_1234_HDR-2.tif")])
         #expect(selection.resultName(format: .tiff, masters: masters.names(in: URL(fileURLWithPath: "/shoot")),
-                                     fileExists: { _ in false }) == "IMG_1234_HDR-3.tif")
+                                     files: []) == "IMG_1234_HDR-3.tif")
+    }
+
+    @Test("C3: a file of the same stem in any format, or its sidecar, numbers the result")
+    func numbersPastTheStem() {
+        let selection = MergeSelection(frames: [Self.frame(1, "IMG_1233", second: 1, compensation: -2),
+                                                Self.frame(2, "IMG_1234", second: 2, compensation: 0)])
+        let none = MasterFiles.none.names(in: URL(fileURLWithPath: "/shoot"))
+        // A DNG after a TIFF merge, compared as the file system compares names.
+        #expect(selection.resultName(format: .dng, masters: none, files: ["img_1234_hdr.TIF"]) == "IMG_1234_HDR-2.dng")
+        #expect(selection.resultName(format: .tiff, masters: none, files: ["IMG_1234_HDR.xmp"]) == "IMG_1234_HDR-2.tif")
+        #expect(selection.resultName(format: .dng, masters: none,
+                                     files: ["IMG_1234_HDR.tif", "IMG_1234_HDR-2.dng", "IMG_1234_HDR-2.xmp"])
+                == "IMG_1234_HDR-3.dng")
+        // A master of that stem whose file is gone.
+        let masters = MasterFiles([URL(fileURLWithPath: "/shoot/IMG_1234_HDR.tif")])
+        #expect(selection.resultName(format: .dng, masters: masters.names(in: URL(fileURLWithPath: "/shoot")),
+                                     files: []) == "IMG_1234_HDR-2.dng")
+        // Other stems don't count.
+        #expect(selection.resultName(format: .dng, masters: none, files: ["IMG_1234.dng", "IMG_1234_HDRX.tif"])
+                == "IMG_1234_HDR.dng")
     }
 }

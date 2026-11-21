@@ -130,6 +130,13 @@ public struct MasterFiles: Sendable {
         public func contains(_ fileName: String) -> Bool {
             !folded.isEmpty && folded.contains(MasterFiles.folded(fileName))
         }
+
+        /// Whether a master here has `stem` before its extension (an HDR
+        /// merge's name avoids every one, issue #150).
+        public func containsStem(_ stem: String) -> Bool {
+            let wanted = MasterFiles.folded(stem)
+            return folded.contains { ($0 as NSString).deletingPathExtension == wanted }
+        }
     }
 
     /// The folder as the file system knows it. Parts that don't exist (a

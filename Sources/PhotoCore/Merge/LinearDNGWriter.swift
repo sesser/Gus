@@ -1,11 +1,15 @@
 import Foundation
 
-/// Writes a scene-referred linear DNG: three 32-bit floating-point samples a
-/// pixel (`PhotometricInterpretation` LinearRaw, `SampleFormat` IEEE float),
+/// Writes a scene-referred linear DNG: three 16-bit (IEEE half)
+/// floating-point samples a pixel (`PhotometricInterpretation` LinearRaw,
+/// `SampleFormat` IEEE float, `WhiteLevel` 1),
 /// uncompressed, from the DNG Specification 1.4 and later (Adobe, published:
 /// floating-point image data needs a reader of 1.4). The merge's DNG
 /// (PRD Open question 1): the merged light, not tone mapped, which the
 /// app's own loupe renders and edits as it does any floating-point DNG.
+/// Half floats because the system's RAW decoder (macOS 27.2) reads no
+/// 32-bit floating-point DNG (status.md Spike 1, ruling D-H4); they hold
+/// about 30 stops at 11 bits of precision.
 ///
 /// The color tags say the samples are linear Rec. 2020 under D65:
 /// `ColorMatrix1` maps XYZ to the camera's RGB, which here is Rec. 2020
@@ -51,8 +55,8 @@ public struct LinearDNGWriter {
 
     public let width: Int
     public let height: Int
-    /// 32 (IEEE single) or 16 (IEEE half) bits a sample.
-    public let bitsPerSample: Int
+    /// Bits a sample: IEEE half floats.
+    public static let bitsPerSample = 16
     private let handle: FileHandle
     private let rowsPerStrip: Int
     private var rowsWritten = 0
@@ -60,19 +64,17 @@ public struct LinearDNGWriter {
 
     /// Starts the file at `url` (which must not exist), writing every tag and
     /// leaving room for the pixels.
-    public init(url: URL, width: Int, height: Int, bitsPerSample: Int = 32, metadata: Metadata) throws {
-        guard width > 0, height > 0, bitsPerSample == 32 || bitsPerSample == 16 else { throw CocoaError(.fileWriteUnknown) }
+    public init(url: URL, width: Int, height: Int, metadata: Metadata) throws {
+        guard width > 0, height > 0 else { throw CocoaError(.fileWriteUnknown) }
         self.width = width
         self.height = height
-        self.bitsPerSample = bitsPerSample
-        rowsPerStrip = max(1, min(height, (1 << 20) / (width * 3 * bitsPerSample / 8)))
+        rowsPerStrip = max(1, min(height, (1 << 20) / (width * 3 * Self.bitsPerSample / 8)))
         guard FileManager.default.createFile(atPath: url.path, contents: nil) else {
             throw CocoaError(.fileWriteNoPermission, userInfo: [NSFilePathErrorKey: url.path])
         }
         handle = try FileHandle(forWritingTo: url)
         scratch = []
-        let header = Self.header(width: width, height: height, bitsPerSample: bitsPerSample, rowsPerStrip: rowsPerStrip,
-                                 metadata: metadata)
+        let header = Self.header(width: width, height: height, rowsPerStrip: rowsPerStrip, metadata: metadata)
         try handle.write(contentsOf: header)
     }
 
@@ -88,12 +90,8 @@ public struct LinearDNGWriter {
             scratch.append(rgba[index * 4 + 2])
         }
         // Little-endian on every Mac this runs on.
-        if bitsPerSample == 16 {
-            let halves = scratch.map { Float16($0) }
-            try halves.withUnsafeBytes { try handle.write(contentsOf: Data($0)) }
-        } else {
-            try scratch.withUnsafeBytes { try handle.write(contentsOf: Data($0)) }
-        }
+        let halves = scratch.map { Float16($0) }
+        try halves.withUnsafeBytes { try handle.write(contentsOf: Data($0)) }
         rowsWritten += count
     }
 
@@ -113,7 +111,7 @@ public struct LinearDNGWriter {
 
     /// The TIFF header, IFD0 with its sub-IFDs and values, padded so the
     /// pixels start right after it, with strip offsets pointing at them.
-    static func header(width: Int, height: Int, bitsPerSample: Int, rowsPerStrip: Int, metadata: Metadata) -> Data {
+    static func header(width: Int, height: Int, rowsPerStrip: Int, metadata: Metadata) -> Data {
         let stripCount = (height + rowsPerStrip - 1) / rowsPerStrip
         let rowBytes = width * 3 * bitsPerSample / 8
         var exif = IFD()

@@ -111,7 +111,10 @@ private struct MergeForm: View {
                 Caption(text: merge.format == .tiff ? MergeText.tiffCaption : MergeText.dngCaption)
                 LabeledContent(MergeText.nameLabel) {
                     Text(merge.resultName ?? "—")
+                        .lineLimit(1)
+                        .truncationMode(.middle)
                         .textSelection(.enabled)
+                        .help(merge.resultName ?? "")
                 }
                 if let selection = merge.selection {
                     LabeledContent(MergeText.folderLabel) {

@@ -172,6 +172,9 @@ enum MergeText {
             String(localized: "There wasn't enough memory to merge these photos.", comment: "Activity: why a merge failed")
         case .catalogFailed(let path, _):
             savedNotAdded(path)
+        case .sameContent:
+            String(localized: "The library already has a photo with the same content.",
+                   comment: "Activity: why a merge failed; its file was the same as a photo already in the library")
         }
     }
 
