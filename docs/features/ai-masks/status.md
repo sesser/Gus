@@ -6,9 +6,10 @@ Feature, branch `feature/ai-masks`, cut from `develop` at `ed423d7`. The PRD
 is the issue body (`gh issue view 88`), approved 2026-11-18 and revised
 2026-11-20 after the spike and the design. Design: [`design.md`](design.md).
 
-**State: Done** (2026-11-20). Every acceptance criterion is built and has a
-test or a recorded check; nothing is blocked. Next: code-reviewer and the
-designer's review, then qa-tester.
+**State: Done** (2026-11-20), review findings fixed (see **Review
+findings**). Every acceptance criterion is built and has a test or a recorded
+check; nothing is blocked. Next: the second pass of code-reviewer and the
+designer, then qa-tester.
 
 | Item | State |
 | --- | --- |
@@ -20,10 +21,10 @@ designer's review, then qa-tester.
 
 - Baseline, `develop` at `ed423d7`: `swift build` clean; `swift test` 1,253
   tests in 179 suites passed.
-- Latest (2026-11-20, `b89e575` plus this file): `swift build` with no
-  warnings; `swift test` **1,298 tests in 185 suites passed** (82.9 s);
+- Latest (2026-11-20, after the review fixes, `88d1c43`): `swift build` with
+  no warnings; `swift test` **1,300 tests in 185 suites passed** (87.3 s);
   `Scripts/build-app.sh` builds the bundle. Opt-in suites not run here:
-  `AI_MASK_SAMPLES` (the owner's photos).
+  `AI_MASK_SAMPLES` (the owner's photos). Before the fixes: 1,298 in 185.
 - No `PreviewCacheKey.currentPipelineVersion` bump: no existing stack renders
   differently (a stack without detections is untouched; a detection is new
   data with its own render hash). No existing golden moved; three new ones
@@ -187,6 +188,41 @@ ad-hoc signed) and scratch libraries from `photobench generate --jpeg 4` and
   process ID), so `menupress` saw every item disabled. The enablement rules
   are `LibraryMenuState.canDetectMask` and `canUpdateDetection`; see M1.
 
+## Review findings (2026-11-20)
+
+From [`code-review.md`](code-review.md) and [`review.md`](review.md); all
+fixed in `b56d44c` (code) and `88d1c43` (user guide) unless said otherwise.
+
+| # | Finding | Resolution |
+| --- | --- | --- |
+| C1 | Update applied results by component position captured at the start | Fixed. The Update keeps each component's place, kind and stored result; the landing finds it again by kind and result (`MaskDetectionUpdate.positions`, PhotoCore), at its old place if it still matches, else the first unclaimed match, else nowhere. Tested with the review's case (`MaskDetectionTests.updatePositions`) |
+| C2 | A result landing while the lens frame question is up, or after the frame changed | Fixed, chosen behavior: the result waits until the question is answered; if Distortion then differs from the one the input was rendered with, it is detected again in the new frame (at most twice more; a frame that keeps changing ends it as a Cancel would, "Detection cancelled."). `changeMasks` now returns false when `change` would refuse, so nothing is selected, announced or flashed for a change that did not happen. Not scripted (the frame question needs a real slider and alert): for the second pass and QA |
+| C3 | A failure in a two-request Update named the first component's kind | Fixed: `land` iterates (request, result); Unavailable and the Activity warning use the failing request and the kind of the component that uses it (`PendingDetection.kind(for:)`). Also F3 |
+| C4 | Launch cleanup could run between a detection's two writes | Fixed: the app enqueues it on the write chain (`persist`), so it runs before or after both writes; `photocli mask add` writes the result and the stack in one transaction (`setEditStacks(..., storing:)`) |
+| C5 | AC11 depended on People finding a "person" in synthetic fixtures | Fixed: People's sizes are checked whenever it finds something; finding nothing in person-less fixtures passes, and says so in the log. Subject must still find the disc wherever it runs. No observation means no size, so People's sizes are seen only when it finds something (here, and in the opt-in samples). Vision gives no observation when nothing is found (probe, 27.2.1) |
+| RI-E1 | AC11 on CI runners Vision can't use | Implemented as the coordinator relayed the ruling in progress: a request that throws the classified "can't run here" error (`MaskDetectionError.unavailable`: unsupported revision, request, compute stage or device; resource unavailable on 27) passes, with the error printed; any other error fails. Branches on the error, no `Test.cancel` |
+| C6 | App sentences reached Activity unlocalized | Fixed: `MaskDetectionError` has `.unreadable` and `.unusableMask`, worded by the app (`MaskDetectionText.detail`, catalog); `.failed` and `.unavailable` carry the system's words only. `photocli` keeps plain English |
+| C7 | A two-request Update rendered the input twice | Fixed: `MaskDetectionRun.run([requests], …)` renders once (`MaskDetectionTests.severalRequestsOneRender`) |
+| C8 | Cancel did not cancel the Vision request | Fixed: `MaskDetecting.detect` is async and Vision's request is cancelled from the task's cancellation handler (`RequestCancel`, `@unchecked Sendable` with its reason in a comment) |
+| F1 | Pull-down and Update looked enabled while cropping | Fixed (DR-2): tooltips "Finish cropping to detect in the photo." and "Finish cropping to detect again."; scripted: `buttons` shows both Detect pull-downs and Update disabled with them |
+| F2 | A failed Update of a Found result said "It selects nothing" | Fixed (DR-1): new state `failedUpdate`, caption "Detection failed on this photo. The earlier result still applies. Choose Update to try again.", triangle and Update; scripted |
+| F3 | Same as C3 | Fixed with C3 |
+| F4 | Flash any landing | Fixed (DR-3): only a result that found something flashes; scripted (empty: `flash false`) |
+| F5 | Invert had no on/off for VoiceOver | Fixed: `accessibilityValue` On / Off (existing keys) on every component's Invert. VoiceOver reading is not checked by hand (project rule) |
+| F6 | A failed landing announced twice | Fixed: the Activity warning is posted without announcing (`LibraryModel.postActivity`); the landing's own announcement carries the caption. Scripted: one announcement |
+| G1 to G4 | User guide wording | Fixed (`88d1c43`) |
+| I2 | Update Detection above Show / Hide Mask Overlay | Done. Design §7 and §11 still say "after"; the designer amends them |
+| I1 | Eye click during a flash | Not changed (coordinator): left for manual check M4 |
+| I3 | "Detection unchanged." for VoiceOver | Not done (judgment, no ruling) |
+
+Scripted re-check, 2026-11-20 (a copy with its own identifier
+`me.sesser.gus.debugtest.aimasks`: the shared `me.sesser.gus.debugtest`
+domain held a saved search from another session, which emptied the grid, and
+was left as it was): Subject found, announced once; `detector fail` then
+Update: the `failedUpdate` caption and announcement, one Activity warning;
+`adjust crop begin`: both Detect pull-downs and Update disabled with the
+cropping tooltips; an empty People landing does not flash.
+
 ## For a person (manual checks proposed to QA)
 
 - M1: the menu bar: Adjust ▸ New Mask ▸ Subject / People / Background under
@@ -221,7 +257,9 @@ ad-hoc signed) and scratch libraries from `photobench generate --jpeg 4` and
 The spike's RI-1 to RI-6 were ruled on 2026-11-20 and are in the PRD's
 Revisions; the design's RI-1 to RI-3 likewise. New:
 
-- **RI-E1, the R13 test on CI (information, no decision needed now).** On
+- **RI-E1, the R13 test on CI.** Being ruled by the product manager; the
+  test now passes on the "can't run here" error with the error printed (see
+  **Review findings**). Original note: On
   this Mac the foreground request refuses the CPU (`VNErrorUnsupportedComputeDevice`,
   code 22) and runs on the GPU or Neural Engine. If a CI runner on macOS 15 or
   26 gives Vision neither, the test fails there with that error in its
@@ -233,7 +271,8 @@ Revisions; the design's RI-1 to RI-3 likewise. New:
 
 ## Design questions
 
-None blocking. Notes for review: the pull-down dims as a whole with the
+None blocking. Design §7 and §11 place Update Detection after Show / Hide
+Mask Overlay; it is now before it (review I2), for the designer to amend. Notes for review: the pull-down dims as a whole with the
 reason as its tooltip, rather than per item (all three items always share
 one reason; `AppKitMenuButton` items have no tooltips). The New Mask submenu
 is still dimmed as a whole when New Mask can't act, as before this branch;

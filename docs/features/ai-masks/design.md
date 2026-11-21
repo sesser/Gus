@@ -673,8 +673,32 @@ will drop the count and the four-person sentence from the caption.
 
 ### 19.1 Rulings
 
-(Empty. The engineer's Design questions are recorded here as numbered
-rulings, DQ-1 onward, and cited from `status.md`.)
+(The engineer's Design questions are recorded here as numbered rulings,
+DQ-1 onward, and cited from `status.md`. Corrections the design review made
+to this design are DR-1 onward; the review is [`review.md`](review.md).)
+
+**DR-1 (review, 2026-11-20): a failed Update says the earlier result still
+applies.** §4 and §7 had the Failed caption ("It selects nothing") shown after
+a failed Update. That is false when the component keeps a result: the old
+result keeps applying (§7). A component whose Update failed and whose stored
+result is **Found** shows this caption instead, with the triangle and Update:
+"Detection failed on this photo. The earlier result still applies. Choose
+Update to try again." One key. A component that was Empty, Failed or Missing
+keeps the §4 Failed caption (it does select nothing).
+
+**DR-2 (review, 2026-11-20): every dimmed detection control says why.** §10
+dims the pull-down, the Update button and the menu items while cropping, but
+gave no tooltip. The pull-down's tooltip while cropping is "Finish cropping to
+detect in the photo." and the Update button's is "Finish cropping to detect
+again." (the wording of "Finish cropping to show the sharpening map.").
+Dimming the pull-down as a whole, with one reason as its tooltip and
+VoiceOver help, replaces §2's per-item dimming: the three items always share
+one reason and `AppKitMenuButton` items carry no tooltips. Accepted.
+
+**DR-3 (review, 2026-11-20): the overlay flash shows a result only.** §9's
+flash runs only when the landed component is **Found**. Empty, failed and
+unavailable results have nothing to show: the red overlay would flash
+nothing.
 
 ## 20. Summary
 
