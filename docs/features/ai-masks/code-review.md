@@ -233,3 +233,34 @@ Question from the third pass:
   the result lands (C11)? Options: cancel the Update (one rule, visible); dim
   those controls on the covered rows while it runs; or let it land where it
   matches and say nothing otherwise (today's behavior). I recommend cancel.
+
+### Fourth pass
+
+Fourth pass, 2026-11-20. Reviewed `1c257a7..5b100ad`: `2317d05` (code and
+tests), `dc44a26` (user guide) and `5b100ad` (docs: review, design DR-5,
+status.md). Build and tests: `swift build` clean; `swift test` 1,305 tests in
+185 suites passed (88.1 s, macOS 27.2.1). Q3 was ruled by the designer as
+DR-5 (cancel), which is what this pass checks C11 against.
+
+| # | Result | Commit | Notes |
+|---|---|---|---|
+| C11 | Fixed (DR-5); residual C14 | `2317d05` | One hook: `AdjustmentEditor.adjustments`' `didSet` calls `cancelUpdateIfCoveredChanged()` whenever `local` changed. The setter is `private(set)`, and every write reaches it: `change` (so `changeMasks`, `setComponent`, `removeComponent`, `removeMask`, `moveMask`), `apply` (undo, redo, History revert), `catalogChanged` (a grid batch on the open photo), the lens question's Cancel and `finishSession`. **No self-cancel on landing:** `land` sets `pendingDetection = nil` before `landUpdate`'s `changeMasks`, so the `didSet` that the Update's own write fires returns at the `guard case .update`. The new digest would otherwise fail `isIntact` (raster differs). **No race:** the editor is `@MainActor`, and the detection task inherits it. After its last `await` it checks `!Task.isCancelled` and `pendingDetection == pending`, then calls `land` synchronously, so no write can come between the check and the landing. A write during the run cancels `detectionTask`. The outer task returns at its `Task.isCancelled` guard, and the `withTaskCancellationHandler` passes the cancel on to the detached run (C8 unchanged). The "frame kept changing" `cancelDetection()` after the loop is not reached after a DR-5 cancel. **No recursion:** `cancelDetection` does not write `adjustments`. **Leaving the photo:** `finishSession` cancels with `announcing: false` before `adjustments = Adjustments()`, so switching photos still says nothing (AC3). **No false cancels:** distortion, sliders, Amount, rename, enable, another mask and Move Up/Down leave `local`'s covered components alone. `isIntact` finds each covered component by kind, digest, operation and Invert wherever it sits, so a reorder or an added component keeps the Update. An undo that changes a covered component's digest (an earlier Update) cancels it, as DR-5's "any write" says. Whole Update: one nil among `positions` cancels everything. `updateIntact` pins the rule, and the action names in the debug commands are the row's own (`MasksSection.swift:360`, `:368`). PhotoApp has no test target, so the wiring is checked by script (status.md), not by a unit test. QA should run those scripted checks again. User guide sentence as DR-5 worded it. |
+| C12 | Fixed | `2317d05` | Each crafted row is keyed by `Digest.sha256Hex` of its own bytes. Checked by breaking the guards in a scratch copy of the worktree (not the repository). Without `sides.contains(width), sides.contains(height)`, the test fails with 2 issues (wide and tall). With the SQL cap turned off (`… <= ? OR 1`), it fails at the 2 MiB + 1 row. With the cap made `< ?`, it fails at the at-limit row. Both sides of the limit are pinned. |
+| C13 | Fixed | `2317d05` | Each column is read as a `DatabaseValue` and converted with `fromDatabaseValue`, which returns nil on a type mismatch, and the guard treats nil as damaged. `mistypedRow` runs seven cases. With `1c257a7`'s reader restored in the scratch copy, the test process stops on GRDB's `try!` ("could not decode Int from database value "abc"", and "could not decode Optional<Data> from database value 12"), so the test fails without the fix. Leaving out `systemVersion` is right: SQLite stores the integer as text under TEXT affinity. |
+
+New finding in `2317d05`:
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C14 | Nit | `Sources/PhotoCore/Suggestions/MaskDetector.swift:301-304` (`isIntact`), `:289-290` (the fallback) | `isIntact` reuses `positions`, whose fallback takes the first unclaimed component that matches. Components have no identity, so when a mask holds two identical detection components (same kind, digest, operation and Invert), a change to the covered one is read as "it moved". DR-5's cancel does not fire. | Mask [Subject A, Subject A], with A being two Add to Mask ▸ Subject detections of the same input. Choose Update on row 1 (index 0), and while it runs click row 1's Invert. `isIntact([index 0], in: [A inverted, A])` is `true` and `positions` is `[1]`, checked with a probe test in a scratch copy. Nothing is cancelled and "Detection cancelled." is not announced. At landing the new result goes on row 2, which the person didn't ask to update, and row 1 keeps its old one. If the input is unchanged, Vision gives the same digest and nothing visible happens. It shows only when the frame changed since the first detection, which is exactly when someone would choose Update. Removing row 1 instead behaves the same way (`isIntact` true; the result lands on the identical twin), which does no harm. | Correctness (DR-5: a change to a covered component cancels). Fix: in the `didSet`, when the covered mask's component count is unchanged from `oldValue`, require each covered component to match at the place it held in `oldValue` (no fallback). Use the fallback only when components were added or removed. That closes the Invert and operation case, the one an ordinary click reaches. Or record it as a known limit: twins are rare and their results are byte for byte the same. |
+
+Checked in this pass and fine: the debug commands `adjust mask invert`,
+`operation`, `removecomponent` and `move` run under `adjust`, which is in
+`DebugScript`'s `changing` set, so each opens an undo group. They use the
+row's localized action names, which are already in the catalog. No new UI
+string (the cancel reuses "Detection cancelled."), no migration, no golden or
+tolerance changed, no `PreviewCacheKey.currentPipelineVersion` bump, and no new
+`@unchecked Sendable` or `nonisolated(unsafe)`. `dc44a26` and `5b100ad` change
+docs only. Nothing in this pass adds a parser, subprocess, file write or
+network code beyond what the security review already covered (C13 only
+narrows the row reader), so `/security-review` does not need to run again.

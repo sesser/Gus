@@ -6,8 +6,8 @@ Feature, branch `feature/ai-masks`, cut from `develop` at `ed423d7`. The PRD
 is the issue body (`gh issue view 88`), approved 2026-11-18 and revised
 2026-11-20 after the spike and the design. Design: [`design.md`](design.md).
 
-**State: Done** (2026-11-20), review findings fixed (see **Review
-findings**). Every acceptance criterion is built and has a test or a recorded
+**State: Done** (2026-11-20), review findings fixed through the fourth
+code-review pass (clean; C14 recorded under **Known limits**). Every acceptance criterion is built and has a test or a recorded
 check; nothing is blocked. Next: the second pass of code-reviewer and the
 designer, then qa-tester.
 
@@ -283,6 +283,17 @@ code in `2317d05`, user guide in `dc44a26`.
   detection with no result included, as before for any mask.
 - The debug script's `detectcomponent <kind> <operation>` adds, then sets the
   operation: two History entries in one undo group, as the row's pop-up would.
+- **C14 (code review fourth pass, nit, not fixed by the coordinator's
+  direction).** With two identical detection components in one mask (same
+  kind, result, operation and Invert), inverting the one a running Update
+  covers is not seen as a change: `MaskDetectionUpdate.isIntact` (and
+  `positions`) read it as a move to the other twin, so the Update stays
+  pending and its result lands on the other twin. It shows only when the
+  Update returns a different result; twins are rare and their results
+  byte-identical. Fix sketch: while the mask's component count is unchanged
+  from the values before the write (`oldValue`), require each covered
+  component to match at the place it held before, and fall back to the
+  kind-and-result search only when components were added or removed.
 
 ## Requirements issues (for the product manager)
 
