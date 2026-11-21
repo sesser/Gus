@@ -186,18 +186,16 @@ public actor LiveRegionRenderer {
         }
         let destination = CIRenderDestination(mtlTexture: texture, commandBuffer: nil)
         destination.colorSpace = RenderEngine.workingColorSpace
-        destination.isFlipped = true
         try generator.engine.withContext {
             _ = try $0.startTask(toRender: image, from: extent, to: destination, at: .zero).waitUntilCompleted()
         }
         guard let read = CIImage(mtlTexture: texture, options: [.colorSpace: RenderEngine.workingColorSpace]) else {
             throw Failure.renderFailed
         }
-        // A texture's first row is its top; Core Image's y axis points up.
-        let flipped = read.transformed(by: CGAffineTransform(scaleX: 1, y: -1)
-            .translatedBy(x: 0, y: -read.extent.height)
-            .concatenating(CGAffineTransform(translationX: extent.minX, y: extent.minY)))
-        return (flipped, texture)
+        // Rendered and read unflipped, the texture's coordinates are Core Image's.
+        let placed = extent.origin == .zero ? read
+            : read.transformed(by: CGAffineTransform(translationX: extent.minX, y: extent.minY))
+        return (placed, texture)
     }
 
     /// Frees the full-resolution texture (the loupe left 100%, or the photo changed).

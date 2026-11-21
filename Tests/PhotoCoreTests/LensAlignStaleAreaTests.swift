@@ -56,22 +56,30 @@ struct LensAlignStaleAreaTests {
     }
 
     /// The tile's pixels depend on the area the kernel asks for: with an area
-    /// that ignores the values (the identity's), the corner comes out wrong,
-    /// for the blurred scene and for the JPEG as the pipeline decodes it.
+    /// that ignores the values (the identity's), the corner comes out wrong for
+    /// the blurred scene, whose blur is rendered only for the area asked of it.
     /// Without this, the tests below could pass on an input that hides a stale area.
+    ///
+    /// A JPEG as the pipeline decodes it at full size no longer shows one: the
+    /// decode is a GPU copy with every pixel there, as a bitmap's
+    /// (`ResidentDecode`; docs/features/hdr-merge/status.md, "Bug: tiles at
+    /// 100%"), so no area a kernel asks of it can be stale. That is pinned
+    /// here: if the decode were read lazily again, the JPEG case would show an
+    /// area again and `jpegDragInOneContext` would again guard it.
     @Test("The tile shows an input area too small for the values", arguments: [false, true])
     func tileSeesTheInputArea(jpeg: Bool) throws {
         if jpeg {
             try Self.withJPEG { url in
                 try Self.expectTileSeesInputArea(PreviewGenerator(engine: Self.fresh()).image(source: url, stack: .identity,
-                                                                                               longEdge: nil))
+                                                                                               longEdge: nil),
+                                                 sees: false)
             }
         } else {
-            try Self.expectTileSeesInputArea(Self.input)
+            try Self.expectTileSeesInputArea(Self.input, sees: true)
         }
     }
 
-    static func expectTileSeesInputArea(_ input: CIImage) throws {
+    static func expectTileSeesInputArea(_ input: CIImage, sees: Bool) throws {
         let kernel = try LensKernels.kernel("lensAlign")
         let extent = input.extent
         let center = CIVector(x: extent.midX, y: extent.midY)
@@ -82,7 +90,7 @@ struct LensAlignStaleAreaTests {
         let tile = Self.tile.offsetBy(dx: extent.minX, dy: extent.minY)
         let right = Self.render(AdjustmentRenderer.align(input, alignment), Self.fresh(), bounds: tile)
         let wrong = Self.render(tooSmall.cropped(to: extent), Self.fresh(), bounds: tile)
-        #expect(right != wrong)
+        #expect((right != wrong) == sees)
     }
 
     @Test("One context renders every value of a drag as a fresh context does")
