@@ -40,25 +40,53 @@ import os
 ///
 /// **What it costs.** One more pass over the photo, and 16 bytes per pixel of
 /// GPU memory while the decode is in use (320 MB for 20 megapixels), released
-/// with it. Full-size decodes only: previews and thumbnails are decoded
-/// smaller by ImageIO and never read here.
+/// with it. The 100% base for live frames (`LiveRegionRenderer`) copies this
+/// texture again into its own half-float one: one more pass, and 24 bytes per
+/// pixel while both are held. Full-size decodes only: previews and thumbnails
+/// are decoded smaller by ImageIO and never read here.
+///
+/// **Where it stops** (`lazyReason`). Over `maximumPixels` (100 megapixels,
+/// 1.6 GB of copy; the owner's ruling of 2026-11-21, bug #253 code review C2)
+/// or over `maximumDimension` on a side, the decode is read lazily as before,
+/// and logged: such a photo is still exposed to the fault.
 enum ResidentDecode {
     /// One context of its own, so these copies don't queue behind previews.
     static let engine = RenderEngine(contextCount: 1, name: "resident-decode")
 
-    /// Pixels per band: a 32 MB copy of 16-bit pixels at most, far under the
-    /// intermediates Core Image allows one render before splitting it.
+    /// Pixels per band: each band writes at most 64 MB into the float texture
+    /// (16 bytes a pixel), far under the 256 MB of intermediates Core Image
+    /// allows one render before splitting it.
     static let bandPixels = 1 << 22
 
     /// The largest side a texture can have on every Apple GPU the app runs on.
     static let maximumDimension = 16384
 
+    /// The most pixels a copy holds: 100 megapixels, 1.6 GB of GPU memory.
+    /// Two full-size renders at once (an export's) stay inside an 8 GB Mac's
+    /// Metal working set; every camera frame is under it.
+    static let maximumPixels = 100_000_000
+
+    /// Why a decode is left lazy instead of copied.
+    enum LazyReason: Equatable {
+        /// A side over `maximumDimension`: no texture can hold it.
+        case sideOverTextureLimit
+        /// Over `maximumPixels`.
+        case overPixelLimit
+    }
+
+    /// Why a `width` × `height` decode is read lazily, or nil when it is copied.
+    static func lazyReason(width: Int, height: Int) -> LazyReason? {
+        if width > maximumDimension || height > maximumDimension { return .sideOverTextureLimit }
+        if width * height > maximumPixels { return .overPixelLimit }
+        return nil
+    }
+
     private static let log = Logger(subsystem: AppBranding.bundleIdentifier, category: "decode")
 
     /// `image` copied into a float texture, as an image over the same extent
     /// that reads it. Nil, logged, when the extent is not a finite whole-pixel
-    /// rectangle within `maximumDimension`, there is no Metal device, or the
-    /// texture can't be made or filled: the caller keeps `image`.
+    /// rectangle, it is too large (`lazyReason`), there is no Metal device, or
+    /// the texture can't be made, filled or read: the caller keeps `image`.
     static func resident(_ image: CIImage, engine: RenderEngine = engine) -> CIImage? {
         let extent = image.extent
         guard !extent.isEmpty, !extent.isInfinite, extent == extent.integral else {
@@ -66,11 +94,20 @@ enum ResidentDecode {
             return nil
         }
         let width = Int(extent.width), height = Int(extent.height)
-        guard width <= maximumDimension, height <= maximumDimension else {
-            log.notice("A \(width) × \(height) decode is larger than one texture; it is read lazily")
+        switch lazyReason(width: width, height: height) {
+        case .sideOverTextureLimit:
+            log.notice("A \(width) × \(height) decode is larger than one texture; it is read lazily and may show the split-render seam")
+            return nil
+        case .overPixelLimit:
+            log.notice("A \(width) × \(height) decode is over \(maximumPixels / 1_000_000) megapixels; it is read lazily and may show the split-render seam")
+            return nil
+        case nil:
+            break
+        }
+        guard let device = engine.device else {
+            log.error("No Metal device for a \(width) × \(height) decode; it is read lazily")
             return nil
         }
-        guard let device = engine.device else { return nil }
         let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba32Float, width: width, height: height,
                                                                   mipmapped: false)
         descriptor.usage = [.renderTarget, .shaderRead, .shaderWrite]
@@ -92,6 +129,7 @@ enum ResidentDecode {
             return nil
         }
         guard let read = CIImage(mtlTexture: texture, options: [.colorSpace: RenderEngine.workingColorSpace]) else {
+            log.error("Core Image could not read the copy of a \(width) × \(height) decode; it is read lazily")
             return nil
         }
         // Rendered and read unflipped, the texture's coordinates are Core Image's.

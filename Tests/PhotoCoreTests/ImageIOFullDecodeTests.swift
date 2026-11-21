@@ -15,6 +15,13 @@ import UniformTypeIdentifiers
 /// negative Highlights now and then came out with its left half showing the
 /// right half's pixels: the loupe at 100% showed two halves that didn't line
 /// up. Serialized: each render holds a 20 MP photo.
+///
+/// The 20 MP soak (`largeRenderKeepsItsParts`) runs only with
+/// `LARGE_RENDER_TESTS=1 swift test --filter ImageIOFullDecodeTests`: the CI
+/// runners' paravirtual GPU fails renders that size, as `DeferredRenderTests`
+/// records. The other tests run everywhere and fail without the fix too
+/// (`fullDecodeIsResident`, `renderUnchanged`, and the JPEG case of
+/// `LensAlignStaleAreaTests.tileSeesTheInputArea`).
 @Suite("Full-size ImageIO decodes", .serialized)
 struct ImageIOFullDecodeTests {
     /// The owner's file: 5472 × 3648, 20 MP (a Canon EOS 6D's frame size).
@@ -205,6 +212,27 @@ struct ImageIOFullDecodeTests {
         }
     }
 
+    /// The owner's limit (2026-11-21): copies up to 100 megapixels, and never
+    /// a side over one texture's; above either the decode stays lazy.
+    @Test("A decode is copied up to 100 megapixels and 16384 pixels a side")
+    func residencyLimit() {
+        #expect(ResidentDecode.maximumPixels == 100_000_000)
+        #expect(ResidentDecode.maximumDimension == 16384)
+        #expect(ResidentDecode.lazyReason(width: 5472, height: 3648) == nil)
+        #expect(ResidentDecode.lazyReason(width: 10000, height: 10000) == nil)
+        #expect(ResidentDecode.lazyReason(width: 16384, height: 6103) == nil)
+        #expect(ResidentDecode.lazyReason(width: 10000, height: 10001) == .overPixelLimit)
+        #expect(ResidentDecode.lazyReason(width: 12000, height: 9000) == .overPixelLimit)
+        #expect(ResidentDecode.lazyReason(width: 16385, height: 100) == .sideOverTextureLimit)
+        #expect(ResidentDecode.lazyReason(width: 100, height: 16385) == .sideOverTextureLimit)
+        // Both over: the side is the reason, no texture could hold it.
+        #expect(ResidentDecode.lazyReason(width: 20000, height: 6000) == .sideOverTextureLimit)
+        // And `resident` keeps such an image lazy before it makes any texture.
+        let over = CIImage(color: CIColor(red: 0.5, green: 0.5, blue: 0.5))
+            .cropped(to: CGRect(x: 0, y: 0, width: 10000, height: 10001))
+        #expect(ResidentDecode.resident(over) == nil)
+    }
+
     @Test("Bands cover the extent top first, without gaps or overlaps")
     func bandsCoverTheExtent() {
         let extent = CGRect(x: 0, y: 0, width: 5472, height: 3648)
@@ -223,6 +251,15 @@ struct ImageIOFullDecodeTests {
         #expect(ResidentDecode.bands(of: .zero).isEmpty)
     }
 
+    /// Compared in the working space, in float, as `residentCopyIsTheFile`:
+    /// the copy holds exactly the values Core Image computes from the file.
+    /// Not in 8-bit Display P3: over the file Core Image builds a different
+    /// program for the conversion to the output (it starts from the file's
+    /// encoding, not from linear floats), which now and then rounds one value
+    /// one level the other way. Which files do it varies between processes:
+    /// of eight synthetic JPEGs, five or all eight differed in one byte by one
+    /// level, while their float values were equal every time (bug #253, code
+    /// review second pass).
     @Test("An EXIF orientation is still applied to the full-size decode")
     func fullDecodeIsOriented() async throws {
         try await RepositoryFiles.withTemporaryDirectory { folder in
@@ -234,9 +271,16 @@ struct ImageIOFullDecodeTests {
             #expect(decoded.image.extent == reference.extent)
             #expect(decoded.image.extent.size == CGSize(width: 480, height: 640))
             let engine = RenderEngine(contextCount: 1, name: "full-decode-test")
-            let ours = try #require(engine.makeCGImage(decoded.image))
-            let theirs = try #require(engine.makeCGImage(reference))
-            #expect(LiveRegionRendererTests.bytes(ours) == LiveRegionRendererTests.bytes(theirs))
+            func values(_ image: CIImage) -> [Float] {
+                var out = [Float](repeating: 0, count: 480 * 640 * 4)
+                engine.withContext {
+                    $0.render(image, toBitmap: &out, rowBytes: 480 * 16, bounds: image.extent, format: .RGBAf,
+                              colorSpace: RenderEngine.workingColorSpace)
+                }
+                return out
+            }
+            let differing = zip(values(decoded.image), values(reference)).filter { $0 != $1 }.count
+            #expect(differing == 0, "\(differing) values differ")
         }
     }
 
@@ -255,7 +299,9 @@ struct ImageIOFullDecodeTests {
     /// every one keeps its halves in place and they are all the same.
     /// Without the fix, about one render in three showed the left half
     /// repeating the right (status.md: 7 of 24, 12 of 36).
-    @Test("A full render of a 20 MP TIFF with Highlights keeps its parts in place")
+    @Test("A full render of a 20 MP TIFF with Highlights keeps its parts in place",
+          .enabled(if: ProcessInfo.processInfo.environment["LARGE_RENDER_TESTS"] == "1",
+                   "Set LARGE_RENDER_TESTS=1 to run: 20 MP renders the CI runners' GPU can't do"))
     func largeRenderKeepsItsParts() async throws {
         try await RepositoryFiles.withTemporaryDirectory { folder in
             let url = folder.appending(path: "IMG_1.tif")
