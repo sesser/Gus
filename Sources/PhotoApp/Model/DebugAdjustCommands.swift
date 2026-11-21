@@ -31,6 +31,8 @@ import PhotoCore
 ///     adjust mask brush <x0> <y0> <x1> <y1> …   (one stroke; unit coordinates of the photo on screen)
 ///     adjust mask sample <x> <y>          (adds the color there to the selected color range)
 ///     adjust mask brushsize <percent of the long edge>   adjust mask erase on|off
+///     adjust mask invert <n> | operation <n> add|subtract|intersect | removecomponent <n>   (the selected mask's
+///                               component n, as its row's controls)    adjust mask move -1|1   (Move Up / Down)
 ///     adjust mask detect|detectcomponent|detector|update|cancel|raster …   (detections; see DebugMaskDetectionCommands)
 ///     adjust fringe pick 1|2 <x> <y>   (picks at unit coordinates of the photo on screen through a
 ///                               click's path: the pixel rule, refusal; waits for the save)
@@ -234,6 +236,21 @@ enum DebugAdjustCommands {
             if let value = numbers.first { editor.brushTemplate.size = value / 100 }
         case "erase":
             editor.brushTemplate.erase = rest.first == "on"
+        case "invert":
+            // The selected mask's component n's Invert button.
+            if let index = Int(rest.first ?? "") {
+                editor.setComponent(index, String(localized: "Invert"), phase: .committed) { $0.invert.toggle() }
+            }
+        case "operation":
+            // The selected mask's component n's operation pop-up.
+            if let index = Int(rest.first ?? ""), let operation = MaskOperation(rawValue: rest.dropFirst().first ?? "") {
+                editor.setComponent(index, String(localized: "Mask Operation"), phase: .committed) { $0.operation = operation }
+            }
+        case "removecomponent":
+            if let index = Int(rest.first ?? "") { editor.removeComponent(index) }
+        case "move":
+            // The selected mask's ⋯ Move Up (-1) or Move Down (1).
+            if let id = editor.selectedMaskID, let offset = Int(rest.first ?? "") { editor.moveMask(id, by: offset) }
         default:
             print("debug-script: unknown mask command \(arguments.joined(separator: " "))")
         }

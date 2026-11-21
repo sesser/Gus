@@ -157,7 +157,7 @@ enum DebugMaskDetectionCommands {
             switch pending.target {
             case .newMask: "new \(pending.kind.rawValue)"
             case .component(let mask): "component \(pending.kind.rawValue) into \(mask.uuidString.prefix(8))"
-            case .update(let mask, let components): "update \(components) of \(mask.uuidString.prefix(8))"
+            case .update(let mask, let components): "update \(components.map(\.index)) of \(mask.uuidString.prefix(8))"
             }
         } ?? "none"
         print("debug-script: masks \(editor.adjustments.local.masks.count) pending \(pending)"

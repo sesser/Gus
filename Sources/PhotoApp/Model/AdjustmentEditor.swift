@@ -70,7 +70,11 @@ final class AdjustmentEditor {
         didSet {
             if let id = selectedSpotID, !adjustments.spots.spots.contains(where: { $0.id == id }) { selectedSpotID = nil }
             // Detection results named for the first time (an undo, a revert, a landing) are read for their captions.
-            if adjustments.local != oldValue.local { loadDetectionResults() }
+            if adjustments.local != oldValue.local {
+                loadDetectionResults()
+                // Any write that changes or removes a component a pending Update covers cancels it (DR-5).
+                cancelUpdateIfCoveredChanged()
+            }
         }
     }
     /// Histogram of the latest frame.

@@ -199,15 +199,24 @@ struct MaskRasterCatalogTests {
         let (fixture, _) = try await Self.one()
         let catalog = fixture.catalog
         let good = try Self.raster(40)
+        // Each crafted row is keyed by the SHA-256 of its own bytes, so only
+        // the guard under test can refuse it (code review C12).
         // Too wide by its row, though its bytes are a small, valid PNG.
-        let wideKey = String(repeating: "c3", count: 32)
-        try await Self.insertRow(catalog, digest: wideKey, width: 4096, height: 1, data: good.png)
-        #expect(try await catalog.maskRaster(digest: wideKey) == nil)
+        let wide = try Self.raster(41).png
+        try await Self.insertRow(catalog, digest: Digest.sha256Hex(wide), width: 4096, height: 8, data: wide)
+        #expect(try await catalog.maskRaster(digest: Digest.sha256Hex(wide)) == nil)
+        let tall = try Self.raster(42).png
+        try await Self.insertRow(catalog, digest: Digest.sha256Hex(tall), width: 8, height: 1025, data: tall)
+        #expect(try await catalog.maskRaster(digest: Digest.sha256Hex(tall)) == nil)
         // More bytes than any row this build writes: not loaded.
-        let bigKey = String(repeating: "d4", count: 32)
-        try await Self.insertRow(catalog, digest: bigKey, width: 8, height: 8,
-                                 data: Data(count: MaskRaster.maximumStoredBytes + 1))
-        #expect(try await catalog.maskRaster(digest: bigKey) == nil)
+        let big = Data(count: MaskRaster.maximumStoredBytes + 1)
+        try await Self.insertRow(catalog, digest: Digest.sha256Hex(big), width: 8, height: 8, data: big)
+        #expect(try await catalog.maskRaster(digest: Digest.sha256Hex(big)) == nil)
+        // At the limit it is loaded (and then fails as a PNG in the store, not here).
+        let atLimit = Data(count: MaskRaster.maximumStoredBytes)
+        try await Self.insertRow(catalog, digest: Digest.sha256Hex(atLimit), width: 8, height: 8, data: atLimit)
+        #expect(try await catalog.maskRaster(digest: Digest.sha256Hex(atLimit)) != nil)
+        #expect(MaskRasterStore(catalog: catalog).lookup(Digest.sha256Hex(atLimit)) == .missing)
         // A good PNG under another result's key.
         let wrongKey = String(repeating: "e5", count: 32)
         try await Self.insertRow(catalog, digest: wrongKey, width: 8, height: 8, data: good.png)
@@ -216,6 +225,24 @@ struct MaskRasterCatalogTests {
         // The real one reads.
         try await catalog.storeMaskRaster(good)
         #expect(try await catalog.maskRaster(digest: good.digest) == good)
+    }
+
+    /// `systemVersion` is left out: its column has TEXT affinity, so SQLite
+    /// stores any number put there as text, which is a valid version string.
+    @Test("A row with a value of the wrong type is damaged, not a crash (code review C13)",
+          arguments: ["width", "height", "instances", "revision", "encoding", "request", "data"])
+    func mistypedRow(column: String) async throws {
+        let (fixture, _) = try await Self.one()
+        let raster = try Self.raster(60)
+        try await fixture.catalog.storeMaskRaster(raster)
+        // Text where a number is kept, a number where text or bytes are.
+        let wrong: DatabaseValue = ["width", "height", "instances", "revision"].contains(column)
+            ? "abc".databaseValue : 12.databaseValue
+        try await fixture.catalog.database.write { db in
+            try db.execute(sql: "UPDATE maskRaster SET \(column) = ? WHERE digest = ?", arguments: [wrong, raster.digest])
+        }
+        #expect(try await fixture.catalog.maskRaster(digest: raster.digest) == nil)
+        #expect(MaskRasterStore(catalog: fixture.catalog).lookup(raster.digest) == .missing)
     }
 
     @Test("A damaged history list is read from its snapshot; if that fails too, nothing is deleted (L3)")

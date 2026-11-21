@@ -47,16 +47,24 @@ extension Catalog {
                    CASE WHEN length(data) <= ? THEN data END AS data
             FROM maskRaster WHERE digest = ?
             """, arguments: [MaskRaster.maximumStoredBytes, digest]) else { return nil }
-        let encoding: String = row["encoding"]
-        let width: Int = row["width"], height: Int = row["height"]
+        // Every value read as a database value and converted here: a value
+        // of the wrong type (a hand-edited row) is damaged and selects
+        // nothing, where GRDB's typed subscripts would stop the app (code
+        // review C13, R14).
+        func value<T: DatabaseValueConvertible>(_ column: String, _ type: T.Type) -> T? {
+            T.fromDatabaseValue(row[column] as DatabaseValue)
+        }
         let sides = 1...MaskRaster.maximumSide
         // An encoding or a request this build doesn't know is damaged: it selects nothing.
-        guard encoding == MaskRaster.encoding, let request = MaskRaster.Request(rawValue: row["request"]),
-              sides.contains(width), sides.contains(height), let data: Data = row["data"] else {
-            return nil
-        }
-        let raster = MaskRaster(stored: data, width: width, height: height, instances: row["instances"],
-                                request: request, revision: row["revision"], systemVersion: row["systemVersion"])
+        guard value("encoding", String.self) == MaskRaster.encoding,
+              let request = value("request", String.self).flatMap(MaskRaster.Request.init(rawValue:)),
+              let width = value("width", Int.self), let height = value("height", Int.self),
+              sides.contains(width), sides.contains(height),
+              let instances = value("instances", Int.self), let revision = value("revision", Int.self),
+              let systemVersion = value("systemVersion", String.self), let data = value("data", Data.self)
+        else { return nil }
+        let raster = MaskRaster(stored: data, width: width, height: height, instances: instances,
+                                request: request, revision: revision, systemVersion: systemVersion)
         return raster.digest == digest ? raster : nil
     }
 

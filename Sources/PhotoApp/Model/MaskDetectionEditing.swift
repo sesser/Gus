@@ -257,6 +257,17 @@ extension AdjustmentEditor {
         }
     }
 
+    /// Cancels a pending Update when a component it covers was changed
+    /// (operation, Invert) or removed, or its mask was deleted, by whatever
+    /// write (the row's controls, ⌘Z, Redo, a History revert): design DR-5.
+    /// As Cancel: the change stands, no result is written, the old one keeps
+    /// applying, and "Detection cancelled." is announced.
+    func cancelUpdateIfCoveredChanged() {
+        guard case .update(let id, let covered)? = pendingDetection?.target else { return }
+        let mask = adjustments.local.masks.first { $0.id == id }
+        if !MaskDetectionUpdate.isIntact(covered, in: mask) { cancelDetection() }
+    }
+
     /// Stops a detection: nothing is added and nothing changes (AC3).
     func cancelDetection(announcing: Bool = true) {
         guard pendingDetection != nil else { return }

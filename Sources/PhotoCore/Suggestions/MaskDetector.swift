@@ -292,4 +292,15 @@ public enum MaskDetectionUpdate {
             return position
         }
     }
+
+    /// Every component an Update covers is still in `mask` as it was (kind,
+    /// result, operation, Invert), wherever it now sits. False when one was
+    /// changed or removed, or the mask is gone: the Update is then cancelled
+    /// whole (design DR-5). Adding a component, reordering, or changing
+    /// anything else keeps it intact.
+    public static func isIntact(_ started: [Started], in mask: Mask?) -> Bool {
+        guard let mask else { return false }
+        return !positions(of: started, in: mask.components).contains(nil)
+    }
 }
+

@@ -254,6 +254,40 @@ struct MaskDetectionTests {
         #expect(MaskDetectionUpdate.positions(of: twins, in: [detection(.subject, a), detection(.subject, a)]) == [0, 1])
     }
 
+    @Test("A change to a component an Update covers, or its removal, cancels the Update; other changes don't (DR-5)")
+    func updateIntact() {
+        let a = DetectionMaskModelTests.digestA, b = DetectionMaskModelTests.digestB
+        let subject = MaskComponent(.detection(MaskDetection(kind: .subject, raster: a)))
+        let people = MaskComponent(.detection(MaskDetection(kind: .people, raster: b)))
+        let linear = MaskComponent(.linear(LinearGradient(start: MaskPoint(x: 0, y: 0), end: MaskPoint(x: 1, y: 1))))
+        var mask = Mask(components: [subject, people])
+        let both = [MaskDetectionUpdate.Started(index: 0, kind: .subject, raster: a),
+                    MaskDetectionUpdate.Started(index: 1, kind: .people, raster: b)]
+        let one = [both[0]]
+        #expect(MaskDetectionUpdate.isIntact(both, in: mask))
+        // Not covered: the other component (a one-component Update), values, an added component, a reorder.
+        var changed = mask
+        changed.components[1].invert = true
+        #expect(MaskDetectionUpdate.isIntact(one, in: changed))
+        #expect(!MaskDetectionUpdate.isIntact(both, in: changed), "two covered, one changed: the whole Update")
+        changed = mask
+        changed.adjustments.exposure = 1
+        changed.amount = 40
+        changed.components.append(linear)
+        changed.components.swapAt(0, 1)
+        #expect(MaskDetectionUpdate.isIntact(both, in: changed))
+        // Covered: Invert, operation, removal, the mask deleted.
+        changed = mask
+        changed.components[0].invert = true
+        #expect(!MaskDetectionUpdate.isIntact(one, in: changed))
+        changed = mask
+        changed.components[0].operation = .intersect
+        #expect(!MaskDetectionUpdate.isIntact(one, in: changed))
+        mask.components.remove(at: 0)
+        #expect(!MaskDetectionUpdate.isIntact(one, in: mask))
+        #expect(!MaskDetectionUpdate.isIntact(one, in: nil))
+    }
+
     @Test("Vision's can't-run-here errors are Unavailable; any other error is Failed")
     func classification() {
         func error(_ code: VNErrorCode) -> NSError { NSError(domain: VNErrorDomain, code: code.rawValue) }
