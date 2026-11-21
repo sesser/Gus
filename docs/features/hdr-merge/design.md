@@ -1,7 +1,8 @@
 # HDR merge: design
 
 Owner: apple-ui-designer. Date: 2026-11-20.
-Issue: #150. Status: complete. Three requirements issues are open for the
+Issue: #150. Status: complete (second pass 2026-11-20: §6.1 cases 6a and 6b,
+§7.3 reasons, §13 strings, D-H5, RI-H4). Four requirements issues are open for the
 product manager (§17). §1–§16 already assume the default given for each, so the
 engineer can start; a different ruling changes only the lines §17 names.
 
@@ -269,7 +270,8 @@ sheet **freezes its frames** when it opens, as Export does; it is added to
   (16-bit, Display P3, tone-mapped)". Every other section is unchanged.
 - **Name.** A read-only line: the name the file will get now, for the chosen
   format (`IMG_1234_HDR.tif`, or `IMG_1234_HDR-2.tif` when that exists, by
-  `ExportNaming`'s numbering and `MasterFiles`'s rule). It changes with the
+  `MergeNaming`'s numbering, which counts a file or master of the same stem
+  in any format as taken, and `MasterFiles`'s rule: D-H5). It changes with the
   format. The name is decided again when the merge starts (the folder may
   change in a minute); the caption says nothing about that, because the
   difference is rare and the Activity row names the real file.
@@ -318,6 +320,8 @@ sentence-style, names the frame in curly quotes, and says what to do.
 | 4 | A copy beside its own original, or two copies of one photo (they are one file; merging reads the master, A2) | "“‹copy›” is a copy of “‹original›”, the same file. Select each photo once." | the copy |
 | 5 | A mix of raw and non-raw frames (R8, A4) | "These photos are a mix of raw and non-raw files. Select only raws, or only JPEG, HEIC or TIFF files." | the non-raw frames when raws are the majority or tie, else the raws |
 | 6 | Frames of different sizes (see RI-H2) | "“‹name›” is a different size from “‹reference›”. Merged photos must be the same size." | the frame that differs |
+| 6a | A frame over the pixel limit (`MergeLimits.maximumPixels`, 150 MP; security review M1; ruling D-H5) | "“‹name›” is too large to merge. A photo can have at most ‹150› megapixels." | the frames over the limit |
+| 6b | The frames' pixels together would take more than the memory budget (`MergeLimits.frameMemoryBudget`: half this Mac's memory; D-H5) | "These photos are too large to merge together on this Mac. Select fewer." | all frames |
 | 7 | An offline photo (R14) | one: "“‹name›” is offline. Connect its drive and try again." Several: "‹N› of these photos are offline. Connect their drives and try again." (plural; the first is named in the table) | the offline frames |
 
 - **A RAW+JPEG pair is one frame, and its file is the RAW** (R8), whichever
@@ -329,8 +333,11 @@ sentence-style, names the frame in curly quotes, and says what to do.
   items of one master); the copy's file stem and metadata come from its master
   and from the copy's own rating, flag and label (R7 reads "the naming
   photo", and that is the item the person selected).
-- **Order matters.** Count and kind (1–3) come before content (4–6) and
-  availability (7), so one message answers the most basic problem first. After
+- **Order matters.** Count and kind (1–3) come before content (4–6b) and
+  availability (7), so one message answers the most basic problem first. 6a
+  and 6b follow 6 (a frame of another size is the more useful thing to say
+  first) and 6a precedes 6b (one frame to drop is a clearer instruction than
+  "select fewer"). After
   the person fixes it, the sheet is opened again, and the next one shows.
 
 ### 6.2 From the disk
@@ -419,7 +426,16 @@ row is the record.
   - **Read:** "“‹name›” couldn't be read."
   - **Space:** "There isn't enough space on “‹volume›”."
   - **Write:** "The file couldn't be saved: ‹system reason›."
+  - **Too large** (a decoder reports more pixels than the catalog did): the
+    6a text, in the same row.
   - **Memory:** "There wasn't enough memory to merge these photos."
+  - **Unusable name** (the reference's file name or place in the catalog is
+    not one a file can be written beside; a damaged library; D-H5): "A merged
+    photo can't be saved beside “‹reference›”. The library's record of its
+    file name or location isn't valid."
+  - **Same content** (the catalog already holds a photo with the result's
+    content; the file is removed again; practically unreachable; D-H5): "The
+    library already has a photo with the same content."
   - **Pre-flight changed** (§6.2's second check): the §6.2 message for that
     case, in the same row, nothing started.
   - **Anything else:** the underlying error as the detail, as library-ops does.
@@ -635,7 +651,10 @@ catalog's plural variations, and no string has two plural numbers.
   photos are offline. Connect their drives and try again." (plural); "“%@”
   can't be read. Check that the file is still there."; "The merged photo would
   be saved next to “%1$@”, in “%2$@”, which can't be written to. It may be on a
-  read-only disk, or you may not have permission."
+  read-only disk, or you may not have permission."; "“%@” is too large to
+  merge. A photo can have at most %lld megapixels." (6a; also Activity; one
+  number, always 150 today, so no plural variation); "These photos are too
+  large to merge together on this Mac. Select fewer." (6b).
 - **Activity (job):** "Merge to “%@”" (popover title); "Reading %lld of %lld",
   "Aligning %lld of %lld" (no plural on either number), "Merging", "Tone
   mapping", "Saving", "Adding to the library" (details).
@@ -648,7 +667,9 @@ catalog's plural variations, and no string has two plural numbers.
   saved at %@ but couldn't be added to the library. Add the folder again to
   import it."; "“%1$@” was removed from the library. The file is still at
   %2$@."; "“%@” couldn't be added back because the file has changed or is
-  missing."
+  missing."; "A merged photo can't be saved beside “%@”. The library's record
+  of its file name or location isn't valid." (replaces the first draft,
+  D-H5); "The library already has a photo with the same content."
 - **Optional (R18):** "Show in Library" (the row's button). Not built (D-H3).
 - **Quit:** "Quit While Merging?"; "The merge is stopped and nothing is
   added."; "Keep Merging" (button; the second button is the shared "Stop and
@@ -766,6 +787,7 @@ the toolbar's Activity item fitting a long name; M7 undo, redo and merge again
 | RI-H1 | **R1, AC1 and R14 disagree about the menu item.** R1 says the item is "off when the selection can't be merged". AC1 says it is off for one photo, none, or "a video selected". R14 says a video, an offline photo, an unwritable folder and the count limits are "refused with a clear message". A dimmed item can't carry a message. Which holds: dimmed, or message? | **Both, by cause.** Dimmed for what the selection plainly shows: fewer than two targets (a single video is one target), a merge running, a sheet up. Every other case (a video among several, mixed, offline, read-only folder, over 9) shows its message in the sheet and keeps Merge off. If the ruling is "dim for all", the messages are lost and a person can't learn why; if "message for all", one photo selected opens a sheet that can only say "select two" |
 | RI-H2 | **R14's refusals leave out cases a merge can't handle.** (a) Two items of **one master** (a photo and its own copy, #62): they are the same file, since a merge reads masters (A2). (b) Frames of **different pixel sizes** (two cameras, a crop mode, a changed orientation): they can't be aligned by translation and rotation. (c) The PRD says nothing about the **same exposure** on every frame (not a bracket). Add (a) and (b) to R14, and say whether (c) should be refused or only noted | (a) and (b) are refusals with messages (§6.1 cases 4 and 6). (c) is a non-blocking note only (§5.2): a person may know their metadata lies, and a refusal would be wrong half the time |
 | RI-H3 | **No way to tell or find a merged photo.** The design marks it by name and type badge only, because A6 stores no link and no migration is planned. A person with hundreds of photos may want a "made by merging" mark or a smart-album rule, and "show the frames this came from" (A6's deferred idea) needs the same stored fact. Is a stored flag or source link wanted now, or is the name enough for v1? | The name and badge are enough for v1 (§8.2). If the owner wants a mark: a stored column or table (a migration), then a glyph on the grid cell like the copy mark (VC §6.1) and a smart-album rule; that is a follow-up issue, not this feature |
+| RI-H4 | **A merged photo can be selected as a frame beside its own source raws, and nothing tells the app it is one** (A6 stores no link). A merged DNG is a raw to the app, with the reference's metadata, so it passes every refusal; the merge then counts it again. Is a marker wanted (in the merged file itself, so no migration, or in the catalog with RI-H3) that lets the sheet say "‹name› is a merged photo"? | **No detection in v1** (D-H5c): the sheet already shows the frame by name and the reference is named by it, and the result of the mistake is a poor file the person can Undo, not lost work. If the owner wants it, it belongs with RI-H3 as one stored fact serving both |
 
 **Design questions for the owner.** None block the build. Three judgment calls
 the owner may overrule, recorded so a different answer changes only the lines
@@ -841,3 +863,70 @@ word for what makes this file different from the TIFF, and the next sentence
 says what to do with it. The product-manager owns the PRD's R5, Open question 1
 and any AC that says 32-bit: they need the same change (RI-E1, below).
 Judgment, not Apple policy.
+
+**D-H5. Rulings on the second pass (review fixes), 2026-11-20.** The
+engineer's four new strings, the numbering of results by stem, and a merged
+DNG chosen as a frame. Judgment throughout; the HIG is silent on these.
+
+**D-H5a. The four strings.**
+
+1. **"“%@” is too large to merge. A photo can have at most %lld megapixels."
+   Confirmed as written** (sheet case 6a; the same text in Activity when a
+   decoder, not the catalog, finds the size). It names the frame and gives the
+   rule; the remedy (leave that photo out) is the only one there is, so it
+   needs no sentence. "megapixels" is spelled out, not "MP". One number,
+   always 150 today, so no plural variation is needed (§13's rule holds: no
+   string has two plural numbers).
+2. **"These photos are too large to merge together on this Mac. Select
+   fewer." Confirmed as written** (case 6b). "On this Mac" is the useful
+   phrase: the budget is half the machine's memory, so the same selection may
+   work elsewhere, and the person learns the limit is the machine's. "Select
+   fewer" would be a dead end for exactly two frames, but two frames can't
+   reach the budget in practice: two 150 MP frames hold 2.4 GB (8 bytes a
+   pixel) against a budget of half the Mac's memory, which is 4 GB on an 8 GB
+   Mac. So there is no second wording for two frames (from the arithmetic;
+   recheck if `frameMemoryBudget` or the pixel limit changes). All rows are
+   flagged, as in case 1: no one frame is at fault.
+3. **"“%@” has a name or place a merged photo can't be saved beside."
+   Rewritten.** "A name or place" is vague and names the cause in jargon. The
+   reader is a person whose library has a bad record, and needs what can't be
+   done and why. New text, two sentences like every other row of §7.3: **"A
+   merged photo can't be saved beside “%@”. The library's record of its file
+   name or location isn't valid."** It does not say "damaged" (that alarms and
+   can't be verified here) and offers no remedy, since none is known to work.
+   The catalog key is the English text, so the key changes with it; the
+   comment keeps "a damaged library" for translators.
+4. **"The library already has a photo with the same content." Confirmed as
+   written.** It says what was found; "Nothing was added to the library"
+   already precedes it in the row and covers the removed file. Practically
+   unreachable, so more wording would buy nothing.
+
+**D-H5b. Numbering by stem stands, with no caption in v1.** A TIFF and a DNG
+of one series would otherwise share `IMG_1234_HDR.xmp`, each reading and
+writing the other's values (code review C3): a data fault, so the numbering is
+right, and it keeps R4's "never replace" intent. The cost is a name that reads
+`IMG_1234_HDR-2.dng` with no `-1` beside it. The Name row shows it before
+Merge is pressed and changes with the Format control, which is where the
+person decides, so nothing is hidden (the same argument as §9's `_HDR-2` after
+Undo). A caption naming the clashing file ("“IMG_1234_HDR.tif” is already
+here") needs the clashing name from `MergeNaming` and one more string; it is
+not worth that until someone is confused, and the guide already gives the
+reason (a DNG merged after a TIFF of the same photos is
+`IMG_1234_HDR-2.dng`, so the two never share a sidecar). Left as built. An
+orphan `.xmp` with no photo beside it also numbers the result; rare, harmless.
+
+**D-H5c. A merged DNG selected beside its own source raws: neither flagged nor
+refused.** It passes every refusal because the app can't tell it from another
+raw: no link is stored (A6) and the file carries the reference's metadata
+(R7). Reasons not to act: (1) a refusal must be certain, and the only signals
+(`_HDR` in the name, the reference's exposure data) also describe photos the
+person named or shot that way, so a rule would block legitimate selections,
+against user control; (2) the cost is a poor file after a minute, written
+beside the originals and one Undo from gone, never lost work; (3) the sheet
+already shows it: the frame is listed by name (`IMG_1234_HDR`), and when it
+ties with the reference in time and compensation it can become the Reference,
+so the Name row reads `…_HDR_HDR`, a plain signal before Merge. Reading each
+file's tags to detect our own DNG would add disk work to opening the sheet
+(A-H2) and a marker the PRD does not specify; that is **RI-H4** for the
+product manager, default "no detection". The guide gets one sentence (review
+finding F5).

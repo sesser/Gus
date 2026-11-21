@@ -138,4 +138,122 @@ guards and the concurrency are sound.
 
 ## Follow-up
 
-(Filled in on the second pass.)
+Second pass, 2026-11-20, on `46b5107` and `a3a597d` (status `8ad8f77`). See
+**Second pass** below for what I ran and for the new findings C6 to C9.
+
+| # | State | Commit | Note |
+|---|---|---|---|
+| C1 | Fixed | `46b5107` | Every merge's XMP (TIFF and DNG) carries a new `xmpMM:DocumentID`/`InstanceID` and `xmp:CreateDate`. `alreadyInLibrary` now means only the same path with the same hash. A different master with the same content gives `sameContent`: the job fails and removes its own file, but only while the name still holds the inode it wrote. Checked with `photocli merge` run twice as TIFF, then once as DNG, on a scratch APFS library: three rows (versions 4, 5, 6), three different SHA-256 values, three different document ids (exiftool). `mergesToTIFF` now requires `again.master`. The job's removal path itself has no test (C8). |
+| C2 | Fixed, with a new finding | `46b5107` | Stop and Quit now waits for the merge before `terminate`. But the 10 s limit doesn't hold (C7). |
+| C3 | Fixed | `46b5107` | `MergeNaming.name` numbers the result past any stem in the folder listing (any extension, case- and normalization-folded, sidecars and orphan `.xmp` files included) or in the library's masters there (`containsStem`). Checked: TIFF, TIFF, then DNG gave `_HDR`, `_HDR-2.tif` and `_HDR-3.dng`. `ownSidecars` shows each file keeps its own sidecar. SidecarSync's fallback is bug #248. Residual race: a same-stem file with another extension that appears between naming and `link` isn't seen (`link` only stops the exact name). Only an import into that folder at that moment can cause it, and the result is #248's case. I accept it. |
+| C4 | Fixed | `46b5107` | Undo after a failed Redo reports and hides only when a photo was taken out. Traced: the next Redo then does nothing, silently. |
+| C5 | Fixed | `46b5107` | `LinearDNGWriter.bitsPerSample` is a constant 16, and the comments say half floats. No 32-bit wording is left in the merge code. |
+| Security M1 | Fixed | `a3a597d` | 150 MP per frame, checked from the catalog in the sheet, then from each decoder's own size (`nativeSize`, the LibRaw extent, or the ImageIO header) before any render at that size. A budget of half the physical memory, at 8 bytes a pixel, is checked in the sheet and again per frame before `held` allocates, with overflow-safe arithmetic. The TIFF is encoded from a sequential provider that renders 512-row bands, so there is no whole-image `Data`. The provider's `@unchecked Sendable` has a reason that holds: the encoder reads it synchronously on the job's thread. `refusedByHeader` (a 180 MP PNG under 1 MiB) and `budgetBeforeHolding` pass. |
+| Security M2 | Fixed | `a3a597d` | `LinearDNGWriter.fits` runs before `createFile`, with overflow-checked multiplication. With the 150 MP cap a DNG is at most about 900 MB, so the check can't be reached in practice, but it holds. |
+| Security L1 | Fixed | `a3a597d` | The hidden name is `.merge-<UUID>.partial` (51 bytes), and the stem is shortened to fit 255 bytes with room for `_HDR-999.ext`. |
+| Security L2 | Fixed | `a3a597d` | Removal is by `lstat` device and inode, compared with the identity of the file the job linked. |
+| Security L3 | Fixed | `a3a597d` | Exposure values that aren't finite, aren't positive, or give a ratio outside 2^±16 count as unknown. The same-exposure note ignores non-finite values. |
+| Security L4 | Fixed | `a3a597d` | `photocli merge` treats a volume as online by its identity only. |
+| Security L5 | Fixed | `a3a597d` | Every merge error is logged `.private`. |
+| Security L6 | Not fixed (accepted) | — | No sweep for old partial files. The guide mentions Control-C. |
+| Security L7 | Fixed, with a regression | `a3a597d` | The fallback now runs only for ENOTSUP, EOPNOTSUPP and EPERM, and uses `renamex_np(RENAME_EXCL)`. On FAT32 and exFAT that call fails with ENOTSUP too, so every merge beside masters on those volumes now fails (C6, Blocker). |
+| Security L8 | Fixed | `a3a597d` | `MergeNaming.isPlainPlace` rejects an absolute path, an empty part, `.`, `..`, a NUL, or a file name that isn't the path's last part. The catalog derives `fileName` from `relativePath` (`Catalog.insertMaster`), so real libraries always pass. |
+
+## Second pass
+
+Owner: code-reviewer. Date: 2026-11-20. Reviewed: `feature/hdr-merge`,
+`cda61fd..8ad8f77` (`46b5107`, `a3a597d`; the reviewers' files `ca5eae6`,
+`58841d5`; status `8ad8f77`). Build and tests: `swift build` clean; `swift test`
+1303 tests in 187 suites passed (237.0 s). Also run here:
+
+- `photobench generate --brackets 1`, imported into scratch libraries, then
+  `photocli merge` on the RAW bracket.
+  - On APFS: TIFF, TIFF again, then DNG. All three were catalogued with
+    different hashes and document ids.
+  - On a FAT32 disk image and on an exFAT disk image (`hdiutil create -fs`,
+    attached under the scratchpad, detached afterwards): both merges failed
+    (C6).
+- A 20-line C probe of `link`, `renamex_np(RENAME_EXCL)`, `open(O_EXCL)` and
+  `rename` on APFS, FAT32 and exFAT.
+- A standalone Swift 6 program for C7.
+
+### Verdict
+
+Not ready for QA. C1 to C5 and the security findings are fixed as described.
+One regression is a blocker: the L7 fix stops every merge whose reference is on
+a FAT32 or exFAT volume (C6). External drives and cards are usually formatted
+that way. The Stop and Quit wait has no real 10 s limit (C7). Both fixes are
+small.
+
+### Findings
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C6 | Blocker | `Merge/MergeOutput.swift:247-255` (`writeInPlace`) | On FAT32 and exFAT (macOS 27.2, FSKit mounts), `link(2)` fails with ENOTSUP, as intended. `renamex_np(…, RENAME_EXCL)` then also fails with ENOTSUP (errno 45), whether or not the target exists. The code turns that into `writeFailed`. Before `a3a597d`, the fallback was `fileExists` then `moveItem`, which worked there. `linkFallback` stubs `link` but runs the real `renamex_np` on APFS, so it passes. | `photocli merge --version 1 --version 2 --version 3` on a library imported in place from an exFAT image, and again from a FAT32 image, prints `{"code":"writeFailed","error":"writeFailed(\"The operation couldn’t be completed. Operation not supported\")"}`. Nothing is written, so no data is at risk. In the app the sheet's preflight passes (the folder is writable), the whole merge runs, and the job fails at the last step. Probe results: on APFS, `link` gives 0 and `renamex_np` EXCL gives EEXIST onto a taken name. On FAT32 and exFAT, both give ENOTSUP. On FAT32 and exFAT, `open(target, O_CREAT\|O_EXCL)` reserves a free name, refuses a taken one with EEXIST, and `rename(temporary, target)` then replaces that placeholder. Fix suggestion: when `renamex_np` gives ENOTSUP, reserve the name with `O_CREAT\|O_EXCL` (EEXIST means `nameTaken`) and `rename` over the placeholder. Compare the placeholder's inode first if that's wanted. Make the rename injectable, as `linkFile` is, so a test can drive the ENOTSUP-then-ENOTSUP path. A test on a FAT32 image (CLAUDE.md, "A FAT32 disk image") would pin it for real. | PRD R3 and R6 (the result is written beside the reference, wherever the masters are); CLAUDE.md "Volumes can go offline" (external volumes are first-class) |
+| C7 | Should fix | `PhotoApp/Model/MergeModel.swift:248-256`, `PhotoApp/PhotoApplication.swift:126` | `waitUntilDone(timeout:)` races `task.value` against `Task.sleep` in a `withTaskGroup`. A task group waits for all of its children before it returns. `group.cancelAll()` doesn't end the child awaiting `task.value`, because awaiting another task's value doesn't respond to cancellation. So the wait lasts until the merge ends, however long that takes. The 10 s limit in the code, its comment and `status.md` never applies. | A standalone program with the same function, a detached task that takes 4 s without checking for cancellation, and `timeout: .seconds(1)` printed "returned after 4.01 s (timeout 1 s)". In the app, Stop and Quit waits as long as the merge's remaining non-cancellable work takes: a full-frame render in `held`, hashing the file, the ExifTool metadata read, or the catalog step queued on `persist` behind other writes. If any of those hangs (ExifTool, say), the app never quits. A second ⌘Q asks again and starts another wait, so the only way out is Force Quit. Fix suggestion: poll on the main actor, `let deadline = ContinuousClock.now + timeout; while task != nil, .now < deadline { try? await Task.sleep(for: .milliseconds(100)) }` (`task` is set to nil in the job task's `defer`). Or resume a continuation once from two unstructured tasks. | Code review C2; design §7.4 |
+| C8 | Nit | `Merge/HDRMergeJob.swift:235-246` | `sameContentRefused` checks only `Catalog.insertMergedMaster`. The job's own handling has no test: it removes the file only while its inode matches, then throws `.sameContent`. Status says "By reading". After C1 this path is practically unreachable, so nothing fails today. | If a later change breaks the inode comparison (a `stat` that follows links, say, or an identity taken from the final name before linking), the refused file is either left beside the masters or removed when it shouldn't be, and no test notices. A test can catalogue a master with the merged file's content in another folder first, or give the job a `catalogue` closure that throws `sameContent`, then check that the file is gone. A second case can replace the file at `url` before the throw and check that the replacement stays. | Tests: every behavior has a test that fails without it |
+| C9 | Nit | `Merge/LinearDNGWriter.swift:180` | Since C1, every merged DNG carries XMP (tag 700). It is written as UNDEFINED, with no `<?xpacket` wrapper. On the first pass most DNGs had no XMP and `exiftool -validate` said OK. | `exiftool -validate` on `RAW_102_HDR-3.dng`: "Non-standard format (undef) for IFD0 0x02bc ApplicationNotes" and "[minor] XMP is missing xpacket wrapper". The system decoder still reads the file (`dngRoundTrip`), so this is about strict readers only. Writing the tag as BYTE (type 1), as the TIFF/XMP convention and ExifTool expect, and wrapping the packet would clear both warnings. | — |
+
+### Checked and fine (second pass)
+
+- **Naming against placement.** The name is chosen from a directory listing
+  and the catalog right before the write. The write goes to a fresh hidden
+  name, and `link` refuses any existing target (exact name, dangling links,
+  case variants), with up to three retries on a new free name. A file of the
+  same stem with another extension that appears during the write is not seen
+  (C3's residual race, accepted above). `MasterFiles.Names.containsStem`
+  compares folded stems, as `contains` does.
+- **The `renamex_np` call on APFS** gives EEXIST on a taken name or a case
+  variant, so where it is supported it never replaces anything. The problem is
+  only where it is not supported (C6).
+- **Memory budget arithmetic.** In the sheet, the total is a `Double`, so it
+  can't overflow. Frames with no catalog size count 0 and are caught by the
+  job. In the job, `heldBytes` saturates at `Int.max` on overflow, each frame
+  is checked against what is left before `held` allocates, and what is left
+  never goes below zero. `frameMemoryBudget` clamps `physicalMemory / 2` to
+  `Int`. The budget covers the held frames only. That is the stated policy:
+  the TIFF and DNG are now banded, and the reduced copies are 2048 pixels.
+- **Cancellation.** The TIFF provider returns no bytes once its task is
+  cancelled, `Finalize` fails, then `checkCancellation` and `writeInPlace`'s
+  `defer` remove the hidden file. The DNG checks between 512-row bands. Once
+  the file is linked, the job finishes, and the catalog step is detached, as
+  before.
+- **Sidecar ownership.** Stems are now unique in the folder, so a merged
+  master never shares `stem.xmp` with another master or an orphan sidecar.
+  `sameContent` removal happens before any sidecar is written (the model
+  writes sidecars only after success). Undo leaves the file and its sidecar,
+  and the next merge numbers past both (`againAfterRemoval`).
+- **Strings.** Four new keys with comments. Positional arguments in the
+  two-argument string. No product name. `LocalizationTests` and
+  `BrandingTests` pass. The wording is the designer's to confirm (status.md,
+  Design questions).
+- **`photocli merge`.** Online is decided by identity only. The output is as
+  before. A same-content refusal maps to a failure with nothing left on disk.
+- **The test helper `import zlib`** is the SDK's system module, not a package.
+  No dependency is added.
+
+### A merged DNG selected beside its own source raws
+
+The engineer notes that a merged DNG passes every refusal as a frame. It is a
+raw to the app, the same size, with the reference's metadata. The design
+already ruled on this: RI-H4, D-H5c, "no detection in v1". I agree that this
+branch needs no rule. Nothing is lost: masters are only read, the result is a
+new file with its own name, and Undo takes it out. The worst outcome is a poor
+merge, which the sheet makes visible by listing the frames by name (an
+`_HDR` name among them).
+
+If the owner wants detection later, the file already marks itself, with no
+migration needed: a merged DNG is `PhotometricInterpretation` LinearRaw. A
+merge could refuse a LinearRaw DNG beside mosaic raws as `mixedKinds`. That is
+also principled for linear DNGs from other tools, which have been demosaiced
+and often tone-processed, unlike mosaic raws. This is a follow-up for the
+product manager, not a finding.
+
+### Still open for the main session
+
+- The #88 semantic conflict from the first pass (`maskRasters` in
+  `removeMergedMaster` and `restoreMergedMaster`) still applies. `status.md`
+  records it for whichever branch merges second.
+- `/security-review`: this pass changes file placement (`writeInPlace`'s
+  fallback), and C6's fix will change it again. A short re-run of
+  `/security-review` on the C6 fix is worthwhile, limited to `writeInPlace`.

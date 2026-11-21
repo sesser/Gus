@@ -192,6 +192,103 @@ The guide's "Photos of another scene ... Activity names the photo" and the
 failed-disk ("not enough space") and deleted-master messages are built but not
 run (status.md); they are for QA to attempt or leave to the owner.
 
+## Confirmation (second pass, 2026-11-20)
+
+Reviewer: apple-ui-designer. Read: `design.md`, this file, `status.md`,
+`Model/MergeText.swift`, `Views/MergeSheet.swift` (Name row),
+`PhotoCore/Merge/MergeSelection.swift`, `MergeLimits.swift`,
+`HDRMergeJob.swift` (failure cases), `Catalog/MergedMasters.swift`, the four
+new keys in `Localizable.xcstrings` and the merge entry of `docs/USER_GUIDE.md`
+(lines 249 to 301). I did not run the app or the tests.
+
+**Verdict: passes; one string reworded (F3), two guide additions (F4, F5).**
+Rulings are in `design.md` §19 as D-H5a to D-H5c.
+
+**Earlier findings.** F1 confirmed fixed: the guide says the DNG "opens as
+bright as the reference but flat" and names the loupe, review and comparison
+in the landing sentence. F2 confirmed in code: the Name row is one line,
+middle-truncated, selectable, with the full name as its tooltip. The
+tooltip is a hover aid only; the name is fully readable in the field's
+selection and by VoiceOver, so nothing depends on it.
+
+| # | Requirement | Result | Evidence |
+|---|---|---|---|
+| S1 | Case 6a "“%@” is too large to merge. A photo can have at most %lld megapixels." (§6.1) | Pass | Names the frame and the rule; used in the sheet and Activity; one number, no plural needed. Catalog value uses positional `%1$@`, `%2$lld`, which matches the call |
+| S2 | Case 6b "These photos are too large to merge together on this Mac. Select fewer." (§6.1) | Pass | Names cause and action; "on this Mac" says the limit is the machine's. All rows flagged, as in case 1. Order after case 6 and 6a, before offline, as ruled |
+| S3 | Activity: unusable name (§7.3) | Fail until F3 | "has a name or place a merged photo can't be saved beside" is vague and jargon-like |
+| S4 | Activity: same content (§7.3) | Pass | Says what was found; the row's first sentence already says nothing was added |
+| S5 | Numbering by stem, shown in the Name row before Merge (§5.3, D-H5b) | Pass (by `numbersPastTheStem`, status.md); needs manual check M7 | Name row follows the Format control; the guide gives the reason |
+| S6 | Merged DNG beside its own source raws (D-H5c) | Accepted as built; guide sentence F5; needs manual check M8 | Not refused, not flagged; the frame shows by name |
+| S7 | Guide lists the refusals (§15) | Fail until F4 | The guide's refusal list (line 287 to 291) omits the two size refusals |
+
+## Rulings on the engineer's questions (second pass)
+
+1. **Strings (1), (2), (4): confirmed as written.** (3) is reworded below.
+2. **Numbering results by stem: stands**, with no new caption. A shared sidecar
+   is a data fault, and the Name row shows the number before the person commits.
+   If a person is confused by `-2` with no `-1`, the answer is a caption naming
+   the file in the way; it needs one string and the clashing name from
+   `MergeNaming`.
+3. **A merged DNG accepted as a frame beside its own sources: neither flagged
+   nor refused.** The app has no reliable way to know (no stored link), the
+   only signals are heuristics that would block legitimate selections, and the
+   cost of the mistake is a poor file, one Undo from gone. The sheet shows the
+   frame by name. Detecting our own DNG is raised as RI-H4 for the product
+   manager (default: none).
+
+## Findings for the engineer (second pass)
+
+**F3 (fix, one string).** Reword the Activity reason for `.invalidName` in
+`MergeText.reason`. Exact text, two sentences:
+
+    A merged photo can't be saved beside “%@”. The library's record of its file name or location isn't valid.
+
+The catalog key is the English text, so replace the key (the old key is
+`“%@” has a name or place a merged photo can't be saved beside.`) in
+`Localizable.xcstrings` with the new text, keep the same `%@` and the
+`comment` ("Activity: why a merge failed; the reference photo's name (a damaged
+library)"), and change the `String(localized:)` literal to match so
+`LocalizationTests` finds the entry. No other string changes. If a test pins the
+old wording, update it.
+
+**F4 (fix, user guide).** In the refusal list of the "Merging to HDR" entry
+(the bullet beginning "Only photos merge"), add the two size refusals: a photo
+of more than 150 megapixels, and photos that together are too large for the
+Mac's memory (the limit is half the Mac's memory, so the same selection may
+merge on another Mac; select fewer). Keep the sentence about what the sheet
+says, and the guide's words ("too large to merge"), so the terms match the UI.
+
+**F5 (fix, user guide).** Add one sentence after the paragraph that says
+nothing links the new photo to its sources: a merged photo is an ordinary photo,
+so the app does not stop you selecting one together with its own source photos;
+the result then counts that light twice, so select only the original series.
+Plain words, no "provenance".
+
+**Not findings (leave as built).** Return as the default button; ⇧⌘L enabled
+from any pane; the numbered name without a caption (D-H5b); no flag on a
+merged photo among its sources (D-H5c).
+
+## Requirements issues (second pass)
+
+- **RI-H4** (`design.md` §17): a merged photo can't be told from any raw, so it
+  can be selected beside its own frames. Default: no detection in v1. If the
+  owner wants it, a stored marker (in the file or the catalog) serves this and
+  RI-H3 together.
+- **RI-H1 to RI-H3, RI-E1, RI-E2** stand as raised above.
+
+## Manual checks added
+
+- **M7. Numbering shown before Merge.** On the scratch library, merge the three
+  `RAW_10x` frames as TIFF and wait, then open the sheet again on the same three
+  and choose DNG: the Name row reads `‹name›_HDR-2.dng`, and changing to TIFF
+  reads `‹name›_HDR-2.tif`. Merge it and check that the two files have separate
+  sidecars when sidecars are on.
+- **M8. A merged photo among its sources.** Select the three raws and the
+  merged DNG and press ⇧⌘L: the sheet opens with four rows and no refusal. Look
+  at which row is marked Reference and what the Name row says (it may read
+  `…_HDR_HDR`); this is the signal D-H5c relies on, so say if it is unclear.
+  Cancel; nothing is written.
+
 ## Summary for the issue
 
 Design review of #150: passes. The built UI follows design.md: File ▸ Merge to
