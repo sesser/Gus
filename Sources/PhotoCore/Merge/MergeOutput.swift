@@ -31,6 +31,8 @@ public enum MergeOutput {
         case noSpace
         /// A file appeared under the chosen name meanwhile.
         case nameTaken
+        /// The file would be larger than its format can hold (a DNG past 4 GiB).
+        case tooLarge
     }
 
     /// What the result carries of the reference photo (R7).
@@ -88,33 +90,33 @@ public enum MergeOutput {
     }
 
     /// Renders `image` (tone mapped, linear Rec. 2020, 0 to 1) to a 16-bit
-    /// Display P3 TIFF at `url`.
-    public static func writeTIFF(_ image: CIImage, context: CIContext, metadata: Metadata, to url: URL) throws {
+    /// Display P3 TIFF at `url`. The encoder reads the pixels from a
+    /// sequential provider that renders a band of rows at a time
+    /// (`BandProvider`), so no whole-image buffer is held (security review M1).
+    /// Returns the written file's identity.
+    @discardableResult
+    public static func writeTIFF(_ image: CIImage, context: CIContext, metadata: Metadata, to url: URL) throws
+        -> FileIdentity {
         let extent = image.extent.integral
         let width = Int(extent.width), height = Int(extent.height)
         let space = RenderEngine.outputColorSpace
-        let rowBytes = width * 8
-        var data = Data(count: rowBytes * height)
-        try data.withUnsafeMutableBytes { buffer in
-            try renderInBands(image, extent: extent) { band, firstRow in
-                context.render(image, toBitmap: buffer.baseAddress! + firstRow * rowBytes, rowBytes: rowBytes,
-                               bounds: band, format: .RGBA16, colorSpace: space)
-            }
-        }
-        guard let provider = CGDataProvider(data: data as CFData),
+        let source = BandProvider(image: image, context: context, extent: extent, colorSpace: space)
+        guard let provider = source.makeProvider(),
               let cgImage = CGImage(width: width, height: height, bitsPerComponent: 16, bitsPerPixel: 64,
-                                    bytesPerRow: rowBytes, space: space,
+                                    bytesPerRow: source.rowBytes, space: space,
                                     bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue
                                         | CGImageByteOrderInfo.order16Little.rawValue),
                                     provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent)
         else { throw Failure.renderFailed }
         let (properties, xmp) = tiffMetadata(metadata)
-        try writeInPlace(url) { temporary in
+        return try writeInPlace(url) { temporary in
             guard let destination = CGImageDestinationCreateWithURL(temporary as CFURL, UTType.tiff.identifier as CFString,
                                                                     1, nil)
             else { throw Failure.writeFailed("") }
             CGImageDestinationAddImageAndMetadata(destination, cgImage, xmp, properties as CFDictionary)
-            guard CGImageDestinationFinalize(destination) else { throw Failure.writeFailed("") }
+            let finished = CGImageDestinationFinalize(destination)
+            try Task.checkCancellation()
+            guard finished, !source.failed else { throw Failure.writeFailed("") }
         }
     }
 
@@ -129,8 +131,9 @@ public enum MergeOutput {
     /// white as bright as the file asks, with its extended range for the
     /// loupe's HDR view.
     /// `exposure` is added to it: the reference's own default exposure.
+    @discardableResult
     public static func writeDNG(_ radiance: CIImage, context: CIContext, metadata: Metadata, to url: URL,
-                                brightest: Double = 1, exposure: Double = 0) throws {
+                                brightest: Double = 1, exposure: Double = 0) throws -> FileIdentity {
         let extent = radiance.extent.integral
         let width = Int(extent.width), height = Int(extent.height)
         let white = max(1, brightest.isFinite ? brightest : 1)
@@ -141,7 +144,7 @@ public enum MergeOutput {
             "inputGVector": CIVector(x: 0, y: 1 / white, z: 0, w: 0),
             "inputBVector": CIVector(x: 0, y: 0, z: 1 / white, w: 0),
         ]) : radiance
-        try writeInPlace(url) { temporary in
+        return try writeInPlace(url) { temporary in
             var writer = try LinearDNGWriter(url: temporary, width: width, height: height, metadata: dngMetadata)
             do {
                 var rows = [Float](repeating: 0, count: width * bandHeight * 4)
@@ -182,43 +185,83 @@ public enum MergeOutput {
         }
     }
 
-    /// Writes through `body` to a hidden file beside `url`, then moves it to
-    /// `url` without replacing anything there. The hidden file is removed
-    /// whatever happens.
-    static func writeInPlace(_ url: URL, _ body: (URL) throws -> Void) throws {
+    /// A file as the file system knows it, whatever its name: for removing
+    /// only the file the merge wrote (security review L2).
+    public struct FileIdentity: Hashable, Sendable {
+        public var device: Int64
+        public var inode: UInt64
+
+        /// The identity of what is at `url` now (links not followed), nil when nothing is.
+        public static func of(_ url: URL) -> FileIdentity? {
+            var info = stat()
+            let result = url.withUnsafeFileSystemRepresentation { path in path.map { lstat($0, &info) } ?? -1 }
+            guard result == 0 else { return nil }
+            return FileIdentity(device: Int64(info.st_dev), inode: UInt64(info.st_ino))
+        }
+    }
+
+    /// Writes through `body` to a hidden file beside `url`, then puts it at
+    /// `url` without replacing anything there, and returns its identity. The
+    /// hidden file is removed whatever happens.
+    ///
+    /// The hidden name is short and fixed (`.merge-<UUID>.partial`), so any
+    /// result name that fits the file system fits it too (security review L1).
+    /// The file is put in place with `link(2)`, which fails rather than
+    /// replace (a file that appeared since the name was chosen, a dangling
+    /// link); only where the file system has no hard links (`ENOTSUP`,
+    /// `EOPNOTSUPP`, `EPERM`) it is renamed with `RENAME_EXCL`, which also
+    /// never replaces. Any other error is a failure to write (L7).
+    /// `linkFile` is `link(2)` (tests stand in for it).
+    @discardableResult
+    static func writeInPlace(_ url: URL,
+                             linkFile: (UnsafePointer<CChar>, UnsafePointer<CChar>) -> Int32 = { link($0, $1) },
+                             _ body: (URL) throws -> Void) throws -> FileIdentity {
         let fileManager = FileManager.default
         let temporary = url.deletingLastPathComponent()
-            .appending(path: ".\(url.lastPathComponent).\(UUID().uuidString).partial", directoryHint: .notDirectory)
+            .appending(path: ".merge-\(UUID().uuidString).partial", directoryHint: .notDirectory)
         defer { try? fileManager.removeItem(at: temporary) }
         do {
             try body(temporary)
             try Task.checkCancellation()
         } catch let failure as Failure {
             throw spaceAware(failure, at: url)
+        } catch LinearDNGWriter.Failure.tooLarge {
+            throw Failure.tooLarge
         } catch is CancellationError {
             throw CancellationError()
         } catch {
             throw spaceAware(.writeFailed(error.localizedDescription), at: url, underlying: error)
         }
-        // link(2) fails rather than replace: nothing can be written over, even a
-        // file that appeared since the name was chosen.
+        guard let identity = FileIdentity.of(temporary) else { throw Failure.writeFailed("") }
         let linked = temporary.withUnsafeFileSystemRepresentation { from in
             url.withUnsafeFileSystemRepresentation { to in
                 guard let from, let to else { return Int32(-1) }
-                return link(from, to)
+                return linkFile(from, to) == 0 ? 0 : errno
             }
         }
-        if linked != 0 {
-            let code = errno
-            if code == EEXIST { throw Failure.nameTaken }
-            // A file system without hard links: a move, after checking the name is free.
-            guard !fileManager.fileExists(atPath: url.path) else { throw Failure.nameTaken }
-            do {
-                try fileManager.moveItem(at: temporary, to: url)
-            } catch {
-                throw spaceAware(.writeFailed(error.localizedDescription), at: url, underlying: error)
+        switch linked {
+        case 0:
+            return identity
+        case EEXIST:
+            throw Failure.nameTaken
+        case ENOTSUP, EOPNOTSUPP, EPERM:
+            let renamed = temporary.withUnsafeFileSystemRepresentation { from in
+                url.withUnsafeFileSystemRepresentation { to in
+                    guard let from, let to else { return Int32(-1) }
+                    return renamex_np(from, to, UInt32(RENAME_EXCL)) == 0 ? 0 : errno
+                }
             }
+            if renamed == 0 { return identity }
+            if renamed == EEXIST { throw Failure.nameTaken }
+            throw writeFailure(renamed, at: url)
+        default:
+            throw writeFailure(linked, at: url)
         }
+    }
+
+    static func writeFailure(_ code: Int32, at url: URL) -> Failure {
+        let error = POSIXError(POSIXErrorCode(rawValue: code) ?? .EIO)
+        return code == ENOSPC ? .noSpace : spaceAware(.writeFailed(error.localizedDescription), at: url)
     }
 
     static func spaceAware(_ failure: Failure, at url: URL, underlying: (any Error)? = nil) -> Failure {
@@ -231,6 +274,109 @@ public enum MergeOutput {
             return .noSpace
         }
         return failure
+    }
+
+    // MARK: Rendering in bands
+
+    /// Pixels for the TIFF encoder, rendered a band at a time as it reads
+    /// them: one band's buffer instead of the whole image. Returns no bytes
+    /// (and so stops the encoder) once its task is cancelled.
+    final class BandProvider: @unchecked Sendable {
+        // @unchecked: used by one encoder on one thread, the job's.
+        let image: CIImage
+        let context: CIContext
+        let extent: CGRect
+        let colorSpace: CGColorSpace
+        let rowBytes: Int
+        let height: Int
+        private var band: [UInt8]
+        private var bandFirstRow = -1
+        private var bandRows = 0
+        private var position = 0
+        private(set) var failed = false
+
+        init(image: CIImage, context: CIContext, extent: CGRect, colorSpace: CGColorSpace) {
+            self.image = image
+            self.context = context
+            self.extent = extent
+            self.colorSpace = colorSpace
+            rowBytes = Int(extent.width) * 8
+            height = Int(extent.height)
+            band = [UInt8](repeating: 0, count: rowBytes * min(MergeOutput.bandHeight, max(1, Int(extent.height))))
+        }
+
+        func makeProvider() -> CGDataProvider? {
+            var callbacks = CGDataProviderSequentialCallbacks(
+                version: 0,
+                getBytes: { info, buffer, count in
+                    guard let info else { return 0 }
+                    return Unmanaged<BandProvider>.fromOpaque(info).takeUnretainedValue().read(into: buffer, count: count)
+                },
+                skipForward: { info, count in
+                    guard let info else { return 0 }
+                    return Unmanaged<BandProvider>.fromOpaque(info).takeUnretainedValue().skip(count)
+                },
+                rewind: { info in
+                    guard let info else { return }
+                    Unmanaged<BandProvider>.fromOpaque(info).takeUnretainedValue().position = 0
+                },
+                releaseInfo: { info in
+                    guard let info else { return }
+                    Unmanaged<BandProvider>.fromOpaque(info).release()
+                })
+            let info = Unmanaged.passRetained(self).toOpaque()
+            guard let provider = CGDataProvider(sequentialInfo: info, callbacks: &callbacks) else {
+                Unmanaged<BandProvider>.fromOpaque(info).release()
+                return nil
+            }
+            return provider
+        }
+
+        private var total: Int { rowBytes * height }
+
+        func skip(_ count: off_t) -> off_t {
+            let step = min(Int(count), total - position)
+            position += step
+            return off_t(step)
+        }
+
+        func read(into buffer: UnsafeMutableRawPointer, count: Int) -> Int {
+            guard !failed else { return 0 }
+            if Task.isCancelled {
+                failed = true
+                return 0
+            }
+            var copied = 0
+            while copied < count, position < total {
+                let row = position / rowBytes
+                if row < bandFirstRow || row >= bandFirstRow + bandRows { render(from: row) }
+                let bandEnd = (bandFirstRow + bandRows) * rowBytes
+                let length = min(count - copied, bandEnd - position)
+                band.withUnsafeBytes { bytes in
+                    (buffer + copied).copyMemory(from: bytes.baseAddress! + (position - bandFirstRow * rowBytes),
+                                                 byteCount: length)
+                }
+                copied += length
+                position += length
+            }
+            return copied
+        }
+
+        private func render(from row: Int) {
+            let first = row / MergeOutput.bandHeight * MergeOutput.bandHeight
+            let rows = min(MergeOutput.bandHeight, height - first)
+            // Core Image's rows count from the bottom.
+            let bounds = CGRect(x: extent.minX, y: extent.maxY - CGFloat(first + rows), width: extent.width,
+                                height: CGFloat(rows))
+            autoreleasepool {
+                band.withUnsafeMutableBytes { bytes in
+                    context.render(image, toBitmap: bytes.baseAddress!, rowBytes: rowBytes, bounds: bounds,
+                                   format: .RGBA16, colorSpace: colorSpace)
+                }
+            }
+            bandFirstRow = first
+            bandRows = rows
+        }
     }
 
     // MARK: Metadata

@@ -27,6 +27,15 @@ import ImageIO
 public enum MergeDecoder {
     public enum Failure: Error, Equatable, Sendable {
         case undecodable(URL)
+        /// The image is larger than `MergeLimits.maximumPixels`.
+        case tooLarge(URL)
+    }
+
+    /// Refuses a size over `MergeLimits.maximumPixels` before anything is
+    /// rendered at it (security review M1).
+    static func check(_ size: CGSize, _ url: URL) throws {
+        let pixels = Double(size.width) * Double(size.height)
+        guard pixels.isFinite, pixels <= Double(MergeLimits.maximumPixels) else { throw Failure.tooLarge(url) }
     }
 
     /// Which decoder gives a frame its pixels.
@@ -59,6 +68,7 @@ public enum MergeDecoder {
             if raw.isLocalToneMapSupported { raw.localToneMapAmount = 0 }
             raw.extendedDynamicRangeAmount = 1
             let native = raw.nativeSize
+            try check(native, url)
             if let longEdge, native.width > 0, native.height > 0 {
                 let scale = Double(longEdge) / Double(max(native.width, native.height))
                 if scale < 1 { raw.scaleFactor = Float(min(1, scale * 1.25)) }
@@ -73,10 +83,14 @@ public enum MergeDecoder {
                 output = try LibRawDecoder.decode(url, longEdge: longEdge)
             } catch let cancelled as CancellationError {
                 throw cancelled
+            } catch LibRawDecoder.Failure.tooLarge {
+                throw Failure.tooLarge(url)
             } catch {
                 throw Failure.undecodable(url)
             }
             guard !output.linear.extent.isEmpty else { throw Failure.undecodable(url) }
+            // LibRaw refuses a sensor over the same size before it unpacks.
+            try check(output.linear.extent.size, url)
             var transform = output.step.transform(temperature: nil, tint: nil)
             transform.toneCurve = nil
             image = transform.apply(to: output.linear)
@@ -84,6 +98,8 @@ public enum MergeDecoder {
             guard let decoded = CIImage(contentsOf: url, options: [.applyOrientationProperty: true]),
                   !decoded.extent.isEmpty, !decoded.extent.isInfinite
             else { throw Failure.undecodable(url) }
+            // The extent is the header's: nothing is decoded yet.
+            try check(decoded.extent.size, url)
             image = decoded
         }
         var placed = image.transformed(by: CGAffineTransform(translationX: -image.extent.minX, y: -image.extent.minY))

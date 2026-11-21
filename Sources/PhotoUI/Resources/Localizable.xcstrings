@@ -16050,6 +16050,39 @@
           }
         }
       }
+    },
+    "“%@” is too large to merge. A photo can have at most %lld megapixels." : {
+      "comment" : "Merge to HDR sheet and Activity: refusal; the photo's name, then the limit in megapixels",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%1$@” is too large to merge. A photo can have at most %2$lld megapixels."
+          }
+        }
+      }
+    },
+    "These photos are too large to merge together on this Mac. Select fewer." : {
+      "comment" : "Merge to HDR sheet: refusal, the photos' pixels would take more memory than a merge may use",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These photos are too large to merge together on this Mac. Select fewer."
+          }
+        }
+      }
+    },
+    "“%@” has a name or place a merged photo can't be saved beside." : {
+      "comment" : "Activity: why a merge failed; the reference photo's name (a damaged library)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” has a name or place a merged photo can't be saved beside."
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

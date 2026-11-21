@@ -14,6 +14,11 @@ public enum MergeExposure {
     /// Values between these parts of a frame's clipping level are used for
     /// measuring: clear of noise below and of clipping above.
     public static let measuredRange: ClosedRange<Float> = 0.02...0.8
+    /// Ratios between two frames outside this (16 stops either way), or not
+    /// finite, are not believed: broken metadata, not a bracket (security
+    /// review L3). Equal exposure is assumed instead.
+    public static let plausible: ClosedRange<Double> = pow(2, -16)...pow(2, 16)
+
     /// A pair needs at least this part of the pixels in common.
     public static let minimumCommonFraction = 0.002
 
@@ -53,9 +58,10 @@ public enum MergeExposure {
         var stepRatio = [Double](repeating: 1, count: count)
         for position in 1..<count {
             let darker = order[position - 1], brighter = order[position]
-            if let measured = ratio(frames[brighter], over: frames[darker], clips: (clips[brighter], clips[darker])) {
+            if let measured = ratio(frames[brighter], over: frames[darker], clips: (clips[brighter], clips[darker])),
+               plausible.contains(measured) {
                 stepRatio[position] = measured
-            } else if let a = metadata[brighter], let b = metadata[darker], a > 0, b > 0 {
+            } else if let a = metadata[brighter], let b = metadata[darker], a > 0, b > 0, plausible.contains(a / b) {
                 stepRatio[position] = a / b
             } else {
                 stepRatio[position] = 1
@@ -93,10 +99,12 @@ public enum MergeExposure {
 
     /// A file's exposure value: time × ISO / f-number² (nil without a time).
     /// Missing ISO or f-number count as equal across frames.
+    /// Values that aren't finite and positive count as unknown (security review L3).
     public static func metadataExposure(time: Double?, fNumber: Double?, iso: Int?) -> Double? {
-        guard let time, time > 0 else { return nil }
-        let number = (fNumber ?? 0) > 0 ? fNumber! : 1
-        let speed = Double((iso ?? 0) > 0 ? iso! : 100)
-        return time * speed / (number * number)
+        guard let time, time.isFinite, time > 0 else { return nil }
+        let number = fNumber.flatMap { $0.isFinite && $0 > 0 ? $0 : nil } ?? 1
+        let speed = Double(iso.flatMap { $0 > 0 ? $0 : nil } ?? 100)
+        let value = time * speed / (number * number)
+        return value.isFinite && value > 0 ? value : nil
     }
 }

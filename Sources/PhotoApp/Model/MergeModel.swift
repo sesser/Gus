@@ -217,7 +217,7 @@ final class MergeModel {
                 library.report(MergeText.stopped, action: MergeText.title, warning: false,
                                announcing: MergeText.announceStopped)
             } catch let failure as HDRMergeJob.Failure {
-                Self.log.error("Merge failed: \(String(describing: failure), privacy: .public)")
+                Self.log.error("Merge failed: \(String(describing: failure), privacy: .private)")
                 let text: String
                 if case .catalogFailed = failure {
                     text = MergeText.reason(failure)
@@ -226,7 +226,7 @@ final class MergeModel {
                 }
                 library.report(text, action: MergeText.title, warning: true, announcing: MergeText.announceFailed)
             } catch {
-                Self.log.error("Merge failed: \(String(describing: error), privacy: .public)")
+                Self.log.error("Merge failed: \(String(describing: error), privacy: .private)")
                 library.report(MergeText.failed + " " + error.localizedDescription, action: MergeText.title,
                                warning: true, announcing: MergeText.announceFailed)
             }
@@ -302,7 +302,7 @@ final class MergeModel {
                 } catch {
                     // A sidecar that couldn't be written is flagged by the sync itself;
                     // this is the catalog failing under it.
-                    Self.log.error("Merge: the sidecar step failed: \(String(describing: error), privacy: .public)")
+                    Self.log.error("Merge: the sidecar step failed: \(String(describing: error), privacy: .private)")
                 }
             }
         }

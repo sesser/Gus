@@ -64,18 +64,42 @@ public struct LinearDNGWriter {
 
     /// Starts the file at `url` (which must not exist), writing every tag and
     /// leaving room for the pixels.
+    public enum Failure: Error, Equatable {
+        /// The file would pass 4 GiB, past what a classic TIFF's 32-bit
+        /// offsets reach (security review M2).
+        case tooLarge
+    }
+
+    /// The most bytes of header and pixels a file may hold: the largest
+    /// offset a classic TIFF can state.
+    static let maximumFileSize = UInt64(UInt32.max)
+
+    /// Starts the file at `url` (which must not exist), writing every tag and
+    /// leaving room for the pixels. Throws `tooLarge`, with nothing created,
+    /// when the file would pass `maximumFileSize`.
     public init(url: URL, width: Int, height: Int, metadata: Metadata) throws {
         guard width > 0, height > 0 else { throw CocoaError(.fileWriteUnknown) }
+        guard Self.fits(width: width, height: height, metadata: metadata) else { throw Failure.tooLarge }
         self.width = width
         self.height = height
         rowsPerStrip = max(1, min(height, (1 << 20) / (width * 3 * Self.bitsPerSample / 8)))
+        let header = Self.header(width: width, height: height, rowsPerStrip: rowsPerStrip, metadata: metadata)
         guard FileManager.default.createFile(atPath: url.path, contents: nil) else {
             throw CocoaError(.fileWriteNoPermission, userInfo: [NSFilePathErrorKey: url.path])
         }
         handle = try FileHandle(forWritingTo: url)
         scratch = []
-        let header = Self.header(width: width, height: height, rowsPerStrip: rowsPerStrip, metadata: metadata)
         try handle.write(contentsOf: header)
+    }
+
+    /// Whether the pixels and a generous header (its tags, the strip tables
+    /// and the XMP packet, plus 1 MiB) stay within `maximumFileSize`.
+    static func fits(width: Int, height: Int, metadata: Metadata) -> Bool {
+        let (pixels, overflow) = UInt64(width).multipliedReportingOverflow(by: UInt64(height) * 3 * UInt64(bitsPerSample / 8))
+        guard !overflow else { return false }
+        let strips = UInt64(height) * 8
+        let header = UInt64(metadata.xmp?.count ?? 0) + strips + (1 << 20)
+        return pixels + header <= maximumFileSize
     }
 
     /// Writes `count` rows of RGBA floats (alpha is dropped), top row first.

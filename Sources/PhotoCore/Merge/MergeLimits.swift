@@ -8,6 +8,27 @@ public enum MergeLimits {
     /// status.md's memory spike).
     public static let maxFrames = 9
 
+    /// Pixels a frame may have at most (security review M1): the size the app
+    /// already gives LibRaw (`LibRawDecoder.maximumSensorPixels`), which is
+    /// above every camera made today (the largest backs record 150 MP). A
+    /// file whose header claims more (a hostile or broken PNG or TIFF) is
+    /// refused before anything is allocated.
+    public static let maximumPixels = LibRawDecoder.maximumSensorPixels
+
+    /// Bytes the frames' full-resolution pixels may take together (8 a
+    /// pixel, half floats; status.md Spike 3): half of this Mac's memory.
+    /// The other half is left to the system RAW decoder's working set (about
+    /// 0.8 to 1.5 GB), Core Image, the reduced copies and the rest of the app.
+    public static var frameMemoryBudget: Int {
+        Int(min(ProcessInfo.processInfo.physicalMemory / 2, UInt64(Int.max)))
+    }
+
+    /// The bytes `frames` frames of `pixels` each take, held for a merge.
+    public static func heldBytes(pixels: Int, frames: Int) -> Int {
+        let (bytes, overflow) = pixels.multipliedReportingOverflow(by: 8 * max(frames, 1))
+        return overflow ? .max : bytes
+    }
+
     /// The long edge of the reduced copies alignment, exposure, ghosts and
     /// tone statistics are measured on.
     public static let measureLongEdge = 2048

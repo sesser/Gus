@@ -107,6 +107,12 @@ enum MergeText {
         case .differentSize(let name, let reference):
             String(localized: "“\(name)” is a different size from “\(reference)”. Merged photos must be the same size.",
                    comment: "Merge to HDR sheet: refusal; the photo's name, then the reference's")
+        case .tooLarge(let name, let megapixels):
+            String(localized: "“\(name)” is too large to merge. A photo can have at most \(megapixels) megapixels.",
+                   comment: "Merge to HDR sheet and Activity: refusal; the photo's name, then the limit in megapixels")
+        case .tooMuchMemory:
+            String(localized: "These photos are too large to merge together on this Mac. Select fewer.",
+                   comment: "Merge to HDR sheet: refusal, the photos' pixels would take more memory than a merge may use")
         case .offline(let name, let count):
             count == 1
                 ? String(localized: "“\(name)” is offline. Connect its drive and try again.",
@@ -164,6 +170,8 @@ enum MergeText {
             String(localized: "“\(name)” couldn't be read.", comment: "Activity: why a merge failed; the photo's name")
         case .differentSize(let name, let reference):
             refusal(.differentSize(name: name, reference: reference))
+        case .tooLarge(let name):
+            refusal(.tooLarge(name: name, megapixels: MergeLimits.maximumPixels / 1_000_000))
         case .noSpace(let volume):
             String(localized: "There isn't enough space on “\(volume)”.", comment: "Activity: why a merge failed; the disk's name")
         case .writeFailed(let reason):
@@ -172,6 +180,9 @@ enum MergeText {
             String(localized: "There wasn't enough memory to merge these photos.", comment: "Activity: why a merge failed")
         case .catalogFailed(let path, _):
             savedNotAdded(path)
+        case .invalidName(let name):
+            String(localized: "“\(name)” has a name or place a merged photo can't be saved beside.",
+                   comment: "Activity: why a merge failed; the reference photo's name (a damaged library)")
         case .sameContent:
             String(localized: "The library already has a photo with the same content.",
                    comment: "Activity: why a merge failed; its file was the same as a photo already in the library")

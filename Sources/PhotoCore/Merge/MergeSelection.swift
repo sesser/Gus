@@ -97,6 +97,11 @@ public enum MergeRefusal: Sendable, Hashable {
     case mixedKinds
     /// A frame of another size than the reference: its name and the reference's.
     case differentSize(name: String, reference: String)
+    /// A frame with more pixels than `MergeLimits.maximumPixels`: its name
+    /// and the limit in megapixels (security review M1).
+    case tooLarge(name: String, megapixels: Int)
+    /// The frames together would take more memory than a merge may use here.
+    case tooMuchMemory
     /// Offline frames: the first one's name and how many there are.
     case offline(name: String, count: Int)
     /// A master that can't be read: its name.
@@ -137,7 +142,8 @@ public struct MergeSelection: Sendable, Hashable {
     }
 
     /// The selection for `frames` (from `versionIDs`, in any order).
-    public init(frames unordered: [MergeFrame]) {
+    /// `memoryBudget`: what the frames' pixels may take (`MergeLimits.frameMemoryBudget`).
+    public init(frames unordered: [MergeFrame], memoryBudget: Int = MergeLimits.frameMemoryBudget) {
         let frames = unordered.sorted {
             $0.date != $1.date ? $0.date < $1.date
                 : $0.fileName.localizedStandardCompare($1.fileName) == .orderedAscending
@@ -145,7 +151,7 @@ public struct MergeSelection: Sendable, Hashable {
         self.frames = frames
         reference = Self.reference(in: frames)
         sameExposure = Self.sameExposure(frames)
-        (refusal, flagged) = Self.refusal(frames, reference: reference)
+        (refusal, flagged) = Self.refusal(frames, reference: reference, memoryBudget: memoryBudget)
     }
 
     /// The frame at 0 EV compensation when the metadata says which (some
@@ -166,7 +172,9 @@ public struct MergeSelection: Sendable, Hashable {
         func key(_ frame: MergeFrame) -> [Double]? {
             guard let time = frame.exposureTime, let number = frame.fNumber, let iso = frame.iso,
                   let compensation = frame.exposureCompensation else { return nil }
-            return [time, number, Double(iso), compensation]
+            let values = [time, number, Double(iso), compensation]
+            // Values that aren't finite say nothing (security review L3).
+            return values.allSatisfy(\.isFinite) ? values : nil
         }
         guard let reference = key(first) else { return false }
         return frames.allSatisfy { frame in
@@ -176,7 +184,7 @@ public struct MergeSelection: Sendable, Hashable {
     }
 
     /// The first refusal of design §6.1 that applies, and its flagged frames.
-    static func refusal(_ frames: [MergeFrame], reference: Int) -> (MergeRefusal?, Set<Int64>) {
+    static func refusal(_ frames: [MergeFrame], reference: Int, memoryBudget: Int) -> (MergeRefusal?, Set<Int64>) {
         if frames.count < MergeLimits.minFrames {
             return (.tooFew, Set(frames.map(\.versionID)))
         }
@@ -205,6 +213,19 @@ public struct MergeSelection: Sendable, Hashable {
            let other = frames.first(where: { $0.pixelSize != nil && $0.pixelSize != size }) {
             return (.differentSize(name: other.displayName, reference: ref.displayName), [other.versionID])
         }
+        // Sizes as the catalog has them (the job checks the decoders' too).
+        func pixels(_ frame: MergeFrame) -> Double {
+            frame.pixelSize.map { Double($0.width) * Double($0.height) } ?? 0
+        }
+        let tooLarge = frames.filter { pixels($0) > Double(MergeLimits.maximumPixels) }
+        if let first = tooLarge.first {
+            return (.tooLarge(name: first.displayName, megapixels: MergeLimits.maximumPixels / 1_000_000),
+                    Set(tooLarge.map(\.versionID)))
+        }
+        let total = frames.reduce(0.0) { $0 + pixels($1) } * 8
+        if total > Double(memoryBudget) {
+            return (.tooMuchMemory, Set(frames.map(\.versionID)))
+        }
         let offline = frames.filter { !$0.isOnline }
         if let first = offline.first {
             return (.offline(name: first.displayName, count: offline.count), Set(offline.map(\.versionID)))
@@ -232,7 +253,27 @@ public struct MergeSelection: Sendable, Hashable {
 public enum MergeNaming {
     public static let suffix = "_HDR"
 
+    /// Whether a master's file name and relative path, as the catalog has
+    /// them, name one file in a folder of the volume: the name is the path's
+    /// last part, and no part is empty, `.` or `..`, or holds a NUL
+    /// (security review L8).
+    public static func isPlainPlace(fileName: String, relativePath: String) -> Bool {
+        let parts = relativePath.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+        guard !relativePath.hasPrefix("/"), let last = parts.last, last == fileName else { return false }
+        return parts.allSatisfy { !$0.isEmpty && $0 != "." && $0 != ".." && !$0.contains("\0") }
+    }
+
+    /// File names longer than this many bytes (UTF-8) are not allowed by APFS
+    /// and HFS+.
+    static let maximumNameBytes = 255
+
     public static func name(stem: String, format: MergeFormat, masters: MasterFiles.Names, files: [String]) -> String {
+        // Room for the suffix, a number and the extension: a reference whose
+        // own name nearly fills the file system's limit gives a shorter stem
+        // (security review L1).
+        let reserve = (suffix + "-999." + format.fileExtension).utf8.count
+        var stem = stem
+        while stem.utf8.count + reserve > maximumNameBytes, !stem.isEmpty { stem.removeLast() }
         let taken = Set(files.map { MasterFiles.folded(($0 as NSString).deletingPathExtension) })
         func isFree(_ candidate: String) -> Bool {
             !taken.contains(MasterFiles.folded(candidate)) && !masters.containsStem(candidate)

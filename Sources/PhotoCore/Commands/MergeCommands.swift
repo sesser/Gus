@@ -50,8 +50,9 @@ enum MergeCommands {
             guard let details = try await catalog.details(forVersion: id) else {
                 throw CommandError(.versionNotFound, "No version \(id)")
             }
+            // By the volume's identity, as the app decides: a folder left at an
+            // old mount point is not the volume (security review L4).
             let isOnline = online.contains(details.volume.identity)
-                || FileManager.default.fileExists(atPath: details.volume.mountPath)
             frames.append(MergeFrame(details: details,
                                      displayName: CopyNaming.plain.copyName(of: details.version,
                                                                             fileName: details.image.fileName),

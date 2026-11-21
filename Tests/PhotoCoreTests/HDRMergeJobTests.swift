@@ -153,14 +153,60 @@ struct HDRMergeJobTests {
         let again = try await library.job.run(selection, format: .tiff)
         #expect(again.url.lastPathComponent == "IMG_0002_HDR-2.tif")
         #expect(try await library.hashes()["IMG_0002_HDR.tif"] == after["IMG_0002_HDR.tif"])
-        // C1: a photo of its own, with a row of its own, and a file of its own content.
+        // C1, AC15: a photo of its own, with a row of its own, and a file of its own
+        // content, whose pixels are the first merge's.
         let second = try #require(again.master)
         #expect(second.imageID != master.imageID)
         #expect(try await library.hashes()["IMG_0002_HDR-2.tif"] != after["IMG_0002_HDR.tif"])
+        #expect(try Self.pixels(result.url) == Self.pixels(again.url))
         // C3: a DNG of the same bracket gets a stem of its own.
         let dng = try await library.job.run(selection, format: .dng)
         #expect(dng.url.lastPathComponent == "IMG_0002_HDR-3.dng")
         #expect(dng.master != nil)
+    }
+
+    /// A TIFF's decoded pixels, 16 bits a channel.
+    static func pixels(_ url: URL) throws -> Data {
+        let source = try #require(CGImageSourceCreateWithURL(url as CFURL, nil))
+        let image = try #require(CGImageSourceCreateImageAtIndex(source, 0, nil))
+        return try #require(image.dataProvider?.data as Data?)
+    }
+
+    @Test("AC15: merging again after the first photo was removed from the library is a new photo")
+    func againAfterRemoval() async throws {
+        let library = try await MergeLibrary.make(Self.bracket)
+        defer { library.remove() }
+        let selection = try await library.selection(["IMG_0001.dng", "IMG_0002.dng", "IMG_0003.dng"])
+        let first = try await library.job.run(selection, format: .tiff)
+        _ = try await library.catalog.removeMergedMaster(imageID: try #require(first.master).imageID)
+        let again = try await library.job.run(selection, format: .tiff)
+        #expect(again.url.lastPathComponent == "IMG_0002_HDR-2.tif")
+        #expect(again.master != nil)
+        #expect(FileManager.default.fileExists(atPath: first.url.path))
+    }
+
+    @Test("AC2a: a TIFF and a DNG of one bracket each keep their own sidecar")
+    func ownSidecars() async throws {
+        let library = try await MergeLibrary.make(Self.bracket)
+        defer { library.remove() }
+        let catalog = library.catalog
+        let reference = try #require(library.versions["IMG_0002.dng"])
+        let sync = SidecarSync(catalog: catalog, metadataReader: ImageIOMetadataReader())
+        let selection = try await library.selection(["IMG_0001.dng", "IMG_0002.dng", "IMG_0003.dng"])
+        try await catalog.setRating(Rating(clamping: 4), forVersions: [reference])
+        let tiff = try #require(try await library.job.run(selection, format: .tiff).master)
+        let volume = try #require(try await catalog.details(forVersion: tiff.versionID)).image.volumeId
+        _ = try await sync.writeSidecars(forImages: [tiff.imageID], mountedVolumes: [volume])
+        try await catalog.setRating(Rating(clamping: 2), forVersions: [reference])
+        let dngResult = try await library.job.run(selection, format: .dng)
+        #expect(dngResult.url.lastPathComponent == "IMG_0002_HDR-2.dng")
+        let dng = try #require(dngResult.master)
+        _ = try await sync.writeSidecars(forImages: [dng.imageID], mountedVolumes: [volume])
+        let first = try SidecarFiles.read(library.folder.appending(path: "IMG_0002_HDR.xmp"))
+        let second = try SidecarFiles.read(library.folder.appending(path: "IMG_0002_HDR-2.xmp"))
+        #expect(first.values.rating == Rating(clamping: 4))
+        #expect(second.values.rating == Rating(clamping: 2))
+        #expect(try await catalog.libraryValues(forVersion: tiff.versionID).rating == Rating(clamping: 4))
     }
 
     @Test("AC2: an existing file with the result's name is left alone")

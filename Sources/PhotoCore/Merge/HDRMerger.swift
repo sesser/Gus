@@ -25,6 +25,8 @@ public struct HDRMerger: Sendable {
         case sizeMismatch(frame: Int)
         case kernelsUnavailable
         case renderFailed
+        /// The frames' pixels would take more memory than the merge may use.
+        case overBudget
     }
 
     /// The measurements a merge renders from.
@@ -77,9 +79,15 @@ public struct HDRMerger: Sendable {
     /// pixel) and given back as an image over those pixels: the merge then
     /// holds the frames' pixels and nothing of their decoders, whose own
     /// buffers are several times larger (status.md, "Spike 3").
-    public func fullFrame(of url: URL, source: MergeDecoder.Source) throws -> CIImage {
+    /// Throws `overBudget` before allocating when its pixels would take more
+    /// than `budget` bytes (security review M1).
+    public func fullFrame(of url: URL, source: MergeDecoder.Source, budget: Int = .max) throws -> CIImage {
         try autoreleasepool {
             let image = try MergeDecoder.linearImage(url, source: source, longEdge: nil)
+            let extent = image.extent.integral
+            guard MergeLimits.heldBytes(pixels: Int(extent.width) * Int(extent.height), frames: 1) <= budget else {
+                throw Failure.overBudget
+            }
             return try held(image)
         }
     }

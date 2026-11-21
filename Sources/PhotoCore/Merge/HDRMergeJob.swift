@@ -50,6 +50,8 @@ public struct HDRMergeJob: Sendable {
         case misaligned(name: String, reference: String)
         case unreadable(name: String)
         case differentSize(name: String, reference: String)
+        /// This frame has more pixels than a merge takes (security review M1).
+        case tooLarge(name: String)
         /// Not enough space on this volume.
         case noSpace(volume: String)
         case writeFailed(String)
@@ -59,6 +61,10 @@ public struct HDRMergeJob: Sendable {
         /// The catalog refused the file: another master has its content. The
         /// file was removed again (code review C1).
         case sameContent
+        /// The reference's name or place in the catalog is not one a file can
+        /// be written beside (a `/`, `..` in it: a crafted catalog; security
+        /// review L8).
+        case invalidName(name: String)
     }
 
     /// How a merge ended well.
@@ -86,7 +92,11 @@ public struct HDRMergeJob: Sendable {
 
     /// The file the merge would write now (R3, R4).
     public func resultURL(for selection: MergeSelection, format: MergeFormat) async throws -> URL {
-        let folder = selection.referenceFrame.folder
+        let reference = selection.referenceFrame
+        guard MergeNaming.isPlainPlace(fileName: reference.fileName, relativePath: reference.relativePath) else {
+            throw Failure.invalidName(name: reference.displayName)
+        }
+        let folder = reference.folder
         let masters = try await catalog.masterFiles(mounted: mountedVolumes()).names(in: folder)
         let files = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
         return folder.appending(path: selection.resultName(format: format, masters: masters, files: files),
@@ -112,6 +122,9 @@ public struct HDRMergeJob: Sendable {
         // frame at a time so only one decoder's buffers are held at once.
         var copies: [MergeBitmap] = []
         var full: [CIImage] = []
+        // What the frames' pixels may still take, checked from each decoder's
+        // own size before its pixels are allocated (security review M1).
+        var budget = MergeLimits.frameMemoryBudget
         for (index, frame) in frames.enumerated() {
             progress(MergeProgress(phase: .reading(index + 1, count),
                                    fraction: MergeProgress.readingShare * Double(index) / Double(count)))
@@ -119,11 +132,17 @@ public struct HDRMergeJob: Sendable {
             do {
                 copies.append(try merger.measuringCopy(of: frame.url, source: sources[index]))
                 try Task.checkCancellation()
-                full.append(try merger.fullFrame(of: frame.url, source: sources[index]))
+                let image = try merger.fullFrame(of: frame.url, source: sources[index], budget: budget)
+                budget -= MergeLimits.heldBytes(pixels: Int(image.extent.width) * Int(image.extent.height), frames: 1)
+                full.append(image)
             } catch let cancelled as CancellationError {
                 throw cancelled
+            } catch MergeDecoder.Failure.tooLarge {
+                throw Failure.tooLarge(name: frame.displayName)
+            } catch HDRMerger.Failure.overBudget {
+                throw Failure.noMemory
             } catch {
-                Self.log.error("Merge: \(frame.fileName, privacy: .private) couldn't be read: \(String(describing: error), privacy: .public)")
+                Self.log.error("Merge: \(frame.fileName, privacy: .private) couldn't be read: \(String(describing: error), privacy: .private)")
                 throw Failure.unreadable(name: frame.displayName)
             }
         }
@@ -165,13 +184,14 @@ public struct HDRMergeJob: Sendable {
                                             values: values)
         let exposure = MergeDecoder.defaultExposure(of: referenceFrame.url, source: sources[reference])
         var url = try await resultURL(for: selection, format: format)
+        var written: MergeOutput.FileIdentity?
         for attempt in 0..<3 {
             do {
                 switch format {
-                case .tiff: try MergeOutput.writeTIFF(mapped, context: merger.context, metadata: metadata, to: url)
+                case .tiff: written = try MergeOutput.writeTIFF(mapped, context: merger.context, metadata: metadata, to: url)
                 case .dng:
-                    try MergeOutput.writeDNG(radiance, context: merger.context, metadata: metadata, to: url,
-                                             brightest: plan.brightest, exposure: exposure)
+                    written = try MergeOutput.writeDNG(radiance, context: merger.context, metadata: metadata, to: url,
+                                                       brightest: plan.brightest, exposure: exposure)
                 }
                 break
             } catch MergeOutput.Failure.nameTaken where attempt < 2 {
@@ -183,6 +203,8 @@ public struct HDRMergeJob: Sendable {
                 throw Failure.writeFailed(reason)
             } catch MergeOutput.Failure.renderFailed {
                 throw Failure.noMemory
+            } catch MergeOutput.Failure.tooLarge {
+                throw Failure.tooLarge(name: referenceFrame.displayName)
             } catch MergeOutput.Failure.nameTaken {
                 throw Failure.writeFailed(url.lastPathComponent)
             }
@@ -212,11 +234,14 @@ public struct HDRMergeJob: Sendable {
             return Result(url: url, master: nil, existingVersionID: versionID, frameCount: count)
         } catch MergeCatalogFailure.sameContent {
             // Nothing in the library refers to the file, which this job just made:
-            // it goes, so no uncatalogued file stays beside the masters.
-            do {
-                try FileManager.default.removeItem(at: url)
-            } catch {
-                Self.log.error("Merge: couldn't remove the refused file \(url.path, privacy: .public): \(String(describing: error), privacy: .public)")
+            // it goes, so no uncatalogued file stays beside the masters. Only
+            // while the name still holds that very file (security review L2).
+            if let written, MergeOutput.FileIdentity.of(url) == written {
+                do {
+                    try FileManager.default.removeItem(at: url)
+                } catch {
+                    Self.log.error("Merge: couldn't remove the refused file \(url.path, privacy: .private): \(String(describing: error), privacy: .private)")
+                }
             }
             throw Failure.sameContent
         } catch {
