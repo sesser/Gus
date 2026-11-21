@@ -417,7 +417,8 @@ range. The photo is looked at once, at a reduced size, with no adjustments
 other than Distortion, and the result is fitted to the photo's edges when it
 is shown, so very fine detail such as hair or a fence can come out rough.
 While it looks, a line says "Detecting…"; **Cancel** stops it, and so does
-moving to another photo: nothing is added. When the result arrives the mask
+moving to another photo: nothing is added. Changing or removing a component
+while it looks again stops that too. When the result arrives the mask
 or component is added as one undo step and one History entry.
 
 Each component's row says what it found ("1 subject found."). If nothing is
