@@ -14,13 +14,33 @@ struct MaskRenderer {
     var maskFrame: CGRect
     var crop: Crop
     var selection: CIImage
+    /// Where detection components find their stored results; without one they select nothing.
+    var rasters: MaskRasterStore?
+
+    init(maskFrame: CGRect, crop: Crop, selection: CIImage, rasters: MaskRasterStore? = nil) {
+        self.maskFrame = maskFrame
+        self.crop = crop
+        self.selection = selection
+        self.rasters = rasters
+    }
 
     var outputExtent: CGRect { selection.extent }
 
-    /// The combined and scaled alpha of `mask`.
+    /// The combined and scaled alpha of `mask`. A component with no usable
+    /// result (a detection that failed, found nothing, or whose stored result
+    /// is missing) is left out whatever its operation and Invert, so the mask
+    /// is as without it (issue #88, R6, R14; design A5).
     func alpha(_ mask: Mask) -> CIImage {
-        Self.combine(mask.components.map { (shape($0.shape), $0.operation, $0.invert) }, amount: mask.amount,
-                     extent: outputExtent)
+        contributingAlpha(mask) ?? constant(0)
+    }
+
+    /// The same, or nil when no component contributes: the mask then changes nothing.
+    func contributingAlpha(_ mask: Mask) -> CIImage? {
+        let components = mask.components.compactMap { component in
+            shape(component.shape).map { ($0, component.operation, component.invert) }
+        }
+        guard !components.isEmpty else { return nil }
+        return Self.combine(components, amount: mask.amount, extent: outputExtent)
     }
 
     /// Components (alpha c, operation, invert) combined in order: Add
@@ -50,15 +70,35 @@ struct MaskRenderer {
         return clamped(result).cropped(to: extent)
     }
 
-    func shape(_ shape: MaskShape) -> CIImage {
+    /// A component's alpha, or nil when it has nothing to contribute.
+    func shape(_ shape: MaskShape) -> CIImage? {
         switch shape {
         case .linear(let gradient): framed(linear(gradient))
         case .radial(let gradient): framed(radial(gradient))
         case .brush(let brush): framed(BrushRasterizer.image(brush, extent: maskFrame) ?? constant(0, over: maskFrame))
         case .luminanceRange(let range): luminance(range)
         case .colorRange(let range): color(range)
-        case .detection: constant(0)
+        case .detection(let detection): self.detection(detection)
         }
+    }
+
+    // MARK: Detections
+
+    /// The stored result of `detection`, stretched over the mask frame, sent
+    /// through the crop like the brush, then brought to the render's edges by
+    /// the guided filter with this step's luminance as the guide (R7);
+    /// Background turned around. Nil, so the component is left out, without a
+    /// result: no digest, no row, damaged bytes, or nothing found (R6, R14;
+    /// design A5: Background with no subject selects nothing, not everything).
+    func detection(_ detection: MaskDetection) -> CIImage? {
+        guard let digest = detection.raster, case .stored(let entry)? = rasters?.lookup(digest), entry.instances > 0,
+              let stretched = GuidedMaskFilter.stretched(entry.pixels, over: maskFrame) else { return nil }
+        let p = framed(stretched)
+        let radius = GuidedMaskFilter.radius(rasterSize: CGSize(width: entry.pixels.width, height: entry.pixels.height),
+                                             frameSize: maskFrame.size)
+        let q = perceptualLuminance.flatMap { GuidedMaskFilter.filter(p, guide: $0, radius: radius) } ?? p
+        let alpha = q.cropped(to: outputExtent)
+        return detection.kind.isInverted ? Self.inverted(alpha) : alpha
     }
 
     // MARK: Mask frame
