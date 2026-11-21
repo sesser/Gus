@@ -12,9 +12,9 @@ been revised by its findings.
 | Item | State |
 | --- | --- |
 | R1, the spike (this file) | Done, 2026-11-20, on this Mac only |
-| PRD revision from the findings | Not started (Requirements issues RI-1 to RI-6, below) |
-| Design (`design.md`) | Not started: waits on the PRD revision |
-| R2 to R12, the feature | Not started: waits on the design |
+| PRD revision from the findings | Done (issue body revised 2026-11-20, RI-1 to RI-6 ruled) |
+| Design (`design.md`) | Done, 2026-11-20 |
+| R2 to R16, the feature | In progress (see **Build**, below) |
 
 ## Build and test
 

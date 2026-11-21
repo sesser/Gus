@@ -25,15 +25,43 @@ enum MaskShapeKind: String, CaseIterable {
         }
     }
 
-    init(_ shape: MaskShape) {
+    /// Nil for a detection, which is not one of the shapes (`MaskDetectionKind`).
+    init?(_ shape: MaskShape) {
         switch shape {
         case .linear: self = .linear
         case .radial: self = .radial
         case .brush: self = .brush
         case .luminanceRange: self = .luminanceRange
         case .colorRange: self = .colorRange
+        case .detection: return nil
         }
     }
+}
+
+/// A detection kind as the Masks heading shows it (design §2, §4). Not a
+/// `MaskShapeKind`: the shape row and the New Mask submenu list those.
+extension MaskDetectionKind {
+    var title: String {
+        switch self {
+        case .subject: String(localized: "Subject", comment: "Mask detection kind")
+        case .people: String(localized: "People", comment: "Mask detection kind")
+        case .background: String(localized: "Background", comment: "Mask detection kind")
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .subject: "dot.viewfinder"
+        case .people: "person.2"
+        case .background: "rectangle.dashed"
+        }
+    }
+}
+
+extension MaskShape {
+    /// The row's title and symbol.
+    var title: String { MaskShapeKind(self)?.title ?? detection?.kind.title ?? "" }
+    var symbol: String { MaskShapeKind(self)?.symbol ?? detection?.kind.symbol ?? "" }
 }
 
 extension MaskShape {

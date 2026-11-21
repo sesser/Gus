@@ -265,12 +265,11 @@ private struct ComponentRow: View {
     let index: Int
 
     var body: some View {
-        let kind = MaskShapeKind(component.shape)
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 4) {
-                Image(systemName: kind.symbol)
+                Image(systemName: component.shape.symbol)
                     .frame(width: 18)
-                Text(kind.title)
+                Text(component.shape.title)
                     .font(.callout)
                 Spacer()
                 AppKitPopUp(items: MaskOperation.allCases.map { .init(title: MaskDetail.operationTitle($0), tag: $0.rawValue) },
@@ -340,7 +339,7 @@ private struct ComponentRow: View {
                 r.tolerance = value
                 return .colorRange(r)
             }
-        case .brush:
+        case .brush, .detection:
             EmptyView()
         }
     }

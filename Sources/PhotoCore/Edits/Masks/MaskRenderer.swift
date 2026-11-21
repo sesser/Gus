@@ -57,6 +57,7 @@ struct MaskRenderer {
         case .brush(let brush): framed(BrushRasterizer.image(brush, extent: maskFrame) ?? constant(0, over: maskFrame))
         case .luminanceRange(let range): luminance(range)
         case .colorRange(let range): color(range)
+        case .detection: constant(0)
         }
     }
 
