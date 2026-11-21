@@ -19,6 +19,7 @@ enum CatalogSchema {
         migrator.registerMigration("v12", migrate: addExportPresets)
         migrator.registerMigration("v13", migrate: addDescriptiveFields)
         migrator.registerMigration("v14", migrate: addEditHistory)
+        migrator.registerMigration("v15", migrate: addMaskRasters)
         return migrator
     }
 
@@ -433,6 +434,34 @@ enum CatalogSchema {
             t.column("label", .text).notNull()
             t.column("createdAt", .datetime).notNull()
             t.column("stack", .blob).notNull()
+        }
+    }
+
+    /// Stored detection results of mask components (issue #88, R5): one row
+    /// per result, keyed by the SHA-256 of its bytes (an 8-bit gray PNG,
+    /// `MaskRaster`), never updated. A stack names a row by that digest.
+    /// `request`, `revision` and `systemVersion` are provenance for diagnosis.
+    ///
+    /// History snapshots are compressed, so each entry also names the rows its
+    /// snapshot refers to in `maskRasters` (a JSON array of digests, null when
+    /// none; null for every entry written before this migration, which could
+    /// name none). Rows nothing names are deleted at launch
+    /// (`removeUnreferencedMaskRasters`).
+    private static func addMaskRasters(_ db: Database) throws {
+        try db.create(table: "maskRaster") { t in
+            t.column("digest", .text).notNull().primaryKey()
+            t.column("encoding", .text).notNull()
+            t.column("width", .integer).notNull()
+            t.column("height", .integer).notNull()
+            t.column("instances", .integer).notNull()
+            t.column("data", .blob).notNull()
+            t.column("request", .text).notNull()
+            t.column("revision", .integer).notNull()
+            t.column("systemVersion", .text).notNull()
+            t.column("createdAt", .datetime).notNull()
+        }
+        try db.alter(table: "editHistory") { t in
+            t.add(column: "maskRasters", .text)
         }
     }
 }

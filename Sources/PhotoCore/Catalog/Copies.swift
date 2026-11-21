@@ -196,6 +196,8 @@ public struct RemovedCopy: Hashable, Sendable {
         var label: String
         var createdAt: Date
         var stack: Data
+        /// The stored detection results the snapshot names (`editHistory.maskRasters`).
+        var maskRasters: String?
     }
 
     public var version: VersionRecord
@@ -294,9 +296,10 @@ extension Catalog {
                     SELECT * FROM albumMember WHERE versionId = ? ORDER BY albumId
                     """, arguments: [id])
                 let history = try Row.fetchAll(db, sql: """
-                    SELECT id, label, createdAt, stack FROM editHistory WHERE versionId = ? ORDER BY id
+                    SELECT id, label, createdAt, stack, maskRasters FROM editHistory WHERE versionId = ? ORDER BY id
                     """, arguments: [id]).map {
-                    RemovedCopy.HistoryRow(id: $0["id"], label: $0["label"], createdAt: $0["createdAt"], stack: $0["stack"])
+                    RemovedCopy.HistoryRow(id: $0["id"], label: $0["label"], createdAt: $0["createdAt"], stack: $0["stack"],
+                                           maskRasters: $0["maskRasters"])
                 }
                 removed.append(RemovedCopy(version: version, keywordIDs: keywords, albumMembers: albums, history: history))
             }
@@ -328,8 +331,9 @@ extension Catalog {
                 }
                 for row in copy.history {
                     try db.execute(sql: """
-                        INSERT INTO editHistory (id, versionId, label, createdAt, stack) VALUES (?, ?, ?, ?, ?)
-                        """, arguments: [row.id, copy.versionID, row.label, row.createdAt, row.stack])
+                        INSERT INTO editHistory (id, versionId, label, createdAt, stack, maskRasters)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                        """, arguments: [row.id, copy.versionID, row.label, row.createdAt, row.stack, row.maskRasters])
                 }
             }
         }
