@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import ImageIO
 import PhotoFixtures
 import Testing
 import zlib
@@ -262,6 +263,23 @@ extension MemoryHeavy {
             await #expect(throws: HDRMergeJob.Failure.invalidName(name: "A")) {
                 _ = try await job.resultURL(for: selection, format: .tiff)
             }
+        }
+
+        @Test("C11: the capture date's offset reaches XMP only when it is a real one")
+        func captureDateOffset() {
+            func date(_ offset: String?) -> String? {
+                var exif: [String: any Sendable] = [kCGImagePropertyExifDateTimeOriginal as String: "2016:05:21 08:43:02"]
+                exif[kCGImagePropertyExifOffsetTimeOriginal as String] = offset
+                return MergeOutput.Metadata(sourceProperties: [kCGImagePropertyExifDictionary as String: exif],
+                                            values: SidecarValues()).xmpCaptureDate
+            }
+            #expect(date("+02:00") == "2016-05-21T08:43:02+02:00")
+            #expect(date("-05:30") == "2016-05-21T08:43:02-05:30")
+            #expect(date("Z") == "2016-05-21T08:43:02Z")
+            #expect(date("   :  ") == "2016-05-21T08:43:02")
+            #expect(date("+2:00") == "2016-05-21T08:43:02")
+            #expect(date(nil) == "2016-05-21T08:43:02")
+            #expect(MergeOutput.Metadata(sourceProperties: [:], values: SidecarValues()).xmpCaptureDate == nil)
         }
 
         @Test("L3: exposure metadata that isn't finite and positive counts as unknown")

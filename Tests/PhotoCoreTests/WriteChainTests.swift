@@ -59,6 +59,36 @@ struct WriteChainTests {
         #expect(store.order == [1, 2, 3])
     }
 
+    @Test("afterPendingWrites from inside a running write waits for it and the writes queued, and may read (#150 QA Q1)")
+    func afterPendingWritesFromInsideAWrite() async {
+        let chain = WriteChain()
+        let store = Store()
+        let gate = Latch()
+        let done = Latch()
+        var read: Int?
+        chain.enqueue {
+            store.order.append(1)
+            // As the merge's Redo does: what reads through the chain goes after this write.
+            chain.afterPendingWrites {
+                store.order.append(4)
+                read = try? await chain.read({ store.savedRating }, apply: { _ in })
+                done.open()
+            }
+            // A write queued after the call: the read inside waits for it too.
+            chain.enqueue { store.savedRating = 9; store.order.append(5) }
+            store.order.append(2)
+        }
+        // Queued before the first write runs, and held: the body waits for it.
+        chain.enqueue { await gate.wait(); store.savedRating = 7; store.order.append(3) }
+        await Task.yield()
+        #expect(!store.order.contains(4))
+        gate.open()
+        await done.wait()
+        #expect(Array(store.order.prefix(3)) == [1, 2, 3])
+        #expect(store.order.contains(5))
+        #expect(read == 9)
+    }
+
     @Test("A read started while a save is queued sees that save (editor-follow-edit-drop)")
     func readWaitsForQueuedWrites() async throws {
         let chain = WriteChain()

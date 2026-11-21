@@ -13,11 +13,11 @@ Spec: the PRD (issue #150 body, approved and revised 2026-11-20) and
 - `swift build` on `develop` at `ed423d7` (plus the design commit): clean.
 - `swift test` before any change: 1253 tests in 179 suites passed (70.6 s).
 
-## Latest results (2026-11-20, after the QA fixes)
+## Latest results (2026-11-20, after the fourth review pass)
 
 - `swift build`: clean; no new warnings (the two in `SmartAlbumTests` and
   `VirtualCopiesTests` were there before).
-- `swift test`: 1307 tests in 189 suites passed (259.8 s), the FAT32 test
+- `swift test`: 1309 tests in 189 suites passed (260.5 s), the FAT32 test
   running against a real image (189: the `MemoryHeavy` parent suite of Q3). (After the first review: 1303; at the first
   Done: 1291.) No golden moved;
   `UPDATE_GOLDENS` was not run; `PreviewCacheKey.currentPipelineVersion`
@@ -257,6 +257,24 @@ FAT32 test ran.
 | Q3 `ImportHashMemoryTests` measured the merge suites' memory | A parent suite `MemoryHeavy` (`.serialized`, which reaches nested suites) holds `ImportHashMemoryTests` and the merge suites that decode frames (`HDRMergerTests`, `MergeDNGTests`, `HDRMergeJobTests`, `MergeCommandTests`, `MergeSafetyTests`, `MergeAlignmentTests`), so none of them overlaps another | Full suite |
 | Q4 dates in the written files | Decided: every date is the reference's capture date (R7, A3). `xmp:CreateDate` is the reference's `DateTimeOriginal` (with its offset when recorded), so ImageIO's EXIF `DateTimeDigitized` and IPTC creation date follow it in the TIFF; the DNG writes the same. R19's uniqueness comes from `xmpMM:DocumentID`/`InstanceID` alone | `mergesToTIFF` and `mergesToDNG` read DateTimeOriginal, DateTimeDigitized and xmp:CreateDate back (all the capture date); `mergesToTIFF` still finds two merges' files with different SHA-256 and the same pixels; exiftool on the real bracket's TIFF and DNG shows one date everywhere, `-validate` OK |
 | Q5 debug `photocli merge` slow | Recorded in `docs/PROFILING.md`: about 35 s to measure three 1536 x 1024 frames in a debug build, a few seconds in release; time release builds. Moving the sorts to Accelerate (tried: same order, pixel-identical TIFF on the real bracket) made no measurable difference in debug (34.9 s), because the time is the measuring's per-pixel Swift loops, so it was not kept | Measured with `.build/debug/photobench merge` |
+
+### Fourth review pass (2026-11-20)
+
+- **C11** the capture date's offset was copied as stored, so EXIF's blank
+  "unknown" offset (`   :  `) made the XMP date invalid. The offset is now
+  added only when it reads `±HH:MM` or `Z` (`Metadata.isTimeOffset`). Test:
+  `MergeSafetyTests.captureDateOffset` (+02:00, −05:30, Z, the blank offset,
+  a malformed one, none). Checked with exiftool on merges of JPEG brackets
+  whose reference has a real offset, the blank one (written with ImageIO;
+  exiftool itself refuses that value) and none: `xmp:CreateDate` is
+  `…T10:01:01+02:00`, or no offset, and the DNG validates OK in all three.
+  The TIFF's remaining `-validate` warnings are ImageIO's own TIFF and IPTC
+  writing (missing ExifVersion, IPTC times written in 6 bytes, the IPTC-NAA
+  tag's type) and are the same with no offset at all.
+- **C12** `WriteChainTests.afterPendingWritesFromInsideAWrite` pins what the
+  Q1 fix relies on: `afterPendingWrites` called inside a running write runs
+  after it and after a write queued before it, and a `read` inside it
+  completes, seeing a write queued during the first.
 
 Ruled with no code (design §19 D-H5, RI-H4): numbering by stem needs no
 caption; a merged DNG chosen beside its own source raws is neither flagged nor

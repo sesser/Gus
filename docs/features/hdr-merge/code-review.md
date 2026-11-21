@@ -365,3 +365,156 @@ the test target only) or network code. I see no need for another
 - The #88 `maskRasters` heads-up (first pass) still applies to whichever branch
   merges second.
 - Where F5's sentence goes in the guide is the designer's to confirm.
+
+## Fourth pass
+
+Owner: code-reviewer. Date: 2026-11-20. Reviewed: `feature/hdr-merge`,
+`d3545ad..bb2ab53` (QA's file `046a93f`, the fixes `bb2ab53`); also `d3545ad`
+itself for C10's follow-up. Build and tests: `swift build` clean; `swift test`
+1307 tests in 189 suites passed (258.9 s; the 189th is the new `MemoryHeavy`
+parent), with `fat32` running against a real image. `swift test --filter`
+with `ImportHashMemoryTests`, `HDRMergerTests`, `MergeSafetyTests` and
+`HDRMergeJobTests/mergesToTIFF|HDRMergeJobTests/mergesToDNG` all select and
+pass their tests. Also run here: ImageIO and exiftool probes of the dates Q4
+writes (below). The app was not launched (that is QA's).
+
+### Verdict
+
+Ready for QA's rerun. Q1's deadlock is fixed: the Redo's `show` now waits for
+the Redo's own write instead of being part of it, and no other merge path reads
+through the chain from inside a write. Q2 to Q5 are fixed or recorded as asked.
+Two new nits, neither blocking: a blank EXIF time offset ends up in the DNG's
+`xmp:CreateDate` (C11), and the primitive the Q1 fix rests on could be pinned
+by a PhotoCore test (C12).
+
+### Follow-up (C10, Q1 to Q5)
+
+| # | State | Commit | Note |
+|---|---|---|---|
+| C10 | Fixed | `d3545ad` | `fat32` carries `.enabled(if: canAttachFAT32, …)`. The probe makes and attaches an image once (a lazy `static let`), so where `hdiutil` can't, the result reads "skipped". Where the probe works and the test's own image doesn't, `#expect(ran)` fails. Inside `extension MemoryHeavy` the trait's `MergeSafetyTests` resolves to the nested type, and the test ran in this pass. |
+| Q1 | Fixed | `bb2ab53` | Traced in "Q1 traced" below. |
+| Q2 | Fixed | `bb2ab53` | `quit` sets `showsMergeSheet = false` beside the other three sheets. Its `didSet` calls `merge.sheetClosed()`, which cancels the sheet's reads. A merge already running is not this command's business: QA's script has no merge running at `quit`. |
+| Q3 | Fixed | `bb2ab53` | Traced in "Q3 checked" below. |
+| Q4 | Fixed, one nit (C11) | `bb2ab53` | Traced in "Q4 checked" below. |
+| Q5 | Fixed (docs) | `bb2ab53` | `PROFILING.md`'s HDR merge section says a debug build takes about 35 s to measure three 1536 x 1024 frames, why (per-pixel Swift loops the optimizer makes fast), that the Accelerate sort was tried and not kept, and to time `swift run -c release photocli merge`. `photobench merge` exists (`PhotoBench/main.swift:167`). Matches `status.md`. |
+
+### Q1 traced
+
+- **The fix.** `registerUndo`'s Redo branch (`MergeModel.swift:354-361`) runs
+  inside `model.persist`, that is, as a `WriteChain.enqueue` task T. After
+  `restoreMergedMaster` returns true, it calls
+  `model.writes.afterPendingWrites { show }`. `afterPendingWrites`
+  (`WriteChain.swift:41`) captures `tail` at the call and starts its own
+  unstructured task, which awaits that tail and then runs the body.
+- **It can't run before the write ends.** While T runs, `tail` is T or a write
+  queued after it. `tail` only ever moves forward and is never cleared, so the
+  captured task is T or later, and awaiting it waits for all of T. That
+  includes what `persist` does after `work` (`scheduleSidecarSync`). T doesn't
+  await the new task, so nothing waits on itself. `show`'s `writes.read` then
+  calls `settled()`, which awaits the current tail: T is finished by then, or a
+  later write that finishes on its own.
+- **It isn't skipped.** The task awaits a `Task<Void, Never>` and has no
+  cancellation path. It is not scheduled on failure, which is right. If
+  `restoreMergedMaster` throws, `persist` reports "Could not save the change",
+  and there is nothing to show. If it returns false, the branch reports
+  `notAddedBack`, as before.
+- **Ordering with other writes.** A rating made right after Redo (W2) is queued
+  after T. `show` may capture T or W2, but `read` settles past every write
+  queued before it fetches, and refetches if one is queued while it reads, so
+  its list includes W2. Undo right after Redo (W3) runs `hide` inside W3.
+  `show`'s `read` settles past W3 too, so it fetches the list without the
+  photo, and its `apply` keeps the selection (`MergeLanding.selects` is false
+  when the photo isn't shown). The screen ends consistent with the catalog
+  whichever finishes last.
+- **No other self-wait in the merge.**
+  - Undo calls `hide` inside the write. `hide` calls `replaceItems`, which is
+    synchronous, and then `refreshProjects` and `refreshKeywords`. Those read
+    the catalog directly, not through `writes.read`, and start their follow-on
+    refreshes (`scheduleSidebarRefresh`, `refreshProjectFolders`) as separate
+    tasks.
+  - The catalogue step (`onWriteChain`) only runs `insert` and resumes a
+    continuation. `finished`, and the landing `show` inside it, run on the
+    merge's own task after that continuation resumes, never inline in the
+    chain's task. Its `read` then waits for the catalogue write, which ends
+    right after the resume.
+  - The sidecar step only calls `writeSidecars`.
+  - `DebugMergeCommands` uses `afterPendingWrites` from outside the chain.
+  - `writes.read` appears in exactly one place in the branch's app code
+    (`show`), and its doc comment now says never to call it from a write.
+- **Test.** Only QA's debug script covers the app-level path. `MergeModel` is
+  in the app target, which `swift test` can't load, so no unit test can catch
+  that call moving back inside the write. The primitive the fix relies on can
+  be tested, though: see C12. The proposed follow-up in `status.md` (`read`
+  refusing, or reading without waiting, when called from the chain's own tail)
+  is the structural guard. A task-local set while a chain task runs would
+  detect it. I agree it should be an issue.
+
+### Q3 checked
+
+- **Whitespace ignored, the diff is wrappers only.** Each of the five files
+  wraps its suites in `extension MemoryHeavy { … }`, and `extension
+  HDRMergerTests` became `extension MemoryHeavy.HDRMergerTests`. The only other
+  changes are Q4's assertions and `dates(_:)`.
+- **Nothing lost or disabled.** `@Test` counts per file are the same before and
+  after: 24, 5, 5, 1 and 9. No test title, function name or `.serialized`
+  trait changed. The only condition trait is C10's. The full run's 1307 tests
+  match the third pass's count.
+- **`.serialized` reaches nested suites.** It is recursive in Swift Testing, so
+  the merge suites and `ImportHashMemoryTests` never overlap each other. That
+  is what QA saw fail.
+  - `MergeRuleTests`, `ProgressLog` and `MergeLibrary` stay at top level, as
+    before. They are light.
+  - **Residual, not a finding:** suites outside `MemoryHeavy` (goldens,
+    demosaic, color alignment) still run beside `ImportHashMemoryTests`. That
+    was true before this branch.
+  - **Cost:** the suite takes about 20 s longer here (258.9 s against 235.9 s
+    in the third pass).
+- **Filters.** Test IDs now read `PhotoCoreTests.MemoryHeavy/HDRMergeJobTests/…`.
+  `--filter` matches by regular expression, so the suite names alone still
+  work (checked above). `CLAUDE.md` names none of these suites in a filter, so
+  nothing there changes.
+
+### Q4 checked
+
+- **`Metadata.created` is gone.** The build would fail on any caller left. The
+  XMP's `xmp:CreateDate` is `xmpCaptureDate`: the reference's EXIF
+  `DateTimeOriginal`, rewritten as `YYYY-MM-DDTHH:MM:SS`, plus
+  `OffsetTimeOriginal` when there is one. With no capture date, nothing is
+  written.
+- **TIFF.** ImageIO turns the XMP CreateDate into EXIF `DateTimeDigitized` and
+  the IPTC digital creation date, and doesn't keep it in the XMP. Probe:
+  `xmp:CreateDate` `2016-05-21T08:43:02+02:00` gave `ExifIFD:CreateDate`
+  `2016:05:21 08:43:02` and IPTC `DigitalCreationTime` `08:43:02+02:00`. The
+  TIFF dictionary keeps the reference's own `DateTime` (`ExportMetadata`'s kept
+  keys): the reference's date, not the merge's.
+- **DNG.** `LinearDNGWriter` writes `DateTimeOriginal`, `DateTimeDigitized` and
+  `OffsetTimeOriginal` from the reference. Its tag 700 carries the same XMP,
+  CreateDate included.
+- **Read back.** `mergesToTIFF` and `mergesToDNG` read both EXIF dates and the
+  XMP CreateDate back as the fixture's capture date. The fixture has no time
+  offset, so the offset branch has no test (see C11).
+- **Uniqueness.** `documentID` defaults to `UUID()` for each `Metadata`, and
+  `DocumentID` and `InstanceID` are both written. `mergesToTIFF` still checks
+  that two merges of the same frames give different SHA-256 values with the
+  same pixels. The DNG embeds the same XMP, so it differs the same way.
+- **Catalog.** The merged photo's capture date comes from reading the written
+  file (`newMaster`), so it is the reference's. A reference with no
+  `DateTimeOriginal` gives a file with none, as before.
+
+### Findings (fourth pass)
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C11 | Nit | `Sources/PhotoCore/Merge/MergeOutput.swift:59-67` | `xmpCaptureDate` appends `OffsetTimeOriginal` exactly as read. EXIF 2.31 writes an unknown offset as blanks with the colon (`"   :  "`), and ImageIO hands that back verbatim. Probe: a JPEG given that value by exiftool reads `[   :  ]` through `CGImageSourceCopyPropertiesAtIndex`. | For a reference with a blank offset, the XMP gets `xmp:CreateDate` `2016-05-21T08:43:02   :  `. In the DNG that packet is stored as is: exiftool reports "[minor] Invalid date/time format for XMP:CreateDate", and a reader that prefers XMP dates may drop the date. In the TIFF, ImageIO converts it, and the only trace is a minor exiftool warning on IPTC `DigitalCreationTime`. The EXIF dates and the catalog are right in both formats. Suggestion: append the offset only when it matches `[+-]HH:MM` (or `Z`), and add a fixture case with an offset to `mergesToDNG`. | Correctness (dates written to outside files) |
+| C12 | Nit | `Tests/PhotoCoreTests/WriteChainTests.swift` | Q1's fix rests on `afterPendingWrites`, called from inside a running write, waiting for that write and then letting `read` complete. No test pins that, and it is cheap with the suite's `Latch` and `Store`: enqueue a write held by a gate that calls `chain.afterPendingWrites { try await chain.read { … } apply: { … } }`, queue a second write, open the gate, and expect the read to have run after both, with their effects. | If `afterPendingWrites` were changed to wait only on writes queued before it was registered (which, from inside a write, is the write itself), or `read` to special-case the tail, Q1's Redo would hang again, and nothing in `swift test` would fail. The test would not catch `show` moving back inside the write in `MergeModel` (app target). Only QA's script 11 or the proposed `read`-refuses guard can catch that. | Tests |
+
+### Still open for the main session
+
+- The #88 `maskRasters` heads-up (first pass) still applies to whichever branch
+  merges second.
+- Where F5's sentence goes in the guide is still the designer's to confirm.
+- The follow-up `status.md` proposes (`WriteChain.read` from its own tail
+  should fail fast rather than hang) is worth filing.
+- No `/security-review` is needed for this pass. It adds no parser, subprocess,
+  file placement or network code: the date change only formats values already
+  read from the reference.

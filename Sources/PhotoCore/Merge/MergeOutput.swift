@@ -55,7 +55,8 @@ public enum MergeOutput {
         }
 
         /// The reference's capture date for XMP (`2016-05-21T08:43:02`, with
-        /// its offset when the file records one), from its EXIF; nil without one.
+        /// its offset when the file records a valid one), from its EXIF; nil
+        /// without one.
         var xmpCaptureDate: String? {
             let exif = sourceProperties[kCGImagePropertyExifDictionary as String] as? [String: any Sendable] ?? [:]
             guard let original = exif[kCGImagePropertyExifDateTimeOriginal as String] as? String else { return nil }
@@ -63,7 +64,19 @@ public enum MergeOutput {
             guard parts.count == 2 else { return nil }
             let date = parts[0].replacingOccurrences(of: ":", with: "-")
             let offset = (exif[kCGImagePropertyExifOffsetTimeOriginal as String] as? String) ?? ""
-            return date + "T" + parts[1] + offset
+            return date + "T" + parts[1] + (Self.isTimeOffset(offset) ? offset : "")
+        }
+
+        /// `+02:00`, `-05:30` or `Z`: what XMP takes after a time. EXIF writes an
+        /// unknown offset as blanks around a colon, which would make the date
+        /// invalid (code review C11).
+        static func isTimeOffset(_ text: String) -> Bool {
+            if text == "Z" { return true }
+            let characters = Array(text)
+            guard characters.count == 6, characters[0] == "+" || characters[0] == "-", characters[3] == ":" else {
+                return false
+            }
+            return [1, 2, 4, 5].allSatisfy { characters[$0].isASCII && characters[$0].isNumber }
         }
 
         /// The properties of `url`'s first image, as ImageIO reads them.
