@@ -25,12 +25,32 @@ paths without alignment and without de-ghosting, `photocli merge
 state, each criterion's test and what changed beyond the sheet (one change to
 de-ghosting that every merge gets).
 
+**2026-11-21: design review of the revision (review.md, latest section;
+design §20 D-H11 to D-H13): Done.** F6 (the captions folded into their
+controls' rows, the result caption cut, the height measured and set), F7 (the
+Name line secondary while a refusal shows) and F8 (the header thumbnail follows
+the reference for pairs shown as their JPEG) are fixed; D-H13 needed no code.
+At three frames the sheet is 560 x 640 with nothing scrolled (Form content 517
+against 522 shown). See "Design review of the revision" below. Next:
+code-reviewer (second pass, these commits), the designer (confirm F6 to F8,
+M15), then qa-tester.
+
 ## Baseline
 
 - `swift build` on `develop` at `ed423d7` (plus the design commit): clean.
 - `swift test` before any change: 1253 tests in 179 suites passed (70.6 s).
 
-## Latest results (2026-11-21, after the sheet revision)
+## Latest results (2026-11-21, after the design review's F6 to F8)
+
+- `swift build`: clean; no new warnings.
+- `swift test`: 1342 tests in 194 suites passed (502.3 s; the two new tests
+  and their suite are `MergePreviewItemTests`). No golden moved;
+  `UPDATE_GOLDENS` was not run; `PreviewCacheKey.currentPipelineVersion`
+  unchanged (13).
+- `Scripts/build-app.sh`: builds; debug-script checks in "Design review of the
+  revision".
+
+## Results after the sheet revision (2026-11-21)
 
 - `swift build`: clean; no new warnings.
 - `swift test`: 1340 tests in 193 suites passed (504.4 s). No golden moved;
@@ -532,8 +552,8 @@ asynchronously: each script waits a second after it.)
 - **Height** (H21): `merge sheet` at three frames prints `sheet 560x600 (ideal
   600) form content 590 shown 474 scrolls true`: the default case scrolls by
   116 pt (with the two-line folder refusal in the header, 442 shown). With 20
-  frames (the table at its 250 pt cap) the content is 740. See Design
-  questions.
+  frames (the table at its 250 pt cap) the content is 740. Ruled D-H11 and
+  fixed: see "Design review of the revision" below (now 517 against 522).
 
 ### For a person
 
@@ -543,8 +563,13 @@ choosing by keyboard with Full Keyboard Access, Return with the table focused;
 the folder refusal following the reference, the spinner on a slow volume;
 a real merge with the +2 EV frame as reference compared by eye with the
 default; the two boxes on real files; the height on a 13-inch laptop and in a
-short window). Also: whether initial focus lands on Merge with the table in the
-sheet (§11), not checked.
+short window). Initial focus: D-H13 withdrew "focus on Merge"; what to check
+is M10 (Return and Esc with the table focused: after a click on a row, after
+Tab, on opening). After the design review's fixes also M15 (each caption
+inside its control's group row, no divider between them; no "Photos" header
+over the table; the Name line gray while a refusal shows, black when Merge is
+on) and M16 (with a bracket of RAW+JPEG pairs shown as their JPEG, choosing
+another frame changes the header thumbnail; scripted, see below, but not seen).
 
 ### Deviations from the design, and choices it left open
 
@@ -554,7 +579,8 @@ sheet (§11), not checked.
   announcement after a change says "Result ‹name›", so the line now always
   shows the reference's name (numbered once its folder has answered; the
   unnumbered candidate meanwhile, and if the folder can't be listed or the
-  record is damaged, where pressing Merge says why). For the designer to confirm.
+  record is damaged, where pressing Merge says why). Confirmed by the designer
+  (D-H12), now in secondary color while a refusal shows (F7).
 - **Table selection held by the view.** `Table(selection:)` is bound to a
   `@State` row that follows the model's reference and is put back when the
   table clears or the model refuses it (§5.5's engineer note). The debug script
@@ -564,7 +590,7 @@ sheet (§11), not checked.
   constant (`OptionBox.captionIndent`), not a system metric; M8 judges it.
 - **Initial focus** (§11: Merge when enabled, else Cancel) is not set by code,
   as before this revision; with the table now selectable the system may focus
-  it first. Not checked (needs a key window); added to "For a person".
+  it first. Ruled D-H13: not set by code, as built.
 
 ### Design questions
 
@@ -590,6 +616,47 @@ sheet (§11), not checked.
   Recommendation: (b) for the reference caption (table footer) and the Format
   caption, then measure, and raise to 640 only for what remains; otherwise (c).
   The ideal height stays 600 as the brief said until this is ruled.
+  **Ruled 2026-11-21 (D-H11): (b) carried through; built, see below.**
+
+### Design review of the revision (2026-11-21)
+
+From `review.md` (section "Revision review, 2026-11-21") and `design.md` §20
+D-H11 to D-H13.
+
+| Finding | What changed | Check |
+|---|---|---|
+| F6 / D-H11 (1) | The Photos section's first Form row is one `VStack(spacing: 6)` of the table, the reference caption and, when it applies, the same-exposure note; the two check boxes stay their own rows | `merge sheet` (below); by reading `MergeForm` |
+| F6 / D-H11 (2) | Format is one row: `VStack(spacing: 4)` of `LabeledContent("Format")` holding the segmented picker (`.labelsHidden()`, accessibility label "Format") and the format's caption | `merge format dng` prints the DNG caption; by reading |
+| F6 / D-H11 (3) | Folder and the result caption (with the several-folders sentence when it applies) are one row, `VStack(spacing: 4)`; Name stays its own row above | `merge sheet` on `TwoFolders-0` shows the folder and both sentences; by reading. The spacing 4 for this row is mine (D-H11 names none for it; I used item 2's) |
+| F6 / D-H11 (4) | The result caption reads "The originals are not changed, and your adjustments are not used."; the catalog key replaced and the old one removed | `LocalizationTests` pass; the bundle's `Localizable.strings` has only the new text |
+| F6 / D-H11 (5, 6) | Measured, cut, `idealHeight` set: see "Height" below. Cuts i (no "Photos" header; the table keeps "Photos" as its accessibility label) and ii (`MergeSheetMetrics.barPadding` 12, was 14) applied in order; neither brought the computed ideal to 640 or under, so cut iii: `idealHeight` 640. Check box and Format captions not shortened | `merge sheet` at three frames: `scrolls false` |
+| F7 / D-H12 | The Name line is secondary while it is the unnumbered candidate or a refusal shows (`MergeModel.resultNameIsTentative`, read by the view and by the debug script, which marks it `(secondary)`); "—" while the frames are read stays as before | `merge sheet` on `TwoFolders-0` (folder refusal) and `Mixed-0` (mixed kinds): name printed with `(secondary)`; choosing the `Open` frame on `TwoFolders-0` prints it without |
+| F8 | The grid holds only the half of a pair it shows; the default is the RAW (`imagePair.showsCompanion` false), but RAW+JPEG Pair ▸ Show JPEG makes it the JPEG, and then the header thumbnail stayed the first target's whatever the reference. `MergeModel.loadPreview` now falls back on `MergeSelection.item(showing:in:)`: the target whose `versionID` or `partnerVersionID` is the reference, then the first target | Unit tests `MergePreviewItemTests` (pairs shown as JPEG, as RAW, single files, unknown reference, no items). Debug script on a scratch library of three RAW+JPEG pairs (Raw-0's DNGs with Jpeg-0's JPEGs renamed beside them): shown as RAW, the thumbnail is `RAW_102.dng`, `RAW_103.dng`, `RAW_101.dng` as the reference moves; after `pairfile jpeg`, `RAW_102.jpg`, `RAW_103.jpg`, `RAW_101.jpg`. `merge sheet` and `merge reference` now print the thumbnail's file. Not run against the build before the fix |
+| D-H13 | Nothing to remove: no code sets the sheet's initial focus (no `defaultFocus`, `focused` or first-responder call in the sheet). Merge has `.keyboardShortcut(.defaultAction)` and Cancel `.cancelAction`, so whichever control has the focus, Return goes to Merge (when on) and Esc to Cancel unless the focused view takes the key first; whether the table's `NSTableView` lets Return through can't be read from the code or driven by the script (no key window from a shell launch) | Manual M10 |
+
+**Height** (H21), measured with `merge sheet` on a copy of the bundle
+(`me.sesser.gus.debugtest.merge`) and a fresh scratch library from `photobench
+generate --brackets 1` per run, every launch with `--library-root`:
+
+| Step | Form content at three frames | Chrome (header, dividers, buttons) | Content + chrome + 20, rounded up to 10 |
+|---|---|---|---|
+| Before (d9b1461) | 590 | 126 | 740 |
+| Folds and the caption cut (D-H11 1 to 4) | 543 | 126 (600 - 474 shown, confirms D-H11's 126) | 690 |
+| Cut i: no "Photos" header | 517 | 126 | 670 |
+| Cut ii: header and button padding 12 | 517 | 118 (640 - 522 shown) | 660 |
+| Cut iii: `idealHeight` 640 | 517 | 118 | 640, `sheet 560x640 form content 517 shown 522 scrolls false` |
+
+So the default case does not scroll: the 20 pt of slack D-H11 asks for is 5 pt
+at the cap. What still scrolls, as D-H11 item 7 accepts: a two-line refusal
+(`Mixed-0`, mixed kinds: 517 against 504 shown, 13 pt) and the two-line folder
+refusal together with the several-folders sentence (`TwoFolders-0`: 531 against
+490, 41 pt). The Raw, Jpeg and Unrelated series all measure 517 against 522.
+The same-exposure note (no fixture series has it) and more frames scroll too.
+
+Also re-run on the new bundle, unchanged: choosing rows by name and number (the
+Name, Folder, flagged rows, Merge on, the announcement and the discarded-answer
+line as before), Cancel, and the folder refusal following the reference on
+`TwoFolders-0`.
 
 ## Bug: tiles at 100% (owner sign-off P5, 2026-11-21)
 
