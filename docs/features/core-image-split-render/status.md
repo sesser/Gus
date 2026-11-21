@@ -123,8 +123,8 @@ Files: `Sources/PhotoCore/Preview/ResidentDecode.swift` (new),
 Measured on the owner's file and a 20 MP JPEG of it, file against copy, in
 8-bit output steps:
 - Unedited: bit for bit in float (`renderUnchanged`).
-- The owner's stack, a heal, an export-style resize to 2048 px: at most one
-  step. Core Image may place its half-float intermediates differently over the
+- The owner's stack, a heal, an export-style resize to 2048 px (without
+  Straighten): at most one step. Core Image may place its half-float intermediates differently over the
   copy; `renderUnchanged` checks the owner's stack and a heal against the 100%
   renderer's derived tolerance (one half-float rounding times the stack's
   gain).
@@ -137,11 +137,17 @@ Measured on the owner's file and a 20 MP JPEG of it, file against copy, in
   linear, so resampling now interpolates linear light. Raws were always
   resampled so (their decode is linear), and so were the loupe's live frames
   at 100% (their base is a linear texture): the full-size render now agrees
-  with them. **Manual Distortion and Color Alignment** also resample the
-  decode before Core Image's first intermediate and may change the same way
-  at full size: **not measured** (code review Q2). A heal or clone with its
-  source at a fractional offset and the export resize were measured above (at
-  most one step).
+  with them. **Straighten plus an export resize** moves more: Straighten 2°
+  and an export to 2048 px (JPEG) differ from `develop` by up to 22 to 24
+  levels in 16% to 17% of values on a dense checker, mean 0.73 to 0.76 of a
+  level, with no halo visible (QA Q1, `qa.md`): rotation interpolates linear
+  light, and the resize then averages many more edges. **Manual Distortion
+  and Color Alignment** also resample the decode; measured by QA at full size
+  against `develop`, JPEG and 16-bit TIFF (Q2, `qa.md`): Distortion at +30 and
+  −30 unchanged (at most 1 level), Color Alignment (red +20, blue −20) at most
+  4 levels in 0.03% of values, mean 0.24 of a level. A heal or clone with its
+  source at a fractional offset and the export resize without Straighten were
+  measured above (at most one step).
 
 No golden moved (goldens render their scenes from memory and a DNG).
 **No `PreviewCacheKey.currentPipelineVersion` bump:** no cached preview or
@@ -280,8 +286,6 @@ under `MemoryHeavy` there if wanted.
 - **Memory**: 16 bytes a pixel of GPU memory per full-size decode in use (24 at
   the peak on the 100% path); not measured under an export of many large
   photos at once.
-- **Distortion (Manual) and Color Alignment at full size** on a non-raw photo:
-  whether their output moved like Straighten's (see The one render change).
 
 ## README
 
@@ -318,7 +322,8 @@ review (a flaky test, #150's `code-review.md`):
 | C2 | Only a side limit: a full-size decode can hold up to 4 GiB | **Fixed** per the owner's ruling on Q1 (2026-11-21): copies up to 100 megapixels (`maximumPixels`, `width * height <= 100_000_000`) and 16384 pixels a side; above, the decode stays lazy and a log notice says which limit and that the photo may show the seam (checked with `log stream`: "A 10000 × 10001 decode is over 100 megapixels; it is read lazily and may show the split-render seam"). The decision is the pure `ResidentDecode.lazyReason(width:height:)`, tested by `residencyLimit`. Photos over the limit stay exposed (Not verified). |
 | C3 | No device and `CIImage(mtlTexture:)` nil return without logging | **Fixed.** Both log an error naming the size and that the decode is read lazily. Neither path can be reached in a test here (there is always a device, and Core Image takes the texture). |
 | C4 | Cost under-counted on the 100% path; `bandPixels` comment | **Fixed.** Cost (above and in `ResidentDecode`'s doc comment): a 24 B/px peak and one more pass on the 100% path; `bandPixels`: each band writes at most 64 MB into the float texture. |
-| Q2 | "The one render change" names Straighten only | **Fixed** in the wording: Manual Distortion and Color Alignment also resample the decode and may change the same way at full size, not measured. |
+| Q2 | "The one render change" names Straighten only | **Fixed** in the wording, then measured by QA (`qa.md` Q2): Manual Distortion ±30 unchanged (at most 1 level), Manual Color Alignment (red +20, blue −20) at most 4 levels in 0.03% of values. |
+| QA Q1 | "Export resize at most one step" holds only without Straighten | **Fixed** in the wording: Straighten plus an export resize, up to 22 to 24 levels in 16% to 17% of values on a dense checker, no halo (`qa.md` Q1). |
 | F (hdr-merge review) | `fullDecodeIsOriented` failed once in a full run (bytes differ), passed alone | **Fixed.** Not timing, shared GPU state or the parallel suites: the test compared two different Core Image graphs in 8-bit Display P3. Over the file, Core Image builds the conversion to the output from the file's encoding; over the copy, from linear floats. The two programs round a value near a level boundary differently now and then. Measured (scratch probe, not committed): of eight synthetic EXIF-6 JPEGs (seeds 1 to 8, 640 to 752 pixels wide), five differed from the copy's render in exactly one byte by one level in four runs and all eight in another, the same run after run within a process, serial or eight at once; the copy and the file rendered twice each were stable, and the **float values in the working space were equal in every case**. Which files round differently varies between processes, which is why seed 4 passed alone and failed once in a long run. The test now compares the working-space floats (as `residentCopyIsTheFile` and `renderUnchanged`' unedited case do): exact, no tolerance, and still the claim (the orientation and the copy's values). No sleep, no serialization needed. |
 
 ## Open questions
