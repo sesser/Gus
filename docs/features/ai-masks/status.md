@@ -154,7 +154,7 @@ are deleted.
 | AC10 | `DetectionMaskSourceTests` (no network API, no other package, no `IterativeSegmentation`, no spike) | Done |
 | AC11 | `MaskDetectionTests.requestsRunWithTheMeasuredSizes`, part of `swift test` | Done here (27.2.1); CI runs it on 15 and 26 at the pull request (see RI-E1) |
 | AC12 | `DetectionMaskModelTests.strictReading`, `unreadableIsNotOverwritten` | Done |
-| AC13 | `idleComponentsRenderAsWithout`, `damagedRowIsMissing`, `DetectionMaskCommandTests.missingRow`. Debug script: `raster delete` shows Missing with Update, the loupe shows the photo unchanged, Update restores Found | Done |
+| AC13 | `idleComponentsRenderAsWithout`, `damagedRowIsMissing`, `DetectionMaskCommandTests.missingRow`. Debug script: `raster delete` shows Missing with Update, Update restores Found; the render without the row is checked by `idleComponentsRenderAsWithout` and QA's SQL-delete run (not by `raster delete`'s snapshot: see the correction above) | Done |
 | AC14 | `docs/USER_GUIDE.md` (Masks from the photo), pinned by `DetectionMaskSourceTests.userGuideLimits` | Done |
 
 ## Debug-script checks (2026-11-20)
@@ -177,8 +177,15 @@ ad-hoc signed) and scratch libraries from `photobench generate --jpeg 4` and
 - `hang`: pending shown, every detection and Update item dimmed (`canDetect
   false`, Adjust ▸ New Mask ▸ Subject and Update Detection disabled), Cancel
   adds nothing; moving to another photo and back: nothing added, no pending.
-- `raster delete`: Missing caption with Update; the loupe shows the photo
-  unchanged despite −3 EV; Update restores Found and the row.
+- `raster delete`: Missing caption with Update; Update restores Found and the
+  row. (Corrected 2026-11-21 after QA's Q2: this line used to say the loupe
+  showed the photo unchanged despite −3 EV. It does not: a snapshot after
+  `raster delete` is identical to the Found one, because the command removes
+  the cached preview of the stack's hash from before the edit made in the same
+  session, so the current stack's cached preview survives; the same stale
+  preview as the known limit below. The state and the caption are right. With
+  the row deleted in SQL and no cached preview, the loupe shows the photo as
+  without the mask: QA S11.)
 - Real Vision from the inspector's path on a synthetic photo: Subject "1
   subject found.", People "1 person found."; Undo removes the People component
   in one step (`redo 'Add People to Mask'`).

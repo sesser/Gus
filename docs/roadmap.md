@@ -42,7 +42,6 @@ Principles (drawn from `README.md` and `CLAUDE.md`):
 
 Set by the owner 2026-11-20 (replacing #219, #218 and #87, all done). A PRD is required for every Now item before any work starts: all three have one.
 
-1. [#88](https://github.com/sesser/Gus/issues/88) `ai-masks`: No subject, sky, object or people masks (PRD approved 2026-11-18)
 1. [#241](https://github.com/sesser/Gus/issues/241) `preset-list-view`: The Presets heading only shows thumbnails; a compact list (the default) with a switch, and hover preview in both (PRD ready; owner, 2026-11-20)
 1. [#150](https://github.com/sesser/Gus/issues/150) `hdr-merge`: No way to merge several exposures of a scene into one tone-mapped HDR image, with automatic alignment and de-ghosting (PRD approved 2026-11-20; owner, 2026-11-11)
 
