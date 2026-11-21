@@ -62,8 +62,8 @@ struct LensAlignStaleAreaTests {
     ///
     /// A JPEG as the pipeline decodes it at full size no longer shows one: the
     /// decode is a GPU copy with every pixel there, as a bitmap's
-    /// (`ResidentDecode`; docs/features/hdr-merge/status.md, "Bug: tiles at
-    /// 100%"), so no area a kernel asks of it can be stale. That is pinned
+    /// (`ResidentDecode`; bug #253, docs/features/core-image-split-render/status.md),
+    /// so no area a kernel asks of it can be stale. That is pinned
     /// here: if the decode were read lazily again, the JPEG case would show an
     /// area again and `jpegDragInOneContext` would again guard it.
     @Test("The tile shows an input area too small for the values", arguments: [false, true])

@@ -6,8 +6,8 @@ import os
 /// ImageIO file: JPEG, HEIC, PNG, TIFF) into a GPU texture once, a band of
 /// rows at a time, so no later render reads the file itself.
 ///
-/// **The fault this works around** (macOS 27.2; bug in
-/// docs/features/hdr-merge/status.md, "Bug: tiles at 100%"). When Core Image
+/// **The fault this works around** (macOS 27.2; bug #253,
+/// docs/features/core-image-split-render/status.md). When Core Image
 /// splits a large render to a GPU destination (an IOSurface or a texture)
 /// into parts, it copies each part's share of a CPU-side image into a pooled
 /// texture, and the parts are encoded one after the other without waiting.
@@ -15,7 +15,7 @@ import os
 /// have read theirs: a 5472 × 3648 photo with Shadows or negative Highlights
 /// came out with its left half showing the right half's pixels (one render in
 /// three in tests, at 4592 × 3448 too; in the app, every zoom to 100% on the
-/// owner's merge), so the loupe at 100% showed two halves that didn't line
+/// owner's 16-bit TIFF), so the loupe at 100% showed two halves that didn't line
 /// up. The same graph over a texture is still split into parts and never
 /// showed it. Neither rendering in bands nor a larger `memoryTarget` stops
 /// the split: graphs that need the whole photo (the masks' estimates) are
