@@ -14,7 +14,8 @@ import PhotoUI
 ///     merge stop                   (the popover's Stop: prints the Activity row)
 ///     merge cancelsheet            (presses Cancel: prints whether a job runs)
 ///     print merge                  (running or not, step, detail, fraction, whether Merge is on and why
-///                                   not, the selection)
+///                                   not, the selection, File ▸ Stop's job, whether a removal may start,
+///                                   the undo action name)
 @MainActor
 enum DebugMergeCommands {
     static func run(_ words: [String], model: LibraryModel) async {
@@ -103,6 +104,8 @@ enum DebugMergeCommands {
         print("debug-script: merge running \(merge.isMerging) phase \(merge.progress.map { MergeText.detail($0.phase) } ?? "-")"
               + " fraction \(merge.progress.map { String(format: "%.3f", $0.fraction) } ?? "-")"
               + " canMerge \(model.canMerge) reason \(reason) selection \(selected)"
-              + " focus \(model.focusedItem.map(PhotoName.display) ?? "-")")
+              + " focus \(model.focusedItem.map(PhotoName.display) ?? "-")"
+              + " stop \(model.newestStoppableJob.map { "\($0)" } ?? "-") canRemove \(model.canRemoveFromLibrary)"
+              + " undo '\(model.undoManager.undoActionName)'")
     }
 }

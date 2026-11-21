@@ -507,6 +507,21 @@ The quality measures (`--mode truth --nr off`, `--mode real`, with
 `--nr off` for the kernels alone) are in
 `docs/features/gpu-demosaic/status.md`.
 
+## HDR merge (hdr-merge)
+
+`swift run -c release photobench merge --files A:B:C --output DIR [--format tiff|dng|both]`
+merges a bracket without a library and prints each step's time, the measured
+exposures, clipping levels and movements, the ghost masks' share and the peak
+memory footprint. On three hand-held 16 MP Olympus raws (−1, 0, +1 EV),
+2026-11-20, macOS 27.2, Apple silicon: measuring (copies decoded at 2048 px,
+lined up, exposure, ghosts, tone statistics) 3.7 to 5.4 s, the three
+full-size decodes 0.65 s, merge, tone mapping and the TIFF 0.13 to 0.16 s, the
+DNG 0.18 s; peak footprint 2.16 GB for a TIFF (about 800 MB of it the system
+RAW decoder's own working set). Rendering the output in bands of 512 rows and
+holding each frame as half floats took the peak down from 4.24 GB.
+`photobench generate --brackets N` writes scratch series to merge
+(`docs/features/hdr-merge/status.md`, Spikes).
+
 ## Reproducing
 
 Build the tools:

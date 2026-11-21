@@ -10,9 +10,11 @@ let usage = """
 
       generate   --output DIR [--jpeg N] [--dng N] [--heic N] [--pairs N] [--videos N] [--per-folder N]
                  [--jpeg-size WxH] [--dng-size WxH] [--heic-size WxH] [--video-seconds N]
-                 [--dng-without-color N]
+                 [--dng-without-color N] [--brackets N] [--bracket-size WxH]
                  Writes a synthetic library with unique pixels and EXIF dates. The first
-                 --dng-without-color DNGs have no color matrix or as-shot neutral.
+                 --dng-without-color DNGs have no color matrix or as-shot neutral. --brackets
+                 adds N of each HDR merge series under Brackets/ (raws, JPEGs, a mixed set,
+                 another scene, a read-only folder).
 
       import     --library-root ROOT --source DIR [--imageio] [--chunk N] [--hash-concurrency N]
                  Imports DIR into the catalog under ROOT and reports stage timings.

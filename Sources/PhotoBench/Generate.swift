@@ -93,12 +93,61 @@ enum Generate {
                 failures.increment()
             }
         }
+        let brackets = arguments.int("brackets", default: 0)
+        if brackets > 0 {
+            try writeBrackets(brackets, to: output.appending(path: "Brackets", directoryHint: .isDirectory),
+                              size: arguments.size("bracket-size", default: (1536, 1024)))
+        }
         let bytes = folderSize(output)
         print("Generated \(jobs.count - failures.value) jobs (\(jpegCount) JPEG, \(dngCount) DNG, \(heicCount) HEIC, \(pairCount) RAW+JPEG pairs) in \(String(format: "%.1f", elapsed.seconds)) s, \(formatBytes(bytes))")
         if failures.value > 0 { print("  \(failures.value) files failed") }
         return ["files": jobs.count - failures.value + pairCount, "jpeg": jpegCount, "dng": dngCount, "heic": heicCount,
                 "pairs": pairCount,
                 "seconds": elapsed.seconds, "bytes": bytes]
+    }
+
+    /// HDR merge brackets (issue #150, design §14), `count` of each kind in
+    /// folders of their own under `folder`: `Raw-n` (three DNGs at -2, 0 and
+    /// +2 EV, hand-held shifts and a person-sized disc that moves),
+    /// `Jpeg-n` (the same as JPEGs), `Mixed-n` (a DNG and two JPEGs, refused),
+    /// `ReadOnly-n` (three DNGs in a folder made read-only, refused at open)
+    /// and `Unrelated-n` (two frames of the bracket and one of another scene,
+    /// refused when merged). The 0 EV frame is shot second, so it names the result.
+    /// An offline series needs a disk image (CLAUDE.md, "A FAT32 disk image").
+    static func writeBrackets(_ count: Int, to folder: URL, size: (Int, Int)) throws {
+        let frames = [HDRBracket.Frame(ev: -2, shift: SIMD2(6, -4), rotationDegrees: 0.4, object: SIMD2(0.13, 0.42)),
+                      HDRBracket.Frame(ev: 0, object: SIMD2(0.27, 0.42)),
+                      HDRBracket.Frame(ev: 2, shift: SIMD2(-5, 3), rotationDegrees: -0.3, object: SIMD2(0.41, 0.42))]
+        let images = frames.map { HDRBracket.image($0, width: size.0, height: size.1) }
+        func write(_ name: String, _ kinds: [Bool], index: Int, minute: Int, frames chosen: [Int] = [0, 1, 2],
+                   other: Bool = false) throws -> URL {
+            let series = folder.appending(path: "\(name)-\(index)", directoryHint: .isDirectory)
+            try FileManager.default.createDirectory(at: series, withIntermediateDirectories: true)
+            // Shot in the order -2, 0, +2 EV, a second apart.
+            for (position, frameIndex) in chosen.enumerated() {
+                let date = String(format: "2026:05:%02d 10:%02d:%02d", index + 1, minute, position)
+                let file = String(format: "%@_%d%02d", name.uppercased(), index + 1, position + 1)
+                var image = images[frameIndex]
+                if other, position == 2 { image = TestScene.hazyLandscape.image(width: size.0, height: size.1) }
+                if kinds[position] {
+                    try HDRBracket.writeDNG(image, frame: frames[frameIndex], to: series.appending(path: file + ".dng"),
+                                            date: date)
+                } else {
+                    try HDRBracket.writeJPEG(image, frame: frames[frameIndex], to: series.appending(path: file + ".jpg"),
+                                             date: date)
+                }
+            }
+            return series
+        }
+        for index in 0..<count {
+            _ = try write("Raw", [true, true, true], index: index, minute: 0)
+            _ = try write("Jpeg", [false, false, false], index: index, minute: 1)
+            _ = try write("Mixed", [true, false, false], index: index, minute: 2)
+            _ = try write("Unrelated", [true, true, true], index: index, minute: 3, other: true)
+            let readOnly = try write("ReadOnly", [true, true, true], index: index, minute: 4)
+            try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: readOnly.path)
+        }
+        print("Wrote \(count * 5) HDR brackets in \(folder.path)")
     }
 
     static func folderSize(_ url: URL) -> Int64 {

@@ -67,12 +67,13 @@ photos the library does not have yet, and a folder with nothing new makes none.
 | ⌥⌘B | | show / hide the film strip |
 | ⌥⌘3 | | show / hide the History panel (**View ▸ Show History**) |
 | ⇧⌘A | keep only the focused photo selected | |
-| ⌘. | stop the newest export, folder add or import (**File ▸ Stop Export**, **Stop Adding Folders** or **Stop Import**) | same |
+| ⌘. | stop the newest export, folder add, import or merge (**File ▸ Stop Export**, **Stop Adding Folders**, **Stop Import** or **Stop Merge**) | same |
 | ⌘K | add keywords | add keywords |
 | ⌘I | import from a card or folder | |
 | ⌘N, ⌥⌘N | new album, new smart album | |
 | ⌫ | remove from the album on screen | |
 | ⌘D | make a copy of each selected photo (**File ▸ Duplicate**) | make a copy of the photo |
+| ⇧⌘L | merge the selected photos into one (**File ▸ Merge to HDR…**) | |
 | ⇧⌘R | show the originals in the Finder (**File ▸ Show in Finder**) | same |
 | ⌘⌫ | remove from the library, after a confirmation (**File ▸ Remove from Library…**) | same |
 | ⌘Z, ⇧⌘Z | undo, redo | undo, redo |
@@ -157,8 +158,8 @@ in the toolbar (the Filter and Sort menu, and **View ▸ Filter** and **Sort
 By**); each sidebar source keeps its own, and the source selected last is
 selected again at launch. Photos that stop matching stay visible until the
 filter changes, so they do not jump away while you cull. The toolbar's
-Activity item shows imports, exports and other work in progress, with Stop,
-and the latest messages.
+Activity item shows imports, exports, merges and other work in progress, with
+Stop, and the latest messages.
 
 A RAW file and a JPEG or HEIC with the same name in the same folder are a
 pair. **View ▸ Group RAW+JPEG Pairs** shows each pair once, as the RAW unless
@@ -244,6 +245,55 @@ Duplicate are one undo step: **Edit ▸ Undo Duplicate** takes them away and
 goes back to the originals, and Redo brings the same copies back. A copy's
 values are kept in the library only: its rating, flag, label and keywords are
 never written to a sidecar file, which holds the original's.
+
+**Merging to HDR**: **File ▸ Merge to HDR…** (⇧⌘L, and **Merge to HDR…** in
+the grid's context menu) combines two to nine photos of one scene, taken at
+different exposures (a bracketed series), into one new photo that holds the
+light of the brightest and the darkest parts at once. Select the photos in the
+grid and choose the command; a sheet lists them in the order they were taken,
+with each one's shutter and exposure compensation, and the photo at 0 EV
+compensation marked **Reference** (the earliest photo when the files don't say
+which is at 0 EV). The reference names the result and is the photo the others
+are lined up to. Choose the format and press **Merge**; the sheet closes and the
+merge runs in the toolbar's Activity item, with Stop (or **File ▸ Stop Merge**,
+⌘.). Hand-held photos are lined up automatically (a small shift and turn), and
+anything that moved between the photos (a person walking, leaves) is taken from
+the reference alone, so it shows once.
+
+- **TIFF** (16-bit, Display P3, tone-mapped) is a picture ready to view in any
+  app. **DNG** (16-bit floating point, not tone-mapped) holds the merged light
+  as it is: it opens dark and flat, and you tone it in the Adjust tab, where the
+  loupe shows its highlights on an HDR display. The choice is remembered.
+- The result is a new file written next to the reference, named after it with
+  `_HDR` (`IMG_1234_HDR.tif`), or `_HDR-2`, `_HDR-3`… when that name is taken.
+  It is the first file the app writes into a folder of originals; no original
+  is ever changed or replaced. The photos are merged as they were shot: their
+  adjustments in the library are not used.
+- The new photo is an ordinary photo of the reference's project, with the
+  reference's metadata (capture date, camera, lens, location), title,
+  descriptions, keywords, rating, flag and color label, and gets a sidecar file
+  when sidecars are written and it has values to hold. It is not added to the
+  reference's albums, and nothing in the library links it to the photos it came
+  from: search for `_HDR` to find merges. When the merge ends it becomes the
+  selection, unless you have selected something else meanwhile; Activity says
+  where the file is.
+- Only photos merge, all raws or all non-raws (JPEG, HEIC, TIFF), never both;
+  a RAW+JPEG pair counts once, as its raw. The sheet says why when a selection
+  can't be merged, and Merge stays off: a video among the photos, more than
+  nine photos, a photo together with its own copy (they are the same file),
+  photos of different sizes, an offline photo, a file that can't be read, or a
+  folder the result can't be written to (a read-only disk). Photos of another
+  scene are found only while merging: the merge stops, nothing is added, and
+  Activity names the photo that doesn't line up. Photos with the same exposure
+  settings get a note (merging them won't widen the range) but can be merged.
+- One merge runs at a time. Stopping it, or a failure, adds nothing and leaves
+  no file. Quitting during a merge asks first, and Remove from Library is off
+  until it ends.
+- **Edit ▸ Undo Merge to HDR** takes the new photo out of the library and leaves
+  its file on disk (Activity says where); Redo puts it back if the file hasn't
+  changed. Merging again after Undo writes `_HDR-2`, since the first file is
+  still there. To get rid of a merged file, remove it from the library and
+  delete it in the Finder.
 
 **Show in Finder** (**File ▸ Show in Finder**, ⇧⌘R, and the context menus of
 the grid, the loupe and a video) reveals the originals of the selected photos,
@@ -836,7 +886,7 @@ review mode. History is not written to sidecars or exports. Edits made with
 `photocli` are listed too, as "Develop (command line)" or "Mask (command line)".
 
 **Undo**: ⌘Z and ⇧⌘Z undo and redo culling, keyword, album and pair changes,
-project and album renames, adjustments, crop and rotation, and the Info tab's descriptive
+project and album renames, merges to HDR, adjustments, crop and rotation, and the Info tab's descriptive
 fields (title, description and the like), including changes made to many photos
 at once. Removing photos or a project from the library cannot be undone.
 
@@ -906,7 +956,9 @@ generation, cache reads and catalog queries. See
 from the terminal: `render` a file or a version to PNG, JPEG or TIFF with
 adjustments, `query projects` and `query images` (smart-album rules as JSON),
 `develop` (set and reset adjustments; `--dry-run` only shows the result),
-`rate`, `flag`, `label`, `export`, and `mask list`, `mask add`, `mask set` and
+`rate`, `flag`, `label`, `export`, `merge` (an HDR merge of `--version`s, as
+**File ▸ Merge to HDR…** makes it, `--format tiff` or `dng`; prints the written
+file's `path`; it writes no sidecar), and `mask list`, `mask add`, `mask set` and
 `mask remove` (a version's local adjustments; `--dry-run` only shows the
 result). `render` and `export` draw a version's spots; spots are made and
 changed in the app only. `noiseReduction.machineLearning=true` turns on machine learning noise
@@ -929,7 +981,7 @@ correction (`colorAlignment.red` and `blue` set it by hand), and
 (except by `render` of a file, which then reads no library).
 
 It can read a library at any time, but it changes one only while the app has
-it closed: while the app is open, `develop`, `rate`, `flag`, `label`,
+it closed: while the app is open, `develop`, `rate`, `flag`, `label`, `merge`,
 `mask add`, `mask set` and `mask remove` refuse and say so. Changes made from
 the terminal cannot be undone in the app, but `develop`, `mask add`, `mask set`
 and `mask remove` add an entry to the photo's History, which can be reverted to there.

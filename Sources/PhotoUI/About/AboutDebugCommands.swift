@@ -27,9 +27,10 @@ import PhotoCore
 ///     about quithost          (the window a quit confirmation would go on now: never the About window or a
 ///                             license window, and the sheet on a window that shows one; then the key window and
 ///                             the visible windows front to back)
-///     about quitask [keep]    (asks "Quit While Exporting?" where ⌘Q during an export would, with nothing running
-///                             and nothing quitting, and says whether the question is on screen, on what, and the
-///                             window order; `keep` answers Keep Exporting. Not shown when no window would host it)
+///     about quitask [keep|merging]   (asks "Quit While Exporting?" where ⌘Q during an export would, with nothing
+///                             running and nothing quitting, and says whether the question is on screen, on what, and
+///                             the window order, and its title and buttons; `keep` answers it; `merging` asks
+///                             "Quit While Merging?" instead. Not shown when no window would host it)
 ///     about closeothers       (the close buttons' action on every window that is not the About window or a
 ///                             license window, for checks with only those left)
 ///     about click <x> <y>     (a mouse down and up through the event queue, in the About window's points from its
@@ -279,7 +280,9 @@ public enum AboutDebugCommands {
         askedOn = host
         let before = host.sheets.count
         let previous = host.attachedSheet
-        Task { _ = await QuitGuard.ask(QuitGuard.text(for: .exporting), in: host) }
+        let text = QuitGuard.text(for: argument == "merging" ? .merging : .exporting)
+        print("debug-script: about quitask text \(text.title) | \(text.message) | \(text.keep)")
+        Task { _ = await QuitGuard.ask(text, in: host) }
         await settle()
         // A question kept waiting behind another sheet is not on screen.
         let alert = host.attachedSheet
