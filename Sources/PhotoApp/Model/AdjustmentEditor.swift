@@ -413,7 +413,11 @@ final class AdjustmentEditor {
     @ObservationIgnored private var isChanging = false
     /// Values shown without being applied (a table hovered in a menu).
     @ObservationIgnored private var previewValues: Adjustments?
-    @ObservationIgnored private var isPreviewing = false
+    /// Values are being previewed (a hovered preset or table); read by the
+    /// debug script's `hover`.
+    @ObservationIgnored private(set) var isPreviewing = false
+    /// The values a preview shows, for the debug script's `hover`.
+    var debugPreviewValues: Adjustments? { previewValues }
     /// The loupe showed its cached rendition when the preview began.
     @ObservationIgnored private var previewRestoresCache = false
     /// Hashes saved while this photo was open; their renditions are deleted

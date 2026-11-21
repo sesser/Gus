@@ -190,7 +190,13 @@ final class CurveEditorView: NSView {
 
 /// A segmented control drawn by AppKit.
 struct AppKitSegmented: NSViewRepresentable {
+    /// Each segment's title; with `symbols`, its VoiceOver name instead
+    /// (the image's description), never drawn.
     var labels: [String]
+    /// SF Symbol names for icon-only segments, one per label; empty for text
+    /// segments. Icon segments are each `symbolSegmentWidth` wide and the
+    /// control keeps its own width (preset-list-view design §2.2).
+    var symbols: [String] = []
     var selection: Int
     /// One tooltip per segment (HIG: provide one for each); empty for none.
     var toolTips: [String] = []
@@ -213,14 +219,33 @@ struct AppKitSegmented: NSViewRepresentable {
     var enabledSegments: [Bool] = []
     let onSelect: (Int) -> Void
 
+    /// The width of each icon-only segment, so both of a two-symbol switch
+    /// are equal whatever the symbols' own widths.
+    static let symbolSegmentWidth: CGFloat = 28
+
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeNSView(context: Context) -> NSSegmentedControl {
-        let control = NSSegmentedControl(labels: labels, trackingMode: .selectOne,
-                                         target: context.coordinator, action: #selector(Coordinator.picked(_:)))
+        let action = #selector(Coordinator.picked(_:))
+        guard !symbols.isEmpty else {
+            let control = NSSegmentedControl(labels: labels, trackingMode: .selectOne,
+                                             target: context.coordinator, action: action)
+            control.controlSize = .small
+            control.segmentDistribution = .fillEqually
+            if fillsWidth { control.setContentCompressionResistancePriority(.defaultLow, for: .horizontal) }
+            return control
+        }
+        // The symbols at the small control's text size, in the system's own weight and color.
+        let configuration = NSImage.SymbolConfiguration(pointSize: NSFont.systemFontSize(for: .small), weight: .regular)
+        let images = symbols.enumerated().map { index, name in
+            let description = index < labels.count ? labels[index] : nil
+            return NSImage(systemSymbolName: name, accessibilityDescription: description)?
+                .withSymbolConfiguration(configuration) ?? NSImage()
+        }
+        let control = NSSegmentedControl(images: images, trackingMode: .selectOne, target: context.coordinator, action: action)
         control.controlSize = .small
-        control.segmentDistribution = .fillEqually
-        if fillsWidth { control.setContentCompressionResistancePriority(.defaultLow, for: .horizontal) }
+        control.segmentDistribution = .fit
+        for index in 0..<control.segmentCount { control.setWidth(Self.symbolSegmentWidth, forSegment: index) }
         return control
     }
 
