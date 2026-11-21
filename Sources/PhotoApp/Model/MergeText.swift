@@ -181,7 +181,7 @@ enum MergeText {
         case .catalogFailed(let path, _):
             savedNotAdded(path)
         case .invalidName(let name):
-            String(localized: "“\(name)” has a name or place a merged photo can't be saved beside.",
+            String(localized: "A merged photo can't be saved beside “\(name)”. The library's record of its file name or location isn't valid.",
                    comment: "Activity: why a merge failed; the reference photo's name (a damaged library)")
         case .sameContent:
             String(localized: "The library already has a photo with the same content.",

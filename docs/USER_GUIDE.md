@@ -286,11 +286,17 @@ the reference alone, so it shows once.
   a RAW+JPEG pair counts once, as its raw. The sheet says why when a selection
   can't be merged, and Merge stays off: a video among the photos, more than
   nine photos, a photo together with its own copy (they are the same file),
-  photos of different sizes, an offline photo, a file that can't be read, or a
-  folder the result can't be written to (a read-only disk). Photos of another
+  photos of different sizes, a photo over 150 megapixels (too large to merge),
+  photos together too large to merge in this Mac's memory (a merge may use half
+  of it, so the same selection may merge on a Mac with more; select fewer), an
+  offline photo, a file that can't be read, or a folder the result can't be
+  written to (a read-only disk). Photos of another
   scene are found only while merging: the merge stops, nothing is added, and
   Activity names the photo that doesn't line up. Photos with the same exposure
-  settings get a note (merging them won't widen the range) but can be merged.
+  settings get a note (merging them won't widen the range) but can be merged. A merged
+  photo is an ordinary photo, so the app doesn't stop you selecting it with the
+  photos it was made from; the result would count that light twice, so select
+  only the original series.
 - One merge runs at a time. Stopping it, or a failure, adds nothing and leaves
   no file. Quitting during a merge asks first, and Remove from Library is off
   until it ends.

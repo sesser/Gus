@@ -166,7 +166,7 @@ struct MergeSafetyTests {
         let folder = try Self.folder()
         defer { try? FileManager.default.removeItem(at: folder) }
         func failing(_ code: Int32) -> (UnsafePointer<CChar>, UnsafePointer<CChar>) -> Int32 {
-            { _, _ in errno = code; return -1 }
+            { _, _ in code }
         }
         let a = folder.appending(path: "a.tif")
         #expect(throws: MergeOutput.Failure.self) {
@@ -180,6 +180,62 @@ struct MergeSafetyTests {
         }
         #expect(try String(contentsOf: a, encoding: .utf8) == "a")
         #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path) == ["a.tif"])
+        // C6: neither links nor an exclusive rename (FAT32, exFAT): a placeholder reserves the name.
+        let b = folder.appending(path: "b.tif")
+        try MergeOutput.writeInPlace(b, linkFile: failing(ENOTSUP), renameExclusive: failing(ENOTSUP)) {
+            try Data("b".utf8).write(to: $0)
+        }
+        #expect(try String(contentsOf: b, encoding: .utf8) == "b")
+        #expect(throws: MergeOutput.Failure.nameTaken) {
+            try MergeOutput.writeInPlace(b, linkFile: failing(ENOTSUP), renameExclusive: failing(ENOTSUP)) {
+                try Data("c".utf8).write(to: $0)
+            }
+        }
+        #expect(try String(contentsOf: b, encoding: .utf8) == "b")
+        #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path).sorted() == ["a.tif", "b.tif"])
+    }
+
+    /// Runs `body` with a fresh FAT32 disk image (64 MB: FAT32 wants more than 32) attached at a folder of its
+    /// own (CLAUDE.md: a FAT32 image stands in for a camera card); detached
+    /// after. Nil when `hdiutil` can't make or attach one here.
+    static func withFAT32(_ body: (URL) throws -> Void) throws -> Bool {
+        let folder = try Self.folder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let image = folder.appending(path: "card.dmg"), mount = folder.appending(path: "mount", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: mount, withIntermediateDirectories: true)
+        func hdiutil(_ arguments: [String]) -> Bool {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
+            process.arguments = arguments
+            process.standardOutput = FileHandle.nullDevice
+            process.standardError = FileHandle.nullDevice
+            guard (try? process.run()) != nil else { return false }
+            process.waitUntilExit()
+            return process.terminationStatus == 0
+        }
+        guard hdiutil(["create", "-size", "64m", "-fs", "MS-DOS FAT32", "-volname", "MERGE", image.path]),
+              hdiutil(["attach", "-nobrowse", "-mountpoint", mount.path, image.path])
+        else { return false }
+        defer { _ = hdiutil(["detach", "-force", mount.path]) }
+        try body(mount)
+        return true
+    }
+
+    @Test("C6: on a FAT32 volume the result is written beside the masters, and never replaces a file")
+    func fat32() throws {
+        let ran = try Self.withFAT32 { volume in
+            let url = volume.appending(path: "IMG_1_HDR.tif")
+            try MergeOutput.writeInPlace(url) { try Data("first".utf8).write(to: $0) }
+            #expect(try String(contentsOf: url, encoding: .utf8) == "first")
+            #expect(throws: MergeOutput.Failure.nameTaken) {
+                try MergeOutput.writeInPlace(url) { try Data("second".utf8).write(to: $0) }
+            }
+            #expect(try String(contentsOf: url, encoding: .utf8) == "first")
+            let visible = try FileManager.default.contentsOfDirectory(atPath: volume.path).filter { !$0.hasPrefix(".") }
+            #expect(visible == ["IMG_1_HDR.tif"])
+            #expect(try FileManager.default.contentsOfDirectory(atPath: volume.path).allSatisfy { !$0.hasSuffix(".partial") })
+        }
+        if !ran { print("FAT32 image not available here: hdiutil couldn't make or attach one") }
     }
 
     @Test("L8: a reference whose catalog name or path leaves its folder is refused")

@@ -369,6 +369,28 @@ struct HDRMergeJobTests {
         #expect(reads.count == 0)
     }
 
+    @Test("C8: a file the catalog refuses is removed, but only while its name still holds it")
+    func refusedFileRemoved() async throws {
+        let library = try await MergeLibrary.make(Self.bracket)
+        defer { library.remove() }
+        let selection = try await library.selection(["IMG_0001.dng", "IMG_0002.dng", "IMG_0003.dng"])
+        let before = try library.files()
+        await #expect(throws: HDRMergeJob.Failure.sameContent) {
+            try await library.job.run(selection, format: .tiff, catalogue: { _ in throw MergeCatalogFailure.sameContent })
+        }
+        #expect(try library.files() == before)
+        // Another file put under the name meanwhile is not the merge's: it stays.
+        let url = library.folder.appending(path: "IMG_0002_HDR.tif")
+        await #expect(throws: HDRMergeJob.Failure.sameContent) {
+            try await library.job.run(selection, format: .tiff, catalogue: { _ in
+                try FileManager.default.removeItem(at: url)
+                try Data("someone else's".utf8).write(to: url)
+                throw MergeCatalogFailure.sameContent
+            })
+        }
+        #expect(try Data(contentsOf: url) == Data("someone else's".utf8))
+    }
+
     @Test("C1: the catalog refusing a second master of the same content says so")
     func sameContentRefused() async throws {
         let library = try await MergeLibrary.make(Self.bracket)
@@ -530,5 +552,41 @@ struct MergeRuleTests {
         #expect(!MergeLanding.selects(started: [1, 2, 3], now: [4], showsGrid: true, shown: true))
         #expect(!MergeLanding.selects(started: [1, 2, 3], now: [1, 2, 3], showsGrid: false, shown: true))
         #expect(!MergeLanding.selects(started: [1, 2, 3], now: [1, 2, 3], showsGrid: true, shown: false))
+    }
+}
+
+@Suite("Waiting with a deadline")
+struct MainActorWaitTests {
+    /// Time that passes only when the wait sleeps.
+    @MainActor
+    final class FakeTime {
+        var now: Duration = .zero
+        var sleeps = 0
+        func sleep(_ duration: Duration) { now += duration; sleeps += 1 }
+    }
+
+    @Test("C7: the wait ends at its deadline while the condition still holds, and as soon as it stops")
+    @MainActor
+    func deadline() async {
+        let time = FakeTime()
+        let ended = await MainActorWait.whileTrue({ true }, timeout: .seconds(10), interval: .milliseconds(100),
+                                                  elapsed: { time.now }, sleep: { time.sleep($0) })
+        #expect(!ended)
+        #expect(time.now == .seconds(10))
+        #expect(time.sleeps == 100)
+
+        let later = FakeTime()
+        var asked = 0
+        let stopped = await MainActorWait.whileTrue({ asked += 1; return asked < 4 }, timeout: .seconds(10),
+                                                    interval: .milliseconds(100), elapsed: { later.now },
+                                                    sleep: { later.sleep($0) })
+        #expect(stopped)
+        #expect(later.now == .milliseconds(300))
+    }
+
+    @Test("C7: with the real clock, a wait on a condition that never ends returns")
+    @MainActor
+    func realClockReturns() async {
+        #expect(await !MainActorWait.whileTrue({ true }, timeout: .milliseconds(50)))
     }
 }

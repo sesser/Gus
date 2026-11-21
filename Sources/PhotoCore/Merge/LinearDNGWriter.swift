@@ -177,7 +177,7 @@ public struct LinearDNGWriter {
         ifd.short(284, [1])                                 // PlanarConfiguration: chunky
         ifd.ascii(315, metadata.artist)                     // Artist
         ifd.short(339, [3, 3, 3])                           // SampleFormat: IEEE floating point
-        if let xmp = metadata.xmp { ifd.undefined(700, xmp) } // XMP
+        if let xmp = metadata.xmp { ifd.bytes(700, Array(packet(xmp))) } // XMP, as BYTE (TIFF/XMP convention)
         ifd.ascii(33432, metadata.copyright)                // Copyright
         ifd.subIFD(34665, exif)                             // ExifIFD
         if !gps.entries.isEmpty { ifd.subIFD(34853, gps) }  // GPSInfo
@@ -194,6 +194,15 @@ public struct LinearDNGWriter {
         var layout = Layout()
         let data = layout.write(ifd, stripRows: (0..<stripCount).map { $0 * rowsPerStrip }, rowBytes: rowBytes)
         return data
+    }
+
+    /// An XMP document in its packet wrapper (XMP Specification part 3), as
+    /// strict readers expect in tag 700 (code review C9).
+    static func packet(_ xmp: Data) -> Data {
+        let text = String(decoding: xmp, as: UTF8.self)
+        if text.contains("<?xpacket") { return xmp }
+        return Data(("<?xpacket begin=\"\u{FEFF}\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?>\n" + text
+            + "\n<?xpacket end=\"w\"?>").utf8)
     }
 
     static func degreesMinutesSeconds(_ value: Double) -> [Double] {

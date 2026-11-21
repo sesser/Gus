@@ -16073,13 +16073,13 @@
         }
       }
     },
-    "“%@” has a name or place a merged photo can't be saved beside." : {
+    "A merged photo can't be saved beside “%@”. The library's record of its file name or location isn't valid." : {
       "comment" : "Activity: why a merge failed; the reference photo's name (a damaged library)",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "“%@” has a name or place a merged photo can't be saved beside."
+            "value" : "A merged photo can't be saved beside “%@”. The library's record of its file name or location isn't valid."
           }
         }
       }

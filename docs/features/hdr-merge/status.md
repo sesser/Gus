@@ -13,12 +13,13 @@ Spec: the PRD (issue #150 body, approved and revised 2026-11-20) and
 - `swift build` on `develop` at `ed423d7` (plus the design commit): clean.
 - `swift test` before any change: 1253 tests in 179 suites passed (70.6 s).
 
-## Latest results (2026-11-20, after the review fixes)
+## Latest results (2026-11-20, after the second review pass)
 
 - `swift build`: clean; no new warnings (the two in `SmartAlbumTests` and
   `VirtualCopiesTests` were there before).
-- `swift test`: 1303 tests in 187 suites passed (214.8 s). (At the first
-  Done: 1291 in 186.) No golden moved;
+- `swift test`: 1307 tests in 188 suites passed (237.6 s), the FAT32 test
+  running against a real image. (After the first review: 1303; at the first
+  Done: 1291.) No golden moved;
   `UPDATE_GOLDENS` was not run; `PreviewCacheKey.currentPipelineVersion`
   unchanged (13).
 - `Scripts/build-app.sh all`: builds both apps.
@@ -229,6 +230,21 @@ review (`security-review.md`), fixed in `46b5107` and `a3a597d`.
 | L7 hard-link fallback for any errno | Falls back only for `ENOTSUP`, `EOPNOTSUPP`, `EPERM`, with `renamex_np(RENAME_EXCL)`; any other error is a write failure | `linkFallback` |
 | L8 unchecked stem and path | `MergeNaming.isPlainPlace`: the name is the relative path's last part, no empty, `.`, `..` or NUL part, not absolute; else `invalidName` | `plainPlaces` |
 
+### Second pass (2026-11-20)
+
+| Finding | Fix | Test |
+|---|---|---|
+| C6 (Blocker) on FAT32 and exFAT `renamex_np(RENAME_EXCL)` fails with ENOTSUP too, so every merge beside masters there failed | After ENOTSUP or EOPNOTSUPP from the exclusive rename, the name is reserved with an empty file made with `O_CREAT \| O_EXCL` (EEXIST: the name is taken) and the file is renamed over that placeholder; a failed rename removes the placeholder only while it is still the one made. The placed file's identity is read from the name after placing (FAT has no inodes of its own). `link` and the exclusive rename are injectable | `MergeSafetyTests.linkFallback` (both unsupported: placed, then `nameTaken` with the first file untouched), `fat32` (a 64 MB FAT32 image made and attached with `hdiutil`: placed, never replaced, no `.partial` left; prints and passes without running where `hdiutil` can't attach) |
+| C7 the Stop and Quit wait had no real limit | `MainActorWait.whileTrue` (PhotoCore) polls `task != nil` on the main actor until the deadline; `MergeModel.waitUntilDone(timeout:)` uses it | `MainActorWaitTests.deadline` (with time that passes only when the wait sleeps, so the test doesn't depend on load: a 10 s limit on a condition that never ends returns at 10 s after 100 sleeps; a condition that ends on its fourth asking returns at 300 ms), `realClockReturns` (a 50 ms limit returns on the real clock). A first version with wall-clock bounds failed under the full suite's load (the main actor was busy for 90 s) |
+| C8 the job's inode-checked removal had no test | — | `HDRMergeJobTests.refusedFileRemoved` (a `catalogue` that refuses: the file goes; one that also puts another file under the name: that file stays) |
+| C9 DNG XMP as UNDEFINED without a packet wrapper | Tag 700 written as BYTE, wrapped in `<?xpacket …?>` | `exiftool -validate` on a merged DNG: OK; `dngRoundTrip` still reads it |
+| F3 wording of the damaged-library message | As given, word for word | `LocalizationTests` |
+| F4, F5 guide | The refusal bullet adds the 150 MP limit and the memory limit (half the Mac's memory; select fewer); a sentence that a merged photo can be selected with its own frames and would count that light twice | — |
+
+Ruled with no code (design §19 D-H5, RI-H4): numbering by stem needs no
+caption; a merged DNG chosen beside its own source raws is neither flagged nor
+refused in v1. New manual checks M7 and M8 are in `review.md`.
+
 **Heads-up for the merge with #88 (`feature/ai-masks`).** #88's migration v15
 adds `editHistory.maskRasters`. `Catalog.removeMergedMaster` and
 `restoreMergedMaster` (`Catalog/MergedMasters.swift`) list the history
@@ -307,7 +323,10 @@ three), the TIFF banded writer's output looks as before on the real bracket.
   too large to merge together on this Mac. Select fewer." (sheet), "“%@” has a
   name or place a merged photo can't be saved beside." (Activity: a damaged
   library), "The library already has a photo with the same content."
-  (Activity, after C1's fix practically unreachable).
+  (Activity, after C1's fix practically unreachable). Confirmed at the
+  designer's second pass; the damaged-library text was reworded (F3): "A merged
+  photo can't be saved beside “%@”. The library's record of its file name or
+  location isn't valid." 
 
 Ruled at design review (D-H1 to D-H4, design.md §19), as built:
 

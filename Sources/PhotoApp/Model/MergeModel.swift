@@ -244,15 +244,10 @@ final class MergeModel {
     }
 
     /// Waits for the running merge to end, or for `timeout`, whichever is first
-    /// (Stop and Quit: a stopped merge cleans up before the app goes).
+    /// (Stop and Quit: a stopped merge cleans up before the app goes). `task`
+    /// is cleared when the merge's task ends.
     func waitUntilDone(timeout: Duration) async {
-        guard let task else { return }
-        await withTaskGroup(of: Void.self) { group in
-            group.addTask { await task.value }
-            group.addTask { try? await Task.sleep(for: timeout) }
-            await group.next()
-            group.cancelAll()
-        }
+        await MainActorWait.whileTrue({ task != nil }, timeout: timeout)
     }
 
     private func update(_ next: MergeProgress) {

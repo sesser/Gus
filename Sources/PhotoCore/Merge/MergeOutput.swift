@@ -208,13 +208,22 @@ public enum MergeOutput {
     /// result name that fits the file system fits it too (security review L1).
     /// The file is put in place with `link(2)`, which fails rather than
     /// replace (a file that appeared since the name was chosen, a dangling
-    /// link); only where the file system has no hard links (`ENOTSUP`,
+    /// link). Only where the file system has no hard links (`ENOTSUP`,
     /// `EOPNOTSUPP`, `EPERM`) it is renamed with `RENAME_EXCL`, which also
-    /// never replaces. Any other error is a failure to write (L7).
-    /// `linkFile` is `link(2)` (tests stand in for it).
+    /// never replaces; any other error is a failure to write (L7). Where that
+    /// isn't supported either (FAT32 and exFAT: code review C6), the name is
+    /// first reserved with an empty file made with `O_CREAT | O_EXCL`, which
+    /// fails on a taken name, and the file is renamed over that placeholder,
+    /// the one file it can replace.
+    ///
+    /// `linkFile` is `link(2)` and `renameExclusive` `renamex_np` with
+    /// `RENAME_EXCL`, each giving 0 or an errno (tests stand in for them).
     @discardableResult
     static func writeInPlace(_ url: URL,
-                             linkFile: (UnsafePointer<CChar>, UnsafePointer<CChar>) -> Int32 = { link($0, $1) },
+                             linkFile: (UnsafePointer<CChar>, UnsafePointer<CChar>) -> Int32 = { link($0, $1) == 0 ? 0 : errno },
+                             renameExclusive: (UnsafePointer<CChar>, UnsafePointer<CChar>) -> Int32 = {
+                                 renamex_np($0, $1, UInt32(RENAME_EXCL)) == 0 ? 0 : errno
+                             },
                              _ body: (URL) throws -> Void) throws -> FileIdentity {
         let fileManager = FileManager.default
         let temporary = url.deletingLastPathComponent()
@@ -232,30 +241,66 @@ public enum MergeOutput {
         } catch {
             throw spaceAware(.writeFailed(error.localizedDescription), at: url, underlying: error)
         }
-        guard let identity = FileIdentity.of(temporary) else { throw Failure.writeFailed("") }
-        let linked = temporary.withUnsafeFileSystemRepresentation { from in
-            url.withUnsafeFileSystemRepresentation { to in
-                guard let from, let to else { return Int32(-1) }
-                return linkFile(from, to) == 0 ? 0 : errno
+        func both(_ call: (UnsafePointer<CChar>, UnsafePointer<CChar>) -> Int32) -> Int32 {
+            temporary.withUnsafeFileSystemRepresentation { from in
+                url.withUnsafeFileSystemRepresentation { to in
+                    guard let from, let to else { return EINVAL }
+                    return call(from, to)
+                }
             }
         }
+        /// What is at `url` now: the placed file (on file systems without
+        /// inodes of their own a rename may number it anew).
+        func placed() throws -> FileIdentity {
+            guard let identity = FileIdentity.of(url) else { throw Failure.writeFailed("") }
+            return identity
+        }
+        let linked = both(linkFile)
         switch linked {
         case 0:
-            return identity
+            return try placed()
         case EEXIST:
             throw Failure.nameTaken
         case ENOTSUP, EOPNOTSUPP, EPERM:
-            let renamed = temporary.withUnsafeFileSystemRepresentation { from in
-                url.withUnsafeFileSystemRepresentation { to in
-                    guard let from, let to else { return Int32(-1) }
-                    return renamex_np(from, to, UInt32(RENAME_EXCL)) == 0 ? 0 : errno
-                }
+            let renamed = both(renameExclusive)
+            switch renamed {
+            case 0: return try placed()
+            case EEXIST: throw Failure.nameTaken
+            case ENOTSUP, EOPNOTSUPP:
+                try renameOverPlaceholder(from: temporary, to: url)
+                return try placed()
+            default: throw writeFailure(renamed, at: url)
             }
-            if renamed == 0 { return identity }
-            if renamed == EEXIST { throw Failure.nameTaken }
-            throw writeFailure(renamed, at: url)
         default:
             throw writeFailure(linked, at: url)
+        }
+    }
+
+    /// Reserves `url` with a new empty file (`O_CREAT | O_EXCL`: a taken name
+    /// is `nameTaken`) and renames `temporary` over it. If the rename fails,
+    /// the placeholder goes again, provided it is still the one made here.
+    static func renameOverPlaceholder(from temporary: URL, to url: URL) throws {
+        let descriptor = url.withUnsafeFileSystemRepresentation { path in
+            path.map { open($0, O_WRONLY | O_CREAT | O_EXCL, 0o644) } ?? -1
+        }
+        guard descriptor >= 0 else {
+            let code = errno
+            if code == EEXIST { throw Failure.nameTaken }
+            throw writeFailure(code, at: url)
+        }
+        var info = stat()
+        let statted = fstat(descriptor, &info)
+        close(descriptor)
+        let placeholder = statted == 0 ? FileIdentity(device: Int64(info.st_dev), inode: UInt64(info.st_ino)) : nil
+        let renamed = temporary.withUnsafeFileSystemRepresentation { from in
+            url.withUnsafeFileSystemRepresentation { to in
+                guard let from, let to else { return EINVAL }
+                return rename(from, to) == 0 ? 0 : errno
+            }
+        }
+        guard renamed == 0 else {
+            if let placeholder, FileIdentity.of(url) == placeholder { try? FileManager.default.removeItem(at: url) }
+            throw writeFailure(renamed, at: url)
         }
     }
 
