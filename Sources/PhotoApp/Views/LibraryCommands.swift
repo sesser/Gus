@@ -637,6 +637,12 @@ struct LibraryCommands: Commands {
                 ForEach(MaskShapeKind.allCases, id: \.self) { kind in
                     Button(kind.title) { model?.editor.addMask(kind) }
                 }
+                // Found in the photo, under a divider (ai-masks design §11).
+                Divider()
+                ForEach(MaskDetectionKind.allCases, id: \.self) { kind in
+                    Button(kind.title) { model?.editor.addDetectionMask(kind) }
+                        .disabled(!can { $0.canDetectMask })
+                }
             }
             .disabled(!can { $0.canAddMask })
             // The Masks heading's eye button (design.md N7).
@@ -645,6 +651,10 @@ struct LibraryCommands: Commands {
                 model?.editor.showsMaskOverlay.toggle()
             }
             .disabled(!can { $0.hasSelectedMask })
+            Button(MaskDetectionText.updateDetection) {
+                if let id = model?.editor.selectedMaskID { model?.editor.updateDetection(mask: id) }
+            }
+            .disabled(!can { $0.canUpdateDetection })
             // The two "see a mask in the loupe" items together (sharpen-mask-preview design §3).
             Button(menu?.state.showsSharpeningMap == true ? SharpeningMapText.menuTitle.hide
                                                           : SharpeningMapText.menuTitle.show) {

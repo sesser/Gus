@@ -25,10 +25,18 @@ struct MasksSection: View {
                 Text("Presets and Paste Adjustments leave masks out.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                ShapeButtons(prompt: String(localized: "New Mask:"),
-                             limit: MaskLimits.canAddMask(to: editor.adjustments.local) ? nil
-                                 : String(localized: "A photo can have up to \(MaskLimits.masks) masks.",
-                                          comment: "Tooltip: New Mask is dimmed at the limit")) { editor.addMask($0) }
+                let maskLimit = MaskLimits.canAddMask(to: editor.adjustments.local) ? nil
+                    : String(localized: "A photo can have up to \(MaskLimits.masks) masks.",
+                             comment: "Tooltip: New Mask is dimmed at the limit")
+                ShapeButtons(prompt: String(localized: "New Mask:"), limit: maskLimit,
+                             detection: DetectionButton(help: MaskDetectionText.newMaskHelp,
+                                                        dimmed: editor.canDetectMask ? nil
+                                                            : maskLimit ?? DetectionButton.dimmedHelp(editor)) {
+                                 editor.addDetectionMask($0)
+                             }) { editor.addMask($0) }
+                if case .newMask? = editor.pendingDetection?.target {
+                    DetectingLine(editor: editor)
+                }
                 ForEach(Array(editor.adjustments.local.masks.enumerated()), id: \.element.id) { index, mask in
                     MaskRow(editor: editor, mask: mask, index: index)
                 }
@@ -46,6 +54,8 @@ struct MasksSection: View {
 private struct ShapeButtons: View {
     let prompt: String
     var limit: String?
+    /// The pull-down of detections at the end of the row (ai-masks design §2).
+    var detection: DetectionButton
     let action: (MaskShapeKind) -> Void
 
     var body: some View {
@@ -61,7 +71,55 @@ private struct ShapeButtons: View {
                     .disabled(limit != nil)
                     .frame(width: 26)
             }
+            detection
             Spacer()
+        }
+    }
+}
+
+/// Subject, People and Background in a pull-down (ai-masks design §2): one
+/// control beside the five shapes, dimmed with the reason as its tooltip.
+private struct DetectionButton: View {
+    let help: String
+    /// Why it is dimmed, or nil when it can act.
+    var dimmed: String?
+    let action: (MaskDetectionKind) -> Void
+
+    var body: some View {
+        AppKitMenuButton(title: "", symbol: "wand.and.stars",
+                         entries: MaskDetectionKind.allCases.map { kind in .item(kind.title) { action(kind) } },
+                         help: dimmed ?? help, accessibilityLabel: MaskDetectionText.detectLabel, showsArrow: true,
+                         isEnabled: dimmed == nil)
+            .disabled(dimmed != nil)
+    }
+
+    /// The tooltip of a dimmed button when no limit is the reason.
+    @MainActor static func dimmedHelp(_ editor: AdjustmentEditor) -> String? {
+        editor.pendingDetection != nil ? MaskDetectionText.waitHelp : nil
+    }
+}
+
+/// While a detection runs (design §5): a spinner, "Detecting…" and Cancel,
+/// in the slot the result's caption takes.
+private struct DetectingLine: View {
+    let editor: AdjustmentEditor
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ProgressView()
+                .controlSize(.mini)
+                .help(MaskDetectionText.spinnerLabel)
+                .accessibilityLabel(MaskDetectionText.spinnerLabel)
+            Text(MaskDetectionText.detecting)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 4)
+            AppKitButton(title: String(localized: "Cancel"), style: .push,
+                         help: String(localized: "Stop detecting; nothing is added or changed",
+                                      comment: "Tooltip of a detection's Cancel button")) {
+                editor.cancelDetection()
+            }
+            .fixedSize()
         }
     }
 }
@@ -97,18 +155,30 @@ private struct MaskRow: View {
             Button("Rename") { isRenaming = true }
             if index > 0 { Button("Move Up") { editor.moveMask(mask.id, by: -1) } }
             if index < count - 1 { Button("Move Down") { editor.moveMask(mask.id, by: 1) } }
+            // Between Rename / Move and Delete, for a mask with a detection (ai-masks design §7).
+            if hasDetection {
+                Button(MaskDetectionText.updateDetection) { editor.updateDetection(mask: mask.id) }
+                    .disabled(!editor.canUpdateDetection(of: mask))
+            }
             Button("Delete") { editor.removeMask(mask.id) }
         }
     }
 
+    private var hasDetection: Bool { mask.components.contains { $0.shape.detection != nil } }
+
     private func menuEntries(count: Int) -> [AppKitMenuButton.Entry] {
-        [
+        var entries: [AppKitMenuButton.Entry] = [
             .item(String(localized: "Rename")) { isRenaming = true },
             .item(String(localized: "Move Up"), isEnabled: index > 0) { editor.moveMask(mask.id, by: -1) },
             .item(String(localized: "Move Down"), isEnabled: index < count - 1) { editor.moveMask(mask.id, by: 1) },
-            .separator,
-            .item(String(localized: "Delete")) { editor.removeMask(mask.id) },
         ]
+        if hasDetection {
+            entries.append(.item(MaskDetectionText.updateDetection, isEnabled: editor.canUpdateDetection(of: mask)) {
+                editor.updateDetection(mask: mask.id)
+            })
+        }
+        entries += [.separator, .item(String(localized: "Delete")) { editor.removeMask(mask.id) }]
+        return entries
     }
 }
 
@@ -215,13 +285,21 @@ private struct MaskDetail: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             ForEach(Array(mask.components.enumerated()), id: \.offset) { index, component in
-                ComponentRow(editor: editor, component: component, index: index)
+                ComponentRow(editor: editor, mask: mask.id, component: component, index: index)
             }
-            ShapeButtons(prompt: String(localized: "Add to Mask:"),
-                         limit: MaskLimits.canAddComponent(to: mask) ? nil
-                             : String(localized: "A mask can combine up to \(MaskLimits.componentsPerMask) shapes.",
-                                      comment: "Tooltip: Add to Mask is dimmed at the limit")) {
+            let componentLimit = MaskLimits.canAddComponent(to: mask) ? nil
+                : String(localized: "A mask can combine up to \(MaskLimits.componentsPerMask) shapes.",
+                         comment: "Tooltip: Add to Mask is dimmed at the limit")
+            ShapeButtons(prompt: String(localized: "Add to Mask:"), limit: componentLimit,
+                         detection: DetectionButton(help: MaskDetectionText.addHelp,
+                                                    dimmed: editor.canDetectComponent ? nil
+                                                        : componentLimit ?? DetectionButton.dimmedHelp(editor)) {
+                             editor.addDetectionComponent($0)
+                         }) {
                 editor.addComponent($0, operation: .add)
+            }
+            if case .component(mask.id)? = editor.pendingDetection?.target {
+                DetectingLine(editor: editor)
             }
             if mask.components.contains(where: { $0.shape.brushComponent }) || editor.isBrushing {
                 BrushControls(editor: editor)
@@ -261,6 +339,7 @@ private struct MaskDetail: View {
 
 private struct ComponentRow: View {
     let editor: AdjustmentEditor
+    let mask: UUID
     let component: MaskComponent
     let index: Int
 
@@ -339,7 +418,9 @@ private struct ComponentRow: View {
                 r.tolerance = value
                 return .colorRange(r)
             }
-        case .brush, .detection:
+        case .detection:
+            DetectionCaption(editor: editor, mask: mask, component: component, index: index)
+        case .brush:
             EmptyView()
         }
     }
@@ -348,6 +429,49 @@ private struct ComponentRow: View {
                         _ update: @escaping (MaskShape, Double) -> MaskShape) -> some View {
         AdjustSlider(title: title, value: value, range: range, defaultValue: defaultValue, format: .plain) { value, phase in
             editor.setComponent(index, title, phase: phase) { $0.shape = update($0.shape, value) }
+        }
+    }
+}
+
+/// A detection's state in the slot where shapes have their sliders
+/// (ai-masks design §4): the caption, with a triangle and Update where Update
+/// is the remedy, or the pending line while it is detected again.
+private struct DetectionCaption: View {
+    let editor: AdjustmentEditor
+    let mask: UUID
+    let component: MaskComponent
+    let index: Int
+
+    var body: some View {
+        if editor.pendingDetection?.updates(mask: mask, index: index) == true {
+            DetectingLine(editor: editor)
+                .padding(.leading, 22)
+        } else if let state = editor.detectionState(of: component, mask: mask, index: index), state != .loading {
+            HStack(alignment: .top, spacing: 4) {
+                if state.offersUpdate {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
+                }
+                Text(editor.caption(of: component, mask: mask, index: index))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 4)
+                if state.offersUpdate {
+                    let model = editor.adjustments.local.masks.first { $0.id == mask }
+                    AppKitButton(title: MaskDetectionText.update, style: .push,
+                                 help: editor.pendingDetection != nil ? MaskDetectionText.waitHelp
+                                     : MaskDetectionText.updateHelp,
+                                 isEnabled: editor.canUpdateDetection(of: model)) {
+                        editor.updateDetection(mask: mask, index: index)
+                    }
+                    .fixedSize()
+                }
+            }
+            // At the title's inset: the row's symbol is 18 points with 4 between.
+            .padding(.leading, 22)
         }
     }
 }

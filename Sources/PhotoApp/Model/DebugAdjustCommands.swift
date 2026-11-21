@@ -31,6 +31,7 @@ import PhotoCore
 ///     adjust mask brush <x0> <y0> <x1> <y1> …   (one stroke; unit coordinates of the photo on screen)
 ///     adjust mask sample <x> <y>          (adds the color there to the selected color range)
 ///     adjust mask brushsize <percent of the long edge>   adjust mask erase on|off
+///     adjust mask detect|detectcomponent|detector|update|cancel|raster …   (detections; see DebugMaskDetectionCommands)
 ///     adjust fringe pick 1|2 <x> <y>   (picks at unit coordinates of the photo on screen through a
 ///                               click's path: the pixel rule, refusal; waits for the save)
 ///     adjust fringe fill 1|2 purple|green    adjust fringe clear 1|2    adjust fringe tolerance 1|2 <value>
@@ -131,6 +132,8 @@ enum DebugAdjustCommands {
             DebugBlackAndWhiteCommands.run(arguments, editor: editor)
         case "crop":
             await runCrop(arguments, editor: editor)
+        case "mask" where DebugMaskDetectionCommands.handles(["mask"] + arguments):
+            await DebugMaskDetectionCommands.run(["mask"] + arguments, editor: editor)
         case "mask":
             runMask(arguments, editor: editor)
         case "grade":
