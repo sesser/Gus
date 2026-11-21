@@ -14,14 +14,16 @@ extension Catalog {
     /// Stores `raster` unless a row with its digest is there: rows are never
     /// updated, and the same bytes are the same result.
     public func storeMaskRaster(_ raster: MaskRaster, at date: Date = Date()) async throws {
-        try await database.write { db in
-            try db.execute(sql: """
-                INSERT OR IGNORE INTO maskRaster
-                  (digest, encoding, width, height, instances, data, request, revision, systemVersion, createdAt)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, arguments: [raster.digest, MaskRaster.encoding, raster.width, raster.height, raster.instances,
-                                 raster.png, raster.request.rawValue, raster.revision, raster.systemVersion, date])
-        }
+        try await database.write { db in try Self.insertMaskRaster(db, raster, at: date) }
+    }
+
+    static func insertMaskRaster(_ db: Database, _ raster: MaskRaster, at date: Date) throws {
+        try db.execute(sql: """
+            INSERT OR IGNORE INTO maskRaster
+              (digest, encoding, width, height, instances, data, request, revision, systemVersion, createdAt)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, arguments: [raster.digest, MaskRaster.encoding, raster.width, raster.height, raster.instances,
+                             raster.png, raster.request.rawValue, raster.revision, raster.systemVersion, date])
     }
 
     /// The stored row `digest` names, or nil when there is none.

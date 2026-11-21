@@ -95,7 +95,10 @@ private struct DetectionButton: View {
 
     /// The tooltip of a dimmed button when no limit is the reason.
     @MainActor static func dimmedHelp(_ editor: AdjustmentEditor) -> String? {
-        editor.pendingDetection != nil ? MaskDetectionText.waitHelp : nil
+        if editor.pendingDetection != nil { return MaskDetectionText.waitHelp }
+        // The Masks heading stays on screen while cropping (design DR-2).
+        if editor.cropSession != nil { return MaskDetectionText.croppingHelp }
+        return nil
     }
 }
 
@@ -357,9 +360,11 @@ private struct ComponentRow: View {
                     editor.setComponent(index, String(localized: "Mask Operation"), phase: .committed) { $0.operation = operation }
                 }
                 .frame(width: 96)
+                // Its state for VoiceOver too: Background is already turned around (review F5).
                 AppKitButton(symbol: component.invert ? "circle.lefthalf.filled.inverse" : "circle.lefthalf.filled",
                              style: .borderless, tint: component.invert ? .controlAccentColor : .secondaryLabelColor,
-                             help: String(localized: "Invert")) {
+                             help: String(localized: "Invert"),
+                             accessibilityValue: component.invert ? String(localized: "On") : String(localized: "Off")) {
                     editor.setComponent(index, String(localized: "Invert"), phase: .committed) { $0.invert.toggle() }
                 }
                 .frame(width: 22)
@@ -463,6 +468,7 @@ private struct DetectionCaption: View {
                     let model = editor.adjustments.local.masks.first { $0.id == mask }
                     AppKitButton(title: MaskDetectionText.update, style: .push,
                                  help: editor.pendingDetection != nil ? MaskDetectionText.waitHelp
+                                     : editor.cropSession != nil ? MaskDetectionText.updateCroppingHelp
                                      : MaskDetectionText.updateHelp,
                                  isEnabled: editor.canUpdateDetection(of: model)) {
                         editor.updateDetection(mask: mask, index: index)

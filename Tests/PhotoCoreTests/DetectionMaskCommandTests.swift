@@ -9,7 +9,7 @@ import Testing
 struct DetectionMaskCommandTests {
     struct Fixed: MaskDetecting {
         var answer: Result<MaskRaster, MaskDetectionError>
-        func detect(_ request: MaskRaster.Request, in image: CGImage) throws(MaskDetectionError) -> MaskRaster {
+        func detect(_ request: MaskRaster.Request, in image: CGImage) async throws(MaskDetectionError) -> MaskRaster {
             // The input is the mask frame at the preview tier's long edge, or less (R4).
             guard max(image.width, image.height) <= MaskDetectionRun.inputLongEdge else { throw .failed("too large") }
             return try answer.get()

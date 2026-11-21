@@ -16,10 +16,10 @@ struct DebugMaskDetector: MaskDetecting {
 
     let mode: Mode
 
-    func detect(_ request: MaskRaster.Request, in image: CGImage) throws(MaskDetectionError) -> MaskRaster {
+    func detect(_ request: MaskRaster.Request, in image: CGImage) async throws(MaskDetectionError) -> MaskRaster {
         switch mode {
         case .real:
-            return try VisionMaskDetector().detect(request, in: image)
+            return try await VisionMaskDetector().detect(request, in: image)
         case .empty:
             return .empty(request)
         case .fail:
@@ -27,7 +27,7 @@ struct DebugMaskDetector: MaskDetecting {
         case .unavailable:
             throw .unavailable("The debug script's detector says it can't run here.")
         case .hang:
-            while !Task.isCancelled { usleep(20_000) }
+            while !Task.isCancelled { try? await Task.sleep(for: .milliseconds(20)) }
             throw .failed("Cancelled.")
         case .disc:
             let (width, height) = request == .person ? (image.width >= image.height ? (512, 384) : (384, 512)) : (512, 512)

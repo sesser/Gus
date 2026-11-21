@@ -9,9 +9,15 @@ struct PendingDetection: Equatable {
         case newMask(selectionAtStart: UUID?)
         /// A component added to this mask.
         case component(mask: UUID)
-        /// Update of these components of this mask (indices and kinds when started).
-        case update(mask: UUID, components: [Int])
+        /// Update of these components of this mask, as they were when it started.
+        case update(mask: UUID, components: [UpdatedComponent])
     }
+
+    /// A component an Update started on: its place then, its kind and the
+    /// result it named. The landing finds it by kind and result
+    /// (`MaskDetectionUpdate`), so an edit meanwhile (Undo, Remove from Mask)
+    /// can't move a result onto another component (code review C1).
+    typealias UpdatedComponent = MaskDetectionUpdate.Started
 
     let id = UUID()
     let kind: MaskDetectionKind
@@ -19,7 +25,22 @@ struct PendingDetection: Equatable {
 
     /// The Update of the component at `index` of `mask` is under way.
     func updates(mask: UUID, index: Int) -> Bool {
-        if case .update(mask, let components) = target { components.contains(index) } else { false }
+        if case .update(mask, let components) = target { components.contains { $0.index == index } } else { false }
+    }
+
+    /// The requests to run: one per kind of result (Background is Subject's).
+    var requests: [MaskRaster.Request] {
+        guard case .update(_, let components) = target else { return [kind.request] }
+        var seen = Set<MaskRaster.Request>()
+        return components.map(\.kind.request).filter { seen.insert($0).inserted }
+    }
+
+    /// The kind to name when `request` fails: the first component's that uses it.
+    func kind(for request: MaskRaster.Request) -> MaskDetectionKind {
+        if case .update(_, let components) = target, let match = components.first(where: { $0.kind.request == request }) {
+            return match.kind
+        }
+        return kind.request == request ? kind : (request == .person ? .people : .subject)
     }
 }
 
@@ -45,6 +66,21 @@ enum MaskDetectionText {
     static let update = String(localized: "Update", comment: "Button: detect a mask component again")
     static let updateHelp = String(localized: "Detect again on this photo and replace the stored result",
                                    comment: "Tooltip of a detection component's Update button")
+    static let croppingHelp = String(localized: "Finish cropping to detect in the photo.",
+                                     comment: "Tooltip of the detection pull-down, dimmed while cropping")
+    static let updateCroppingHelp = String(localized: "Finish cropping to detect again.",
+                                           comment: "Tooltip of a detection's Update button, dimmed while cropping")
+
+    /// The words under an Activity warning: the system's own, or the app's for its own failures.
+    static func detail(_ error: MaskDetectionError) -> String {
+        switch error {
+        case .unavailable(let detail), .failed(let detail): detail
+        case .unreadable: String(localized: "The photo could not be rendered for detection.",
+                                 comment: "Activity warning's detail when a detection's input could not be made")
+        case .unusableMask: String(localized: "The mask Vision gave could not be read.",
+                                   comment: "Activity warning's detail when a detection's result is in a form the app can't use")
+        }
+    }
     static let updateDetection = String(localized: "Update Detection",
                                         comment: "Menu item, mask menu item, undo action name and History label")
     static let cancelled = String(localized: "Detection cancelled.", comment: "VoiceOver, after Cancel on a detection")
@@ -90,6 +126,9 @@ enum MaskDetectionText {
         case .failed:
             String(localized: "Detection failed on this photo. It selects nothing. Choose Update to try again.",
                    comment: "Detection caption: failed")
+        case .failedUpdate:
+            String(localized: "Detection failed on this photo. The earlier result still applies. Choose Update to try again.",
+                   comment: "Detection caption: an Update failed and the earlier result still applies")
         case .unavailable:
             String(localized: "Detection isn't available on this Mac. It selects nothing.",
                    comment: "Detection caption: the request can't run on this Mac")
@@ -167,9 +206,12 @@ extension AdjustmentEditor {
     /// detection component of the mask, as one undo step (design §7).
     func updateDetection(mask id: UUID, index: Int? = nil) {
         guard let mask = adjustments.local.masks.first(where: { $0.id == id }), canUpdateDetection(of: mask) else { return }
-        let indices = mask.components.indices.filter { mask.components[$0].shape.detection != nil && (index == nil || $0 == index) }
-        guard let first = indices.first, let kind = mask.components[first].shape.detection?.kind else { return }
-        startDetection(PendingDetection(kind: kind, target: .update(mask: id, components: indices)))
+        let components = mask.components.enumerated().compactMap { position, component -> PendingDetection.UpdatedComponent? in
+            guard let detection = component.shape.detection, index == nil || position == index else { return nil }
+            return .init(index: position, kind: detection.kind, raster: detection.raster)
+        }
+        guard let first = components.first else { return }
+        startDetection(PendingDetection(kind: first.kind, target: .update(mask: id, components: components)))
     }
 
     private func startDetection(_ pending: PendingDetection) {
@@ -177,37 +219,40 @@ extension AdjustmentEditor {
         // A new mask takes the photo on screen: the sharpening map ends, as for any new mask (design §10).
         endSharpeningMap()
         pendingDetection = pending
-        let values = adjustments
         let engine = library.previews.interactiveGenerator.engine
         let detector = maskDetector
         let versionID = item.versionID
-        // The requests to run: one per kind of result (Background is Subject's).
-        let requests: [MaskDetectionKind]
-        if case .update(let id, let indices) = pending.target,
-           let mask = adjustments.local.masks.first(where: { $0.id == id }) {
-            var seen = Set<MaskRaster.Request>()
-            requests = indices.compactMap { mask.components[$0].shape.detection?.kind }
-                .filter { seen.insert($0.request).inserted }
-        } else {
-            requests = [pending.kind]
-        }
+        let requests = pending.requests
+        var values = adjustments
         detectionTask = Task { [weak self] in
-            var results: [MaskRaster.Request: Result<MaskRaster, MaskDetectionError>] = [:]
-            for kind in requests {
+            // At most twice more if the mask frame changes while detecting.
+            for _ in 0..<3 {
+                let input = values
                 let work = Task.detached(priority: .userInitiated) {
-                    try await MaskDetectionRun.run(kind, source: source, adjustments: values, engine: engine,
+                    try await MaskDetectionRun.run(requests, source: source, adjustments: input, engine: engine,
                                                    detector: detector)
                 }
-                let result = await withTaskCancellationHandler { await work.result } onCancel: { work.cancel() }
-                guard !Task.isCancelled else { return }
-                switch result {
-                case .success(let raster): results[kind.request] = .success(raster)
-                case .failure(let error as MaskDetectionError): results[kind.request] = .failure(error)
-                case .failure(let error): results[kind.request] = .failure(.failed(String(describing: error)))
+                let outcome = await withTaskCancellationHandler { await work.result } onCancel: { work.cancel() }
+                guard !Task.isCancelled, case .success(let results) = outcome else { return }
+                // While the lens frame question is up nothing else changes the
+                // photo: the result waits for the answer (code review C2).
+                while self?.isAskingLensFrame == true {
+                    try? await Task.sleep(for: .milliseconds(100))
+                    guard !Task.isCancelled else { return }
                 }
+                guard let self, !Task.isCancelled, pendingDetection == pending, self.item?.versionID == versionID
+                else { return }
+                // The input was the mask frame Distortion defined then: a frame
+                // changed meanwhile is detected again in the new one.
+                if adjustments.effective.distortion != input.effective.distortion {
+                    values = adjustments
+                    continue
+                }
+                land(pending, results: results)
+                return
             }
-            guard let self, !Task.isCancelled, pendingDetection == pending, self.item?.versionID == versionID else { return }
-            land(pending, results: results)
+            // The frame kept changing: nothing lands; say so as a cancel would.
+            self?.cancelDetection()
         }
     }
 
@@ -230,25 +275,27 @@ extension AdjustmentEditor {
         guard let library else { return }
         // Results go into the renderer's memory now and the catalog before the
         // stack: the stack's write queues behind the row's on the write chain.
-        for case .success(let raster) in results.values {
-            // It ran: whatever this session learned before, the request runs on this Mac.
-            unavailableRequests.remove(raster.request)
-            library.maskRasters.remember(raster)
-            detectionResults[raster.digest] = library.maskRasters.cached(raster.digest)
-            let catalog = library.catalog
-            library.persist { try await catalog.storeMaskRaster(raster) }
-        }
-        for case .failure(let error) in results.values {
-            if case .unavailable = error {
-                unavailableRequests.insert(pending.kind.request)
+        for (request, result) in results {
+            switch result {
+            case .success(let raster):
+                // It ran: whatever this session learned before, the request runs on this Mac.
+                unavailableRequests.remove(request)
+                library.maskRasters.remember(raster)
+                detectionResults[raster.digest] = library.maskRasters.cached(raster.digest)
+                let catalog = library.catalog
+                library.persist { try await catalog.storeMaskRaster(raster) }
+            case .failure(let error):
+                // The request that failed, not the first component's (code review C3).
+                if case .unavailable = error { unavailableRequests.insert(request) }
+                reportFailure(pending, request: request, error: error)
             }
         }
-        reportFailures(pending, results: results)
 
         func component(_ kind: MaskDetectionKind) -> MaskComponent {
             let raster = try? results[kind.request]?.get()
             return MaskComponent(.detection(MaskDetection(kind: kind, raster: raster?.digest)))
         }
+        let found = (try? results[pending.kind.request]?.get())?.instances ?? 0 > 0
         switch pending.target {
         case .newMask(let selectionAtStart):
             var values = LocalValues()
@@ -262,9 +309,10 @@ extension AdjustmentEditor {
                 isBrushing = false
                 isSamplingColor = false
             }
+            // One announcement per outcome; a failure's caption says it (review F6).
             AccessibilityText.announce(MaskDetectionText.added(pending.kind, caption: caption(of: mask.components[0])),
                                        priority: .medium)
-            flashOverlay(on: mask.id)
+            if found { flashOverlay(on: mask.id) }
         case .component(let id):
             let added = component(pending.kind)
             guard adjustments.local.masks.contains(where: { $0.id == id }),
@@ -273,36 +321,43 @@ extension AdjustmentEditor {
                       local.masks[index].components.append(added)
                   }) else { return }
             AccessibilityText.announce(MaskDetectionText.added(pending.kind, caption: caption(of: added)), priority: .medium)
-            flashOverlay(on: id)
-        case .update(let id, let indices):
-            landUpdate(mask: id, indices: indices, results: results)
+            if found { flashOverlay(on: id) }
+        case .update(let id, let components):
+            landUpdate(mask: id, components: components, results: results)
         }
     }
 
-    /// Update: each component whose request gave a result takes its digest;
-    /// one whose request failed keeps its old result, shown as Failed for
-    /// this visit (design §7). An unchanged result writes nothing.
-    private func landUpdate(mask id: UUID, indices: [Int],
+    /// Update: each component the Update started on, found again by kind and
+    /// result (code review C1), takes its request's new result; one whose
+    /// request failed keeps its old result and says so for this visit
+    /// (design §7, DR-1). A component no longer there is left alone. An
+    /// unchanged result writes nothing.
+    private func landUpdate(mask id: UUID, components: [PendingDetection.UpdatedComponent],
                             results: [MaskRaster.Request: Result<MaskRaster, MaskDetectionError>]) {
         var next = adjustments.local
         guard let maskIndex = next.masks.firstIndex(where: { $0.id == id }) else { return }
-        for index in indices where next.masks[maskIndex].components.indices.contains(index) {
-            guard let detection = next.masks[maskIndex].components[index].shape.detection else { continue }
-            switch results[detection.kind.request] {
+        var landed: [Int] = []
+        var flashes = false
+        let positions = MaskDetectionUpdate.positions(of: components, in: next.masks[maskIndex].components)
+        for (wanted, position) in zip(components, positions) {
+            guard let position else { continue }
+            landed.append(position)
+            switch results[wanted.kind.request] {
             case .success(let raster)?:
-                failedUpdates.remove(DetectionComponentKey(mask: id, index: index, raster: detection.raster))
-                next.masks[maskIndex].components[index].shape = .detection(MaskDetection(kind: detection.kind,
-                                                                                          raster: raster.digest))
+                failedUpdates.remove(DetectionComponentKey(mask: id, index: position, raster: wanted.raster))
+                next.masks[maskIndex].components[position].shape = .detection(MaskDetection(kind: wanted.kind,
+                                                                                             raster: raster.digest))
+                if raster.instances > 0 { flashes = true }
             case .failure?, nil:
-                failedUpdates.insert(DetectionComponentKey(mask: id, index: index, raster: detection.raster))
+                failedUpdates.insert(DetectionComponentKey(mask: id, index: position, raster: wanted.raster))
             }
         }
         let changed = next != adjustments.local
         if changed {
             changeMasks(MaskDetectionText.updateDetection, phase: .committed) { $0 = next }
-            flashOverlay(on: id)
+            if flashes { flashOverlay(on: id) }
         }
-        if let first = indices.first, let after = adjustments.local.masks.first(where: { $0.id == id }),
+        if let first = landed.first, let after = adjustments.local.masks.first(where: { $0.id == id }),
            after.components.indices.contains(first) {
             let text = caption(of: after.components[first], mask: id, index: first)
             AccessibilityText.announce(changed ? MaskDetectionText.updated(caption: text) : text, priority: .medium)
@@ -310,19 +365,17 @@ extension AdjustmentEditor {
     }
 
     /// Failed and Unavailable post a warning to Activity with the system's own
-    /// words; empty never does (design §6, A10).
-    private func reportFailures(_ pending: PendingDetection,
-                                results: [MaskRaster.Request: Result<MaskRaster, MaskDetectionError>]) {
+    /// words; empty never does (design §6, A10). Not announced: the landing's
+    /// own announcement carries the caption (review F6).
+    private func reportFailure(_ pending: PendingDetection, request: MaskRaster.Request, error: MaskDetectionError) {
         guard let library, let item else { return }
-        for case .failure(let error) in results.values {
-            let text = MaskDetectionText.couldNotDetect(pending.kind, fileName: item.fileName)
-            let action: String = switch pending.target {
-            case .newMask: MaskDetectionText.addMaskAction(pending.kind)
-            case .component: MaskDetectionText.addComponentAction(pending.kind)
-            case .update: MaskDetectionText.updateDetection
-            }
-            library.report(text + "\n" + error.detail, action: action, warning: true, announcing: text)
+        let text = MaskDetectionText.couldNotDetect(pending.kind(for: request), fileName: item.fileName)
+        let action: String = switch pending.target {
+        case .newMask: MaskDetectionText.addMaskAction(pending.kind)
+        case .component: MaskDetectionText.addComponentAction(pending.kind)
+        case .update: MaskDetectionText.updateDetection
         }
+        library.postActivity(text + "\n" + MaskDetectionText.detail(error), action: action, warning: true)
     }
 
     // MARK: States
@@ -330,13 +383,16 @@ extension AdjustmentEditor {
     /// The state of a detection component, for its caption (design §4).
     func detectionState(of component: MaskComponent, mask: UUID? = nil, index: Int? = nil) -> MaskDetectionState? {
         guard let detection = component.shape.detection else { return nil }
+        let lookup = detection.raster.flatMap { detectionResults[$0] }
+        let state = MaskDetectionState.of(detection, lookup: lookup,
+                                          unavailable: unavailableRequests.contains(detection.kind.request))
         if let mask, let index,
            failedUpdates.contains(DetectionComponentKey(mask: mask, index: index, raster: detection.raster)) {
+            // A failed Update leaves a found result applying (design DR-1).
+            if case .found(let count) = state { return .failedUpdate(instances: count) }
             return .failed
         }
-        let lookup = detection.raster.flatMap { detectionResults[$0] }
-        return MaskDetectionState.of(detection, lookup: lookup,
-                                     unavailable: unavailableRequests.contains(detection.kind.request))
+        return state
     }
 
     /// The caption a component shows now.

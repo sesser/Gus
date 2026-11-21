@@ -32,48 +32,65 @@ struct MaskDetectionTests {
 
     // MARK: R13, AC11
 
-    /// Both requests run without error on synthetic fixtures and give masks of
-    /// the sizes the spike measured (status.md §2): Subject 512 × 512 for any
-    /// shape of photo, People 512 × 384 for a landscape photo and 384 × 512 for
-    /// a portrait one. Availability and sizes only: what a synthetic image
-    /// selects says nothing about quality. Part of `swift test`, so CI runs it
-    /// on macOS 15 and 26.
+    /// Both requests run on synthetic fixtures and give masks of the sizes the
+    /// spike measured (status.md §2): Subject 512 × 512 for any shape of
+    /// photo, People 512 × 384 for a landscape photo and 384 × 512 for a
+    /// portrait one. Availability and sizes only. Part of `swift test`, so CI
+    /// runs it on macOS 15 and 26.
+    ///
+    /// - A request that says it can't run here (`MaskDetectionError.unavailable`:
+    ///   an unsupported compute device or revision, as on a virtual machine with
+    ///   no Neural Engine whose GPU Vision won't use) passes, with the error
+    ///   printed (RI-E1). Any other error fails.
+    /// - Subject must find the red disc wherever it runs. People's sizes are
+    ///   checked whenever it finds something; the fixtures hold no person, so
+    ///   finding nothing is a right answer and passes (code review C5). The
+    ///   opt-in samples check People's sizes on real photos of people.
     @Test("Both Vision requests run on synthetic fixtures and give masks of the measured sizes (R13, AC11)")
-    func requestsRunWithTheMeasuredSizes() throws {
+    func requestsRunWithTheMeasuredSizes() async throws {
         let detector = VisionMaskDetector()
-        var subjects = 0, people = 0
-        for (width, height) in [(768, 512), (512, 768)] {
-            let landscape = width > height
-            for disc in [true, false] {
-                let image = Self.fixture(width: width, height: height, disc: disc)
-                let subject: MaskRaster
-                let person: MaskRaster
-                do {
-                    subject = try detector.detect(.foreground, in: image)
-                    person = try detector.detect(.person, in: image)
-                } catch {
-                    Issue.record("detection failed on \(width) × \(height) (disc \(disc)): \(error) on \(Self.system)")
-                    continue
+        var found: [MaskRaster.Request: Int] = [:]
+        var unavailable: [MaskRaster.Request: String] = [:]
+        for request in MaskRaster.Request.allCases {
+            for (width, height) in [(768, 512), (512, 768)] {
+                let landscape = width > height
+                for disc in [true, false] {
+                    let image = Self.fixture(width: width, height: height, disc: disc)
+                    let raster: MaskRaster
+                    do {
+                        raster = try await detector.detect(request, in: image)
+                    } catch .unavailable(let detail) {
+                        unavailable[request] = detail
+                        continue
+                    } catch {
+                        Issue.record("\(request.rawValue) failed on \(width) × \(height) (disc \(disc)): \(error) on \(Self.system)")
+                        continue
+                    }
+                    #expect(raster.revision >= 1, "a revision the request already has: nothing was downloaded")
+                    guard raster.instances > 0 else {
+                        #expect(raster == MaskRaster.empty(request, revision: raster.revision))
+                        continue
+                    }
+                    found[request, default: 0] += 1
+                    switch request {
+                    case .foreground:
+                        #expect(raster.width == 512 && raster.height == 512, "Subject \(raster.width) × \(raster.height)")
+                    case .person:
+                        #expect((raster.width, raster.height) == (landscape ? (512, 384) : (384, 512)),
+                                "People \(raster.width) × \(raster.height) for \(width) × \(height)")
+                    }
                 }
-                if subject.instances > 0 {
-                    subjects += 1
-                    #expect(subject.width == 512 && subject.height == 512, "Subject \(subject.width) × \(subject.height)")
-                }
-                if person.instances > 0 {
-                    people += 1
-                    #expect((person.width, person.height) == (landscape ? (512, 384) : (384, 512)),
-                            "People \(person.width) × \(person.height) for \(width) × \(height)")
-                }
-                for raster in [subject, person] where raster.instances == 0 {
-                    #expect(raster == MaskRaster.empty(raster.request, revision: raster.revision))
-                }
-                // Neither request downloads anything: each reports a revision it already has.
-                #expect(subject.revision >= 1 && person.revision >= 1)
             }
         }
-        // The size checks are not vacuous: each request found something somewhere.
-        #expect(subjects >= 2, "Subject found the disc in \(subjects) of 2 fixtures on \(Self.system)")
-        #expect(people >= 1, "People found something in \(people) of 4 fixtures on \(Self.system)")
+        for (request, detail) in unavailable.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
+            print("AC11: \(request.rawValue) can't run on this Mac (\(Self.system)): \(detail)")
+        }
+        if unavailable[.foreground] == nil {
+            #expect(found[.foreground, default: 0] >= 2, "Subject found the disc in \(found[.foreground, default: 0]) of 2 fixtures")
+        }
+        if unavailable[.person] == nil, found[.person, default: 0] == 0 {
+            print("AC11: People found nothing in the person-less fixtures on \(Self.system); its sizes were not seen here")
+        }
     }
 
     static let system = ProcessInfo.processInfo.operatingSystemVersionString
@@ -140,7 +157,7 @@ struct MaskDetectionTests {
 
     struct Stub: MaskDetecting {
         var result: Result<MaskRaster, MaskDetectionError>
-        func detect(_ request: MaskRaster.Request, in image: CGImage) throws(MaskDetectionError) -> MaskRaster {
+        func detect(_ request: MaskRaster.Request, in image: CGImage) async throws(MaskDetectionError) -> MaskRaster {
             try result.get()
         }
     }
@@ -164,6 +181,66 @@ struct MaskDetectionTests {
         }
         task.cancel()
         await #expect(throws: CancellationError.self) { try await task.value }
+    }
+
+    /// Records the image each request was given.
+    final class Recording: MaskDetecting, @unchecked Sendable {
+        // @unchecked: the test reads `images` only after the run has finished.
+        private(set) var images: [MaskRaster.Request: ObjectIdentifier] = [:]
+        private let lock = NSLock()
+        let failing: MaskRaster.Request?
+        init(failing: MaskRaster.Request? = nil) { self.failing = failing }
+
+        func detect(_ request: MaskRaster.Request, in image: CGImage) async throws(MaskDetectionError) -> MaskRaster {
+            lock.withLock { images[request] = ObjectIdentifier(image) }
+            if request == failing { throw .unavailable("not here") }
+            return .empty(request)
+        }
+    }
+
+    @Test("An Update of Subject and People renders the input once and keeps each request's own outcome (code review C3, C7)")
+    func severalRequestsOneRender() async throws {
+        let url = try Self.writeJPEG(width: 600, height: 400)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let detector = Recording(failing: .person)
+        let results = try await MaskDetectionRun.run([.foreground, .person], source: url, adjustments: Adjustments(),
+                                                     engine: RenderEngine(contextCount: 1, name: "detection-test"),
+                                                     detector: detector)
+        #expect(Set(detector.images.values).count == 1, "one rendered input for both")
+        #expect(try results[.foreground]?.get() == MaskRaster.empty(.foreground))
+        #expect(results[.person].map { if case .failure(.unavailable) = $0 { true } else { false } } == true)
+
+        let missing = FileManager.default.temporaryDirectory.appending(path: "absent-\(UUID().uuidString).jpg")
+        let unreadable = try await MaskDetectionRun.run([.foreground, .person], source: missing, adjustments: Adjustments(),
+                                                        engine: RenderEngine(contextCount: 1, name: "detection-test"),
+                                                        detector: detector)
+        #expect(unreadable.count == 2 && unreadable.values.allSatisfy {
+            if case .failure(.unreadable) = $0 { true } else { false }
+        })
+    }
+
+    @Test("An Update's result lands on the components it started on, found by kind and result (code review C1)")
+    func updatePositions() {
+        let a = DetectionMaskModelTests.digestA, b = DetectionMaskModelTests.digestB
+        func detection(_ kind: MaskDetectionKind, _ raster: String?) -> MaskComponent {
+            MaskComponent(.detection(MaskDetection(kind: kind, raster: raster)))
+        }
+        let linear = MaskComponent(.linear(LinearGradient(start: MaskPoint(x: 0, y: 0), end: MaskPoint(x: 1, y: 1))))
+        // The review's case: [People, Subject], People removed, Update on [Subject] (index 0), then ⌘Z.
+        let started = [MaskDetectionUpdate.Started(index: 0, kind: .subject, raster: a)]
+        #expect(MaskDetectionUpdate.positions(of: started, in: [detection(.people, b), detection(.subject, a)]) == [1])
+        // A shape in its old place: never the target.
+        #expect(MaskDetectionUpdate.positions(of: started, in: [linear, detection(.subject, a)]) == [1])
+        // Gone (undone, or its result changed meanwhile): nothing lands.
+        #expect(MaskDetectionUpdate.positions(of: started, in: [linear]) == [nil])
+        #expect(MaskDetectionUpdate.positions(of: started, in: [detection(.subject, b)]) == [nil])
+        // Two alike each find their own place.
+        let twins = [MaskDetectionUpdate.Started(index: 0, kind: .subject, raster: a),
+                     MaskDetectionUpdate.Started(index: 1, kind: .subject, raster: a)]
+        #expect(MaskDetectionUpdate.positions(of: twins, in: [linear, detection(.subject, a), detection(.subject, a)])
+                == [1, 2])
+        // Unchanged: in place.
+        #expect(MaskDetectionUpdate.positions(of: twins, in: [detection(.subject, a), detection(.subject, a)]) == [0, 1])
     }
 
     @Test("Vision's can't-run-here errors are Unavailable; any other error is Failed")
@@ -220,9 +297,9 @@ struct MaskDetectionTests {
                       MaskDetectionState.of(failed, lookup: nil, unavailable: false),
                       MaskDetectionState.of(failed, lookup: nil, unavailable: true)]
         #expect(states == [.found(instances: 2), .empty, .missing, .loading, .failed, .unavailable])
-        let offering = [MaskDetectionState.failed, .unavailable, .missing, .found(instances: 1), .empty, .loading]
-            .map { $0.offersUpdate }
-        #expect(offering == [true, true, true, false, false, false])
+        let offering = [MaskDetectionState.failed, .failedUpdate(instances: 1), .unavailable, .missing,
+                        .found(instances: 1), .empty, .loading].map { $0.offersUpdate }
+        #expect(offering == [true, true, true, true, false, false, false])
     }
 
     // MARK: Real photos, opt in
@@ -241,7 +318,7 @@ struct MaskDetectionTests {
             let image = try MaskDetectionRun.input(source: file, adjustments: Adjustments(), engine: engine)
             for request in MaskRaster.Request.allCases {
                 do {
-                    let raster = try VisionMaskDetector().detect(request, in: image)
+                    let raster = try await VisionMaskDetector().detect(request, in: image)
                     let pixels = try MaskRaster.pixels(fromPNG: raster.png)
                     let coverage = Double(pixels.levels.reduce(0) { $0 + Int($1) }) / 255 / Double(pixels.levels.count)
                     print("\(file.lastPathComponent) \(request.rawValue): \(raster.instances) instances, "

@@ -113,7 +113,8 @@ extension AdjustmentEditor {
     /// changing), unless the result would pass `MaskLimits`.
     @discardableResult
     func changeMasks(_ actionName: String, phase: EditPhase, _ body: (inout LocalAdjustments) -> Void) -> Bool {
-        guard state == .ready else { return false }
+        // `change` refuses while the lens frame question is up: say so (code review C2).
+        guard state == .ready, !isAskingLensFrame else { return false }
         var next = adjustments.local
         body(&next)
         guard MaskLimits.allows(next) else {

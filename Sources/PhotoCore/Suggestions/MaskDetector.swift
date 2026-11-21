@@ -10,25 +10,30 @@ import Vision
 public protocol MaskDetecting: Sendable {
     /// The result of `request` on `image` (upright, sRGB). An empty result
     /// (nothing found) is a result; throws `MaskDetectionError` otherwise.
-    func detect(_ request: MaskRaster.Request, in image: CGImage) throws(MaskDetectionError) -> MaskRaster
+    /// Cancelling the calling task cancels the request.
+    func detect(_ request: MaskRaster.Request, in image: CGImage) async throws(MaskDetectionError) -> MaskRaster
 }
 
 /// Why a detection gave no result (design §4: Failed and Unavailable).
 public enum MaskDetectionError: Error, Equatable, Sendable {
     /// The request reports it can't run on this Mac (an unsupported compute
     /// device or revision): Vision's foreground request refuses the CPU, so a
-    /// Mac with no usable GPU or Neural Engine gets this.
+    /// Mac with no usable GPU or Neural Engine gets this. The system's words.
     case unavailable(String)
-    /// The request, or reading its result, failed.
+    /// The request, or reading its result, failed. The system's words.
     case failed(String)
     /// The photo could not be rendered for detection.
     case unreadable
+    /// Vision gave a mask this build can't read or store.
+    case unusableMask
 
-    /// For the Activity entry: the underlying error's own words, not localized.
+    /// For `photocli`, in plain English (it has no String Catalog); the app
+    /// words the last two itself (`MaskDetectionText.detail`).
     public var detail: String {
         switch self {
         case .unavailable(let detail), .failed(let detail): detail
         case .unreadable: "The photo could not be rendered for detection."
+        case .unusableMask: "Vision gave a mask this build can't read."
         }
     }
 }
@@ -40,14 +45,21 @@ public enum MaskDetectionError: Error, Equatable, Sendable {
 public struct VisionMaskDetector: MaskDetecting {
     public init() {}
 
-    public func detect(_ request: MaskRaster.Request, in image: CGImage) throws(MaskDetectionError) -> MaskRaster {
+    public func detect(_ request: MaskRaster.Request, in image: CGImage) async throws(MaskDetectionError) -> MaskRaster {
         let handler = VNImageRequestHandler(cgImage: image, options: [:])
         let vision: VNImageBasedRequest = switch request {
         case .foreground: VNGenerateForegroundInstanceMaskRequest()
         case .person: VNGeneratePersonInstanceMaskRequest()
         }
+        let cancel = RequestCancel(vision)
         do {
-            try handler.perform([vision])
+            // Cancel reaches the request itself (code review C8), which then throws.
+            try await withTaskCancellationHandler {
+                guard !Task.isCancelled else { throw CancellationError() }
+                try handler.perform([vision])
+            } onCancel: {
+                cancel.cancel()
+            }
         } catch {
             throw Self.classify(error)
         }
@@ -63,15 +75,23 @@ public struct VisionMaskDetector: MaskDetecting {
         } catch {
             throw Self.classify(error)
         }
-        guard let (levels, width, height) = Self.levels(of: buffer) else {
-            throw .failed("Vision gave a mask in a format this build doesn't read.")
-        }
+        guard let (levels, width, height) = Self.levels(of: buffer) else { throw .unusableMask }
         do {
             return try MaskRaster(levels: levels, width: width, height: height,
                                   instances: observation.allInstances.count, request: request, revision: vision.revision)
         } catch {
-            throw .failed("The mask could not be stored: \(error)")
+            throw .unusableMask
         }
+    }
+
+    /// Cancels a Vision request from the task's cancellation handler, which
+    /// runs on another thread. `@unchecked`: `VNRequest` is not `Sendable`,
+    /// but `cancel()` is its documented way to stop a request in flight from
+    /// elsewhere, and nothing else of the request is touched through this.
+    private final class RequestCancel: @unchecked Sendable {
+        private let request: VNRequest
+        init(_ request: VNRequest) { self.request = request }
+        func cancel() { request.cancel() }
     }
 
     /// Unavailable for errors that say the request can't run here, failed otherwise.
@@ -121,13 +141,40 @@ public enum MaskDetectionRun {
     public static let inputLongEdge = PreviewTier.preview.longEdge
 
     /// The result of `kind`'s request on the master at `source`: rendered
-    /// (`input`), then detected. Cancellable before and after the render.
+    /// (`input`), then detected. Cancellable before and after the render,
+    /// and during the request.
     public static func run(_ kind: MaskDetectionKind, source: URL, adjustments: Adjustments, engine: RenderEngine,
                            detector: any MaskDetecting) async throws -> MaskRaster {
         try Task.checkCancellation()
         let image = try input(source: source, adjustments: adjustments, engine: engine)
         try Task.checkCancellation()
-        return try detector.detect(kind.request, in: image)
+        return try await detector.detect(kind.request, in: image)
+    }
+
+    /// Each of `requests` on one render of the input (code review C7): an
+    /// Update of Subject and People renders once. A failed render fails them
+    /// all. Throws only `CancellationError`.
+    public static func run(_ requests: [MaskRaster.Request], source: URL, adjustments: Adjustments,
+                           engine: RenderEngine, detector: any MaskDetecting) async throws
+        -> [MaskRaster.Request: Result<MaskRaster, MaskDetectionError>] {
+        try Task.checkCancellation()
+        let image: CGImage
+        do {
+            image = try input(source: source, adjustments: adjustments, engine: engine)
+        } catch {
+            return Dictionary(requests.map { ($0, .failure(error)) }, uniquingKeysWith: { first, _ in first })
+        }
+        var results: [MaskRaster.Request: Result<MaskRaster, MaskDetectionError>] = [:]
+        for request in requests where results[request] == nil {
+            try Task.checkCancellation()
+            do {
+                results[request] = .success(try await detector.detect(request, in: image))
+            } catch {
+                results[request] = .failure(error)
+            }
+        }
+        try Task.checkCancellation()
+        return results
     }
 
     /// The mask frame of the master at `source` (the oriented decode before
@@ -164,6 +211,9 @@ public enum MaskDetectionRun {
 /// digest and what is known about the result.
 public enum MaskDetectionState: Equatable, Sendable {
     case found(instances: Int)
+    /// An Update of a found result failed on this visit: the earlier result
+    /// still applies (design DR-1).
+    case failedUpdate(instances: Int)
     case empty
     /// Detection failed, or a result was never stored (no digest).
     case failed
@@ -177,7 +227,7 @@ public enum MaskDetectionState: Equatable, Sendable {
     /// The component selects nothing, so Update is the remedy (design §4).
     public var offersUpdate: Bool {
         switch self {
-        case .failed, .unavailable, .missing: true
+        case .failed, .failedUpdate, .unavailable, .missing: true
         case .found, .empty, .loading: false
         }
     }
@@ -191,6 +241,39 @@ public enum MaskDetectionState: Equatable, Sendable {
         case nil: return .loading
         case .missing: return .missing
         case .stored(let entry): return entry.instances > 0 ? .found(instances: entry.instances) : .empty
+        }
+    }
+}
+
+/// Where an Update's components are when its result lands (code review C1):
+/// each component the Update started on is found again by its kind and the
+/// result it named, at its old place if it is still there, else at the first
+/// unclaimed place that matches. Nil for one that is gone (removed, or
+/// changed by an undo), so a result never lands on another component.
+public enum MaskDetectionUpdate {
+    public struct Started: Equatable, Sendable {
+        public var index: Int
+        public var kind: MaskDetectionKind
+        public var raster: String?
+
+        public init(index: Int, kind: MaskDetectionKind, raster: String?) {
+            self.index = index
+            self.kind = kind
+            self.raster = raster
+        }
+    }
+
+    public static func positions(of started: [Started], in components: [MaskComponent]) -> [Int?] {
+        var claimed = Set<Int>()
+        return started.map { wanted in
+            func matches(_ position: Int) -> Bool {
+                guard !claimed.contains(position), let detection = components[position].shape.detection else { return false }
+                return detection.kind == wanted.kind && detection.raster == wanted.raster
+            }
+            let position = components.indices.contains(wanted.index) && matches(wanted.index)
+                ? wanted.index : components.indices.first(where: matches)
+            if let position { claimed.insert(position) }
+            return position
         }
     }
 }

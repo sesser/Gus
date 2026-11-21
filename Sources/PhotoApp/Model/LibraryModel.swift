@@ -610,6 +610,11 @@ final class LibraryModel {
         report(text, action: action, warning: warning, announcing: text)
     }
 
+    /// Posts to Activity with no announcement, when something else announces the outcome.
+    func postActivity(_ text: String, action: String, warning: Bool) {
+        activity.post(text, title: action, isWarning: warning)
+    }
+
     /// Posts to Activity; VoiceOver hears `announcing`, such as a long
     /// message's first sentence.
     func report(_ text: String, action: String, warning: Bool, announcing: String) {
@@ -1763,10 +1768,14 @@ extension LibraryModel {
     /// Deletes stored detection results that nothing names any more (issue
     /// #88, R5). At launch, when no undo step can still name one
     /// (`Catalog.removeUnreferencedMaskRasters`).
+    ///
+    /// On the write chain (code review C4): a detection writes its row and then
+    /// the stack naming it as two items of the chain, and the cleanup must not
+    /// run between them.
     func removeUnreferencedMaskRasters() {
         let catalog = catalog
         let log = Self.maskLog
-        Task.detached(priority: .utility) {
+        persist {
             do {
                 let removed = try await catalog.removeUnreferencedMaskRasters()
                 if removed > 0 { log.info("Removed \(removed) stored detection results nothing names") }

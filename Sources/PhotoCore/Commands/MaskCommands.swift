@@ -104,10 +104,11 @@ enum MaskCommands {
         let dryRun = invocation.arguments.flag("dryRun")
         let changed = after != before
         if changed, !dryRun {
-            // The result first: a stack never names a row that isn't there. If
-            // the stack's write fails, the app's next launch removes the row.
-            if let raster = detected?.raster { try await library.catalog.storeMaskRaster(raster) }
-            try await library.catalog.setEditStack(after, forVersion: id, historyLabel: EditHistory.maskCommandLabel)
+            // The result and the stack naming it in one transaction, so no
+            // cleanup can come between them (code review C4).
+            try await library.catalog.setEditStacks([id: after], historyLabel: EditHistory.maskCommandLabel, at: Date(),
+                                                    byteBudget: EditHistory.maxBytes,
+                                                    storing: detected?.raster.map { [$0] } ?? [])
         }
         var known = try await results(of: local, in: library.catalog)
         if let raster = detected?.raster { known[raster.digest] = raster.instances }
@@ -131,7 +132,7 @@ enum MaskCommands {
         var state: String {
             switch failure {
             case .unavailable: "unavailable"
-            case .failed, .unreadable: "failed"
+            case .failed, .unreadable, .unusableMask: "failed"
             case nil: (raster?.instances ?? 0) > 0 ? "found" : "empty"
             }
         }

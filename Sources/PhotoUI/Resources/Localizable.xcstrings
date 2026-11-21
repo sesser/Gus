@@ -2948,6 +2948,17 @@
         }
       }
     },
+    "Detection failed on this photo. The earlier result still applies. Choose Update to try again." : {
+      "comment" : "Detection caption: an Update failed and the earlier result still applies",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Detection failed on this photo. The earlier result still applies. Choose Update to try again."
+          }
+        }
+      }
+    },
     "Detection isn't available on this Mac. It selects nothing." : {
       "comment" : "Detection caption: the request can't run on this Mac",
       "localizations" : {
@@ -3066,6 +3077,28 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "Finish cropping to detect again." : {
+      "comment" : "Tooltip of a detection's Update button, dimmed while cropping",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finish cropping to detect again."
+          }
+        }
+      }
+    },
+    "Finish cropping to detect in the photo." : {
+      "comment" : "Tooltip of the detection pull-down, dimmed while cropping",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finish cropping to detect in the photo."
           }
         }
       }
@@ -3517,6 +3550,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The camera's table in this file could not be read, so nothing is corrected. Choose Manual to set the amount by hand."
+          }
+        }
+      }
+    },
+    "The mask Vision gave could not be read." : {
+      "comment" : "Activity warning's detail when a detection's result is in a form the app can't use",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The mask Vision gave could not be read."
+          }
+        }
+      }
+    },
+    "The photo could not be rendered for detection." : {
+      "comment" : "Activity warning's detail when a detection's input could not be made",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The photo could not be rendered for detection."
           }
         }
       }

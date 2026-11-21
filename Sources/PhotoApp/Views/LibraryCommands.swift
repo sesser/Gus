@@ -645,16 +645,17 @@ struct LibraryCommands: Commands {
                 }
             }
             .disabled(!can { $0.canAddMask })
+            // Before the overlay: the three "look at" toggles stay together (review I2).
+            Button(MaskDetectionText.updateDetection) {
+                if let id = model?.editor.selectedMaskID { model?.editor.updateDetection(mask: id) }
+            }
+            .disabled(!can { $0.canUpdateDetection })
             // The Masks heading's eye button (design.md N7).
             Button(menu?.state.showsMaskOverlay == true ? String(localized: "Hide Mask Overlay")
                                                         : String(localized: "Show Mask Overlay")) {
                 model?.editor.showsMaskOverlay.toggle()
             }
             .disabled(!can { $0.hasSelectedMask })
-            Button(MaskDetectionText.updateDetection) {
-                if let id = model?.editor.selectedMaskID { model?.editor.updateDetection(mask: id) }
-            }
-            .disabled(!can { $0.canUpdateDetection })
             // The two "see a mask in the loupe" items together (sharpen-mask-preview design §3).
             Button(menu?.state.showsSharpeningMap == true ? SharpeningMapText.menuTitle.hide
                                                           : SharpeningMapText.menuTitle.show) {
