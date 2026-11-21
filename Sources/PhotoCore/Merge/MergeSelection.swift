@@ -123,8 +123,14 @@ public struct MergeSelection: Sendable, Hashable {
     public var flagged: Set<Int64>
     /// Every frame has the same shutter, aperture, ISO and compensation, none missing.
     public var sameExposure: Bool
+    /// What the frames' pixels may take (`MergeLimits.frameMemoryBudget`),
+    /// kept so a change of reference decides the refusals the same way.
+    public var memoryBudget: Int
 
     public var referenceFrame: MergeFrame { frames[reference] }
+
+    /// The frame chosen by default (R3): `MergeSelection.reference(in:)`.
+    public var defaultReference: Int { Self.reference(in: frames) }
 
     /// The version ids to read for `items`: a RAW+JPEG pair once, as its RAW,
     /// whichever half was selected (R8). Videos are kept, for the refusal.
@@ -149,9 +155,23 @@ public struct MergeSelection: Sendable, Hashable {
                 : $0.fileName.localizedStandardCompare($1.fileName) == .orderedAscending
         }
         self.frames = frames
+        self.memoryBudget = memoryBudget
         reference = Self.reference(in: frames)
         sameExposure = Self.sameExposure(frames)
         (refusal, flagged) = Self.refusal(frames, reference: reference, memoryBudget: memoryBudget)
+    }
+
+    /// The same frames with `versionID`'s frame as the reference (R3; design
+    /// §5.5): any listed frame, a flagged one or a video included (A13). The
+    /// refusals are decided again; of those known from the catalog only the
+    /// different-size one names and flags frames by the reference (§6.4).
+    /// Nil when `versionID` is not one of the frames.
+    public func choosingReference(_ versionID: Int64) -> MergeSelection? {
+        guard let index = frames.firstIndex(where: { $0.versionID == versionID }) else { return nil }
+        var next = self
+        next.reference = index
+        (next.refusal, next.flagged) = Self.refusal(frames, reference: index, memoryBudget: memoryBudget)
+        return next
     }
 
     /// The frame at 0 EV compensation when the metadata says which (some
@@ -208,10 +228,15 @@ public struct MergeSelection: Sendable, Hashable {
             let flagged = raws.count >= others.count ? others : raws
             return (.mixedKinds, Set(flagged.map(\.versionID)))
         }
+        // Measured from the chosen reference: the first frame (capture order)
+        // of another size is named, and every one of another size flagged
+        // (design §6.1 case 6, revision 2026-11-21).
         let ref = frames[reference]
-        if let size = ref.pixelSize,
-           let other = frames.first(where: { $0.pixelSize != nil && $0.pixelSize != size }) {
-            return (.differentSize(name: other.displayName, reference: ref.displayName), [other.versionID])
+        if let size = ref.pixelSize {
+            let others = frames.filter { $0.pixelSize != nil && $0.pixelSize != size }
+            if let first = others.first {
+                return (.differentSize(name: first.displayName, reference: ref.displayName), Set(others.map(\.versionID)))
+            }
         }
         // Sizes as the catalog has them (the job checks the decoders' too).
         func pixels(_ frame: MergeFrame) -> Double {

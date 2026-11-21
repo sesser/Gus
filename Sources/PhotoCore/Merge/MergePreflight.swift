@@ -28,14 +28,24 @@ public struct MergePreflight: Sendable {
     /// The first refusal from the disk (case 8, then case 9) and the frame it
     /// flags, or nil when the merge may go ahead.
     public func check(_ selection: MergeSelection) -> (refusal: MergeRefusal, flagged: Int64)? {
-        for frame in selection.frames where !isReadable(frame.url) {
-            return (.unreadable(name: frame.displayName), frame.versionID)
+        if let unreadable = firstUnreadable(selection.frames) {
+            return (.unreadable(name: unreadable.displayName), unreadable.versionID)
         }
         let reference = selection.referenceFrame
         if !isWritableFolder(reference.folder) {
-            return (.unwritableFolder(reference: reference.displayName, folder: reference.folder.lastPathComponent),
-                    reference.versionID)
+            return (Self.unwritable(reference), reference.versionID)
         }
         return nil
+    }
+
+    /// Case 8 alone: the first frame whose master can't be read. It doesn't
+    /// depend on the reference (design §6.4), so the sheet asks it once.
+    public func firstUnreadable(_ frames: [MergeFrame]) -> MergeFrame? {
+        frames.first { !isReadable($0.url) }
+    }
+
+    /// Case 9's refusal for `reference`, named after it and its folder.
+    public static func unwritable(_ reference: MergeFrame) -> MergeRefusal {
+        .unwritableFolder(reference: reference.displayName, folder: reference.folder.lastPathComponent)
     }
 }

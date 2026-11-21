@@ -8,14 +8,24 @@ enum MergeCommands {
         id: "merge",
         summary: """
             Merges versions (two to nine photos of one scene, all raws or all non-raws; a RAW+JPEG pair once, as \
-            its raw) into one new photo written beside the reference (the 0 EV frame, else the earliest) as \
-            <name>_HDR.tif (16-bit, Display P3, tone-mapped) or .dng (linear, 16-bit floating point), and adds \
-            it to the library. Refused, with nothing written, as the app refuses. Writes no sidecar.
+            its raw) into one new photo written beside the reference (--reference, else the 0 EV frame, else the \
+            earliest) as <name>_HDR.tif (16-bit, Display P3, tone-mapped) or .dng (linear, 16-bit floating point), \
+            and adds it to the library in the reference's project with the reference's values. The frames are \
+            lined up to the reference and moving things taken from it, unless --no-align or --no-deghost. Refused, \
+            with nothing written, as the app refuses. Writes no sidecar.
             """,
         access: .write,
         parameters: [
             LibraryCommands.versions,
             CommandParameter("format", .string, "tiff (default) or dng."),
+            CommandParameter("reference", .integer,
+                             "The version that names the result, gives its folder, project and values, and that the "
+                                 + "others are lined up to; one of the --version values (a RAW+JPEG pair's JPEG means "
+                                 + "its raw). Default: the 0 EV frame, else the earliest."),
+            CommandParameter("noAlign", .flag,
+                             "Merge the frames as they are: no alignment, and no frame refused for not lining up."),
+            CommandParameter("noDeghost", .flag,
+                             "Blend by exposure alone: no area is taken from the reference only."),
             LibraryCommands.libraryRoot,
         ],
         run: run)
@@ -58,15 +68,27 @@ enum MergeCommands {
                                                                             fileName: details.image.fileName),
                                      isOnline: isOnline))
         }
-        let selection = MergeSelection(frames: frames)
+        var selection = MergeSelection(frames: frames)
+        if let reference = arguments.integer("reference").map(Int64.init) {
+            // As the frames were read: a pair's JPEG stands for its raw.
+            let item = resolved.first { $0.versionID == reference }
+            let id = item.flatMap { MergeSelection.versionIDs(for: [$0]).first } ?? reference
+            guard let chosen = selection.choosingReference(id) else {
+                throw CommandError(.invalidValue, "--reference \(reference) is not one of the --version values")
+            }
+            selection = chosen
+        }
+        let options = MergeOptions(align: !arguments.flag("noAlign"), deghost: !arguments.flag("noDeghost"))
         let job = HDRMergeJob(catalog: catalog, metadataReader: MetadataReaders.makeDefault())
         do {
-            let result = try await job.run(selection, format: format)
+            let result = try await job.run(selection, format: format, options: options)
             return [
                 "path": .string(result.url.path),
                 "format": .string(format.rawValue),
                 "frames": .array(selection.frames.map { JSONValue($0.versionID) }),
                 "reference": JSONValue(selection.referenceFrame.versionID),
+                "align": .bool(options.align),
+                "deghost": .bool(options.deghost),
                 "versionID": result.master.map { JSONValue($0.versionID) } ?? result.existingVersionID.map(JSONValue.init)
                     ?? .null,
             ]
@@ -78,6 +100,10 @@ enum MergeCommands {
                 throw CommandError(.failed, "The merged file was written at \(path) but couldn't be catalogued: \(reason)")
             case .writeFailed, .noSpace:
                 throw CommandError(.writeFailed, String(describing: failure))
+            case .misaligned(let name, let reference):
+                // The sheet's remedy is its Auto-align box; here it is the flag (design D-H10).
+                throw CommandError(.failed, "\(name) doesn't line up with \(reference). Merge photos of the same "
+                                       + "scene, or pass --no-align.")
             default:
                 throw CommandError(.failed, String(describing: failure))
             }
