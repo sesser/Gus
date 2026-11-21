@@ -5,8 +5,11 @@ import SwiftUI
 
 /// File ▸ Merge to HDR… (hdr-merge design §5): a sheet on the library window
 /// built like the Export sheet. A fixed header with the refusal or note, the
-/// frames in capture order, the result's format, name and folder, then
-/// Cancel and Merge. The merge runs after the sheet closes, in Activity.
+/// frames in capture order (the chosen row is the reference, §5.5), the
+/// Auto-align and De-ghost boxes (§5.6), the result's format, name and
+/// folder, then Cancel and Merge. The Form scrolls between the header and the
+/// buttons when its content is taller than the sheet (§5.7). The merge runs
+/// after the sheet closes, in Activity.
 struct MergeSheet: View {
     let model: LibraryModel
 
@@ -24,8 +27,8 @@ struct MergeSheet: View {
                 .padding(.horizontal, 20)
                 .padding(.vertical, 14)
         }
-        .frame(width: 560)
-        .frame(minHeight: 420, idealHeight: 560)
+        .frame(width: MergeSheetMetrics.width)
+        .frame(minHeight: MergeSheetMetrics.minHeight, idealHeight: MergeSheetMetrics.idealHeight)
         .presentationSizing(.fitted)
     }
 
@@ -79,6 +82,14 @@ private struct MergeHeader: View {
     }
 }
 
+/// The sheet's size (design §5.7, D-H8): never taller than `idealHeight`;
+/// more content scrolls in the Form.
+enum MergeSheetMetrics {
+    static let width: CGFloat = 560
+    static let minHeight: CGFloat = 420
+    static let idealHeight: CGFloat = 600
+}
+
 private struct MergeForm: View {
     let model: LibraryModel
 
@@ -88,7 +99,7 @@ private struct MergeForm: View {
         @Bindable var merge = merge
         Form {
             Section(MergeText.photosSection) {
-                framesTable
+                FramesTable(merge: merge)
                 if let selection = merge.selection {
                     Caption(text: MergeText.referenceCaption(selection.referenceFrame.displayName))
                     if selection.sameExposure {
@@ -101,6 +112,8 @@ private struct MergeForm: View {
                         .foregroundStyle(.secondary)
                     }
                 }
+                OptionBox(title: MergeText.autoAlign, caption: MergeText.autoAlignCaption, isOn: $merge.options.align)
+                OptionBox(title: MergeText.deghost, caption: MergeText.deghostCaption, isOn: $merge.options.deghost)
             }
             Section(MergeText.resultSection) {
                 Picker(MergeText.formatLabel, selection: $merge.format) {
@@ -110,11 +123,14 @@ private struct MergeForm: View {
                 .pickerStyle(.segmented)
                 Caption(text: merge.format == .tiff ? MergeText.tiffCaption : MergeText.dngCaption)
                 LabeledContent(MergeText.nameLabel) {
-                    Text(merge.resultName ?? "—")
+                    let name = merge.resultName
+                    Text(name?.text ?? "—")
                         .lineLimit(1)
                         .truncationMode(.middle)
                         .textSelection(.enabled)
-                        .help(merge.resultName ?? "")
+                        // The unnumbered candidate while the reference's folder is asked (§5.8).
+                        .foregroundStyle(name?.isFinal == false ? .secondary : .primary)
+                        .help(name?.text ?? "")
                 }
                 if let selection = merge.selection {
                     LabeledContent(MergeText.folderLabel) {
@@ -123,21 +139,53 @@ private struct MergeForm: View {
                             .truncationMode(.head)
                             .help(selection.referenceFrame.folder.path)
                     }
-                    Caption(text: MergeText.savedNextTo(selection.referenceFrame.displayName)
+                    Caption(text: MergeText.originalsCaption
                         + (merge.framesInSeveralFolders ? " " + MergeText.severalFolders : ""))
                 }
             }
         }
         .formStyle(.grouped)
     }
+}
 
-    /// The frames in capture order, the flagged ones marked by a symbol and
-    /// their accessibility value, never by color alone (design §5.2, §11).
-    private var framesTable: some View {
+/// Auto-align or De-ghost (design §5.6): a system check box with its one-line
+/// caption under the label's text; VoiceOver hears the caption as the box's
+/// hint, not twice.
+private struct OptionBox: View {
+    let title: String
+    let caption: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Toggle(title, isOn: $isOn)
+                .toggleStyle(.checkbox)
+                .accessibilityHint(caption)
+            Caption(text: caption)
+                // Indented to the label's text, past the box.
+                .padding(.leading, OptionBox.captionIndent)
+                .accessibilityHidden(true)
+        }
+    }
+
+    /// A check box's width and the gap to its label at the regular control size.
+    static let captionIndent: CGFloat = 20
+}
+
+/// The frames in capture order, the flagged ones marked by a symbol and their
+/// accessibility value, never by color alone (design §5.2, §11). A
+/// single-selection table whose chosen row is the reference (§5.5): always
+/// exactly one row. A deselection (⌘-click on the chosen row, a click below
+/// the rows) is put back at once, since the model ignores it.
+private struct FramesTable: View {
+    let merge: MergeModel
+    @State private var row: Int64?
+
+    var body: some View {
         let frames = merge.selection?.frames ?? []
-        let reference = merge.selection.map { $0.referenceFrame.versionID }
+        let reference = merge.referenceID
         let flagged = merge.flagged
-        return Table(frames) {
+        Table(frames, selection: $row) {
             TableColumn(MergeText.photoColumn) { frame in
                 HStack(spacing: 4) {
                     if flagged.contains(frame.versionID) {
@@ -146,8 +194,14 @@ private struct MergeForm: View {
                             .accessibilityHidden(true)
                     }
                     Text(frame.displayName)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .help(frame.displayName)
                     if frame.versionID == reference {
-                        Text(MergeText.referenceRole).foregroundStyle(.secondary)
+                        // The mark never truncates: the name gives way first.
+                        Text(MergeText.referenceRole)
+                            .foregroundStyle(.secondary)
+                            .fixedSize()
                     }
                 }
                 .accessibilityElement(children: .combine)
@@ -167,5 +221,15 @@ private struct MergeForm: View {
             .width(min: 80, ideal: 100)
         }
         .frame(height: min(250, CGFloat(max(frames.count, 2)) * 24 + 28))
+        .accessibilityLabel(MergeText.photosSection)
+        .accessibilityHint(MergeText.tableHint)
+        .onChange(of: row) { _, chosen in
+            merge.chooseReference(chosen)
+            // Nil, or a row the model didn't take: the reference's row again.
+            if chosen != merge.referenceID { row = merge.referenceID }
+        }
+        .onChange(of: reference, initial: true) { _, now in
+            if row != now { row = now }
+        }
     }
 }

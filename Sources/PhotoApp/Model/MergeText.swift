@@ -37,7 +37,7 @@ enum MergeText {
     }
 
     static var referenceRole: String {
-        String(localized: "Reference", comment: "Merge to HDR sheet: after the name of the photo that names the result and the others are lined up to")
+        String(localized: "Reference", comment: "Merge to HDR sheet: after the name of the chosen photo that names the result and the others are lined up to")
     }
 
     static var problem: String {
@@ -45,8 +45,31 @@ enum MergeText {
     }
 
     static func referenceCaption(_ name: String) -> String {
-        String(localized: "“\(name)” names the result and is the photo the others are lined up to.",
-               comment: "Merge to HDR sheet: caption under the photos; the reference photo's name")
+        String(localized: "“\(name)” names the result and where it is saved. Click another photo to change it.",
+               comment: "Merge to HDR sheet: caption under the photos; the reference photo's name (the row chosen in the table)")
+    }
+
+    /// VoiceOver: the photos table's hint (design §11).
+    static var tableHint: String {
+        String(localized: "Choose the reference", comment: "VoiceOver: the hint of the Merge to HDR sheet's photos table; choosing a row makes it the reference")
+    }
+
+    static var autoAlign: String {
+        String(localized: "Auto-align", comment: "Merge to HDR sheet: check box, lines the photos up to the reference")
+    }
+
+    static var autoAlignCaption: String {
+        String(localized: "Lines the other photos up to the reference. Off: merged as they are.",
+               comment: "Merge to HDR sheet: caption and VoiceOver hint of the Auto-align check box")
+    }
+
+    static var deghost: String {
+        String(localized: "De-ghost", comment: "Merge to HDR sheet: check box, takes moving things from the reference only")
+    }
+
+    static var deghostCaption: String {
+        String(localized: "Moving things, such as people, come from the reference only. Off: plain blend.",
+               comment: "Merge to HDR sheet: caption and VoiceOver hint of the De-ghost check box")
     }
 
     static var sameExposureNote: String {
@@ -73,9 +96,9 @@ enum MergeText {
     static var nameLabel: String { String(localized: "Name", comment: "Merge to HDR sheet: the file name the result gets") }
     static var folderLabel: String { String(localized: "Folder", comment: "Merge to HDR sheet: the folder the result is saved in") }
 
-    static func savedNextTo(_ name: String) -> String {
-        String(localized: "Saved next to “\(name)”. The originals are not changed, and your adjustments are not used: the photos are merged as they were shot.",
-               comment: "Merge to HDR sheet: caption under the result; the reference photo's name")
+    static var originalsCaption: String {
+        String(localized: "The originals are not changed, and your adjustments are not used: the photos are merged as they were shot.",
+               comment: "Merge to HDR sheet: caption under the result")
     }
 
     static var severalFolders: String {
@@ -164,8 +187,8 @@ enum MergeText {
         switch failure {
         case .refused(let why): refusal(why)
         case .misaligned(let name, let reference):
-            String(localized: "“\(name)” doesn't line up with “\(reference)”. Merge photos of the same scene.",
-                   comment: "Activity: why a merge failed; the photo's name, then the reference's")
+            String(localized: "“\(name)” doesn't line up with “\(reference)”. Merge photos of the same scene, or turn off Auto-align.",
+                   comment: "Activity: why a merge failed; the photo's name, then the reference's. Auto-align is the sheet's check box")
         case .unreadable(let name):
             String(localized: "“\(name)” couldn't be read.", comment: "Activity: why a merge failed; the photo's name")
         case .differentSize(let name, let reference):
@@ -216,6 +239,18 @@ enum MergeText {
 
     static var announceStopped: String {
         String(localized: "The merge was stopped.", comment: "VoiceOver, after a merge was stopped")
+    }
+
+    /// After a change of reference in the sheet (design §11); a refusal's own
+    /// text, or `mergeAvailable`, may follow.
+    static func referenceAnnouncement(_ name: String, result: String) -> String {
+        String(localized: "Reference \(name). Result \(result).",
+               comment: "VoiceOver, after choosing another reference in the Merge to HDR sheet; the photo's name, then the result's file name")
+    }
+
+    static var mergeAvailable: String {
+        String(localized: "Merge is available.",
+               comment: "VoiceOver, after choosing another reference lifted the Merge to HDR sheet's refusal")
     }
 
     // MARK: Formatting

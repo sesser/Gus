@@ -2405,6 +2405,17 @@
         }
       }
     },
+    "Auto-align" : {
+      "comment" : "Merge to HDR sheet: check box, lines the photos up to the reference",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto-align"
+          }
+        }
+      }
+    },
     "B" : {
       "comment" : "The pixel magnifier's plate: blue. A color channel; not translated without checking",
       "localizations" : {
@@ -2681,6 +2692,17 @@
         }
       }
     },
+    "Choose the reference" : {
+      "comment" : "VoiceOver: the hint of the Merge to HDR sheet's photos table; choosing a row makes it the reference",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose the reference"
+          }
+        }
+      }
+    },
     "Constrain to image" : {
       "comment" : "Check box under Distortion: scale the corrected photo to fill its frame",
       "localizations" : {
@@ -2688,6 +2710,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Constrain to image"
+          }
+        }
+      }
+    },
+    "De-ghost" : {
+      "comment" : "Merge to HDR sheet: check box, takes moving things from the reference only",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De-ghost"
           }
         }
       }
@@ -2890,6 +2923,17 @@
         }
       }
     },
+    "Lines the other photos up to the reference. Off: merged as they are." : {
+      "comment" : "Merge to HDR sheet: caption and VoiceOver hint of the Auto-align check box",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lines the other photos up to the reference. Off: merged as they are."
+          }
+        }
+      }
+    },
     "Masks and spots are placed in the corrected frame, so this photo's can move away from what they cover now. You can undo the change." : {
       "comment" : "Alert message before a lens correction that moves the frame of a photo with masks or spots",
       "localizations" : {
@@ -2897,6 +2941,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Masks and spots are placed in the corrected frame, so this photo's can move away from what they cover now. You can undo the change."
+          }
+        }
+      }
+    },
+    "Moving things, such as people, come from the reference only. Off: plain blend." : {
+      "comment" : "Merge to HDR sheet: caption and VoiceOver hint of the De-ghost check box",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moving things, such as people, come from the reference only. Off: plain blend."
           }
         }
       }
@@ -15510,12 +15565,23 @@
       }
     },
     "Reference" : {
-      "comment" : "Merge to HDR sheet: after the name of the photo that names the result and the others are lined up to",
+      "comment" : "Merge to HDR sheet: after the name of the chosen photo that names the result and the others are lined up to",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Reference"
+          }
+        }
+      }
+    },
+    "Reference %@. Result %@." : {
+      "comment" : "VoiceOver, after choosing another reference in the Merge to HDR sheet; the photo's name, then the result's file name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reference %1$@. Result %2$@."
           }
         }
       }
@@ -15531,13 +15597,13 @@
         }
       }
     },
-    "“%@” names the result and is the photo the others are lined up to." : {
-      "comment" : "Merge to HDR sheet: caption under the photos; the reference photo's name",
+    "“%@” names the result and where it is saved. Click another photo to change it." : {
+      "comment" : "Merge to HDR sheet: caption under the photos; the reference photo's name (the row chosen in the table)",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "“%@” names the result and is the photo the others are lined up to."
+            "value" : "“%@” names the result and where it is saved. Click another photo to change it."
           }
         }
       }
@@ -15586,13 +15652,13 @@
         }
       }
     },
-    "Saved next to “%@”. The originals are not changed, and your adjustments are not used: the photos are merged as they were shot." : {
-      "comment" : "Merge to HDR sheet: caption under the result; the reference photo's name",
+    "The originals are not changed, and your adjustments are not used: the photos are merged as they were shot." : {
+      "comment" : "Merge to HDR sheet: caption under the result",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Saved next to “%@”. The originals are not changed, and your adjustments are not used: the photos are merged as they were shot."
+            "value" : "The originals are not changed, and your adjustments are not used: the photos are merged as they were shot."
           }
         }
       }
@@ -15797,6 +15863,17 @@
         }
       }
     },
+    "Merge is available." : {
+      "comment" : "VoiceOver, after choosing another reference lifted the Merge to HDR sheet's refusal",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merge is available."
+          }
+        }
+      }
+    },
     "Tone mapping" : {
       "comment" : "Activity: a merge tone mapping its result",
       "localizations" : {
@@ -15875,13 +15952,13 @@
         }
       }
     },
-    "“%@” doesn't line up with “%@”. Merge photos of the same scene." : {
-      "comment" : "Activity: why a merge failed; the photo's name, then the reference's",
+    "“%@” doesn't line up with “%@”. Merge photos of the same scene, or turn off Auto-align." : {
+      "comment" : "Activity: why a merge failed; the photo's name, then the reference's. Auto-align is the sheet's check box",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "“%1$@” doesn't line up with “%2$@”. Merge photos of the same scene."
+            "value" : "“%1$@” doesn't line up with “%2$@”. Merge photos of the same scene, or turn off Auto-align."
           }
         }
       }

@@ -41,48 +41,62 @@ final class MergeModel {
 
     // MARK: The sheet
 
-    /// The frames the sheet shows, frozen when it opened; nil while they are read.
-    private(set) var selection: MergeSelection?
+    /// The sheet's frames, reference, boxes and disk answers (PhotoCore's
+    /// rules); nil while the frames are read. Made new on every open, so the
+    /// reference is the default and both boxes are on (AC3c, AC9a).
+    private(set) var sheet: MergeSheetState?
     /// The targets' versions when the sheet opened (the landing rule compares them).
     private(set) var targetIDs: [Int64] = []
-    /// The disk's answer (design §6.2): nil while it is asked.
-    private(set) var diskCheck: DiskCheck?
-    /// The disk is being asked, and has been for a while (the sheet's small spinner).
+    /// A disk check has taken over half a second (the sheet's small spinner).
     private(set) var isCheckingSlowly = false
-    /// The file name the result would get now.
-    private(set) var resultName: String?
-    /// The reference's thumbnail for the header.
+    /// The reference's thumbnail for the header; the previous reference's
+    /// stays until the new one is ready (design §5.8).
     private(set) var previewImage: CGImage?
     @ObservationIgnored private var openTask: Task<Void, Never>?
     @ObservationIgnored private var nameTask: Task<Void, Never>?
+    @ObservationIgnored private var previewTask: Task<Void, Never>?
+    @ObservationIgnored private var diskTasks: [Task<Void, Never>] = []
+    @ObservationIgnored private var slowTask: Task<Void, Never>?
+    @ObservationIgnored private var announceTask: Task<Void, Never>?
+    /// A change of reference waits to be announced (§11): once the debounce
+    /// has passed and the disk and the name are known.
+    @ObservationIgnored private var announcementPending = false
+    @ObservationIgnored private var debounceElapsed = false
+    /// The message as VoiceOver last heard it (the sheet's own reading at open).
+    @ObservationIgnored private var announcedRefusal: MergeRefusal?
+    /// Debug script: a delay added to each folder check (to see a superseded
+    /// answer), and the answers that came for a reference no longer chosen.
+    @ObservationIgnored var debugDiskDelay: Duration = .zero
+    @ObservationIgnored var debugDiscarded: [String] = []
+    /// Debug script: the last announcement made after a change of reference.
+    @ObservationIgnored private(set) var debugLastAnnouncement: String?
 
-    enum DiskCheck: Equatable {
-        case clear
-        case refused(MergeRefusal, flagged: Int64)
-    }
+    var selection: MergeSelection? { sheet?.selection }
 
     /// The message the sheet shows, the first that applies (design §6).
-    var refusal: MergeRefusal? {
-        if let refusal = selection?.refusal { return refusal }
-        if case .refused(let refusal, _) = diskCheck { return refusal }
-        return nil
-    }
+    var refusal: MergeRefusal? { sheet?.refusal }
 
     /// The frames the message is about.
-    var flagged: Set<Int64> {
-        if let selection, selection.refusal != nil { return selection.flagged }
-        if case .refused(_, let frame) = diskCheck { return [frame] }
-        return []
+    var flagged: Set<Int64> { sheet?.flagged ?? [] }
+
+    /// Merge is on: frames read, the disk asked for this reference and nothing refused, no merge running.
+    var canStart: Bool { sheet?.canStart(isMerging: isMerging) ?? false }
+
+    var framesInSeveralFolders: Bool { sheet?.framesInSeveralFolders ?? false }
+
+    var referenceID: Int64? { sheet?.referenceID }
+
+    /// Auto-align and De-ghost (design §5.6): on at every open, never stored.
+    var options: MergeOptions {
+        get { sheet?.options ?? .standard }
+        set { sheet?.options = newValue }
     }
 
-    /// Merge is on: frames read, the disk asked and nothing refused, no merge running.
-    var canStart: Bool {
-        selection != nil && diskCheck == .clear && refusal == nil && !isMerging
-    }
-
-    var framesInSeveralFolders: Bool {
-        guard let selection else { return false }
-        return Set(selection.frames.map { $0.folder.standardizedFileURL.path }).count > 1
+    /// The Name line: the numbered name once known, else the unnumbered
+    /// candidate (`isFinal` false: shown in secondary color).
+    var resultName: (text: String, isFinal: Bool)? {
+        guard let sheet, sheet.selection.refusal == nil else { return nil }
+        return sheet.name(format: format)
     }
 
     // MARK: The job
@@ -109,13 +123,14 @@ final class MergeModel {
     /// the frames are read from the catalog and the disk asked off the main actor.
     func begin() {
         guard let library, library.canMerge else { return }
-        openTask?.cancel()
-        nameTask?.cancel()
-        selection = nil
-        diskCheck = nil
+        stopSheetTasks()
+        sheet = nil
         isCheckingSlowly = false
-        resultName = nil
         previewImage = nil
+        announcementPending = false
+        announcedRefusal = nil
+        debugDiscarded = []
+        debugLastAnnouncement = nil
         let targets = library.actionTargets.map { library.items[$0] }
         targetIDs = targets.map(\.versionID)
         let ids = MergeSelection.versionIDs(for: targets)
@@ -131,70 +146,183 @@ final class MergeModel {
                                          isOnline: online.contains(details.image.volumeId)))
             }
             guard !Task.isCancelled else { return }
-            let selection = MergeSelection(frames: frames)
-            self.selection = selection
-            loadPreview(selection)
-            await check(selection)
+            guard !frames.isEmpty else {
+                // Every target's catalog record went missing meanwhile: nothing to show.
+                Self.log.error("Merge: none of the selected photos could be read from the catalog")
+                library.showsMergeSheet = false
+                return
+            }
+            let sheet = MergeSheetState(selection: MergeSelection(frames: frames))
+            self.sheet = sheet
+            loadPreview()
+            askDisk()
+            updateName()
         }
     }
 
-    /// The disk's refusals, asked off the main actor (a network volume can be
-    /// slow); the spinner shows only when that takes over half a second.
-    private func check(_ selection: MergeSelection) async {
-        let slow = Task {
-            try? await Task.sleep(for: .milliseconds(500))
-            if !Task.isCancelled { isCheckingSlowly = true }
-        }
-        let answer = await Task.detached { MergePreflight.disk.check(selection) }.value
-        slow.cancel()
-        isCheckingSlowly = false
-        guard !Task.isCancelled else { return }
-        diskCheck = answer.map { .refused($0.refusal, flagged: $0.flagged) } ?? .clear
+    /// A row chosen in the table (click, arrow, VoiceOver): the reference
+    /// (design §5.5). `nil` and the chosen row again change nothing.
+    func chooseReference(_ versionID: Int64?) {
+        guard var next = sheet, next.chooseReference(versionID) else { return }
+        sheet = next
+        loadPreview()
+        askDisk()
         updateName()
+        scheduleAnnouncement()
     }
 
-    /// The Name line for the chosen format, decided again when the merge starts.
+    /// Asks the disk what the current reference still needs (design §6.2,
+    /// §5.8): whether every master can be read (once) and whether the
+    /// reference's folder can be written to (once per folder), off the main
+    /// actor. The spinner shows only when that takes over half a second.
+    private func askDisk() {
+        guard var sheet else { return }
+        let preflight = MergePreflight.disk
+        let delay = debugDiskDelay
+        if sheet.unreadable == nil, !askedReadable {
+            askedReadable = true
+            let frames = sheet.selection.frames
+            startSlowTimer()
+            diskTasks.append(Task {
+                let unreadable = await Task.detached { preflight.firstUnreadable(frames)?.versionID }.value
+                guard !Task.isCancelled else { return }
+                self.sheet?.record(unreadable: unreadable)
+                diskAnswered()
+            })
+        }
+        guard let folder = sheet.folderToAsk else { return }
+        sheet.asking(folder)
+        self.sheet = sheet
+        startSlowTimer()
+        diskTasks.append(Task {
+            let writable = await Task.detached {
+                if delay > .zero { try? await Task.sleep(for: delay) }
+                return preflight.isWritableFolder(folder)
+            }.value
+            guard !Task.isCancelled, var current = self.sheet else { return }
+            let decides = current.record(folder: folder, writable: writable)
+            self.sheet = current
+            if !decides {
+                debugDiscarded.append(folder.lastPathComponent)
+            }
+            diskAnswered()
+        })
+    }
+    /// Case 8 has been asked for this sheet (it doesn't depend on the reference).
+    @ObservationIgnored private var askedReadable = false
+
+    private func startSlowTimer() {
+        guard slowTask == nil else { return }
+        slowTask = Task {
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled else { return }
+            if sheet?.isDiskChecked == false { isCheckingSlowly = true }
+        }
+    }
+
+    private func diskAnswered() {
+        guard let sheet else { return }
+        if sheet.isDiskChecked {
+            slowTask?.cancel()
+            slowTask = nil
+            isCheckingSlowly = false
+            // What the sheet says before anything is chosen is its own reading (§11).
+            if !announcementPending { announcedRefusal = sheet.refusal }
+        }
+        announceIfReady()
+    }
+
+    /// The Name line for the chosen reference and format, decided again when
+    /// the merge starts. An answer for a superseded reference or format is ignored.
     private func updateName() {
-        guard let library, let selection, selection.refusal == nil else { return }
+        guard let library, let sheet, sheet.selection.refusal == nil else { return }
         nameTask?.cancel()
         let job = HDRMergeJob(catalog: library.catalog, metadataReader: library.importer.metadataReader)
         let format = self.format
+        let selection = sheet.selection
+        let reference = sheet.referenceID
         nameTask = Task {
-            let url = try? await job.resultURL(for: selection, format: format)
-            guard !Task.isCancelled else { return }
-            resultName = url?.lastPathComponent
+            guard let url = try? await job.resultURL(for: selection, format: format), !Task.isCancelled else { return }
+            self.sheet?.record(name: url.lastPathComponent, reference: reference, format: format)
+            announceIfReady()
         }
     }
 
-    private func loadPreview(_ selection: MergeSelection) {
-        guard let library, let item = library.item(versionID: selection.referenceFrame.versionID)
+    /// The reference's thumbnail; the one shown stays until it is ready.
+    private func loadPreview() {
+        guard let library, let sheet else { return }
+        let reference = sheet.referenceID
+        guard let item = library.item(versionID: reference)
                 ?? targetIDs.lazy.compactMap({ library.item(versionID: $0) }).first,
               let request = library.previewRequest(for: item, tier: .thumbnail) else { return }
         let previews = library.previews
-        Task {
+        previewTask?.cancel()
+        previewTask = Task {
             let image = try? await previews.image(for: request, maxPixelSize: 88)
+            guard !Task.isCancelled, self.sheet?.referenceID == reference, let image else { return }
             previewImage = image
         }
     }
 
-    /// The sheet closed (Cancel, Esc, or Merge): what it was still reading stops.
+    /// One announcement after a change of reference (design §11): about 0.3 s
+    /// after the last change, so arrowing through rows says only the last,
+    /// and only once the folder's and the name's answers are in.
+    private func scheduleAnnouncement() {
+        announcementPending = true
+        debounceElapsed = false
+        announceTask?.cancel()
+        announceTask = Task {
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled else { return }
+            debounceElapsed = true
+            announceIfReady()
+        }
+    }
+
+    private func announceIfReady() {
+        guard announcementPending, debounceElapsed, let sheet, sheet.isDiskChecked else { return }
+        let name = sheet.name(format: format)
+        guard name.isFinal || sheet.selection.refusal != nil else { return }
+        announcementPending = false
+        var text = MergeText.referenceAnnouncement(sheet.reference.displayName, result: name.text)
+        switch MergeSheetState.messageChange(from: announcedRefusal, to: sheet.refusal) {
+        case .none: break
+        case .refusal(let refusal): text += " " + MergeText.refusal(refusal)
+        case .available: text += " " + MergeText.mergeAvailable
+        }
+        announcedRefusal = sheet.refusal
+        debugLastAnnouncement = text
+        AccessibilityText.announce(text, priority: .medium)
+    }
+
+    private func stopSheetTasks() {
+        for task in [openTask, nameTask, previewTask, slowTask, announceTask] { task?.cancel() }
+        for task in diskTasks { task.cancel() }
+        diskTasks = []
+        slowTask = nil
+        askedReadable = false
+    }
+
+    /// The sheet closed (Cancel, Esc, or Merge): what it was still reading
+    /// stops. The choices are forgotten (the next open makes a new state).
     func sheetClosed() {
-        openTask?.cancel()
-        nameTask?.cancel()
+        stopSheetTasks()
     }
 
     // MARK: Running
 
     /// Merge: closes the sheet and starts the job (design §5.4, §7).
     func start() {
-        guard canStart, let library, let selection else { return }
+        guard canStart, let library, let sheet else { return }
+        let selection = sheet.selection
+        let options = sheet.options
         let job = HDRMergeJob(catalog: library.catalog, metadataReader: library.importer.metadataReader)
         let format = self.format
         let startedTargets = targetIDs
         let frames = selection.frames.map(\.versionID)
         library.showsMergeSheet = false
         started = Date()
-        jobName = resultName ?? (selection.referenceFrame.fileName as NSString).deletingPathExtension
+        jobName = resultName?.text ?? (selection.referenceFrame.fileName as NSString).deletingPathExtension
         progress = MergeProgress(phase: .reading(1, selection.frames.count), fraction: 0)
         let writes = library.writes
         task = Task { [weak self] in
@@ -207,7 +335,7 @@ final class MergeModel {
             }
             do {
                 jobName = try await job.resultURL(for: selection, format: format).lastPathComponent
-                let result = try await job.run(selection, format: format, progress: { [weak self] progress in
+                let result = try await job.run(selection, format: format, options: options, progress: { [weak self] progress in
                     Task { @MainActor [weak self] in self?.update(progress) }
                 }, catalogue: { insert in
                     try await Self.onWriteChain(writes, insert)

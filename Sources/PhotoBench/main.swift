@@ -14,7 +14,8 @@ let usage = """
                  Writes a synthetic library with unique pixels and EXIF dates. The first
                  --dng-without-color DNGs have no color matrix or as-shot neutral. --brackets
                  adds N of each HDR merge series under Brackets/ (raws, JPEGs, a mixed set,
-                 another scene, a read-only folder).
+                 another scene, a read-only folder, and one in two folders whose default
+                 reference is in a read-only one).
 
       import     --library-root ROOT --source DIR [--imageio] [--chunk N] [--hash-concurrency N]
                  Imports DIR into the catalog under ROOT and reports stage timings.
@@ -82,8 +83,10 @@ let usage = """
                  image by alpha and running the module at alpha times the value (test scenes).
 
       merge      --files FILE:FILE[:FILE...] --output DIR [--format tiff|dng|both] [--reference N]
+                 [--no-align] [--no-deghost]
                  HDR merge of a bracket without a library (issue #150): step times, the measured
                  exposures, clipping levels, movement and ghosts, peak memory, and the files written.
+                 --reference counts from 0 in --files order; --no-align and --no-deghost as the sheet's boxes.
 
       scenes     --output DIR [--size WxH]
                  Writes the chromatic aberration test scenes (fringes, fringe subjects, pixel grid, lateral color

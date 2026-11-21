@@ -57,7 +57,12 @@ enum MergeBenchmark {
                                                   iso: (exif[kCGImagePropertyExifISOSpeedRatings as String] as? [any Sendable])?
                                                       .first.flatMap { $0 as? Int64 }.map(Int.init))
         }
-        let plan = try merger.plan(measuring: copies, reference: reference, metadataExposures: metadata)
+        let options = MergeOptions(align: !arguments.flags.contains("no-align"),
+                                   deghost: !arguments.flags.contains("no-deghost"))
+        report["align"] = options.align
+        report["deghost"] = options.deghost
+        let plan = try merger.plan(measuring: copies, reference: reference, metadataExposures: metadata,
+                                   options: options)
         let planTime = clock.now - mark
         mark = clock.now
         let full = try urls.enumerated().map { index, url in try merger.fullFrame(of: url, source: sources[index]) }
