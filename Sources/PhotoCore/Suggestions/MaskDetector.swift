@@ -113,15 +113,23 @@ public struct VisionMaskDetector: MaskDetecting {
         defer { CVPixelBufferUnlockBaseAddress(buffer, .readOnly) }
         let width = CVPixelBufferGetWidth(buffer), height = CVPixelBufferGetHeight(buffer)
         let rowBytes = CVPixelBufferGetBytesPerRow(buffer)
-        guard width > 0, height > 0, let base = CVPixelBufferGetBaseAddress(buffer) else { return nil }
         let format = CVPixelBufferGetPixelFormatType(buffer)
         let read: (UnsafeRawPointer, Int) -> Float
+        let bytesPerPixel: Int
         switch format {
-        case kCVPixelFormatType_OneComponent32Float: read = { $0.assumingMemoryBound(to: Float.self)[$1] }
-        case kCVPixelFormatType_OneComponent16Half: read = { Float($0.assumingMemoryBound(to: Float16.self)[$1]) }
-        case kCVPixelFormatType_OneComponent8: read = { Float($0.assumingMemoryBound(to: UInt8.self)[$1]) / 255 }
+        case kCVPixelFormatType_OneComponent32Float:
+            (read, bytesPerPixel) = ({ $0.assumingMemoryBound(to: Float.self)[$1] }, 4)
+        case kCVPixelFormatType_OneComponent16Half:
+            (read, bytesPerPixel) = ({ Float($0.assumingMemoryBound(to: Float16.self)[$1]) }, 2)
+        case kCVPixelFormatType_OneComponent8:
+            (read, bytesPerPixel) = ({ Float($0.assumingMemoryBound(to: UInt8.self)[$1]) / 255 }, 1)
         default: return nil
         }
+        // Checked before anything is allocated or read (security review N1).
+        let sides = 1...MaskRaster.maximumSide
+        guard sides.contains(width), sides.contains(height), !CVPixelBufferIsPlanar(buffer),
+              rowBytes >= width * bytesPerPixel, CVPixelBufferGetDataSize(buffer) >= rowBytes * height,
+              let base = CVPixelBufferGetBaseAddress(buffer) else { return nil }
         var levels = [UInt8](repeating: 0, count: width * height)
         for y in 0..<height {
             let row = UnsafeRawPointer(base.advanced(by: y * rowBytes))
@@ -246,8 +254,8 @@ public enum MaskDetectionState: Equatable, Sendable {
 }
 
 /// Where an Update's components are when its result lands (code review C1):
-/// each component the Update started on is found again by its kind and the
-/// result it named, at its old place if it is still there, else at the first
+/// each component the Update started on is found again by its kind, the
+/// result it named, its operation and Invert, at its old place if it is still there, else at the first
 /// unclaimed place that matches. Nil for one that is gone (removed, or
 /// changed by an undo), so a result never lands on another component.
 public enum MaskDetectionUpdate {
@@ -255,20 +263,28 @@ public enum MaskDetectionUpdate {
         public var index: Int
         public var kind: MaskDetectionKind
         public var raster: String?
+        public var operation: MaskOperation
+        public var invert: Bool
 
-        public init(index: Int, kind: MaskDetectionKind, raster: String?) {
+        public init(index: Int, kind: MaskDetectionKind, raster: String?, operation: MaskOperation = .add,
+                    invert: Bool = false) {
             self.index = index
             self.kind = kind
             self.raster = raster
+            self.operation = operation
+            self.invert = invert
         }
     }
 
     public static func positions(of started: [Started], in components: [MaskComponent]) -> [Int?] {
         var claimed = Set<Int>()
         return started.map { wanted in
+            // Its operation and Invert too: twins that differ only there stay apart (code review C10).
             func matches(_ position: Int) -> Bool {
-                guard !claimed.contains(position), let detection = components[position].shape.detection else { return false }
+                let component = components[position]
+                guard !claimed.contains(position), let detection = component.shape.detection else { return false }
                 return detection.kind == wanted.kind && detection.raster == wanted.raster
+                    && component.operation == wanted.operation && component.invert == wanted.invert
             }
             let position = components.indices.contains(wanted.index) && matches(wanted.index)
                 ? wanted.index : components.indices.first(where: matches)

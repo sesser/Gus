@@ -37,8 +37,13 @@ public struct MaskRaster: Sendable, Hashable {
 
     /// The stored encoding (`maskRaster.encoding`).
     public static let encoding = "png-gray8"
-    /// The largest side accepted when reading: Vision's masks are 512 pixels.
-    public static let maximumSide = 4096
+    /// The largest side written or read: Vision's masks are 512 pixels. A
+    /// row over it is damaged; a crafted one can't make the renderer hold
+    /// gigabytes (security review L1).
+    public static let maximumSide = 1024
+    /// The most bytes a stored row's PNG may hold to be read at all: a
+    /// 1024 x 1024 gray PNG, even incompressible, fits.
+    public static let maximumStoredBytes = 2 * 1024 * 1024
 
     /// Encodes `levels` (row-major, top row first, 0 … 255).
     public init(levels: [UInt8], width: Int, height: Int, instances: Int, request: Request, revision: Int = 1,

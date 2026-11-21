@@ -37,18 +37,27 @@ extension Catalog {
         try database.read { db in try Self.maskRaster(db, digest: digest) }
     }
 
+    /// A row is read only when it can be what this build writes: its size
+    /// within `MaskRaster.maximumSide`, its bytes within `maximumStoredBytes`
+    /// (larger ones are not even loaded), and those bytes hashing to its key.
+    /// Anything else is damaged and selects nothing (security review L1, L2).
     static func maskRaster(_ db: Database, digest: String) throws -> MaskRaster? {
         guard MaskRaster.isDigest(digest), let row = try Row.fetchOne(db, sql: """
-            SELECT encoding, width, height, instances, data, request, revision, systemVersion
+            SELECT encoding, width, height, instances, request, revision, systemVersion,
+                   CASE WHEN length(data) <= ? THEN data END AS data
             FROM maskRaster WHERE digest = ?
-            """, arguments: [digest]) else { return nil }
+            """, arguments: [MaskRaster.maximumStoredBytes, digest]) else { return nil }
         let encoding: String = row["encoding"]
+        let width: Int = row["width"], height: Int = row["height"]
+        let sides = 1...MaskRaster.maximumSide
         // An encoding or a request this build doesn't know is damaged: it selects nothing.
-        guard encoding == MaskRaster.encoding, let request = MaskRaster.Request(rawValue: row["request"]) else {
+        guard encoding == MaskRaster.encoding, let request = MaskRaster.Request(rawValue: row["request"]),
+              sides.contains(width), sides.contains(height), let data: Data = row["data"] else {
             return nil
         }
-        return MaskRaster(stored: row["data"], width: row["width"], height: row["height"], instances: row["instances"],
-                          request: request, revision: row["revision"], systemVersion: row["systemVersion"])
+        let raster = MaskRaster(stored: data, width: width, height: height, instances: row["instances"],
+                                request: request, revision: row["revision"], systemVersion: row["systemVersion"])
+        return raster.digest == digest ? raster : nil
     }
 
     /// Every stored digest (tests and the debug script).
@@ -73,9 +82,25 @@ extension Catalog {
             while let json = try stacks.next() {
                 referenced.formUnion(MaskRasterReferences.digests(inStackJSON: json))
             }
-            let lists = try String.fetchCursor(db, sql: "SELECT maskRasters FROM editHistory WHERE maskRasters IS NOT NULL")
-            while let list = try lists.next() {
-                referenced.formUnion(MaskRasterReferences.decode(list))
+            let lists = try Row.fetchCursor(db, sql: """
+                SELECT id, maskRasters FROM editHistory WHERE maskRasters IS NOT NULL
+                """)
+            var unreadableLists: [Int64] = []
+            while let row = try lists.next() {
+                if let names = MaskRasterReferences.decode(row["maskRasters"]) {
+                    referenced.formUnion(names)
+                } else {
+                    unreadableLists.append(row["id"])
+                }
+            }
+            // A damaged list (not NULL, which entries before v15 rightly have)
+            // is read from its snapshot; if that can't be read either, this
+            // launch deletes nothing rather than a row history may still name
+            // (security review L3).
+            for id in unreadableLists {
+                guard let stored = try Data.fetchOne(db, sql: "SELECT stack FROM editHistory WHERE id = ?", arguments: [id]),
+                      let json = try? EditHistory.decompress(stored) else { return 0 }
+                referenced.formUnion(MaskRasterReferences.digests(inStackJSON: String(decoding: json, as: UTF8.self)))
             }
             let orphans = Array(stored.subtracting(referenced))
             for chunk in orphans.chunked(into: 10_000) {
@@ -135,8 +160,10 @@ enum MaskRasterReferences {
         return "[" + digests.sorted().map { "\"\($0)\"" }.joined(separator: ",") + "]"
     }
 
-    static func decode(_ list: String) -> Set<String> {
-        guard let array = try? JSONDecoder().decode([String].self, from: Data(list.utf8)) else { return [] }
-        return Set(array.filter(MaskRaster.isDigest))
+    /// The digests a stored list names, or nil when it can't be read.
+    static func decode(_ list: String) -> Set<String>? {
+        guard let array = try? JSONDecoder().decode([String].self, from: Data(list.utf8)),
+              array.allSatisfy(MaskRaster.isDigest) else { return nil }
+        return Set(array)
     }
 }

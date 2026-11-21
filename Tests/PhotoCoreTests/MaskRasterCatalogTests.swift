@@ -176,6 +176,73 @@ struct MaskRasterCatalogTests {
         #expect(MaskRasterReferences.digests(inStackJSON: json) == [a, b])
         #expect(MaskRasterReferences.digests(inStackJSON: #"{"raster":"abc"}"#).isEmpty)
         #expect(MaskRasterReferences.decode(MaskRasterReferences.encode([a, b])!) == [a, b])
+        #expect(MaskRasterReferences.decode("[\"\(a)\"") == nil, "cut short")
+        #expect(MaskRasterReferences.decode("[\"abc\"]") == nil, "not a digest")
         #expect(MaskRasterReferences.encode([]) == nil)
+    }
+
+    // MARK: Security review
+
+    /// Writes a row as a damaged or crafted catalog could hold it.
+    static func insertRow(_ catalog: Catalog, digest: String, width: Int, height: Int, data: Data) async throws {
+        try await catalog.database.write { db in
+            try db.execute(sql: """
+                INSERT INTO maskRaster (digest, encoding, width, height, instances, data, request, revision,
+                                        systemVersion, createdAt)
+                VALUES (?, ?, ?, ?, 1, ?, 'foreground', 1, 'test', ?)
+                """, arguments: [digest, MaskRaster.encoding, width, height, data, Date()])
+        }
+    }
+
+    @Test("Rows over the size limits, or whose bytes don't hash to their key, are not read (L1, L2)")
+    func craftedRows() async throws {
+        let (fixture, _) = try await Self.one()
+        let catalog = fixture.catalog
+        let good = try Self.raster(40)
+        // Too wide by its row, though its bytes are a small, valid PNG.
+        let wideKey = String(repeating: "c3", count: 32)
+        try await Self.insertRow(catalog, digest: wideKey, width: 4096, height: 1, data: good.png)
+        #expect(try await catalog.maskRaster(digest: wideKey) == nil)
+        // More bytes than any row this build writes: not loaded.
+        let bigKey = String(repeating: "d4", count: 32)
+        try await Self.insertRow(catalog, digest: bigKey, width: 8, height: 8,
+                                 data: Data(count: MaskRaster.maximumStoredBytes + 1))
+        #expect(try await catalog.maskRaster(digest: bigKey) == nil)
+        // A good PNG under another result's key.
+        let wrongKey = String(repeating: "e5", count: 32)
+        try await Self.insertRow(catalog, digest: wrongKey, width: 8, height: 8, data: good.png)
+        #expect(try await catalog.maskRaster(digest: wrongKey) == nil)
+        #expect(MaskRasterStore(catalog: catalog).lookup(wrongKey) == .missing)
+        // The real one reads.
+        try await catalog.storeMaskRaster(good)
+        #expect(try await catalog.maskRaster(digest: good.digest) == good)
+    }
+
+    @Test("A damaged history list is read from its snapshot; if that fails too, nothing is deleted (L3)")
+    func damagedHistoryList() async throws {
+        let (fixture, id) = try await Self.one()
+        let catalog = fixture.catalog
+        let named = try Self.raster(50), unnamed = try Self.raster(51)
+        for raster in [named, unnamed] { try await catalog.storeMaskRaster(raster) }
+        try await catalog.setEditStack(Self.stack(named.digest), forVersion: id, historyLabel: "Add Subject Mask")
+        try await catalog.setEditStack(Self.stack(nil), forVersion: id, historyLabel: "Update Detection")
+        // Only the first entry names `named`; damage its list.
+        try await catalog.database.write { db in
+            try db.execute(sql: """
+                UPDATE editHistory SET maskRasters = '["cut' WHERE id = (SELECT MIN(id) FROM editHistory WHERE versionId = ?)
+                """, arguments: [id])
+        }
+        #expect(try await catalog.removeUnreferencedMaskRasters() == 1)
+        #expect(try await catalog.maskRasterDigests() == [named.digest], "kept through the snapshot")
+
+        // The snapshot damaged as well: this launch deletes nothing.
+        try await catalog.storeMaskRaster(unnamed)
+        try await catalog.database.write { db in
+            try db.execute(sql: """
+                UPDATE editHistory SET stack = x'00' WHERE id = (SELECT MIN(id) FROM editHistory WHERE versionId = ?)
+                """, arguments: [id])
+        }
+        #expect(try await catalog.removeUnreferencedMaskRasters() == 0)
+        #expect(try await catalog.maskRasterDigests() == [named.digest, unnamed.digest])
     }
 }

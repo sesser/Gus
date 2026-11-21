@@ -208,7 +208,8 @@ extension AdjustmentEditor {
         guard let mask = adjustments.local.masks.first(where: { $0.id == id }), canUpdateDetection(of: mask) else { return }
         let components = mask.components.enumerated().compactMap { position, component -> PendingDetection.UpdatedComponent? in
             guard let detection = component.shape.detection, index == nil || position == index else { return nil }
-            return .init(index: position, kind: detection.kind, raster: detection.raster)
+            return .init(index: position, kind: detection.kind, raster: detection.raster,
+                         operation: component.operation, invert: component.invert)
         }
         guard let first = components.first else { return }
         startDetection(PendingDetection(kind: first.kind, target: .update(mask: id, components: components)))
@@ -388,9 +389,13 @@ extension AdjustmentEditor {
                                           unavailable: unavailableRequests.contains(detection.kind.request))
         if let mask, let index,
            failedUpdates.contains(DetectionComponentKey(mask: mask, index: index, raster: detection.raster)) {
-            // A failed Update leaves a found result applying (design DR-1).
-            if case .found(let count) = state { return .failedUpdate(instances: count) }
-            return .failed
+            // A failed Update leaves a found result applying (design DR-1);
+            // one that can't run here stays Unavailable (review N1).
+            switch state {
+            case .found(let count): return .failedUpdate(instances: count)
+            case .unavailable: return .unavailable
+            default: return .failed
+            }
         }
         return state
     }

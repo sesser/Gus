@@ -38,14 +38,15 @@ struct MaskDetectionTests {
     /// portrait one. Availability and sizes only. Part of `swift test`, so CI
     /// runs it on macOS 15 and 26.
     ///
-    /// - A request that says it can't run here (`MaskDetectionError.unavailable`:
-    ///   an unsupported compute device or revision, as on a virtual machine with
-    ///   no Neural Engine whose GPU Vision won't use) passes, with the error
-    ///   printed (RI-E1). Any other error fails.
-    /// - Subject must find the red disc wherever it runs. People's sizes are
-    ///   checked whenever it finds something; the fixtures hold no person, so
-    ///   finding nothing is a right answer and passes (code review C5). The
-    ///   opt-in samples check People's sizes on real photos of people.
+    /// As ruled in AC11 (#88, RI-E1, Q2):
+    /// - Only Vision's "unsupported compute device" error (code 22, a virtual
+    ///   machine with no Neural Engine whose GPU Vision won't use) passes, with
+    ///   the error printed. Any other error fails, an unsupported revision
+    ///   included (code review C9), and so does a wrong size.
+    /// - Subject must return the red disc at its measured size wherever it
+    ///   runs. Any People mask returned must have its measured size; the
+    ///   fixtures hold no person, so an empty People result passes (code
+    ///   review C5). The opt-in samples check People on real photos of people.
     @Test("Both Vision requests run on synthetic fixtures and give masks of the measured sizes (R13, AC11)")
     func requestsRunWithTheMeasuredSizes() async throws {
         let detector = VisionMaskDetector()
@@ -59,7 +60,7 @@ struct MaskDetectionTests {
                     let raster: MaskRaster
                     do {
                         raster = try await detector.detect(request, in: image)
-                    } catch .unavailable(let detail) {
+                    } catch .unavailable(let detail) where detail.hasPrefix(Self.unsupportedComputeDevice) {
                         unavailable[request] = detail
                         continue
                     } catch {
@@ -94,6 +95,8 @@ struct MaskDetectionTests {
     }
 
     static let system = ProcessInfo.processInfo.operatingSystemVersionString
+    /// How `VisionMaskDetector.classify` begins the detail of Vision's code 22.
+    static let unsupportedComputeDevice = "\(VNErrorDomain) \(VNErrorCode.unsupportedComputeDevice.rawValue):"
 
     // MARK: The input (R4, AC3)
 
@@ -234,6 +237,14 @@ struct MaskDetectionTests {
         // Gone (undone, or its result changed meanwhile): nothing lands.
         #expect(MaskDetectionUpdate.positions(of: started, in: [linear]) == [nil])
         #expect(MaskDetectionUpdate.positions(of: started, in: [detection(.subject, b)]) == [nil])
+        // Twins that differ in operation stay apart; a removed one gets nothing (C10).
+        let add = MaskComponent(.detection(MaskDetection(kind: .subject, raster: nil)))
+        let subtract = MaskComponent(.detection(MaskDetection(kind: .subject, raster: nil)), operation: .subtract)
+        let second = [MaskDetectionUpdate.Started(index: 1, kind: .subject, raster: nil, operation: .subtract)]
+        #expect(MaskDetectionUpdate.positions(of: second, in: [add, subtract]) == [1])
+        #expect(MaskDetectionUpdate.positions(of: second, in: [add]) == [nil])
+        let inverted = [MaskDetectionUpdate.Started(index: 0, kind: .subject, raster: nil, invert: true)]
+        #expect(MaskDetectionUpdate.positions(of: inverted, in: [add]) == [nil])
         // Two alike each find their own place.
         let twins = [MaskDetectionUpdate.Started(index: 0, kind: .subject, raster: a),
                      MaskDetectionUpdate.Started(index: 1, kind: .subject, raster: a)]
@@ -246,6 +257,12 @@ struct MaskDetectionTests {
     @Test("Vision's can't-run-here errors are Unavailable; any other error is Failed")
     func classification() {
         func error(_ code: VNErrorCode) -> NSError { NSError(domain: VNErrorDomain, code: code.rawValue) }
+        // The detail AC11's test reads to pass only on code 22.
+        guard case .unavailable(let detail) = VisionMaskDetector.classify(error(.unsupportedComputeDevice)),
+              detail.hasPrefix(Self.unsupportedComputeDevice) else {
+            Issue.record("code 22's detail must begin \(Self.unsupportedComputeDevice)")
+            return
+        }
         for code in [VNErrorCode.unsupportedComputeDevice, .unsupportedComputeStage, .unsupportedRevision,
                      .unsupportedRequest] {
             guard case .unavailable = VisionMaskDetector.classify(error(code)) else {

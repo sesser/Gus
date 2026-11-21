@@ -133,9 +133,17 @@ struct DetectionMaskModelTests {
             try MaskRaster(levels: [0, 0], width: 3, height: 1, instances: 0, request: .foreground)
         }
         #expect(throws: MaskRaster.Failure.invalidSize) {
-            try MaskRaster(levels: [UInt8](repeating: 0, count: 4097), width: 4097, height: 1, instances: 0,
+            try MaskRaster(levels: [UInt8](repeating: 0, count: 1025), width: 1025, height: 1, instances: 0,
                            request: .foreground)
         }
+    }
+
+    @Test("A PNG wider than the limit is damaged, however small its bytes (security review L1)")
+    func oversizedPNG() throws {
+        #expect(MaskRaster.maximumSide == 1024)
+        let wide = try #require(MaskRaster.encodePNG([UInt8](repeating: 0, count: 2048), width: 2048, height: 1))
+        #expect(wide.count < 1_000, "a crafted row costs little to store")
+        #expect(throws: MaskRaster.Failure.unreadable) { try MaskRaster.pixels(fromPNG: wide) }
     }
 
     @Test("Bytes that are not an 8-bit gray PNG are damaged")
