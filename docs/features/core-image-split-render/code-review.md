@@ -136,4 +136,40 @@ block QA.
 
 ## Follow-up
 
-(Second pass: each finding Fixed, Not fixed (and why) or Withdrawn, with the commit.)
+### Second pass, 2026-11-21
+
+Reviewed: `47e4065..34a614c` (one commit, `34a614c`). It touches
+`ResidentDecode.swift`, `ImageIOFullDecodeTests.swift`, `status.md` and this
+file (committed by the engineer as written; no finding above was changed).
+Nothing else changed.
+Build and tests: `swift build --build-tests` clean. `swift test` 1283 tests
+in 184 suites passed (74.7 s). Under load, two full `swift test` runs at once
+while `fullDecodeIsOriented` ran 8 times in a third process: all passed, no
+failure in either log. `ImageIOFullDecodeTests` with `LensAlignStaleAreaTests`
+passed 5 runs of 5 in a row. `LARGE_RENDER_TESTS=1 swift test --filter
+ImageIOFullDecodeTests`: 7 of 7 passed (the soak 9.3 s).
+
+| # | Result | Notes |
+|---|--------|-------|
+| C1 | Fixed, `34a614c` | `largeRenderKeepsItsParts` is gated by `.enabled(if: LARGE_RENDER_TESTS == "1")`, the same form as `DeferredRenderTests`' large case, and the suite's doc comment and `status.md` name the command. The engineer's case that no smaller ungated variant can guard this holds up: they report 0 of 24 swaps at 3000 × 2000 (forced into 4 to 20 parts by a small `memoryTarget`) and at 4400 × 1100 in 8 parts, against 12 of 24 at 15.8 MP (4592 × 3448) and at 20 MP. That agrees with what I saw in the first pass (the 20 MP soak failed in every run without the fix) and with the fault needing large inputs, not just a split render. The largest renders known to pass on CI are about 6 MP (`LiveRegionRendererTests`' 3000 × 2000, `DeferredRenderTests`' ungated 4400 × 1100), so a CI-sized variant would pass without the fix. I did not run their probe again. The ungated guards still fail without the fix (see below). `CLAUDE.md`'s `LARGE_RENDER_TESTS` command still names only `LargeRenderTests|LargeBrushTests`. Adding `ImageIOFullDecodeTests` there is the owner's call, and the main session should propose it. |
+| C2 | Fixed, `34a614c` (owner's ruling on Q1) | `lazyReason(width:height:)` checks the side first (so `width * height` can't overflow, and it couldn't on 64-bit anyway), then `> 100_000_000`. That is inclusive, so 10000 × 10000 is copied. `resident` returns nil with a notice for each reason before it asks for a device or makes a texture. `residencyLimit` pins both limits, the edges on both sides, the order of the two reasons, and that `resident` keeps a 10000 × 10001 generator image lazy (nothing allocated). The log says the size, which limit was hit and that the photo may show the seam. Its arguments are integers, so they are public in `os_log`. The doc comment and `status.md` ("Photos over either limit stay exposed", README notes) say what the limit leaves open. |
+| C3 | Fixed, `34a614c` | Both paths now log an error (no device; `CIImage(mtlTexture:)` nil), with the size and that the decode is read lazily. Neither can be reached in a test here, as `status.md` says. |
+| C4 | Fixed, `34a614c` | `status.md` "Cost" and the `ResidentDecode` doc comment give the 100% path's extra pass and 24 B/px peak (480 MB at 20 MP, 1.6 GB of copy at the 100 MP limit). The `bandPixels` comment says 64 MB into the float texture. Q2 is answered in the wording: Distortion and Color Alignment "may change the same way… not measured", listed under Not verified. |
+| F (flaky `fullDecodeIsOriented`) | Fixed, `34a614c` | The diagnosis holds. The old test compared two different graphs in 8-bit Display P3: Core Image converting the file's encoded values against Core Image converting the copy's linear floats. A one-level rounding difference near a level boundary is what you'd expect from two programs, and it fits "passed alone, failed once in a full run" with no sleep or shared state involved. The new comparison is in float in the working space, which is the space the copy is rendered in, so equality is the claim itself (the same comparison as `residentCopyIsTheFile`). It is exact, with no tolerance, so nothing was loosened. It still checks orientation: the extent (480 × 640) and every value against Core Image's own oriented read. It passed in every run above, about 18 in all, 8 of them while two full suites ran at once. |
+
+**The tests still fail without the fix.** I turned the copy off
+(`let image = lazy` in `PreviewGenerator.swift:414`), rebuilt, and ran
+`ImageIOFullDecodeTests` and `LensAlignStaleAreaTests` twice with
+`LARGE_RENDER_TESTS=1`. Both runs failed the same 7 issues: `fullDecodeIsResident`
+(2), `renderUnchanged` (JPEG and TIFF, `decoded.url == nil`),
+`tileSeesTheInputArea` (JPEG) and the soak (`swapped == 0`, `unlike == 0`). So
+without the variable, as on CI, three ungated tests still fail without the
+fix. Then I restored the file with `git checkout`, checked it against its
+SHA-1 from before, rebuilt and retested (10 of 10 passed). `git status` is
+clean. As before, `fullDecodeIsOriented` and `residentCopyIsTheFile` pass
+without the fix. That is by design: they check the copy's values, not that the
+copy is used.
+
+**Verdict, second pass.** C1 to C4 and the flaky test are closed, and no new
+findings. The branch is ready for qa-tester. `/security-review` is still not
+needed (no parser, subprocess, file writing or network code).
