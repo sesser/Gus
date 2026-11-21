@@ -132,7 +132,7 @@ enum DebugMaskDetectionCommands {
             } catch {
                 print("debug-script: mask raster \(corrupt ? "corrupt" : "delete") failed: \(error)")
             }
-            library.maskRasters.forget(digest)
+            editor.forgetDetectionResult(digest)
         }
         if let item = editor.item {
             for tier in PreviewTier.allCases {

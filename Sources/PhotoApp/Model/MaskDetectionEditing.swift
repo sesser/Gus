@@ -231,6 +231,8 @@ extension AdjustmentEditor {
         // Results go into the renderer's memory now and the catalog before the
         // stack: the stack's write queues behind the row's on the write chain.
         for case .success(let raster) in results.values {
+            // It ran: whatever this session learned before, the request runs on this Mac.
+            unavailableRequests.remove(raster.request)
             library.maskRasters.remember(raster)
             detectionResults[raster.digest] = library.maskRasters.cached(raster.digest)
             let catalog = library.catalog
