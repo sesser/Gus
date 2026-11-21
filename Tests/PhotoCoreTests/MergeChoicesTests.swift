@@ -123,6 +123,79 @@ extension MemoryHeavy.HDRMergerTests {
         }
     }
 
+    /// A camera response that isn't proportional to the light, as a JPEG's is
+    /// (R8 takes JPEG brackets; recovering the curve is a follow-up), applied
+    /// to each channel of a frame already clipped at 1: a toe `L·L/(L + c)`
+    /// that crushes the shadows below proportional, a shoulder
+    /// `L·(1 + s)/(L + s)` that lifts the highlights above it, or both.
+    /// Both at once (an S-curve) is left out: there the two-sided test
+    /// itself sees frames disagree across the mid-tones, with any rule for
+    /// black and clipped frames (status.md, C14).
+    struct Response: CustomStringConvertible {
+        var toe: Float?
+        var shoulder: Float?
+
+        func callAsFunction(_ value: Float) -> Float {
+            var v = value
+            if let toe { v = v * v / (v + toe) }
+            if let shoulder { v = v * (1 + shoulder) / (v + shoulder) }
+            return v
+        }
+
+        var description: String {
+            [toe.map { "toe \($0)" }, shoulder.map { "shoulder \($0)" }].compactMap { $0 }.joined(separator: ", ")
+        }
+    }
+
+    static let responses = [Response(toe: 0.01), Response(toe: 0.005), Response(shoulder: 1)]
+
+    @Test("A13: a still bracket with a camera-like response is merged as with no masks, whichever frame is the reference")
+    func stillNonLinearBracket() throws {
+        // C14 (code review, sixth pass): a black frame's crushed toe under-says
+        // the light, so a test against its own values fired across a still
+        // wall, and the masks' growth took the reference's clipped window.
+        let merger = HDRMerger()
+        let evs = [-2.0, 0, 2]
+        for response in Self.responses {
+            let linear = evs.map { ev -> LinearImage in
+                var image = HDRBracket.image(HDRBracket.Frame(ev: ev), width: Self.width, height: Self.height)
+                for index in image.pixels.indices where index % 4 != 3 { image.pixels[index] = response(image.pixels[index]) }
+                return image
+            }
+            let copies = linear.map { MergeBitmap(width: $0.width, height: $0.height, pixels: $0.pixels) }
+            let frames = linear.map(\.ciImage)
+            for reference in evs.indices {
+                let plan = try merger.plan(measuring: copies, reference: reference,
+                                           metadataExposures: evs.map { _ in nil })
+                var unmasked = plan
+                unmasked.ghosts = plan.ghosts.map { MergePlane(width: $0.width, height: $0.height) }
+                let merged = try #require(MergeBitmap.render(try merger.radiance(plan, frames: frames),
+                                                             context: merger.context))
+                let plain = try #require(MergeBitmap.render(try merger.radiance(unmasked, frames: frames),
+                                                            context: merger.context))
+                var moved = 0, movedClipped = 0
+                var worst: Float = 0
+                for y in 0..<Self.height {
+                    for x in 0..<Self.width {
+                        let a = merged.rgb(x: x, y: y), b = plain.rgb(x: x, y: y)
+                        let difference = simd_reduce_max(abs(a - b) / (b + 1e-4))
+                        worst = max(worst, difference)
+                        guard difference > 0.01 else { continue }
+                        moved += 1
+                        // Where the reference itself is clipped (the window, at +2 EV).
+                        if simd_reduce_max(copies[reference].rgb(x: x, y: y)) >= 0.9 * Float(plan.frames[reference].clip) {
+                            movedClipped += 1
+                        }
+                    }
+                }
+                let masked = plan.ghosts.map { $0.values.filter { $0 > 0 }.count }
+                print("still \(response), reference \(reference): mask pixels \(masked); moved over 1% \(moved), where the reference clips \(movedClipped); worst \(worst)")
+                #expect(movedClipped == 0, "\(response), reference \(reference)")
+                #expect(moved == 0, "\(response), reference \(reference)")
+            }
+        }
+    }
+
     // MARK: Auto-align off (R9, AC7a)
 
     @Test("AC7a: with Auto-align off nothing is measured or moved, and the merge is the CPU reference's without alignment")

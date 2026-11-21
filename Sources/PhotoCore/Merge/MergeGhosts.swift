@@ -13,15 +13,23 @@ import Foundation
 /// generation with camera and object movement"). Where the reference is
 /// clipped or black the test is one-sided: a frame that is clearly darker
 /// than the reference's clipping level, or clearly brighter than its black,
-/// disagrees with it. Where the frame itself is clipped or black, the same:
-/// a clipped frame whose lowest value is clearly above the reference, or a
-/// black one whose highest is clearly below it, disagrees (revision
-/// 2026-11-21: with any frame as the reference, a darker reference meets
-/// brighter frames that clip where something moved, and the reverse).
+/// disagrees with it. Where the frame itself is clipped or black, the same
+/// (revision 2026-11-21: with any frame as the reference, a darker reference
+/// meets brighter frames that clip where something moved, and the reverse):
+/// a clipped frame whose lowest value is clearly above the reference
+/// disagrees, and a black frame disagrees where the reference is clearly
+/// brighter than anything the frame's black level could hide. That second
+/// test reads only the black level, never the black frame's own values: a
+/// JPEG's camera curve crushes its toe below proportional, so those values
+/// under-say the light by any amount (code review C14).
 ///
 /// Measured on the reduced copies, slightly blurred so a fraction of a pixel
 /// of alignment error doesn't count at edges, then cleaned (isolated pixels
-/// dropped), grown and feathered, so a moving object is taken out whole.
+/// dropped), grown and feathered, so a moving object is taken out whole. What
+/// the frame's own black or clipping says is cleaned and grown on its own, and
+/// kept only where some other frame has a trusted value: there a mask that
+/// grew past the evidence could only hand the pixel to the reference's
+/// clipped or black values (C14).
 public enum MergeGhosts {
     /// Values between these parts of the clipping level are trusted.
     public static let trusted: ClosedRange<Float> = 0.01...0.9
@@ -37,10 +45,7 @@ public enum MergeGhosts {
     public static func masks(_ frames: [MergeBitmap], plans: [MergeFramePlan], reference: Int) -> [MergePlane] {
         let ref = Neighborhood(frames[reference])
         let growRadius = max(2, max(ref.bitmap.width, ref.bitmap.height) / 256)
-        return frames.indices.map { index in
-            if index == reference { return MergePlane(width: ref.bitmap.width, height: ref.bitmap.height) }
-            let raw = disagreement(Neighborhood(frames[index]), ref, exposure: Float(plans[index].exposure),
-                                   clip: Float(plans[index].clip), referenceClip: Float(plans[reference].clip))
+        func spread(_ raw: MergePlane) -> MergePlane {
             // Majority of the 3 x 3 neighborhood: isolated pixels go.
             var cleaned = raw.boxMean(radius: 1)
             for i in cleaned.values.indices { cleaned.values[i] = cleaned.values[i] > 0.5 ? 1 : 0 }
@@ -48,6 +53,37 @@ public enum MergeGhosts {
             for i in grown.values.indices { grown.values[i] = min(1, grown.values[i] * 2) }
             return grown
         }
+        return frames.indices.map { index in
+            if index == reference { return MergePlane(width: ref.bitmap.width, height: ref.bitmap.height) }
+            let raw = disagreement(Neighborhood(frames[index]), ref, exposure: Float(plans[index].exposure),
+                                   clip: Float(plans[index].clip), referenceClip: Float(plans[reference].clip))
+            var mask = spread(raw.main)
+            // Tests that rest on the frame's own black or clipping: never where
+            // the frame is the only one that holds the light.
+            guard raw.bound.values.contains(where: { $0 > 0 }) else { return mask }
+            let bound = spread(raw.bound)
+            let others = usableElsewhere(frames, plans: plans, except: index)
+            for i in mask.values.indices where others[i] {
+                mask.values[i] = max(mask.values[i], bound.values[i])
+            }
+            return mask
+        }
+    }
+
+    /// Whether some frame other than `index` has a trusted value (brightest
+    /// channel within `trusted` of its clipping level) at each pixel.
+    static func usableElsewhere(_ frames: [MergeBitmap], plans: [MergeFramePlan], except index: Int) -> [Bool] {
+        var usable = [Bool](repeating: false, count: frames[index].count)
+        for (other, frame) in frames.enumerated() where other != index {
+            let clip = Float(plans[other].clip)
+            let low = trusted.lowerBound * clip, high = trusted.upperBound * clip
+            for i in usable.indices where !usable[i] && frame.pixels[i * 4 + 3] > 0.99 {
+                let rgb = frame.rgb(i)
+                let m = max(rgb.x, rgb.y, rgb.z)
+                usable[i] = m > low && m < high
+            }
+        }
+        return usable
     }
 
     /// A frame with, at every pixel, its 3 x 3 neighborhood's blurred color and
@@ -88,10 +124,13 @@ public enum MergeGhosts {
         }
     }
 
-    /// 1 where the frame disagrees with the reference, else 0.
+    /// 1 where the frame disagrees with the reference, else 0: in `main` where
+    /// the test reads the frame's values against the reference's, in `bound`
+    /// where it rests on the frame being clipped or black there.
     static func disagreement(_ frame: Neighborhood, _ reference: Neighborhood, exposure: Float, clip: Float,
-                             referenceClip: Float) -> MergePlane {
+                             referenceClip: Float) -> (main: MergePlane, bound: MergePlane) {
         var plane = MergePlane(width: reference.bitmap.width, height: reference.bitmap.height)
+        var boundPlane = plane
         let lowF = trusted.lowerBound * clip, highF = trusted.upperBound * clip
         let lowR = trusted.lowerBound * referenceClip, highR = trusted.upperBound * referenceClip
         let floorValue = floor * referenceClip
@@ -106,7 +145,7 @@ public enum MergeGhosts {
             let frameBlack = frame.low[index] <= lowF
             let frameClipped = frame.high[index] >= highF
             if frameBlack && frameClipped { continue }
-            var differs = false
+            var differs = false, bounded = false
             if reference.high[index] >= highR {
                 // The reference clips here or next to here: the frame disagrees
                 // only if all around it is clearly below that level.
@@ -118,11 +157,13 @@ public enum MergeGhosts {
             } else if frameClipped {
                 // The frame clips where the reference doesn't: it disagrees if
                 // even its lowest value is clearly above the reference's highest.
-                differs = frame.low[index] / exposure > reference.high[index] * factor
+                bounded = frame.low[index] / exposure > reference.high[index] * factor
             } else if frameBlack {
                 // The frame is black where the reference isn't: it disagrees if
-                // even its highest value is clearly below the reference's lowest.
-                differs = frame.high[index] / exposure * factor < reference.low[index]
+                // all around, the reference is clearly brighter than the light
+                // the frame's black level can hide. Not against the frame's own
+                // values, which a camera's toe crushes below proportional (C14).
+                bounded = reference.low[index] > lowF / exposure * factor
             } else {
                 let x = frame.blurred.rgb(index) / exposure, r = reference.blurred.rgb(index)
                 for c in 0..<3 where abs(log(x[c] + floorValue) - log(r[c] + floorValue)) > threshold {
@@ -130,8 +171,9 @@ public enum MergeGhosts {
                 }
             }
             if differs { plane.values[index] = 1 }
+            if bounded { boundPlane.values[index] = 1 }
         }
-        return plane
+        return (plane, boundPlane)
     }
 
     /// A 3 x 3 box blur of the colors, edges clamped; alpha becomes the
