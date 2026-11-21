@@ -12,8 +12,9 @@ import PhotoUI
 ///     merge reference <name|row> [nowait]
 ///                                  (chooses the reference as a click on its row does; row counts from 1:
 ///                                   prints the reference, Name, Folder, message and flagged frames, whether
-///                                   Merge is on once the folder is asked, answers discarded for a superseded
-///                                   reference, and the VoiceOver announcement; nowait returns at once)
+///                                   Merge is on once the folder is asked, the answers discarded since the
+///                                   sheet opened (they came for a superseded reference), and the VoiceOver
+///                                   announcement; nowait returns at once)
 ///     merge align on|off           (the Auto-align box: prints both boxes)
 ///     merge deghost on|off         (the De-ghost box: prints both boxes)
 ///     merge slowdisk <ms>          (adds a delay to each folder check, to see a superseded answer)
@@ -36,6 +37,11 @@ enum DebugMergeCommands {
         let argument = words.dropFirst().first
         switch words.first {
         case "sheet":
+            // A sheet closed just before still counts as up until it has gone
+            // (the menu item is dimmed meanwhile).
+            for _ in 0..<120 where !model.canMerge {
+                try? await Task.sleep(for: .milliseconds(25))
+            }
             merge.begin()
             await settle(merge)
             // The sheet's window is laid out after it is attached.
@@ -58,7 +64,6 @@ enum DebugMergeCommands {
                 print("debug-script: merge reference: no frame \(argument)")
                 return
             }
-            merge.debugDiscarded = []
             merge.chooseReference(frame.versionID)
             if words.dropFirst(2).first == "nowait" {
                 print("debug-script: merge reference \(frame.displayName) chosen; merge on \(merge.canStart)")
@@ -106,8 +111,7 @@ enum DebugMergeCommands {
     /// reference and the Name line.
     static func settle(_ merge: MergeModel) async {
         for _ in 0..<400 {
-            if let sheet = merge.sheet, sheet.isDiskChecked,
-               merge.resultName?.isFinal != false || sheet.selection.refusal != nil {
+            if let sheet = merge.sheet, sheet.isDiskChecked, merge.resultName?.isFinal == true {
                 return
             }
             try? await Task.sleep(for: .milliseconds(25))
@@ -183,6 +187,19 @@ enum DebugMergeCommands {
     }
 
     static func waitForEnd(_ model: LibraryModel) async {
+        // The Activity details in the order they showed (design §7.1: no
+        // "Aligning" with Auto-align off), and the bar's last value.
+        var details: [String] = []
+        var fraction = 0.0
+        while model.merge.isMerging {
+            if let progress = model.merge.progress {
+                let detail = MergeText.detail(progress.phase).split(separator: " ").first.map(String.init) ?? ""
+                if details.last != detail { details.append(detail) }
+                fraction = progress.fraction
+            }
+            try? await Task.sleep(for: .milliseconds(5))
+        }
+        print("debug-script: merge details \(details.joined(separator: ", ")) last fraction \(String(format: "%.3f", fraction))")
         await model.merge.waitUntilDone()
         // The landing goes through the write chain.
         await withCheckedContinuation { continuation in

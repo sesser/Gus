@@ -93,10 +93,10 @@ final class MergeModel {
     }
 
     /// The Name line: the numbered name once known, else the unnumbered
-    /// candidate (`isFinal` false: shown in secondary color).
+    /// candidate (`isFinal` false: shown in secondary color). Shown with a
+    /// refusal too: it is the reference's, whatever stops the merge (§5.3).
     var resultName: (text: String, isFinal: Bool)? {
-        guard let sheet, sheet.selection.refusal == nil else { return nil }
-        return sheet.name(format: format)
+        sheet?.name(format: format)
     }
 
     // MARK: The job
@@ -235,15 +235,19 @@ final class MergeModel {
     /// The Name line for the chosen reference and format, decided again when
     /// the merge starts. An answer for a superseded reference or format is ignored.
     private func updateName() {
-        guard let library, let sheet, sheet.selection.refusal == nil else { return }
+        guard let library, let sheet else { return }
         nameTask?.cancel()
         let job = HDRMergeJob(catalog: library.catalog, metadataReader: library.importer.metadataReader)
         let format = self.format
         let selection = sheet.selection
         let reference = sheet.referenceID
+        // When the place can't be named (a damaged record, a folder that can't
+        // be listed) the unnumbered name stands; pressing Merge says why.
+        let candidate = sheet.name(format: format).text
         nameTask = Task {
-            guard let url = try? await job.resultURL(for: selection, format: format), !Task.isCancelled else { return }
-            self.sheet?.record(name: url.lastPathComponent, reference: reference, format: format)
+            let url = try? await job.resultURL(for: selection, format: format)
+            guard !Task.isCancelled else { return }
+            self.sheet?.record(name: url?.lastPathComponent ?? candidate, reference: reference, format: format)
             announceIfReady()
         }
     }
@@ -282,7 +286,7 @@ final class MergeModel {
     private func announceIfReady() {
         guard announcementPending, debounceElapsed, let sheet, sheet.isDiskChecked else { return }
         let name = sheet.name(format: format)
-        guard name.isFinal || sheet.selection.refusal != nil else { return }
+        guard name.isFinal else { return }
         announcementPending = false
         var text = MergeText.referenceAnnouncement(sheet.reference.displayName, result: name.text)
         switch MergeSheetState.messageChange(from: announcedRefusal, to: sheet.refusal) {

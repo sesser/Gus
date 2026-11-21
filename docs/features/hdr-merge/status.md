@@ -17,12 +17,29 @@ light, as raws and the 100% live frames already did (a few edge pixels, up to
 code-reviewer's second pass on the fix, then qa-tester (no UI change, so no
 design review), then back to the owner for P5.
 
+**2026-11-21: sheet revision (owner findings at sign-off, PRD revised the
+same day, design §5.5–§5.8, §6.4, §20 D-H6 to D-H10): Done.** Built: the reference
+chosen in the sheet's table, the Auto-align and De-ghost boxes, the merge's
+paths without alignment and without de-ghosting, `photocli merge
+--reference/--no-align/--no-deghost`. See "Revision 2026-11-21" below for the
+state, each criterion's test and what changed beyond the sheet (one change to
+de-ghosting that every merge gets).
+
 ## Baseline
 
 - `swift build` on `develop` at `ed423d7` (plus the design commit): clean.
 - `swift test` before any change: 1253 tests in 179 suites passed (70.6 s).
 
-## Latest results (2026-11-21, after the fix for "Bug: tiles at 100%")
+## Latest results (2026-11-21, after the sheet revision)
+
+- `swift build`: clean; no new warnings.
+- `swift test`: 1340 tests in 193 suites passed (504.4 s). No golden moved;
+  `UPDATE_GOLDENS` was not run; `PreviewCacheKey.currentPipelineVersion`
+  unchanged (13).
+- `Scripts/build-app.sh`: builds; debug-script checks in "Revision
+  2026-11-21".
+
+## Results after the fix for "Bug: tiles at 100%" (2026-11-21)
 
 - `swift build`: clean; no new warnings (the two in `SmartAlbumTests` and
   `VirtualCopiesTests` were there before).
@@ -308,6 +325,272 @@ cleanup would then delete rasters those rows name. **Whichever branch merges
 second must add the column to those two queries** (as #88 does for the
 virtual-copy undo).
 
+## Revision 2026-11-21: the reference, Auto-align and De-ghost
+
+Spec: the PRD as revised 2026-11-21 (R3, R9, R10, R14, R17, AC3, AC3a–AC3c,
+AC7a, AC7b, AC8a, AC9a, AC12, AC14) and design §5.5–§5.8, §6.4, §7.1, §7.3,
+§11, §13–§16 and §20 (D-H6 to D-H10). The Core Image tile fix above is
+untouched.
+
+**State: Done** (2026-11-21). Every criterion the revision added or changed
+is built and tested (table below); one design question is open (DQ-H11, the
+height at three frames), which blocks nothing: the sheet works and scrolls at
+600 pt. `swift build` clean, no new warnings; full `swift test`: 1340 tests in
+193 suites passed (504.4 s); `Scripts/build-app.sh` builds; debug-script checks
+below. No golden moved, `UPDATE_GOLDENS` not run, no migration,
+`PreviewCacheKey.currentPipelineVersion` unchanged (13). Next: code-reviewer
+(second pass on the revision), the designer (review, DQ-H11, the Name line
+note), then qa-tester.
+
+### What was built
+
+- **Engine** (PhotoCore). `MergeOptions` (`align`, `deghost`, both on unless
+  told). `HDRMerger.plan(…options:)`: with `align` off, no Vision request is
+  made, every homography is the identity, nothing is warped and no frame is
+  refused for not lining up (A14); with `deghost` off the ghost masks are
+  empty, so the merge is the plain exposure-weighted blend. The reference keeps
+  its floor weight in both cases: it only decides a pixel where no other frame
+  has any weight at all (a frame's uncovered border strip next to a clipped
+  reference), so no region is taken from the reference alone in place of a
+  blend (R10), and where nothing moved the two results are the same merge (AC8a
+  measures 0.0 difference there). `HDRMergeJob.run(…options:)`; its progress
+  is `MergeProgress.Schedule(aligns:)`: without alignment the 0.3 share of
+  Aligning is left out and the rest scaled, so the bar still runs from 0 to 1,
+  and the measuring that remains reports as Merging (design §7.1).
+- **The reference** (PhotoCore). `MergeSelection.choosingReference(_:)` gives
+  the same frames with another reference and decides the refusals again (only
+  the different-size one depends on it: named and flagged from the chosen
+  reference, every frame of another size flagged, design §6.1 case 6).
+  `MergePreflight` splits case 8 (`firstUnreadable`, asked once) from case 9
+  (`unwritable(reference)`). `MergeSheetState` is the sheet without its views:
+  the frames, the reference (default R3's, `chooseReference(nil)` and unknown
+  ids ignored, so always exactly one), the boxes, case 8's answer, each
+  folder's writability asked once per folder for the life of the sheet (an
+  answer that comes after the reference moved to another folder is kept as a
+  fact about its folder but decides nothing on screen), the Name answer keyed
+  by reference and format (a late one ignored; the unnumbered candidate,
+  `isFinal` false, meanwhile), and from them the message, flagged rows and
+  whether Merge is on. `messageChange(from:to:)` is §11's rule for what the
+  VoiceOver announcement adds. Made new on every open (AC3c, AC9a).
+- **The sheet** (PhotoApp). The Photos table is `Table(_:selection:)` bound to
+  a `@State` row that the model's reference drives; a nil or refused selection
+  is put straight back (design §5.5's engineer note), so the table can't be
+  left without a chosen row. The "Reference" mark is `fixedSize` and the name
+  truncates in the middle with its full text as a tooltip. Under the table's
+  caption, two `Toggle`s with the checkbox style and their captions (indented
+  20 pt, hidden from VoiceOver, given as the hint). The Name line shows the
+  unnumbered candidate in secondary color until the new folder's answer. The
+  Result caption is the one sentence §5.3 keeps. `MergeSheetMetrics`: 560 wide,
+  ideal 600, minimum 420. `MergeModel` holds a `MergeSheetState`: a change of
+  reference loads the new thumbnail (the old stays until it is ready), asks the
+  new folder if needed (detached), asks the name again, and schedules one
+  announcement 0.3 s after the last change, posted once the folder and the name
+  are known ("Reference ‹name›. Result ‹file›." plus the new refusal, or "Merge
+  is available."). Pressing Merge runs the job with the chosen reference and
+  boxes; the job's own pre-flight repeats case 8 and case 9 for that reference.
+- **Strings**: the caption "“%@” names the result and where it is saved. Click
+  another photo to change it." replaces the old one; "Auto-align", "De-ghost",
+  their captions, "Choose the reference" (table hint), the Result caption
+  without "Saved next to …", the alignment failure ending "…, or turn off
+  Auto-align.", "Reference %@. Result %@." and "Merge is available."; the old
+  three keys removed.
+- **`photocli merge`**: `--reference <version>` (one of the `--version`s; a
+  pair's JPEG means its raw; otherwise an `invalidValue` error "--reference N
+  is not one of the --version values", nothing written), `--no-align`,
+  `--no-deghost`; the JSON gains `align` and `deghost`. A frame that doesn't
+  line up fails with "‹name› doesn't line up with ‹reference›. Merge photos of
+  the same scene, or pass --no-align." (D-H10).
+- **Debug script**: `merge reference <name|row> [nowait]`, `merge align
+  on|off`, `merge deghost on|off`, `merge slowdisk <ms>` (delays each folder
+  check, to see a superseded answer), `merge table select <row>|deselect`
+  (drives the sheet's `NSTableView` the way a click or ⌘-click does), and
+  `merge sheet` now prints both boxes, the caption and the sheet's measured
+  heights (`metrics`: the sheet window, and the Form's content against what it
+  shows). `merge start` prints the boxes.
+- **Fixtures**: `photobench generate --brackets N` adds `TwoFolders-n`: the
+  walker bracket in `Locked` (−2 and 0 EV, read-only: the default reference is
+  refused) and `Open` (+2 EV). In every series the 0 EV frame is shot second,
+  not first (`Raw-n` is the walker series). `photobench merge` takes
+  `--no-align` and `--no-deghost`. `HDRBracket.radianceImage(…as:)` gives the
+  scene's light as a moved frame saw it.
+
+### One change every merge gets: de-ghosting near black and clipping
+
+Found by AC3b's test with the darkest or brightest frame as the reference
+(the PRD's A13 asks whether an extreme reference makes de-ghosting worse). It
+did, badly: `MergeGhosts.disagreement` skipped any frame that was black or
+clipped anywhere in its 3 x 3 neighborhood. With the 0 EV frame as the
+reference that rarely mattered. With the −1 EV frame of a −1/0/+1 bracket as
+the reference, the +1 EV frame's object (0.9, just under clipping) was never
+tested, kept its full weight times its exposure (4) and left a ghost 57 times
+the wall's light; with the −2 EV frame of a ±2 EV bracket the reference's own
+object came out 44% off, with the +2 EV frame 97% off.
+
+A black frame's values are an upper bound on the light and a clipped frame's
+a lower bound, so each can still say "clearly below" or "clearly above" the
+reference. The test now uses exactly that (the same 1.5 factor as the existing
+one-sided tests where the reference is black or clipped): a clipped frame
+disagrees if even its lowest value is clearly above the reference's highest, a
+black one if even its highest is clearly below the reference's lowest; a frame
+that is both black and clipped in one neighborhood still says nothing. On a
+still scene neither test can fire (a clipped frame's light over its exposure
+is at most the scene's, a black frame's at least, up to noise, and noise near
+black only masks frames that carry almost no weight there).
+
+Measured on the synthetic walker (600 x 400, objects on a dim wall), object
+error inside the reference's object / ghost error at the other frames' places:
+
+| Bracket, reference | Before | After |
+|---|---|---|
+| ±2 EV, 0 EV (the default) | 0.017 / 0.0076 | 0.0 / 0.0076 |
+| ±2 EV, −2 EV | 0.44 / 0.0052 | ~1e-7 / 0.0052 |
+| ±2 EV, +2 EV | 0.97 / 0.0001 | 0.0 / 0.0001 |
+| ±1 EV, −1 EV | 0.80 / 57.7 | ~1e-7 / 0.0057 |
+| ±1 EV, +1 EV | 0.13 / 0.0003 | ~1e-7 / 0.0003 |
+
+Where nothing moved, every case is the same merge as one with no ghosts (0.0).
+So, answering A13: with this change an extreme reference no longer makes
+de-ghosting visibly worse on the fixture; on real files that is for the owner's
+eye (M12, M13). Merges with the default options are not bit-for-bit what they
+were before: the masks now also cover moving things where a frame is near black
+or near clipping (the default case above: the object went from 1.7% off to
+exact). Merged files are new files, so nothing cached or stored changes; no
+golden involves a merge; no pipeline bump.
+
+### The CPU reference's tolerance (one correction)
+
+AC8a's plain blend against `MergeReference` failed at 1.1 times its tolerance
+on one pixel at a highlight step's edge (GPU 1.3281689 against 1.3281837). A
+probe of the pixel showed the only frame with weight there (the −2 EV frame,
+darkest, flat weight) had its four taps' red spanning 0.318 to 0.360 while
+their brightest channels spanned 0.387 to 0.390: the reference bounded the
+float sample position's effect by the spread of each tap's brightest channel,
+which can be far smaller than a channel's own spread. It now takes the largest
+per-channel spread (`Reference/MergeReference.swift`). With it AC8a's worst
+pixel is 0.31 of its tolerance and AC10's existing check 0.37 (was 0.61).
+Tried and not kept, because neither was the cause: a term for the weights'
+float rounding times the frames' disagreement, and treating sample positions
+within float rounding of a pixel center as unconditioned; nearest sampling of
+the frames (the kernel builds its own bilinear mix) gave bit-identical output.
+
+### Acceptance criteria (revision)
+
+| AC | State | Test or check |
+|---|---|---|
+| AC3 | Done | `MergeSheetStateTests.opensWithDefaults` (0 EV frame second in time is the reference, both boxes on, Merge off until the disk answers); existing `mergesToTIFF`, `firstByTimeNames`, `MergeSelectionTests.orderAndReference`, `earliestWithoutCompensation` |
+| AC3a | Done | `MergeReferenceJobTests.chosenReference` (two folders, two projects: the +2 EV frame chosen; result `IMG_0003_HDR.tif` in its folder and project, its capture date, its rating, label and title in the library and in the file, nothing in the default reference's folder; numbered in its folder); `MergeSheetStateTests.nameFollows` (Name follows reference and format; a late answer ignored), `folderRefusalFollows` (folder and "several folders"); `photocli` `referenceAndSwitches` |
+| AC3b | Done | `MergeChoicesTests` (in `HDRMergerTests`): `alignmentFollowsTheReference` (references 1 and 2 of a moved bracket: each frame's measured homography onto the chosen one within AC7's derived 0.5 px of the fixture's truth, the reference's own identity; the merged light within the 25% + 1% bound of the chosen frame's view where the light varies by under 25% over 5 x 5 pixels, and far from the other frame's view); `ghostsFollowTheReference` (references 0 and 2 of a ±1 EV walker: the object exact at the chosen frame's place, the others' places as with nothing moving); `extremeReferences` (±2 EV, references 0 and 2: the A13 record); job level `choicesAreOtherMerges` (another reference or De-ghost off give other pixels; the defaults again the same pixels) |
+| AC3c | Done | `MergeSheetStateTests.reopensWithDefaults` (a new sheet for the same frames, even from a selection carrying another reference, has the default reference and both boxes on); `MergeModel.begin` makes a new `MergeSheetState` every time; debug script (below) |
+| AC7a | Done | `withoutAlignment` (no Vision progress, every homography the identity; GPU against the CPU reference with identity movements within AC10's tolerance, worst 0.03; the moved frames' light not lined up: error 10 against the reference's view, 0.11 when aligned); `unrelatedWithoutAlignment` (core: refused with alignment, merged without); `MergeReferenceJobTests.unrelatedMergesWithoutAlignment` (job: catalogued, no `.aligning` report, the bar never goes back and ends at 1; with it on, refused naming the frame); `photocli` `unrelatedWithSwitch` |
+| AC7b | Done | `MergeReferenceJobTests.refusalsWithoutAlignment` (with both boxes off: a different size, an offline frame, a video, and a read-only folder before any work, each refused, nothing read) |
+| AC8a | Done | `withoutDeghosting` (masks all zero, plans otherwise identical; the hand-held walker's plain blend against the CPU reference with no masks within AC10's tolerance, worst 0.31; against de-ghosting: 6.9 in the moving region, 0.0 where nothing moved) |
+| AC9a | Done | `MergeSheetStateTests.opensWithDefaults`, `reopensWithDefaults`, `boxesAreIndependent` (the four combinations leave the reference, refusal, Merge and Name alone); `fourCombinations` (each merges, finite, identity movements exactly when align is off, empty masks exactly when de-ghost is off); nothing stored (no preference key; only Format keeps one) |
+| AC12 | Done | `MergeSheetStateTests.folderRefusalFollows` (default reference in a read-only folder refused, naming it; a frame in a writable folder lifts it; back to the first folder's other frame brings it on, naming that frame), `folderAskedOnce`, `sizeRefusalFollows`, `unreadableStays`; `MergeReferenceJobTests.readOnlyFollowsTheReference` (real `chmod 555` folder: refused before work for the default, merged with the chosen frame in the other folder, refused again for a frame in the first); existing refusal tests |
+| AC14 | Done | `MergeCommandTests.referenceAndSwitches` (defaults in the JSON; `--reference` in another folder with both switches; a reference outside the series is an error, nothing written), `unrelatedWithSwitch` (refused naming `--no-align`, merged with it); existing `mergesFromTheCommandLine` |
+| §7.1 | Done | `MergeProgressScheduleTests.schedule`; `unrelatedMergesWithoutAlignment` |
+| §11 | Done | `MergeSheetStateTests.announcement` (the rule); the debounce and posting by the debug script (below) |
+
+### Debug-script checks
+
+Run 2026-11-21 on a copy of the bundle (`CFBundleIdentifier`
+`me.sesser.gus.debugtest.merge`, re-signed ad hoc) against scratch libraries:
+`photobench generate --output $S/src --jpeg 2 --dng 0 --heic 0 --videos 0 --brackets 1`,
+`photobench import --library-root $S/lib --source $S/src`, a fresh copy of the
+library per run, every launch with `--library-root`. (`search` applies
+asynchronously: each script waits a second after it.)
+
+- **Choosing, boxes, table, reopening** (`search RAW_10; wait 1; selectall;
+  merge sheet; merge reference 3; merge reference RAW_101; merge format dng;
+  merge format tiff; merge align off; merge deghost off; merge table deselect;
+  merge table select 2; merge table deselect; merge cancelsheet; merge sheet`):
+  opens on RAW_102 (0 EV, shot second), both boxes on, Name `RAW_102_HDR.tif`,
+  caption naming it. Row 3 and then RAW_101 by name: the Name follows
+  (`RAW_103_HDR.tif`, `RAW_101_HDR.tif`), Merge stays on, the announcement is
+  "Reference RAW_103. Result RAW_103_HDR.tif.". The format changes only the
+  extension; each box changes only itself. **The table holds one row:**
+  `NSTableView.deselectAll` (what ⌘-click on the chosen row does) left row 1
+  (RAW_101, the reference) selected; selecting row 2 through AppKit made
+  RAW_102 the reference; deselecting again kept row 2. Closed and opened again:
+  RAW_102, both boxes on (AC3c, AC9a).
+- **The folder refusal follows the reference** (`TwoFolders-0`): opens refused,
+  "The merged photo would be saved next to “TWOFOLDERS_102”, in “Locked”, …",
+  that row flagged, Merge off. Row 3 (`Open`): no message, Merge on, Name
+  `TWOFOLDERS_103_HDR.tif` in `…/Open`, announcement "… Merge is available.".
+  Row 1: refused again naming TWOFOLDERS_101, its row flagged, the message
+  announced (AC12). With `merge slowdisk 1500`: `merge reference 3 nowait`
+  leaves Merge off while `Open` is asked; choosing row 2 meanwhile and then row
+  1 after the delay prints "discarded Open": the late answer decided nothing.
+- **Merges** (`merge start` after each choice): the +2 EV frame as reference
+  writes `Raw-0/RAW_103_HDR.tif` (details Reading, Aligning, Merging, Saving,
+  Adding; bar ends 1.000). `Unrelated-0` with Auto-align on fails: "“UNRELATED_103”
+  doesn't line up with “UNRELATED_102”. Merge photos of the same scene, or turn
+  off Auto-align." (Reading, Aligning; nothing written). The same with
+  Auto-align off merges `UNRELATED_102_HDR.tif` (Reading, Merging, Saving,
+  Adding: no Aligning; bar ends 1.000; H20). `TwoFolders-0` with the `Open`
+  frame chosen and De-ghost off writes `Open/TWOFOLDERS_103_HDR.tif`, nothing in
+  `Locked`. (Tone mapping takes a few milliseconds; the 5 ms poll doesn't catch it.)
+- **Height** (H21): `merge sheet` at three frames prints `sheet 560x600 (ideal
+  600) form content 590 shown 474 scrolls true`: the default case scrolls by
+  116 pt (with the two-line folder refusal in the header, 442 shown). With 20
+  frames (the table at its 250 pt cap) the content is 740. See Design
+  questions.
+
+### For a person
+
+Design §16's M8 to M14 (the sheet's look at the default size and with nine
+frames; choosing by pointer, ⌘-click and the empty space under the rows;
+choosing by keyboard with Full Keyboard Access, Return with the table focused;
+the folder refusal following the reference, the spinner on a slow volume;
+a real merge with the +2 EV frame as reference compared by eye with the
+default; the two boxes on real files; the height on a 13-inch laptop and in a
+short window). Also: whether initial focus lands on Merge with the table in the
+sheet (§11), not checked.
+
+### Deviations from the design, and choices it left open
+
+- **Name line with a refusal.** Before this revision the Name read "—" while a
+  refusal from the selection stood. §5.3 and §5.8 give the line no exception
+  (it is "the name the file will get now", following the reference), and the
+  announcement after a change says "Result ‹name›", so the line now always
+  shows the reference's name (numbered once its folder has answered; the
+  unnumbered candidate meanwhile, and if the folder can't be listed or the
+  record is damaged, where pressing Merge says why). For the designer to confirm.
+- **Table selection held by the view.** `Table(selection:)` is bound to a
+  `@State` row that follows the model's reference and is put back when the
+  table clears or the model refuses it (§5.5's engineer note). The debug script
+  shows it holding on this Mac (above); whether a one-frame flicker shows on a
+  real ⌘-click is M9's.
+- **Check box caption indent**: 20 pt (a regular check box and its gap), one
+  constant (`OptionBox.captionIndent`), not a system metric; M8 judges it.
+- **Initial focus** (§11: Merge when enabled, else Cancel) is not set by code,
+  as before this revision; with the table now selectable the system may focus
+  it first. Not checked (needs a key window); added to "For a person".
+
+### Design questions
+
+- **DQ-H11, the sheet's height at three frames.** Measured: 560 x 600, the
+  Form's content 590 pt against 474 shown (header 72 + buttons and divider
+  about 54), so the default case scrolls by 116 pt; the design estimated 580
+  in all (§5.7's budget puts the Form at about 450). The grouped Form's rows on
+  this macOS are taller than the estimate, and each caption is a row of its
+  own. §5.7's remedies don't reach: the check box captions are one line each,
+  so shortening their words saves no height, and the cap of 640 still leaves
+  76 pt. Options and their cost:
+  (a) ideal height about 720 (content 590 + 126): no code beyond one constant,
+  but past the 640 cap and taller than two thirds of a 13-inch laptop's screen;
+  (b) captions as `Section` footers or folded into their control's row (the
+  Format caption under the picker, the reference caption as the table's
+  footer): a few lines of code each, saves perhaps 20 to 30 pt a caption,
+  changes the reading order and look the design set;
+  (c) keep 600 and accept scrolling at three frames (as built; the header and
+  buttons stay put, the boxes are below the fold);
+  (d) the two check boxes side by side in one row, or the Result caption
+  joined to the Folder row: a row saved each, against §5.6's and §5.3's
+  layout.
+  Recommendation: (b) for the reference caption (table footer) and the Format
+  caption, then measure, and raise to 640 only for what remains; otherwise (c).
+  The ideal height stays 600 as the brief said until this is ruled.
+
 ## Bug: tiles at 100% (owner sign-off P5, 2026-11-21)
 
 **Report.** `IMG_3894_HDR.tif` (a merge of five Canon EOS 6D CR2s, 5472 × 3648,
@@ -555,6 +838,10 @@ Ruled at design review (D-H1 to D-H4, design.md §19), as built:
   DNG beside its reference); masters are never written. The README's line on
   what the app writes needs a sentence (PRD "Dependencies").
 - `photocli merge` and `photobench merge` are new commands.
+- Revision 2026-11-21: `photocli merge` takes `--reference <version>`,
+  `--no-align` and `--no-deghost` and prints `align` and `deghost`;
+  `photobench merge` takes `--no-align` and `--no-deghost`; `photobench
+  generate --brackets` also writes a `TwoFolders` series.
 
 ## Proposed follow-ups
 

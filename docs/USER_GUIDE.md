@@ -251,21 +251,36 @@ the grid's context menu) combines two to nine photos of one scene, taken at
 different exposures (a bracketed series), into one new photo that holds the
 light of the brightest and the darkest parts at once. Select the photos in the
 grid and choose the command; a sheet lists them in the order they were taken,
-with each one's shutter and exposure compensation, and the photo at 0 EV
-compensation marked **Reference** (the earliest photo when the files don't say
-which is at 0 EV). The reference names the result and is the photo the others
-are lined up to. Choose the format and press **Merge**; the sheet closes and the
+with each one's shutter and exposure compensation, and one of them marked
+**Reference**. Choose the format and press **Merge**; the sheet closes and the
 merge runs in the toolbar's Activity item, with Stop (or **File ▸ Stop Merge**,
-⌘.). Hand-held photos are lined up automatically (a small shift and turn), and
-anything that moved between the photos (a person walking, leaves) is taken from
-the reference alone, so it shows once.
+⌘.).
+
+- **The reference** is the photo you click in the sheet's list (or choose with
+  the up and down arrow keys there). It starts as the photo at 0 EV
+  compensation, or the earliest when the files don't say which is at 0 EV, and
+  the sheet forgets your choice every time it closes. The reference names the
+  result, is the folder and project the result goes in, gives it its metadata,
+  is what the other photos are lined up to and is where moving things are
+  taken from. Any photo may be the reference, the darkest or brightest too;
+  the Name and Folder lines follow your choice before you press Merge.
+- **Auto-align** and **De-ghost** are checked every time the sheet opens. With
+  Auto-align, hand-held photos are lined up to the reference (a small shift and
+  turn); turned off, the photos are merged as they are, for a tripod series,
+  and no photo is refused for not lining up. With De-ghost, anything that moved
+  between the photos (a person walking, leaves) is taken from the reference
+  alone, so it shows once; turned off, the photos are blended with no photo
+  taking priority where things moved (a still scene with a flickering light).
+  With both off the reference still names the result and gives it its folder
+  and metadata.
 
 - **TIFF** (16-bit, Display P3, tone-mapped) is a picture ready to view in any
   app. **DNG** (16-bit floating point, not tone-mapped) holds the merged light
   as it is: it opens as bright as the reference but flat, its highlights
   untoned, and you tone it in the Adjust tab, where the loupe shows its
   highlights on an HDR display. The choice is remembered.
-- The result is a new file written next to the reference, named after it with
+- The result is a new file written next to the reference (in the reference's
+  folder, when the photos are in several), named after it with
   `_HDR` (`IMG_1234_HDR.tif`), or `_HDR-2`, `_HDR-3`… when a file of that name,
   in any format, is already there (a DNG merged after a TIFF of the same photos
   is `IMG_1234_HDR-2.dng`, so the two never share a sidecar).
@@ -289,10 +304,12 @@ the reference alone, so it shows once.
   photos of different sizes, a photo over 150 megapixels (too large to merge),
   photos together too large to merge in this Mac's memory (a merge may use half
   of it, so the same selection may merge on a Mac with more; select fewer), an
-  offline photo, a file that can't be read, or a folder the result can't be
-  written to (a read-only disk). Photos of another
+  offline photo, a file that can't be read, or a reference whose folder the
+  result can't be written to (a read-only disk); choosing a reference in a
+  writable folder lifts that one. With Auto-align on, photos of another
   scene are found only while merging: the merge stops, nothing is added, and
-  Activity names the photo that doesn't line up. Photos with the same exposure
+  Activity names the photo that doesn't line up (merge photos of one scene, or
+  turn off Auto-align). Photos with the same exposure
   settings get a note (merging them won't widen the range) but can be merged. A merged
   photo is an ordinary photo, so the app doesn't stop you selecting it with the
   photos it was made from; the result would count that light twice, so select
@@ -968,8 +985,10 @@ from the terminal: `render` a file or a version to PNG, JPEG or TIFF with
 adjustments, `query projects` and `query images` (smart-album rules as JSON),
 `develop` (set and reset adjustments; `--dry-run` only shows the result),
 `rate`, `flag`, `label`, `export`, `merge` (an HDR merge of `--version`s, as
-**File ▸ Merge to HDR…** makes it, `--format tiff` or `dng`; prints the written
-file's `path`; it writes no sidecar; stopped with Control-C it can leave a
+**File ▸ Merge to HDR…** makes it, `--format tiff` or `dng`, `--reference` a
+version of the series, `--no-align` and `--no-deghost` to turn those off;
+prints the written file's `path`, the `reference` and whether it aligned and
+de-ghosted (`align`, `deghost`); it writes no sidecar; stopped with Control-C it can leave a
 hidden `.…partial` file beside the reference, which you can delete), and `mask list`, `mask add`, `mask set` and
 `mask remove` (a version's local adjustments; `--dry-run` only shows the
 result). `render` and `export` draw a version's spots; spots are made and
