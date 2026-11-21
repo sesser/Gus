@@ -387,6 +387,54 @@ keyboard and VoiceOver, where each spot on the photo is a button with
 actions. Many spots slow the loupe down: with about 90, a drag at 100%
 shows a frame about every 50 ms.
 
+**Masks** (the Masks heading, in the loupe) limit an adjustment to part of
+the photo. **New Mask** makes a mask from a shape (a gradient, a brush or a
+range of light or color) and **Add to Mask** combines more shapes with it:
+Add, Subtract or Intersect, each with an Invert button. The mask's **Amount**
+scales it, and the sliders below apply only inside it.
+
+**Masks from the photo.** The wand button at the end of the shape buttons
+(**Detect**; or **Adjust ▸ New Mask ▸ Subject, People, Background**) finds
+something in the photo on your Mac, with nothing sent anywhere, and makes a
+mask of it, named after what it found. **Subject** selects what stands out,
+every instance of it as one region. **People** selects every person it finds,
+**up to four**: in a crowd the others are left out, and the row says
+"4 people found, the most that can be selected." **People can also select
+something that is not a person**: a close-up of a flower was selected as a
+person during testing, and there is no setting for how sure it must be;
+remove the component, or subtract another shape from it. **Background** is
+everything except the subject: the Subject result turned around, so with no
+subject found it selects nothing rather than everything. A new Subject or
+People mask starts at +0.3 EV and a Background mask at −0.5 EV, and the red
+overlay shows the new mask for a moment. The same button in the **Add to
+Mask** row adds Subject, People or Background to the selected mask.
+
+These components combine and invert like any other. They have no Feather
+or refine control: to fix an edge, add or subtract a gradient, a brush or a
+range. The photo is looked at once, at a reduced size, with no adjustments
+other than Distortion, and the result is fitted to the photo's edges when it
+is shown, so very fine detail such as hair or a fence can come out rough.
+While it looks, a line says "Detecting…"; **Cancel** stops it, and so does
+moving to another photo: nothing is added. When the result arrives the mask
+or component is added as one undo step and one History entry.
+
+Each component's row says what it found ("1 subject found."). If nothing is
+found the row says so and the component selects nothing, so the photo is
+unchanged. If detection fails, or this Mac can't do it, or the saved result
+is missing from the library, the row says why and shows **Update**. The
+result is **saved with the photo** and is never found again on its own, so
+it looks the same after you reopen the library, on another Mac, or after a
+macOS update; looking again can give a slightly different result.
+**Update** (**Adjust ▸ Update Detection**, the row's button, or the mask's ⋯
+menu) looks again and replaces the saved result; it is one undo step, and
+Undo brings back the earlier result without looking again. Masks from the
+photo are left out of Copy and Paste Adjustments and of presets; a duplicate
+starts with its original's result and is then independent, and the two files
+of a RAW+JPEG pair each have their own. They are for the loupe, one photo at
+a time. Saved results nothing refers to any more (after Update, Undo or
+removing photos, once the History no longer has them) are removed from the
+library the next time it opens.
+
 **Editing at 100%**: at 100% and closer (`Z`, or **View ▸ Zoom to 100%**),
 the loupe shows the photo's own pixels while you change a value, so you can
 judge fine detail without letting go. A heavy edit updates less often but keeps
@@ -908,7 +956,13 @@ adjustments, `query projects` and `query images` (smart-album rules as JSON),
 `develop` (set and reset adjustments; `--dry-run` only shows the result),
 `rate`, `flag`, `label`, `export`, and `mask list`, `mask add`, `mask set` and
 `mask remove` (a version's local adjustments; `--dry-run` only shows the
-result). `render` and `export` draw a version's spots; spots are made and
+result). `mask add --shape subject`, `people` or `background` finds the mask
+in the original on this Mac and stores the result in the library; with
+`--dry-run` it looks and reports what it found (`detection`: state, instances,
+size) and stores nothing. A detection that fails is still added, with no
+result, and `detection` says why. `mask list` gives each such component's
+`state` (`found`, `empty`, `failed` or `missing`) and `instances`.
+`render` and `export` draw a version's spots; spots are made and
 changed in the app only. `noiseReduction.machineLearning=true` turns on machine learning noise
 reduction; `render` and `export` report in their JSON whether it was applied,
 and why not. `export --policy overwrite` replaces existing files but never an

@@ -44,4 +44,12 @@ struct DetectionMaskSourceTests {
         #expect(packages == 1)
         #expect(manifest.contains("groue/GRDB.swift"))
     }
+
+    @Test("The user guide names both limits of People (R15, AC14)")
+    func userGuideLimits() throws {
+        let guide = try String(contentsOf: RepositoryFiles.url("docs/USER_GUIDE.md"), encoding: .utf8)
+        #expect(guide.contains("**up to four**"))
+        #expect(guide.contains("something that is not a person"))
+        #expect(guide.contains("no setting for how sure it must be"))
+    }
 }
