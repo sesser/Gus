@@ -7,14 +7,15 @@ import PhotoUI
 ///     merge sheet                  (File ▸ Merge to HDR…: waits for the frames and the disk's answer, then
 ///                                   prints the frames, the reference, the message and flagged frames, the
 ///                                   name, folder, the formats offered, Auto-align and De-ghost, and the
-///                                   sheet's measured height: the Form's content against what it shows)
+///                                   sheet's measured height: the Form's content against what it shows,
+///                                   and the file the header's thumbnail comes from)
 ///     merge format tiff|dng        (the sheet's format: prints the Name line and caption)
 ///     merge reference <name|row> [nowait]
 ///                                  (chooses the reference as a click on its row does; row counts from 1:
 ///                                   prints the reference, Name, Folder, message and flagged frames, whether
 ///                                   Merge is on once the folder is asked, the answers discarded since the
 ///                                   sheet opened (they came for a superseded reference), and the VoiceOver
-///                                   announcement; nowait returns at once)
+///                                   announcement, and the header thumbnail's file; nowait returns at once)
 ///     merge align on|off           (the Auto-align box: prints both boxes)
 ///     merge deghost on|off         (the De-ghost box: prints both boxes)
 ///     merge slowdisk <ms>          (adds a delay to each folder check, to see a superseded answer)
@@ -134,7 +135,7 @@ enum DebugMergeCommands {
               + " folder \(sheet.reference.folder.path) \(message(merge)) disk \(sheet.isDiskChecked ? "answered" : "checking")"
               + " merge on \(merge.canStart)")
         print("debug-script: merge discarded \(merge.debugDiscarded.isEmpty ? "none" : merge.debugDiscarded.joined(separator: ","))"
-              + " announcement \(merge.debugLastAnnouncement ?? "none")")
+              + " announcement \(merge.debugLastAnnouncement ?? "none") thumbnail \(merge.debugPreviewFile ?? "-")")
     }
 
     /// The sheet's table, through AppKit: what a click or ⌘-click does to its selection.
@@ -230,7 +231,8 @@ enum DebugMergeCommands {
         print("debug-script: merge name \(nameLine(merge)) folder \(selection.referenceFrame.folder.path)"
               + " formats tiff dng (dng offered true) format \(merge.format.rawValue) merge on \(merge.canStart)")
         print("debug-script: merge align \(merge.options.align ? "on" : "off") deghost \(merge.options.deghost ? "on" : "off")"
-              + " caption \(MergeText.referenceCaption(selection.referenceFrame.displayName))")
+              + " caption \(MergeText.referenceCaption(selection.referenceFrame.displayName))"
+              + " thumbnail \(merge.debugPreviewFile ?? "-")")
         print("debug-script: merge metrics \(metrics())")
     }
 

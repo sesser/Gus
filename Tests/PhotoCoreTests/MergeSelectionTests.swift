@@ -172,3 +172,39 @@ struct MergeSelectionTests {
                 == "IMG_1234_HDR.dng")
     }
 }
+
+/// The header's thumbnail follows the reference (design §5.1, §5.8; review F8).
+@Suite("HDR merge header thumbnail")
+struct MergePreviewItemTests {
+    private func item(_ id: Int64, _ path: String, partner: Int64? = nil, partnerKind: FileKind? = nil) -> CatalogItem {
+        var item = CatalogItem(versionID: id, imageID: id, volumeID: 1, rating: .unrated, flag: .none, colorLabel: .none,
+                               contentHash: "", editStackHash: "", relativePath: path, pixelWidth: 10, pixelHeight: 10,
+                               orientation: 1)
+        item.partnerVersionID = partner
+        item.partnerKind = partnerKind
+        item.representsPair = partner != nil
+        return item
+    }
+
+    @Test("Pairs shown as their JPEG: the reference's pair item, not the first")
+    func pairsShownAsJPEG() {
+        // RAWs 1, 2, 3 are the frames; the grid shows JPEGs 11, 12, 13.
+        let items = [item(11, "a/IMG_1.jpg", partner: 1, partnerKind: .raw),
+                     item(12, "a/IMG_2.jpg", partner: 2, partnerKind: .raw),
+                     item(13, "a/IMG_3.jpg", partner: 3, partnerKind: .raw)]
+        #expect(MergeSelection.versionIDs(for: items) == [1, 2, 3])
+        #expect(MergeSelection.item(showing: 2, in: items)?.versionID == 12)
+        #expect(MergeSelection.item(showing: 3, in: items)?.versionID == 13)
+    }
+
+    @Test("Pairs shown as their RAW and single files: the frame's own item")
+    func ownItem() {
+        let items = [item(1, "a/IMG_1.dng", partner: 11, partnerKind: .jpeg), item(2, "a/IMG_2.dng"),
+                     item(3, "a/IMG_3.jpg")]
+        #expect(MergeSelection.item(showing: 1, in: items)?.versionID == 1)
+        #expect(MergeSelection.item(showing: 3, in: items)?.versionID == 3)
+        // An unknown reference: the first item, as before.
+        #expect(MergeSelection.item(showing: 99, in: items)?.versionID == 1)
+        #expect(MergeSelection.item(showing: 1, in: []) == nil)
+    }
+}

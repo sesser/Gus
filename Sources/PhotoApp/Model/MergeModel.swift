@@ -70,6 +70,8 @@ final class MergeModel {
     @ObservationIgnored var debugDiscarded: [String] = []
     /// Debug script: the last announcement made after a change of reference.
     @ObservationIgnored private(set) var debugLastAnnouncement: String?
+    /// Debug script: the file whose thumbnail the header was last asked for.
+    @ObservationIgnored private(set) var debugPreviewFile: String?
 
     var selection: MergeSelection? { sheet?.selection }
 
@@ -264,9 +266,12 @@ final class MergeModel {
     private func loadPreview() {
         guard let library, let sheet else { return }
         let reference = sheet.referenceID
+        // The library holds only the half of a pair the grid shows: a pair
+        // shown as its JPEG is found through its partner, the RAW frame.
         guard let item = library.item(versionID: reference)
-                ?? targetIDs.lazy.compactMap({ library.item(versionID: $0) }).first,
+                ?? MergeSelection.item(showing: reference, in: targetIDs.compactMap { library.item(versionID: $0) }),
               let request = library.previewRequest(for: item, tier: .thumbnail) else { return }
+        debugPreviewFile = item.fileName
         let previews = library.previews
         previewTask?.cancel()
         previewTask = Task {

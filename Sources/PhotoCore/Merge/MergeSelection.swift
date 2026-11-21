@@ -147,6 +147,16 @@ public struct MergeSelection: Sendable, Hashable {
         return ids
     }
 
+    /// The item among `items` (the grid's) that shows the frame `reference`
+    /// (design §5.1, §5.8: the header's thumbnail): the frame's own item, else
+    /// the pair item it is the hidden half of (a RAW+JPEG pair shown as its
+    /// JPEG has the RAW, the frame, as its partner), else the first item.
+    public static func item(showing reference: Int64, in items: [CatalogItem]) -> CatalogItem? {
+        items.first { $0.versionID == reference }
+            ?? items.first { $0.partnerVersionID == reference }
+            ?? items.first
+    }
+
     /// The selection for `frames` (from `versionIDs`, in any order).
     /// `memoryBudget`: what the frames' pixels may take (`MergeLimits.frameMemoryBudget`).
     public init(frames unordered: [MergeFrame], memoryBudget: Int = MergeLimits.frameMemoryBudget) {
