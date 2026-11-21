@@ -8,8 +8,8 @@ is the issue body (`gh issue view 88`), approved 2026-11-18 and revised
 
 **State: Done** (2026-11-20), review findings fixed through the fourth
 code-review pass (clean; C14 recorded under **Known limits**). Every acceptance criterion is built and has a test or a recorded
-check; nothing is blocked. Next: the second pass of code-reviewer and the
-designer, then qa-tester.
+check; nothing is blocked. 2026-11-21: a CI compile fix after Ship (see
+**CI fix**), no behavior change; next, code-reviewer's second pass of it.
 
 | Item | State |
 | --- | --- |
@@ -21,7 +21,10 @@ designer, then qa-tester.
 
 - Baseline, `develop` at `ed423d7`: `swift build` clean; `swift test` 1,253
   tests in 179 suites passed.
-- Latest (2026-11-20, after the third-pass fixes, `dc44a26`): `swift build`
+- Latest (2026-11-21, after the CI fix, see **CI fix**): `swift build` clean;
+  `swift test` **1,328 tests in 189 suites passed** (82.9 s), on the branch
+  with `develop` merged in.
+- Earlier (2026-11-20, after the third-pass fixes, `dc44a26`): `swift build`
   with no warnings; `swift test` **1,305 tests in 185 suites passed** (91.4
   s); after the second-pass fixes 1,303, after the first 1,300;
   `Scripts/build-app.sh` builds the bundle. Opt-in suites not run here:
@@ -96,8 +99,8 @@ leaves the image untouched, byte for byte.
 `Suggestions/MaskDetector.swift`): `VNGenerateForegroundInstanceMaskRequest`
 or `VNGeneratePersonInstanceMaskRequest`, every instance, the soft mask
 quantized to 8 bits. Errors meaning "can't run here" (unsupported revision,
-request, compute stage or device; resource unavailable on 27) are
-Unavailable, others Failed. `MaskDetectionRun.input` renders the mask frame
+request, compute stage or device; resource unavailable, code 23, matched by
+its raw value since 2026-11-21, see **CI fix**) are Unavailable, others Failed. `MaskDetectionRun.input` renders the mask frame
 (a raw's whole sensor, the system decoder's or LibRaw's default decode, the
 Distortion group only, no other adjustment) at 2560 px in sRGB. A run is
 cancellable before and after the render.
@@ -261,6 +264,47 @@ code in `2317d05`, user guide in `dc44a26`.
 | C11, DR-5 | A change to a component a pending Update covers | Fixed as ruled: the check is in one place, where every change to the open photo's values lands (`AdjustmentEditor.adjustments`' `didSet`, so the row's controls, Remove from Mask, deleting the mask, ⌘Z, Redo and a History revert all go through it). The rule is `MaskDetectionUpdate.isIntact` (PhotoCore, tested): every covered component still there with its kind, result, operation and Invert, wherever it now sits. If not, the whole Update is cancelled exactly as Cancel does, with "Detection cancelled." (no new string). Not cancelling: uncovered components, values, Amount, an added component, a reorder. Controls are not dimmed. Scripted with the `hang` detector (new `adjust mask invert`, `operation`, `removecomponent`, `move`): Invert, operation, Remove from Mask and deleting the mask each cancel an Update of both components (no undo step for the Update, the person's change on top); ⌘Z of a covered Invert cancels; inverting the uncovered component during a one-component Update, or changing Exposure, leaves it pending. User guide: "Changing or removing a component while it looks again stops that too." |
 | C12 | `craftedRows` refused its rows by the hash check first | Fixed: each crafted row is keyed by the SHA-256 of its own bytes (PNGs other than the good one's, and an over-size blob), plus a row exactly at the byte limit that loads. Checked by breaking each guard in turn: without the width and height check the test fails (2 issues), without the 2 MiB cap it fails (1 issue); restored |
 | C13 | A mistyped value in a row stopped the app | Fixed: `Catalog.maskRaster` converts each value from its database value, so a wrong type makes the row damaged (selects nothing, R14). Test `mistypedRow` for width, height, instances, revision, encoding, request and data. `systemVersion` can't be mistyped that way: its column has TEXT affinity, so SQLite stores a number there as text |
+
+## CI fix (2026-11-21)
+
+PR #252's first CI run failed to compile on both jobs (macos-15: Xcode 26.3,
+Swift 6.2.4; macos-26: Xcode 26.6, Swift 6.3.3) at
+`MaskDetector.swift:105`: `VNErrorCode.resourceUnavailable` has no member.
+
+- **Root cause.** `VNErrorResourceUnavailable` (and `ResourceCorrupted`) are
+  declared only in the macOS 27 SDK's `VNError.h`. `#available(macOS 27, *)`
+  checks the running system; it can't make a name exist in an SDK that
+  doesn't declare it, so any Xcode 26 SDK fails to compile the line. Locally
+  everything builds with the macOS 27.2 SDK, so this was not seen before CI.
+- **Fix.** `VisionMaskDetector.resourceUnavailableCode = 23` (the header's
+  implicit value: the case follows `unsupportedComputeDevice`, 22, with no
+  explicit value; `resourceCorrupted` is 24, checked by printing both raw
+  values with the 27.2 SDK), in the `unavailableCodes` set, matched on every
+  system. No `#available`: Vision before 27 has no code 23, so matching it
+  there changes nothing, and the test can pin it on every runner. No behavior
+  change on any system. Code 22 is `unsupportedComputeDevice`, the code AC11's
+  test passes on (C9); it is a different code and exists since macOS 14.
+- **Test.** `classification` now pins `resourceUnavailableCode ==
+  unsupportedComputeDevice + 1`, code 23 as Unavailable with a detail that
+  does not begin with code 22's (so AC11's test still fails on it, C9), and
+  code 24 as Failed. With 23 taken out of the set the test fails (checked,
+  restored).
+- **Checked against an older SDK.** `swift build --build-system native
+  --build-tests --sdk /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk`
+  (plus `-plugin-path` to Xcode's SwiftUI macro plugin; the default build
+  system ignores `--sdk`) reproduced CI's error before the fix and builds every
+  target and test after it. That is the 26.5 SDK with this Mac's Swift 6.4.2:
+  not CI's compilers, and not Xcode 26.3's older SDK.
+- **Audit of the branch** (`git diff 9bcac27 HEAD`): no other `#available` or
+  `@available` added; every framework symbol added is macOS 14 or older
+  (Vision's instance mask requests and `generateMask(forInstances:)`, Core
+  Video, Core Graphics, ImageIO, `CIKernel.kernels(withMetalString:)` already
+  used on `develop`, `Mutex` macOS 15); no Swift or swift-testing feature newer
+  than 6.2 (no `Test.cancel`, attachments, issue severity, `InlineArray`,
+  `Span`, `@concurrent`); typed-throws `catch .case` patterns already compile
+  on `develop`'s CI.
+- **Results.** `swift build` clean; `swift test` **1,328 tests in 189 suites
+  passed** (82.9 s).
 
 ## For a person (manual checks proposed to QA)
 

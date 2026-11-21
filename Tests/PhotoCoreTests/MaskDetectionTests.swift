@@ -304,9 +304,23 @@ struct MaskDetectionTests {
                 continue
             }
         }
-        for code in [VNErrorCode.internalError, .outOfMemory, .invalidImage] {
-            guard case .failed = VisionMaskDetector.classify(error(code)) else {
-                Issue.record("\(code.rawValue) should be failed")
+        // Resource unavailable (macOS 27) by its raw value, which every SDK
+        // compiles: VNError.h declares it right after unsupported compute
+        // device with no explicit value. Unavailable on every system, and not
+        // code 22, so AC11's test still fails on it (code review C9).
+        #expect(VisionMaskDetector.resourceUnavailableCode == VNErrorCode.unsupportedComputeDevice.rawValue + 1)
+        let resource = NSError(domain: VNErrorDomain, code: VisionMaskDetector.resourceUnavailableCode)
+        if case .unavailable(let detail) = VisionMaskDetector.classify(resource) {
+            #expect(detail.hasPrefix("\(VNErrorDomain) 23:"))
+            #expect(!detail.hasPrefix(Self.unsupportedComputeDevice))
+        } else {
+            Issue.record("resource unavailable (23) should be unavailable")
+        }
+        // Resource corrupted (24, macOS 27) is a failure, as is anything past it.
+        for code in [VNErrorCode.internalError.rawValue, VNErrorCode.outOfMemory.rawValue,
+                     VNErrorCode.invalidImage.rawValue, VisionMaskDetector.resourceUnavailableCode + 1] {
+            guard case .failed = VisionMaskDetector.classify(NSError(domain: VNErrorDomain, code: code)) else {
+                Issue.record("\(code) should be failed")
                 continue
             }
         }

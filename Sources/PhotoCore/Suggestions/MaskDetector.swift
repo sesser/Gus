@@ -94,16 +94,29 @@ public struct VisionMaskDetector: MaskDetecting {
         func cancel() { request.cancel() }
     }
 
+    /// `VNErrorCode.resourceUnavailable`'s raw value, written out because
+    /// the case is declared only in the macOS 27 SDK's `VNError.h`: CI builds
+    /// with Xcode 26's SDK, where the name does not exist and `#available`
+    /// can't help (it checks the running system, but the name has to resolve
+    /// at compile time). The value is the header's implicit one, right after
+    /// `unsupportedComputeDevice` (22); `classification` pins that. Matched
+    /// on every system: Vision before 27 has no code 23, so it never matches
+    /// there.
+    static let resourceUnavailableCode = 23
+
+    /// The Vision error codes that say the request can't run here.
+    static let unavailableCodes: Set<Int> = [
+        VNErrorCode.unsupportedRevision.rawValue, VNErrorCode.unsupportedRequest.rawValue,
+        VNErrorCode.unsupportedComputeStage.rawValue, VNErrorCode.unsupportedComputeDevice.rawValue,
+        resourceUnavailableCode,
+    ]
+
     /// Unavailable for errors that say the request can't run here, failed otherwise.
     static func classify(_ error: any Error) -> MaskDetectionError {
         let nsError = error as NSError
         let detail = "\(nsError.domain) \(nsError.code): \(nsError.localizedDescription)"
         guard nsError.domain == VNErrorDomain else { return .failed(detail) }
-        var unavailable: Set<Int> = [VNErrorCode.unsupportedRevision.rawValue, VNErrorCode.unsupportedRequest.rawValue,
-                                     VNErrorCode.unsupportedComputeStage.rawValue,
-                                     VNErrorCode.unsupportedComputeDevice.rawValue]
-        if #available(macOS 27, *) { unavailable.insert(VNErrorCode.resourceUnavailable.rawValue) }
-        return unavailable.contains(nsError.code) ? .unavailable(detail) : .failed(detail)
+        return unavailableCodes.contains(nsError.code) ? .unavailable(detail) : .failed(detail)
     }
 
     /// A one-channel mask (32-bit float, 16-bit half or 8-bit), 0 … 1, as
