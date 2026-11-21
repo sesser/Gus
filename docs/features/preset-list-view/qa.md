@@ -187,7 +187,7 @@ Adjust tab with a photo in the loupe; the Presets heading is already open.
 
 ## Follow-up
 
-Not yet run. To build the bundle and run it on a scratch library with 40
+No reruns were needed. To build the bundle and run it on a scratch library with 40
 presets (zsh; the library, presets and a copy of the bundle with its own
 identifier all live in `/tmp/gus-qa-241`; the last line carries
 `--library-root`):
@@ -222,6 +222,14 @@ identifier all live in `/tmp/gus-qa-241`; the last line carries
 fresh preferences domain the heading opens in list view. To undo:
 `rm -rf /tmp/gus-qa-241; defaults delete me.sesser.gus.debugtest.signoff241`.)
 
-Reruns after fixes, each P item when the owner reports it done, and the owner's
-sign-off (commit, date, checks left open): to be recorded here by the main
-session's relay.
+### Owner's sign-off
+
+Signed off by the owner on 2026-11-21 (relayed by the main session), after
+doing checks P1 to P5 by hand: no findings, and no checks left open.
+
+- Code signed off: `27c29b7` (the last commit that changed source or tests;
+  the code tested). This `qa.md` was at `ec22705`. The commit after it, the
+  merge of `develop` into the branch, changed none of them.
+- P1 to P5: done by the owner, fine.
+- Not checked by a person: VoiceOver, macOS 15 and macOS 26, covered by CI
+  only (standing ruling).
