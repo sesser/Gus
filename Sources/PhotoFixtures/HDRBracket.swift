@@ -28,15 +28,16 @@ public enum HDRBracket {
         /// (clockwise on screen) of what the frame sees, about the center.
         public var shift: SIMD2<Double>
         public var rotationDegrees: Double
-        /// Draws the moving object into this frame.
-        public var hasMovingObject: Bool
+        /// Where the moving object is in this frame (unit coordinates of the
+        /// scene, x right, y down), nil for a frame without it.
+        public var object: SIMD2<Double>?
 
         public init(ev: Double, shift: SIMD2<Double> = .zero, rotationDegrees: Double = 0,
-                    hasMovingObject: Bool = false) {
+                    object: SIMD2<Double>? = nil) {
             self.ev = ev
             self.shift = shift
             self.rotationDegrees = rotationDegrees
-            self.hasMovingObject = hasMovingObject
+            self.object = object
         }
     }
 
@@ -55,9 +56,8 @@ public enum HDRBracket {
         CGRect(x: 0.60 + Double(index) * 0.07, y: 0.36, width: 0.06, height: 0.12)
     }
 
-    /// The moving object: a disc at this unit center and radius (of the width).
-    public static let movingObjectCenter = SIMD2(0.30, 0.40)
-    public static let movingObjectRadius = 0.07
+    /// The moving object: a disc of this radius (of the width) and radiance.
+    public static let movingObjectRadius = 0.05
     public static let movingObjectRadiance = SIMD3(0.45, 0.12, 0.08)
 
     /// Radiance of the scene at unit coordinates (x right, y down; 0 to 1 over
@@ -114,7 +114,7 @@ public enum HDRBracket {
             let v = Double(random.next() >> 11) / Double(1 << 53)
             return (-2 * log(u)).squareRoot() * cos(2 * Double.pi * v)
         }
-        let objectCenter = movingObjectCenter * SIMD2(Double(width), Double(height))
+        let objectCenter = (frame.object ?? .zero) * SIMD2(Double(width), Double(height))
         let objectRadius = movingObjectRadius * Double(width)
         var pixels = [Float](repeating: 1, count: width * height * 4)
         for y in 0..<height {
@@ -125,7 +125,7 @@ public enum HDRBracket {
                         let p = SIMD2(Double(x) + (Double(sx) + 0.5) / 2, Double(y) + (Double(sy) + 0.5) / 2)
                         let q = scenepoint(p, center: center, cos: c, sin: s, shift: frame.shift)
                         var value = radiance(u: q.x / Double(width), v: q.y / Double(height), aspect: aspect)
-                        if frame.hasMovingObject, simd_distance(q, objectCenter) < objectRadius {
+                        if frame.object != nil, simd_distance(q, objectCenter) < objectRadius {
                             value = movingObjectRadiance
                         }
                         sum += value

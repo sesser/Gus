@@ -45,6 +45,7 @@ enum MergeKernels {
         using namespace metal;
 
         constant float3 lumaWeights = float3(0.2627, 0.6780, 0.0593);
+        constant float tapShare = 0.015625;
 
         /// MergeMath.hat: 1 - (2z - 1)^12 inside (0, 1), else 0; flat at 1 on
         /// the upper half when `openTop`, on the lower half when `openBottom`.
@@ -66,9 +67,10 @@ enum MergeKernels {
         // h0, h1, h2) puts the pixel, between its four nearest pixel centers
         // (by hand, so the result doesn't depend on the GPU's filtering), and
         // its exposure-normalized color times its weight goes in rgb, the
-        // weight in alpha. The weight looks at the brightest of the four
-        // samples that count: a pixel next to a clipped one is taken for
-        // clipped, since between them the frame's value means nothing.
+        // weight in alpha. The weight looks at the brightest of the samples
+        // that count (`MergeMath.tapShare` of the mix or more): a pixel next
+        // to a clipped one is taken for clipped, since between them the
+        // frame's value means nothing.
         // A pixel whose four samples are not all inside the frame adds
         // nothing. MergeMath.weight.
         "mergeAccumulate": """
@@ -92,9 +94,9 @@ enum MergeKernels {
             float4 c11 = frame.sample(frame.transform(f + float2(1.5f, 1.5f)));
             float3 rgb = mix(mix(c00.rgb, c10.rgb, t.x), mix(c01.rgb, c11.rgb, t.x), t.y);
             float m = max(max(c00.r, c00.g), c00.b);
-            if (t.x > 0.0f) { m = max(m, max(max(c10.r, c10.g), c10.b)); }
-            if (t.y > 0.0f) { m = max(m, max(max(c01.r, c01.g), c01.b)); }
-            if (t.x > 0.0f && t.y > 0.0f) { m = max(m, max(max(c11.r, c11.g), c11.b)); }
+            if (t.x >= tapShare) { m = max(m, max(max(c10.r, c10.g), c10.b)); }
+            if (t.y >= tapShare) { m = max(m, max(max(c01.r, c01.g), c01.b)); }
+            if (t.x >= tapShare && t.y >= tapShare) { m = max(m, max(max(c11.r, c11.g), c11.b)); }
             float g = clamp(ghost.sample(ghost.transform(d)).r, 0.0f, 1.0f);
             float w = mergeHat(m / clip, openTop, openBottom) * exposure * (1.0f - g);
             w = max(w, floorWeight);
@@ -111,16 +113,15 @@ enum MergeKernels {
         // Radiance to a picture: MergeToneMap.map.
         "mergeToneMap": """
         [[stitchable]] float4 mergeToneMap(coreimage::sample_t radiance, coreimage::sample_t guide,
-                                           float scale, float white2, float detail, float floorLuminance) {
+                                           float compression, float top, float detail, float floorLuminance,
+                                           float knee) {
             float3 e = max(radiance.rgb, 0.0f);
             float l = dot(e, lumaWeights);
             if (l <= 0.0f) { return float4(0.0f, 0.0f, 0.0f, 1.0f); }
-            float ls = max(l * scale, floorLuminance);
-            float logL = log(ls);
+            float logL = log(max(l, floorLuminance));
             float base = guide.r * logL + guide.g;
-            float bs = exp(base);
-            float bd = bs * (1.0f + bs / white2) / (1.0f + bs);
-            float ld = bd * exp((logL - base) * detail);
+            float ld = exp(compression * (base - top) + (logL - base) * detail);
+            if (ld > knee) { ld = knee + (1.0f - knee) * (1.0f - exp(-(ld - knee) / (1.0f - knee))); }
             float3 rgb = e * (ld / l);
             float m = max(max(rgb.r, rgb.g), rgb.b);
             if (m > 1.0f) {

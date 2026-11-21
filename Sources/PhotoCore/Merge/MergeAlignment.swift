@@ -80,12 +80,14 @@ public enum MergeAlignment {
     /// The homographies taking each frame onto `frames[reference]`, for frames
     /// given as reduced copies of one size. Throws `misaligned` naming the
     /// first frame that can't be lined up.
-    public static func align(_ frames: [MergeBitmap], reference: Int) throws -> [Homography] {
+    public static func align(_ frames: [MergeBitmap], reference: Int,
+                             progress: (_ done: Int) -> Void = { _ in }) throws -> [Homography] {
         let ranks = frames.map(equalizedLuminance)
         guard let referenceImage = grayImage(ranks[reference]) else { throw Failure.misaligned(frame: reference) }
         var result: [Homography] = []
         for (index, plane) in ranks.enumerated() {
             try Task.checkCancellation()
+            defer { progress(index + 1) }
             if index == reference {
                 result.append(.identity)
                 continue

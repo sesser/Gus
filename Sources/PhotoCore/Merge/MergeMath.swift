@@ -26,6 +26,13 @@ import Foundation
 ///   the reference keeps a small floor weight everywhere, so where every other
 ///   frame is masked the reference's pixel is the result (R10).
 public enum MergeMath {
+    /// A frame sampled between pixels counts a neighbor's brightness for its
+    /// weight when the neighbor makes at least this share of the mix (1/64):
+    /// a fraction of a pixel's movement then doesn't turn a clipped
+    /// neighbor's few percent into a clipped pixel, and a decision between
+    /// float and double rounding can't fall on an everyday share.
+    public static let tapShare: Double = 1.0 / 64
+
     /// The reference's floor weight: far below any frame's real weight (a
     /// hat value of 1e-4 is a frame within 0.0003% of black or of clipping).
     public static let referenceFloorWeight: Float = 1e-4

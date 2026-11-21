@@ -73,7 +73,7 @@ enum MergeBenchmark {
         report["ghostFractions"] = plan.ghosts.map { plane in
             Double(plane.values.reduce(0, +)) / Double(max(1, plane.values.count))
         }
-        report["toneMap"] = ["scale": plan.toneMap.scale, "white": plan.toneMap.white2.squareRoot()]
+        report["toneMap"] = ["compression": plan.toneMap.compression, "top": plan.toneMap.top]
         print("plan \(Int(ms(planTime))) ms; footprint \(footprint().current / 1_000_000) MB")
 
         let values = SidecarValues()

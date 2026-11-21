@@ -103,7 +103,9 @@ public struct HDRMerger: Sendable {
     /// Measures a merge from the frames' reduced copies (linear, all of one
     /// size). `metadataExposures` are the files' exposure values, for when
     /// the pixels can't tell.
-    public func plan(measuring bitmaps: [MergeBitmap], reference: Int, metadataExposures: [Double?]) throws -> Plan {
+    /// `aligned` is told how many frames are lined up so far.
+    public func plan(measuring bitmaps: [MergeBitmap], reference: Int, metadataExposures: [Double?],
+                     aligned report: (_ done: Int) -> Void = { _ in }) throws -> Plan {
         try MergeKernels.compile()
         let copies = bitmaps.map { $0.ciImage() }
         let ref = bitmaps[reference]
@@ -112,7 +114,7 @@ public struct HDRMerger: Sendable {
         }
         let homographies: [MergeAlignment.Homography]
         do {
-            homographies = try MergeAlignment.align(bitmaps, reference: reference)
+            homographies = try MergeAlignment.align(bitmaps, reference: reference, progress: report)
         } catch MergeAlignment.Failure.misaligned(let frame) {
             throw Failure.misaligned(frame: frame)
         }
@@ -179,7 +181,8 @@ public struct HDRMerger: Sendable {
     static func toneMap(_ radiance: CIImage, guide: CIImage, plan: MergeToneMap, extent: CGRect) throws -> CIImage {
         let kernel = try MergeKernels.colorKernel("mergeToneMap")
         guard let mapped = kernel.apply(extent: extent, arguments: [
-            radiance, guide, Float(plan.scale), Float(plan.white2), Float(plan.detail), MergeToneMap.floorLuminance,
+            radiance, guide, Float(plan.compression), Float(plan.top), Float(plan.detail), MergeToneMap.floorLuminance,
+            MergeToneMap.knee,
         ]) else { throw Failure.renderFailed }
         return mapped
     }
