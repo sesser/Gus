@@ -264,3 +264,78 @@ tolerance changed, no `PreviewCacheKey.currentPipelineVersion` bump, and no new
 docs only. Nothing in this pass adds a parser, subprocess, file write or
 network code beyond what the security review already covered (C13 only
 narrows the row reader), so `/security-review` does not need to run again.
+
+### Fifth pass
+
+Fifth pass, 2026-11-21. Reviewed `1b1e8d9` (the CI compile fix) and the
+conflict resolutions of the merge `26cce63` (develop `9bcac27` into the
+branch, `git show --remerge-diff`); nothing else. Build and tests: `swift
+build` clean; `swift test` 1,328 tests in 189 suites passed (84.3 s, macOS
+27.2); `MaskDetectionTests`, `Localization` and `Branding` also run alone,
+passed.
+
+**`1b1e8d9`: `resourceUnavailableCode = 23`.**
+
+- *The value.* `VNError.h` in the 27.2 SDK declares `VNErrorCode` with no
+  explicit values after `VNErrorOK = 0`: `…UnsupportedComputeStage`,
+  `…UnsupportedComputeDevice`, `…ResourceUnavailable`,
+  `…ResourceCorrupted`. A program compiled against the 27.2 SDK prints
+  `unsupportedComputeDevice` 22, `resourceUnavailable` 23, `resourceCorrupted`
+  24. The 26.5 and 26 SDKs end the enum at `UnsupportedComputeDevice` (no 23
+  or 24). Raw values of an `NS_ENUM` are ABI, so 23 can't change under a
+  later SDK.
+- *The CI failure and the fix, against an older SDK.* With `swiftc -typecheck
+  -sdk MacOSX26.5.sdk -target arm64-apple-macos15`, the old line
+  (`VNErrorCode.resourceUnavailable` inside `#available(macOS 27, *)`) fails
+  with "type 'VNErrorCode' has no member 'resourceUnavailable'". The new set
+  (four named cases plus the `Int` 23) type-checks. This is a snippet, not the
+  module; status.md records a whole-package build against the 26.5 SDK.
+- *Behavior on every OS.* On macOS 27 the set is the one `#available` built
+  before: the same five codes. On 15 and 26, Vision has no code 23 (the SDK
+  ends at 22), so the added member can't match anything Vision returns there.
+  The domain guard is unchanged (only `VNErrorDomain` codes are looked at).
+  `resourceCorrupted` (24) was Failed before and is Failed now. The `static
+  let Set<Int>` is `Sendable`; it is built once instead of on every call.
+- *AC11's test.* `requestsRunWithTheMeasuredSizes` passes an error only when
+  its detail begins `"<VNErrorDomain> 22:"`. The colon stops 220 or 22x from
+  matching, so a code 23 on a runner still fails the test, as C9 requires.
+  `classification` checks that 23's detail does not begin with code 22's.
+- *What the test pins.* With 23 taken out of `unavailableCodes`,
+  `classification` records "resource unavailable (23) should be unavailable",
+  so the test fails without the fix. Its `#expect(resourceUnavailableCode ==
+  unsupportedComputeDevice.rawValue + 1)` pins the derivation ("the case after
+  22"), not the SDK's own constant. No Xcode 26 SDK can name that constant, so
+  this is the most a test can pin on every runner, and the comment says the
+  same. The constant itself was checked above by compiling against 27.2.
+
+**`26cce63`: the hand-resolved conflicts.**
+
+- *String Catalog.* I compared the merge with a three-way merge of its two
+  parents and their base, computed key by key: 1,377 entries (the branch's
+  1,372 plus develop's 5 new ones). No key is missing, none is extra, no value
+  differs, no key is duplicated (checked with a JSON pairs hook), the
+  top-level fields are unchanged, and no conflict markers are left. The four
+  entries in the conflict ("Show presets as a list", "… as thumbnails", "Stop
+  detecting; nothing is added or changed", "Subject") and "Subject mask added.
+  %@" come out whole, in order. `HEAD`'s catalog is byte for byte the merge's.
+  `Localization` passes.
+- *`CLAUDE.md`.* Both Scope-so-far entries are kept whole (AI masks at line
+  1124, Preset list view at 1201), with a blank line between them, and the
+  markers are gone. Nothing outside the conflict changed.
+- *`docs/roadmap.md`.* Now lists only #150. Its lead sentence says #241 and
+  #88 left Now when they shipped. That is right on both sides: develop
+  removed #241, and the branch's Ship removed #88.
+
+New findings in this pass:
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C15 | Nit | `Tests/PhotoCoreTests/MaskDetectionTests.swift:319-321` | The comment says code 24 "is a failure, as is anything past it", but the loop checks only 24 (`resourceUnavailableCode + 1`). | None at run time. The comment claims more than the test pins: a later change that made 25 Unavailable would pass. Fix: say "Resource corrupted (24, macOS 27) is a failure". Or leave it. | Tests pin what they claim |
+| C16 | Nit (process) | `docs/roadmap.md:43` (`26cce63`) | The roadmap and `CLAUDE.md` conflicts were resolved by hand, with a new Now lead sentence. `docs/WORKFLOW.md` step 6 ("Another PR shipped first") says to take develop's side of what Ship wrote and run Ship again. The result for Now is right. But the Next history records #241's ship and not #88's, and still says #243 went to Next because "Now is full". Develop already said that, while its own Now line said a slot was free. | A reader of the roadmap's Next narrative doesn't learn that #88 shipped, and reads that Now is full when it has one item. | `docs/WORKFLOW.md` step 6. Fix: run product-manager in Ship mode again, as step 6 asks, or record that the main session accepts the hand merge. |
+
+Checked in this pass and fine: no new `#available` or `@available` in the
+commit; no UI string, migration, golden, tolerance or
+`PreviewCacheKey.currentPipelineVersion` change; the status.md **CI fix**
+section matches the code. The commit adds no parser, subprocess, file write
+or network code, and the merge's code came from develop's own reviewed PR
+(#251) with no code conflicts. `/security-review` does not need to run again.
