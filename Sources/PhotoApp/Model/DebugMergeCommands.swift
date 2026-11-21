@@ -120,7 +120,7 @@ enum DebugMergeCommands {
 
     static func nameLine(_ merge: MergeModel) -> String {
         guard let name = merge.resultName else { return "-" }
-        return name.text + (name.isFinal ? "" : " (unnumbered)")
+        return name.text + (name.isFinal ? "" : " (unnumbered)") + (merge.resultNameIsTentative ? " (secondary)" : "")
     }
 
     static func message(_ merge: MergeModel) -> String {

@@ -15652,13 +15652,13 @@
         }
       }
     },
-    "The originals are not changed, and your adjustments are not used: the photos are merged as they were shot." : {
+    "The originals are not changed, and your adjustments are not used." : {
       "comment" : "Merge to HDR sheet: caption under the result",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The originals are not changed, and your adjustments are not used: the photos are merged as they were shot."
+            "value" : "The originals are not changed, and your adjustments are not used."
           }
         }
       }

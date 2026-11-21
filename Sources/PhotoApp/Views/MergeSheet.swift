@@ -19,13 +19,13 @@ struct MergeSheet: View {
         VStack(spacing: 0) {
             MergeHeader(model: model)
                 .padding(.horizontal, 20)
-                .padding(.vertical, 14)
+                .padding(.vertical, MergeSheetMetrics.barPadding)
             Divider()
             MergeForm(model: model)
             Divider()
             buttons
                 .padding(.horizontal, 20)
-                .padding(.vertical, 14)
+                .padding(.vertical, MergeSheetMetrics.barPadding)
         }
         .frame(width: MergeSheetMetrics.width)
         .frame(minHeight: MergeSheetMetrics.minHeight, idealHeight: MergeSheetMetrics.idealHeight)
@@ -82,12 +82,17 @@ private struct MergeHeader: View {
     }
 }
 
-/// The sheet's size (design §5.7, D-H8): never taller than `idealHeight`;
+/// The sheet's size (design §5.7, D-H11): never taller than `idealHeight`;
 /// more content scrolls in the Form.
 enum MergeSheetMetrics {
     static let width: CGFloat = 560
     static let minHeight: CGFloat = 420
-    static let idealHeight: CGFloat = 600
+    /// The Form's content at three frames measured with `merge sheet` (517 pt),
+    /// plus the header, dividers and buttons (118 pt) and 20 pt of slack is
+    /// 655: over D-H11's cap of 640 after cuts i and ii, so the cap (cut iii).
+    static let idealHeight: CGFloat = 640
+    /// Vertical padding of the header and the button bar (D-H11 cut ii: 14 to 12).
+    static let barPadding: CGFloat = 12
 }
 
 private struct MergeForm: View {
@@ -97,50 +102,63 @@ private struct MergeForm: View {
 
     var body: some View {
         @Bindable var merge = merge
+        // Each caption shares the Form row of the control it explains (D-H11):
+        // a row of its own costs the grouped style's row padding on top of its text.
         Form {
-            Section(MergeText.photosSection) {
-                FramesTable(merge: merge)
-                if let selection = merge.selection {
-                    Caption(text: MergeText.referenceCaption(selection.referenceFrame.displayName))
-                    if selection.sameExposure {
-                        Label {
-                            Text(MergeText.sameExposureNote).fixedSize(horizontal: false, vertical: true)
-                        } icon: {
-                            Image(systemName: "info.circle")
+            // No "Photos" header (D-H11 cut i): the title and the table's column
+            // headings say it, and the table keeps "Photos" as its accessibility label.
+            Section {
+                VStack(alignment: .leading, spacing: 6) {
+                    FramesTable(merge: merge)
+                    if let selection = merge.selection {
+                        Caption(text: MergeText.referenceCaption(selection.referenceFrame.displayName))
+                        if selection.sameExposure {
+                            Label {
+                                Text(MergeText.sameExposureNote).fixedSize(horizontal: false, vertical: true)
+                            } icon: {
+                                Image(systemName: "info.circle")
+                            }
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
                         }
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
                     }
                 }
                 OptionBox(title: MergeText.autoAlign, caption: MergeText.autoAlignCaption, isOn: $merge.options.align)
                 OptionBox(title: MergeText.deghost, caption: MergeText.deghostCaption, isOn: $merge.options.deghost)
             }
             Section(MergeText.resultSection) {
-                Picker(MergeText.formatLabel, selection: $merge.format) {
-                    Text(MergeText.tiff).tag(MergeFormat.tiff)
-                    Text(MergeText.dng).tag(MergeFormat.dng)
+                VStack(alignment: .leading, spacing: 4) {
+                    LabeledContent(MergeText.formatLabel) {
+                        Picker(MergeText.formatLabel, selection: $merge.format) {
+                            Text(MergeText.tiff).tag(MergeFormat.tiff)
+                            Text(MergeText.dng).tag(MergeFormat.dng)
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .accessibilityLabel(MergeText.formatLabel)
+                    }
+                    Caption(text: merge.format == .tiff ? MergeText.tiffCaption : MergeText.dngCaption)
                 }
-                .pickerStyle(.segmented)
-                Caption(text: merge.format == .tiff ? MergeText.tiffCaption : MergeText.dngCaption)
                 LabeledContent(MergeText.nameLabel) {
                     let name = merge.resultName
                     Text(name?.text ?? "—")
                         .lineLimit(1)
                         .truncationMode(.middle)
                         .textSelection(.enabled)
-                        // The unnumbered candidate while the reference's folder is asked (§5.8).
-                        .foregroundStyle(name?.isFinal == false ? .secondary : .primary)
+                        .foregroundStyle(merge.resultNameIsTentative ? .secondary : .primary)
                         .help(name?.text ?? "")
                 }
                 if let selection = merge.selection {
-                    LabeledContent(MergeText.folderLabel) {
-                        Text(selection.referenceFrame.folder.path)
-                            .lineLimit(1)
-                            .truncationMode(.head)
-                            .help(selection.referenceFrame.folder.path)
+                    VStack(alignment: .leading, spacing: 4) {
+                        LabeledContent(MergeText.folderLabel) {
+                            Text(selection.referenceFrame.folder.path)
+                                .lineLimit(1)
+                                .truncationMode(.head)
+                                .help(selection.referenceFrame.folder.path)
+                        }
+                        Caption(text: MergeText.originalsCaption
+                            + (merge.framesInSeveralFolders ? " " + MergeText.severalFolders : ""))
                     }
-                    Caption(text: MergeText.originalsCaption
-                        + (merge.framesInSeveralFolders ? " " + MergeText.severalFolders : ""))
                 }
             }
         }

@@ -99,6 +99,14 @@ final class MergeModel {
         sheet?.name(format: format)
     }
 
+    /// The Name line is shown in secondary color: only the unnumbered
+    /// candidate (§5.8), or a refusal stands (D-H12), so it never reads as a
+    /// promise while Merge is off.
+    var resultNameIsTentative: Bool {
+        guard let name = resultName else { return false }
+        return !name.isFinal || refusal != nil
+    }
+
     // MARK: The job
 
     /// Where the running merge is, nil when none runs.

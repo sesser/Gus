@@ -97,7 +97,7 @@ enum MergeText {
     static var folderLabel: String { String(localized: "Folder", comment: "Merge to HDR sheet: the folder the result is saved in") }
 
     static var originalsCaption: String {
-        String(localized: "The originals are not changed, and your adjustments are not used: the photos are merged as they were shot.",
+        String(localized: "The originals are not changed, and your adjustments are not used.",
                comment: "Merge to HDR sheet: caption under the result")
     }
 
