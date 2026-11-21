@@ -5,66 +5,68 @@ import Testing
 import simd
 @testable import PhotoCore
 
-/// The merge's core on synthetic brackets (issue #150): radiance, ghosts and
-/// tone mapping, without files.
-@Suite("HDR merge core")
-struct HDRMergerTests {
-    static let width = 600
-    static let height = 400
+extension MemoryHeavy {
+    /// The merge's core on synthetic brackets (issue #150): radiance, ghosts and
+    /// tone mapping, without files.
+    @Suite("HDR merge core")
+    struct HDRMergerTests {
+        static let width = 600
+        static let height = 400
 
-    static func frames(_ frames: [HDRBracket.Frame], width: Int = width, height: Int = height) -> [CIImage] {
-        frames.map { HDRBracket.image($0, width: width, height: height).ciImage }
-    }
-
-    static func merge(_ bracket: [HDRBracket.Frame], reference: Int, width: Int = width, height: Int = height)
-        throws -> (HDRMerger, HDRMerger.Plan, CIImage) {
-        let merger = HDRMerger()
-        let images = frames(bracket, width: width, height: height)
-        let copies = images.map { MergeBitmap.render($0, context: merger.context)! }
-        let plan = try merger.plan(measuring: copies, reference: reference, metadataExposures: bracket.map { _ in nil })
-        return (merger, plan, try merger.radiance(plan, frames: images))
-    }
-
-    @Test("Three exposures merge to the scene's light, measured exposures within 1% of the truth")
-    func recoversRadiance() throws {
-        let bracket = [HDRBracket.Frame(ev: -2), HDRBracket.Frame(ev: 0), HDRBracket.Frame(ev: 2)]
-        let (merger, plan, radiance) = try Self.merge(bracket, reference: 1)
-        for (index, frame) in bracket.enumerated() {
-            let truth = pow(2, frame.ev)
-            print("exposure \(index): \(plan.frames[index].exposure) truth \(truth) clip \(plan.frames[index].clip)")
-            #expect(abs(plan.frames[index].exposure / truth - 1) < 0.01)
+        static func frames(_ frames: [HDRBracket.Frame], width: Int = width, height: Int = height) -> [CIImage] {
+            frames.map { HDRBracket.image($0, width: width, height: height).ciImage }
         }
-        let merged = try #require(MergeBitmap.render(radiance, context: merger.context))
-        let truth = HDRBracket.radianceImage(width: Self.width, height: Self.height)
-        // Away from edges: next to one, a fraction of a pixel of alignment
-        // error mixes in a neighbor up to 3,600 times brighter.
-        var worst: Float = 0
-        var compared = 0
-        for y in 1..<(Self.height - 1) {
-            for x in 1..<(Self.width - 1) {
-                var low = Float.infinity, high: Float = 0
-                for dy in -1...1 {
-                    for dx in -1...1 {
-                        let p = truth[x + dx, y + dy]
-                        let l = MergeBitmap.luminance(SIMD3(p.x, p.y, p.z))
-                        low = min(low, l)
-                        high = max(high, l)
-                    }
-                }
-                guard high < low * 1.25 else { continue }
-                compared += 1
-                let m = merged.rgb(x: x, y: y), p = truth[x, y], t = SIMD3(p.x, p.y, p.z)
-                worst = max(worst, simd_reduce_max(abs(m - t) / t))
+
+        static func merge(_ bracket: [HDRBracket.Frame], reference: Int, width: Int = width, height: Int = height)
+            throws -> (HDRMerger, HDRMerger.Plan, CIImage) {
+            let merger = HDRMerger()
+            let images = frames(bracket, width: width, height: height)
+            let copies = images.map { MergeBitmap.render($0, context: merger.context)! }
+            let plan = try merger.plan(measuring: copies, reference: reference, metadataExposures: bracket.map { _ in nil })
+            return (merger, plan, try merger.radiance(plan, frames: images))
+        }
+
+        @Test("Three exposures merge to the scene's light, measured exposures within 1% of the truth")
+        func recoversRadiance() throws {
+            let bracket = [HDRBracket.Frame(ev: -2), HDRBracket.Frame(ev: 0), HDRBracket.Frame(ev: 2)]
+            let (merger, plan, radiance) = try Self.merge(bracket, reference: 1)
+            for (index, frame) in bracket.enumerated() {
+                let truth = pow(2, frame.ev)
+                print("exposure \(index): \(plan.frames[index].exposure) truth \(truth) clip \(plan.frames[index].clip)")
+                #expect(abs(plan.frames[index].exposure / truth - 1) < 0.01)
             }
-        }
-        print("compared \(compared) pixels")
-        print("worst relative radiance error \(worst)")
+            let merged = try #require(MergeBitmap.render(radiance, context: merger.context))
+            let truth = HDRBracket.radianceImage(width: Self.width, height: Self.height)
+            // Away from edges: next to one, a fraction of a pixel of alignment
+            // error mixes in a neighbor up to 3,600 times brighter.
+            var worst: Float = 0
+            var compared = 0
+            for y in 1..<(Self.height - 1) {
+                for x in 1..<(Self.width - 1) {
+                    var low = Float.infinity, high: Float = 0
+                    for dy in -1...1 {
+                        for dx in -1...1 {
+                            let p = truth[x + dx, y + dy]
+                            let l = MergeBitmap.luminance(SIMD3(p.x, p.y, p.z))
+                            low = min(low, l)
+                            high = max(high, l)
+                        }
+                    }
+                    guard high < low * 1.25 else { continue }
+                    compared += 1
+                    let m = merged.rgb(x: x, y: y), p = truth[x, y], t = SIMD3(p.x, p.y, p.z)
+                    worst = max(worst, simd_reduce_max(abs(m - t) / t))
+                }
+            }
+            print("compared \(compared) pixels")
+            print("worst relative radiance error \(worst)")
 
-        #expect(worst < 0.02)
+            #expect(worst < 0.02)
+        }
     }
 }
 
-extension HDRMergerTests {
+extension MemoryHeavy.HDRMergerTests {
     /// The frames' tone-mapped merge rendered on the GPU, and the CPU
     /// reference's, with the same plan.
     @Test("AC10: the merge and tone mapping match their CPU reference")
@@ -256,30 +258,32 @@ extension HDRMergerTests {
     }
 }
 
-@Suite("HDR merge DNG")
-struct MergeDNGTests {
-    @Test("The 16-bit linear DNG decodes in the system RAW decoder with the light it was given (Spike 1)")
-    func dngRoundTrip() throws {
-        let folder = FileManager.default.temporaryDirectory.appending(path: "merge-dng-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: folder) }
-        let radiance = HDRBracket.radianceImage(width: 400, height: 300)
-        let url = folder.appending(path: "a_HDR.dng")
-        let merger = HDRMerger()
-        try MergeOutput.writeDNG(radiance.ciImage, context: merger.context,
-                                 metadata: MergeOutput.Metadata(sourceProperties: [:], values: SidecarValues()), to: url,
-                                 brightest: 3.6)
-        #expect(SystemRAWDecoder.reads(url))
-        #expect(DNGLayout(contentsOf: url)?.hasFloatingPointRaw == true)
-        // The linear decode leaves out BaselineExposure: the samples, the light over 3.6.
-        let decoded = try MergeDecoder.linearImage(url, source: .systemRAW, longEdge: nil)
-        let bitmap = try #require(MergeBitmap.render(decoded, context: merger.context))
-        for (x, y) in [(50, 50), (300, 80), (200, 250)] {
-            let written = radiance[x, y], read = bitmap.rgb(x: x, y: y) * 3.6
-            // Half floats round by 2^-11; the system decoder's own highlight
-            // handling moved the brightest by up to 1.5% when measured.
-            for c in 0..<3 {
-                #expect(abs(read[c] - written[c]) <= 0.03 * written[c], "at \(x),\(y) channel \(c): \(read) vs \(written)")
+extension MemoryHeavy {
+    @Suite("HDR merge DNG")
+    struct MergeDNGTests {
+        @Test("The 16-bit linear DNG decodes in the system RAW decoder with the light it was given (Spike 1)")
+        func dngRoundTrip() throws {
+            let folder = FileManager.default.temporaryDirectory.appending(path: "merge-dng-\(UUID().uuidString)")
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: folder) }
+            let radiance = HDRBracket.radianceImage(width: 400, height: 300)
+            let url = folder.appending(path: "a_HDR.dng")
+            let merger = HDRMerger()
+            try MergeOutput.writeDNG(radiance.ciImage, context: merger.context,
+                                     metadata: MergeOutput.Metadata(sourceProperties: [:], values: SidecarValues()), to: url,
+                                     brightest: 3.6)
+            #expect(SystemRAWDecoder.reads(url))
+            #expect(DNGLayout(contentsOf: url)?.hasFloatingPointRaw == true)
+            // The linear decode leaves out BaselineExposure: the samples, the light over 3.6.
+            let decoded = try MergeDecoder.linearImage(url, source: .systemRAW, longEdge: nil)
+            let bitmap = try #require(MergeBitmap.render(decoded, context: merger.context))
+            for (x, y) in [(50, 50), (300, 80), (200, 250)] {
+                let written = radiance[x, y], read = bitmap.rgb(x: x, y: y) * 3.6
+                // Half floats round by 2^-11; the system decoder's own highlight
+                // handling moved the brightest by up to 1.5% when measured.
+                for c in 0..<3 {
+                    #expect(abs(read[c] - written[c]) <= 0.03 * written[c], "at \(x),\(y) channel \(c): \(read) vs \(written)")
+                }
             }
         }
     }

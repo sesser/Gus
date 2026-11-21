@@ -42,19 +42,28 @@ public enum MergeOutput {
         /// The library's values for the reference: rating, flag, label,
         /// keywords and the descriptive fields.
         public var values: SidecarValues
-        /// This merge's own: a new document id (`xmpMM:DocumentID` and
-        /// `InstanceID`) and the time it was made (`xmp:CreateDate`), so two
-        /// merges of the same frames are two files, never one content the
-        /// catalog takes once (code review C1).
+        /// This merge's own document id (`xmpMM:DocumentID` and `InstanceID`),
+        /// so two merges of the same frames are two files, never one content
+        /// the catalog takes once (code review C1, PRD R19). Every date the
+        /// file carries is the reference's capture date (R7, A3; QA Q4).
         public var documentID: UUID
-        public var created: Date
 
-        public init(sourceProperties: [String: any Sendable], values: SidecarValues, documentID: UUID = UUID(),
-                    created: Date = Date()) {
+        public init(sourceProperties: [String: any Sendable], values: SidecarValues, documentID: UUID = UUID()) {
             self.sourceProperties = sourceProperties
             self.values = values
             self.documentID = documentID
-            self.created = created
+        }
+
+        /// The reference's capture date for XMP (`2016-05-21T08:43:02`, with
+        /// its offset when the file records one), from its EXIF; nil without one.
+        var xmpCaptureDate: String? {
+            let exif = sourceProperties[kCGImagePropertyExifDictionary as String] as? [String: any Sendable] ?? [:]
+            guard let original = exif[kCGImagePropertyExifDateTimeOriginal as String] as? String else { return nil }
+            let parts = original.split(separator: " ")
+            guard parts.count == 2 else { return nil }
+            let date = parts[0].replacingOccurrences(of: ":", with: "-")
+            let offset = (exif[kCGImagePropertyExifOffsetTimeOriginal as String] as? String) ?? ""
+            return date + "T" + parts[1] + offset
         }
 
         /// The properties of `url`'s first image, as ImageIO reads them.
@@ -442,7 +451,7 @@ public enum MergeOutput {
     }
 
     /// Every library value as XMP, as a sidecar holds them, with the merge's
-    /// document id and creation time.
+    /// document id and the reference's capture date as `xmp:CreateDate`.
     static func xmp(_ metadata: Metadata) -> CGImageMetadata {
         let document = XMPDocument.empty()
         document.apply(metadata.values, previous: nil)
@@ -454,8 +463,9 @@ public enum MergeOutput {
         CGImageMetadataSetValueWithPath(xmp, nil, "xmpMM:DocumentID" as CFString, id as CFString)
         CGImageMetadataSetValueWithPath(xmp, nil, "xmpMM:InstanceID" as CFString,
                                         ("xmp.iid:" + metadata.documentID.uuidString.lowercased()) as CFString)
-        let date = ISO8601DateFormatter().string(from: metadata.created)
-        CGImageMetadataSetValueWithPath(xmp, nil, "xmp:CreateDate" as CFString, date as CFString)
+        if let date = metadata.xmpCaptureDate {
+            CGImageMetadataSetValueWithPath(xmp, nil, "xmp:CreateDate" as CFString, date as CFString)
+        }
         return xmp
     }
 

@@ -13,12 +13,12 @@ Spec: the PRD (issue #150 body, approved and revised 2026-11-20) and
 - `swift build` on `develop` at `ed423d7` (plus the design commit): clean.
 - `swift test` before any change: 1253 tests in 179 suites passed (70.6 s).
 
-## Latest results (2026-11-20, after the second review pass)
+## Latest results (2026-11-20, after the QA fixes)
 
 - `swift build`: clean; no new warnings (the two in `SmartAlbumTests` and
   `VirtualCopiesTests` were there before).
-- `swift test`: 1307 tests in 188 suites passed (237.6 s), the FAT32 test
-  running against a real image. (After the first review: 1303; at the first
+- `swift test`: 1307 tests in 189 suites passed (259.8 s), the FAT32 test
+  running against a real image (189: the `MemoryHeavy` parent suite of Q3). (After the first review: 1303; at the first
   Done: 1291.) No golden moved;
   `UPDATE_GOLDENS` was not run; `PreviewCacheKey.currentPipelineVersion`
   unchanged (13).
@@ -248,6 +248,16 @@ running; where the probe works, a failure to attach the test's own image is an
 issue. Test only. `swift test`: 1307 tests in 188 suites passed (239.1 s), the
 FAT32 test ran.
 
+### QA findings (2026-11-20, `qa.md`)
+
+| Finding | Fix | Check |
+|---|---|---|
+| Q1 (Blocker) Redo of Merge to HDR deadlocked the write chain: the Redo ran inside `persist` (the chain's tail) and called `show`, whose `writes.read` waits for the tail, itself | After the catalog puts the photo back, `show` is scheduled with `writes.afterPendingWrites`, which runs once the Redo's write has ended. Audit of the merge's other chain users: Undo calls `hide` (no read); the catalogue step (`onWriteChain`) only inserts; the sidecar step only writes; the landing `show` after a merge runs from the job's own task, not the chain. `show`'s doc now says never to call it from inside a write | Debug script on a fresh bundle and scratch library (QA's script 11): merge, `undo`, `redo`, `print items` shows `RAW_102_HDR` back; a rating of 5 given afterwards is in `catalog.sqlite` after quit (`sqlite3`: `RAW_101.dng\|5`); a merge, Undo, Redo of a JPEG bracket, then a rating of 3 on another photo, is saved too, and the next merge sheet opens. `LibraryModel` is in the app target, which `swift test` can't load, so this check is the debug script's. Proposed follow-up below: make `WriteChain.read` refuse rather than wait when called from its own tail |
+| Q2 `quit` hung with the merge sheet up | The script's `quit` closes `showsMergeSheet` too | `merge sheet; quit` ends (exit 0) |
+| Q3 `ImportHashMemoryTests` measured the merge suites' memory | A parent suite `MemoryHeavy` (`.serialized`, which reaches nested suites) holds `ImportHashMemoryTests` and the merge suites that decode frames (`HDRMergerTests`, `MergeDNGTests`, `HDRMergeJobTests`, `MergeCommandTests`, `MergeSafetyTests`, `MergeAlignmentTests`), so none of them overlaps another | Full suite |
+| Q4 dates in the written files | Decided: every date is the reference's capture date (R7, A3). `xmp:CreateDate` is the reference's `DateTimeOriginal` (with its offset when recorded), so ImageIO's EXIF `DateTimeDigitized` and IPTC creation date follow it in the TIFF; the DNG writes the same. R19's uniqueness comes from `xmpMM:DocumentID`/`InstanceID` alone | `mergesToTIFF` and `mergesToDNG` read DateTimeOriginal, DateTimeDigitized and xmp:CreateDate back (all the capture date); `mergesToTIFF` still finds two merges' files with different SHA-256 and the same pixels; exiftool on the real bracket's TIFF and DNG shows one date everywhere, `-validate` OK |
+| Q5 debug `photocli merge` slow | Recorded in `docs/PROFILING.md`: about 35 s to measure three 1536 x 1024 frames in a debug build, a few seconds in release; time release builds. Moving the sorts to Accelerate (tried: same order, pixel-identical TIFF on the real bracket) made no measurable difference in debug (34.9 s), because the time is the measuring's per-pixel Swift loops, so it was not kept | Measured with `.build/debug/photobench merge` |
+
 Ruled with no code (design §19 D-H5, RI-H4): numbering by stem needs no
 caption; a merged DNG chosen beside its own source raws is neither flagged nor
 refused in v1. New manual checks M7 and M8 are in `review.md`.
@@ -353,6 +363,12 @@ Ruled at design review (D-H1 to D-H4, design.md §19), as built:
 - `photocli merge` and `photobench merge` are new commands.
 
 ## Proposed follow-ups
+
+- **`WriteChain.read` called from inside a write waits for itself**
+  (enhancement or bug, PhotoCore): QA Q1 was this mistake in the merge's Redo.
+  The chain could notice that the caller is its own running tail and throw
+  (or read without waiting) instead of hanging the window's saving for the
+  session. Any future undo step that reloads its list would be protected.
 
 (SidecarSync's `stem.xmp` fallback is filed as bug #248.)
 

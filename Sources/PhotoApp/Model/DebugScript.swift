@@ -838,6 +838,7 @@ enum DebugScript {
             // An open sheet would keep the app from quitting; SwiftUI's close
             // through their bindings.
             model.showsExportSheet = false
+            model.showsMergeSheet = false
             model.showsLookTableSheet = false
             model.showsPresetSheet = false
             try? await Task.sleep(for: .milliseconds(500))

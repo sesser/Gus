@@ -308,6 +308,8 @@ final class MergeModel {
 
     /// Puts the merged photo on screen when the source holds it; it takes the
     /// selection only when nothing was touched meanwhile (`MergeLanding`).
+    /// Reads through the write chain (`writes.read`), so never from inside a
+    /// write: it would wait for itself.
     private func show(_ versionID: Int64?, startedTargets: [Int64]) async {
         guard let library else { return }
         let filter = library.filter
@@ -351,7 +353,12 @@ final class MergeModel {
                     await self?.hide(step)
                 } else if let removed = step.removed {
                     if try await catalog.restoreMergedMaster(removed, fileAt: step.url) {
-                        await self?.show(step.master.versionID, startedTargets: [])
+                        // Not here: this runs as the write chain's tail, and `show`
+                        // reads through the chain, which would wait for this very
+                        // write and never return (QA Q1). Once it has ended.
+                        model.writes.afterPendingWrites {
+                            await self?.show(step.master.versionID, startedTargets: [])
+                        }
                     } else {
                         model.report(MergeText.notAddedBack(step.url.lastPathComponent), action: MergeText.title,
                                      warning: true)

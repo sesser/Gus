@@ -520,7 +520,13 @@ DNG 0.18 s; peak footprint 2.16 GB for a TIFF (about 800 MB of it the system
 RAW decoder's own working set). Rendering the output in bands of 512 rows and
 holding each frame as half floats took the peak down from 4.24 GB.
 `photobench generate --brackets N` writes scratch series to merge
-(`docs/features/hdr-merge/status.md`, Spikes).
+(`docs/features/hdr-merge/status.md`, Spikes). A debug build (what `swift run photocli` runs) is
+far slower: about 35 s to measure three 1536 x 1024 frames
+(`.build/debug/photobench merge`, 2026-11-20), against a few seconds in
+release. The time is the measuring's per-pixel loops in plain Swift (ranks,
+ghost tests, box filters, sorts), which only the optimizer makes fast; moving
+the sorts to Accelerate changed nothing measurable, so it was not kept. Use
+`swift run -c release photocli merge …` for anything timed.
 
 ## Reproducing
 
