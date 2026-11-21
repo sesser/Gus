@@ -6,18 +6,19 @@ Owner: swift-macos-engineer. Branch `feature/hdr-merge` (worktree `Gus-hdr-merge
 Spec: the PRD (issue #150 body, approved and revised 2026-11-20) and
 [`design.md`](design.md).
 
-**State: Done** (2026-11-20). Every criterion built and tested; nothing blocked. Next: code review and design review, then QA.
+**State: Done** (2026-11-20, after the review fixes below). Every criterion of the PRD as revised (prd4: R4 widened to the stem, R19, AC2a, AC15) built and tested; nothing blocked. Next: code review's second pass (and the designer for the three new strings), then QA.
 
 ## Baseline
 
 - `swift build` on `develop` at `ed423d7` (plus the design commit): clean.
 - `swift test` before any change: 1253 tests in 179 suites passed (70.6 s).
 
-## Latest results (2026-11-20, at Done)
+## Latest results (2026-11-20, after the review fixes)
 
 - `swift build`: clean; no new warnings (the two in `SmartAlbumTests` and
   `VirtualCopiesTests` were there before).
-- `swift test`: 1291 tests in 186 suites passed (222.6 s). No golden moved;
+- `swift test`: 1303 tests in 187 suites passed (214.8 s). (At the first
+  Done: 1291 in 186.) No golden moved;
   `UPDATE_GOLDENS` was not run; `PreviewCacheKey.currentPipelineVersion`
   unchanged (13).
 - `Scripts/build-app.sh all`: builds both apps.
@@ -44,7 +45,7 @@ LinearRaw, in IFD0: `CIRAWFilter.nativeSize` is zero; only LibRaw reads it,
 and then the loupe has no HDR view and other apps can't open it). It reads the
 same file with 16-bit (half) floats, which is also what Lightroom writes for
 its HDR merges (the owner's `10M10354-HDR.dng`: 16-bit float, deflate). So the
-merge writes **16-bit floating point** (`MergeOutput.dngBitsPerSample`, one
+merge writes **16-bit floating point** (`LinearDNGWriter.bitsPerSample`, one
 constant). Half floats hold about 30 stops at 11 bits of precision, more than
 any bracket.
 
@@ -183,6 +184,7 @@ Written from published sources only; no code from another project.
 |---|---|---|
 | AC1 | Done | Debug script (below): `print merge` gives canMerge false for one photo and for one video ("fewer than two"), while the sheet is up ("sheet up") and while a merge runs ("running"); true with three; the sheet opens with a video among three and refuses. The grid's context menu lists Merge to HDR… after Duplicate. `menuitems` shows the item and ⇧⌘L (enabled state not readable from a shell launch: no key window) |
 | AC2 | Done | `HDRMergeJobTests.mergesToTIFF` (hashes unchanged, folder, `_HDR-2`), `existingFileUntouched`, `MergeSelectionTests.naming` |
+| AC2a | Done | `MergeSelectionTests.numbersPastTheStem` (a DNG after a TIFF is `-2`, an orphan `.xmp`, `X_HDR.DNG` against `.dng`, `-3` after `.tif` and `-2.dng`), `mergesToTIFF` (TIFF, TIFF, DNG: `-3.dng`), `ownSidecars` (each result's sidecar holds its own rating) |
 | AC3 | Done | `mergesToTIFF` (0 EV frame second in time names it), `firstByTimeNames`, `MergeSelectionTests.orderAndReference`, `earliestWithoutCompensation` |
 | AC4 | Done | `mergesToTIFF` (16-bit, three samples, Display P3, catalogued with hash in the project), `mergesToDNG`, `sidecarWhenEnabled` |
 | AC5 | Done | `mergesToTIFF` (library values equal; the file's title, caption, keywords, rating, label, camera) |
@@ -195,11 +197,46 @@ Written from published sources only; no code from another project.
 | AC12 | Done | `MergeSelectionTests` (every refusal and their order), `readOnlyFolderRefused` |
 | AC13 | Done | `undoAndRedo` (catalog); debug script: `print undo` reads "Merge to HDR", Undo takes the photo out (selection back to the three frames, Activity names the path, the file stays), Redo puts it back |
 | AC14 | Done | `MergeCommandTests.mergesFromTheCommandLine` (path printed, refused while locked, refused for one frame) |
+| AC15 | Done | `mergesToTIFF` (a second merge: its own row, a different SHA-256, the same decoded pixels; then a DNG of the same frames, catalogued), `againAfterRemoval` (first photo removed, its file left: the next merge is `-2` and catalogued) |
 
 Rules behind the UI, unit-tested in PhotoCore: `MergeRuleTests` (the quit
 question while merging, removal off while merging, the landing rule),
 `BrowserStateTests` (File ▸ Stop's job), `LibraryModalTests` (the sheet is a
 `LibraryModal`), `RAWDecodeGraphTests` (the merge's decoder keys its image).
+
+## Review findings (2026-11-20)
+
+Code review (`code-review.md`), design review (`review.md`) and security
+review (`security-review.md`), fixed in `46b5107` and `a3a597d`.
+
+| Finding | Fix | Test |
+|---|---|---|
+| C1 (Blocker) merging the same frames again wrote a byte-identical file the catalog couldn't take | Every merge's XMP (TIFF and DNG) carries a new `xmpMM:DocumentID`/`InstanceID` and its `xmp:CreateDate` (PRD R19). A content the catalog still refuses (`MergeCatalogFailure.sameContent`) fails the job and removes the file; `alreadyInLibrary` now means only the same path with the same content (another import catalogued this very file) | `mergesToTIFF` (second run has its own row and hash, same pixels), `sameContentRefused` |
+| C2 Stop and Quit didn't wait for cleanup | `PhotoApplication` awaits `merge.waitUntilDone(timeout: 10 s)` before terminating | By reading (an app-delegate path); manual check M4 |
+| C3 a TIFF and a DNG of one bracket shared a stem and a sidecar | `MergeNaming` numbers the result past any file or master with the same stem, any extension, compared as the file system does (PRD R4 as widened, A12). `ExportNaming.freeName` is gone; `MasterFiles.Names.containsStem` added. SidecarSync's fallback is bug #248 | `numbersPastTheStem`, `ownSidecars` |
+| C4 Undo after a failed Redo reported a removal | Reports and hides only when a photo was taken out | By reading |
+| C5 32-bit comments and default | `LinearDNGWriter` writes half floats only (`bitsPerSample` 16); comments fixed | `MergeDNGTests.dngRoundTrip` (now asserts the system decoder reads it, values within 3 %) |
+| F1 guide | DNG "opens as bright as the reference but flat"; the landing sentence names the loupe, review and comparison | — |
+| F2 Name row | One line, truncated in the middle, full name as tooltip | Manual M1 |
+| M1 no pixel or memory bound | `MergeLimits.maximumPixels` = 150 MP a frame (the cap LibRaw already has, above every current camera); `frameMemoryBudget` = half of physical memory for the held frames (8 bytes a pixel; the other half for the RAW decoder's 0.8–1.5 GB, Core Image, the copies and the app). Refused in the sheet from the catalog's sizes (`tooLarge`, `tooMuchMemory`), again from each decoder's size before anything is rendered at it (`MergeDecoder`) and before a frame is held (`fullFrame(budget:)`). The TIFF is encoded from a provider that renders 512 rows at a time (no whole-image buffer; peak for the 16 MP bracket 2.06 GB) | `MergeSafetyTests.refusedBySize`, `refusedByHeader` (a 550 KB PNG of 180 MP: refused, nothing written), `budgetBeforeHolding` |
+| M2 DNG offsets past 4 GiB | `LinearDNGWriter` checks the size before creating the file (`Failure.tooLarge`) | `dngTooLarge` |
+| L1 hidden name 46 bytes longer than the result | Hidden name `.merge-<UUID>.partial`; the result's stem is shortened so the name fits 255 bytes | `longNames` |
+| L2 delete by path | The written file's device and inode are kept; it is removed only while the name still holds it | By reading (`FileIdentity`) |
+| L3 absurd exposure metadata | Not finite or not positive counts as unknown; ratios outside 2^±16 are not believed (equal exposure assumed); the same-exposure note ignores non-finite values | `absurdExposure` |
+| L4 stale mount path in `photocli` | Online only by the volume's identity, as the app | By reading |
+| L5 paths in public logs | Errors logged `.private` | — |
+| L6 `.partial` after a crash | Stop and Quit: C2. A sweep of old `.partial` files is not built (optional); the guide says Control-C on `photocli merge` can leave one | — |
+| L7 hard-link fallback for any errno | Falls back only for `ENOTSUP`, `EOPNOTSUPP`, `EPERM`, with `renamex_np(RENAME_EXCL)`; any other error is a write failure | `linkFallback` |
+| L8 unchecked stem and path | `MergeNaming.isPlainPlace`: the name is the relative path's last part, no empty, `.`, `..` or NUL part, not absolute; else `invalidName` | `plainPlaces` |
+
+**Heads-up for the merge with #88 (`feature/ai-masks`).** #88's migration v15
+adds `editHistory.maskRasters`. `Catalog.removeMergedMaster` and
+`restoreMergedMaster` (`Catalog/MergedMasters.swift`) list the history
+columns by name (`id, versionId, label, createdAt, stack`), so after both
+land they would drop `maskRasters` on Undo/Redo of a merge, and #88's launch
+cleanup would then delete rasters those rows name. **Whichever branch merges
+second must add the column to those two queries** (as #88 does for the
+virtual-copy undo).
 
 ## Debug-script checks
 
@@ -233,6 +270,10 @@ of the library per run, every launch with `--library-root`.
 - `about quitask merging`: "Quit While Merging?", "The merge is stopped and
   nothing is added.", Keep Merging, on the library window.
 
+After the review fixes, on a fresh bundle and scratch library: three merges
+in a row from the app (each a new photo with its own row; `print items` lists
+three), the TIFF banded writer's output looks as before on the real bracket.
+
 ## For a person (not scriptable here)
 
 - M1 to M7 of design §16 (the sheet's look, a real ⇧⌘L with a real keyboard and
@@ -251,25 +292,24 @@ of the library per run, every launch with `--library-root`.
 
 ## Requirements issues
 
-- **RI-E1 (R5, Open question 1, design §5.3 caption).** The PRD and design say
-  the DNG is 32-bit floating point. The system's RAW decoder doesn't read such
-  a file (Spike 1), so the app's own loupe couldn't show it as HDR and other
-  apps couldn't open it. Built: 16-bit floating point, as Lightroom's merges
-  are; the DNG caption reads "16-bit floating point, not tone-mapped. Tone it
-  in the Adjust tab." (the design's sentence with 16 for 32). Options: (a) 16-bit
-  as built (recommended); (b) 32-bit, readable by LibRaw only (no HDR view in
-  the loupe, no other app); (c) both, a choice (more UI, no benefit seen).
-- **RI-E2 (R6, AC4).** AC4 says a sidecar exists beside the result "exactly
-  when sidecars are enabled"; the design says the result gets its sidecar "as
-  any new master does". The app writes a sidecar only when there are library
-  values to hold (rating, flag, label, keywords, descriptive fields); a merge
-  of an unrated reference with nothing else set gets none, as an import does.
-  Built as the design says; the test sets a rating. Recommended: AC4 reads
-  "exactly when sidecars are enabled and the photo has values to write".
+- **RI-E1** (16-bit float DNG) and **RI-E2** (a sidecar only when the photo
+  has values to write): ruled by the product manager 2026-11-20 and recorded
+  in the PRD (R5, R6, AC4, A10). One correction for the PRD's Revisions: the
+  bit depth's one constant is now `LinearDNGWriter.bitsPerSample`
+  (`MergeOutput.dngBitsPerSample` was removed by code review C5).
+- None open.
 
 ## Design questions
 
-None blocking. Recorded deviations, for the designer to confirm at review:
+- **New strings for the designer (security review M1, L8, code review C1),**
+  written after §6's pattern, to confirm: "“%@” is too large to merge. A photo
+  can have at most %lld megapixels." (sheet and Activity), "These photos are
+  too large to merge together on this Mac. Select fewer." (sheet), "“%@” has a
+  name or place a merged photo can't be saved beside." (Activity: a damaged
+  library), "The library already has a photo with the same content."
+  (Activity, after C1's fix practically unreachable).
+
+Ruled at design review (D-H1 to D-H4, design.md §19), as built:
 
 - The quit alert's buttons are QuitGuard's existing **Keep Merging** and
   **Stop and Quit** (design §7.4 wrote "Quit … as the other quit alerts have
@@ -287,6 +327,8 @@ None blocking. Recorded deviations, for the designer to confirm at review:
 - `photocli merge` and `photobench merge` are new commands.
 
 ## Proposed follow-ups
+
+(SidecarSync's `stem.xmp` fallback is filed as bug #248.)
 
 - **Recover the camera's response curve for JPEG brackets** (enhancement):
   non-raw frames are linearized by their color profile only, so a camera's
