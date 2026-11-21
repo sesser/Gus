@@ -518,3 +518,38 @@ by a PhotoCore test (C12).
 - No `/security-review` is needed for this pass. It adds no parser, subprocess,
   file placement or network code: the date change only formats values already
   read from the reference.
+
+## Fifth pass (short)
+
+Owner: code-reviewer. Date: 2026-11-20. Reviewed: `feature/hdr-merge`,
+`bb2ab53..d635e12` (one commit: C11 and C12). Build and tests: `swift build`
+clean; `swift test` 1309 tests in 189 suites passed (262.2 s), the FAT32 test
+(C6) and both new tests included. Also run here: `exiftool -validate` on XMP
+packets carrying the edge-case dates below.
+
+### Verdict
+
+Ready for QA's rerun. C11 and C12 are fixed. One new nit (C13), not blocking:
+the offset check tests the shape, not the range, so an out-of-range offset from a
+damaged file still reaches `xmp:CreateDate`.
+
+### Follow-up (C11, C12)
+
+| # | State | Commit | Note |
+|---|---|---|---|
+| C11 | Fixed, one nit (C13) | `d635e12` | `xmpCaptureDate` appends `OffsetTimeOriginal` only when `isTimeOffset` accepts it: exactly `Z`, or six characters `[+-]DD:DD` with ASCII digits (`isASCII && isNumber`, so full-width or other Unicode digits are refused). The edge cases: `+5:30` (5 characters), lowercase `z`, `+02:00 ` with a trailing space, the blank `   :  ` and an empty string are all refused, and the date is written without an offset. That date is valid XMP: W3C-DTF allows a local time with no zone, and exiftool `-validate` gives `2016-05-21T08:43:02` OK. Losing the offset in those cases is right. EXIF 2.31 writes `±HH:MM` only, never `Z` or `z`, and ImageIO drops the terminating NUL, so no well-formed camera value is lost. `+24:00` is accepted: see C13. `MergeSafetyTests.captureDateOffset` covers `+02:00`, `-05:30`, `Z`, the blank offset, `+2:00`, no offset and no date. A unit test on `xmpCaptureDate` instead of a fixture case in `mergesToDNG` is fine: `writeXMP` (`MergeOutput.swift:479`) writes the string as it is, and `status.md` records an exiftool check of real merged DNGs and TIFFs with all three kinds of offset. |
+| C12 | Fixed | `d635e12` | `afterPendingWritesFromInsideAWrite` traced. W1 runs, calls `afterPendingWrites` (body A waits on the tail, which is the held write W3, queued before W1 ran), queues W5 (savedRating 9), then appends 2. A cannot start before the gate opens, so `!contains(4)` holds deterministically. Once the gate opens, W3 sets 7 and appends 3. A and W5 both wait on W3 and may resume in either order, but A's `read` goes through `settled()`, which waits for W5, so `read == 9` either way. The prefix `[1, 2, 3]` holds either way. Mutations it catches: an `afterPendingWrites` that does not wait fails the order checks. One that becomes a write itself (`enqueue`) deadlocks the inner `read` (it waits for its own task), and the test hangs, as Q1's Redo did. The suite uses no `.timeLimit`, so a hang is its failure, the same as the rest of the repository. As said in the fourth pass, nothing in `swift test` can catch `show` moving back inside the write in `MergeModel`. |
+
+### Findings (fifth pass)
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C13 | Nit | `Sources/PhotoCore/Merge/MergeOutput.swift:73-80` | `isTimeOffset` checks the form `[+-]DD:DD` but not the range of the hours and minutes. | A reference whose `OffsetTimeOriginal` reads `+24:00`, `+15:00` or `+99:99` (a damaged or hand-edited file: cameras write offsets from -12:00 to +14:00) gets `xmp:CreateDate` `2016-05-21T08:43:02+24:00`. exiftool `-validate` reports "[minor] TZhr out of range for XMP:CreateDate" (for `+99:99`, "TZhr+TZmin out of range"); `+14:00` and `-12:00` validate OK. The EXIF dates and the catalog are unaffected. Same family as C11, much rarer. A related case outside C11: `DateTimeOriginal` itself is reshaped but not checked, so a camera with an unset clock that writes `0000:00:00 00:00:00` gives `0000-00-00T00:00:00` ("Month+Day out of range"). That copies what the reference already says in its EXIF. Suggestion, optional: accept hours up to 14 and minutes up to 59, or close this as accepted. | Correctness (dates written to outside files) |
+
+### Still open for the main session
+
+- Unchanged from the fourth pass: the #88 `maskRasters` heads-up, F5's place in
+  the guide (designer), and filing the `WriteChain.read`-from-its-own-tail
+  follow-up.
+- No `/security-review` is needed for this pass: no parser, subprocess, file
+  placement or network code changed.

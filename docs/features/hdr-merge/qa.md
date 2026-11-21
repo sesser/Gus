@@ -7,6 +7,8 @@ executable records minos 15.0 and sdk 27.2.
 
 ## Verdict
 
+**Superseded by the rerun in Follow-up (d635e12): Q1 to Q5 are fixed and the feature is ready for the owner's sign-off.** What follows is the first run, at d3545ad.
+
 **Does not pass yet: one Blocker (Q1).** Redo of "Merge to HDR" deadlocks the
 window's catalog write chain: the redone photo never comes back on screen, and
 every later write of the session (a rating, an edit, the next merge's catalog
@@ -286,7 +288,7 @@ at the end of this section.
 - **P4 (design M4). Quit during a merge.** ⌘Q while a merge runs: the question
   "Quit While Merging?" on the library window; Keep Merging continues; Stop and
   Quit leaves no hidden `.partial` file and no new photo. Also ⌘Q (and ⌘W) with
-  the merge sheet open: the scripted `quit` hangs there (Q2); say whether a real
+  the merge sheet open (the scripted `quit` was fixed, Q2): say whether a real
   ⌘Q quits.
 - **P5 (design M5). The result's look in the loupe and another viewer.** Open the
   real bracket's `10M10354_HDR.tif` in Preview or Quick Look (should look like a
@@ -302,11 +304,15 @@ at the end of this section.
   name is long (30+ characters): the toolbar item shows the job without
   overflowing.
 - **P8 (design M7, and the PRD's 24 MP target). Undo, Redo and merge again with
-  real menus, and a real 24 MP bracket.** Edit ▸ Undo Merge to HDR, Redo, then
-  merge again (`_HDR-2`): **blocked by Q1 until it is fixed; rerun after.** For
-  the bracket: three real 24 MP raws, watch Activity Monitor: the PRD's
-  placeholders are under a minute and about 3 GB above the start. I only had
-  16 MP raws (about 6 s) and a synthetic 24 MP bracket (2.7 GB peak).
+  real menus, and a real 24 MP bracket.** Edit ▸ Undo Merge to HDR, then Edit ▸
+  Redo Merge to HDR (the photo comes back in the grid and is selectable), press a
+  rating on any photo, then merge again (`_HDR-2`). The scripted run of this now
+  passes (Follow-up, F1); what is left for you is the real menu and keys. Also try
+  Undo, then change the merged file in the Finder, then Redo: Activity should say
+  it couldn't be added back. For the bracket: three real 24 MP raws, watch
+  Activity Monitor: the PRD's placeholders are under a minute and about 3 GB above
+  the start. I only had 16 MP raws (about 6 s) and a synthetic 24 MP bracket
+  (2.7 GB peak).
 - **P9 (design M8). A merged photo among its sources.** Select the three raws
   and a merged DNG and press ⇧⌘L: four rows, no refusal, the merged DNG is the
   Reference and the Name row reads `…_HDR_HDR.dng`; say whether that is clear
@@ -328,12 +334,149 @@ merged files land next to the sources in `$S/src`.
 
 ## Follow-up
 
-Reruns after fixes (Q1 to Q4) and the owner's sign-off are recorded here.
+### Rerun 2026-11-20 at d635e12 (fixes bb2ab53 and d635e12)
 
-| Item | State |
-|---|---|
-| Q1 | Open |
-| Q2 | Open |
-| Q3 | Open |
-| Q4 | Open (question) |
-| P1 to P10 | Open |
+Tested: `feature/hdr-merge` at d635e12 (worktree `Gus-hdr-merge`; the only
+uncommitted change in it is `code-review.md`, not mine), same Mac (Mac16,8,
+macOS 27.2.1, SDK 27.2). A fresh copy of the bundle built from that commit, with
+its own identifier (`me.sesser.gus.debugtest.qa150b`), re-signed ad hoc, scratch
+libraries from `photobench`, `--library-root` on every launch, no bare `open`.
+Nothing in `Sources/`, `Tests/`, `Scripts/` or `Package.swift` was edited; no
+`UPDATE_GOLDENS`.
+
+| Item | State | Evidence |
+|---|---|---|
+| Q1 (Blocker) | **Fixed** | F1 |
+| Q2 | **Fixed** | F2 |
+| Q3 | **Fixed as far as one run shows** | F3 |
+| Q4 | **Fixed** | F4 |
+| Q5 | Recorded in `docs/PROFILING.md` (the fix I suggested was a sentence somewhere; it isn't in the user guide, which is fine: the guide describes `photocli merge`, not debug builds) | read |
+| Q6 (new, Nit) | Open, no action needed for sign-off | F1 |
+| C11, C12 | Checked | F4, F3 |
+| P1 to P7, P9, P10 | Open (a person) | list above |
+| P8 | Open, now doable | list above |
+
+**F1. Q1, script 11 on a fresh bundle and scratch library.** Library: `photobench
+generate --jpeg 2 --dng 0 --heic 0 --videos 1 --brackets 1`, imported. Run A (all-photos
+view, so the result shows in the list):
+
+```
+wait 2; rating any; flag any; search RAW_10; wait 1; selectall; merge sheet; merge format tiff; merge start; print items; undo; wait 1; print items; redo; wait 2; print items; print undo; search RAW_101; wait 1; focus RAW_101; key 5; wait 2; quit
+```
+
+It printed `items RAW_101 RAW_102 RAW_102_HDR RAW_103` after the merge, `RAW_101
+RAW_102 RAW_103` after Undo, and **`RAW_101 RAW_102 RAW_102_HDR RAW_103` after
+Redo**; `print undo` read undo 'Merge to HDR'; after quit `sqlite3` on
+`Library/catalog.sqlite` gave `RAW_101.dng|5` (the rating pressed after the Redo)
+and a row for `RAW_102_HDR.tif`.
+
+Run B adds the second merge in the same session. To keep the three frames selectable
+once a result exists it makes an album first (`album Frames; sidebar album 0; wait 1;
+selectall` before the merge, as in script 3), and after the Redo it goes on:
+
+```
+sidebar builtin all; wait 1; search RAW_101; wait 1; focus RAW_101; key 5; wait 2; sidebar album 0; wait 1; selectall; print selection; merge sheet; print merge; merge format tiff; merge start; print merge; print items; print messages; quit
+```
+
+The sheet named `RAW_102_HDR-2.tif`, the merge ended "Merged 3 photos into
+…/RAW_102_HDR-2.tif", Activity held three messages (merged, removed, merged),
+`canMerge true` afterwards, the app quit by itself, and the catalog has
+`RAW_101.dng|5`, `RAW_102_HDR.tif` and `RAW_102_HDR-2.tif`; both files are in the
+folder. (The album view shows only the frames, so Run B's `print items` doesn't list
+results; Run A shows the Redo.)
+
+Run C, four merges in one session (TIFF, DNG, DNG, TIFF), then `undo; wait 1; redo;
+wait 2` and `search HDR`: all four results are back (`RAW_102_HDR`, `-2`, `-3`, `-4`)
+and the next sheet is named `-5`. Run D, the real bracket (the three ORFs, copied):
+merge, `undo`, `redo`: `10M10354_HDR` is back in `print items`.
+
+The refusal path (Undo, change the merged file in a second shell, Redo): the
+script `…merge format tiff; merge start; undo; wait 14; redo; wait 2; print
+messages; sidebar builtin all; search RAW_101; focus RAW_101; key 3; wait 2` while
+a shell appended a byte to `RAW_102_HDR.tif` at the 9th second after it appeared:
+Activity said "“RAW_102_HDR.tif” couldn't be added back because the file has
+changed or is missing.", the photo stayed out, and the rating 3 pressed afterwards
+reached the catalog (`RAW_101.dng|3`): the refused Redo does not hang the chain
+either.
+
+**Q6 (Nit, new).** After a refused Redo `print undo` reads undo 'Merge to HDR'
+again (the undo manager moved the step back), so Edit ▸ Undo Merge to HDR is
+offered and does nothing visible (no message, no crash, no hang: ran Undo then
+Redo again). The same ordinary AppKit behavior as any undo whose reversal found
+nothing to do. For the engineer to take or leave; not a blocker.
+
+**F2. Q2.** Run C's script ended `…; merge format dng; merge sheet; quit` with the merge sheet open: the app quit and the wrapper's `timeout` did not fire (exit 0); no
+`Gus` process left.
+
+**F3. The full suite and builds.** `swift build`: clean. `Scripts/build-app.sh
+all`: built both apps. `swift test`: **1309 tests in 189 suites passed, 0 failed**
+(257.8 s), including the FAT32 test (it ran: `hdiutil` attached) and the new
+`afterPendingWrites from inside a running write …` (C12) and `C11: the capture
+date's offset reaches XMP only when it is a real one`. No red test, so neither
+#229 (`DeferredRenderTests`) nor the memory test failed; `ImportHashMemoryTests`
+now sits in the serialized `MemoryHeavy` parent suite (the 189th suite) with the merge suites and
+passed (`aVerifiedCopyHoldsOneChunkNotTheFile`, 0.81 s). One green run cannot
+prove a flake gone: Q3 is fixed as far as I can show, and the first run's failure
+needed the overlap the serialization removes. The suite's long skips are the
+usual environment-variable ones.
+
+**F4. Q4 and C11, by exiftool on files written by the new build.** The reference's
+capture date is `2026:05:01 10:00:01` (synthetic) and `2016:05:21 08:43:02` (the
+real ORF). In every output (TIFF and DNG, four merges of the synthetic bracket, and
+the real bracket's TIFF): `ExifIFD:DateTimeOriginal`, `ExifIFD:CreateDate`,
+`XMP-xmp:CreateDate` (and in the TIFFs `IFD0:ModifyDate`, `IPTC:DigitalCreationDate`
+and `Time`) are that date, nothing is the merge's time. The four synthetic merges'
+SHA-256 all differ (`0c64…`, `332f…`, `2ff5…`, `99cf…`) and their `xmpMM:DocumentID`s
+are four different values. A JPEG bracket whose frames I gave
+`OffsetTimeOriginal=+02:00` (exiftool on the scratch copy): TIFF and DNG carry
+`xmp:CreateDate 2026:05:01 10:01:01+02:00`, the DNG validates OK, so the offset is
+carried when real. (The blank-offset case needs ImageIO to write it; the unit test
+`captureDateOffset` covers it, and I did not reproduce it by script.)
+`exiftool -validate` on the DNGs: OK, all merged DNGs (four). **The TIFF warnings
+are not identical to the pre-fix ones, by one minor line.** I built `d3545ad`'s
+`photocli` in a scratch copy (outside the checkout) and merged the same three
+frames to a TIFF: its warnings are 7 (3 minor); the new TIFF's are 8 (4 minor).
+The same seven appear in both (XMP missing xpacket wrapper, IPTC-NAA undef type,
+missing ExifVersion, FlashpixVersion and ColorSpace, ExifImageWidth and
+ExifImageHeight not allowed in TIFF), and the new one is "IPTC DigitalCreationTime
+too short (6 bytes; should be 11)": ImageIO writes the IPTC time as `HHMMSS` when
+the date has no offset, and the old build's merge time carried `+00:00`, which made
+it 11 bytes. So it is ImageIO's own writing, as the engineer says, and it is the
+price of not stamping a fake UTC offset on a camera's local time. All warnings are
+ImageIO's TIFF/IPTC structure; none is ours. The JPEG-bracket TIFF with the real
+offset shows two more minor "Odd offset" lines, also ImageIO's layout.
+
+**F5. No migration, no golden.** The branch's newest migration is still v14
+(`CatalogSchema.swift`); `git diff develop...HEAD` touches no migration, no file
+under `Tests/PhotoCoreTests/Goldens`, `Package.swift` or `Scripts/`; the two fix
+commits touch `DebugScript.swift`, `MergeModel.swift`, `MergeOutput.swift`, tests and
+docs only. `PreviewCacheKey.currentPipelineVersion` is unchanged.
+
+**F6. User guide.** The two fix commits changed no guide text (the guide's merge
+section came in `06d2435`). The sentences that matter here are true as built: "Edit ▸
+Undo Merge to HDR takes the new photo out … and leaves its file on disk (Activity
+says where); Redo puts it back if the file hasn't changed" (F1: Redo brings it back;
+a changed file is refused with the message), "Merging again after Undo writes
+`_HDR-2`" (F1), the name rule for TIFF then DNG (`-2.dng`), and for `photocli
+merge`: it prints the file's `path`, writes no sidecar (no `.xmp` beside its
+output, while the app's merge of a photo with values writes one) and is refused
+while the app has the library open (first run, script 8). Q5's slowness is in
+`docs/PROFILING.md`, not the guide.
+
+**The owner's paste command.** Run step by step in a scratch folder (the same
+commands, `mktemp` swapped for my scratch path, the last `open -n` swapped for the
+bundle's executable with a debug script that quits): `Scripts/build-app.sh`'s bundle
+copied and re-identified, `swift run -c release photobench generate …
+--brackets 1`, the three `10M1035[456].ORF` copied (hashes equal to the originals,
+which are not written), `photobench import` (21 imported), and the app opens on that
+library: `merge sheet` for `10M` lists 10M10354 (0 EV, reference), 10M10355 (−1 EV),
+10M10356 (+1 EV), no message, name `10M10354_HDR.tif`. It works as written.
+
+**Safety.** After the run: no `Gus` or `photocli` process; the owner's
+`~/Library/Application Support/Gus` has no file newer than my start marker (its
+`library.lock` and WAL are still from 16:16, before I began); the scratch source
+folders were copies (the ORFs under `~/gus-scratch` were copied, never merged in
+place).
+
+Owner's sign-off, the commit signed off, its date and any checks left open: not
+yet given.
