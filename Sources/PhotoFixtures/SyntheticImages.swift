@@ -30,6 +30,10 @@ public enum SyntheticImages {
         public var flash: Int?
         public var exposureBias: Double?
         public var whiteBalance: Int?
+        /// EXIF ExposureTime in seconds, FNumber and ISO speed.
+        public var exposureTime: Double?
+        public var fNumber: Double?
+        public var iso: Int?
 
         public init(dateTimeOriginal: String? = nil, offsetTimeOriginal: String? = nil,
                     make: String? = "Synthetic", model: String? = "Generator", orientation: Int = 1,
@@ -104,6 +108,9 @@ public enum SyntheticImages {
         exifDictionary[kCGImagePropertyExifFlash] = exif.flash
         exifDictionary[kCGImagePropertyExifExposureBiasValue] = exif.exposureBias
         exifDictionary[kCGImagePropertyExifWhiteBalance] = exif.whiteBalance
+        exifDictionary[kCGImagePropertyExifExposureTime] = exif.exposureTime
+        exifDictionary[kCGImagePropertyExifFNumber] = exif.fNumber
+        exifDictionary[kCGImagePropertyExifISOSpeedRatings] = exif.iso.map { [$0] }
         var tiffDictionary: [CFString: Any] = [:]
         tiffDictionary[kCGImagePropertyTIFFMake] = exif.make
         tiffDictionary[kCGImagePropertyTIFFModel] = exif.model

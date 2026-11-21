@@ -79,6 +79,10 @@ let usage = """
                  For each local control: the largest difference between blending the adjusted
                  image by alpha and running the module at alpha times the value (test scenes).
 
+      merge      --files FILE:FILE[:FILE...] --output DIR [--format tiff|dng|both] [--reference N]
+                 HDR merge of a bracket without a library (issue #150): step times, the measured
+                 exposures, clipping levels, movement and ghosts, peak memory, and the files written.
+
       scenes     --output DIR [--size WxH]
                  Writes the chromatic aberration test scenes (fringes, fringe subjects, pixel grid, lateral color
                  at two amounts) and the spots' dusty sky as TIFFs, the fringes and the dusty sky as DNGs and
@@ -158,6 +162,7 @@ do {
     case "rawcompare": report = try await RawCompareBenchmark.run(arguments)
     case "demosaic": report = try await DemosaicBenchmark.run(arguments)
     case "scenes": report = try await SceneFiles.run(arguments)
+    case "merge": report = try await MergeBenchmark.run(arguments)
     default:
         print(usage)
         exit(arguments.command == "help" || arguments.flags.contains("help") ? 0 : 64)
