@@ -25,6 +25,15 @@ and the rulings in §20 (D-H6 to D-H10). The rest stands as
 written. Where a line below still says what the first revision said and §20
 disagrees, §20 holds.
 
+**Second revision 2026-11-21 (design review of the revised sheet: D-H11 to
+D-H13, §20).** The sheet measured 590 pt of Form content against 474 shown at
+three frames, so the default case scrolled (DQ-H11). Ruled: each caption is
+folded into the Form row of the control it explains and the Result caption is
+cut to one line (§5.2, §5.3, §5.7), with a measured height and a cap of 640 pt;
+the Name line always shows the reference's name (§5.3); initial focus is not
+set by code (§11). §5.7's budget table below is the estimate that proved wrong
+and is kept as history; its rule is replaced by D-H11.
+
 **Inputs.**
 
 - Requirements: the PRD, the body of issue #150 (approved by the owner
@@ -232,7 +241,7 @@ sheet **freezes its frames** when it opens, as Export does; it is added to
 │  Name          IMG_1234_HDR.tif                          │
 │  Folder        …/Trip/Day 2                              │
 │  The originals are not changed, and your adjustments are │
-│  not used: the photos are merged as they were shot.      │
+│  not used.   (one line at 560 pt; wrapped here)          │
 ├──────────────────────────────────────────────────────────┤
 │                                    [ Cancel ]  [ Merge ] │
 └──────────────────────────────────────────────────────────┘
@@ -277,7 +286,10 @@ The sheet is 560 pt wide and at most 600 pt tall (§5.7).
   message in the header says what the problem is. Never color alone.
 - **Caption under the table:** "“‹reference›” names the result and where it
   is saved. Click another photo to change it." 11 pt secondary, like the Export
-  sheet's captions, one line at 560 pt for a name of ordinary length. It
+  sheet's captions, one line at 560 pt for a name of ordinary length. **It is
+  in the table's own Form row** (one `VStack` of the table, this caption and,
+  when it applies, the note below), not a row of its own (D-H11): a caption row
+  of its own costs about 15 pt of row padding more than its text. It
   replaces "names the result and is the photo the others are lined up to": the
   lining up is now the Auto-align caption's (§5.6), since it can be turned
   off. It also tells a person that the rows can be clicked, which a table
@@ -297,7 +309,10 @@ The sheet is 560 pt wide and at most 600 pt tall (§5.7).
 - **Format.** A segmented `Picker`, **TIFF** and **DNG**, in that order, TIFF
   selected the first time. The choice is kept as a preference (Export keeps its
   settings), so a person who always wants DNG sets it once. R5's "default
-  TIFF" is the first-run value. Under it, a caption that follows the choice:
+  TIFF" is the first-run value. Under it, in **the same Form row** as the
+  picker (D-H11: the picker is a `LabeledContent` labelled "Format", its
+  segmented control with a hidden label and the accessibility label "Format"),
+  a caption that follows the choice:
   - TIFF: "16-bit, Display P3, tone-mapped. Looks right in any app."
   - DNG: "16-bit floating point, not tone-mapped. Tone it in the Adjust tab."
     (Written as 32-bit in the first draft; the system's RAW decoder reads no
@@ -326,14 +341,20 @@ The sheet is 560 pt wide and at most 600 pt tall (§5.7).
   reference. A series from several folders gets one more caption sentence: "The
   photos are in several folders. The result goes in the reference's."
 - **Caption under the section:** "The originals are not changed, and your
-  adjustments are not used: the photos are merged as they were shot." This is
-  the first time the app writes a new file into a source folder; the Folder row
-  and the Photos caption now say where ("saved beside it"), so the first
-  half of the first revision's caption ("Saved next to “‹reference›”.") is
-  dropped as a repeat, which also saves a line of height (§5.7). The sentence
-  states A2, which people will otherwise discover by surprise (a white balance
-  fixed on one frame is not carried). The "several folders" sentence stays,
+  adjustments are not used." (D-H11: it was "…not used: the photos are merged
+  as they were shot.", a second line that said the same thing again.) It sits
+  in **the Folder row's Form row**, under the Folder line, not a row of its
+  own. This is the first time the app writes a new file into a source folder;
+  the Folder row and the Photos caption say where ("saved beside it"), so the
+  first revision's "Saved next to “‹reference›”." is dropped as a repeat. The
+  sentence states A2, which people will otherwise discover by surprise (a white
+  balance fixed on one frame is not carried). The "several folders" sentence
+  stays, appended when it applies (the caption then wraps to a second line),
   and follows the chosen reference.
+- **The Name line shows the reference's name whatever the refusal** (D-H12),
+  numbered once the folder has answered, in secondary color while it is only
+  the unnumbered candidate or while a refusal is showing. It is "—" only while
+  the frames are still being read.
 
 ### 5.4 Buttons
 
@@ -476,7 +497,18 @@ Result section.
   text, the separate caption text hidden from VoiceOver so it is not read
   twice). Space toggles it; both are Tab stops after the table.
 
-### 5.7 Height at the default size (revision 2026-11-21, D-H8)
+### 5.7 Height at the default size (revision 2026-11-21, D-H8, D-H11)
+
+**D-H11 (second revision, §20) replaces this section's rule.** The budget below
+is the estimate that proved wrong: the built Form needs 590 pt where it was
+put at about 450, because every Form row of the grouped style carries about 15
+pt of padding that the budget did not count, and each caption was a row of its
+own. The rule now is: the captions are folded into their control's row (§5.2,
+§5.3); `idealHeight` is **the measured Form content at three frames plus the
+126 pt of header, dividers and buttons plus 20 pt of slack, rounded up to 10,
+at least 560 and at most 640**; if that is more than 640, the ordered cuts of
+D-H11 apply. Width stays 560, `minHeight` 420, and nothing ever grows the sheet
+past its ideal (more frames, a refusal, the note: the Form scrolls).
 
 The sheet stays **560 pt wide** and its **ideal height goes from 560 to 600 pt**
 (`minHeight` stays 420). It never grows past that, for any content: more
@@ -860,9 +892,12 @@ photos shows no item enabled.
   them with their key. Reachable by VO-M and, for the grid, VO-Shift-M.
 - **Sheet reading order:** title, subtitle, the refusal or note (header, so it
   is read before the controls), the table and its caption, Auto-align,
-  De-ghost, the Result section, the buttons. Initial focus is on **Merge**
-  when it is enabled, else on **Cancel**. Tab order: table, Auto-align,
-  De-ghost, Format, Cancel, Merge.
+  De-ghost, the Result section, the buttons. **Initial focus is not set by
+  code** (D-H13: the first line of this bullet said Merge when enabled, else
+  Cancel; that is not how a Mac sheet works, and it is withdrawn): the system
+  gives it to the first control in the key loop, the table. Whatever has the
+  focus, Return presses Merge when it is on and Esc presses Cancel. Tab order:
+  table, Auto-align, De-ghost, Format, Cancel, Merge.
 - **The table** is a system `Table` with single selection (§5.5): VoiceOver
   reads each row as name, type, shutter, compensation, the reference's
   "Reference" and the system's "selected"; VO-Space on another row chooses it.
@@ -950,9 +985,10 @@ catalog's plural variations, and no string has two plural numbers.
   tone-mapped. Looks right in any app."; "16-bit floating point, not
   tone-mapped. Tone it in the Adjust tab."; "TIFF (16-bit, Display P3,
   tone-mapped)" (the row when DNG isn't built); "Name"; "Folder"; "The
-  originals are not changed, and your adjustments are not used: the photos are
-  merged as they were shot." (replaces the key that began "Saved next to
-  “%@”."); "The photos are in several
+  originals are not changed, and your adjustments are not used." (replaces the
+  key that began "Saved next to “%@”." and, after D-H11, the one that ended
+  "…the photos are merged as they were shot."; the old key is removed);
+  "The photos are in several
   folders. The result goes in the reference's."; "Merge" (button); reuse
   "Cancel".
 - **Refusals** (§6): "Select at least two different photos. A RAW+JPEG pair
@@ -1106,7 +1142,9 @@ so checks use `merge …`, `menuitems`, `activity` and `print`, or are manual
 | H18 | What follows the reference (§5.8, §6.4) | Unit test: name, folder, project and the size refusal's naming and flags follow the reference (AC3a); on the two-folder fixture the case 9 refusal appears and clears as the reference moves between the read-only and the writable folder, and the text names the chosen frame (AC12); an answer for a superseded reference is discarded; the check for a folder runs once per folder. `merge reference` on the fixture prints each state |
 | H19 | The check boxes (§5.6) | Unit test: both on at every open, independent, not stored (AC9a); `merge align off` and `merge deghost off` change nothing but their own value; nothing else on the sheet changes |
 | H20 | Activity with Auto-align off (§7.1) | `merge start` after `merge align off` shows details "Reading", "Merging", "Tone mapping", "Saving", with no "Aligning", and a bar that still ends at 1; the alignment-failure text appears only with it on |
-| H21 | Sheet height (§5.7) | `merge sheet` prints the form's content height at 3 frames against the ideal height; it is within the 600 pt ideal, so no scrolling, and the sheet's `idealHeight` is 600, `minHeight` 420, width 560 |
+| H21 | Sheet height (§5.7, D-H11) | `merge sheet` at 3 frames prints `scrolls false`; `idealHeight` is the measured content plus 146 pt rounded up to 10, between 560 and 640 (never over); `minHeight` 420, width 560. The captions are in their controls' rows (H22) |
+| H22 | Captions folded (§5.2, §5.3, D-H11) | By reading: the table, its caption and the note are one Form row; the Format picker and its caption one row; the Folder line and the result caption one row; the result caption is "The originals are not changed, and your adjustments are not used." (catalog key replaced, the old one removed; `LocalizationTests`) |
+| H23 | Name line (§5.3, D-H12) | `merge sheet` on a refused selection (a video among three) prints a name, not "—"; with a refusal showing the name is secondary |
 
 **Manual checks for review.md** (a person at the bundle; the script can't
 do these): M1 the sheet's look (header, table, the flagged-row symbol, the
@@ -1137,7 +1175,8 @@ posting are covered by unit tests, the rest by CI):
   §5.5).
 - **M10, choosing by keyboard (Full Keyboard Access on).** Tab goes table,
   Auto-align, De-ghost, Format, Cancel, Merge. In the table Up and Down move
-  the reference; Space on a check box toggles it; with the table focused,
+  the reference; Space on a check box toggles it; with the table focused
+  (after a click on a row first, then after Tab, then on opening: D-H13),
   Return presses Merge (report if it doesn't, §5.5), Esc closes. Close and
   reopen: the reference is the default again (0 EV, not the first in time)
   and both boxes are checked.
@@ -1157,9 +1196,16 @@ posting are covered by unit tests, the rest by CI):
   "Aligning". Walker series with De-ghost on and off: the moving figure is
   single (on) or blended (off); where nothing moved the two results look the same.
 - **M14, height.** On a 13-inch laptop at its default scaling, and with the
-  library window made short, the sheet is never taller than 600 pt or the
-  window, fits on screen, and the Form scrolls with the header and buttons
-  in place, including with a two-line refusal and the same-exposure note.
+  library window made short, the sheet is never taller than its ideal (at
+  most 640 pt, D-H11) or the window, fits on screen, and the Form scrolls
+  with the header and buttons in place, including with a two-line refusal and
+  the same-exposure note.
+- **M15, the folded captions (D-H11, D-H12).** Each caption sits under the
+  control it explains, inside the same group row, with no divider line between
+  them (the table's caption under the table, the format's under the picker,
+  the result caption under Folder); the Name line is gray while a refusal
+  shows and black when Merge is on; nothing reads as a promise while Merge is
+  off.
 
 ## 17. Requirements issues (for the product manager)
 
@@ -1394,6 +1440,98 @@ is the sheet's. The Activity failure for a frame that doesn't line up gains
 a remedy, "…, or turn off Auto-align.", because the sheet now has the switch
 (§7.3); `photocli`'s message for the same failure names its own flag for
 turning alignment off instead.
+
+**D-H11. The sheet's height at three frames (design review of the revision,
+2026-11-21).** Measured by the engineer: 560 × 600, Form content 590 pt against
+474 shown (header, dividers and buttons take the other 126), so the default
+case scrolled by 116 pt and what was hidden was the bottom of the Result
+section: the Name and Folder lines, the live answer to the reference choice.
+Ruled: **option (b), carried through, with the second half of (d) as part of
+it; not (a), not (c), not the first half of (d).**
+
+*Why not the others.* (c) Accept scrolling: the HIG says to present a sheet "in
+a reasonable default size" for its content, because people don't expect to
+resize sheets; a sheet that scrolls in its commonest state is the wrong size,
+and what scrolls is the evidence for the choice the sheet exists to ask (§5.8,
+M9). (a) 716 to 720 pt: 90% of the 800 pt a 13-inch laptop at its default
+scaling offers, with the library window's toolbar above the sheet's top edge,
+so it fits only with the window at the top of the screen; against "reasonable
+default size", and past Export's 640, which is the tallest sheet the app
+ships. (d, first half) The two check boxes in one row: each caption wraps to
+two lines at about 250 pt, so the saving is one row's padding against four
+extra text lines, and the boxes stop aligning on the leading edge (HIG
+Toggles: align checkboxes along the leading edge).
+
+*Why (b), and what it means.* The cost is not the captions' text but the
+padding of each Form row (about 15 pt; nine rows account for the 140 pt the
+budget missed). Folding a caption into the row of the control it explains
+removes that padding and keeps the caption next to what it explains (the
+same construction as the two check boxes already use). A Section footer is not
+the answer: a footer sits under the section's last row, so the reference
+caption would land under the check boxes, away from its table, and splitting
+the section to fix that adds an inter-section gap that costs what it saves.
+
+**What the engineer changes**, in `MergeForm` and `MergeText`:
+
+1. **Photos section.** One Form row: `VStack(alignment: .leading, spacing: 6)`
+   of `FramesTable`, the reference `Caption` and, when it applies, the
+   same-exposure note. The two `OptionBox` rows stay as built.
+2. **Format.** One Form row: `VStack(alignment: .leading, spacing: 4)` of a
+   `LabeledContent("Format")` holding the segmented `Picker` (`.labelsHidden()`,
+   `.accessibilityLabel` "Format") and the format's `Caption`.
+3. **Folder and the result caption.** One Form row: `VStack` of the Folder
+   `LabeledContent` and the result `Caption` (with the several-folders sentence
+   appended when it applies). The Name `LabeledContent` stays its own row above.
+4. **The result caption** reads "The originals are not changed, and your
+   adjustments are not used." (§13: replace the catalog key; remove the old one).
+5. **Measure** with `merge sheet` at three frames and set
+   `MergeSheetMetrics.idealHeight` = Form content + 126 + 20 (slack), rounded up
+   to 10, at least 560, at most 640. The 126 and 20 are the measured chrome and
+   §5.7's slack; use the printed `shown` against the sheet's height to confirm
+   the 126.
+6. **If that is over 640**, apply in this order and re-measure after each,
+   stopping at the first that fits: (i) drop the "Photos" section header (the
+   sheet's title, the table's column headings and its accessibility label
+   "Photos" already say it); (ii) header and button-bar vertical padding 14 to
+   12; (iii) stop, set 640 and accept a scroll of what is left, which is the
+   result caption (it is the last row): say the measured numbers in `status.md`.
+   Do not shorten the check boxes' captions (they carry the owner's two
+   choices) or the Format caption.
+7. The same-exposure note (about 16 pt) and a two-line refusal still scroll the
+   Form; the header and buttons stay (§5.7). Not worth height of their own.
+
+Expected: the folds save about 13 to 19 pt each (three of them) and the caption
+cut 14 pt, so Form content about 520 to 535, which is 640 to 660 with the
+chrome and slack: step 6(i) is likely needed. These are estimates from one
+measurement; the engineer's numbers rule.
+
+**D-H12. The Name line shows the reference's name whatever the refusal:
+confirmed.** §5.3 and §5.8 define it as the name the file would get for the
+chosen reference and format, and the VoiceOver announcement after a change says
+"Result ‹name›"; a dash would leave the one visible consequence of a change
+of reference missing in exactly the state the person is trying to get out of
+(the read-only folder of case 9, where choosing another frame is the fix), and
+would make the row jump between a dash and a name. Refinement (one line in
+`MergeForm`): the name is secondary color whenever it is provisional **or** a
+refusal is showing (`name.isFinal && merge.refusal == nil ? .primary :
+.secondary`), so a name never looks like a promise while Merge is off. "—"
+remains only while the frames are being read (no reference yet). A video
+chosen as the reference still shows `‹stem›_HDR.tif`, secondary, under the
+refusal that names it: acceptable.
+
+**D-H13. Initial focus is not set by code; Return and Esc must work from every
+focus position.** §11 said the sheet opens with focus on Merge (or Cancel).
+That is withdrawn. On a Mac the default button answers Return without holding
+focus, the system gives initial focus to the first control in the key loop,
+and here that is the table, which is also right for a keyboard user: the
+reference is the one decision the sheet asks, and Up and Down work at once.
+What must hold is the requirement behind it: Return presses Merge when it is
+on, Esc presses Cancel, with the table focused after a click on a row (the
+likely case), after Tab, and on opening. Whether `NSTableView` lets Return
+reach the default button when no cell is editable can't be read from the code:
+manual check M10. If it doesn't, return a design question; do not work around
+it with a key handler on the table without asking, since it would take Return
+from the standard control.
 
 **D-H5c, amended.** A person can now choose a merged DNG as the reference
 (it is a listed row), and then the Name row reads `…_HDR_HDR`, the same plain

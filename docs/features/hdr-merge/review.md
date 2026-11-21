@@ -302,3 +302,203 @@ point" (D-H4). Fixes for the engineer: F1 (user guide says the DNG opens
 truncation). For the product manager: RI-E1 (PRD says 32-bit DNG) and RI-E2
 (AC4 sidecar wording). Manual checks M1 to M6 for the owner. Details:
 `docs/features/hdr-merge/review.md`.
+
+---
+
+# Revision review, 2026-11-21: the reference choice, Auto-align, De-ghost and the sheet's height
+
+Reviewer: apple-ui-designer. Branch `feature/hdr-merge` at `d9b1461`. Against
+`design.md` §5.5 to §5.8, §6.4, §20 (D-H6 to D-H10) and the PRD as revised
+2026-11-21 (R3, R9, R10, R14, AC3 to AC3c, AC7a, AC9a, AC12).
+
+**What I read.** `design.md`, `status.md` (to the end of "Revision
+2026-11-21", then the tiles bug only for its UI effect: none), the PRD,
+`Views/MergeSheet.swift`, `Model/MergeModel.swift`, `Model/MergeText.swift`,
+`PhotoCore/Merge/MergeSheetState.swift` and `MergeSelection.swift`,
+`Model/DebugMergeCommands.swift` (the `merge sheet` metrics), the new keys in
+`Localizable.xcstrings` and the merge entry of `docs/USER_GUIDE.md`. I fetched
+the HIG pages for Sheets, Toggles and Lists and tables (2026-11-21).
+
+**What I could not do.** This session has no shell, so I did not build, run the
+bundle or run `merge sheet`. Behavior below is read from the code and from the
+output `status.md` records for the debug script (run by the engineer on a
+scratch copy with its own identifier and `--library-root`); I did not re-run it.
+Anything that needs the running sheet is a manual check.
+
+## Verdict
+
+**Passes with one required change (F6, the height, ruled D-H11) and two small
+fixes (F7, F8).** The reference choice, the two boxes and the refusals that
+follow the reference are built as designed, from system components with no
+custom chrome, and the model behind them is tested without views
+(`MergeSheetState`). The one real defect is the engineer's own finding: at three
+frames the Form scrolls by 116 pt, hiding the Name and Folder lines. Nothing
+else blocks QA once F6 is done; QA should run after it, since it changes the
+sheet's layout.
+
+## Design requirements
+
+| # | Requirement | Result | Evidence |
+|---|---|---|---|
+| R1 | The Photos table is a single-selection `Table`; the selected row is the reference, rows keep capture order (§5.5) | Pass in code; M9 | `FramesTable`: `Table(frames, selection: $row)`, `row` follows `merge.referenceID`; no sort, no reordering. `MergeSheetState.chooseReference` ignores `nil`, an unknown id and the same row |
+| R2 | Never empty: ⌘-click, a click below the rows, `nil` all leave the reference (§5.5) | Pass in code; M9 for the flicker | `onChange(of: row)` puts `merge.referenceID` back when the table clears. The engineer's script shows `deselectAll` leaving row 1 selected. Whether a real ⌘-click shows one frame of no selection is M9 |
+| R3 | The "Reference" mark never truncates; the name gives way first, middle-cut, full name as tooltip (§5.2) | Pass in code; M8 | Mark is `Text(...).fixedSize()` in the HStack, the name has `lineLimit(1)`, `.middle`, `.help` |
+| R4 | Default reference is R3's, every open; nothing stored (§5.5, AC3c) | Pass | `begin()` makes a new `MergeSheetState`; `MergeSheetState.init` takes `defaultReference`; the boxes live in the state, not in `UserDefaults`; only Format keeps a preference. Tests `opensWithDefaults`, `reopensWithDefaults` |
+| R5 | Every listed row can be chosen, a flagged one, a video and the extremes included (§5.5, A13) | Pass | `choosingReference` accepts any frame; no warning anywhere |
+| R6 | Auto-align and De-ghost: two system check boxes in the Photos section under the table, in that order, one-line captions that say what Off does, caption as the hint and hidden from VoiceOver, never dimmed (§5.6) | Pass in code; M8 for the indent | `OptionBox`: `Toggle` with `.checkbox`, `Caption` hidden, `accessibilityHint(caption)`, no `.disabled`. Texts match §5.6 word for word. The 20 pt indent is a constant, not a system metric: M8 |
+| R7 | Both boxes independent, none changes a refusal, Name or Folder (§5.6) | Pass | `MergeSheetState.options` is not read by `refusal`, `name` or `canStart`; `boxesAreIndependent` |
+| R8 | What follows the reference, at once: table, header thumbnail (old stays until the new is ready), caption, Name, Folder and the several-folders sentence, refusals 6 and 9 (§5.8, §6.4) | Pass, with F8 | `chooseReference` reloads the thumbnail, asks the disk, names again; the old `previewImage` is kept until the new one is ready. Case 6 follows the reference (`MergeSelection.refusal(reference:)`); case 9 is `MergePreflight.unwritable(reference)`. F8 is the thumbnail for a RAW+JPEG pair |
+| R9 | Folder checked once per folder; a late answer for a superseded reference decides nothing; Merge off until the folder has answered; spinner only after about 0.5 s (§5.8) | Pass | `folderToAsk`, `askingFolders`, `record(folder:)` returns whether it decides; `canStart` needs `isDiskChecked`; `startSlowTimer` 500 ms. `folderAskedOnce`, `folderRefusalFollows`; the script's `slowdisk` run printed "discarded Open" |
+| R10 | One announcement after a change, debounced about 0.3 s, once the folder and the name are known, with the new refusal or "Merge is available."; none at open (§11) | Pass in code; not heard | `scheduleAnnouncement`, `announceIfReady`, `MergeSheetState.messageChange`; `announcedRefusal` seeded at open. VoiceOver is not asked of the owner (standing ruling); the text and rule are unit-tested |
+| R11 | Refusals decided again when the reference changes; a refusal that no longer applies goes away; a read-only folder is a legitimate non-reference (§6.4, AC12) | Pass | `refusal` is computed from the selection and the disk answer for the current reference; `unwritable` flags the reference's row only. `folderRefusalFollows`, `MergeReferenceJobTests.readOnlyFollowsTheReference` |
+| R12 | With Auto-align off no frame is refused for failing to line up; the other refusals apply (§6.3, AC7a, AC7b) | Pass by tests (read, not re-run) | `unrelatedWithoutAlignment`, `unrelatedMergesWithoutAlignment`, `refusalsWithoutAlignment` |
+| R13 | Activity without Auto-align has no "Aligning" phase and the bar still ends at 1 (§7.1) | Pass by the engineer's script | status.md "Merges": details Reading, Merging, Saving, Adding; last fraction 1.000 |
+| R14 | The alignment failure text ends "…or turn off Auto-align."; `photocli`'s names `--no-align` (§7.3, D-H10) | Pass | Catalog key present; status.md records the `photocli` text |
+| R15 | Strings: new keys present, old three removed, nothing names the product (§13) | Pass | Keys for Auto-align, De-ghost, the captions, "Choose the reference", the announcements and the caption "“%@” names the result and where it is saved…" are in the catalog; "Saved next to" and the old caption are gone. D-H11 replaces one more (the result caption) |
+| R16 | The sheet at three frames needs no scrolling (§5.7, H21) | **Fail** | status.md: `sheet 560x600 form content 590 shown 474 scrolls true`. See F6 and D-H11 |
+| R17 | Initial focus on Merge or Cancel (§11) | Withdrawn (D-H13) | No code sets focus; the design line was wrong for a Mac sheet |
+| R18 | User guide terms match the UI (§15) | Pass | The merge entry (lines 249 to 324) uses File ▸ Merge to HDR…, ⇧⌘L, Reference, Auto-align, De-ghost, Stop Merge, Undo Merge to HDR, "tone-mapped"; "ghost" only inside De-ghost; "bracketed series" once. No guide change needed for D-H11 (it quotes no sheet caption) |
+
+## Findings for the engineer
+
+**F6 (required; ruled D-H11).** The default case scrolls and hides the Name and
+Folder lines. The ruling and the exact changes are in `design.md` §20 D-H11:
+fold the table's, the Format's and the result caption into their controls' Form
+rows, cut the result caption to one line, measure, set `idealHeight` from the
+measure (560 to 640), and if still over 640 apply the pre-ruled cuts in order.
+Update `status.md` with the measured numbers and `LocalizationTests` for the
+replaced key. Not a design violation of the HIG, but the sheet's default state
+has to fit (HIG, Sheets: "present a sheet in a reasonable default size").
+
+**F7 (small, ruled D-H12).** In `MergeForm`'s Name row make the name
+`.secondary` while a refusal shows as well as while it is provisional:
+`name.isFinal && merge.refusal == nil ? .primary : .secondary`. The Name line
+showing the reference's name under a refusal is confirmed; this keeps it from
+looking like a promise while Merge is off.
+
+**F8 (small, check then fix).** `MergeModel.loadPreview` finds the header
+thumbnail with `library.item(versionID: reference)` and falls back to the first
+target's item. The library indexes only the version the grid shows. A RAW+JPEG
+pair that shows its JPEG has the RAW (the frame) as `partnerVersionID`, so
+`item(versionID:)` is nil for the RAW frame and the fallback shows the first
+target's thumbnail, whichever reference is chosen: the header thumbnail would
+not follow the reference for a series of pairs (§5.1, §5.8). Fix: fall back on
+the target item whose `versionID == reference || partnerVersionID == reference`
+before the first target. Check on a scratch library with a RAW+JPEG bracket if
+the generator makes one; if the grid shows the RAW for pairs, the fault does
+not arise and this is a no-op.
+
+**Not findings (leave as built).** The table selection held in view state and
+put back on a clear (the design's engineer note, §5.5); the 20 pt caption
+indent as a named constant pending M8; the `Reference` mark as text rather
+than a column of controls; Return as the default button; the Format picker
+remembered while the two boxes reset (the owner's ruling).
+
+## Rulings on the engineer's open items
+
+Recorded in `design.md` §20 as D-H11 to D-H13.
+
+1. **DQ-H11, the height: (b) carried through, with the second half of (d) as
+   part of it** (D-H11). Not (a): 716 to 720 pt is 90% of the 800 pt a 13-inch
+   laptop offers at default scaling, past Export's 640 (the tallest sheet the
+   app ships) and against "a reasonable default size". Not (c): the part
+   that scrolls is the Name and Folder, the evidence of the choice the sheet
+   exists to ask. Not (d)'s two boxes in one row: two-line captions, a saving of
+   one row's padding against four extra lines, and the boxes would stop
+   aligning on the leading edge (HIG, Toggles). The miss is row padding (about
+   15 pt on each of nine rows), not text, so the fix is to fold each caption into
+   the row of the control it explains, the way `OptionBox` already does. A
+   Section footer is not the answer: it lands under the section's last row, away
+   from the table. Exactly what changes: design §20 D-H11, items 1 to 7. Cap
+   640 pt, with ordered cuts if the measure is over it. Estimates only: the
+   folds should save about 13 to 19 pt each and the caption cut 14 pt, which
+   leaves the sheet near 640 to 660 before the first pre-ruled cut (drop the
+   "Photos" section header). The engineer's measure rules.
+2. **Name line with a refusal: confirmed** (D-H12), with the one-line refinement
+   F7.
+3. **Initial focus with a selectable table: not set by code** (D-H13). §11's
+   "initial focus on Merge" is withdrawn. The invariant is Return pressed with
+   the table focused presses Merge and Esc cancels; whether `NSTableView` lets
+   Return through can't be read from the code, so M10 tests it, after a click
+   on a row first. If it fails, a design question, not a key handler.
+
+## Checks made from the code and the script
+
+- Read, not run: every row of the table above marked "Pass in code".
+- Engineer's recorded script output (`status.md`, "Debug-script checks"),
+  consistent with the code I read: opens on the 0 EV frame shot second with
+  both boxes on; the Name follows reference and format; one table row always
+  held through `deselectAll`; reopening gives defaults; the folder refusal
+  appears, flags the reference's row, clears and returns as the reference
+  moves; a late answer is "discarded"; merges with the +2 EV frame as reference
+  and with Auto-align off behave as designed; and the height numbers above.
+- Not possible without a key window or a person: the enabled state of menu
+  items, focus and Return behavior, the look.
+
+## Manual checks for the owner
+
+VoiceOver, macOS 15 and macOS 26 are not asked (standing ruling). Use the
+scratch library from `photobench generate … --brackets 1` and a copy of the
+bundle with its own identifier and `--library-root`. The numbering continues
+`design.md` §16; M8 to M14 are there in full, restated here by what to look
+for, with M15 new. Run them after F6 is done.
+
+- **M8. The look at the default size.** Three frames: no scrolling; the
+  "Reference" mark whole; the check boxes' captions indented to their labels
+  and on one line; Light, Dark, Increase Contrast, Reduce Transparency. Nine
+  frames: the Form scrolls, header and buttons stay.
+- **M9. Choosing by pointer.** Each row; ⌘-click the chosen row; click the empty
+  space under the rows (one stays chosen, any flicker?); is it discoverable that
+  rows can be clicked, from the caption alone (if not, the pop-up fallback).
+- **M10. Choosing by keyboard (Full Keyboard Access on).** Tab order, arrows
+  move the reference, Space on a box, and Return and Esc with the table
+  focused: after a click on a row, after Tab, on opening. What has the focus
+  when the sheet opens? (D-H13: the table is expected.) Reopen: defaults again.
+- **M11. The reference and the folder refusal** (`TwoFolders-n`): the refusal
+  names the default reference, choosing the frame in the writable folder lifts
+  it, the other brings it back; on a slow volume the spinner appears only after
+  a pause and the Name is never stale when Merge comes on.
+- **M12. A real merge with the +2 EV frame as reference** against the default:
+  name, folder, project, Info tab metadata, the walker's place.
+- **M13. The two boxes on real files.** Unrelated scenes with Auto-align on
+  (refused, Activity ends "or turn off Auto-align") and off (merged, no
+  "Aligning"); De-ghost on and off on the walker series.
+- **M14. Height on a 13-inch laptop and in a short window:** the sheet fits the
+  screen and the window, scrolls with header and buttons in place, with a
+  two-line refusal and the same-exposure note.
+- **M15. The folded captions (new).** Each caption under its own control inside
+  the same group row, no divider between them; the Name line gray while a
+  refusal shows and black when Merge is on.
+- **M16. The header thumbnail with RAW+JPEG pairs** (F8), if the scratch
+  library has a bracket of pairs: choosing another frame changes the thumbnail.
+
+## What's working (leave alone)
+
+- The table doing double duty as the choice and its evidence, with the mark in
+  words so the state reads in a gray selection, with Increase Contrast and
+  without color.
+- The model behind the sheet, in PhotoCore, with the rules (default, never
+  empty, per-folder asking, discarded late answers, the announcement text)
+  under test and the views thin.
+- The refusal staying in the header, first in the reading order, naming the
+  chosen reference.
+- Captions that say what Off does ("merged as they are", "plain blend") and
+  no warning for turning either off.
+- A new sheet state on every open, so nothing about the reference or the boxes
+  is remembered.
+
+## Summary for the issue
+
+Design review of the #150 sheet revision (branch at `d9b1461`): passes with one
+required change. The reference as the table's single selection, the Auto-align
+and De-ghost boxes and the refusals that follow the reference are built as
+designed from system components. DQ-H11 ruled (D-H11): the default case scrolls
+by 116 pt, so fold the table's, the Format's and the result caption into their
+controls' Form rows, cut the result caption to one line, set the sheet's height
+from the measure (560 to 640, never more), with ordered cuts if still over; not
+720 pt, not accepted scrolling. D-H12: the Name line keeps showing the
+reference's name under a refusal, gray while a refusal shows. D-H13: initial
+focus is not set by code; Return and Esc must work with the table focused (M10).
+Fixes: F6 height, F7 Name color, F8 header thumbnail for RAW+JPEG pairs. I did
+not run the app (no shell); manual checks M8 to M16 for the owner after F6.
+Details: `docs/features/hdr-merge/review.md`, rulings in `design.md` §20.
