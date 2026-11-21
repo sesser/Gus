@@ -21,8 +21,9 @@ designer, then qa-tester.
 
 - Baseline, `develop` at `ed423d7`: `swift build` clean; `swift test` 1,253
   tests in 179 suites passed.
-- Latest (2026-11-20, after the review fixes, `88d1c43`): `swift build` with
-  no warnings; `swift test` **1,300 tests in 185 suites passed** (87.3 s);
+- Latest (2026-11-20, after the second-pass and security fixes, `fe593cf`):
+  `swift build` with no warnings; `swift test` **1,303 tests in 185 suites
+  passed** (85.8 s); after the first review fixes: 1,300;
   `Scripts/build-app.sh` builds the bundle. Opt-in suites not run here:
   `AI_MASK_SAMPLES` (the owner's photos). Before the fixes: 1,298 in 185.
 - No `PreviewCacheKey.currentPipelineVersion` bump: no existing stack renders
@@ -223,6 +224,26 @@ Update: the `failedUpdate` caption and announcement, one Activity warning;
 `adjust crop begin`: both Detect pull-downs and Update disabled with the
 cropping tooltips; an empty People landing does not flash.
 
+## Second pass and security review (2026-11-20)
+
+From the second passes of [`code-review.md`](code-review.md) and
+[`review.md`](review.md), and [`security-review.md`](security-review.md); all
+in `fe593cf`.
+
+| # | Finding | Resolution |
+| --- | --- | --- |
+| C9 | AC11's test passed on any "can't run here" error | Fixed as ruled (AC11, Q2): it passes only on Vision's unsupported compute device error, code 22, recognized by the detail `classify` writes ("VNErrorDomain 22: …", pinned in `classification`). Any other error, an unsupported revision included, fails, and so does a wrong size. Subject must return its 512 x 512 mask; any People mask its 4:3 size; an empty People result passes. The app keeps its wider Unavailable classification |
+| C10 | The Update's fallback match ignored operation and Invert | Fixed: `MaskDetectionUpdate.Started` also carries operation and Invert, and a component matches only with all four; tested with twins that differ in operation and in Invert |
+| N1 (design) | A second failed Update turned Unavailable into Failed | Fixed: `detectionState` keeps Unavailable. Scripted: `detector unavailable`, Subject, Update, then `detector fail`, Update: the caption stays "Detection isn't available on this Mac. It selects nothing." |
+| L1 | A crafted 4096-pixel row could cost gigabytes | Fixed: `MaskRaster.maximumSide` is 1024 for writing and reading; `Catalog.maskRaster` checks the row's width and height before decoding and does not load bytes over `maximumStoredBytes` (2 MiB, `CASE WHEN length(data) <= ?` in SQL). Tests `oversizedPNG`, `craftedRows` |
+| L2 | A row's key was not checked against its bytes | Fixed (optional in the review): a row whose bytes don't hash to its key is damaged (`craftedRows`) |
+| L3 | A damaged `editHistory.maskRasters` let the cleanup delete rows history names | Fixed: a list that is not NULL and can't be read (or names something that isn't a digest) is replaced by a scan of that entry's snapshot; if the snapshot can't be read either, that launch deletes nothing. NULL (entries before v15) stays "names none". Test `damagedHistoryList` |
+| N1 (security) | No stride or size check on Vision's buffer | Fixed: width and height within the side limit, not planar, `bytesPerRow` and data size large enough, all before allocating or reading |
+
+Not changed: the scanner's small per-quote allocation (a performance note in
+the security review). A Gus process from `qa/work/Gus.app` in the session
+scratchpad was running during these checks; not mine, left alone.
+
 ## For a person (manual checks proposed to QA)
 
 - M1: the menu bar: Adjust ▸ New Mask ▸ Subject / People / Background under
@@ -257,9 +278,9 @@ cropping tooltips; an empty People landing does not flash.
 The spike's RI-1 to RI-6 were ruled on 2026-11-20 and are in the PRD's
 Revisions; the design's RI-1 to RI-3 likewise. New:
 
-- **RI-E1, the R13 test on CI.** Being ruled by the product manager; the
-  test now passes on the "can't run here" error with the error printed (see
-  **Review findings**). Original note: On
+- **RI-E1 and Q2, the R13 test on CI.** Ruled by the product manager (PRD
+  revised on #88): only code 22 passes, an empty People result passes, sizes
+  must match. Built as ruled (C9 above). Original note: On
   this Mac the foreground request refuses the CPU (`VNErrorUnsupportedComputeDevice`,
   code 22) and runs on the GPU or Neural Engine. If a CI runner on macOS 15 or
   26 gives Vision neither, the test fails there with that error in its

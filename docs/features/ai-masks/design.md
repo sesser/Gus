@@ -90,7 +90,7 @@ Add to Mask: ▭ ◌ 🖌 ☀ 💧  [✨▾]
 | Part | Spec | Basis |
 |---|---|---|
 | Control | `AppKitMenuButton` (an `NSPopUpButton` that pulls down), symbol `wand.and.stars`, borderless like its neighbours, about 34 pt with its chevron, tooltip "New mask from the photo: Subject, People or Background" (in the Add row: "Add to this mask from the photo: …"), VoiceOver label "Detect" | Fits: about 55 + 130 + 4×2 + 34 = 227 pt. The engineer confirms `print inspectorwidth` reports `fits` at the narrowest inspector |
-| Menu | **Subject**, **People**, **Background**. No icons in the items (the row icons in §4 carry the meaning once chosen), no section header. Items dim as the shape buttons do (the mask or component limit, with the same tooltips), and while a detection is pending or the editor is cropping (§10) | HIG Pull-down buttons: "An Add button could present a menu that lets people specify the item they want to add"; three items is the length the HIG says makes a pull-down worth opening |
+| Menu | **Subject**, **People**, **Background**. No icons in the items (the row icons in §4 carry the meaning once chosen), no section header. The pull-down dims **as a whole** (not item by item; DR-2, §19.1), as the shape buttons do, with the reason as its tooltip and VoiceOver help: the mask or component limit (same tooltips), "Wait for the current detection to finish." while one is pending, "Finish cropping to detect in the photo." while cropping (§10) | HIG Pull-down buttons: "An Add button could present a menu that lets people specify the item they want to add"; three items is the length the HIG says makes a pull-down worth opening |
 | Symbol | `wand.and.stars` (SF Symbols 3 and later). The engineer confirms it in the SF Symbols app and otherwise uses `sparkles` | Says "automatic" without saying "AI" |
 
 **Why a pull-down and not three buttons, and the HIG cost.** Width is the
@@ -172,6 +172,7 @@ noun, and "Mask 3" tells nothing in the list. It renames like any mask.
 | **Empty**, People | "No people were found in this photo. It selects nothing." | no | no |
 | **Empty**, Background | "No subject was found, so there is no background to select. It selects nothing." | no | no |
 | **Failed** (the photo could not be rendered for detection, or the request threw; also a result never stored) | "Detection failed on this photo. It selects nothing. Choose Update to try again." | yes | yes |
+| **Failed Update of a Found result** (this visit only; DR-1) | "Detection failed on this photo. The earlier result still applies. Choose Update to try again." | yes | yes |
 | **Unavailable** (this session: the request reports it cannot run on this Mac) | "Detection isn't available on this Mac. It selects nothing." | yes | yes |
 | **Missing** (the digest names no row, or the row's bytes cannot be read) | "The stored result is missing or damaged. It selects nothing. Choose Update to detect again." | yes | yes |
 | **Detecting** | "Detecting…" with a mini spinner and Cancel (§5) | no | replaced by Cancel |
@@ -299,8 +300,8 @@ New Mask:  ▭ ◌ 🖌 ☀ 💧  [✨▾]
 
 | Path | Where | Acts on |
 |---|---|---|
-| Button "Update" | The component's caption, only in Failed, Unavailable and Missing | That component |
-| **Adjust ▸ Update Detection** | After Show / Hide Mask Overlay, before the sharpening and fringe map items | Every detection component of the selected mask, as one undo step |
+| Button "Update" | The component's caption, only in Failed, a failed Update of a Found result, Unavailable and Missing | That component |
+| **Adjust ▸ Update Detection** | Directly after New Mask ▸ and **before** Show / Hide Mask Overlay (I2: it changes data, so it sits with its sibling New Mask, not among the three "look at the mask" items that follow it) | Every detection component of the selected mask, as one undo step |
 | "Update Detection" in the mask row's ⋯ menu and context menu | Between Rename / Move and Delete, shown only when the mask has a detection component | Same as the menu bar item |
 
 - **Enablement** (menu, ⋯ item and button): the loupe's photo is editable
@@ -321,8 +322,10 @@ New Mask:  ▭ ◌ 🖌 ☀ 💧  [✨▾]
   "Detecting…" for a moment, which is the feedback; I judge that better than
   a message about nothing changing.
 - **A failed Update** erases nothing: the old result keeps applying and the
-  render does not change. The row shows the Failed caption (and Update again)
-  for this session, as in-memory state, and an Activity warning is posted;
+  render does not change. For this visit, as in-memory state, the row says so
+  (DR-1: "The earlier result still applies" when the result is Found; the
+  Failed caption when it was Empty, Failed or Missing), with Update again,
+  and an Activity warning is posted;
   the stored digest is untouched, so reopening the photo shows the old result's
   Found caption again.
 - **No shortcut** (§11).
@@ -372,8 +375,9 @@ control and has no UI.
 - **The flash (A8, judgment, the first thing to cut if the engineer finds it
   costly).** A new detection result has no handles, and +0.3 EV on a subject
   is subtle, so the person cannot judge the edge without finding the eye.
-  When a result lands on the selected mask (add or an Update that changed
-  the digest) with the overlay off, **the overlay turns on for 1.5 s and
+  When a **Found** result lands on the selected mask (add or an Update that
+  changed the digest; Empty, failed and unavailable results never flash, DR-3)
+  with the overlay off, **the overlay turns on for 1.5 s and
   off again**. It ends early if the person touches the eye, starts a
   slider drag, selects another mask or leaves the photo, so it never fights
   an adjustment. It is not shown when a stored mask is merely opened. It is a
@@ -398,7 +402,7 @@ control and has no UI.
 | Command | Menu | Shortcut | Enabled |
 |---|---|---|---|
 | **Subject**, **People**, **Background** (under a divider after the five shape items) | **Adjust ▸ New Mask ▸** | none | As the shape items: editable loupe photo, not cropping, under 32 masks, **and** no detection pending. The submenu title stays enabled (D-Q5) |
-| **Update Detection** (new) | Adjust, after Show / Hide Mask Overlay | none | §7 |
+| **Update Detection** (new) | Adjust, after New Mask ▸ and before Show / Hide Mask Overlay (I2) | none | §7 |
 | Subject / People / Background as a component | Inspector only: the "Add to Mask:" pull-down | none | Mask selected, under 16 components, no detection pending |
 | Cancel a detection | The pending line's Cancel button | none | While pending |
 | Show / Hide Mask Overlay | unchanged | none | unchanged |
@@ -434,8 +438,9 @@ control and has no UI.
 - **Labels.** Pull-down: "Detect", help as §2. Menu items read their titles.
   Component row: the title is the first element ("Subject"), then the
   caption as static text, then the controls; the operation pop-up keeps its
-  label; Invert keeps "Invert" and exposes its on/off state (the existing
-  button does; the engineer checks that a Background row reads "Invert, off").
+  label; Invert keeps "Invert" and exposes its on/off state as its
+  accessibility value, "On" or "Off", on every component kind (review F5: the
+  button's symbol and tint alone said nothing to VoiceOver).
 - **Announcements** (`AccessibilityText.announce`, medium priority), so a
   VoiceOver user whose focus stayed on the pull-down hears the outcome:
   - Landing, found: "Subject mask added. 1 subject found." / "People mask
@@ -443,8 +448,11 @@ control and has no UI.
   - Landing, empty: "Subject mask added. No subject stands out. It
     selects nothing."
   - Update, changed: "Detection updated. 2 people found."
-  - Failed or unavailable: posted through `LibraryModel.report`, which also
-    announces.
+  - Failed or unavailable: posted to Activity **without** announcing (review
+    F6); the landing's own announcement carries the caption ("Subject mask
+    added. Detection failed on this photo. It selects nothing. …"), so each
+    outcome is spoken once. After a failed Update of a Found result the
+    announcement carries the DR-1 caption.
   - Cancel: "Detection cancelled."
   Focus is **not moved** by landing: moving focus on an asynchronous result
   steals it from whatever the person was doing.
@@ -608,8 +616,12 @@ two limits verbatim in meaning.
 > duplicate starts with its original's result and is then independent. They
 > are for the loupe, one photo at a time.
 
-Terms in the guide are checked against the UI at review: **Detect** (button
-label), **Subject**, **People**, **Background**, **Detecting…**, **Update**,
+(The guide as built differs from this draft where the review asked: no
+bold "Detect", the four-person caption quoted whole, what Invert does on
+Background, and that a failed Update keeps the earlier result, G1 to G4. The
+guide, not this block, is the text.)
+
+Terms in the guide are checked against the UI at review: **Subject**, **People**, **Background**, **Detecting…**, **Update**,
 **Update Detection**, **Cancel**.
 
 ## 18. How this maps to the acceptance criteria
@@ -699,6 +711,20 @@ one reason and `AppKitMenuButton` items carry no tooltips. Accepted.
 flash runs only when the landed component is **Found**. Empty, failed and
 unavailable results have nothing to show: the red overlay would flash
 nothing.
+
+**DR-4 (review I2, 2026-11-20): Update Detection sits before Show / Hide Mask
+Overlay.** §7 and §11 had it after the overlay item, which split the three
+"look at the mask" toggles (overlay, sharpening map, fringe map) with a command
+that changes data. It now follows New Mask ▸ directly. The ⋯ and context menu
+placement (between Move and Delete) is unchanged.
+
+**Open, judgment (review I1, I3):** whether touching the eye during a flash
+keeps the overlay on (I1), and whether VoiceOver should hear "Detection
+unchanged." after an Update that changes nothing (I3). Neither is ruled; I1 is
+decided at manual check M4, as built (the eye turns the overlay off).
+
+**Confirmed (2026-11-20, [`review.md`](review.md) Confirmation):** DR-1 to
+DR-4 are built as written, apart from the one gap recorded there as N1.
 
 ## 20. Summary
 

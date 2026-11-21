@@ -284,3 +284,92 @@ Found result, F5 Invert has no on/off value, F6 a failed landing is announced
 twice; four user guide edits. 256 pt fit not yet shown (M1). No requirements
 issues. Manual checks M1 to M8 for the owner (no VoiceOver, macOS 15 or 26).
 Full review: `docs/features/ai-masks/review.md`.
+
+## Confirmation (2026-11-20)
+
+Owner: apple-ui-designer. Against commits `b56d44c` (code), `88d1c43` (user
+guide) and `2abdd18`, read in the worktree `/Users/randy/Projects/Gus-ai-masks`;
+`status.md` ("Review findings" and its scripted re-check) and `design.md`.
+
+**How this was done.** By reading the code, the catalog, the user guide and
+`status.md`. I could not run the app and did not run the tests; "scripted" below
+means `status.md` says the debug script showed it, which I take as reported.
+Looks, tooltips and keys stay with M1 to M8.
+
+### Verdict
+
+**Confirmed, one small gap.** Every must and should finding is fixed as
+asked, and the design is amended. One thing I missed the first time and found
+now (N1) is a caption that flips from Unavailable to Failed after a second
+failed Update. It is small and not a blocker for QA; fix it with the next
+change to this file.
+
+### Findings
+
+| # | Finding | Result | Evidence |
+|---|---|---|---|
+| F1 | Pull-down and Update look enabled while cropping | **Confirmed** | `DetectionButton.dimmedHelp` returns `croppingHelp` while `cropSession != nil` (`MasksSection.swift:97`); both rows pass `maskLimit ?? dimmedHelp` / `componentLimit ?? dimmedHelp`, and `dimmed != nil` disables the control. The Update button's help is wait, then cropping, then the normal tooltip, and `isEnabled` is `canUpdateDetection`, which already requires no crop session. Both strings are in the catalog ("Finish cropping to detect in the photo.", "Finish cropping to detect again."), worded as DR-2 and as "Finish cropping to show the sharpening map." Scripted: `adjust crop begin`, `buttons` shows both pull-downs and Update disabled |
+| F2, DR-1 | Caption after a failed Update of a Found result | **Confirmed** | New `MaskDetectionState.failedUpdate(instances:)` (PhotoCore), `offersUpdate` true (triangle and Update), caption "Detection failed on this photo. The earlier result still applies. Choose Update to try again." in the catalog with its comment. `detectionState` returns it only when the underlying state is Found, else `.failed`, as DR-1 says. `landUpdate` clears the entry on a later success and the announcement uses the same caption. `failedUpdates` is reset on leaving the photo (`AdjustmentEditor.swift:588`). One gap: N1 |
+| F3 | Failure attributed to the wrong request | **Confirmed** | `land` iterates `(request, result)`; Unavailable is remembered for that request and `reportFailure` names `pending.kind(for: request)`, the first component that uses it. Background's request is Subject's, so a Subject-or-Background failure says "a subject", People's says "people". Update with two requests renders once (C7) |
+| F4, DR-3 | Flash only on Found | **Confirmed** | New mask and component: `if found { flashOverlay }`, where `found` is the instance count of the pending kind's request. Update: `flashes` only when a landed result has instances, and only when `changed`. Empty, failed and unavailable never flash. Scripted: empty People landing, `flash false` |
+| F5 | Invert on/off for assistive technology | **Confirmed** | `ComponentRow`'s Invert passes `accessibilityValue` "On" or "Off" (existing catalog keys); `AppKitButton.updateNSView` applies it on every update, not only at creation, so it follows a toggle. Applies to every component kind. Not read by VoiceOver (standing rule) |
+| F6 | One announcement | **Confirmed** | `reportFailure` calls `library.postActivity`, which posts to Activity with no announcement (`LibraryModel.swift:614`); the landing's single `announce` carries the caption. Design §12 amended to say so. `report(... announcing:)` is no longer used here |
+| I2 | Update Detection above Show / Hide Mask Overlay | **Confirmed** | `LibraryCommands.swift:636-658`: New Mask ▸, Update Detection, then the overlay item, the sharpening map and the fringe map. Design §7, §11 and a new DR-4 amended |
+| G1 | No bold "Detect" | **Confirmed** | The guide says "The wand button at the end of the shape buttons"; design §17's terms list no longer names "Detect" (the VoiceOver name only) |
+| G2 | Four-person caption quoted whole | **Confirmed** | "4 people found, the most that can be selected. Others in the photo may be left out." matches the catalog |
+| G3 | Invert on Background | **Confirmed** | "Invert on a Background component selects the subject again." |
+| G4 | A failed Update keeps the earlier result | **Confirmed** | "If Update fails, the earlier result keeps applying and the row says so, with Update to try again." True of the build and of F2 |
+
+Terms in the guide against the UI: Subject, People, Background, Detecting…,
+Cancel, Update, Update Detection, the "1 subject found." example and the
+"4 people" caption all match; "Adjust ▸ Update Detection" is where the menu now
+puts it.
+
+### Design amended
+
+`design.md`: §2 (the pull-down dims as a whole), §4 (a row for the failed Update
+of a Found result), §7 (placement, the Update button's states, the failed
+Update text), §9 (Found only), §11 (placement), §12 (Invert's value, one
+announcement), §17 (G1 to G4 note, terms list), and §19.1 (DR-4, the open
+judgments I1 and I3, this confirmation). DR-1 to DR-3 were already there.
+
+### Remaining findings
+
+- **N1 (should, small). A second failed Update turns Unavailable into
+  Failed.** `detectionState` (`MaskDetectionEditing.swift:389-394`) returns
+  `.failed` for any component in `failedUpdates` whose state is not Found.
+  A component that already shows Unavailable (no stored result, the request
+  can't run on this Mac) and whose Update fails as unavailable again goes
+  from "Detection isn't available on this Mac. It selects nothing." to
+  "Detection failed on this photo. …", which names the wrong cause and flips
+  the text on a retry. Fix: leave `.unavailable` alone, so
+  `if case .unavailable = state { return state }` before the override. Test
+  with `detector unavailable`, add, `Update`, and compare the caption.
+  A Found component whose Update fails as unavailable shows the DR-1 caption,
+  which is acceptable (it does not claim a cause).
+- **I1 (judgment, unchanged).** The eye still turns the overlay off during a
+  flash. Decided at M4; not a finding.
+- **I3 (judgment, unchanged).** No "Detection unchanged." for VoiceOver. Not
+  needed unless M7 says the brief "Detecting…" reads as no response.
+- **Manual checks M1 to M8 stand**, with M3 now covering the crop-session
+  tooltip (F1) and M8 the new menu order (Update Detection before the overlay
+  item). Cannot be confirmed from code: F1's tooltip showing on a dimmed
+  borderless pull-down, and the 256 pt fit.
+
+Not re-opened: the engineer's code-review items (C1 to C8) are code-reviewer's
+to confirm. I read C3 only as far as F3 needs it.
+
+No requirements issues.
+
+### Summary for the issue
+
+Design review confirmation, #88 (`b56d44c`, `88d1c43`, `2abdd18`): **confirmed.**
+F1 (dimmed with a cropping tooltip), F2 and DR-1 (a failed Update of a Found
+result says the earlier result still applies), F3, F4 and DR-3 (flash only for
+Found), F5 (Invert On / Off), F6 (one announcement), I2 (Update Detection
+before the overlay item) and G1 to G4 (user guide) are built as asked; read
+from code and `status.md`, the app not run. `design.md` amended (§2, 4, 7, 9,
+11, 12, 17, 19.1 with DR-4). One small open finding, N1: a second failed Update
+of an Unavailable component shows Failed instead of Unavailable. I1 and I3
+stay judgment calls for M4 and M7. Manual checks M1 to M8 for the owner (no
+VoiceOver, macOS 15 or 26). Full text: `docs/features/ai-masks/review.md`.

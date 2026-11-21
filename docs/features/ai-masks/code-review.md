@@ -131,4 +131,52 @@ but the PRD expects damaged or partly copied catalogs (R14), so run
 
 ## Follow-up
 
-(Second pass: each finding with Fixed, Not fixed (and why) or Withdrawn, and the commit.)
+Second pass, 2026-11-20. Reviewed `20311d9..2abdd18`: `b56d44c` (code and
+tests), `88d1c43` (user guide), `2abdd18` (docs). Build and tests: `swift build`
+clean, and a clean build in a separate scratch path gives no Swift warnings
+outside `Sources/CLibRaw`. `swift test`: 1,300 tests in 185 suites passed
+(86.4 s, macOS 27.2.1). On this Mac AC11 prints nothing: both requests ran, and
+a separate probe (outside the repository) shows People returning a 512 × 384 or
+384 × 512 mask on all four fixtures, and Subject returning no observation on the
+gray field.
+
+| # | Result | Commit | Notes |
+|---|---|---|---|
+| C1 | Fixed | `b56d44c` | The Update keeps each component's place, kind and digest (`MaskDetectionUpdate.Started`), and `positions` finds it again: at its old place if that still matches, else the first unclaimed match, else nowhere. The review's case (⌘Z restoring [People, Subject]) now lands on index 1 (`updatePositions`). A Linear shape at the old place is never the target, and a removed component gets nothing. `failedUpdates` keys use the new position. A residual edge is C10. |
+| C2 | Fixed | `b56d44c` | `changeMasks` now has the same guard as `change` (`state == .ready, !isAskingLensFrame`), so a refused landing does not select, announce or flash. The landing waits while the question is up (a 100 ms poll on the main actor that checks cancellation). It then re-checks the pending id and version, and compares `adjustments.effective.distortion` with the input's. A changed frame runs the detection again, at most twice more (`0..<3`); after that the loop ends through `cancelDetection()`, which still sees its own pending, since nothing awaits between the last guard and that call. This also covers a Distortion commit that asks no question (a photo with no masks or spots). `MaskDetectionRun.input` depends only on `effective.distortion`, so that comparison is the right test. |
+| C3 | Fixed | `b56d44c` | `land` iterates `(request, result)`. Unavailable is recorded against the request that failed, and the Activity text names the kind of the first component that uses it (`PendingDetection.kind(for:)`). `severalRequestsOneRender` checks that each request keeps its own outcome. |
+| C4 | Fixed | `b56d44c` | `removeUnreferencedMaskRasters` runs on `persist`, the same `WriteChain` as the landing's row write and `AdjustmentEditor.apply`'s stack write, so it can no longer run between them. `photocli mask add` writes the row inside `setEditStacks`' transaction (`storing:`). A stack the catalog refuses rolls the row back with it. `setEditStack` was already a wrapper around `setEditStacks`, so nothing else changed. On a library with stored results, edits made at launch wait for the scan. That is acceptable: the scan only reads stacks that contain `"raster"`, and it is skipped when the table is empty. |
+| C5 | Fixed, with a question (Q2) | `b56d44c` | The test no longer needs People to find something. Subject must still find the disc in both orientations unless it is unavailable. People's sizes are checked whenever it returns a mask, and an empty People result passes with a printed line. Vision gives no observation when nothing is found, so no size can be read from an empty result (the engineer's probe and mine agree). Whether an empty People result meets the ruling's "no mask fails" is Q2. |
+| C6 | Fixed | `b56d44c` | `.unreadable` and `.unusableMask` are cases of their own, worded by the app in `MaskDetectionText.detail` with catalog entries. `.failed` and `.unavailable` carry only the system's words. `photocli` keeps plain English, since it has no catalog. |
+| C7 | Fixed | `b56d44c` | `MaskDetectionRun.run([requests], …)` renders once. A failed render fails every request, and it throws only `CancellationError`. The test checks that both requests got the same `CGImage` and that a missing file gives `.unreadable` for both. |
+| C8 | Fixed | `b56d44c` | `detect` is async, and the task's cancellation handler calls `VNRequest.cancel()` through `RequestCancel`. That class's `@unchecked Sendable` reason holds: it holds only the request and exposes only `cancel()`, which is meant to be called from another thread. A request cancelled in flight throws Vision's cancelled error, which is classified `.failed`. The multi-request `run` then throws `CancellationError` from its last `checkCancellation`, so a Cancel never lands as a failure. The test's `Recording` detector is `@unchecked` with a lock and a stated reason. |
+
+New findings in the fix commits:
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C9 | Should fix | `Tests/PhotoCoreTests/MaskDetectionTests.swift:62`; `Sources/PhotoCore/Suggestions/MaskDetector.swift:98-107` | The AC11 test passes on any `MaskDetectionError.unavailable`. `classify` maps five codes to that case: `unsupportedRevision`, `unsupportedRequest`, `unsupportedComputeStage`, `unsupportedComputeDevice`, and `resourceUnavailable` on 27. The ruling (R13 and AC11 as revised in #88) lets the test pass only on Vision's "unsupported compute device" error; any other error fails. The engineer built the version relayed while the ruling was in progress (status.md, RI-E1 row). The app can keep its wider Unavailable classification; only the test has to be narrower. | On a macOS 15 runner where `VNGeneratePersonInstanceMaskRequest`'s default revision is not supported, Vision throws `unsupportedRevision`. The test prints "can't run on this Mac" and passes. That is the regression AC11 exists to catch on 15 and 26, and the ruling says it must fail. Have the test pass only on code `VNErrorCode.unsupportedComputeDevice` (22). Either keep the `NSError` code in `.unavailable`, or check the detail's prefix `"\(VNErrorDomain) 22:"`, which `classify` formats deterministically, and record any other code as an issue. | AC11 as ruled |
+| C10 | Nit | `Sources/PhotoCore/Suggestions/MaskDetector.swift:266-277` | When the old place no longer matches, `positions` falls back to the first unclaimed component with the same kind and digest. It does not compare the component's operation or Invert. | Mask [Subject (no result, Add), Subject (no result, Subtract)]. Choose Update on row 2, then remove row 2 before the result lands. The result lands on row 1 (Add), a row the user never asked to update, and the photo changes under an "Update Detection" step. This needs twin components and a removal mid-detection, so it is unlikely. Also match `operation` and `invert`, or cancel the pending Update when one of its components is removed. | Correctness (C1 residual) |
+
+Checked in the fix commits and fine: the design-review changes that touch code
+(`failedUpdate` only wraps a `.found` state, and `offersUpdate` covers it; the
+flash fires only for found results; `postActivity` adds no announcement; the
+Invert accessibility value; the cropping tooltips; the menu order). The debug
+detector's `hang` mode uses `Task.sleep` and stops on cancel.
+`DetectionMaskCommandTests` now treats `.unusableMask` as "failed" in
+`mask list`. There is no new `nonisolated(unsafe)`, and the only new
+`@unchecked Sendable` (`RequestCancel`) has a reason that holds. No migration,
+golden or tolerance changed in these commits.
+
+Questions from the second pass:
+
+- **Q2 (product manager).** The ruling says that missing a mask fails AC11.
+  The test now passes when People finds nothing in the person-less fixtures,
+  and only prints that its sizes were not seen. Vision returns no observation
+  for an empty result, so there is no size to check, and no synthetic fixture
+  can promise a person: requiring People to find one brings back C5's CI risk.
+  On this Mac People returns a mask of the right size on all four fixtures, so
+  its size check does run here. Is an empty People result on a person-less
+  fixture an acceptable AC11 outcome, given that R6 says empty is not an
+  error? I recommend yes, with AC11's wording saying so. If not, the test has
+  to fail on it and accept the CI risk.
