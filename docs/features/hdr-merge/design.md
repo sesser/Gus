@@ -253,7 +253,9 @@ sheet **freezes its frames** when it opens, as Export does; it is added to
   settings), so a person who always wants DNG sets it once. R5's "default
   TIFF" is the first-run value. Under it, a caption that follows the choice:
   - TIFF: "16-bit, Display P3, tone-mapped. Looks right in any app."
-  - DNG: "32-bit floating point, not tone-mapped. Tone it in the Adjust tab."
+  - DNG: "16-bit floating point, not tone-mapped. Tone it in the Adjust tab."
+    (Written as 32-bit in the first draft; the system's RAW decoder reads no
+    32-bit float DNG, so the file is 16-bit: ruling D-H4, §19.)
   The color space is **Display P3**, tagged with its profile (A7: my
   proposal). It is the working space's output space, it keeps a wide-gamut
   raw's colors that sRGB would clip, and every color-managed viewer reads the
@@ -432,9 +434,10 @@ row is the record.
 
 - **Closing the window or quitting** asks first, like Export: `QuitConfirmation`
   gains `case merging` (PhotoCore), alert **Quit While Merging?**, message "The
-  merge is stopped and nothing is added.", buttons **Quit** and **Keep
-  Merging**. Same host rules as the others (the front-most sheet, never an About
-  window).
+  merge is stopped and nothing is added.", buttons **Keep Merging** (default,
+  Return and Esc) and **Stop and Quit**, as every other quit alert has them
+  (ruling D-H1, §19). Same host rules as the others (the front-most sheet,
+  never an About window).
 - **Removing photos or a project** is dimmed while a merge runs (§10): a
   removal that takes the naming photo's project out from under the merge could
   not leave "library unchanged" and the file both true. This is LO §8's
@@ -477,8 +480,10 @@ from them.
   contains the new photo (All Photos, the naming photo's project, its date), no
   filter hides it, and **the selection is still exactly the frames** the merge
   was started from (the person hasn't clicked elsewhere). The new photo
-  replaces the selection and takes the focus. In the loupe the loupe stays on
-  the photo it was on (it is not moved: the person is looking at something).
+  replaces the selection and takes the focus. **In the loupe (and in review
+  and comparison) the new photo does not take the selection and the loupe stays
+  on the photo it was on**: the person is looking at something. The first
+  sentence's "grid or the loupe" is narrowed to "the grid" (ruling D-H2, §19).
 - **Otherwise** the selection and focus are not touched. A person who moved on
   to rate other photos doesn't have the selection yanked 40 seconds later (HIG:
   keep people in control, don't move what they didn't act on).
@@ -613,7 +618,7 @@ catalog's plural variations, and no string has two plural numbers.
   "“%@” names the result and is the photo the others are lined up to." (caption);
   "These photos have the same exposure settings. Merging them won't widen the
   range of light." (note); "Format"; "TIFF"; "DNG"; "16-bit, Display P3,
-  tone-mapped. Looks right in any app."; "32-bit floating point, not
+  tone-mapped. Looks right in any app."; "16-bit floating point, not
   tone-mapped. Tone it in the Adjust tab."; "TIFF (16-bit, Display P3,
   tone-mapped)" (the row when DNG isn't built); "Name"; "Folder"; "Saved
   next to “%@”. The originals are not changed, and your adjustments are not
@@ -644,9 +649,10 @@ catalog's plural variations, and no string has two plural numbers.
   import it."; "“%1$@” was removed from the library. The file is still at
   %2$@."; "“%@” couldn't be added back because the file has changed or is
   missing."
-- **Optional (R18):** "Show in Library" (the row's button).
+- **Optional (R18):** "Show in Library" (the row's button). Not built (D-H3).
 - **Quit:** "Quit While Merging?"; "The merge is stopped and nothing is
-  added."; "Keep Merging" (button; "Quit" as the other quit alerts have it).
+  added."; "Keep Merging" (button; the second button is the shared "Stop and
+  Quit", D-H1).
 - **VoiceOver:** "Merged to “%@”."; "The photos couldn't be merged."; "The merge
   was stopped.".
 - **Types:** the type column reuses the grid's words (RAW, JPEG, HEIC, TIFF);
@@ -790,5 +796,48 @@ running beside a merge shares the catalog write chain safely (§10).
 
 ## 19. Design questions from implementation
 
-None yet. Rulings on the engineer's questions are recorded here as numbered
-sections (D-H1, D-H2, …) so the engineer and the review can cite them.
+Rulings on the engineer's questions (asked in `status.md`, ruled at design
+review, 2026-11-20). Cite them as D-H1 … D-H4.
+
+**D-H1. The quit alert's buttons: "Keep Merging" and "Stop and Quit".**
+Confirmed; §7.4's "Quit" is withdrawn. Reasons: (1) consistency (HIG: familiar
+patterns): the importing and exporting alerts already give **Keep ‹Job›**
+(default, Return and Esc) and **Stop and Quit**, and a person who has met one
+has met them all; (2) "Stop and Quit" says what the button does to the work,
+which is the thing the alert is about, where a bare "Quit" does not; (3) the
+shared `QuitGuard.ask` already makes the safe button the default and keeps Esc
+on it, which is right here, since quitting is what loses a minute of work. The
+button is not destructive-styled (nothing is lost but the run). No code
+change.
+
+**D-H2. When the merge ends with the loupe showing: nothing moves.** §8.3 said
+two things; the rule is the second. The new photo takes the selection and the
+focus **only when the grid is showing** and the selection is still exactly the
+frames the merge started from and the source holds the new photo (what
+`MergeLanding.selects` does). With the loupe, review or comparison showing, the
+selection, the focused photo and the loupe are all left as they are, and
+Activity (row and VoiceOver announcement) is the signal. Reasons: in the loupe
+the person is looking at one photo, possibly mid-edit; replacing it under them
+40 seconds after they asked for something is the "moving what they didn't act
+on" the section forbids; and a selection changed while the loupe shows
+something else would come back as a surprise when they return to the grid.
+The new photo is in the list (a source that holds it shows it), so arrow keys
+and the film strip reach it. As built. The guide says it (review finding F1).
+
+**D-H3. R18 "Show in Library" is not built; accepted.** It is a Could, §8.3
+already allowed leaving it out, and nothing depends on it. The cost is real
+only for a person who moved on: the success row has the full path as
+selectable text and the search field finds `_HDR`. If the owner finds that thin
+in use, it is an enhancement (an optional action on `ActivityLog.Message`),
+not a defect of this feature.
+
+**D-H4. The DNG caption reads "16-bit floating point, not tone-mapped. Tone it
+in the Adjust tab."** Confirmed. The constraint (the system decoder reads
+float DNGs only at 16 bits) is the engineer's measurement in `status.md`, and
+it is a better file for the person: the app's own loupe can show it, and other
+raw-capable apps can open it. Keeping the bit depth in the caption is right
+for symmetry with the TIFF's "16-bit". Keep "floating point": it is the plain
+word for what makes this file different from the TIFF, and the next sentence
+says what to do with it. The product-manager owns the PRD's R5, Open question 1
+and any AC that says 32-bit: they need the same change (RI-E1, below).
+Judgment, not Apple policy.
