@@ -673,6 +673,52 @@
       },
       "comment" : "Import report header: preset packs imported"
     },
+    "%lld people found, the most that can be selected. Others in the photo may be left out." : {
+      "comment" : "Detection caption: People found at the request's limit of four",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld person found, the most that can be selected. Others in the photo may be left out."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld people found, the most that can be selected. Others in the photo may be left out."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld people found." : {
+      "comment" : "Detection caption: People found",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld person found."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld people found."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld photos" : {
       "comment" : "Window subtitle; also VoiceOver, after the result of a culling action on several photos (“Picked, 12 photos”)",
       "localizations" : {
@@ -1121,6 +1167,29 @@
         }
       }
     },
+    "%lld subjects found." : {
+      "comment" : "Detection caption: Subject found",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld subject found."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld subjects found."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld videos are not exported." : {
       "comment" : "Export window: the selection includes videos",
       "localizations" : {
@@ -1490,6 +1559,28 @@
         }
       }
     },
+    "Add Background Mask" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Background Mask"
+          }
+        }
+      }
+    },
+    "Add Background to Mask" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Background to Mask"
+          }
+        }
+      }
+    },
     "Add Folder" : {
       "comment" : "Activity row title: folders added without copying; the open panel button of File ▸ Add Folder Without Copying…",
       "localizations" : {
@@ -1567,6 +1658,28 @@
         }
       }
     },
+    "Add People Mask" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add People Mask"
+          }
+        }
+      }
+    },
+    "Add People to Mask" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add People to Mask"
+          }
+        }
+      }
+    },
     "Add Rule" : {
       "comment" : "Smart album editor button",
       "localizations" : {
@@ -1585,6 +1698,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Add Spot"
+          }
+        }
+      }
+    },
+    "Add Subject Mask" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Subject Mask"
+          }
+        }
+      }
+    },
+    "Add Subject to Mask" : {
+      "comment" : "Undo action name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Subject to Mask"
           }
         }
       }
@@ -1763,6 +1898,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Add to all selected photos"
+          }
+        }
+      }
+    },
+    "Add to this mask from the photo: Subject, People or Background" : {
+      "comment" : "Tooltip of the Add to Mask row's detection pull-down",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add to this mask from the photo: Subject, People or Background"
           }
         }
       }
@@ -2427,6 +2573,28 @@
         }
       }
     },
+    "Background" : {
+      "comment" : "Mask detection kind: menu item, row title and a new mask's name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Background"
+          }
+        }
+      }
+    },
+    "Background mask added. %@" : {
+      "comment" : "VoiceOver; the component's caption follows",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Background mask added. %@"
+          }
+        }
+      }
+    },
     "Balance" : {
       "comment" : "Color grading slider: moves the split between shadows and highlights; also its undo action name",
       "localizations" : {
@@ -2692,6 +2860,127 @@
         }
       }
     },
+    "Couldn't detect a subject in %@." : {
+      "comment" : "Activity warning; the file's name follows",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't detect a subject in %@."
+          }
+        }
+      }
+    },
+    "Couldn't detect people in %@." : {
+      "comment" : "Activity warning; the file's name follows",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't detect people in %@."
+          }
+        }
+      }
+    },
+    "Detect" : {
+      "comment" : "Accessibility label of the Masks heading's detection pull-down",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Detect"
+          }
+        }
+      }
+    },
+    "Detect again on this photo and replace the stored result" : {
+      "comment" : "Tooltip of a detection component's Update button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Detect again on this photo and replace the stored result"
+          }
+        }
+      }
+    },
+    "Detecting" : {
+      "comment" : "Tooltip and VoiceOver label of a detection's spinner",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Detecting"
+          }
+        }
+      }
+    },
+    "Detecting…" : {
+      "comment" : "Caption while a mask detection runs",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Detecting…"
+          }
+        }
+      }
+    },
+    "Detection cancelled." : {
+      "comment" : "VoiceOver, after Cancel on a detection",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Detection cancelled."
+          }
+        }
+      }
+    },
+    "Detection failed on this photo. It selects nothing. Choose Update to try again." : {
+      "comment" : "Detection caption: failed",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Detection failed on this photo. It selects nothing. Choose Update to try again."
+          }
+        }
+      }
+    },
+    "Detection failed on this photo. The earlier result still applies. Choose Update to try again." : {
+      "comment" : "Detection caption: an Update failed and the earlier result still applies",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Detection failed on this photo. The earlier result still applies. Choose Update to try again."
+          }
+        }
+      }
+    },
+    "Detection isn't available on this Mac. It selects nothing." : {
+      "comment" : "Detection caption: the request can't run on this Mac",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Detection isn't available on this Mac. It selects nothing."
+          }
+        }
+      }
+    },
+    "Detection updated. %@" : {
+      "comment" : "VoiceOver after Update Detection; the caption follows",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Detection updated. %@"
+          }
+        }
+      }
+    },
     "Distortion" : {
       "comment" : "Adjust tab group under Lens and preset group: straightens lines a lens bends; also undo names (Turn On Distortion)",
       "localizations" : {
@@ -2765,6 +3054,51 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Each filter lightens colors like itself and darkens the opposite ones. Color Grading can tint the result."
+          }
+        }
+      }
+    },
+    "Everything except %lld subjects." : {
+      "comment" : "Detection caption: Background, the subjects it leaves out",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Everything except %lld subject."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Everything except %lld subjects."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Finish cropping to detect again." : {
+      "comment" : "Tooltip of a detection's Update button, dimmed while cropping",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finish cropping to detect again."
+          }
+        }
+      }
+    },
+    "Finish cropping to detect in the photo." : {
+      "comment" : "Tooltip of the detection pull-down, dimmed while cropping",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finish cropping to detect in the photo."
           }
         }
       }
@@ -2912,6 +3246,17 @@
         }
       }
     },
+    "New mask from the photo: Subject, People or Background" : {
+      "comment" : "Tooltip of the New Mask row's detection pull-down",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New mask from the photo: Subject, People or Background"
+          }
+        }
+      }
+    },
     "No Filter" : {
       "comment" : "Adjust ▸ Black & White menu item: all five filters at 0",
       "localizations" : {
@@ -2941,6 +3286,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No distortion table was found in this file. Choose Manual to set the amount by hand."
+          }
+        }
+      }
+    },
+    "No people were found in this photo. It selects nothing." : {
+      "comment" : "Detection caption: People found nothing",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No people were found in this photo. It selects nothing."
+          }
+        }
+      }
+    },
+    "No subject stands out in this photo. It selects nothing." : {
+      "comment" : "Detection caption: Subject found nothing",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No subject stands out in this photo. It selects nothing."
+          }
+        }
+      }
+    },
+    "No subject was found, so there is no background to select. It selects nothing." : {
+      "comment" : "Detection caption: Background with no subject",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No subject was found, so there is no background to select. It selects nothing."
           }
         }
       }
@@ -3007,6 +3385,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Orange filter: darker skies, lighter skin and warm tones."
+          }
+        }
+      }
+    },
+    "People" : {
+      "comment" : "Mask detection kind: menu item, row title and a new mask's name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "People"
+          }
+        }
+      }
+    },
+    "People mask added. %@" : {
+      "comment" : "VoiceOver; the component's caption follows",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "People mask added. %@"
           }
         }
       }
@@ -3154,6 +3554,39 @@
         }
       }
     },
+    "Stop detecting; nothing is added or changed" : {
+      "comment" : "Tooltip of a detection's Cancel button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop detecting; nothing is added or changed"
+          }
+        }
+      }
+    },
+    "Subject" : {
+      "comment" : "Mask detection kind: menu item, row title and a new mask's name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Subject"
+          }
+        }
+      }
+    },
+    "Subject mask added. %@" : {
+      "comment" : "VoiceOver; the component's caption follows",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Subject mask added. %@"
+          }
+        }
+      }
+    },
     "The camera's table in this file could not be read, so nothing is corrected. Choose Manual to set the amount by hand." : {
       "comment" : "Lens correction caption, with a warning symbol: the file's table is damaged or not understood",
       "localizations" : {
@@ -3161,6 +3594,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The camera's table in this file could not be read, so nothing is corrected. Choose Manual to set the amount by hand."
+          }
+        }
+      }
+    },
+    "The mask Vision gave could not be read." : {
+      "comment" : "Activity warning's detail when a detection's result is in a form the app can't use",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The mask Vision gave could not be read."
+          }
+        }
+      }
+    },
+    "The photo could not be rendered for detection." : {
+      "comment" : "Activity warning's detail when a detection's input could not be made",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The photo could not be rendered for detection."
+          }
+        }
+      }
+    },
+    "The stored result is missing or damaged. It selects nothing. Choose Update to detect again." : {
+      "comment" : "Detection caption: the stored result's row is missing or unreadable",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The stored result is missing or damaged. It selects nothing. Choose Update to detect again."
           }
         }
       }
@@ -3242,6 +3708,28 @@
         }
       }
     },
+    "Update" : {
+      "comment" : "Button: detect a mask component again",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Update"
+          }
+        }
+      }
+    },
+    "Update Detection" : {
+      "comment" : "Menu item, mask menu item, undo action name and History label",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Update Detection"
+          }
+        }
+      }
+    },
     "Use the correction table the camera stored in this file." : {
       "comment" : "Tooltip of the Auto segment of a lens correction group's Source",
       "localizations" : {
@@ -3271,6 +3759,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Using the camera's vignetting table from this file."
+          }
+        }
+      }
+    },
+    "Wait for the current detection to finish." : {
+      "comment" : "Tooltip of detection items dimmed while one runs",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wait for the current detection to finish."
           }
         }
       }

@@ -70,11 +70,15 @@ extension Catalog {
     /// Adds an entry for `versionID` and trims the version's history, inside
     /// the caller's write so an entry is saved with its edit: to the newest
     /// `maxEntries`, then to `byteBudget` stored bytes, dropping the oldest. The
-    /// entry just added is never trimmed.
+    /// entry just added is never trimmed. The entry names the stored detection
+    /// results its snapshot refers to (`maskRasters`), so they are kept while
+    /// it is (issue #88, R5).
     static func recordHistory(_ db: Database, versionID: Int64, label: String, stackJSON: String, at date: Date,
                               byteBudget: Int = EditHistory.maxBytes) throws {
-        try db.execute(sql: "INSERT INTO editHistory (versionId, label, createdAt, stack) VALUES (?, ?, ?, ?)",
-                       arguments: [versionID, label, date, try EditHistory.compress(stackJSON)])
+        let rasters = MaskRasterReferences.encode(MaskRasterReferences.digests(inStackJSON: stackJSON))
+        try db.execute(sql: """
+            INSERT INTO editHistory (versionId, label, createdAt, stack, maskRasters) VALUES (?, ?, ?, ?, ?)
+            """, arguments: [versionID, label, date, try EditHistory.compress(stackJSON), rasters])
         let rows = try Row.fetchAll(db, sql: "SELECT id, length(stack) FROM editHistory WHERE versionId = ? ORDER BY id DESC",
                                     arguments: [versionID])
         var total = 0

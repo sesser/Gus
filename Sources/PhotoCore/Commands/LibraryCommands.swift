@@ -371,7 +371,8 @@ enum LibraryCommands {
             throw CommandError(.versionNotFound, "No version \(versionID)")
         }
         let destination = invocation.environment.url(arguments.string("to") ?? "")
-        let renderer = ExportRenderer(generator: PreviewGenerator(renderer: AdjustmentRenderer(lookTables: library.lookTables)),
+        let renderer = ExportRenderer(generator: PreviewGenerator(renderer: AdjustmentRenderer(lookTables: library.lookTables,
+                                                                                            maskRasters: library.maskRasters)),
                                       watermarks: WatermarkStore(locations: library.locations))
         let job = ExportJob(catalog: library.catalog, renderer: renderer)
         let summary = await job.run(ExportRequest(versionIDs: ids, settings: settings, destination: destination,
