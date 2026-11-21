@@ -394,17 +394,19 @@ Add, Subtract or Intersect, each with an Invert button. The mask's **Amount**
 scales it, and the sliders below apply only inside it.
 
 **Masks from the photo.** The wand button at the end of the shape buttons
-(**Detect**; or **Adjust ▸ New Mask ▸ Subject, People, Background**) finds
+(or **Adjust ▸ New Mask ▸ Subject, People, Background**) finds
 something in the photo on your Mac, with nothing sent anywhere, and makes a
 mask of it, named after what it found. **Subject** selects what stands out,
 every instance of it as one region. **People** selects every person it finds,
 **up to four**: in a crowd the others are left out, and the row says
-"4 people found, the most that can be selected." **People can also select
+"4 people found, the most that can be selected. Others in the photo may be
+left out." **People can also select
 something that is not a person**: a close-up of a flower was selected as a
 person during testing, and there is no setting for how sure it must be;
 remove the component, or subtract another shape from it. **Background** is
 everything except the subject: the Subject result turned around, so with no
-subject found it selects nothing rather than everything. A new Subject or
+subject found it selects nothing rather than everything; Invert on a
+Background component selects the subject again. A new Subject or
 People mask starts at +0.3 EV and a Background mask at −0.5 EV, and the red
 overlay shows the new mask for a moment. The same button in the **Add to
 Mask** row adds Subject, People or Background to the selected mask.
@@ -427,7 +429,9 @@ it looks the same after you reopen the library, on another Mac, or after a
 macOS update; looking again can give a slightly different result.
 **Update** (**Adjust ▸ Update Detection**, the row's button, or the mask's ⋯
 menu) looks again and replaces the saved result; it is one undo step, and
-Undo brings back the earlier result without looking again. Masks from the
+Undo brings back the earlier result without looking again. If Update fails,
+the earlier result keeps applying and the row says so, with Update to try
+again. While cropping, detecting and Update wait until you finish. Masks from the
 photo are left out of Copy and Paste Adjustments and of presets; a duplicate
 starts with its original's result and is then independent, and the two files
 of a RAW+JPEG pair each have their own. They are for the loupe, one photo at
