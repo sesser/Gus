@@ -257,3 +257,111 @@ product manager, not a finding.
 - `/security-review`: this pass changes file placement (`writeInPlace`'s
   fallback), and C6's fix will change it again. A short re-run of
   `/security-review` on the C6 fix is worthwhile, limited to `writeInPlace`.
+
+## Third pass
+
+Owner: code-reviewer. Date: 2026-11-20. Reviewed: `feature/hdr-merge`,
+`8ad8f77..992ab25` (the reviewers' files `0872d69`, the fixes `992ab25`).
+Build and tests: `swift build` clean; `swift test` 1307 tests in 188 suites
+passed (235.9 s), with `fat32` running against a real image (it printed no
+"not available" line). Also run here, with the built `photobench` and `photocli`:
+
+- `photobench generate --brackets 1`, the three `RAW_10x` frames copied onto
+  each volume, `photobench import` in place, then `photocli merge` on them as
+  TIFF, TIFF again, then DNG:
+  - On APFS (scratchpad folder), on a 200 MB FAT32 image and on a 200 MB exFAT
+    image (`hdiutil create -fs`, both FSKit mounts, detached afterwards).
+  - Every volume gave versions 4, 5 and 6: `RAW_102_HDR.tif`, `_HDR-2.tif` and
+    `_HDR-3.dng`, with three different SHA-256 values. The masters' SHA-256
+    values were unchanged (`shasum -c`).
+  - No `.merge-*.partial` and no `._.merge-*` AppleDouble file was left. On
+    FAT32 and exFAT each result has its `._` companion, as the masters do.
+  - `exiftool -validate -warning -a` on each `_HDR-3.dng` printed `OK` and no
+    warnings. Tag 0x02bc is `int8u` and starts with `<?xpacket begin=`, and
+    the DNG still carries `xmpMM:DocumentID` and `xmp:CreateDate`.
+- A C probe on APFS, FAT32 and exFAT, for the security questions below.
+
+### Verdict
+
+Ready for QA. C6 to C9 are fixed, and so are design review's F3 to F5. The C6
+fallback never replaces a file that was there when it reserved the name, and it
+leaves nothing behind on the paths it controls. One new nit (C10): the FAT32
+test passes without running where `hdiutil` can't attach an image.
+
+### Follow-up (C6 to C9)
+
+| # | State | Commit | Note |
+|---|---|---|---|
+| C6 | Fixed | `992ab25` | When `renamex_np` gives ENOTSUP or EOPNOTSUPP, `renameOverPlaceholder` (`MergeOutput.swift:282`) reserves the name with `open(O_WRONLY\|O_CREAT\|O_EXCL)`. EEXIST there is `nameTaken`, which the job retries with a new free name, as before. It then `rename`s the hidden file over that placeholder. If the rename fails, the placeholder is removed only while `lstat` still finds the inode `fstat` gave at creation. Real merges work on FAT32 and exFAT (above). `linkFallback` drives the ENOTSUP-then-ENOTSUP path with stubs (placed, then `nameTaken` with the first file untouched). `fat32` runs the default calls on a real image (placed, never replaced, no `.partial`). `link` and the exclusive rename are injectable, and the stubs now return an errno instead of setting the global one. |
+| C7 | Fixed | `992ab25` | `MainActorWait.whileTrue` polls on the main actor, so its deadline holds whatever the merge is doing. `MergeModel.waitUntilDone` asks whether `task` is still set, and the merge task's `defer` clears it on the main actor, which the wait lets run each time it sleeps. The injected-clock test pins the limit (returns false at exactly 10 s after 100 sleeps) and the early end (300 ms when the condition stops on its fourth check). It doesn't depend on load. `realClockReturns` checks the real clock path. The tests pin the helper, not `waitUntilDone`, which is now one line over it. Traced: Stop and Quit calls `terminate` no later than 10 s after it starts waiting. |
+| C8 | Fixed | `992ab25` | `refusedFileRemoved` covers both halves. A `catalogue` that throws `sameContent` leaves the folder as it was. When another file replaces the merged file under its name first, that file survives with its own bytes. Without the identity check the second half fails, and without the removal the first half fails. |
+| C9 | Fixed | `992ab25` | Tag 700 is BYTE, and `LinearDNGWriter.packet` wraps the XMP in an `xpacket` and leaves a packet that is already wrapped alone. `exiftool -validate` reports OK with no warnings (above), and `dngRoundTrip` passes. |
+| F3 (design) | Fixed | `992ab25` | The literal, the catalog key and its `en` value all match the designer's text word for word. The `%@` and the comment are kept, and `LocalizationTests` passes. |
+| F4, F5 (design) | Fixed | `992ab25` | The guide's refusal bullet adds the 150 MP limit and the memory limit, worded as the sheet words them ("too large to merge", select fewer). The F5 sentence sits at the end of that bullet rather than after the paragraph that says nothing links the photo to its sources. Where it goes is the designer's call. |
+
+### Findings (third pass)
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C10 | Nit | `Tests/PhotoCoreTests/MergeSafetyTests.swift:225-238` | When `hdiutil` can't make or attach the image, `fat32` prints a line and passes. Swift Testing records it as passed, the same as a real run. | On a runner where `hdiutil attach` is refused (a sandboxed CI image, say), a change that broke the real FAT path again would stay green. Only the stubbed `linkFallback` would check the logic, and the C6 regression showed that stubs aren't enough. Suggestion: make the image in a trait (`.enabled(if:)` with a check that attaches and detaches once), so the result says "skipped", which works on Swift 6.2. Or keep it as it is and have QA read the line in the log. | Tests: deterministic, and a skip shows as one |
+
+### Security re-check, limited to `writeInPlace` and placement
+
+Probe results (APFS, FAT32 and exFAT all behaved the same unless noted):
+
+- **Inode identity on FAT.** FSKit's msdos and exFAT give a file with content a
+  stable number, and the number survives `rename`: the hidden file's number is
+  the placed file's number, before and after other files in the folder are
+  made and removed. Empty files get large synthetic numbers that are never
+  reused (a removed empty file made again at the same name gets a new one), and
+  an empty file's number is stable while it exists. So `placed()`, which reads
+  from the name after placing, gives the job the merged file's real identity on
+  every volume. The placeholder check after a failed rename can't match another
+  process's file.
+- **Symbolic link at the name.** FAT32 and exFAT accept `symlink(2)` here, and
+  on all three file systems `open(O_CREAT|O_EXCL)` on a link gives EEXIST, even
+  for a dangling link. The result is `nameTaken`, nothing is followed, and the
+  job retries with a new name. A link put there after the reservation is
+  replaced as a link by `rename` (never followed). A directory put there makes
+  `rename` fail with EISDIR, and the placeholder check then leaves the
+  directory alone.
+- **Race between the reservation and the rename.** This window stays open: if
+  another process removes the empty placeholder and puts its own file at that
+  name in the microseconds between `open` and `rename`, `rename` replaces that
+  file (shown by the probe on all three file systems). Only a process that
+  deletes a file it didn't make can do this, and such a process could delete
+  masters anyway. FAT32 and exFAT give no exclusive rename to close it. A check
+  of the placeholder's identity just before `rename` would narrow the window
+  but not close it. **Accepted residual**, not a finding.
+- **Crash or kill between the reservation and the rename.** That would leave a
+  0-byte file at the result's name and the complete `.merge-<UUID>.partial`.
+  The window is a few system calls with no cancellation check, so Stop can't
+  land there. The next merge numbers past the empty file, since its stem is
+  taken. This is the same class as L6 (no sweep for old partial files, accepted
+  in the second pass). **Accepted residual.**
+- **Permissions.** The placeholder is made `0644` (then the umask; FAT shows
+  `0700`, synthetic on `noowners` mounts) and is replaced by the rename, so the
+  result keeps the hidden file's mode, as on APFS. Nothing is world-writable.
+- **Cleanup of `.merge-<UUID>.partial`.** The `defer` removes the hidden name
+  on every path: after `link` it is the second name of the placed file, so only
+  that name goes. After a rename it no longer exists, so the removal is a no-op
+  (`try?`). On failure or cancellation it is the whole file. On FAT32,
+  unlinking a file also removes its `._` companion (checked), and after the
+  three merges no `._.merge-*` file was left. The name is a fresh UUID in the
+  same folder, so it never collides.
+- **Identity read after `link` on APFS.** `placed()` now reads the identity
+  from the result's name, not from the hidden file. After a successful `link`
+  both names are the same inode. If another process replaced the result in the
+  microseconds before the `lstat`, the job would hold that file's identity, and
+  only the `sameContent` refusal (practically unreachable since C1) acts on it.
+  This is negligible and the same class as above.
+
+No new parser, subprocess (the test's `hdiutil` is a fixed argument array in
+the test target only) or network code. I see no need for another
+`/security-review` run beyond this check.
+
+### Still open for the main session
+
+- The #88 `maskRasters` heads-up (first pass) still applies to whichever branch
+  merges second.
+- Where F5's sentence goes in the guide is the designer's to confirm.

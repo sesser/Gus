@@ -221,7 +221,13 @@ struct MergeSafetyTests {
         return true
     }
 
-    @Test("C6: on a FAT32 volume the result is written beside the masters, and never replaces a file")
+    /// Whether `hdiutil` can make and attach a FAT32 image here (it can't on
+    /// some CI runners): probed once, so the FAT32 test shows as skipped
+    /// rather than passing without running (code review C10).
+    static let canAttachFAT32: Bool = (try? withFAT32 { _ in }) ?? false
+
+    @Test("C6: on a FAT32 volume the result is written beside the masters, and never replaces a file",
+          .enabled(if: MergeSafetyTests.canAttachFAT32, "hdiutil can't make or attach a FAT32 image here"))
     func fat32() throws {
         let ran = try Self.withFAT32 { volume in
             let url = volume.appending(path: "IMG_1_HDR.tif")
@@ -235,7 +241,7 @@ struct MergeSafetyTests {
             #expect(visible == ["IMG_1_HDR.tif"])
             #expect(try FileManager.default.contentsOfDirectory(atPath: volume.path).allSatisfy { !$0.hasSuffix(".partial") })
         }
-        if !ran { print("FAT32 image not available here: hdiutil couldn't make or attach one") }
+        #expect(ran, "hdiutil attached a probe image but not this one")
     }
 
     @Test("L8: a reference whose catalog name or path leaves its folder is refused")

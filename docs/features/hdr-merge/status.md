@@ -241,6 +241,13 @@ review (`security-review.md`), fixed in `46b5107` and `a3a597d`.
 | F3 wording of the damaged-library message | As given, word for word | `LocalizationTests` |
 | F4, F5 guide | The refusal bullet adds the 150 MP limit and the memory limit (half the Mac's memory; select fewer); a sentence that a merged photo can be selected with its own frames and would count that light twice | — |
 
+Third pass (code review C10, nit): the FAT32 test now carries
+`.enabled(if: canAttachFAT32)`, a probe that makes and attaches one image once,
+so where `hdiutil` can't attach it shows as skipped instead of passing without
+running; where the probe works, a failure to attach the test's own image is an
+issue. Test only. `swift test`: 1307 tests in 188 suites passed (239.1 s), the
+FAT32 test ran.
+
 Ruled with no code (design §19 D-H5, RI-H4): numbering by stem needs no
 caption; a merged DNG chosen beside its own source raws is neither flagged nor
 refused in v1. New manual checks M7 and M8 are in `review.md`.
