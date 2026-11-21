@@ -84,6 +84,10 @@ let usage = """
                  at two amounts) and the spots' dusty sky as TIFFs, the fringes and the dusty sky as DNGs and
                  the dusty sky as a JPEG (default 1536x1152).
 
+      aimask-spike --files FILE[:FILE...] | --dir DIR [--runs N] [--long-edge N|full] [--upscale] [--devices] [--sizes] [--output DIR]
+                 SPIKE for issue #88 (AI masks), throwaway: Vision's foreground and person instance masks on
+                 real photos: resolution, instances, cost, determinism, stored size, upscaling methods.
+
       synthesize --library-root ROOT --count N
                  Grows the catalog to N versions by cloning existing rows with new content
                  hashes and hard-linking their cached thumbnails (grid-scale testing).
@@ -158,6 +162,7 @@ do {
     case "rawcompare": report = try await RawCompareBenchmark.run(arguments)
     case "demosaic": report = try await DemosaicBenchmark.run(arguments)
     case "scenes": report = try await SceneFiles.run(arguments)
+    case "aimask-spike": report = try await AIMaskSpike.run(arguments)
     default:
         print(usage)
         exit(arguments.command == "help" || arguments.flags.contains("help") ? 0 : 64)
