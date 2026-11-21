@@ -8,12 +8,31 @@ Spec: the PRD (issue #150 body, approved and revised 2026-11-20) and
 
 **State: Done** (2026-11-20, after the review fixes below). Every criterion of the PRD as revised (prd4: R4 widened to the stem, R19, AC2a, AC15) built and tested; nothing blocked. Next: code review's second pass (and the designer for the three new strings), then QA.
 
+**2026-11-21: owner finding at sign-off (P5) fixed**, see "Bug: tiles at
+100%". A fault in Core Image, not the merge's file; existing merged files need
+nothing. The fix changes one thing the owner should know: full-size renders of
+straightened or rotated JPEG, HEIC, PNG and TIFF photos now resample linear
+light, as raws and the 100% live frames already did (a few edge pixels, up to
+37 of 255 steps; no cached preview changes, no pipeline bump). Next:
+code-reviewer's second pass on the fix, then qa-tester (no UI change, so no
+design review), then back to the owner for P5.
+
 ## Baseline
 
 - `swift build` on `develop` at `ed423d7` (plus the design commit): clean.
 - `swift test` before any change: 1253 tests in 179 suites passed (70.6 s).
 
-## Latest results (2026-11-20, after the fourth review pass)
+## Latest results (2026-11-21, after the fix for "Bug: tiles at 100%")
+
+- `swift build`: clean; no new warnings (the two in `SmartAlbumTests` and
+  `VirtualCopiesTests` were there before).
+- `swift test`: 1315 tests in 190 suites passed (278.4 s). No golden moved;
+  `UPDATE_GOLDENS` was not run; `PreviewCacheKey.currentPipelineVersion`
+  unchanged (13).
+- `Scripts/build-app.sh`: builds; debug-script check on the owner's copied
+  file as recorded in the Bug section.
+
+## Results before the fix (2026-11-20, after the fourth review pass)
 
 - `swift build`: clean; no new warnings (the two in `SmartAlbumTests` and
   `VirtualCopiesTests` were there before).
@@ -289,6 +308,163 @@ cleanup would then delete rasters those rows name. **Whichever branch merges
 second must add the column to those two queries** (as #88 does for the
 virtual-copy undo).
 
+## Bug: tiles at 100% (owner sign-off P5, 2026-11-21)
+
+**Report.** `IMG_3894_HDR.tif` (a merge of five Canon EOS 6D CR2s, 5472 × 3648,
+16-bit Display P3 TIFF written by the merge), with Exposure +1.05, Contrast
++66, Highlights −45, Blacks −100: fine at Fit; at 100% the picture showed two
+halves that didn't line up, the left part a different place in the photo than
+the right, with a hard vertical seam. TIFFs merged from GX85 frames
+(4592 × 3448) did not show it for the owner.
+
+**Steps to reproduce** (before the fix, macOS 27.2, Apple silicon).
+1. A copy of the owner's file in a scratch folder, a scratch library and a
+   bundle copy with its own identifier (`me.sesser.gus.debugtest.tiles`):
+   `windowsize 2200 1300; addfolder <copy>; waitimport; focus 0; loupe;
+   adjust exposure 1.05; adjust contrast 66; adjust highlights -45;
+   adjust blacks -100`, then eight times `zoom; wait 2; pan 2400 0; wait 7;
+   snapshot …; zoom; wait 3`.
+2. Headless: render a 5472 × 3648 (or 4592 × 3448) TIFF or PNG with
+   Highlights −45 or any Shadows at full size, several times
+   (`PreviewGenerator.cgImage`, the loupe's 100% rendition).
+
+**Expected.** The photo at 100%, the same every time.
+
+**Actual.** In the app, 8 of 8 zooms showed the seam: left of x = 2736 (half
+the width) the view showed pixels from the photo's right part. Headless, about
+one render in three came out with the left half repeating the right (7 of 24,
+12 of 36, 8 of 30 in separate runs), at 4592 × 3448 as often as at
+5472 × 3648, for PNGs and TIFFs written by other means too, and at
+6000 × 4000 and 8192 × 5464. Which process gets it is timing (one run of
+5472 × 3648 had 0 of 8, the next 4 of 12): the GX85 merges not showing it for
+the owner is that timing, not their size.
+
+**Root cause.** Not our TIFF writer, not Canon data: the owner's file and a GX85
+merge have the same layout (uncompressed chunky 16-bit RGB strips, Display P3,
+orientation 1, 300 ppi; only the size and ImageIO's RowsPerStrip differ), and a
+PNG fails the same way. It is a fault inside Core Image, seen from outside with
+`CI_PRINT_TREE=4`:
+- A full-size render of this size to a GPU destination is split into two parts
+  (`render_to_surface … rois=[0 0 5472 3648]/2`, `intermediatesLimit=256MB`).
+- The full-size decode was `CIImage(contentsOf:)`, which Core Image reads from
+  the CPU: each part copies its share of the file into a pooled texture
+  (`CGImageRef … rois=[0 0 2939 3648],[2533 0 2939 3648]`).
+- Local tone (Shadows, negative Highlights) reads the photo in several programs
+  per part. Now and then the right part's copy lands before the left part's
+  programs have read theirs: the right part's pixels under the left part's
+  own gain, which is the signature in the bad renders.
+
+Measured to separate the causes (same process, fresh engines, Highlights −45):
+the same graph over a texture, still split into the same two parts, 0 of 30;
+the file read directly 8 of 30; a render to a bitmap (which reads each part
+back) 0 of 69; the gain image alone 0 of 24. The copy of the file into a
+texture is itself such a split render (`render_to_texture … /2`), and
+`LiveRegionRenderer.materialize` (the 100% base for live frames) made exactly
+that copy: a second route to the same seam.
+
+Tried and not kept, with the reason:
+- A `CGImage` from `CGImageSourceCreateImageAtIndex` instead of
+  `CIImage(contentsOf:)`: clean on PNGs (0 of 36) but 8 of 16 on the 16-bit
+  TIFF. It only changed the timing.
+- Rendering in bands of 1 to 4 MP: no swaps on the owner's stack, but a stack
+  with masks is still split inside a band (the masks' whole-photo estimates),
+  each part copying the file. Cost +19 to +200%.
+- A larger `CIContextOption.memoryTarget` (`kCIContextMemoryLimit`, macOS
+  14): 1 GB keeps the owner's 20 MP render whole, but a stack with masks is
+  split even at 2 GB.
+- A copy in the file's own color space and encoding (16-bit unorm), meant to be
+  read exactly as the file: bit for bit on the 16-bit TIFF, but JPEGs differed
+  even unedited and straightened regions by up to 229 steps.
+
+**The fix.** `PreviewGenerator.decodeWithImageIO` at full size copies the decode
+into a 32-bit float texture in the working space (`ResidentDecode`, new), in
+bands of at most 4 megapixels, each finished before the next starts (a copy
+that small is never split), and the rest of every graph reads the texture: no
+render reads the file from the CPU any more, however it is split. Every
+full-size use goes through it: the loupe's 100% rendition, the 100% base,
+export, `photocli render`, the sharpening map's refinement, the fringe picker.
+`outputSize` (the loupe's early size) measures the lazy graph and stays a
+header read (`forSizeOnly`). Previews and thumbnails are decoded smaller by
+ImageIO and are untouched. Larger than 16384 pixels on a side (one texture's
+limit), no Metal device, or a failed copy: the decode is read lazily as before,
+logged.
+
+The texture is rendered and read unflipped. Read through a flip transform (as a
+first version did, and as `LiveRegionRenderer.materialize` did), a texture was
+sampled one row off by run-time kernels: a heal's far pixels came out 0.4%
+brighter on a gradient (`SpotTests.everyDecoderHeals` caught it), and the
+100% renderer's crop-and-straighten region drifted from the whole render
+(`LiveRegionRendererTests`, 12 values over tolerance). So
+`LiveRegionRenderer.materialize` now fills and reads its texture unflipped
+too; with both, that test is back to 6 steps at worst, under its tolerance.
+
+**What changed in rendering** (measured on the owner's merge and a 20 MP JPEG of
+it, file against copy, in 8-bit output steps):
+- Unedited: bit for bit in float (`renderUnchanged`).
+- The owner's stack, a heal, an export-style resize to 2048 px: at most one
+  step. Core Image may place its half-float intermediates differently over the
+  copy; `renderUnchanged` checks the owner's stack and a heal against the 100%
+  renderer's derived tolerance (one half-float rounding times the stack's
+  gain).
+- Straighten 2° (alone or with the owner's stack): worst 20 to 37 steps at a
+  few high-contrast edges, 0.01% to 0.15% of values more than one step off,
+  mean under 0.08 of a step. Reading the file, Core Image interpolated its
+  encoded values before linearizing them; the copy is linear, so resampling now
+  interpolates linear light. Raws were always resampled so (their decode is
+  linear), and so were the loupe's live frames at 100% (their base is a linear
+  texture): the full-size render now agrees with them.
+
+Half float instead of float32 would hold half the memory, but changed about a
+third of the values of an edited render (up to 0.005). No golden moved (goldens
+render their scenes from memory and a DNG). **No
+`PreviewCacheKey.currentPipelineVersion` bump:** no cached preview or thumbnail
+comes from this decode (they come from ImageIO's reduced decode, unchanged),
+so nothing cached is stale. Full-size renders (the 100% rendition, exports,
+`photocli render`) of straightened or rotated JPEG, HEIC, PNG and TIFF photos
+change as above.
+
+**Cost.** One more pass over the photo per full-size decode, and 16 bytes a
+pixel of GPU memory held while it is in use (320 MB for 20 MP), released with
+it. Measured for 20 MP, decode and render: TIFF 0.083 s against 0.073 s, PNG
+0.36 s against 0.30 s, JPEG 0.09 s against 0.04 s.
+
+**Existing merged files** need nothing: the file was never the cause. The
+owner's `IMG_3894_HDR.tif` (copied to a scratch library) renders right at 100%
+with the fix; re-merging is not needed. Merged DNGs go through #181's
+`LinearRawDecode` and did not show the fault (0 of 24 renders of a
+5472 × 3648 DNG written by `writeDNG`); unchanged.
+
+**Tests** (`Tests/PhotoCoreTests/ImageIOFullDecodeTests.swift`, in
+`MemoryHeavy`). Checked failing without the fix (the copy turned off in
+`decodeWithImageIO`, two runs each):
+- `fullDecodeIsResident`: the full-size decode of a TIFF and a JPEG no longer
+  reads the file (`CIImage.url` nil; Core Image's own reader keeps it), and
+  the measuring decode still does. Fails without the fix, deterministically.
+- `largeRenderKeepsItsParts`: a 5472 × 3648 TIFF written by
+  `MergeOutput.writeTIFF`, the owner's values, 16 renders on four fresh
+  engines: no left half repeating the right, all the same. Without the fix:
+  1 of 16 swapped, 15 of 15 unlike the first, in both runs.
+- `residentCopyIsTheFile` (several bands give the file's values exactly),
+  `renderUnchanged` (above), `bandsCoverTheExtent`, `fullDecodeIsOriented`
+  (an EXIF-rotated JPEG renders as Core Image's own reading of it).
+
+Existing tests changed: `LensAlignStaleAreaTests.tileSeesTheInputArea`'s JPEG
+case (#228's guard) asserted that the pipeline's full-size JPEG could show a
+stale input area, because its lazy decode rendered only the area asked. The
+copy has every pixel, as a bitmap's, so that case now pins the opposite (no
+area can be stale); the blurred-scene case remains the guard that the tests
+can see a stale area. For code review to confirm.
+
+**Debug-script check** (the commands of step 1 above, on the copied file): the
+unfixed bundle showed the seam on 8 of 8 zooms; the fixed bundle (the final
+build) on none of 8, all eight snapshots byte for byte the same.
+
+**Not covered.** The HDR rendition of a gain-map or HLG/PQ photo
+(`decodeHDR`) still reads `CIImage(contentsOf:)`; it renders to a bitmap,
+which never showed the fault, but it was not soaked. Camera raws (system
+decoder) were not soaked either; #181 found them stable. Photos larger than
+16384 pixels on a side keep the lazy decode.
+
 ## Debug-script checks
 
 Run 2026-11-20 on a copy of the bundle (`CFBundleIdentifier`
@@ -389,6 +565,14 @@ Ruled at design review (D-H1 to D-H4, design.md §19), as built:
   session. Any future undo step that reloads its list would be protected.
 
 (SidecarSync's `stem.xmp` fallback is filed as bug #248.)
+
+- **A split render can read another part's copy of a CPU-side image** (bug or
+  watch item, PhotoCore): the fault behind "Bug: tiles at 100%" is Core Image's
+  and is avoided for full-size ImageIO decodes only. Still exposed in theory:
+  the HDR rendition's `decodeHDR` (renders to a bitmap, never seen to fail),
+  photos over 16384 pixels on a side, and any other lazily read image in a
+  render large enough to be split. Worth a soak of camera raws and gain-map
+  photos at full size with Shadows on every new macOS, as `RAWEdgeSmearTests`.
 
 - **Recover the camera's response curve for JPEG brackets** (enhancement):
   non-raw frames are linearized by their color profile only, so a camera's

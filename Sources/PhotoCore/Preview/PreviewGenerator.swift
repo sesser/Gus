@@ -47,8 +47,14 @@ public struct PreviewGenerator: Sendable {
 
     /// As `image`, with the machine learning outcome of the decode.
     public func rendering(source: URL, stack: EditStack, longEdge: Int?, draft: Bool = false) throws -> Rendering {
+        try rendering(source: source, stack: stack, longEdge: longEdge, draft: draft, forSizeOnly: false)
+    }
+
+    /// `forSizeOnly`: the graph is only measured, never rendered, so a
+    /// full-size decode stays lazy (`decode`).
+    func rendering(source: URL, stack: EditStack, longEdge: Int?, draft: Bool, forSizeOnly: Bool) throws -> Rendering {
         let decoded = try Self.decode(source, longEdge: decodeLongEdge(source, stack: stack, longEdge: longEdge),
-                                      draft: draft, settings: renderer.decodeSettings(for: stack))
+                                      draft: draft, settings: renderer.decodeSettings(for: stack), forSizeOnly: forSizeOnly)
         var image = try renderer.apply(stack, to: decoded.image, context: decoded.context)
         if let longEdge {
             image = image.scaledToFit(longEdge: longEdge)
@@ -142,7 +148,8 @@ public struct PreviewGenerator: Sendable {
         if SupportedFormats.isRaw(pathExtension: source.pathExtension) {
             guard SystemRAWDecoder.reads(source), DNGLayout(contentsOf: source)?.hasLinearRaw != true else { return nil }
         }
-        let extent = try image(source: source, stack: stack, longEdge: nil).extent.integral
+        let extent = try rendering(source: source, stack: stack, longEdge: nil, draft: false, forSizeOnly: true)
+            .image.extent.integral
         guard !extent.isInfinite, extent.width >= 1, extent.height >= 1 else { return nil }
         return extent.size
     }
@@ -230,8 +237,12 @@ public struct PreviewGenerator: Sendable {
     /// A machine learning request that cannot apply, or whose decode gives
     /// no image, decodes with the classical decoder instead and says why in
     /// `Decoded.machineLearning`.
+    ///
+    /// A full-size ImageIO decode is copied to the GPU first
+    /// (`ResidentDecode`) unless `forSizeOnly`, for a graph that is only
+    /// measured: then it stays a header read.
     static func decode(_ url: URL, longEdge: Int?, draft: Bool, extendedRange: Bool = false,
-                       settings: RAWDecodeSettings = .none) throws -> Decoded {
+                       settings: RAWDecodeSettings = .none, forSizeOnly: Bool = false) throws -> Decoded {
         let isRaw = SupportedFormats.isRaw(pathExtension: url.pathExtension)
         if isRaw, settings.machineLearning {
             if let decoded = decodeRAW(url, longEdge: longEdge, draft: draft, extendedRange: extendedRange,
@@ -240,7 +251,7 @@ public struct PreviewGenerator: Sendable {
             }
             // The machine learning decode gave no image: the classical one instead.
             var fallback = try decode(url, longEdge: longEdge, draft: draft, extendedRange: extendedRange,
-                                      settings: settings.classical)
+                                      settings: settings.classical, forSizeOnly: forSizeOnly)
             // The system decoder read the file and its machine learning decode
             // failed; or it does not read the file at all, which is not a failure.
             fallback.machineLearning = .notApplied(
@@ -256,7 +267,7 @@ public struct PreviewGenerator: Sendable {
         }) {
             return decoded
         }
-        return try decodeWithImageIO(url, longEdge: longEdge)
+        return try decodeWithImageIO(url, longEdge: longEdge, forSizeOnly: forSizeOnly)
     }
 
     /// Which decoder's image a raw gets, in order:
@@ -376,7 +387,7 @@ public struct PreviewGenerator: Sendable {
     }
 
     /// Everything that is not RAW, and RAW files the RAW decoder gives no image for.
-    private static func decodeWithImageIO(_ url: URL, longEdge: Int?) throws -> Decoded {
+    private static func decodeWithImageIO(_ url: URL, longEdge: Int?, forSizeOnly: Bool) throws -> Decoded {
         let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
         guard let source = CGImageSourceCreateWithURL(url as CFURL, sourceOptions),
               CGImageSourceGetCount(source) > 0
@@ -396,9 +407,11 @@ public struct PreviewGenerator: Sendable {
             return Decoded(image: image, context: RenderContext(scale: Self.scale(of: image, native: Self.pixelSize(source)),
                                                                 isRaw: false, lens: .notRaw))
         }
-        guard let image = CIImage(contentsOf: url, options: [.applyOrientationProperty: true]) else {
+        guard let lazy = CIImage(contentsOf: url, options: [.applyOrientationProperty: true]) else {
             throw Failure.undecodable(url)
         }
+        // Read from the GPU, never from the file in a render split into parts.
+        let image = forSizeOnly ? lazy : ResidentDecode.resident(lazy) ?? lazy
         return Decoded(image: image, context: RenderContext(scale: 1, isRaw: false, lens: .notRaw))
     }
 
