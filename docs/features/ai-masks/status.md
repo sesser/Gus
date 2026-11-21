@@ -3,25 +3,273 @@ Issue: #88
 # AI masks: implementation status
 
 Feature, branch `feature/ai-masks`, cut from `develop` at `ed423d7`. The PRD
-is the issue body (`gh issue view 88`), approved by the owner on 2026-11-18.
-R1 makes a spike the first step: no design or build starts until the PRD has
-been revised by its findings.
+is the issue body (`gh issue view 88`), approved 2026-11-18 and revised
+2026-11-20 after the spike and the design. Design: [`design.md`](design.md).
 
-**Status**
+**State: Done** (2026-11-20). Every acceptance criterion is built and has a
+test or a recorded check; nothing is blocked. Next: code-reviewer and the
+designer's review, then qa-tester.
 
 | Item | State |
 | --- | --- |
-| R1, the spike (this file) | Done, 2026-11-20, on this Mac only |
-| PRD revision from the findings | Done (issue body revised 2026-11-20, RI-1 to RI-6 ruled) |
-| Design (`design.md`) | Done, 2026-11-20 |
-| R2 to R16, the feature | In progress (see **Build**, below) |
+| R1, the spike | Done, 2026-11-20 (findings below, kept as the record) |
+| PRD revision, design | Done, 2026-11-20 |
+| R2 to R16 | Done |
 
 ## Build and test
 
-- Baseline, `develop` at `ed423d7`: `swift build` clean.
-- With the spike: see **Latest results** at the end.
+- Baseline, `develop` at `ed423d7`: `swift build` clean; `swift test` 1,253
+  tests in 179 suites passed.
+- Latest (2026-11-20, `b89e575` plus this file): `swift build` with no
+  warnings; `swift test` **1,298 tests in 185 suites passed** (82.9 s);
+  `Scripts/build-app.sh` builds the bundle. Opt-in suites not run here:
+  `AI_MASK_SAMPLES` (the owner's photos).
+- No `PreviewCacheKey.currentPipelineVersion` bump: no existing stack renders
+  differently (a stack without detections is untouched; a detection is new
+  data with its own render hash). No existing golden moved; three new ones
+  (`mask-subject-patchChart`, `mask-background-edgeTarget`,
+  `mask-peopleSubtractCropTurn-hazyLandscape`) in a commit of their own
+  (`ad7899c`). `UPDATE_GOLDENS=1` also rewrote six RAW fingerprint files with
+  this Mac's build (27.2.1, 26B131); I restored them, they are not part of
+  this change.
+- Two existing tests changed because a rule changed: `MaskModelTests` and
+  `CommandTests` used `subject` as their example of an unknown shape; it is now
+  a shape, so they use `sky`. `CatalogTests` lists the new table and v15.
 
-## How the spike was measured
+## What was built, and the engineer's decisions
+
+**Stack (R2, R3, R5, R12).** `MaskShape.detection(MaskDetection)`: the
+component is stored as `{"shape": "subject"|"people"|"background", "raster":
+"<sha-256>"}`, no pixels; a failed detection has no `raster`. Read strictly
+(an unknown key, or a `raster` that is not 64 lowercase hex, makes the stack
+unreadable). `kindVersion` stays 1: older builds read the new shape names as
+unknown and refuse the whole stack, so they never write over it (the PRD's
+Dependencies). Background is its own kind (design A2) and may name Subject's
+row.
+
+**Storage (R5).** Migration v15 (`CatalogSchema.addMaskRasters`): table
+`maskRaster` (`digest` primary key, `encoding` `png-gray8`, `width`,
+`height`, `instances`, `data`, and provenance `request`, `revision`,
+`systemVersion`, `createdAt`), and a nullable `editHistory.maskRasters`
+column. Rows are inserted with `INSERT OR IGNORE` and never updated (the
+debug script's `raster corrupt` is the one write that changes a row, for
+checks only). An empty result is a stored 1x1 black PNG with 0 instances
+(design §6), so empty survives reopening and differs from missing. The
+instance count lives on the row (design §4's count is cheap).
+
+**Cleanup: at launch (the PRD's open engineer question).** History snapshots
+are compressed, so each new history entry names the rows its snapshot refers
+to in `editHistory.maskRasters` (rows written before v15 could name none).
+`Catalog.removeUnreferencedMaskRasters()` deletes, in one transaction, every
+row that no version's stack (read as text, so a stack this build can't
+decode still counts) and no history entry names; `LibraryModel.start()` runs
+it in the background on every launch. Not in the transaction that orphans a
+row, because within a session the window's undo stack can still hold a stack
+naming a row that no stored stack or history entry names (Undo a detection,
+then let the history trim past it): Redo must find the row. At launch no
+undo stack exists. Cost: an orphan keeps its bytes (2 to 110 KB) until the
+next launch. `photocli` never sweeps.
+
+**Rendering (R6, R7, R14).** `MaskRasterStore` (like `LookTableStore`): reads
+rows from the catalog on first use and keeps up to 48 decoded results in
+memory; `AdjustmentRenderer(maskRasters:)` everywhere a library renders (the
+app's previews and live frames, export, `photocli render` and `export`).
+`GuidedMaskFilter`: the result stretched bilinearly over the mask frame
+(pixel centers aligned, edges repeated), sent through the crop like the
+brush, then the guided filter (He, Sun and Tang) with the luminance of the
+image entering the mask step as guide, at the render's size, window radius
+one mask pixel rounded up (5 at 2560 px, 12 at 6000 px), ε = 10⁻³. Four
+runtime-compiled stitchable kernels, one library each, as the Lens kernels.
+The half-float cancellation the spike found is avoided by never forming
+E[I²] − E[I]²: the first pass computes each row's means and moments about
+those means in float, the second combines the rows exactly (equal counts).
+The result is uploaded as 32-bit float: an `L8` image read in a kernel came
+back up to a third of a level off. If the kernels can't compile, the result
+is stretched only, with a log notice. A detection with no usable result
+(failed, empty, missing, damaged, or no store) is left out whatever its
+operation and Invert (design A5); a mask none of whose components contribute
+leaves the image untouched, byte for byte.
+
+**Detection (R4, R10, R11, R13).** `VisionMaskDetector` (PhotoCore
+`Suggestions/MaskDetector.swift`): `VNGenerateForegroundInstanceMaskRequest`
+or `VNGeneratePersonInstanceMaskRequest`, every instance, the soft mask
+quantized to 8 bits. Errors meaning "can't run here" (unsupported revision,
+request, compute stage or device; resource unavailable on 27) are
+Unavailable, others Failed. `MaskDetectionRun.input` renders the mask frame
+(a raw's whole sensor, the system decoder's or LibRaw's default decode, the
+Distortion group only, no other adjustment) at 2560 px in sRGB. A run is
+cancellable before and after the render.
+
+**App (design §2 to §15).** The Detect pull-down (`wand.and.stars` with its
+chevron) at the end of both shape rows; it dims as a whole, with the reason
+as its tooltip (the limit, or "Wait for the current detection to finish."),
+since `AppKitMenuButton` items carry no tooltips and all three share one
+reason. The Detecting line with Cancel under the row that started it, or in
+the component's caption slot for Update. Captions per state; the triangle and
+Update only for Failed, Unavailable and Missing. Update Detection in Adjust
+(after Show / Hide Mask Overlay) and in the mask's ⋯ and context menus; an
+Update of a mask with Subject and People runs each request once and is one
+undo step; an unchanged result writes nothing; a failed Update keeps the old
+result and shows Failed for this visit. The component enters the stack only
+when the result lands: the row is written first on the write chain, then the
+stack, as one undo step and one History entry; a new mask is selected only if
+the selection did not change meanwhile. Default values +0.3 EV, Background
+−0.5 EV; default names Subject, People, Background. The overlay flash (1.5 s,
+a hard cut) ends early on the eye, a slider drag, selecting another mask or
+leaving the photo. Leaving the photo, closing the loupe and starting a
+comparison (the loupe is torn down) cancel a pending detection. Unavailable
+is remembered per request for the session and cleared by a later success.
+Announcements and Activity warnings as design §6 and §12. 36 catalog entries.
+`AppKitMenuButton` gained `showsArrow` and `isEnabled` (defaults keep every
+existing use as it was).
+
+**photocli (R9).** `mask add --shape subject|people|background` (no
+`--kind` alias; no `--params`) detects on the original and stores the
+result, then the stack (two transactions: if the second fails, the app's next
+launch removes the row); `--dry-run` looks and reports `detection` (state,
+instances, size, digest) and stores nothing. A failed or unavailable
+detection is still added with no result, and `detection.reason` says why. A
+missing original is `fileNotFound` and writes nothing. `mask list` adds each
+detection's `state` and `instances`. `CommandEnvironment.maskDetector`
+(Vision by default) lets tests use a fixed detector.
+
+**R16.** `Sources/PhotoBench/AIMaskSpike.swift` and `photobench aimask-spike`
+are deleted.
+
+## Acceptance criteria
+
+| AC | How it is checked | State |
+| --- | --- | --- |
+| AC1 | Spike findings below | Done |
+| AC2 | `DetectionMaskRenderingTests`: `combines` (each operation, Invert, Amount, with a gradient), `background`, `storedResultRenders`; goldens. Debug script: Subject, People subtract, Background in the app | Done |
+| AC3 | `MaskDetectionTests.inputIgnoresEdits` (input = 2560 px mask frame, same pixels with heavy edits, Distortion alone changes it), `runAndCancel`. Debug script (below): one undo step and one History entry on landing, Undo removes it in one step, Cancel and leaving the photo add nothing and leave undo unchanged, items dimmed while pending. Never blocks: detection runs on a detached task | Done; the window staying responsive is for a person (M2) |
+| AC4 | `MaskRasterCatalogTests` (store/read, shared row, Duplicate adds no row, history names the digest, revert gives it back), `DetectionMaskModelTests.renderHashFollowsTheDigest` and round trip (kind and digest, no pixels), `DetectionMaskRenderingTests.storedResultRenders` (identical across runs). Debug script: Undo restores the earlier state without detecting | Done |
+| AC5 | `MaskRasterCatalogTests.migration` (v15 leaves rows unchanged) and `cleanup` (kept while named by a stack or history; deleted after Update plus history trim, and after a version is removed), `undoDuplicateKeepsReferences`, `unreadableStacksStillName` | Done |
+| AC6 | `DetectionMaskRenderingTests.idleComponentsRenderAsWithout` (empty, failed, missing, damaged; every operation and Invert; alone and beside a gradient: byte for byte), `MaskDetectionTests.states`. Debug script: each caption | Done |
+| AC7 | `GuidedFilterReference` + `matchesReference` (three sizes, every pixel within a first-order half-float bound; the GPU used at most 35% of it, bound median 1.6 × 10⁻⁵, at most 0.017), `noStaircase` (stretched result off by up to 4 px in steps, filtered within 1.25 px of the true edge), `cropAndTurnKeepTheMask`, three new goldens | Done |
+| AC8 | `DetectionMaskModelTests.pasteAndPresetsOmitDetections`; Duplicate copies the reference (`sharingAndDuplicate`); pairs: edits are per file, as every stack | Done |
+| AC9 | `DetectionMaskCommandTests` (dry run reports and stores nothing, real run writes, list states, failures, refusals, missing row; `render` reads the stored result). Export and loupe share `AdjustmentRenderer` with the library's store | Done; an exported file beside the loupe is for a person (M7) |
+| AC10 | `DetectionMaskSourceTests` (no network API, no other package, no `IterativeSegmentation`, no spike) | Done |
+| AC11 | `MaskDetectionTests.requestsRunWithTheMeasuredSizes`, part of `swift test` | Done here (27.2.1); CI runs it on 15 and 26 at the pull request (see RI-E1) |
+| AC12 | `DetectionMaskModelTests.strictReading`, `unreadableIsNotOverwritten` | Done |
+| AC13 | `idleComponentsRenderAsWithout`, `damagedRowIsMissing`, `DetectionMaskCommandTests.missingRow`. Debug script: `raster delete` shows Missing with Update, the loupe shows the photo unchanged, Update restores Found | Done |
+| AC14 | `docs/USER_GUIDE.md` (Masks from the photo), pinned by `DetectionMaskSourceTests.userGuideLimits` | Done |
+
+## Debug-script checks (2026-11-20)
+
+On a copy of the bundle (`CFBundleIdentifier` `me.sesser.gus.debugtest`,
+ad-hoc signed) and scratch libraries from `photobench generate --jpeg 4` and
+`photobench import`, a fresh copy per run, always with `--library-root`.
+
+- `adjust mask detector disc; adjust mask detect subject`: undo `Add Subject
+  Mask`, caption "1 subject found.", overlay on with `flash true`, then
+  `flash false` and overlay off 2 s later. People added with Subtract:
+  "2 people found."; History: Add Subject Mask, Add People to Mask, Mask
+  Operation.
+- Background at −3 EV: everything darkened except the subject, its edge on
+  the scene's own ellipse (snapshot).
+- Empty: "No people were found in this photo. It selects nothing.", no
+  Activity entry. Fail: Failed caption with Update and one Activity warning
+  ("Couldn't detect a subject in IMG_00001.JPG." and the detector's words).
+  Unavailable: its caption; cleared by a later success.
+- `hang`: pending shown, every detection and Update item dimmed (`canDetect
+  false`, Adjust ▸ New Mask ▸ Subject and Update Detection disabled), Cancel
+  adds nothing; moving to another photo and back: nothing added, no pending.
+- `raster delete`: Missing caption with Update; the loupe shows the photo
+  unchanged despite −3 EV; Update restores Found and the row.
+- Real Vision from the inspector's path on a synthetic photo: Subject "1
+  subject found.", People "1 person found."; Undo removes the People component
+  in one step (`redo 'Add People to Mask'`).
+- `print inspectorwidth`: `fits` (visible 283, controls reach 275, the same
+  reach as before this branch).
+- Not driven here: the menu bar items with a key window. macOS refused to
+  activate the scripted copy (`key nil`, also after bringing it forward by its
+  process ID), so `menupress` saw every item disabled. The enablement rules
+  are `LibraryMenuState.canDetectMask` and `canUpdateDetection`; see M1.
+
+## For a person (manual checks proposed to QA)
+
+- M1: the menu bar: Adjust ▸ New Mask ▸ Subject / People / Background under
+  the divider, Adjust ▸ Update Detection, enabled and dimmed as design §11.
+- M2: the window stays responsive while detecting (scroll, sliders) on a
+  large raw; Cancel and leaving the photo mid-detection.
+- M3: the pull-down's look in both rows at the narrowest inspector, its
+  chevron, tooltip and dimmed state; captions wrapping at 256 pt.
+- M4: the overlay flash on a real portrait: helps or annoys (design §9).
+- M5: Background on a portrait at −0.5 EV; Invert on it.
+- M6: the four-person caption on a crowd photo; a false People selection.
+- M7: export of a photo with a detection mask beside the loupe.
+- M8: edge quality at 100% on the owner's raws (the PRD's assumption).
+
+## Known limits
+
+- An orphaned row stays until the next launch (by design, above).
+- If a row goes missing (a damaged or partly copied catalog), previews cached
+  while it was there still show the mask: the render hash names the digest,
+  not the row. The loupe's live render, captions and new previews are right.
+  Deleting the preview cache clears it. Proposed follow-up below.
+- The empty result's row is shared by every empty result, Subject's or
+  People's: its provenance (`request`) is the first writer's. Only diagnosis
+  reads it.
+- A raw with a camera frame decodes its whole sensor for any mask, a
+  detection with no result included, as before for any mask.
+- The debug script's `detectcomponent <kind> <operation>` adds, then sets the
+  operation: two History entries in one undo group, as the row's pop-up would.
+
+## Requirements issues (for the product manager)
+
+The spike's RI-1 to RI-6 were ruled on 2026-11-20 and are in the PRD's
+Revisions; the design's RI-1 to RI-3 likewise. New:
+
+- **RI-E1, the R13 test on CI (information, no decision needed now).** On
+  this Mac the foreground request refuses the CPU (`VNErrorUnsupportedComputeDevice`,
+  code 22) and runs on the GPU or Neural Engine. If a CI runner on macOS 15 or
+  26 gives Vision neither, the test fails there with that error in its
+  message, and the person request may find nothing in the synthetic fixtures
+  (the test needs one result to check sizes). The app itself would show
+  Unavailable on such a Mac, as designed. If CI fails this way at the pull
+  request, the question is whether AC11 accepts "Unavailable" on a runner
+  with no usable compute device; I'd recommend yes, with the error recorded.
+
+## Design questions
+
+None blocking. Notes for review: the pull-down dims as a whole with the
+reason as its tooltip, rather than per item (all three items always share
+one reason; `AppKitMenuButton` items have no tooltips). The New Mask submenu
+is still dimmed as a whole when New Mask can't act, as before this branch;
+the three detection items also dim while a detection runs.
+
+## Proposed follow-ups (for the main session to file)
+
+1. **Previews cached before a detection's stored result went missing still
+   show the mask** (`bug`, low). Body: the render hash covers the digest, not
+   the row, so a catalog that loses a `maskRaster` row keeps showing the old
+   masked previews until the cache is deleted; the loupe's live render is
+   right. Option: drop cached previews of versions whose detection rows are
+   missing when the launch cleanup or the editor finds one.
+2. **People beyond four** (`enhancement`): the PRD's follow-up, evaluate
+   combining Vision's person instance and person segmentation requests.
+
+## README
+
+- `photocli mask add --shape` takes `subject`, `people` and `background`
+  (with `--dry-run`); `mask list` shows their state.
+- `photobench aimask-spike` is gone (it never was in the README).
+- New catalog table `maskRaster` (migration v15). No build command changes.
+
+## Not done, deliberately
+
+- No `--kind` alias (optional in R9; one flag, as design RI-2).
+- No per-item tooltips in the pull-down (see Design questions).
+- macOS 15 and 26 are covered by CI only (owner ruling RI-6); no VoiceOver
+  check by hand (project rule).
+
+## Spike findings (R1), kept as the record
+
+### How the spike was measured
+
+(The spike's code was deleted by the feature build, R16, commit `c7650e6`:
+the command below no longer exists.)
 
 All spike code is in one file of the benchmark tool, outside every shipped
 target: `Sources/PhotoBench/AIMaskSpike.swift`, the mode `photobench
@@ -66,9 +314,9 @@ and Fujifilm RAF raws). Nothing from it is committed. Two sets:
 **Machine.** Apple M4 Pro, macOS 27.2.1 (26B131), macOS 27.2 SDK, Swift
 6.4.2. Times are wall clock in one process, release build.
 
-## Findings (R1, AC1)
+### Findings (R1, AC1)
 
-### 1. Availability
+#### 1. Availability
 
 - **macOS 27.2: both requests exist and work.** `supportedRevisions` is
   `[1]` for both (and for the person segmentation).
@@ -95,7 +343,7 @@ and Fujifilm RAF raws). Nothing from it is committed. Two sets:
 - **Not tried: macOS 15 and macOS 26.** This Mac has only 27.2, and no other
   Mac was available. See RI-6.
 
-### 2. Mask resolution and format
+#### 2. Mask resolution and format
 
 | Request | Label map | Soft mask (`generateMask(forInstances:)`) | Values |
 | --- | --- | --- | --- |
@@ -116,7 +364,7 @@ and Fujifilm RAF raws). Nothing from it is committed. Two sets:
 - Vision's own `generateScaledMaskForImage` gives a mask at the image's size
   (section 7).
 
-### 3. Quality and instance counts (this Mac only)
+#### 3. Quality and instance counts (this Mac only)
 
 Survey of 120 JPEGs: Subject found something in 65 (one instance in 51, two
 in 13, three in 1); People in 56 (four instances in 22, one in 20, two in 8,
@@ -173,7 +421,7 @@ What looking at the overlays showed:
   silently.
 - **Between OS versions:** not measured (15 and 26 not tried).
 
-### 4. Cost of one detection (M4 Pro, macOS 27.2.1)
+#### 4. Cost of one detection (M4 Pro, macOS 27.2.1)
 
 | Step | Time |
 | --- | --- |
@@ -187,7 +435,7 @@ Adding a component therefore costs about 0.15 to 0.5 s, most of it the
 render of the input, not the detection. The detection itself is short enough
 that cancellation (R4) matters mostly for the render.
 
-### 5. Stored size of one mask
+#### 5. Stored size of one mask
 
 The all-instances soft mask quantized to 8 bits (largest error 1/510 against
 the float mask), over the fixed set:
@@ -222,7 +470,7 @@ carries the PNG inline as base64:
 - Stored in a table and referenced by digest, a component adds about 150
   bytes to the stack, and the history is unaffected.
 
-### 6. Storage recommendation
+#### 6. Storage recommendation
 
 **A catalog table of rasters, content-addressed, referenced from the
 component by digest.** Not inline in the stack (section 5), and not keyed by
@@ -263,7 +511,7 @@ the master's content hash and kind as R5 prefers (RI-4).
   digest whose row is missing (a damaged or partly copied catalog) is a
   different case: RI-5.
 
-### 7. Edge-aware upscaling: proposal
+#### 7. Edge-aware upscaling: proposal
 
 **The guided filter** (He, Sun and Tang, "Guided Image Filtering", ECCV 2010
 and TPAMI 2013) with a gray guide, run at the render's own size:
@@ -309,80 +557,3 @@ edits before it (the filter is invariant to linear changes of the guide only
 up to ε), as the range masks already do. The stored raster never changes, and
 a stack renders the same every time. No existing stack's render changes, so
 no `PreviewCacheKey.currentPipelineVersion` bump.
-
-## Requirements issues (for the product manager)
-
-- **RI-1, People stops at four people.** R2 says People is "all detected
-  people"; Vision's instance request returns at most four (22 of the 56
-  survey photos with people hit four; in a street crowd several people in the
-  middle of the frame were left out). Options: (a) keep the instance request
-  and say so in the user guide (and the reason line, if design wants); cost
-  none; keeps instances for a later pick-one. (b) Use
-  `VNGeneratePersonSegmentationRequest` (semantic, no limit, macOS 12+):
-  selected everyone here but lost fine hair, has no instances (no later
-  pick-one), and its raster is 2016x1512, 4 to 700 KB stored (median 263 KB)
-  unless stored smaller. (c) Union of both: two detections and the larger
-  raster. Recommendation: (a) for this slice, with a follow-up to evaluate
-  (c).
-- **RI-2, People can select something that is not a person.** A flower
-  close-up came back as one person at confidence 0.999, from both person
-  models; confidence can't filter it. R6's "nothing detected" doesn't happen
-  there; the person removes the component. Recommendation: accept as a known
-  limit and name it in the user guide; no threshold.
-- **RI-3, R4's input.** R4 says detection runs "from the preview-tier image".
-  The cached preview is rendered with the stack: cropped, turned, straightened
-  and edited, while R7 puts the mask in the mask frame (before the crop).
-  Proposal: "from a render of the mask frame at the preview tier's long edge
-  (2560 px)", that is the master through the stack's frame-defining steps only
-  (no crop or turns; lens distortion when on, since the mask frame is the
-  corrected frame), with no other adjustments, so the result doesn't depend
-  on edits made before adding it. Cost: that render, 100 to 410 ms here,
-  cancellable. Any input from 1024 px up gives the same mask.
-- **RI-4, R5's storage key.** R5 prefers "a catalog table keyed by content
-  hash and kind". Keyed so, Update on one version would silently change every
-  version of the master (R5, R8), and the render hash would not change with
-  the raster (stale previews). Proposal: R5 says "a catalog table of rasters
-  referenced from the component by the raster's digest" (section 6). Needs a
-  migration; that is within the PRD's stated impact.
-- **RI-5, a missing raster.** If a component's raster row is missing (a
-  damaged or partly copied catalog), should the component behave as R6
-  (kept, selects nothing, reason shown, render as without it; recommended,
-  and Update recomputes) or make the whole stack unreadable as R12 does for a
-  stack this build can't parse (editing off)? Recommendation: as R6, since the
-  stack itself is readable and the reference is kept for a later repair.
-- **RI-6, AC1's OS coverage.** macOS 15 and 26 were not tried. Options:
-  (a) accept the spike as run on 27.2 and add to the feature build a test that
-  runs both requests on a synthetic fixture and checks they run without error
-  and give the sizes above; CI runs it on macOS 15 and 26 at the pull request
-  (availability and sizes only: no real photos there, so no quality or
-  instance comparison); cost small. (b) The owner lends a Mac with 15 or 26
-  for the fixed set; cost his time. (c) Leave 15 and 26 unmeasured. Since R5
-  stores the result and never recomputes, OS differences only matter when a
-  mask is made or updated. Recommendation: (a).
-
-## Design questions
-
-None for the spike. For the designer once design starts: Background can
-reference the Subject raster (section 6), so whether Background is a kind of
-its own in the UI or Subject with Invert is a presentation choice, not a
-storage one.
-
-## Not done, deliberately
-
-- No design, no feature code: R1 forbids both until the PRD is revised.
-- macOS 15 and 26 not tried (RI-6). Network traffic not monitored (the spike
-  uses no network API).
-- The spike's numbers come from one machine; times on a Mac without a Neural
-  Engine were approximated by forcing the CPU and GPU.
-
-## README
-
-Nothing for the README: `photobench aimask-spike` is throwaway spike code,
-removed by the feature build.
-
-## Latest results
-
-2026-11-20, with the spike: `swift build` and `swift build -c release
---product photobench` complete with no warnings; `swift test`: 1,253 tests
-in 179 suites passed. The spike adds no test (it measures, it asserts
-nothing) and changes no shipped target.
