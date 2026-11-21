@@ -341,4 +341,7 @@ mask detect subject; wait 600`) and the same `--library-root`.
 
 ## Follow-up
 
-Not yet run: reruns after fixes, the owner's report on P1 to P7, and the sign-off.
+Sign-off (#88): the owner signed off on 2026-11-21 after doing checks P1 to P7
+by hand. No findings reported; no checks left open. Code signed off at
+`9b50009` (this file at `9a4249a`). VoiceOver, macOS 15 and macOS 26 are
+covered by CI only (standing ruling).
