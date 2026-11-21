@@ -116,6 +116,9 @@ I built this with Claude. AI did the work, I did the orchestration.
   control for it. Detail is a little softer than LibRaw's on a few files, and
   a sharper version is planned (#199). If the GPU can't do it, Gus falls back
   to LibRaw and says so in the log
+- Presets show as a compact list of names (the default) or as thumbnails, with
+  a switch at the right of the Presets buttons; hovering a preset previews it
+  on the photo in either view, and Gus remembers your choice
 - Before/after, copy and paste, and presets, including import of Lightroom
   presets (`.lrtemplate`, `.xmp`, `.dng`) and Luminar preset packs (`.lnpc`,
   several at once) with a report of anything that doesn't carry over. Luminar's

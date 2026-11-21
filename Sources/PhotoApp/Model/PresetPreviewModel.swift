@@ -21,6 +21,12 @@ final class PresetPreviewModel {
     /// Counts pictures the pointer entered, so leaving one ends the preview
     /// only when it did not move straight to another.
     @ObservationIgnored private var hoverCount = 0
+    /// Pictures rendered since launch, for the debug script (`preset view`:
+    /// the list view starts none, #241 AC7).
+    @ObservationIgnored private(set) var debugRenderedCount = 0
+    /// Previews a pointer leaving ended (after the hold), for the debug
+    /// script (`hover`: moving from one preset to the next ends none, AC5).
+    @ObservationIgnored private(set) var debugHoverEnds = 0
 
     static let longEdge = 320
 
@@ -59,6 +65,7 @@ final class PresetPreviewModel {
             let id = Self.previewID(preset)
             previews[id] = frame.image
             rendered.insert(id)
+            debugRenderedCount += 1
         }
     }
 
@@ -88,7 +95,10 @@ final class PresetPreviewModel {
             let count = hoverCount
             Task {
                 try? await Task.sleep(for: .milliseconds(120))
-                if hoverCount == count { editor.endPreview() }
+                if hoverCount == count {
+                    debugHoverEnds += 1
+                    editor.endPreview()
+                }
             }
         }
     }

@@ -1198,6 +1198,45 @@ export beside the loupe, keyboard, Update on a healthy mask) by hand on
 2026-11-21, no findings, no checks left open (`docs/features/ai-masks/qa.md`).
 Covered by CI only: VoiceOver, macOS 15 and macOS 26.
 
+Preset list view (`docs/features/preset-list-view/`, issue #241, branch
+`feature/preset-list-view`): the Adjust tab's Presets heading shows presets as a
+list (the default) or as today's thumbnails, chosen by an icon-only two-segment
+switch at the right of the Save…, Import… and Manage… row (`square.grid.2x2` and
+`list.bullet`, VoiceOver names Thumbnails and List). The choice is one app-wide
+preference, `adjust.presetsView` (`Presets/PresetsViewChoice.swift`: nothing
+stored, an unknown string or another type gives `list`), written by
+`LibraryModel.presetsView`. List view shows the same collections, headings
+(open or closed as in the thumbnails) and order, one 22 pt row per preset with
+its name only (tail truncation, the thumbnails' tooltip, a check mark on the
+preset the photo already has), and builds no `PresetGrid`, so no thumbnail is
+rendered while it shows (a list launch starts none; switching renders them as
+before). A row applies like a thumbnail (loupe: the photo; grid: the selection;
+one undo step; same context menu; Return, keypad Enter and Space on a focused
+row, Caps Lock ignored: `PresetRowKey`). Hover previews in the loupe through
+the unchanged `previewAdjustmentPreset` path in both views (live, not saved, no
+undo or History entry; the 120 ms hold; nothing in the grid). The button row is
+laid out by `PresetsBarLayout` over the pure `PresetsBarGeometry` in one view
+order (Save, Import, Manage, switch): one line from a 276.5 pt column, else
+the switch beside Import…, else beside Manage…, never on a push button, so at
+the default inspector width Manage… now sits under Save… (it was always one
+line before; DQ-1, the designer accepted). Code: `Views/PresetsSection.swift`,
+`Views/PresetList.swift` (`PresetListRowButton` subclasses
+`ImageTile.HoverButton`); `AppKitSegmented` takes `symbols` for icon-only
+segments. `PresetItemRules.markedAgainst` reads the saved hash, so the mark
+follows saves, undo and redo (the thumbnails' outline too). A fix on the way:
+`print inspectorwidth` no longer hid the #223 overflow for a keeps-width control
+stretched across the column (`InspectorSegmentedWidth.verdict`). Debug script:
+`preset view`, `preset row`, `preset heading`, `hover`, `print presetsbar`. No
+migration, no `PreviewCacheKey.currentPipelineVersion` bump (13), no golden
+moved, no rendering changed. Shipped; the owner checked P1 to P5 (the list's
+look in Light, Dark and Increase Contrast, keyboard and Full Keyboard Access,
+the button row at every width, a real mouse sweep and right-click, switching and
+the kept choice) by hand on 2026-11-21, no findings, no checks left open
+(`docs/features/preset-list-view/qa.md`). VoiceOver, macOS 15 and macOS 26 are
+covered by CI only. Not built: search or filter, a picture or group badges on a
+row, a keyboard or VoiceOver way to preview without applying (hover has none for
+thumbnails either), a view choice per collection.
+
 Not yet: local Black & White through masks, Lightroom Black & White mapping on
 import, Black & White items for a grid selection, sky and named-object masks,
 picking one instance, people beyond four, a feather or refine control on AI

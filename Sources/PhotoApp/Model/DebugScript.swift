@@ -117,6 +117,11 @@ import PhotoUI
 ///     preset import <path>…  (prints the summary)   preset summary <path>… (imports, shows the alert)
 ///     preset export <file> [<name>]                 preset window | windowshot <png> (the sheet)
 ///     preset previewend     (ends a preset preview, as the pointer leaving it does)
+///     preset view list|thumbnails|print   preset row <name> press|focus   preset heading <collection>
+///     hover <x> <y>|name <preset>|end
+///     print presetsbar
+///            (the Presets heading's view switch, the pointer on a preset row or thumbnail, and the button row;
+///            see DebugPresetViewCommands)
 ///     export window | windowshot <png> | set <key>=<value>… | template <text> | run [keepboth|overwrite|skip]
 ///            | preset save|apply|delete <name> | print   (see DebugExportCommands)
 ///     alert [press <title> | key return|escape|space|cmd+.]   (the alert or sheet on the library window: its texts
@@ -197,7 +202,10 @@ enum DebugScript {
                 // list (the sidebar hidden, review, its section hidden or folded).
                 let endsRename: Set<String> = ["renameproject", "renamealbum", "sidebarpane", "sidebarsection", "review"]
                 let grouped = (changing.contains(String(words.first ?? ""))
-                    && !DebugLensCommands.contextMenuChangesNothing(words.map(String.init)))
+                    && !DebugLensCommands.contextMenuChangesNothing(words.map(String.init))
+                    // The Presets heading's view choice, its collections' headings and focusing a row change no photo.
+                    && !(words.first == "preset" && ["view", "heading"].contains(words.dropFirst().first ?? ""))
+                    && !(words.first == "preset" && words.dropFirst().first == "row" && words.last == "focus"))
                     || (endsRename.contains(String(words.first ?? "")) && model.sidebarRename != nil)
                     || (words.first == "accessibility" && words.count >= 4)
                     || (words.first == "history" && words.dropFirst().first == "revert")
@@ -555,6 +563,12 @@ enum DebugScript {
         case "preset":
             let name = rest.dropFirst().joined(separator: " ")
             switch rest.first {
+            case "view":
+                await DebugPresetViewCommands.runView(Array(rest.dropFirst()), model: model, window: window)
+            case "row":
+                await DebugPresetViewCommands.runRow(Array(rest.dropFirst()), model: model, window: window)
+            case "heading":
+                await DebugPresetViewCommands.runHeading(Array(rest.dropFirst()), model: model, window: window)
             case "save":
                 model.saveAdjustmentPreset(named: name)
                 try? await Task.sleep(for: .milliseconds(300))
@@ -651,6 +665,8 @@ enum DebugScript {
         case "scroll":
             if let root = window?.contentView?.superview { scrollInspector(rest.first ?? "0", in: root) }
             try? await Task.sleep(for: .milliseconds(200))
+        case "hover":
+            await DebugPresetViewCommands.runHover(rest, model: model, window: window)
         case "hit":
             if let window, let point = windowPoint(rest, in: window) { printHit(window, at: point) }
         case "buttons":
@@ -817,6 +833,8 @@ enum DebugScript {
                 print("debug-script: filmstrip setting \(model.showsFilmStrip) stored \(model.filmStripSize) shown \(strip != nil)"
                       + (strip.map { " " + $0.debugState } ?? "") + " fits \(model.loupeFitCount)")
                 model.loupeFitCount = 0
+            } else if rest.first == "presetsbar" {
+                DebugPresetViewCommands.printBar(in: window)
             } else if rest.first == "inspectorwidth" {
                 let folder = rest.dropFirst().first.map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) }
                 if let root = window?.contentView?.superview { printScrollWidths(in: root, drawingTo: folder) }
@@ -1283,11 +1301,18 @@ enum DebugScript {
         let needs = control.intrinsicContentSize.width
         let fills = control.contentCompressionResistancePriority(for: .horizontal) < .defaultHigh
         let room = narrowestVisible - InspectorMetrics.padding - frame.minX
-        let labels = (0..<control.segmentCount).map { control.label(forSegment: $0) ?? "" }
+        let labels = segmentNames(control)
         let font = control.font ?? .systemFont(ofSize: NSFont.systemFontSize(for: control.controlSize))
         let label = labels.map { ($0 as NSString).size(withAttributes: [.font: font]).width }.max() ?? 0
         let segment = room / CGFloat(max(control.segmentCount, 1))
-        let verdict = needs <= room + 0.5 ? "fits" : fills ? "compressed" : "overflow"
+        // `trailing`: the Presets view switch, which moves with the column's
+        // trailing edge; `print presetsbar` checks its line.
+        let verdict = switch InspectorSegmentedWidth.verdict(frame: frame, needs: needs, fillsWidth: fills,
+                                                             visibleWidth: clip.bounds.width, room: room,
+                                                             padding: InspectorMetrics.padding) {
+        case .trailing: "trailing (see print presetsbar)"
+        case let other: other.rawValue
+        }
         let points = { (value: CGFloat) in String(format: "%.1f", value) }
         print("debug-script: inspectorwidth segmented \(labels.joined(separator: "/")) width \(points(frame.width))"
               + " needs \(points(needs)) x \(points(frame.minX)) \(fills ? "fillsWidth" : "keepsWidth")"
@@ -1300,10 +1325,17 @@ enum DebugScript {
     /// the narrowest room, the width a control that fills the column gets.
     private static func drawSegmented(like control: NSSegmentedControl, width: CGFloat, to url: URL) {
         let labels = (0..<control.segmentCount).map { control.label(forSegment: $0) ?? "" }
-        let copy = NSSegmentedControl(labels: labels, trackingMode: control.trackingMode, target: nil, action: nil)
+        let images = (0..<control.segmentCount).compactMap { control.image(forSegment: $0) }
+        // Icon-only segments (the Presets view switch) are copied with their images and widths.
+        let copy = labels.allSatisfy(\.isEmpty) && images.count == control.segmentCount
+            ? NSSegmentedControl(images: images, trackingMode: control.trackingMode, target: nil, action: nil)
+            : NSSegmentedControl(labels: labels, trackingMode: control.trackingMode, target: nil, action: nil)
         copy.controlSize = control.controlSize
         copy.font = control.font
         copy.segmentDistribution = control.segmentDistribution
+        for index in 0..<control.segmentCount where control.width(forSegment: index) > 0 {
+            copy.setWidth(control.width(forSegment: index), forSegment: index)
+        }
         copy.selectedSegment = control.selectedSegment
         copy.appearance = control.effectiveAppearance
         for index in 0..<control.segmentCount { copy.setEnabled(control.isEnabled(forSegment: index), forSegment: index) }
@@ -1322,6 +1354,15 @@ enum DebugScript {
         print("debug-script: wrote \(url.path) at width \(Int(width.rounded(.down))) (copy needs \(Int(copy.intrinsicContentSize.width.rounded(.up))))")
     }
 
+    /// A segmented control's segment names: the label, or for an icon-only
+    /// segment its image's accessibility description.
+    private static func segmentNames(_ control: NSSegmentedControl) -> [String] {
+        (0..<control.segmentCount).map { index in
+            control.label(forSegment: index).flatMap { $0.isEmpty ? nil : $0 }
+                ?? control.image(forSegment: index)?.accessibilityDescription ?? ""
+        }
+    }
+
     private static func printButtons(in view: NSView, window: NSWindow) {
         if let button = view as? NSControl, button is NSButton || button is NSSegmentedControl,
            !view.isHiddenOrHasHiddenAncestor {
@@ -1331,13 +1372,20 @@ enum DebugScript {
             // Dimmed buttons and tooltips that say something other than the name.
             let tip = button.toolTip.flatMap { $0 == name ? nil : " tip '\($0)'" } ?? ""
             // A segmented control's selection and a check box's state, for headings that show them.
-            let selection = (button as? NSSegmentedControl).map { " selected \($0.selectedSegment)" } ?? ""
+            let selection = (button as? NSSegmentedControl).map { control in
+                // Each segment's name (an icon segment's is its image's description) and tooltip.
+                let tips = (0..<control.segmentCount).map { control.toolTip(forSegment: $0) ?? "" }
+                return " selected \(control.selectedSegment) segments '\(segmentNames(control).joined(separator: "'/'"))'"
+                    + (tips.allSatisfy(\.isEmpty) ? "" : " segmentTips '\(tips.joined(separator: "'/'"))'")
+            } ?? ""
+            // VoiceOver's value, where a button has one (a Presets list row's applied mark).
+            let value = (button.accessibilityValue() as? String).flatMap { $0.isEmpty ? nil : " value '\($0)'" } ?? ""
             let checkState = (button as? NSButton).flatMap { box in
                 box.allowsMixedState ? " state \(box.state == .on ? "on" : box.state == .mixed ? "mixed" : "off")" : nil
             } ?? ""
             print("debug-script: button '\(name)' at \(Int(frame.midX)),\(Int(window.frame.height - frame.midY))"
                   + " width \(Int(frame.width)) \(type(of: button))" + (button.isEnabled ? "" : " disabled") + tip
-                  + selection + checkState)
+                  + selection + checkState + value)
         }
         for subview in view.subviews { printButtons(in: subview, window: window) }
     }

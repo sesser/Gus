@@ -2310,7 +2310,7 @@
       }
     },
     "Applied to this photo" : {
-      "comment" : "Look-up table window: tooltip of the check mark on the applied table",
+      "comment" : "Look-up table window: tooltip of the check mark on the applied table; Adjust tab's Presets list: VoiceOver value of the row of a preset the photo already has",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3224,6 +3224,17 @@
         }
       }
     },
+    "List" : {
+      "comment" : "Presets view switch: VoiceOver name of the list segment",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "List"
+          }
+        }
+      }
+    },
     "Masks and spots are placed in the corrected frame, so this photo's can move away from what they cover now. You can undo the change." : {
       "comment" : "Alert message before a lens correction that moves the frame of a photo with masks or spots",
       "localizations" : {
@@ -3422,6 +3433,17 @@
         }
       }
     },
+    "Presets view" : {
+      "comment" : "Adjust tab, Presets heading: VoiceOver label of the switch between thumbnails and a list",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Presets view"
+          }
+        }
+      }
+    },
     "Red Filter" : {
       "comment" : "Adjust ▸ Black & White menu item; choose one filter alone",
       "localizations" : {
@@ -3506,6 +3528,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Set the correction by hand."
+          }
+        }
+      }
+    },
+    "Show presets as a list" : {
+      "comment" : "Adjust tab, Presets heading: tooltip of the view switch's list segment",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show presets as a list"
+          }
+        }
+      }
+    },
+    "Show presets as thumbnails" : {
+      "comment" : "Adjust tab, Presets heading: tooltip of the view switch's thumbnails segment",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show presets as thumbnails"
           }
         }
       }
@@ -3627,6 +3671,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "This photo has no color, so the filters change nothing."
+          }
+        }
+      }
+    },
+    "Thumbnails" : {
+      "comment" : "Presets view switch: VoiceOver name of the thumbnails segment",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thumbnails"
           }
         }
       }

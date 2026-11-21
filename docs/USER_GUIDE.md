@@ -749,10 +749,25 @@ Align automatically.
 
 **Presets** (the Adjust tab's first heading, and **Adjust ▸ Apply Preset**)
 apply saved adjustments to the photo in the loupe or to every selected photo.
-The heading shows the focused photo with each preset, by collection; in the
-loupe, hovering a picture shows the photo with that preset, and clicking it
-applies the preset. Its **Save…**, **Import…** and **Manage…** buttons match
-the menu commands below. **Copy Adjustments**, **Paste Adjustments** and
+The heading lists the presets by collection, under the collections' own
+headings (click one to open or close it; it stays as you left it). The
+**Presets view** control at the right of the **Save…**, **Import…** and
+**Manage…** buttons switches between **List**, the presets' names, and
+**Thumbnails**, a picture of the focused photo with each preset. The list is
+the default; if you saw thumbnails before, you see the list now, and one click
+on the **Thumbnails** segment brings them back. The choice is kept for the
+whole app and across launches. In either view, in the loupe, hovering a preset
+shows the photo with it without changing anything, and moving the pointer off
+shows the photo's own edits again; clicking it applies the preset (to the photo
+on screen in the loupe, to every selected photo in the grid), as one undo step.
+A check mark at the end of a row (an outline around a thumbnail) means the
+photo already has that preset's settings. A row's tooltip gives the full name
+and the groups the preset sets, and its context menu has **Apply** and
+**Manage Presets…**. The list renders no pictures, so it also asks less of the
+Mac while you edit. With Full Keyboard Access, Tab reaches the control and each
+row; Space or Return applies the focused row. Hovering has no keyboard
+equivalent. The **Save…**, **Import…** and **Manage…** buttons match the menu
+commands below. **Copy Adjustments**, **Paste Adjustments** and
 **Reset All Adjustments** are in the ⋯ menu at the top of the Adjust tab, next
 to **Original** (`\`). **Save Adjustments as
 Preset…** asks for a name, a collection and the groups of controls to include
