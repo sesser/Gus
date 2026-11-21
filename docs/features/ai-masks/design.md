@@ -255,7 +255,8 @@ New Mask:  ▭ ◌ 🖌 ☀ 💧  [✨▾]
 - **Update's pending state** is the same line in the component's own caption
   slot ("Detecting…", mini spinner, Cancel in place of Update). The old
   result **keeps applying** until the new one lands, so the photo does not
-  flicker back to unmasked; the result swaps in one render.
+  flicker back to unmasked; the result swaps in one render. Changing or
+  removing a component the Update covers cancels it (DR-5, §19.1).
 
 ### Landing
 
@@ -453,7 +454,8 @@ control and has no UI.
     added. Detection failed on this photo. It selects nothing. …"), so each
     outcome is spoken once. After a failed Update of a Found result the
     announcement carries the DR-1 caption.
-  - Cancel: "Detection cancelled."
+  - Cancel: "Detection cancelled." Also posted when a change to a covered
+    component cancels an Update (DR-5).
   Focus is **not moved** by landing: moving focus on an asynchronous result
   steals it from whatever the person was doing.
 - **The pending state** has the spinner label "Detecting" and the caption
@@ -717,6 +719,71 @@ Overlay.** §7 and §11 had it after the overlay item, which split the three
 "look at the mask" toggles (overlay, sharpening map, fringe map) with a command
 that changes data. It now follows New Mask ▸ directly. The ⋯ and context menu
 placement (between Move and Delete) is unchanged.
+
+**DR-5 (code review Q3 / C11, 2026-11-20): changing or removing a component
+cancels the Update that covers it.** While an Update runs (the button on one
+component, or Adjust ▸ Update Detection and the ⋯ item on all of a mask's
+detection components), the controls stay enabled, and a change to a component
+the Update covers cancels that Update. Ruling: option (a).
+
+- **What cancels.** Any stack write, from whatever source (the row's controls,
+  Remove from Mask, deleting the mask, ⌘Z, Redo, a History revert), that
+  (1) changes the **operation** or **Invert** of a component the pending
+  Update covers, or (2) **removes** that component or the mask holding it. The
+  engineer tests this once, where writes are applied (compare the covered
+  components before and after), not in each control, so undo and History are
+  covered by the same rule as the buttons.
+- **What does not cancel.** A change to anything the Update does not cover:
+  another mask, a component of the same mask the Update does not cover (a
+  per-component button covers one), sliders, Amount, renaming, reordering that
+  leaves the component's kind, digest, operation and Invert as they were, a
+  new component added, or the Update landing for a component that has not
+  changed. Those keep landing through the existing match (C10's rule stays).
+- **Whole Update, not part of it.** An Update over two components that is
+  cancelled is cancelled for both: it is one undo step ("Update Detection"),
+  and landing one of two would make the step mean something the person did not
+  ask for and the caption, count and announcement say differently.
+- **Effect.** Exactly the existing Cancel (§5): the change itself applies at
+  once and is not delayed or undone; no result is written, no undo step or
+  History entry for the Update; the old result keeps applying (with Invert or
+  the operation now as the person set them); the "Detecting…" line goes and
+  the caption returns to the component's previous state; no Activity entry (a
+  cancel is not an error, as for Cancel). A result that was already running is
+  discarded on arrival (C8 is unchanged: the request itself may run to its
+  end). Nothing is queued to resume: the person can choose Update again.
+- **Announcement.** Reuse the existing "Detection cancelled." (§12, no new
+  string, no new localization key), posted at medium priority like Cancel's,
+  and posted only when a pending Update is cancelled this way. Reason: a
+  sighted person sees the "Detecting…" line disappear, but a VoiceOver user
+  whose focus is on Invert or Remove hears only that control's own change,
+  and an Update that quietly never happens is the silent loss C11 reports.
+  If the cancelling change removed the row and its focus, the announcement is
+  still posted. Nothing else is announced (the control's own state change is
+  spoken by the control).
+- **Why not (b), dimming.** It does not close the case: ⌘Z, Redo, History and
+  deleting the mask are not controls on the row, so the same loss remains
+  through them and would need the same fix. It also makes Invert and Remove
+  go dim and return within 0.15 to 0.5 s (2 s the first time after a build),
+  and a toggle that dims for a moment is worse than one that always answers.
+  Judgment, not a quoted HIG rule (the HIG's User control principle points the
+  same way: people change their mind while something is in progress, and
+  the latest action should win). The existing dimming (§5, one detection at a time;
+  DR-2, cropping) covers adding and starting detections, where there is a
+  conflict between two detections, not edits to settings.
+- **Why not (c), silence.** A change the person made would silently throw away
+  work they started, which breaks the Cancel rule (§5: a halt is visible and
+  has no side effect) and leaves a Detecting line that ends without result,
+  Cancel or message.
+- **For the engineer.** A test per case: Invert changes, operation changes,
+  Remove from Mask and delete mask each cancel a covered pending Update (the
+  line goes, `print masks` state is no longer `pending`, no undo step is added
+  for the Update, the announcement is posted if the debug script records
+  them); an Update over two components with one changed is cancelled whole; a
+  change to an uncovered component, or a reorder, does not cancel and the
+  Update lands. The `hang` detector (§15) holds the Update pending for these
+  checks. A result arriving after the cancel is ignored. Update the user guide
+  by one sentence next to Cancel: "Changing or removing a component while it
+  looks again stops that too." (guide terms are unchanged).
 
 **Open, judgment (review I1, I3):** whether touching the eye during a flash
 keeps the overlay on (I1), and whether VoiceOver should hear "Detection

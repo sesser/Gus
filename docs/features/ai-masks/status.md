@@ -21,9 +21,9 @@ designer, then qa-tester.
 
 - Baseline, `develop` at `ed423d7`: `swift build` clean; `swift test` 1,253
   tests in 179 suites passed.
-- Latest (2026-11-20, after the second-pass and security fixes, `fe593cf`):
-  `swift build` with no warnings; `swift test` **1,303 tests in 185 suites
-  passed** (85.8 s); after the first review fixes: 1,300;
+- Latest (2026-11-20, after the third-pass fixes, `dc44a26`): `swift build`
+  with no warnings; `swift test` **1,305 tests in 185 suites passed** (91.4
+  s); after the second-pass fixes 1,303, after the first 1,300;
   `Scripts/build-app.sh` builds the bundle. Opt-in suites not run here:
   `AI_MASK_SAMPLES` (the owner's photos). Before the fixes: 1,298 in 185.
 - No `PreviewCacheKey.currentPipelineVersion` bump: no existing stack renders
@@ -243,6 +243,17 @@ in `fe593cf`.
 Not changed: the scanner's small per-quote allocation (a performance note in
 the security review). A Gus process from `qa/work/Gus.app` in the session
 scratchpad was running during these checks; not mine, left alone.
+
+## Third pass (2026-11-20)
+
+From the third pass of [`code-review.md`](code-review.md) and design DR-5;
+code in `2317d05`, user guide in `dc44a26`.
+
+| # | Finding | Resolution |
+| --- | --- | --- |
+| C11, DR-5 | A change to a component a pending Update covers | Fixed as ruled: the check is in one place, where every change to the open photo's values lands (`AdjustmentEditor.adjustments`' `didSet`, so the row's controls, Remove from Mask, deleting the mask, ⌘Z, Redo and a History revert all go through it). The rule is `MaskDetectionUpdate.isIntact` (PhotoCore, tested): every covered component still there with its kind, result, operation and Invert, wherever it now sits. If not, the whole Update is cancelled exactly as Cancel does, with "Detection cancelled." (no new string). Not cancelling: uncovered components, values, Amount, an added component, a reorder. Controls are not dimmed. Scripted with the `hang` detector (new `adjust mask invert`, `operation`, `removecomponent`, `move`): Invert, operation, Remove from Mask and deleting the mask each cancel an Update of both components (no undo step for the Update, the person's change on top); ⌘Z of a covered Invert cancels; inverting the uncovered component during a one-component Update, or changing Exposure, leaves it pending. User guide: "Changing or removing a component while it looks again stops that too." |
+| C12 | `craftedRows` refused its rows by the hash check first | Fixed: each crafted row is keyed by the SHA-256 of its own bytes (PNGs other than the good one's, and an over-size blob), plus a row exactly at the byte limit that loads. Checked by breaking each guard in turn: without the width and height check the test fails (2 issues), without the 2 MiB cap it fails (1 issue); restored |
+| C13 | A mistyped value in a row stopped the app | Fixed: `Catalog.maskRaster` converts each value from its database value, so a wrong type makes the row damaged (selects nothing, R14). Test `mistypedRow` for width, height, instances, revision, encoding, request and data. `systemVersion` can't be mistyped that way: its column has TEXT affinity, so SQLite stores a number there as text |
 
 ## For a person (manual checks proposed to QA)
 

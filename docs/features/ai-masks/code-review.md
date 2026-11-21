@@ -180,3 +180,56 @@ Questions from the second pass:
   fixture an acceptable AC11 outcome, given that R6 says empty is not an
   error? I recommend yes, with AC11's wording saying so. If not, the test has
   to fail on it and accept the CI risk.
+
+### Third pass
+
+Third pass, 2026-11-20. Reviewed `2abdd18..1c257a7`: `fe593cf` (code and
+tests) and `1c257a7` (docs: reviews, security review, status.md). Build and
+tests: `swift build` clean; `swift test` 1,303 tests in 185 suites passed
+(88.7 s, macOS 27.2.1). The three touched suites (`MaskDetectionTests`,
+`MaskRasterCatalogTests`, `DetectionMaskModelTests`, 31 tests) pass again on
+their own. AC11 printed nothing: both requests ran here, and People returned
+masks.
+
+| # | Result | Commit | Notes |
+|---|---|---|---|
+| C9 | Fixed | `fe593cf` | The test catches `.unavailable` only when its detail begins `"\(VNErrorDomain) 22:"`. `classify` builds that detail as `"<domain> <code>: …"`, and the colon keeps code 2 or 220 from matching. `classification` pins the prefix for code 22. Any other `.unavailable` (unsupported revision, request, compute stage, resource unavailable) and any `.failed` or `.unusableMask` goes to the generic `catch` and records an issue. Subject must find the disc in both orientations at 512 × 512 unless code 22 was seen. A People mask must be 512 × 384 or 384 × 512, and an empty People result passes with a printed line. That is AC11 as revised on #88 (Q2 ruling). The app keeps its wider Unavailable classification, as allowed. |
+| C10 | Fixed | `fe593cf` | `Started` carries `operation` and `invert`, and `matches` compares kind, digest, operation and Invert, both at the old place and in the fallback. The review's case (Update row 2, Subtract; row 2 removed) now lands nowhere (`positions(of: second, in: [add]) == [nil]`), and that test fails on `2abdd18`, which returned `[0]`. The only caller (`updateDetection`) passes the component's own values, so the `.add`/`false` defaults hide nothing. One consequence is C11. |
+| N1 (design) | Fixed | `fe593cf` | `detectionState` returns `.unavailable` for a component in `failedUpdates` whose state is Unavailable. Found still becomes `failedUpdate`, and everything else becomes `.failed`, as DR-1 says. PhotoApp has no unit test for it; status.md records the scripted check, and the designer confirms it in `review.md`. |
+| L1 | Fixed; test gap C12 | `fe593cf` | `maximumSide` is 1024 for `init`, `pixels(fromPNG:)`, `levels(of:)` and the row read. `Catalog.maskRaster` checks the row's `width` and `height` (1…1024) before any decode. It selects the blob only when `length(data) <= 2 MiB`, so a larger blob is never handed to GRDB or ImageIO. SQLite reads a blob's length from the record header. An incompressible 1024 × 1024 gray PNG is about 1.05 MB, so the cap never refuses a row this build can write. `oversizedPNG` fails on `2abdd18` (a 2048-pixel PNG decoded under the old 4096 limit). |
+| L2 | Fixed | `fe593cf` | The row is rebuilt with `init(stored:)`, which hashes its bytes, and is refused unless that hash equals the key. Every writer keys rows by `raster.digest`, which uses the same function, so no row written by this branch is refused. The debug script's `damageMaskRasterForChecks` now shows Missing through the hash check rather than through an unreadable PNG; the caption is the same. Each read hashes at most about 260 KB at Vision's sizes, and the store caches 48 entries. |
+| L3 | Fixed | `fe593cf` | `decode` returns nil for text that isn't a JSON array of digests. NULL, which entries before v15 have, is still skipped by the `WHERE`, and `"[]"` is never written (`encode([])` is nil). Each unreadable list falls back to `EditHistory.decompress` of that entry's `stack` and the text scan. If that also fails, the closure returns 0 inside the write transaction, before any `DELETE`, so nothing is deleted. The fallback runs after the cursor is exhausted. A non-text `maskRasters` (an integer or a blob) does not crash: GRDB's `String` reads a statement-backed row with `sqlite3_column_text`, and the result fails `decode`. `damagedHistoryList` fails on `2abdd18`, where the cleanup deleted 2 rows, not 1. Residual, accepted by the security review's alternative: one unreadable snapshot turns the cleanup off at every launch until that entry ages out of history. |
+| N1 (security) | Fixed | `fe593cf` | The format whitelist comes first. Width and height must be 1…1024, the buffer must not be planar, `bytesPerRow >= width × bytesPerPixel` and `CVPixelBufferGetDataSize >= bytesPerRow × height`, all checked before the `[UInt8]` allocation and the reads. If a Vision release reported a tighter data size, or masks over 1024 pixels, detection would fail as `unusableMask`. AC11 records that as an issue (generic `catch`), so CI on 15 and 26 would show it. On 27.2.1 real Vision buffers pass (AC11 ran). |
+
+**Can the 1024 limit refuse a stored mask?** No. Every row is written through
+`MaskRaster.init`. On this branch that capped sides at 4096 before and at 1024
+now, and every writer gives far less: Vision 512 × 512 and 512 × 384 or
+384 × 512 (status.md §2, and this Mac's AC11 run); the debug detector the same
+sizes; the goldens' and the tests' rasters 1 to 32 pixels a side (GoldenTests
+pass unchanged). Nothing has shipped, so no library holds a row from another
+build. If a future macOS raises Vision's mask size above 1024, new detections
+fail visibly (Failed caption, AC11 red on CI), and stored rows are unaffected.
+
+New findings in `fe593cf`:
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C11 | Nit | `Sources/PhotoCore/Suggestions/MaskDetector.swift:283-287`; `Sources/PhotoApp/Model/MaskDetectionEditing.swift:344`; `Sources/PhotoApp/Views/MasksSection.swift:364-368` | Since C10, a component's own Invert or operation is part of its match. A pending Update does not dim Invert, the operation pop-up or Remove, so a user who changes one of them while the Update runs loses that component's result without a word. | Subject component with a result. Choose Update, and while Vision runs (0.5 to 2 s) click the row's Invert. At landing the old place no longer matches (`invert` differs), the fallback finds nothing, and `positions` gives nil. `landUpdate` skips it: no new digest, no `failedUpdates` entry, no Activity note, no announcement (`landed` is empty). The pending line disappears as if the Update had run. Removal and undo already ended this way under C1; C10 adds two ordinary clicks. Either cancel the pending Update when a component it covers changes (the pending line already offers Cancel), or dim Invert, operation and Remove on the rows it covers while it runs. Dropping the operation and Invert check only at the old place is not enough: it brings C10 back in mirror (Update row 1 of [Subject Add, Subject Subtract], remove row 1, and the result lands on the Subtract twin now at index 0). | Correctness (C1/C10 residual); design §7 says nothing about edits during an Update (Q3) |
+| C12 | Should fix | `Tests/PhotoCoreTests/MaskRasterCatalogTests.swift:203-210` | `craftedRows`' "too wide" and "more bytes" cases insert rows under made-up keys (`"c3"…`, `"d4"…`) that are not the SHA-256 of their bytes, so the L2 hash check refuses them before the L1 checks matter. | Delete the `sides.contains(width)` / `sides.contains(height)` guard, or the `CASE WHEN length(data) <= ?`, from `Catalog.maskRaster`, and `craftedRows` still passes, because both rows fail `raster.digest == digest`. The L1 row checks are untested. Key each crafted row by `Digest.sha256Hex(data)` of its own bytes, using a PNG other than `good`'s so the later `storeMaskRaster(good)` doesn't collide. The wide row then reaches only the width guard, and the 2 MiB + 1 row only the SQL cap (which, without the cap, would load, hash right and come back non-nil). | Tests fail without the change |
+| C13 | Nit | `Sources/PhotoCore/Catalog/MaskRasters.swift:51`, `:58-59` | `width`, `height`, `instances`, `revision` and `systemVersion` are read with GRDB's non-optional subscript, which is `try! decode(…)`. That contradicts the function's new comment ("anything else is damaged and selects nothing"). | A hand-edited row whose `width` holds the text `'abc'`: the INTEGER affinity keeps it as text, `Int` can't decode it, and every render that names the row stops the app with a GRDB fatal error. It stops at every launch that shows the photo. Read them as optionals (`let width: Int? = row["width"]`) and add them to the `guard`. The rest of the catalog reads columns the same way, so this is a nit, kept only because L1 and L2 make this reader the hardened one. | R14 (damaged selects nothing); security review trust model |
+
+Checked in `fe593cf` and fine: the `MaskRasterReferences.decode` signature
+change has one caller. The `CASE … END AS data` column is read with the
+optional subscript, so a NULL from the cap selects nothing and does not crash
+(`bigKey`). The new SQL is parameterized. No migration, golden, tolerance or
+`PreviewCacheKey.currentPipelineVersion` changed. No new `@unchecked
+Sendable` or `nonisolated(unsafe)`. No new UI strings. `1c257a7` changes docs
+only.
+
+Question from the third pass:
+
+- **Q3 (designer).** What should happen to a component's pending Update when
+  the user changes that component's Invert or operation, or removes it, before
+  the result lands (C11)? Options: cancel the Update (one rule, visible); dim
+  those controls on the covered rows while it runs; or let it land where it
+  matches and say nothing otherwise (today's behavior). I recommend cancel.
