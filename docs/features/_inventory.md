@@ -57,6 +57,10 @@ Updated 2026-11-19 (Ship pass) for lens-corrections (#87: the Distortion and Len
 Vignetting rows under Editing), from its `status.md`, `qa.md` and
 `docs/USER_GUIDE.md`.
 
+Updated 2026-11-21 (Ship pass) for preset-list-view (#241: the Presets list view
+row under Presets and look-up tables), from its `status.md`, `qa.md` and
+`docs/USER_GUIDE.md`.
+
 Markers:
 
 - **[inferred from code]**: no document states it; the claim rests on code alone.
@@ -213,6 +217,7 @@ Abbreviations: P1–P6 = `docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR
 | Capability | What it does | Source |
 |---|---|---|
 | Adjustment presets | Partial presets by group, collections, hover preview, preview tiles | P3 second pass |
+| Presets list view | The Presets heading shows a list (default) or thumbnails, chosen by an icon-only two-segment switch at the right of the Save…, Import… and Manage… row; the choice is an app-wide preference (`adjust.presetsView`). List: same collections, headings and order, one row per preset (name only, tooltip with its groups, check mark when the photo has it), no thumbnails rendered while it shows. A row applies like a thumbnail (same context menu; Return, keypad Enter, Space). Hover previews in the loupe in both views through the unchanged `previewAdjustmentPreset` path (live, not saved; nothing in the grid). The button row wraps in three arrangements, so at the default inspector width Manage… sits under Save…. No migration, no pipeline bump. Owner checked P1 to P5 on 2026-11-21 | `preset-list-view/` (#241); UG; `Presets/PresetsViewChoice.swift`, `Browser/PresetsBarGeometry.swift`, `Views/PresetsSection.swift`, `Views/PresetList.swift` |
 | Preset files | xz-compressed JSON with embedded `.cube` files; Finder double-click imports | P3 second pass; `Support/Info.plist` (exported type) |
 | Lightroom preset import | `.lrtemplate`, `.xmp`, `.dng`; report of unmapped settings. Purple and green fringe removal and automatic chromatic aberration removal map to the Lens groups | P3 second pass; `Presets/` |
 | Luminar preset pack import | `.lnpc` packs (several at once) through Import Presets…; one preset collection and one look-up table collection per pack; approximate conversion with named assumed scales; Import Report page (mapped, approximated, left out, not recognized, not imported); re-import replaces by name; no Finder registration | `luminar-preset-import` (#203); `Presets/Luminar/`, `Support/ZipArchive.swift` |
