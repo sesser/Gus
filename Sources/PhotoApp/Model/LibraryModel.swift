@@ -155,6 +155,11 @@ final class LibraryModel {
     let writes = WriteChain()
     let lookTableLibrary = LookTableLibraryModel()
     let presetPreviews = PresetPreviewModel()
+    /// How the Adjust tab's Presets heading shows presets: names or
+    /// thumbnails. One app-wide preference, kept across launches (#241).
+    var presetsView = PresetsViewChoice.choice(stored: UserDefaults.standard.object(forKey: PresetsViewChoice.defaultsKey)) {
+        didSet { UserDefaults.standard.set(presetsView.rawValue, forKey: PresetsViewChoice.defaultsKey) }
+    }
     let export = ExportModel()
     /// File ▸ Merge to HDR…: the sheet's state and the merge running behind it (issue #150).
     let merge = MergeModel()
@@ -164,6 +169,8 @@ final class LibraryModel {
     var copiedAdjustments: Adjustments?
     var adjustmentPresets: [AdjustmentPreset] = []
     let lookTables: LookTableStore
+    /// Stored detection results of mask components, as the renderer reads them (issue #88).
+    let maskRasters: MaskRasterStore
 
     // MARK: Sidebar and filters
 
@@ -614,6 +621,11 @@ final class LibraryModel {
         report(text, action: action, warning: warning, announcing: text)
     }
 
+    /// Posts to Activity with no announcement, when something else announces the outcome.
+    func postActivity(_ text: String, action: String, warning: Bool) {
+        activity.post(text, title: action, isWarning: warning)
+    }
+
     /// Posts to Activity; VoiceOver hears `announcing`, such as a long
     /// message's first sentence.
     func report(_ text: String, action: String, warning: Bool, announcing: String) {
@@ -711,12 +723,13 @@ final class LibraryModel {
     private static let log = Logger(subsystem: AppBranding.bundleIdentifier, category: "library")
 
     init(locations: LibraryLocations, catalog: Catalog, importer: Importer, previews: PreviewService,
-         lookTables: LookTableStore) {
+         lookTables: LookTableStore, maskRasters: MaskRasterStore) {
         self.locations = locations
         self.catalog = catalog
         self.importer = importer
         self.previews = previews
         self.lookTables = lookTables
+        self.maskRasters = maskRasters
         let defaults = UserDefaults.standard
         let size = defaults.double(forKey: Self.thumbnailSizeKey)
         thumbnailSize = Self.thumbnailSizeRange.contains(size) ? size : 180
@@ -778,12 +791,13 @@ final class LibraryModel {
         let catalog = try Catalog.open(at: locations.catalogFileURL)
         let importer = Importer(catalog: catalog, metadataReader: MetadataReaders.makeDefault())
         let lookTables = LookTableStore(locations: locations)
-        let generator = PreviewGenerator(renderer: AdjustmentRenderer(lookTables: lookTables))
+        let maskRasters = MaskRasterStore(catalog: catalog)
+        let generator = PreviewGenerator(renderer: AdjustmentRenderer(lookTables: lookTables, maskRasters: maskRasters))
         let previews = PreviewService(cacheDirectory: locations.previewCacheDirectory, catalog: catalog,
                                       generator: generator)
         previews.cache.removeObsoletePipelineVersions()
         let model = LibraryModel(locations: locations, catalog: catalog, importer: importer, previews: previews,
-                                 lookTables: lookTables)
+                                 lookTables: lookTables, maskRasters: maskRasters)
         model.libraryLock = lock
         return model
     }
@@ -801,6 +815,7 @@ final class LibraryModel {
         await lookTableLibrary.reload()
         let lookTables = self.lookTables
         Task.detached(priority: .utility) { lookTables.installBuiltIns() }
+        removeUnreferencedMaskRasters()
         await refreshDiskChanges()
         // Changes other apps made while this one was not running.
         checkForDiskChanges(delay: .seconds(5))
@@ -1761,4 +1776,28 @@ struct ImportBatchPosition: Equatable {
     /// 1-based.
     var index: Int
     var count: Int
+}
+
+extension LibraryModel {
+    /// Deletes stored detection results that nothing names any more (issue
+    /// #88, R5). At launch, when no undo step can still name one
+    /// (`Catalog.removeUnreferencedMaskRasters`).
+    ///
+    /// On the write chain (code review C4): a detection writes its row and then
+    /// the stack naming it as two items of the chain, and the cleanup must not
+    /// run between them.
+    func removeUnreferencedMaskRasters() {
+        let catalog = catalog
+        let log = Self.maskLog
+        persist {
+            do {
+                let removed = try await catalog.removeUnreferencedMaskRasters()
+                if removed > 0 { log.info("Removed \(removed) stored detection results nothing names") }
+            } catch {
+                log.error("Stored detection results not cleaned up: \(String(describing: error), privacy: .public)")
+            }
+        }
+    }
+
+    nonisolated private static let maskLog = Logger(subsystem: AppBranding.bundleIdentifier, category: "masks")
 }

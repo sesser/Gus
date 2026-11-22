@@ -61,8 +61,37 @@ struct GoldenCase: Sendable, CustomTestStringConvertible {
     }
 
     func render() -> CIImage {
-        AdjustmentRenderer(lookTables: Self.lookTables).render(adjustments, to: scene.image().ciImage,
-                                                              context: RenderContext(lens: lens))
+        AdjustmentRenderer(lookTables: Self.lookTables, maskRasters: Self.maskRasters)
+            .render(adjustments, to: scene.image().ciImage, context: RenderContext(lens: lens))
+    }
+
+    // MARK: Detection masks (issue #88)
+
+    /// A stored result as a coarse model gives one: `inside` sampled at each
+    /// result pixel's center over the 256 × 192 scenes, hard and stair-stepped.
+    static func raster(width: Int, height: Int, request: MaskRaster.Request = .foreground,
+                       _ inside: (Double, Double) -> Bool) -> MaskRaster {
+        let sx = Double(TestScene.defaultWidth) / Double(width), sy = Double(TestScene.defaultHeight) / Double(height)
+        let levels = (0..<(width * height)).map { index -> UInt8 in
+            inside((Double(index % width) + 0.5) * sx, (Double(index / width) + 0.5) * sy) ? 255 : 0
+        }
+        return try! MaskRaster(levels: levels, width: width, height: height, instances: 1, request: request)
+    }
+
+    /// The patch chart's third column, second and third rows.
+    static let patchSubject = raster(width: 24, height: 16) { x, y in (85..<127).contains(x) && (48..<143).contains(y) }
+    /// The edge target's star.
+    static let starSubject = raster(width: 32, height: 24) { x, y in hypot(x - 128, y - 144) < 44 }
+    /// A band over the landscape's hills, 4:3 as People's results are.
+    static let hillPeople = raster(width: 32, height: 24, request: .person) { x, y in
+        let v = y / Double(TestScene.defaultHeight), u = x / Double(TestScene.defaultWidth)
+        return v > 0.38 + 0.04 * sin(u * 9) && v < 0.52 + 0.06 * sin(u * 5 + 1)
+    }
+
+    static let maskRasters = MaskRasterStore(rasters: [patchSubject, starSubject, hillPeople])
+
+    static func detection(_ kind: MaskDetectionKind, _ raster: MaskRaster) -> MaskShape {
+        .detection(MaskDetection(kind: kind, raster: raster.digest))
     }
 }
 
@@ -280,6 +309,31 @@ struct GoldenTests {
             $0.local.masks = [GoldenCase.mask([.radial(RadialGradient(center: MaskPoint(x: 0.3, y: 0.4), radiusX: 0.15,
                                                                       radiusY: 0.25, rotation: -20))]) {
                 $0.exposure = 1
+            }]
+        },
+
+        // Detection masks (docs/features/ai-masks, AC7): synthetic stored
+        // results, coarse and stair-stepped, brought to the scene's edges by the
+        // guided filter; Background turned around; People less a radial under a
+        // turn, straightening and crop (the result stays in the mask frame).
+        GoldenCase("mask-subject-patchChart", .patchChart) {
+            $0.local.masks = [GoldenCase.mask([GoldenCase.detection(.subject, GoldenCase.patchSubject)]) {
+                $0.exposure = 1
+            }]
+        },
+        GoldenCase("mask-background-edgeTarget", .edgeTarget) {
+            $0.local.masks = [GoldenCase.mask([GoldenCase.detection(.background, GoldenCase.starSubject)]) {
+                $0.exposure = -0.5
+            }]
+        },
+        GoldenCase("mask-peopleSubtractCropTurn-hazyLandscape", .hazyLandscape) {
+            $0.crop = Crop(rect: CropRect(x: 0.05, y: 0.1, width: 0.85, height: 0.8), quarterTurns: 1, angle: 4)
+            $0.local.masks = [GoldenCase.mask([GoldenCase.detection(.people, GoldenCase.hillPeople),
+                                               .radial(RadialGradient(center: MaskPoint(x: 0.5, y: 0.45), radiusX: 0.15,
+                                                                      radiusY: 0.1))],
+                                              operations: [.add, .subtract]) {
+                $0.exposure = 0.7
+                $0.saturation = 30
             }]
         },
 

@@ -446,6 +446,32 @@ extension MemoryHeavy {
             #expect(try await catalog.details(forVersion: master.versionID) == nil)
         }
 
+        @Test("AC13: Undo and Redo keep the stored detection results an edit-history entry names (#88)")
+        func undoAndRedoKeepMaskRasters() async throws {
+            let library = try await MergeLibrary.make(Self.bracket)
+            defer { library.remove() }
+            let catalog = library.catalog
+            let selection = try await library.selection(["IMG_0001.dng", "IMG_0002.dng", "IMG_0003.dng"])
+            let result = try await library.job.run(selection, format: .tiff)
+            let master = try #require(result.master)
+            var adjustments = Adjustments()
+            adjustments.exposure.ev = 0.5
+            try await catalog.setEditStack(adjustments.editStack, forVersion: master.versionID, historyLabel: "Exposure")
+            #expect(try await catalog.editHistory(forVersion: master.versionID).count == 1)
+            let digests = "[\"abc123\"]"
+            try await catalog.database.write { db in
+                try db.execute(sql: "UPDATE editHistory SET maskRasters = ? WHERE versionId = ?",
+                               arguments: [digests, master.versionID])
+            }
+            let removed = try #require(try await catalog.removeMergedMaster(imageID: master.imageID))
+            #expect(try await catalog.restoreMergedMaster(removed, fileAt: result.url))
+            let stored: [String?] = try await catalog.database.read { db in
+                try String?.fetchAll(db, sql: "SELECT maskRasters FROM editHistory WHERE versionId = ?",
+                                     arguments: [master.versionID])
+            }
+            #expect(stored == [digests])
+        }
+
         @Test("AC11: the merged photo renders, takes an edit with history, and exports")
         func resultIsAPhoto() async throws {
             let library = try await MergeLibrary.make(Self.bracket)

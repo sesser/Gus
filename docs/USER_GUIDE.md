@@ -465,6 +465,59 @@ keyboard and VoiceOver, where each spot on the photo is a button with
 actions. Many spots slow the loupe down: with about 90, a drag at 100%
 shows a frame about every 50 ms.
 
+**Masks** (the Masks heading, in the loupe) limit an adjustment to part of
+the photo. **New Mask** makes a mask from a shape (a gradient, a brush or a
+range of light or color) and **Add to Mask** combines more shapes with it:
+Add, Subtract or Intersect, each with an Invert button. The mask's **Amount**
+scales it, and the sliders below apply only inside it.
+
+**Masks from the photo.** The wand button at the end of the shape buttons
+(or **Adjust ▸ New Mask ▸ Subject, People, Background**) finds
+something in the photo on your Mac, with nothing sent anywhere, and makes a
+mask of it, named after what it found. **Subject** selects what stands out,
+every instance of it as one region. **People** selects every person it finds,
+**up to four**: in a crowd the others are left out, and the row says
+"4 people found, the most that can be selected. Others in the photo may be
+left out." **People can also select
+something that is not a person**: a close-up of a flower was selected as a
+person during testing, and there is no setting for how sure it must be;
+remove the component, or subtract another shape from it. **Background** is
+everything except the subject: the Subject result turned around, so with no
+subject found it selects nothing rather than everything; Invert on a
+Background component selects the subject again. A new Subject or
+People mask starts at +0.3 EV and a Background mask at −0.5 EV, and the red
+overlay shows the new mask for a moment. The same button in the **Add to
+Mask** row adds Subject, People or Background to the selected mask.
+
+These components combine and invert like any other. They have no Feather
+or refine control: to fix an edge, add or subtract a gradient, a brush or a
+range. The photo is looked at once, at a reduced size, with no adjustments
+other than Distortion, and the result is fitted to the photo's edges when it
+is shown, so very fine detail such as hair or a fence can come out rough.
+While it looks, a line says "Detecting…"; **Cancel** stops it, and so does
+moving to another photo: nothing is added. Changing or removing a component
+while it looks again stops that too. When the result arrives the mask
+or component is added as one undo step and one History entry.
+
+Each component's row says what it found ("1 subject found."). If nothing is
+found the row says so and the component selects nothing, so the photo is
+unchanged. If detection fails, or this Mac can't do it, or the saved result
+is missing from the library, the row says why and shows **Update**. The
+result is **saved with the photo** and is never found again on its own, so
+it looks the same after you reopen the library, on another Mac, or after a
+macOS update; looking again can give a slightly different result.
+**Update** (**Adjust ▸ Update Detection**, the row's button, or the mask's ⋯
+menu) looks again and replaces the saved result; it is one undo step, and
+Undo brings back the earlier result without looking again. If Update fails,
+the earlier result keeps applying and the row says so, with Update to try
+again. While cropping, detecting and Update wait until you finish. Masks from the
+photo are left out of Copy and Paste Adjustments and of presets; a duplicate
+starts with its original's result and is then independent, and the two files
+of a RAW+JPEG pair each have their own. They are for the loupe, one photo at
+a time. Saved results nothing refers to any more (after Update, Undo or
+removing photos, once the History no longer has them) are removed from the
+library the next time it opens.
+
 **Editing at 100%**: at 100% and closer (`Z`, or **View ▸ Zoom to 100%**),
 the loupe shows the photo's own pixels while you change a value, so you can
 judge fine detail without letting go. A heavy edit updates less often but keeps
@@ -774,10 +827,25 @@ Align automatically.
 
 **Presets** (the Adjust tab's first heading, and **Adjust ▸ Apply Preset**)
 apply saved adjustments to the photo in the loupe or to every selected photo.
-The heading shows the focused photo with each preset, by collection; in the
-loupe, hovering a picture shows the photo with that preset, and clicking it
-applies the preset. Its **Save…**, **Import…** and **Manage…** buttons match
-the menu commands below. **Copy Adjustments**, **Paste Adjustments** and
+The heading lists the presets by collection, under the collections' own
+headings (click one to open or close it; it stays as you left it). The
+**Presets view** control at the right of the **Save…**, **Import…** and
+**Manage…** buttons switches between **List**, the presets' names, and
+**Thumbnails**, a picture of the focused photo with each preset. The list is
+the default; if you saw thumbnails before, you see the list now, and one click
+on the **Thumbnails** segment brings them back. The choice is kept for the
+whole app and across launches. In either view, in the loupe, hovering a preset
+shows the photo with it without changing anything, and moving the pointer off
+shows the photo's own edits again; clicking it applies the preset (to the photo
+on screen in the loupe, to every selected photo in the grid), as one undo step.
+A check mark at the end of a row (an outline around a thumbnail) means the
+photo already has that preset's settings. A row's tooltip gives the full name
+and the groups the preset sets, and its context menu has **Apply** and
+**Manage Presets…**. The list renders no pictures, so it also asks less of the
+Mac while you edit. With Full Keyboard Access, Tab reaches the control and each
+row; Space or Return applies the focused row. Hovering has no keyboard
+equivalent. The **Save…**, **Import…** and **Manage…** buttons match the menu
+commands below. **Copy Adjustments**, **Paste Adjustments** and
 **Reset All Adjustments** are in the ⋯ menu at the top of the Adjust tab, next
 to **Original** (`\`). **Save Adjustments as
 Preset…** asks for a name, a collection and the groups of controls to include
@@ -991,7 +1059,13 @@ prints the written file's `path`, the `reference` and whether it aligned and
 de-ghosted (`align`, `deghost`); it writes no sidecar; stopped with Control-C it can leave a
 hidden `.…partial` file beside the reference, which you can delete), and `mask list`, `mask add`, `mask set` and
 `mask remove` (a version's local adjustments; `--dry-run` only shows the
-result). `render` and `export` draw a version's spots; spots are made and
+result). `mask add --shape subject`, `people` or `background` finds the mask
+in the original on this Mac and stores the result in the library; with
+`--dry-run` it looks and reports what it found (`detection`: state, instances,
+size) and stores nothing. A detection that fails is still added, with no
+result, and `detection` says why. `mask list` gives each such component's
+`state` (`found`, `empty`, `failed` or `missing`) and `instances`.
+`render` and `export` draw a version's spots; spots are made and
 changed in the app only. `noiseReduction.machineLearning=true` turns on machine learning noise
 reduction; `render` and `export` report in their JSON whether it was applied,
 and why not. `export --policy overwrite` replaces existing files but never an

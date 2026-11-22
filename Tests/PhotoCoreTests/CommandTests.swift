@@ -443,7 +443,8 @@ struct AdjustmentParameterTests {
             // The strict reader refuses what the app would not read; nothing is written.
             let bogus = await library.run("mask", "set", "--version", id, "--mask", "0", "--set", "component.0.bogus=1")
             #expect(bogus.json["code"] == "invalidEdit")
-            let shape = await library.run("mask", "add", "--version", id, "--shape", "subject")
+            // "subject" was this example until issue #88 made it a shape; "sky" is still unknown.
+            let shape = await library.run("mask", "add", "--version", id, "--shape", "sky")
             #expect(shape.json["code"] == "invalidValue")
 
             let render = await library.run("render", "--version", id, "--out", library.root.appending(path: "m.png").path,

@@ -47,6 +47,12 @@ struct LibraryMenuState: Equatable {
     /// Adjust ▸ New Mask ▸: an editable loupe photo, not cropping, under the
     /// mask limit.
     var canAddMask: Bool
+    /// Adjust ▸ New Mask ▸ Subject, People, Background (ai-masks design §11):
+    /// as the shape items, and no detection under way.
+    var canDetectMask: Bool
+    /// Adjust ▸ Update Detection: the selected mask has a detection component
+    /// and nothing blocks editing or another detection (design §7).
+    var canUpdateDetection: Bool
     /// Adjust ▸ Show / Hide Mask Overlay: a mask is selected in the loupe.
     var hasSelectedMask: Bool
     /// Adjust ▸ Spots ▸ (healing design §6): Edit Spots can act
@@ -209,6 +215,8 @@ struct LibraryMenuState: Equatable {
         isCropping = model.editor.cropSession != nil
         canResetCrop = canEditLoupePhoto && model.editor.canResetCrop
         canAddMask = canEditLoupePhoto && !isCropping && MaskLimits.canAddMask(to: model.editor.adjustments.local)
+        canDetectMask = canEditLoupePhoto && model.editor.canDetectMask
+        canUpdateDetection = canEditLoupePhoto && model.editor.canUpdateDetection(of: model.editor.selectedMask)
         canSaveAsPreset = model.canSaveAdjustmentPreset
         pairDisplay = PairDisplay(model.actionTargets.lazy.map { model.items[$0] })
         hasSelectedMask = canEditLoupePhoto && model.editor.selectedMaskID != nil

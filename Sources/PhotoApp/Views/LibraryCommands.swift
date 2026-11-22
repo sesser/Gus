@@ -643,8 +643,19 @@ struct LibraryCommands: Commands {
                 ForEach(MaskShapeKind.allCases, id: \.self) { kind in
                     Button(kind.title) { model?.editor.addMask(kind) }
                 }
+                // Found in the photo, under a divider (ai-masks design §11).
+                Divider()
+                ForEach(MaskDetectionKind.allCases, id: \.self) { kind in
+                    Button(kind.title) { model?.editor.addDetectionMask(kind) }
+                        .disabled(!can { $0.canDetectMask })
+                }
             }
             .disabled(!can { $0.canAddMask })
+            // Before the overlay: the three "look at" toggles stay together (review I2).
+            Button(MaskDetectionText.updateDetection) {
+                if let id = model?.editor.selectedMaskID { model?.editor.updateDetection(mask: id) }
+            }
+            .disabled(!can { $0.canUpdateDetection })
             // The Masks heading's eye button (design.md N7).
             Button(menu?.state.showsMaskOverlay == true ? String(localized: "Hide Mask Overlay")
                                                         : String(localized: "Show Mask Overlay")) {

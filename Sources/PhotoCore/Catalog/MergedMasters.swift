@@ -91,11 +91,12 @@ extension Catalog {
             let keywords = try VersionKeywordRecord.filter(ids.contains(Column("versionId"))).fetchAll(db)
             let sync = try MetadataSyncRecord.filter(Column("imageId") == imageID).fetchOne(db)
             let historyRows = try Row.fetchAll(db, sql: """
-                SELECT id, versionId, label, createdAt, stack FROM editHistory
+                SELECT id, versionId, label, createdAt, stack, maskRasters FROM editHistory
                 WHERE versionId IN (SELECT id FROM version WHERE imageId = ?) ORDER BY id
                 """, arguments: [imageID])
             let history = historyRows.map {
-                RemovedCopy.HistoryRow(id: $0["id"], label: $0["label"], createdAt: $0["createdAt"], stack: $0["stack"])
+                RemovedCopy.HistoryRow(id: $0["id"], label: $0["label"], createdAt: $0["createdAt"], stack: $0["stack"],
+                                       maskRasters: $0["maskRasters"])
             }
             let historyVersions: [Int64] = historyRows.map { $0["versionId"] }
             _ = try Self.removeImages(db, imageIDs: [imageID])
@@ -126,8 +127,9 @@ extension Catalog {
             if let sync = removed.sync { try sync.insert(db) }
             for (row, versionID) in zip(removed.history, removed.historyVersions) {
                 try db.execute(sql: """
-                    INSERT INTO editHistory (id, versionId, label, createdAt, stack) VALUES (?, ?, ?, ?, ?)
-                    """, arguments: [row.id, versionID, row.label, row.createdAt, row.stack])
+                    INSERT INTO editHistory (id, versionId, label, createdAt, stack, maskRasters)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """, arguments: [row.id, versionID, row.label, row.createdAt, row.stack, row.maskRasters])
             }
             return true
         }

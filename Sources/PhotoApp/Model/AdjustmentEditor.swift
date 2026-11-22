@@ -69,6 +69,12 @@ final class AdjustmentEditor {
         // An undo, a revert or a delete that took the selected spot away deselects it (design §10).
         didSet {
             if let id = selectedSpotID, !adjustments.spots.spots.contains(where: { $0.id == id }) { selectedSpotID = nil }
+            // Detection results named for the first time (an undo, a revert, a landing) are read for their captions.
+            if adjustments.local != oldValue.local {
+                loadDetectionResults()
+                // Any write that changes or removes a component a pending Update covers cancels it (DR-5).
+                cancelUpdateIfCoveredChanged()
+            }
         }
     }
     /// Histogram of the latest frame.
@@ -118,6 +124,8 @@ final class AdjustmentEditor {
     var selectedMaskID: UUID? {
         didSet {
             guard oldValue != selectedMaskID else { return }
+            // Selecting another mask ends a detection's overlay flash (ai-masks design §9).
+            endOverlayFlash()
             // Selecting a mask ends Edit Spots: one on-photo tool at a time (healing design §4).
             if selectedMaskID != nil { isEditingSpots = false }
             if selectedMask?.components.contains(where: { $0.shape.brushComponent }) != true { isBrushing = false }
@@ -128,6 +136,11 @@ final class AdjustmentEditor {
     /// Shows the selected mask in red over the photo.
     var showsMaskOverlay = false {
         didSet {
+            // The person's own toggle (the eye, the menu) ends a flash (ai-masks design §9).
+            if !overlayFlashSets, isFlashingOverlay {
+                isFlashingOverlay = false
+                overlayFlashTask?.cancel()
+            }
             guard oldValue != showsMaskOverlay, state == .ready else { return }
             noteInput()
             // Showing the overlay ends the sharpening map: the last asked for wins (design §6).
@@ -166,6 +179,29 @@ final class AdjustmentEditor {
             }
         }
     }
+    // MARK: Detection state (ai-masks design §4 to §9)
+
+    /// A detection under way, until its result lands or it is cancelled: the
+    /// stack does not hold it yet (design A3).
+    var pendingDetection: PendingDetection?
+    @ObservationIgnored var detectionTask: Task<Void, Never>?
+    /// What is known of the stored results the masks name, for captions; read off the main actor.
+    var detectionResults: [String: MaskRasterStore.Lookup] = [:]
+    @ObservationIgnored var detectionResultLoads: Set<String> = []
+    /// Requests this session found unable to run on this Mac (design §4,
+    /// Unavailable). Kept across photos: it is the Mac's, not the photo's.
+    var unavailableRequests: Set<MaskRaster.Request> = []
+    /// Components whose Update failed on this visit to the photo: the old
+    /// result still applies, the caption says Failed (design §7).
+    var failedUpdates: Set<DetectionComponentKey> = []
+    /// The overlay is on only for the flash after a result lands (design §9).
+    var isFlashingOverlay = false
+    @ObservationIgnored var overlayFlashTask: Task<Void, Never>?
+    /// The flash itself is turning the overlay on or off.
+    @ObservationIgnored var overlayFlashSets = false
+    /// What detections run with: Vision, or the debug script's stand-in (`DebugMaskDetector`).
+    @ObservationIgnored var maskDetector: any MaskDetecting = VisionMaskDetector()
+
     // MARK: Spots state (healing design §4, §15)
 
     /// Edit Spots is on: a click on the photo adds a spot, a click on one
@@ -387,7 +423,7 @@ final class AdjustmentEditor {
     /// The values last saved for the photo; `adjustments` runs ahead of them
     /// while a control is being dragged.
     var savedAdjustments: Adjustments { committed }
-    @ObservationIgnored private var sourceURL: URL?
+    @ObservationIgnored private(set) var sourceURL: URL?
     @ObservationIgnored private var session: LiveRenderSession?
     /// Full-resolution region frames at 100% and above.
     @ObservationIgnored private var regionRenderer: LiveRegionRenderer?
@@ -413,7 +449,11 @@ final class AdjustmentEditor {
     @ObservationIgnored private var isChanging = false
     /// Values shown without being applied (a table hovered in a menu).
     @ObservationIgnored private var previewValues: Adjustments?
-    @ObservationIgnored private var isPreviewing = false
+    /// Values are being previewed (a hovered preset or table); read by the
+    /// debug script's `hover`.
+    @ObservationIgnored private(set) var isPreviewing = false
+    /// The values a preview shows, for the debug script's `hover`.
+    var debugPreviewValues: Adjustments? { previewValues }
     /// The loupe showed its cached rendition when the preview began.
     @ObservationIgnored private var previewRestoresCache = false
     /// Hashes saved while this photo was open; their renditions are deleted
@@ -550,6 +590,10 @@ final class AdjustmentEditor {
     }
 
     private func finishSession() {
+        // Leaving the photo stops a detection and adds nothing (AC3); a flash ends.
+        cancelDetection(announcing: false)
+        endOverlayFlash()
+        failedUpdates = []
         // Another photo, or no loupe: the map ends, the overlay's preference stays.
         let restore = sharpeningMap.end()
         stopMapRefinement()
@@ -657,6 +701,8 @@ final class AdjustmentEditor {
         // (a menu's key equivalent included): the answer decides one change
         // (code review Q3).
         guard state == .ready, !isAskingLensFrame else { return }
+        // A slider drag ends a detection's overlay flash (ai-masks design §9).
+        if phase == .changing { endOverlayFlash() }
         // A run of spot nudges still waiting to be saved is its own undo step (code review C1).
         if SpotNudgeRule.savesPendingFirst(pending: spotNudge?.name, incoming: actionName, committing: phase == .committed) {
             commitSpotNudge()

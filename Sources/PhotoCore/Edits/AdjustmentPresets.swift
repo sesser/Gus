@@ -227,10 +227,14 @@ extension Catalog {
         try await setEditStacks(stacks, historyLabel: historyLabel, at: date, byteBudget: EditHistory.maxBytes)
     }
 
-    /// As above, with the history's byte budget (tests use a small one).
-    func setEditStacks(_ stacks: [Int64: EditStack], historyLabel: String, at date: Date, byteBudget: Int) async throws {
+    /// As above, with the history's byte budget (tests use a small one), and
+    /// stored detection results the stacks name, written in the same
+    /// transaction (`photocli mask add`).
+    func setEditStacks(_ stacks: [Int64: EditStack], historyLabel: String, at date: Date, byteBudget: Int,
+                       storing rasters: [MaskRaster] = []) async throws {
         let rows = try stacks.map { ($0.key, $0.value, try $0.value.jsonString(), $0.value.renderHash) }
         try await database.write { db in
+            for raster in rasters { try Self.insertMaskRaster(db, raster, at: date) }
             var previous: [Int64: EditStack] = [:]
             var failures: [Int64: EditStack.ReadFailure] = [:]
             for chunk in Array(stacks.keys).chunked(into: 10_000) {

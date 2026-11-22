@@ -24,6 +24,11 @@ public struct LocalAdjustments: Hashable, Sendable {
 
     public var isIdentity: Bool { masks.isEmpty }
 
+    /// The stored detection results the masks refer to (`maskRaster` digests).
+    public var maskRasterDigests: Set<String> {
+        Set(masks.lazy.flatMap(\.components).compactMap { $0.shape.detection?.raster })
+    }
+
     /// Masks that change the picture: turned on, with components and local values.
     public var renderedMasks: [Mask] {
         masks.filter { $0.isEnabled && !$0.components.isEmpty && !$0.adjustments.isDefault && $0.amount > 0 }
@@ -214,8 +219,10 @@ public enum MaskShape: Hashable, Sendable {
     case brush(Brush)
     case luminanceRange(LuminanceRange)
     case colorRange(ColorRange)
+    /// Found in the photo by the Mac: Subject, People or Background (issue #88).
+    case detection(MaskDetection)
 
-    /// The stored name.
+    /// The stored name: a detection is stored by its kind.
     public var name: String {
         switch self {
         case .linear: "linear"
@@ -223,10 +230,12 @@ public enum MaskShape: Hashable, Sendable {
         case .brush: "brush"
         case .luminanceRange: "luminanceRange"
         case .colorRange: "colorRange"
+        case .detection(let detection): detection.kind.rawValue
         }
     }
 
     public static let names = ["linear", "radial", "brush", "luminanceRange", "colorRange"]
+        + MaskDetectionKind.allCases.map(\.rawValue)
 
     var brush: Brush? {
         if case .brush(let brush) = self { return brush }
@@ -238,6 +247,11 @@ public enum MaskShape: Hashable, Sendable {
         return nil
     }
 
+    public var detection: MaskDetection? {
+        if case .detection(let detection) = self { return detection }
+        return nil
+    }
+
     var parameters: [String: EditParameter] {
         switch self {
         case .linear(let shape): shape.parameters
@@ -245,6 +259,7 @@ public enum MaskShape: Hashable, Sendable {
         case .brush(let shape): shape.parameters
         case .luminanceRange(let shape): shape.parameters
         case .colorRange(let shape): shape.parameters
+        case .detection(let shape): shape.parameters
         }
     }
 
@@ -272,8 +287,60 @@ public enum MaskShape: Hashable, Sendable {
             try reader.checkKeys()
             self = .colorRange(try ColorRange(reader))
         default:
-            throw .invalid("mask shape \(name)")
+            guard let kind = MaskDetectionKind(rawValue: name) else { throw .invalid("mask shape \(name)") }
+            let reader = ObjectReader(values, allowed: common.union(MaskDetection.keys))
+            try reader.checkKeys()
+            self = .detection(try MaskDetection(kind: kind, reader))
         }
+    }
+}
+
+/// What a detection component finds (issue #88, R2).
+public enum MaskDetectionKind: String, CaseIterable, Sendable {
+    /// Every foreground instance, as one region.
+    case subject
+    /// Every person found, at most the four Vision's request returns.
+    case people
+    /// Subject turned around: everything except the subject.
+    case background
+
+    /// The request whose result the component uses: Background uses Subject's.
+    public var request: MaskRaster.Request {
+        self == .people ? .person : .foreground
+    }
+
+    /// The component selects the result's complement.
+    public var isInverted: Bool { self == .background }
+}
+
+/// A mask component found in the photo by the Mac (issue #88, R2 to R7).
+///
+/// The stack holds the kind and a reference to the stored result, `raster`:
+/// the SHA-256 of a `maskRaster` row's bytes (`MaskRaster`), so the render
+/// hash changes exactly when the result does (R5). No pixels are stored here.
+/// A detection that failed is kept with no reference; it selects nothing, as
+/// does one whose row is missing (R6, R14), and the photo renders as without
+/// it (`MaskRenderer`).
+public struct MaskDetection: Hashable, Sendable {
+    public var kind: MaskDetectionKind
+    /// Lowercase hexadecimal SHA-256, or nil when detection failed.
+    public var raster: String?
+
+    static let keys: Set<String> = ["raster"]
+
+    public init(kind: MaskDetectionKind, raster: String? = nil) {
+        self.kind = kind
+        self.raster = raster
+    }
+
+    var parameters: [String: EditParameter] {
+        raster.map { ["raster": .string($0)] } ?? [:]
+    }
+
+    init(kind: MaskDetectionKind, _ reader: ObjectReader) throws(MaskReadError) {
+        self.kind = kind
+        raster = try reader.string("raster")
+        if let raster, !MaskRaster.isDigest(raster) { throw .invalid("raster is not a SHA-256 digest") }
     }
 }
 

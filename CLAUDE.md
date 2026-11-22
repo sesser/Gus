@@ -294,7 +294,7 @@ compatible and never put `#` comment lines inside pasted command snippets.
   `keywordSuggestion`, `imagePair`, `importRun`, `importPreset`,
   `metadataSync`, `sidecarQueue`, `adjustmentPreset`
   (with `collection` and `groups`, null for all), `lookTableCollection`,
-  `lookTableEntry`, `exportPreset`. Ratings 0–5, flags
+  `lookTableEntry`, `exportPreset`, `maskRaster`. Ratings 0–5, flags
   (-1 reject, 0 none, 1 pick) and color labels (0–7) live on versions.
   Never edit an existing migration; add a new one.
 - **Edit stack**: each version stores an ordered, versioned JSON list of
@@ -1121,8 +1121,126 @@ rest, including Lens Vignetting Auto on the XF14 and XF23 files against the
 camera JPEG, by eye on 2026-11-19, everything fine. VoiceOver, macOS 15 and
 macOS 26 are covered by CI only.
 
+AI masks (`docs/features/ai-masks/`, issue #88, branch `feature/ai-masks`):
+Subject, People and Background, three new mask component kinds
+(`MaskShape.detection`, stored as `{"shape": "subject"|"people"|"background",
+"raster": "<sha-256>"}`, no pixels; a failed detection has no `raster`; read
+strictly, `kindVersion` stays 1, so older builds read the new shape names as
+unknown and never write over the stack). Detection is Apple's Vision on the
+Mac (`VNGenerateForegroundInstanceMaskRequest`, every instance;
+`VNGeneratePersonInstanceMaskRequest`, at most four people), no model bundled,
+nothing sent, no new dependency, `GenerateIterativeSegmentationRequest` not
+used (`Suggestions/MaskDetector.swift`, `VisionMaskDetector`). It runs async
+and cancellable on a 2560 px render of the mask frame (the oriented decode
+before the crop, Distortion only, no other adjustment: `MaskDetectionRun.input`),
+so earlier edits don't change it. A wand pull-down at the end of the New Mask and
+Add to Mask rows (Adjust ▸ New Mask ▸ Subject, People, Background, and the
+mask's ⋯ menu); a transient Detecting line with Cancel; the component enters
+the stack only when the result lands (a result, an empty result or a failure),
+as one undo step and one History entry; leaving the photo, closing the loupe or
+starting a comparison cancels. Background is its own kind and may name
+Subject's row. Add, subtract, intersect, invert and Amount as any component;
+no feather or refine. Adjust ▸ Update Detection (and the mask's ⋯ and context
+menus) is the only recompute (a result differs across compute devices, so it
+is never silent); a change to a component a running Update covers cancels it
+(`MaskDetectionUpdate.isIntact`). Migration v15: table `maskRaster` (`digest`
+SHA-256 of the stored 8-bit gray PNG bytes, `width`, `height`, `instances`,
+`data`, provenance; rows never updated; an empty result is a stored 1x1 black
+PNG with 0 instances) and a nullable `editHistory.maskRasters` naming the rows
+each history snapshot refers to. Rows no version's stack (read as text) and no
+history entry name are deleted at launch, on the write chain
+(`Catalog.removeUnreferencedMaskRasters`; an orphan keeps its bytes until the
+next launch, so Redo finds its row); a damaged `maskRasters` list falls back
+to scanning the snapshot, and an unreadable snapshot deletes nothing that
+launch. Limits: raster side at most 1024 px, 2 MiB per row, row key checked
+against its bytes; a row that fails any check, or is gone, is Missing
+(`Catalog/MaskRasters.swift`, `Edits/Masks/MaskRaster.swift`,
+`MaskRasterStore`: 48 decoded results in memory). Rendering: the result
+stretched over the mask frame, through the crop, then a guided filter (He, Sun
+and Tang) guided by the luminance of the image entering the mask step, at the
+render's size, radius one mask pixel, epsilon 10^-3, in four runtime-compiled
+stitchable kernels, variance in float without E[I²] − E[I]²
+(`Edits/Masks/GuidedMaskFilter.swift`; a CPU reference and three new goldens,
+`mask-subject-patchChart`, `mask-background-edgeTarget`,
+`mask-peopleSubtractCropTurn-hazyLandscape`; no existing golden moved). Empty,
+Failed, Unavailable and Missing components select nothing, say why, and the photo renders
+byte for byte as without them. Left out of paste, presets and sync; Duplicate
+shares the row; each file of a RAW+JPEG pair has its own; export and
+`photocli render` use the library's `MaskRasterStore`. `photocli mask add
+--shape subject|people|background` (no `--kind`; `--dry-run` reports
+`detection` and stores nothing; the result and the stack in one transaction) and
+`mask list` shows each detection's `state` and `instances`. The spike's code
+(`photobench aimask-spike`) is deleted. No `PreviewCacheKey.currentPipelineVersion`
+bump (it stays 13): no existing stack renders differently, and the render hash
+covers the digest. Debug script: `adjust mask detector disc|empty|fail|
+unavailable|hang`, `adjust mask detect|detectcomponent|update|cancel|raster
+delete|raster corrupt|invert|operation|removecomponent|move`, `print masks`,
+`flash`. Known: People can select something that is not a person (a flower
+close-up at 0.999) and has no confidence threshold, both stated in the user
+guide; People beyond four are a follow-up (combining Vision's two person
+requests); C14, a nit left unfixed: with two identical components in one mask,
+inverting the one a running Update covers reads as a move to the other twin and
+the result lands there (rare; byte-identical results unless the frame
+changed); Q1: a preview cached while a result's row existed still shows the
+mask after the row goes missing, until the preview cache is deleted (the
+loupe's live render, captions and new previews are right; AC13's last words
+held in the tests, not for that cache); `raster delete` in the debug script
+leaves the same stale preview (QA's Q2, the line in `status.md` corrected).
+AC11 (the Vision fixture test, R13) passes on a CI runner with no usable
+compute device by Vision's code 22 only and shows nothing about macOS 15 or 26;
+People's mask size is seen only where it finds something; only macOS 27.2.1 on
+an M4 Pro was measured (owner ruling: no hand checks on 15 and 26). The
+`security-review.md` found nothing at High or Medium; its two Low findings
+(the stored-PNG read, the cleanup of unreferenced rows) are fixed. Shipped; the
+owner checked P1 to P7 (the Adjust menu, responsiveness on a large raw, the row
+and captions at the narrowest inspector, edges and the look on his own photos,
+export beside the loupe, keyboard, Update on a healthy mask) by hand on
+2026-11-21, no findings, no checks left open (`docs/features/ai-masks/qa.md`).
+Covered by CI only: VoiceOver, macOS 15 and macOS 26.
+
+Preset list view (`docs/features/preset-list-view/`, issue #241, branch
+`feature/preset-list-view`): the Adjust tab's Presets heading shows presets as a
+list (the default) or as today's thumbnails, chosen by an icon-only two-segment
+switch at the right of the Save…, Import… and Manage… row (`square.grid.2x2` and
+`list.bullet`, VoiceOver names Thumbnails and List). The choice is one app-wide
+preference, `adjust.presetsView` (`Presets/PresetsViewChoice.swift`: nothing
+stored, an unknown string or another type gives `list`), written by
+`LibraryModel.presetsView`. List view shows the same collections, headings
+(open or closed as in the thumbnails) and order, one 22 pt row per preset with
+its name only (tail truncation, the thumbnails' tooltip, a check mark on the
+preset the photo already has), and builds no `PresetGrid`, so no thumbnail is
+rendered while it shows (a list launch starts none; switching renders them as
+before). A row applies like a thumbnail (loupe: the photo; grid: the selection;
+one undo step; same context menu; Return, keypad Enter and Space on a focused
+row, Caps Lock ignored: `PresetRowKey`). Hover previews in the loupe through
+the unchanged `previewAdjustmentPreset` path in both views (live, not saved, no
+undo or History entry; the 120 ms hold; nothing in the grid). The button row is
+laid out by `PresetsBarLayout` over the pure `PresetsBarGeometry` in one view
+order (Save, Import, Manage, switch): one line from a 276.5 pt column, else
+the switch beside Import…, else beside Manage…, never on a push button, so at
+the default inspector width Manage… now sits under Save… (it was always one
+line before; DQ-1, the designer accepted). Code: `Views/PresetsSection.swift`,
+`Views/PresetList.swift` (`PresetListRowButton` subclasses
+`ImageTile.HoverButton`); `AppKitSegmented` takes `symbols` for icon-only
+segments. `PresetItemRules.markedAgainst` reads the saved hash, so the mark
+follows saves, undo and redo (the thumbnails' outline too). A fix on the way:
+`print inspectorwidth` no longer hid the #223 overflow for a keeps-width control
+stretched across the column (`InspectorSegmentedWidth.verdict`). Debug script:
+`preset view`, `preset row`, `preset heading`, `hover`, `print presetsbar`. No
+migration, no `PreviewCacheKey.currentPipelineVersion` bump (13), no golden
+moved, no rendering changed. Shipped; the owner checked P1 to P5 (the list's
+look in Light, Dark and Increase Contrast, keyboard and Full Keyboard Access,
+the button row at every width, a real mouse sweep and right-click, switching and
+the kept choice) by hand on 2026-11-21, no findings, no checks left open
+(`docs/features/preset-list-view/qa.md`). VoiceOver, macOS 15 and macOS 26 are
+covered by CI only. Not built: search or filter, a picture or group badges on a
+row, a keyboard or VoiceOver way to preview without applying (hover has none for
+thumbnails either), a view choice per collection.
+
 Not yet: local Black & White through masks, Lightroom Black & White mapping on
-import, Black & White items for a grid selection, AI masks, automatic dust detection, a Remove brush, automatic lens corrections from tables other than
+import, Black & White items for a grid selection, sky and named-object masks,
+picking one instance, people beyond four, a feather or refine control on AI
+masks, AI masks in presets, paste and batches, automatic dust detection, a Remove brush, automatic lens corrections from tables other than
 Fujifilm RAF and DNG ones (Sony, Panasonic, Olympus; DNG GainMap), lens profiles
 (no lensfun or `.lcp`), perspective and keystone, DNG export, `.dcp` profiles
 and built-in look profiles (dropped 2026-11-18, #89 and #216; a profile's

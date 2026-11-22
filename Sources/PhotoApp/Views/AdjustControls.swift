@@ -960,11 +960,18 @@ struct ImageTile: NSViewRepresentable {
         return CGSize(width: width, height: (width / max(aspect, 0.5)).rounded() + Self.captionHeight)
     }
 
-    /// Reports the pointer entering and leaving.
-    final class HoverButton: NSButton {
+    /// Reports the pointer entering and leaving. Open for the Presets list's
+    /// rows (`PresetListRowButton`), which draw their hover state.
+    class HoverButton: NSButton {
         var onHover: ((Bool) -> Void)?
         private var area: NSTrackingArea?
-        private var isHovered = false
+        /// The pointer is on the button.
+        private(set) var isHovered = false {
+            didSet { if isHovered != oldValue { hoverDidChange() } }
+        }
+
+        /// Called when `isHovered` changes, before `onHover` hears it.
+        func hoverDidChange() {}
 
         override func updateTrackingAreas() {
             super.updateTrackingAreas()
@@ -976,11 +983,25 @@ struct ImageTile: NSViewRepresentable {
         }
 
         override func mouseEntered(with event: NSEvent) {
+            enter()
+        }
+
+        override func mouseExited(with event: NSEvent) {
+            leave()
+        }
+
+        /// What the pointer entering (true) or leaving (false) does, for the
+        /// debug script's `hover`, which has no real pointer to move.
+        func simulateHover(_ inside: Bool) {
+            if inside { enter() } else { leave() }
+        }
+
+        private func enter() {
             isHovered = true
             onHover?(true)
         }
 
-        override func mouseExited(with event: NSEvent) {
+        private func leave() {
             guard isHovered else { return }
             isHovered = false
             onHover?(false)
@@ -989,10 +1010,7 @@ struct ImageTile: NSViewRepresentable {
         override func viewWillMove(toWindow newWindow: NSWindow?) {
             super.viewWillMove(toWindow: newWindow)
             // Leaving the window (a collapsed heading) sends no exit of its own.
-            if newWindow == nil, isHovered {
-                isHovered = false
-                onHover?(false)
-            }
+            if newWindow == nil { leave() }
         }
     }
 }
@@ -1021,6 +1039,10 @@ struct AppKitMenuButton: NSViewRepresentable {
     /// Ends the items' previews: with false when the highlight moves to an item
     /// without one, with true when the menu closes.
     var endPreview: ((_ menuClosed: Bool) -> Void)?
+    /// A symbol button that also shows the pull-down's chevron (the Masks
+    /// heading's detection button, ai-masks design §2).
+    var showsArrow = false
+    var isEnabled = true
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -1043,7 +1065,7 @@ struct AppKitMenuButton: NSViewRepresentable {
             if let symbol {
                 item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: help)
                 button.isBordered = false
-                (button.cell as? NSPopUpButtonCell)?.arrowPosition = .noArrow
+                (button.cell as? NSPopUpButtonCell)?.arrowPosition = showsArrow ? .arrowAtBottom : .noArrow
                 button.imagePosition = .imageOnly
             }
             button.menu = titleMenu
@@ -1064,12 +1086,13 @@ struct AppKitMenuButton: NSViewRepresentable {
             return menu
         }
         button.toolTip = help
+        button.isEnabled = isEnabled
     }
 
     /// As wide as the title (a pull-down would otherwise size itself to its
     /// longest item), but no wider than offered: a long title truncates.
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSPopUpButton, context: Context) -> CGSize? {
-        if symbol != nil { return CGSize(width: 24, height: 20) }
+        if symbol != nil { return CGSize(width: showsArrow ? 34 : 24, height: 20) }
         let font = nsView.font ?? .systemFont(ofSize: NSFont.systemFontSize(for: .small))
         let titleWidth = ceil((title as NSString).size(withAttributes: [.font: font]).width) + 36
         let offered = proposal.width.map { $0.isFinite ? $0 : titleWidth } ?? titleWidth

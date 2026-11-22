@@ -74,7 +74,8 @@ struct MaskModelTests {
     @Test("Anything unknown or mistyped makes the stack unreadable instead of dropping it",
           arguments: [
             #"[{"id":"00000000-0000-4000-8000-000000000001","refine":10}]"#,
-            #"[{"id":"00000000-0000-4000-8000-000000000001","components":[{"shape":"subject"}]}]"#,
+            // "subject" was this example until issue #88 made it a shape; "sky" is still unknown.
+            #"[{"id":"00000000-0000-4000-8000-000000000001","components":[{"shape":"sky"}]}]"#,
             #"[{"id":"00000000-0000-4000-8000-000000000001","components":[{"shape":"linear","operation":"xor"}]}]"#,
             #"[{"id":"00000000-0000-4000-8000-000000000001","amount":"lots"}]"#,
             #"[{"id":"00000000-0000-4000-8000-000000000001","components":[{"shape":"brush","strokes":[{"points":[0.1]}]}]}]"#,

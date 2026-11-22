@@ -85,6 +85,11 @@ I built this with Claude. AI did the work, I did the orchestration.
 - Masks: linear and radial gradients, a brush, and luminance and color
   ranges, combined by adding, subtracting or intersecting. Each mask
   carries its own exposure, tone, white balance, presence and sharpening.
+- Subject, People and Background masks: Gus finds the subject or the people
+  (up to four) in a photo on the Mac, and you adjust them or everything else
+  like any other mask. The result is stored with the photo and is not
+  recomputed unless you choose Update Detection. People can pick out
+  something that isn't a person
 - Spot healing and cloning: click a dust spot or blemish and Gus fills it
   from a clean patch nearby, chosen for you; drag the source if you want
   another, switch a spot between Heal and Clone, and set its size, feather
@@ -111,6 +116,9 @@ I built this with Claude. AI did the work, I did the orchestration.
   control for it. Detail is a little softer than LibRaw's on a few files, and
   a sharper version is planned (#199). If the GPU can't do it, Gus falls back
   to LibRaw and says so in the log
+- Presets show as a compact list of names (the default) or as thumbnails, with
+  a switch at the right of the Presets buttons; hovering a preset previews it
+  on the photo in either view, and Gus remembers your choice
 - Before/after, copy and paste, and presets, including import of Lightroom
   presets (`.lrtemplate`, `.xmp`, `.dng`) and Luminar preset packs (`.lnpc`,
   several at once) with a report of anything that doesn't carry over. Luminar's
@@ -132,7 +140,8 @@ I built this with Claude. AI did the work, I did the orchestration.
 **Command line**
 
 `photocli` renders photos, queries a library with smart-album rules, changes
-adjustments, ratings, flags and labels, and runs exports. Every command
+adjustments, ratings, flags and labels, adds masks (including Subject, People
+and Background), and runs exports. Every command
 prints JSON. It can read a library at any time, but only writes to one the
 app doesn't have open.
 
@@ -147,7 +156,7 @@ app doesn't have open.
 Removing larger objects (a remove brush) and automatic dust detection,
 automatic lens corrections from other makers' tables (Sony, Panasonic,
 Olympus) and lens profiles, DNG
-export, automatic (subject/sky) masks, DCP camera profiles, hand-made and
+export, sky and named-object masks, DCP camera profiles, hand-made and
 burst stacks, black and white for part of a photo (through a mask), mapping of Lightroom black and white settings on import,
 hierarchical keywords, importing straight from a camera over USB, a second
 backup destination on import. Metadata is never written into original

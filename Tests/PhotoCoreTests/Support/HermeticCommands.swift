@@ -10,10 +10,12 @@ extension CommandEnvironment {
     /// default a folder that is never created, so no test reads the real
     /// library whatever its arguments. `HermeticCommandTests` fails on any
     /// other construction in the tests.
-    static func hermetic(currentDirectory: URL, standardLibrary: URL? = nil) -> CommandEnvironment {
+    static func hermetic(currentDirectory: URL, standardLibrary: URL? = nil,
+                         maskDetector: any MaskDetecting = VisionMaskDetector()) -> CommandEnvironment {
         CommandEnvironment(currentDirectory: currentDirectory,
                            defaultLibraryRoot: standardLibrary ?? FileManager.default.temporaryDirectory
                                .appending(path: "photocore-tests-no-library-\(UUID().uuidString)",
-                                          directoryHint: .isDirectory))
+                                          directoryHint: .isDirectory),
+                           maskDetector: maskDetector)
     }
 }

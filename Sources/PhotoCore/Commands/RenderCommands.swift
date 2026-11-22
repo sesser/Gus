@@ -203,7 +203,8 @@ enum RenderCommands {
 
         // The preview generator's path, as export uses it.
         let engine = RenderEngine(contextCount: 1, name: "command-line", softwareRenderer: software)
-        let generator = PreviewGenerator(engine: engine, renderer: AdjustmentRenderer(lookTables: library?.lookTables))
+        let generator = PreviewGenerator(engine: engine, renderer: AdjustmentRenderer(lookTables: library?.lookTables,
+                                                                                     maskRasters: library?.maskRasters))
         let clock = ContinuousClock()
         let started = clock.now
         let rendering = try LibRawDecoder.$demosaicOverride.withValue(demosaic) {
