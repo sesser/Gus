@@ -2,6 +2,7 @@ import CoreImage
 import Foundation
 import ImageIO
 import PhotoFixtures
+import Synchronization
 import Testing
 @testable import PhotoCore
 
@@ -435,6 +436,39 @@ extension MemoryHeavy {
                     })
                 }
                 #expect(try Data(contentsOf: url) == Data("someone else's".utf8))
+            }
+        }
+
+        @Test("The catalog write runs through a given catalogue, once, or directly without one (CI on PR #258)")
+        func catalogueOptional() async throws {
+            // `catalogue` has no default closure (Swift 6.2 and 6.3 crashed calling
+            // one); nil runs the insert directly, as every other job test does.
+            try await offCooperativePool {
+                let library = try await MergeLibrary.make(Self.bracket)
+                defer { library.remove() }
+                let selection = try await library.selection(["IMG_0001.dng", "IMG_0002.dng", "IMG_0003.dng"])
+                // Given: called once, around the insert, and its result is the job's.
+                let calls = Mutex(0)
+                let given = try await library.job.run(selection, format: .tiff, catalogue: { insert in
+                    calls.withLock { $0 += 1 }
+                    return try await insert()
+                })
+                #expect(calls.withLock { $0 } == 1)
+                let master = try #require(given.master)
+                let details = try #require(try await library.catalog.details(forVersion: master.versionID))
+                #expect(details.image.fileName == given.url.lastPathComponent)
+                // Its error is handled as before: a path already in the library is
+                // that version, not a failure.
+                let existing = try await library.job.run(selection, format: .tiff, catalogue: { _ in
+                    throw MergeCatalogFailure.alreadyInLibrary(versionID: master.versionID)
+                })
+                #expect(existing.master == nil)
+                #expect(existing.existingVersionID == master.versionID)
+                // Without one: catalogued directly, a photo of its own.
+                let direct = try await library.job.run(selection, format: .tiff)
+                let directMaster = try #require(direct.master)
+                #expect(directMaster.versionID != master.versionID)
+                #expect(try await library.catalog.details(forVersion: directMaster.versionID) != nil)
             }
         }
 

@@ -119,13 +119,18 @@ public struct HDRMergeJob: Sendable {
     }
 
     /// Runs the merge. `catalogue` runs the catalog write (the app puts it on
-    /// its write chain, after every change made before it).
-    /// `options`: alignment and de-ghosting (R9, R10); the sheet's defaults
-    /// unless given. With alignment off the job has no Aligning step.
+    /// its write chain, after every change made before it); nil runs it
+    /// directly. `options`: alignment and de-ghosting (R9, R10); the sheet's
+    /// defaults unless given. With alignment off the job has no Aligning step.
+    ///
+    /// `catalogue` is an optional with no default closure on purpose: built with
+    /// Swift 6.2.4 and 6.3.3 (Xcode 26.3, 26.6), calling an async default-argument
+    /// closure (`= { try await $0() }`) from the detached task below crashed in
+    /// `swift_task_dealloc` on every merge (CI on PR #258, status.md).
     public func run(_ selection: MergeSelection, format: MergeFormat, options: MergeOptions = .standard,
                     progress: @escaping @Sendable (MergeProgress) -> Void = { _ in },
-                    catalogue: @escaping @Sendable (@escaping @Sendable () async throws -> MergedMaster) async throws
-                        -> MergedMaster = { try await $0() }) async throws -> Result {
+                    catalogue: (@Sendable (@escaping @Sendable () async throws -> MergedMaster) async throws
+                        -> MergedMaster)? = nil) async throws -> Result {
         if let refusal = selection.refusal { throw Failure.refused(refusal) }
         if let (refusal, _) = preflight.check(selection) { throw Failure.refused(refusal) }
         let frames = selection.frames
@@ -241,12 +246,14 @@ public struct HDRMergeJob: Sendable {
         }
         let catalog = self.catalog
         do {
+            let insert: @Sendable () async throws -> MergedMaster = {
+                try await catalog.insertMergedMaster(master, volumeID: referenceFrame.volumeID,
+                                                     projectID: referenceFrame.projectID, values: values)
+            }
             // Detached: a Stop that comes now doesn't cancel the write (design §7.1).
             let merged = try await Task.detached {
-                try await catalogue {
-                    try await catalog.insertMergedMaster(master, volumeID: referenceFrame.volumeID,
-                                                         projectID: referenceFrame.projectID, values: values)
-                }
+                if let catalogue { return try await catalogue(insert) }
+                return try await insert()
             }.value
             progress(MergeProgress(phase: .adding, fraction: 1))
             return Result(url: url, master: merged, existingVersionID: nil, frameCount: count)
