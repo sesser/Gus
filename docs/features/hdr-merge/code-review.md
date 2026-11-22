@@ -963,3 +963,76 @@ with each reference.
   `079bf79`'s flaky orientation test for bug #253.
 - No `/security-review` is needed for this pass: no parser, subprocess, file
   placement or network code changed.
+
+## Ninth pass (second pass on the eighth): C19 and C20
+
+Owner: code-reviewer. Date: 2026-11-21. Reviewed: `feature/hdr-merge`,
+`b3fbf25` (fix and test) and `eccb93c` (status), against `245c415`. Build and
+tests: `swift build` clean at `eccb93c` (incremental: one line of PhotoCore
+changed). `swift test --filter HDRMergerTests`: 15 tests passed (456.3 s). The
+new `stillNoisyBracket` printed 0, 0, 0, 1,870 (worst 4.69x) and 2,071 (worst
+9.55x) for its five cases. Also run in two clones of the branch in the
+scratchpad (nothing in the worktree changed, nothing committed):
+
+- the new test with `245c415`'s `MergeGhosts`;
+- a probe over the committed rule: every case of the eighth pass, with
+  per-test counters and a switch back to `245c415`'s reference-black line.
+
+The app was not launched (QA's job).
+
+### Verdict
+
+Ready for QA. C19 and C20 are fixed. The change is the eighth pass's candidate,
+character for character, and every figure in `status.md`'s "Eighth review
+pass" that I re-measured matches to the pixel, with one exception: a sentence
+about mask sums. That sentence and one clause in the follow-up text are wrong
+in small ways, recorded as C21 (Nit). Neither touches code.
+
+### Follow-up (eighth pass)
+
+| # | State | Commit | Note |
+|---|---|---|---|
+| C19 | Fixed | `b3fbf25` | `MergeGhosts.swift:129` is now `frame.low / exposure > max(reference.high, lowR) * factor`. **Never looser:** `max(reference.high, lowR) >= lowR`, and `factor` (1.5) and `exposure` are positive, so the new test fires only where `245c415`'s fired. Cleaning and growth are monotone, so no mask can grow. **Re-measured on the committed rule** (still linear bracket, noise σ 0.004, moved by over 1% against the same plan with no masks, darkest / default / brightest): ±2 EV aligned 0 / 9 / 99, unaligned 0 / 0 / 77; ±3 EV aligned 1,870 (4.69x) / 430 / 547, unaligned 2,071 (9.55x) / 431 / 545. Noise on the reference only, ±3 EV: 1,545. Noise on the others only: 0. **Walker:** core, rim, object and elsewhere identical to `245c415`'s rule in all 12 cases. Rim 0 over 5% everywhere, worst 0.0085 (±2 EV aligned, default reference), unaligned under 2.7e-7. The reference's own outline is also 0 over 5%. **Non-linear:** all 42 cases of toe, shoulder and S-curve at ±2 and ±3 EV, every reference: none worse than `245c415`. Only three changed, all fewer: S ±2 EV default 1,437 → 97 (worst 1.6%), S ±3 EV darkest 28,606 → 25,521, S ±3 EV default 70,541 → 59,727 (worst 63% → 55%). `stillNonLinearBracket`'s responses move nothing. Noisy toe 0.01 / 0.02 at ±2 EV: 1,516 / 842 / 1,138 and 2,121 / 378 / 852. **Test:** the new `stillNoisyBracket` fails on `245c415`'s rule in exactly the four darkest-reference cases (769, 767, 12,163, 12,440 moved; the default case still passes) and passes now. Its two ±2 EV darkest cases need `moved == 0`, and their masks are all zero, so they can't drift with the GPU. The ±3 EV bound (2,400, 1% of 600 × 400) is 14% above the unaligned residual. The bound records the residual rather than deriving it, which the comment says; the fixtures are seeded. **Residual attribution** (raw disagreeing pixels per test, before cleaning, both other frames, ±3 EV darkest, aligned): reference-black 4,777 → 0, frame-black 45 → 45, two-sided 3,362 → 3,362. Unaligned: 3,930 → 0, 54, 3,447. So "mostly the two-sided test, 45 frame-black, 0 reference-black after" is right (98.7% two-sided). The test's comment ("it fires nowhere there now") holds for both alignments. |
+| C20 | Fixed | `eccb93c` | The A13 paragraph now reads "worst 0.0085 of the clean value, ±2 EV aligned with the default reference", which matches the C18 table and the probe. |
+
+### Also checked
+
+- **Comments.** The type's doc comment and the inline comment state the new
+  rule and its reason (the reference's noise reaches its black level), and
+  call it the mirror of C17. Accurate.
+- **The follow-up text** ("Proposed follow-ups"): the title is the corrected
+  one ("HDR merge: de-ghosting reads the reference's noise near black as
+  movement"). The brighter-frames half of the mechanism is gone. It says the
+  reference-black part was fixed by C19 and attributes the residual to the
+  two-sided test, with the per-test counts above (all confirmed). The
+  two-sided test's terms (log ratio over ln 1.5, floor 0.2% of clipping) match
+  `MergeGhosts.threshold` and `floor`. The darkest reference is named as the
+  worst case, and the scope is "any reference with a brighter frame". The
+  numbers are right except one clause (C21).
+- **`status.md` header and "Latest results".** They match what I ran, apart
+  from the full-suite count, which I did not re-run (the engineer's: 1,348
+  passed).
+- **Rules.** Unchanged since the eighth pass: no migration, no persisted name,
+  no new string, `currentPipelineVersion` 13, no golden touched, no
+  `@unchecked Sendable` or `nonisolated(unsafe)` added (the probe's switch and
+  counters exist only in my scratch clone).
+
+### Findings (ninth pass)
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C21 | Nit | `docs/features/hdr-merge/status.md:1046-1048` ("Eighth review pass", walker paragraph) and the follow-up's fixture line in "Proposed follow-ups" | (a) "Two mask sums moved by about a pixel's worth … ±1 EV aligned, default reference, [6763.6, 0, 6885.2]". The ±1 EV sums did not move: `245c415`'s rule and the committed one both print [6763.6064, 0.0, 6885.1655]. Only ±2 EV frame +2 moved (6820.6 → 6819.5). (b) The follow-up says "±2 EV, nothing with the darkest or the default reference". With alignment on (the default option), the default reference moves 9 at ±2 EV, worst 2.4%. The earlier text said "default reference: 9 and 430". Nothing moves only with alignment off. | A reader or the issue's eventual engineer is told a mask moved that didn't, and that the default reference is clean at ±2 EV when it is clean only unaligned. | Docs accuracy |
+
+### Still open for the main session
+
+- C21: a two-clause fix to `status.md` the next time the engineer touches it.
+  When filing the follow-up issue, use "±2 EV, nothing with the darkest
+  reference; 9 with the default (alignment on, worst 2.4%), 0 unaligned". It
+  does not need another code-review pass on its own.
+- The product manager records C19 as fixed under A13 (the owner ruled it fixed
+  on this branch), not as a follow-up. The residual is the proposed issue.
+- Unchanged: the #88 `maskRasters` heads-up, F5's place in the guide
+  (designer), filing the `WriteChain.read`-from-its-own-tail follow-up, and
+  `079bf79`'s flaky orientation test for bug #253.
+- No `/security-review` is needed for this pass: no parser, subprocess, file
+  placement or network code changed.
