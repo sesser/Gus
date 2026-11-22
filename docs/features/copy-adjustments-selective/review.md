@@ -159,3 +159,77 @@ product manager may want to know: R14's tooltip is built after all, so the
 - Spots are compared by header-read frame size with no remapping, and an
   unreadable size is a distinct outcome, not folded into "differs" without a
   sentence of its own.
+
+## Second pass (2026-11-22)
+
+Reviewed: branch `feature/copy-adjustments-selective` at a883a3b (fixes in
+05b0e8b, b034487, a883a3b), against the first pass above, `design.md` §15 and
+`status.md`'s **Review findings**. Source read only (no shell); the engineer's
+scripted results are taken from `status.md`, not repeated.
+
+### Verdict
+
+**Pass. F1 to F4 are confirmed fixed; no new findings that block QA.** One
+documentation nit (N1) the engineer may take or leave.
+
+### Fixes
+
+| # | Result | Evidence |
+|---|---|---|
+| F1 | Confirmed | `CopyAdjustmentsText.spotsUnknownSize` and the catalog key read `Spots were not pasted onto %lld photos: their size, or the size of the photo they were copied from, could not be read.`, with the singular `…photo: its size, or the size…` exactly as ruled. The old key is gone from the catalog. `reportSpotsLeftOut` posts "differs" first, then "unreadable", each only when its count is above 0, so two rows at most. The comment explains the two causes. |
+| F2 | Confirmed | `.help(CopyAdjustmentsText.pasteHelp(state.copiedSummary))` is on the `pasteAdjustments` toolbar item only. `list(_:)` is the one list function for `announcement` and `pasteHelp` (five names or fewer joined with ", ", else `%lld items`, with a catalog comment naming both uses). `pasteHelp(nil)` is plain "Paste Adjustments", no period. `LibraryMenuState.copiedSummary` is what enables the item and is set from `model.copiedAdjustments?.summary`, so the tooltip follows the clipboard. Key `Paste Adjustments: %@` is in the catalog with a comment. Hover on the real item stays M8. |
+| F3 | Confirmed | `AppKitCheckbox.accessibilityHelp: String??` defaults to `.none`, so `setAccessibilityHelp(accessibilityHelp ?? help)` leaves every inspector box as before; the sheet passes `.some(caption)`, which gives VoiceOver the caption on Crop & Straighten and Spots only and nothing elsewhere, while the tooltip stays `caption ?? title` (the full name for a truncated label). `print copysheet` prints the pair, so QA can read it. `String??` is slightly clumsy but is documented in the property's comment and does the job; not worth a change. |
+| F4 | Confirmed | `USER_GUIDE.md` 466 to 474 (unreadable size, its own Activity line after the size one, many-photo versus one-photo measuring, the ⌘Z limit, Stop), 881 to 884 (announcement, tooltip, the no-adjustments note) and 762 to 764 (the frame question counts only what a photo already has). |
+| C1 (code review, design effect) | Confirmed, no UI change | The lens alert's wording and buttons are untouched; only which photos count changed. The guide says so at 762. The "1 of the 5 photos has masks or spots" check in `status.md` is the user-visible result. |
+
+### User guide terms
+
+Checked the new text against the UI: **Copy Adjustments…**, **Paste Adjustments**,
+**Spots**, **Lens**, **Crop & Straighten**, **Stop**, **Activity**, **Copy**,
+**Cancel**, **Check All**, **Uncheck All** and the toolbar item's tooltip name
+match the labels in code and the catalog. "Turned off", "No changes" and
+"Resets on paste" are unchanged and correct. The guide says "⋯ menu" and
+"toolbar item" for entry points that match the code.
+
+- **N1 (nit, wording, not blocking).** Line 763 says spots a paste brings "come
+  with the Distortion of the photo they were copied from". That is only so when
+  the Lens group was also copied; otherwise the spots arrive on a photo whose own
+  Distortion stays, and a later Distortion change then asks. Suggest: "spots that
+  Copy Adjustments… brings are not asked about; they are placed in the frame they
+  had on the photo they were copied from, and a later Distortion change asks as
+  usual." The code and rule are right; only the sentence overstates.
+
+### Remaining findings
+
+None blocking. N1 is optional.
+
+### Final manual checks (for QA, then a person)
+
+None needs VoiceOver or macOS 15 and 26 (CI only, per project rule). M1 to M8
+are as listed above; the status after this pass:
+
+- **M1** Look beside Export's with Increase Contrast (a person).
+- **M2** Full Keyboard Access Tab walk, Space, Return, Esc (a person; QA can only
+  script the order).
+- **M3** 760 x 480 window: the list scrolls, header, footer and buttons stay (QA
+  can script by window size; a person by eye).
+- **M4** A real mouse on a mixed heading, a label and the trailing text (a person).
+- **M5** ⇧⌘C, Space, Return, ⇧⌘V on a series, ⌘Z once (a person; QA scripts the
+  menu keys).
+- **M6** A preset pack import that ends while the sheet is up: the report waits
+  (a person).
+- **M7** (QA can script) the unreadable-size paste: only the "could not be read"
+  row with every target counted; then mixed sizes with one missing master: two
+  rows, "differs" first. `status.md` reports both scripted; QA repeats them on its
+  own copy.
+- **M8** The toolbar Paste item's tooltip by hover (the item is palette-only):
+  `Paste Adjustments: Tone, Color Grading` after a copy, updating after another
+  Copy, plain `Paste Adjustments` with nothing copied (a person; QA reads
+  `print clipboard`).
+- **M9 (new, from C4)** A Spots paste onto one photo, then ⌘Z at once: the paste
+  is undone, not the step before it. A person with a real keyboard; QA's script
+  waits after each paste and cannot race it. Onto many photos, ⌘Z while Activity
+  shows the measuring is the documented limit, not a defect.
+- **M10 (new, from C1)** Paste Spots and Distortion in the loupe onto a photo
+  with no spots or masks: no frame question; onto one with a spot of its own: the
+  question, "1 of 1" (a person, or QA's script as the engineer ran it).
