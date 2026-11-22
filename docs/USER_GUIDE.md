@@ -470,8 +470,11 @@ Activity says how many of those, in a line of its own after the one for
 photos of another size. Pasting Spots onto many photos first measures them,
 with progress and **Stop** in Activity (⌘Z pressed while that runs undoes the
 change before the paste, and the paste still lands after it; press **Stop**
-instead); pasting onto one photo measures it as it saves, so ⌘Z right after
-undoes the paste. Duplicate gives the copy the
+instead); pasting onto one photo measures it as it saves, so in the loupe ⌘Z
+right after undoes the paste (in the grid, as with any paste there, a ⌘Z in
+the first instant can still undo the change before it). On a slow card or
+network share that one-photo measuring has no **Stop** and can hold up saving
+and moving to the next photo for a few seconds. Duplicate gives the copy the
 original's spots, then each has its own. Spots are per file (the two files
 of a RAW+JPEG pair have their own) and never go into sidecars. Adding a spot
 needs a click or a touch; everything after that can be done from the
@@ -760,8 +763,9 @@ it was, the slider included. A drag asks when you let go. It asks once per visit
 to the photo (again after you add a mask or spot), once for a whole paste or
 preset with how many of the photos have masks or spots, and never for Undo, Redo,
 History or Reset All Adjustments. A paste counts only the masks and spots a photo
-already has: spots that Copy Adjustments… brings come with the Distortion of the
-photo they were copied from. To know whether to ask, a paste or preset on a
+already has: spots that Copy Adjustments… brings are not asked about; they are
+placed in the frame they had on the photo they were copied from, and a later
+Distortion change asks as usual. To know whether to ask, a paste or preset on a
 selection may first read the files of photos with masks or spots whose
 Distortion is, or would be, on Auto; Activity then shows its progress under the command's
 name, and **Stop** ends it without changing anything, as does any newer paste or
