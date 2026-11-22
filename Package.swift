@@ -1,6 +1,31 @@
 // swift-tools-version: 6.0
 import PackageDescription
 
+// Debug builds compile the two targets that hold per-pixel Swift with the
+// optimizer on. Unoptimized, generic and SIMD code is not specialized and a
+// pixel costs microseconds: the HDR merge's measuring (`HDRMerger.plan`) took
+// 5 s for a 600 x 400 copy and a bracket fixture 1 s a frame, which made the
+// merge suites 11 of `swift test`'s 12 minutes (issue #150, PR #258;
+// docs/features/hdr-merge/status.md, "Test and CI time"). With the flags the
+// whole run takes about 78 s.
+//
+// `-assert-config Debug` keeps what -O alone would turn off: `assert`, and
+// the standard library's debug-only checks, among them the bounds checks on
+// unsafe buffer pointers (a read past the end of one still stops a test
+// instead of reading the memory beside it; code review C25). It costs about
+// 6% of the merge suites' time. Release builds, and so the app, never had
+// those checks and are as before.
+//
+// The flags follow SwiftPM's own -Onone on the command line, so they win
+// (checked with both build systems). `@testable import` is as before: it
+// needs -enable-testing, not -Onone. The cost: a debugger steps through
+// optimized code in these two targets, and a clean debug build takes about
+// 45% more processor time (288 s to 417 s on an M4 Pro). The test target
+// stays unoptimized.
+let optimizedInDebug: [SwiftSetting] = [
+    .unsafeFlags(["-O", "-assert-config", "Debug"], .when(configuration: .debug)),
+]
+
 let package = Package(
     name: "PhotoWorkspace",
     defaultLocalization: "en",
@@ -47,7 +72,8 @@ let package = Package(
         ),
         .target(
             name: "PhotoCore",
-            dependencies: [.product(name: "GRDB", package: "GRDB.swift"), "CLibRaw"]
+            dependencies: [.product(name: "GRDB", package: "GRDB.swift"), "CLibRaw"],
+            swiftSettings: optimizedInDebug
         ),
         // UI shared by the library app and the standalone importer: the import
         // window and its model, colors and the String Catalog.
@@ -79,7 +105,8 @@ let package = Package(
         ),
         .target(
             name: "PhotoFixtures",
-            dependencies: ["PhotoCore"]
+            dependencies: ["PhotoCore"],
+            swiftSettings: optimizedInDebug
         ),
         .executableTarget(
             name: "StringCatalogCompiler"

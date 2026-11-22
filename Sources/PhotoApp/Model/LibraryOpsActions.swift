@@ -138,7 +138,8 @@ extension LibraryModel {
     /// writing copies the confirmation would have to count (`RemovalAvailability`).
     var canRemoveFromLibrary: Bool {
         RemovalAvailability.canStart(isRemoving: isRemoving, isAddingFolders: isImporting,
-                                     isCopying: cardImport.progress != nil, isDuplicating: isDuplicating)
+                                     isCopying: cardImport.progress != nil, isDuplicating: isDuplicating,
+                                     isMerging: merge.isMerging)
     }
 
     /// File ▸ Remove from Library… (⌘⌫) and the context menus': asks, then

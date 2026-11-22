@@ -125,6 +125,20 @@ I built this with Claude. AI did the work, I did the orchestration.
   conversion is approximate, and the report says where
 - HDR display of HDR sources (floating-point DNG, gain-map HEIC and JPEG,
   HLG and PQ) on EDR screens
+- Merge to HDR (⇧⌘L): select two to nine photos of one scene (all raws, or
+  all JPEG, HEIC, TIFF or PNG) and Gus merges them into one new, tone-mapped
+  photo, a 16-bit TIFF or a DNG, saved next to the frame you choose as the
+  reference and added to the library with that frame's details. The sheet
+  shows the frames; click one to make it the reference, which also decides
+  what is aligned to and which frame wins where something moved. Auto-align
+  and De-ghost are check boxes (on by default): a person who walked through the
+  scene shows once, not as a ghost. This is the one thing Gus writes into your
+  folders, always a new file with a numbered name: no original is ever opened
+  for writing or replaced, and Undo takes the photo out of the library and
+  leaves the file. Merging JPEGs works but is rougher than raws, because the
+  camera's own tone curve isn't undone. Merges of the same frames are
+  separate photos. In very dark areas of a wide bracket the reference's noise
+  can still be read as movement (#257)
 
 **Metadata and export**
 
@@ -141,7 +155,8 @@ I built this with Claude. AI did the work, I did the orchestration.
 
 `photocli` renders photos, queries a library with smart-album rules, changes
 adjustments, ratings, flags and labels, adds masks (including Subject, People
-and Background), and runs exports. Every command
+and Background), runs exports and merges brackets to HDR (`merge`, with
+`--reference`, `--no-align` and `--no-deghost`). Every command
 prints JSON. It can read a library at any time, but only writes to one the
 app doesn't have open.
 
@@ -156,7 +171,8 @@ app doesn't have open.
 Removing larger objects (a remove brush) and automatic dust detection,
 automatic lens corrections from other makers' tables (Sony, Panasonic,
 Olympus) and lens profiles, DNG
-export, sky and named-object masks, DCP camera profiles, hand-made and
+export of your own photos (only an HDR merge can write a DNG), recovering a
+camera's tone curve for JPEG merges, sky and named-object masks, DCP camera profiles, hand-made and
 burst stacks, black and white for part of a photo (through a mask), mapping of Lightroom black and white settings on import,
 hierarchical keywords, importing straight from a camera over USB, a second
 backup destination on import. Metadata is never written into original
@@ -230,7 +246,7 @@ macOS raw decoder can't.
 | `Sources/PhotoCLI` | `photocli` |
 | `Sources/CLibRaw` | LibRaw's source, vendored and built by `Package.swift`; never edited |
 | `Sources/PhotoFixtures` | Synthetic JPEG, HEIC and DNG files for tests and benchmarks |
-| `Sources/PhotoBench` | Synthetic library generator, test scene files and profiling (`photobench`) |
+| `Sources/PhotoBench` | Synthetic library generator (`--brackets` makes HDR merge series), test scene files and profiling, `photobench merge` included (`photobench`) |
 | `Sources/StringCatalogCompiler` | Compiles the String Catalog for the build script |
 | `Sources/AppIconCompiler` | Turns `Support/AppIcon.png` into the app icon |
 | `Tests/PhotoCoreTests` | Tests, golden images and CPU reference implementations |

@@ -9,6 +9,8 @@ public enum StoppableJob: String, Hashable, Sendable, CaseIterable {
     case addFolders
     /// A copying import from a card or folder.
     case cardImport
+    /// An HDR merge (issue #150).
+    case merge
 
     /// The job started last among those running, by start time; nil when
     /// none runs. Equal times go to the order of `allCases`, last first.

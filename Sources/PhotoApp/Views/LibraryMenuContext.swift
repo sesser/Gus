@@ -148,6 +148,11 @@ struct LibraryMenuState: Equatable {
     /// File ▸ Duplicate and the context menus': the targets include a photo,
     /// no crop is being edited and no Duplicate runs (virtual-copies design §4.1).
     var canDuplicate: Bool
+    /// File ▸ Merge to HDR… and the grid's context item: two targets or more,
+    /// no merge running, no sheet up (hdr-merge design §4).
+    var canMerge: Bool
+    /// An HDR merge runs (File ▸ Stop's title).
+    var isMerging: Bool
 
     /// The project, album, smart album or keyword selected in the sidebar,
     /// for File ▸ Rename, Delete, Edit Smart Album and Remove Project from
@@ -277,6 +282,8 @@ struct LibraryMenuState: Equatable {
             : canShowTargetsInFinder
         canRemoveFromLibrary = model.canRemoveFromLibrary
         canDuplicate = model.canDuplicateTargets
+        canMerge = model.canMerge
+        isMerging = model.merge.isMerging
     }
 
     /// Items with a bare key: only while the grid, loupe or video loupe has

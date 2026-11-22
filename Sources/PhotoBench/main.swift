@@ -10,9 +10,12 @@ let usage = """
 
       generate   --output DIR [--jpeg N] [--dng N] [--heic N] [--pairs N] [--videos N] [--per-folder N]
                  [--jpeg-size WxH] [--dng-size WxH] [--heic-size WxH] [--video-seconds N]
-                 [--dng-without-color N]
+                 [--dng-without-color N] [--brackets N] [--bracket-size WxH]
                  Writes a synthetic library with unique pixels and EXIF dates. The first
-                 --dng-without-color DNGs have no color matrix or as-shot neutral.
+                 --dng-without-color DNGs have no color matrix or as-shot neutral. --brackets
+                 adds N of each HDR merge series under Brackets/ (raws, JPEGs, a mixed set,
+                 another scene, a read-only folder, and one in two folders whose default
+                 reference is in a read-only one).
 
       import     --library-root ROOT --source DIR [--imageio] [--chunk N] [--hash-concurrency N]
                  Imports DIR into the catalog under ROOT and reports stage timings.
@@ -78,6 +81,12 @@ let usage = """
       blend-error
                  For each local control: the largest difference between blending the adjusted
                  image by alpha and running the module at alpha times the value (test scenes).
+
+      merge      --files FILE:FILE[:FILE...] --output DIR [--format tiff|dng|both] [--reference N]
+                 [--no-align] [--no-deghost]
+                 HDR merge of a bracket without a library (issue #150): step times, the measured
+                 exposures, clipping levels, movement and ghosts, peak memory, and the files written.
+                 --reference counts from 0 in --files order; --no-align and --no-deghost as the sheet's boxes.
 
       scenes     --output DIR [--size WxH]
                  Writes the chromatic aberration test scenes (fringes, fringe subjects, pixel grid, lateral color
@@ -158,6 +167,7 @@ do {
     case "rawcompare": report = try await RawCompareBenchmark.run(arguments)
     case "demosaic": report = try await DemosaicBenchmark.run(arguments)
     case "scenes": report = try await SceneFiles.run(arguments)
+    case "merge": report = try await MergeBenchmark.run(arguments)
     default:
         print(usage)
         exit(arguments.command == "help" || arguments.flags.contains("help") ? 0 : 64)

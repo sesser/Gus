@@ -507,6 +507,31 @@ The quality measures (`--mode truth --nr off`, `--mode real`, with
 `--nr off` for the kernels alone) are in
 `docs/features/gpu-demosaic/status.md`.
 
+## HDR merge (hdr-merge)
+
+`swift run -c release photobench merge --files A:B:C --output DIR [--format tiff|dng|both] [--reference N] [--no-align] [--no-deghost]`
+merges a bracket without a library and prints each step's time, the measured
+exposures, clipping levels and movements, the ghost masks' share and the peak
+memory footprint. On three hand-held 16 MP Olympus raws (−1, 0, +1 EV),
+2026-11-20, macOS 27.2, Apple silicon: measuring (copies decoded at 2048 px,
+lined up, exposure, ghosts, tone statistics) 3.7 to 5.4 s, the three
+full-size decodes 0.65 s, merge, tone mapping and the TIFF 0.13 to 0.16 s, the
+DNG 0.18 s; peak footprint 2.16 GB for a TIFF (about 800 MB of it the system
+RAW decoder's own working set). Rendering the output in bands of 512 rows and
+holding each frame as half floats took the peak down from 4.24 GB.
+Without alignment (`--no-align`, the sheet's Auto-align off; 2026-11-21, the
+same three raws): measuring 3.28 s against 4.16 s with it (Vision's
+registration and the warped copies, about 0.9 s), peak 2.00 GB against 2.07
+GB; `--no-deghost` leaves out only the ghost tests on the copies.
+`photobench generate --brackets N` writes scratch series to merge
+(`docs/features/hdr-merge/status.md`, Spikes). A debug build (what `swift run photocli` runs) is
+far slower: about 35 s to measure three 1536 x 1024 frames
+(`.build/debug/photobench merge`, 2026-11-20), against a few seconds in
+release. The time is the measuring's per-pixel loops in plain Swift (ranks,
+ghost tests, box filters, sorts), which only the optimizer makes fast; moving
+the sorts to Accelerate changed nothing measurable, so it was not kept. Use
+`swift run -c release photocli merge …` for anything timed.
+
 ## Reproducing
 
 Build the tools:

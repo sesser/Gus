@@ -142,7 +142,11 @@ struct StoppableJobTests {
 
     @Test func equalStartsAreDecidedTheSameWayEveryTime() {
         let all = Dictionary(uniqueKeysWithValues: StoppableJob.allCases.map { ($0, start) })
-        #expect(StoppableJob.newest(all) == .cardImport)
+        // The last of `allCases` (a merge, issue #150) wins a tie.
+        #expect(StoppableJob.newest(all) == .merge)
+        var withoutMerge = all
+        withoutMerge[.merge] = nil
+        #expect(StoppableJob.newest(withoutMerge) == .cardImport)
     }
 }
 

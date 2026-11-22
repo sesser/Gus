@@ -61,6 +61,10 @@ Updated 2026-11-21 (Ship pass) for preset-list-view (#241: the Presets list view
 row under Presets and look-up tables), from its `status.md`, `qa.md` and
 `docs/USER_GUIDE.md`.
 
+Updated 2026-11-22 (Ship pass) for hdr-merge (#150: the Merge to HDR row under
+Export and the `merge` command), from its `status.md`, `qa.md` and
+`docs/USER_GUIDE.md`.
+
 Markers:
 
 - **[inferred from code]**: no document states it; the claim rests on code alone.
@@ -239,6 +243,7 @@ Abbreviations: P1–P6 = `docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR
 | Metadata levels | All, all except location, copyright and contact only, none; ratings/labels never written | P4 |
 | Watermark | One PNG, nine anchors, margin, size, opacity; preview in the sheet | P4; UIR §8 |
 | Naming and conflicts | Original name or template; batch names decided first; keep both / replace / skip asked once. A catalogued master is never replaced, whatever the policy: by place (any current mount, links and case followed) or by size and SHA-256 content; the photo gets a numbered name. The alert says how many files in the way are originals | P4; `export-overwrites-masters/` (issue #160); `Catalog/MasterFiles.swift`, `Export/ExportNaming.swift` |
+| Merge to HDR (⇧⌘L) | 2 to 9 selected photos of one scene (all raws, or all non-raw; a RAW+JPEG pair counts once) become one new, tone-mapped photo: 16-bit Display P3 TIFF or a 16-bit float linear DNG, written beside the reference frame and catalogued as a new master in its project with its metadata and rating (one undo step, "Merge to HDR"; the file stays). The sheet's table chooses the reference (default the 0 EV frame, else the first by time), which names the result, its folder and project and is what frames align to and win where something moved; Auto-align and De-ghost check boxes, both on at every open. Every refusal shows in the sheet before anything runs. Numbered names, never replaces a file or master; written hidden then moved into place; Stop and Quit leave nothing. Same frames again make another photo. Limits: 9 frames, 150 MP a frame, half the Mac's memory. JPEG brackets are rougher (no response curve); de-ghosting near black can read noise as movement (#257); no link, mark or smart album rule for merged photos. No migration, no pipeline bump | `hdr-merge/` (issue #150: PRD in the issue, `design.md`, `status.md`); `Merge/`, `Catalog/MergedMasters.swift`; UG |
 | Export presets | `exportPreset` table | P4 |
 | Background export | Progress and Stop in the toolbar Activity item. Results (written, failed, skipped) are reported in Activity only, never in an alert. Can reveal the written files in the Finder when done; the only Finder reveal in the app | UIR §1, §8; UG; `Model/ExportModel.swift`; `ui-redesign/status.md` E14 (`ExportActivityReport`) |
 
@@ -248,6 +253,7 @@ Abbreviations: P1–P6 = `docs/archive/PHASE1_PLAN.md` … `PHASE6_PLAN.md`; UIR
 |---|---|---|
 | Registry and contract | One JSON object out; exit codes 0/1/2; `--library-root` | P5 Command line |
 | Commands | `render`, `adjustments`, `query projects`, `query images`, `develop`, `rate`, `flag`, `label`, `export`, `help`. `develop` sets `colorFringes.*` and `colorAlignment.*` (`colorAlignment.automatic=true` measures the original), and `noiseReduction.machineLearning` on raws only; `render` and `export` JSON say whether it applied; `export` JSON has `protectedMasters` (photos given a numbered name to spare a master) and `--policy overwrite` never replaces one | P5 Commands; `Commands/`; `ml-denoise/status.md` AC11 |
+| `merge` | `merge --version N --version N … [--format tiff\|dng] [--reference N] [--no-align] [--no-deghost]` writes the HDR merge and prints its path, format, frames, reference, `align`, `deghost` and the new version ID; refused while the app has the library open; `--reference` must be one of the `--version`s (a pair's JPEG means its raw); a frame that doesn't line up fails naming `--no-align`. Debug builds are slow (about 35 s for three 1536 x 1024 frames): time release | `hdr-merge/status.md`; `Commands/`; `MergeCommandTests`; `docs/PROFILING.md` |
 | Mask commands | `mask list`, `mask add`, `mask set`, `mask remove` | P6 Results; `Commands/MaskCommands.swift` (not in CL's or UG's command lists) |
 
 ## UI shell

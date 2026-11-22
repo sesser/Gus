@@ -93,6 +93,13 @@ public enum SyntheticDNG {
         /// Written as `OpcodeList3` (opcodes applied after demosaicing; see
         /// `DNGOpcodes`), nil for none.
         public var opcodeList3: Data?
+        /// EXIF ExposureTime (seconds), ExposureBiasValue (stops) and FNumber; nil writes none.
+        public var exposureTime: Double?
+        public var exposureBias: Double?
+        public var fNumber: Double?
+        /// TIFF Make and Model.
+        public var make = "Synthetic"
+        public var model = "Bayer Generator"
 
         public init(width: Int, height: Int, seed: UInt64, dateTimeOriginal: String? = nil, orientation: Int = 1,
                     noise: Double = 0, writesNoiseProfile: Bool = false, iso: Int? = nil, scene: Scene = .pattern,
@@ -189,6 +196,15 @@ public enum SyntheticDNG {
         if let iso = options.iso {
             exif.short(34855, [UInt16(clamping: iso)]) // ISOSpeedRatings
         }
+        if let time = options.exposureTime {
+            exif.rational(33434, [time])           // ExposureTime
+        }
+        if let number = options.fNumber {
+            exif.rational(33437, [number])         // FNumber
+        }
+        if let bias = options.exposureBias {
+            exif.srational(37380, [bias])          // ExposureBiasValue
+        }
 
         var ifd = TIFFWriter.IFD()
         ifd.long(254, [0])                         // NewSubfileType: main image
@@ -197,8 +213,8 @@ public enum SyntheticDNG {
         ifd.short(258, [UInt16](repeating: 16, count: samplesPerPixel)) // BitsPerSample
         ifd.short(259, [1])                        // Compression: none
         ifd.short(262, [options.linearRaw ? 34892 : 32803]) // PhotometricInterpretation: linear raw or CFA
-        ifd.ascii(271, "Synthetic")                // Make
-        ifd.ascii(272, "Bayer Generator")          // Model
+        ifd.ascii(271, options.make)               // Make
+        ifd.ascii(272, options.model)              // Model
         ifd.imageData(273, 279, mosaic)            // StripOffsets / StripByteCounts
         ifd.short(274, [UInt16(options.orientation)])
         ifd.short(277, [UInt16(samplesPerPixel)])  // SamplesPerPixel

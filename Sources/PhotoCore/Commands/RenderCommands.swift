@@ -10,7 +10,7 @@ extension CommandRegistry {
         RenderCommands.render, RenderCommands.adjustments,
         LibraryCommands.projects, LibraryCommands.images,
         LibraryCommands.develop, LibraryCommands.rate, LibraryCommands.flag, LibraryCommands.label,
-        LibraryCommands.export,
+        LibraryCommands.export, MergeCommands.merge,
         MaskCommands.list, MaskCommands.add, MaskCommands.set, MaskCommands.remove,
     ])
 }

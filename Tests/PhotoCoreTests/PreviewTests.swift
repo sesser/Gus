@@ -343,9 +343,14 @@ struct WorkLaneTests {
         #expect(order.withLock { $0 } == ["new-visible", "old-visible", "new-low", "old-low"])
     }
 
+    /// Wall-clock free (#259): the running job waits until it is cancelled, not
+    /// for a time, and each step waits for the lane's state, not a sleep. On a
+    /// starved cooperative pool (CI) the waiters' cancellation can take minutes
+    /// to reach the lane; the test then only takes longer.
     @Test func cancellingTheLastWaiterCancelsTheJob() async throws {
         let lane = WorkLane<Int>(concurrency: 1)
         let started = Gate()
+        let jobCancelled = Gate()
         let sawCancellation = Mutex(false)
         let pendingRan = Mutex(false)
 
@@ -353,9 +358,10 @@ struct WorkLaneTests {
             try await lane.run(key: "running", priority: 1) {
                 await started.open()
                 do {
-                    try await Task.sleep(for: .seconds(10))
+                    try await Self.untilCancelled()
                 } catch {
                     sawCancellation.withLock { $0 = true }
+                    await jobCancelled.open()
                     throw error
                 }
                 return 1
@@ -363,18 +369,35 @@ struct WorkLaneTests {
         }
         await started.wait()
         let pending = Task { try await lane.run(key: "pending", priority: 1) { pendingRan.withLock { $0 = true }; return 2 } }
-        try await Task.sleep(for: .milliseconds(20))
+        // Queued behind the running job before it is cancelled.
+        while await lane.pendingCount == 0 { await Task.yield() }
 
         pending.cancel()
         await #expect(throws: CancellationError.self) { _ = try await pending.value }
         running.cancel()
         await #expect(throws: CancellationError.self) { _ = try await running.value }
-        try await Task.sleep(for: .milliseconds(50))
+        await jobCancelled.wait()
         #expect(sawCancellation.withLock { $0 })
-        #expect(!pendingRan.withLock { $0 }, "a pending job with no waiters must not start")
 
-        // The lane keeps working afterwards.
-        #expect(try await lane.run(key: "after", priority: 1) { 3 } == 3)
+        // The lane keeps working afterwards. With one slot and this job at a
+        // lower priority, a pending job still queued (priority 1) would have run
+        // before it, whichever reached the lane first: at equal priority the
+        // lane starts the newer request, and this one could overtake it (code
+        // review C23).
+        #expect(try await lane.run(key: "after", priority: 0) { 3 } == 3)
+        #expect(!pendingRan.withLock { $0 }, "a pending job with no waiters must not start")
+    }
+
+    /// Suspends until the task is cancelled, then throws `CancellationError`:
+    /// a gate only cancellation opens (already cancelled: it opens at once).
+    static func untilCancelled() async throws {
+        let gate = Gate()
+        await withTaskCancellationHandler {
+            await gate.wait()
+        } onCancel: {
+            Task { await gate.open() }
+        }
+        try Task.checkCancellation()
     }
 
     @Test func aJobKeepsRunningWhileOtherWaitersRemain() async throws {

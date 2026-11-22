@@ -290,64 +290,8 @@ extension Catalog {
         return try await database.write { db in
             var result = MasterInsertionResult()
             for master in masters {
-                let metadata = master.effectiveMetadata
-                var image = ImageRecord(
-                    id: nil, volumeId: volumeID, projectId: projectID,
-                    relativePath: master.relativePath,
-                    fileName: (master.relativePath as NSString).lastPathComponent,
-                    fileSize: master.fileSize, modifiedAt: master.modifiedAt,
-                    contentHash: master.contentHash,
-                    format: (master.relativePath as NSString).pathExtension.lowercased(),
-                    captureDate: metadata.captureDate, captureOffsetSeconds: metadata.captureOffsetSeconds,
-                    sortDate: metadata.captureDate ?? master.modifiedAt,
-                    pixelWidth: metadata.pixelWidth, pixelHeight: metadata.pixelHeight,
-                    orientation: metadata.orientation,
-                    cameraMake: metadata.cameraMake, cameraModel: metadata.cameraModel,
-                    lensModel: metadata.lensModel, iso: metadata.iso, exposureTime: metadata.exposureTime,
-                    fNumber: metadata.fNumber, focalLength: metadata.focalLength, importedAt: importedAt,
-                    pairingKey: ImagePairing.key(forRelativePath: master.relativePath), importRunId: importRunID,
-                    localDate: LocalDate.string(captureDate: metadata.captureDate, offset: metadata.captureOffsetSeconds,
-                                                fallback: master.modifiedAt),
-                    metadataRevision: ImageMetadata.revision)
-                image.applyExtendedMetadata(metadata)
-                image.duration = metadata.duration
-                try image.insert(db, onConflict: .ignore)
-                guard db.changesCount > 0, let imageID = image.id else {
-                    let hashExists = try ImageRecord.filter(ImageRecord.Columns.contentHash == master.contentHash).fetchCount(db) > 0
-                    if hashExists {
-                        result.duplicateHashes.append(master.contentHash)
-                    } else {
-                        result.conflictingPaths.append(master.relativePath)
-                    }
-                    continue
-                }
-                var version = VersionRecord.makeDefault(imageId: imageID, at: importedAt)
-                (version.rating, version.flag, version.colorLabel) = metadata.embeddedCulling
-                // A sidecar can hold a rating and a reject at once.
-                if let values = master.sidecar?.values {
-                    (version.rating, version.flag, version.colorLabel) = (values.rating, values.flag, values.colorLabel)
-                }
-                try version.insert(db)
-                result.insertedImageIDs.append(imageID)
-                guard let versionID = version.id else { continue }
-                result.insertedVersionIDs.append(versionID)
-                for name in metadata.keywords {
-                    let keyword = try Self.findOrCreateKeyword(db, name: name)
-                    if let keywordID = keyword.id {
-                        try VersionKeywordRecord(versionId: versionID, keywordId: keywordID).insert(db, onConflict: .ignore)
-                    }
-                }
-                // What the files say now is the sidecar baseline: values only change
-                // the files once the library's values differ from it.
-                let values = SidecarValues(rating: version.rating, flag: version.flag, colorLabel: version.colorLabel,
-                                           keywords: metadata.keywords, creator: image.artist, rights: image.copyright,
-                                           caption: image.caption, usageTerms: image.usageTerms,
-                                           contact: metadata.creatorContact)
-                let file = master.sidecar?.file
-                try MetadataSyncRecord(
-                    imageId: imageID, sidecarName: file?.name, sidecarSize: file?.size, sidecarModifiedAt: file?.modifiedAt,
-                    sidecarDigest: file?.digest, baseline: try values.jsonString(), status: .inStep, diskValues: nil,
-                    diskSource: file == nil ? .embedded : .sidecar, checkedAt: importedAt, error: nil).insert(db)
+                try Self.insertMaster(db, master, volumeID: volumeID, projectID: projectID, importRunID: importRunID,
+                                      importedAt: importedAt, into: &result)
             }
             // Partners may have come in an earlier batch or an earlier import.
             let keys = Set(masters.map { ImagePairing.key(forRelativePath: $0.relativePath) })
@@ -360,6 +304,71 @@ extension Catalog {
             }
             return result
         }
+    }
+
+    /// Inserts one master and its default version (`insertMasters`' step for
+    /// each file), recording what happened in `result`: a master whose hash
+    /// or path is already in the catalog is skipped and reported.
+    static func insertMaster(_ db: Database, _ master: NewMaster, volumeID: Int64, projectID: Int64, importRunID: Int64?,
+                             importedAt: Date, into result: inout MasterInsertionResult) throws {
+        let metadata = master.effectiveMetadata
+        var image = ImageRecord(
+            id: nil, volumeId: volumeID, projectId: projectID,
+            relativePath: master.relativePath,
+            fileName: (master.relativePath as NSString).lastPathComponent,
+            fileSize: master.fileSize, modifiedAt: master.modifiedAt,
+            contentHash: master.contentHash,
+            format: (master.relativePath as NSString).pathExtension.lowercased(),
+            captureDate: metadata.captureDate, captureOffsetSeconds: metadata.captureOffsetSeconds,
+            sortDate: metadata.captureDate ?? master.modifiedAt,
+            pixelWidth: metadata.pixelWidth, pixelHeight: metadata.pixelHeight,
+            orientation: metadata.orientation,
+            cameraMake: metadata.cameraMake, cameraModel: metadata.cameraModel,
+            lensModel: metadata.lensModel, iso: metadata.iso, exposureTime: metadata.exposureTime,
+            fNumber: metadata.fNumber, focalLength: metadata.focalLength, importedAt: importedAt,
+            pairingKey: ImagePairing.key(forRelativePath: master.relativePath), importRunId: importRunID,
+            localDate: LocalDate.string(captureDate: metadata.captureDate, offset: metadata.captureOffsetSeconds,
+                                        fallback: master.modifiedAt),
+            metadataRevision: ImageMetadata.revision)
+        image.applyExtendedMetadata(metadata)
+        image.duration = metadata.duration
+        try image.insert(db, onConflict: .ignore)
+        guard db.changesCount > 0, let imageID = image.id else {
+            let hashExists = try ImageRecord.filter(ImageRecord.Columns.contentHash == master.contentHash).fetchCount(db) > 0
+            if hashExists {
+                result.duplicateHashes.append(master.contentHash)
+            } else {
+                result.conflictingPaths.append(master.relativePath)
+            }
+            return
+        }
+        var version = VersionRecord.makeDefault(imageId: imageID, at: importedAt)
+        (version.rating, version.flag, version.colorLabel) = metadata.embeddedCulling
+        // A sidecar can hold a rating and a reject at once.
+        if let values = master.sidecar?.values {
+            (version.rating, version.flag, version.colorLabel) = (values.rating, values.flag, values.colorLabel)
+        }
+        try version.insert(db)
+        result.insertedImageIDs.append(imageID)
+        guard let versionID = version.id else { return }
+        result.insertedVersionIDs.append(versionID)
+        for name in metadata.keywords {
+            let keyword = try Self.findOrCreateKeyword(db, name: name)
+            if let keywordID = keyword.id {
+                try VersionKeywordRecord(versionId: versionID, keywordId: keywordID).insert(db, onConflict: .ignore)
+            }
+        }
+        // What the files say now is the sidecar baseline: values only change
+        // the files once the library's values differ from it.
+        let values = SidecarValues(rating: version.rating, flag: version.flag, colorLabel: version.colorLabel,
+                                   keywords: metadata.keywords, creator: image.artist, rights: image.copyright,
+                                   caption: image.caption, usageTerms: image.usageTerms,
+                                   contact: metadata.creatorContact)
+        let file = master.sidecar?.file
+        try MetadataSyncRecord(
+            imageId: imageID, sidecarName: file?.name, sidecarSize: file?.size, sidecarModifiedAt: file?.modifiedAt,
+            sidecarDigest: file?.digest, baseline: try values.jsonString(), status: .inStep, diskValues: nil,
+            diskSource: file == nil ? .embedded : .sidecar, checkedAt: importedAt, error: nil).insert(db)
     }
 }
 

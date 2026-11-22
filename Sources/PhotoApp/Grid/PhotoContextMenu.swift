@@ -206,12 +206,17 @@ enum PhotoContextMenu {
             menu.addItem(ActionMenuItem(String(localized: "Rotate Right")) { model.rotate(clockwise: true) })
         }
         let showsPair = state.pairDisplay != nil
-        if state.canDuplicate || state.canExport || state.canShowTargetsInFinder || showsPair {
+        // The grid only: the loupe, video loupe and comparison panes act on one photo (hdr-merge design §2.2).
+        let merges = state.mode == .grid && state.canMerge
+        if state.canDuplicate || merges || state.canExport || state.canShowTargetsInFinder || showsPair {
             menu.addItem(.separator())
         }
         // Left out for videos, which are not duplicated (virtual-copies design §2.2).
         if state.canDuplicate {
             menu.addItem(ActionMenuItem(DuplicateText.title) { model.duplicateTargets() })
+        }
+        if merges {
+            menu.addItem(ActionMenuItem(MergeText.menuTitle) { model.merge.begin() })
         }
         if state.canExport {
             menu.addItem(ActionMenuItem(String(localized: "Export…")) { model.export.begin() })
