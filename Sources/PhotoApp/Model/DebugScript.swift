@@ -240,7 +240,9 @@ enum DebugScript {
     /// C3). Not while the frame question is up: `alert press` answers it, and
     /// waits in its own group.
     static func waitForBatchWork(_ model: LibraryModel) async {
-        while model.batchAutoTask != nil || model.lensQuestionTask != nil, !model.editor.isAskingLensFrame {
+        // A detection started by a menu item lands in the command's group too (ai-masks design §15).
+        while model.batchAutoTask != nil || model.lensQuestionTask != nil
+                || DebugMaskDetectionCommands.isWaiting(model.editor), !model.editor.isAskingLensFrame {
             try? await Task.sleep(for: .milliseconds(50))
         }
     }
@@ -798,6 +800,8 @@ enum DebugScript {
             await DebugComparisonCommands.run(rest, model: model, window: window)
         case "compareclick":
             await DebugComparisonCommands.click(rest, model: model, window: window)
+        case "print" where rest.first == "masks":
+            DebugMaskDetectionCommands.printMasks(model.editor)
         case "print" where rest.first == "compare":
             DebugComparisonCommands.printState(model: model, window: window)
         case "sidebarfocus":

@@ -21,11 +21,16 @@ public struct AdjustmentRenderer: EditStackRenderer {
     static let perceptualSpace = CGColorSpace(name: CGColorSpace.itur_2020_sRGBGamma)!
 
     public let lookTables: LookTableStore?
+    /// Stored detection results of mask components (issue #88); without a
+    /// store they select nothing, as a missing result does.
+    public let maskRasters: MaskRasterStore?
     /// Noise reduction for files the RAW decoder does not handle.
     public let denoiser: any Denoiser
 
-    public init(lookTables: LookTableStore? = nil, denoiser: any Denoiser = CoreImageDenoiser()) {
+    public init(lookTables: LookTableStore? = nil, maskRasters: MaskRasterStore? = nil,
+                denoiser: any Denoiser = CoreImageDenoiser()) {
         self.lookTables = lookTables
+        self.maskRasters = maskRasters
         self.denoiser = denoiser
     }
 
@@ -176,7 +181,10 @@ public struct AdjustmentRenderer: EditStackRenderer {
         -> (image: CIImage, alpha: CIImage, sharpening: [MaskSharpening]) {
         // Masks are made in the mask frame (the image before the crop) and
         // select ranges on the image as it enters this step, the same for each.
-        let alpha = MaskRenderer(maskFrame: maskFrame, crop: crop, selection: selection).alpha(mask)
+        let masks = MaskRenderer(maskFrame: maskFrame, crop: crop, selection: selection, rasters: maskRasters)
+        // Nothing contributes (detections with no usable result, issue #88
+        // R6, R14): the image as without the mask, exactly.
+        guard let alpha = masks.contributingAlpha(mask) else { return (image, masks.constant(0), []) }
         let result = applyLocal(image, mask.adjustments, alpha: alpha, context: context, extent: image.extent,
                                 estimates: estimates)
         let sharpening = mask.adjustments.sharpen > 0 ? [MaskSharpening(amount: mask.adjustments.sharpen, alpha: alpha)] : []
@@ -287,7 +295,7 @@ public struct AdjustmentRenderer: EditStackRenderer {
         upstream.grain = Grain()
         upstream.crop = crop
         let selection = upstream.isDefault ? crop.apply(to: input) : render(upstream, to: input, context: context)
-        return MaskRenderer(maskFrame: input.extent, crop: crop, selection: selection).alpha(mask)
+        return MaskRenderer(maskFrame: input.extent, crop: crop, selection: selection, rasters: maskRasters).alpha(mask)
     }
 
     /// One mask's local values over `image`: exposure exactly, as a gain

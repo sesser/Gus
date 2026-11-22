@@ -40,9 +40,8 @@ Principles (drawn from `README.md` and `CLAUDE.md`):
 
 ## Now (maximum three)
 
-Set by the owner 2026-11-20 (replacing #219, #218 and #87, all done); #241 left it when it shipped (2026-11-21), so one slot is free. A PRD is required for every Now item before any work starts: both have one.
+Set by the owner 2026-11-20 (replacing #219, #218 and #87, all done); #241 and #88 left it when they shipped (2026-11-21), so two slots are free. A PRD is required for every Now item before any work starts: #150 has one.
 
-1. [#88](https://github.com/sesser/Gus/issues/88) `ai-masks`: No subject, sky, object or people masks (PRD approved 2026-11-18)
 1. [#150](https://github.com/sesser/Gus/issues/150) `hdr-merge`: No way to merge several exposures of a scene into one tone-mapped HDR image, with automatic alignment and de-ghosting (PRD approved 2026-11-20; owner, 2026-11-11)
 
 ## Next

@@ -186,10 +186,14 @@ public struct CommandInvocation: Sendable {
 public struct CommandEnvironment: Sendable {
     public var currentDirectory: URL
     public var defaultLibraryRoot: URL?
+    /// What `mask add --shape subject|people|background` detects with (tests give their own).
+    public var maskDetector: any MaskDetecting
 
-    public init(currentDirectory: URL, defaultLibraryRoot: URL? = nil) {
+    public init(currentDirectory: URL, defaultLibraryRoot: URL? = nil,
+                maskDetector: any MaskDetecting = VisionMaskDetector()) {
         self.currentDirectory = currentDirectory
         self.defaultLibraryRoot = defaultLibraryRoot
+        self.maskDetector = maskDetector
     }
 
     /// `path` resolved against the current directory, with `~` expanded.
@@ -251,6 +255,8 @@ public struct OpenLibrary: Sendable {
     public var catalog: Catalog
 
     public var lookTables: LookTableStore { LookTableStore(locations: locations) }
+    /// Stored detection results of mask components (issue #88).
+    public var maskRasters: MaskRasterStore { MaskRasterStore(catalog: catalog) }
 }
 
 /// A failure, reported as `{"error": message, "code": code}`.
