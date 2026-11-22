@@ -78,123 +78,135 @@ extension MemoryHeavy {
         }
 
         @Test("M1: frames over the pixel limit, or over the memory budget together, are refused in the sheet")
-        func refusedBySize() {
-            let huge = CGSize(width: 60000, height: 60000)
-            let url = URL(fileURLWithPath: "/shoot/A.png")
-            let selection = MergeSelection(frames: [Self.frame(1, url: url, size: huge, second: 1),
-                                                    Self.frame(2, url: url.deletingLastPathComponent().appending(path: "B.png"),
-                                                               size: huge, second: 2)])
-            #expect(selection.refusal == .tooLarge(name: "A", megapixels: MergeLimits.maximumPixels / 1_000_000))
-            #expect(selection.flagged == [1, 2])
-            let normal = CGSize(width: 6000, height: 4000)
-            let tight = MergeSelection(frames: [Self.frame(1, url: url, size: normal, second: 1),
-                                                Self.frame(2, url: url, size: normal, second: 2)],
-                                       memoryBudget: 6000 * 4000 * 8)
-            #expect(tight.refusal == .tooMuchMemory)
-            let roomy = MergeSelection(frames: [Self.frame(1, url: url, size: normal, second: 1),
-                                                Self.frame(2, url: url, size: normal, second: 2)],
-                                       memoryBudget: 2 * 6000 * 4000 * 8)
-            #expect(roomy.refusal == nil)
+        func refusedBySize() async {
+            await offCooperativePool {
+                let huge = CGSize(width: 60000, height: 60000)
+                let url = URL(fileURLWithPath: "/shoot/A.png")
+                let selection = MergeSelection(frames: [Self.frame(1, url: url, size: huge, second: 1),
+                                                        Self.frame(2, url: url.deletingLastPathComponent().appending(path: "B.png"),
+                                                                   size: huge, second: 2)])
+                #expect(selection.refusal == .tooLarge(name: "A", megapixels: MergeLimits.maximumPixels / 1_000_000))
+                #expect(selection.flagged == [1, 2])
+                let normal = CGSize(width: 6000, height: 4000)
+                let tight = MergeSelection(frames: [Self.frame(1, url: url, size: normal, second: 1),
+                                                    Self.frame(2, url: url, size: normal, second: 2)],
+                                           memoryBudget: 6000 * 4000 * 8)
+                #expect(tight.refusal == .tooMuchMemory)
+                let roomy = MergeSelection(frames: [Self.frame(1, url: url, size: normal, second: 1),
+                                                    Self.frame(2, url: url, size: normal, second: 2)],
+                                           memoryBudget: 2 * 6000 * 4000 * 8)
+                #expect(roomy.refusal == nil)
+            }
         }
 
         @Test("M1: a tiny file claiming 180 megapixels is refused from its decoder's size, before any allocation")
         func refusedByHeader() async throws {
-            let folder = try Self.folder()
-            defer { try? FileManager.default.removeItem(at: folder) }
-            let a = folder.appending(path: "A.png"), b = folder.appending(path: "B.png")
-            let png = try Self.flatPNG(width: 15000, height: 12000)
-            #expect(png.count < 1 << 20)
-            try png.write(to: a)
-            try png.write(to: b)
-            #expect(throws: MergeDecoder.Failure.tooLarge(a)) {
-                try MergeDecoder.linearImage(a, source: .imageIO, longEdge: MergeLimits.measureLongEdge)
+            try await offCooperativePool {
+                let folder = try Self.folder()
+                defer { try? FileManager.default.removeItem(at: folder) }
+                let a = folder.appending(path: "A.png"), b = folder.appending(path: "B.png")
+                let png = try Self.flatPNG(width: 15000, height: 12000)
+                #expect(png.count < 1 << 20)
+                try png.write(to: a)
+                try png.write(to: b)
+                #expect(throws: MergeDecoder.Failure.tooLarge(a)) {
+                    try MergeDecoder.linearImage(a, source: .imageIO, longEdge: MergeLimits.measureLongEdge)
+                }
+                // The catalog didn't know the size: the job finds it, writes nothing.
+                let selection = MergeSelection(frames: [Self.frame(1, url: a, size: nil, second: 1),
+                                                        Self.frame(2, url: b, size: nil, second: 2)])
+                #expect(selection.refusal == nil)
+                let job = HDRMergeJob(catalog: try Catalog.makeInMemory(), metadataReader: ImageIOMetadataReader())
+                await #expect(throws: HDRMergeJob.Failure.tooLarge(name: "A")) {
+                    try await job.run(selection, format: .tiff)
+                }
+                #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path).sorted() == ["A.png", "B.png"])
             }
-            // The catalog didn't know the size: the job finds it, writes nothing.
-            let selection = MergeSelection(frames: [Self.frame(1, url: a, size: nil, second: 1),
-                                                    Self.frame(2, url: b, size: nil, second: 2)])
-            #expect(selection.refusal == nil)
-            let job = HDRMergeJob(catalog: try Catalog.makeInMemory(), metadataReader: ImageIOMetadataReader())
-            await #expect(throws: HDRMergeJob.Failure.tooLarge(name: "A")) {
-                try await job.run(selection, format: .tiff)
-            }
-            #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path).sorted() == ["A.png", "B.png"])
         }
 
         @Test("M1: a frame whose pixels would pass the remaining budget is refused before they are held")
-        func budgetBeforeHolding() throws {
-            let folder = try Self.folder()
-            defer { try? FileManager.default.removeItem(at: folder) }
-            let url = folder.appending(path: "a.png")
-            let image = HDRBracket.image(HDRBracket.Frame(ev: 0), width: 64, height: 48)
-            try SyntheticImages.write(try #require(image.cgImage(colorSpace: CGColorSpace(name: CGColorSpace.sRGB)!)),
-                                      to: url, type: .png)
-            let merger = HDRMerger()
-            #expect(throws: HDRMerger.Failure.overBudget) {
-                try merger.fullFrame(of: url, source: .imageIO, budget: 64 * 48 * 8 - 1)
+        func budgetBeforeHolding() async throws {
+            try await offCooperativePool {
+                let folder = try Self.folder()
+                defer { try? FileManager.default.removeItem(at: folder) }
+                let url = folder.appending(path: "a.png")
+                let image = HDRBracket.image(HDRBracket.Frame(ev: 0), width: 64, height: 48)
+                try SyntheticImages.write(try #require(image.cgImage(colorSpace: CGColorSpace(name: CGColorSpace.sRGB)!)),
+                                          to: url, type: .png)
+                let merger = HDRMerger()
+                #expect(throws: HDRMerger.Failure.overBudget) {
+                    try merger.fullFrame(of: url, source: .imageIO, budget: 64 * 48 * 8 - 1)
+                }
+                #expect(try merger.fullFrame(of: url, source: .imageIO, budget: 64 * 48 * 8).extent.width == 64)
             }
-            #expect(try merger.fullFrame(of: url, source: .imageIO, budget: 64 * 48 * 8).extent.width == 64)
         }
 
         @Test("M2: a DNG past 4 GiB is refused before its file exists")
-        func dngTooLarge() throws {
-            let folder = try Self.folder()
-            defer { try? FileManager.default.removeItem(at: folder) }
-            let url = folder.appending(path: "big.dng")
-            #expect(throws: LinearDNGWriter.Failure.tooLarge) {
-                _ = try LinearDNGWriter(url: url, width: 40000, height: 30000, metadata: .init())
+        func dngTooLarge() async throws {
+            try await offCooperativePool {
+                let folder = try Self.folder()
+                defer { try? FileManager.default.removeItem(at: folder) }
+                let url = folder.appending(path: "big.dng")
+                #expect(throws: LinearDNGWriter.Failure.tooLarge) {
+                    _ = try LinearDNGWriter(url: url, width: 40000, height: 30000, metadata: .init())
+                }
+                #expect(!FileManager.default.fileExists(atPath: url.path))
+                #expect(LinearDNGWriter.fits(width: 12000, height: 12500, metadata: .init()))
             }
-            #expect(!FileManager.default.fileExists(atPath: url.path))
-            #expect(LinearDNGWriter.fits(width: 12000, height: 12500, metadata: .init()))
         }
 
         @Test("L1: a name that fills the file system's limit is written; the result's stem is shortened to fit")
-        func longNames() throws {
-            let folder = try Self.folder()
-            defer { try? FileManager.default.removeItem(at: folder) }
-            // 255 bytes: the old hidden name (name + 46 bytes) could not have been made.
-            let name = String(repeating: "a", count: 251) + ".tif"
-            let url = folder.appending(path: name)
-            try MergeOutput.writeInPlace(url) { try Data("x".utf8).write(to: $0) }
-            #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path) == [name])
-            let stem = String(repeating: "é", count: 125) // 250 bytes in UTF-8
-            let result = MergeNaming.name(stem: stem, format: .tiff, masters: MasterFiles.none.names(in: folder), files: [])
-            #expect(result.utf8.count <= 255)
-            #expect(result.hasSuffix("_HDR.tif"))
-            #expect(result.hasPrefix("éé"))
+        func longNames() async throws {
+            try await offCooperativePool {
+                let folder = try Self.folder()
+                defer { try? FileManager.default.removeItem(at: folder) }
+                // 255 bytes: the old hidden name (name + 46 bytes) could not have been made.
+                let name = String(repeating: "a", count: 251) + ".tif"
+                let url = folder.appending(path: name)
+                try MergeOutput.writeInPlace(url) { try Data("x".utf8).write(to: $0) }
+                #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path) == [name])
+                let stem = String(repeating: "é", count: 125) // 250 bytes in UTF-8
+                let result = MergeNaming.name(stem: stem, format: .tiff, masters: MasterFiles.none.names(in: folder), files: [])
+                #expect(result.utf8.count <= 255)
+                #expect(result.hasSuffix("_HDR.tif"))
+                #expect(result.hasPrefix("éé"))
+            }
         }
 
         @Test("L7: only a file system without hard links falls back, and the fallback never replaces")
-        func linkFallback() throws {
-            let folder = try Self.folder()
-            defer { try? FileManager.default.removeItem(at: folder) }
-            func failing(_ code: Int32) -> (UnsafePointer<CChar>, UnsafePointer<CChar>) -> Int32 {
-                { _, _ in code }
-            }
-            let a = folder.appending(path: "a.tif")
-            #expect(throws: MergeOutput.Failure.self) {
-                try MergeOutput.writeInPlace(a, linkFile: failing(EACCES)) { try Data("a".utf8).write(to: $0) }
-            }
-            #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path).isEmpty)
-            try MergeOutput.writeInPlace(a, linkFile: failing(ENOTSUP)) { try Data("a".utf8).write(to: $0) }
-            #expect(try String(contentsOf: a, encoding: .utf8) == "a")
-            #expect(throws: MergeOutput.Failure.nameTaken) {
-                try MergeOutput.writeInPlace(a, linkFile: failing(ENOTSUP)) { try Data("b".utf8).write(to: $0) }
-            }
-            #expect(try String(contentsOf: a, encoding: .utf8) == "a")
-            #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path) == ["a.tif"])
-            // C6: neither links nor an exclusive rename (FAT32, exFAT): a placeholder reserves the name.
-            let b = folder.appending(path: "b.tif")
-            try MergeOutput.writeInPlace(b, linkFile: failing(ENOTSUP), renameExclusive: failing(ENOTSUP)) {
-                try Data("b".utf8).write(to: $0)
-            }
-            #expect(try String(contentsOf: b, encoding: .utf8) == "b")
-            #expect(throws: MergeOutput.Failure.nameTaken) {
-                try MergeOutput.writeInPlace(b, linkFile: failing(ENOTSUP), renameExclusive: failing(ENOTSUP)) {
-                    try Data("c".utf8).write(to: $0)
+        func linkFallback() async throws {
+            try await offCooperativePool {
+                let folder = try Self.folder()
+                defer { try? FileManager.default.removeItem(at: folder) }
+                func failing(_ code: Int32) -> (UnsafePointer<CChar>, UnsafePointer<CChar>) -> Int32 {
+                    { _, _ in code }
                 }
+                let a = folder.appending(path: "a.tif")
+                #expect(throws: MergeOutput.Failure.self) {
+                    try MergeOutput.writeInPlace(a, linkFile: failing(EACCES)) { try Data("a".utf8).write(to: $0) }
+                }
+                #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path).isEmpty)
+                try MergeOutput.writeInPlace(a, linkFile: failing(ENOTSUP)) { try Data("a".utf8).write(to: $0) }
+                #expect(try String(contentsOf: a, encoding: .utf8) == "a")
+                #expect(throws: MergeOutput.Failure.nameTaken) {
+                    try MergeOutput.writeInPlace(a, linkFile: failing(ENOTSUP)) { try Data("b".utf8).write(to: $0) }
+                }
+                #expect(try String(contentsOf: a, encoding: .utf8) == "a")
+                #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path) == ["a.tif"])
+                // C6: neither links nor an exclusive rename (FAT32, exFAT): a placeholder reserves the name.
+                let b = folder.appending(path: "b.tif")
+                try MergeOutput.writeInPlace(b, linkFile: failing(ENOTSUP), renameExclusive: failing(ENOTSUP)) {
+                    try Data("b".utf8).write(to: $0)
+                }
+                #expect(try String(contentsOf: b, encoding: .utf8) == "b")
+                #expect(throws: MergeOutput.Failure.nameTaken) {
+                    try MergeOutput.writeInPlace(b, linkFile: failing(ENOTSUP), renameExclusive: failing(ENOTSUP)) {
+                        try Data("c".utf8).write(to: $0)
+                    }
+                }
+                #expect(try String(contentsOf: b, encoding: .utf8) == "b")
+                #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path).sorted() == ["a.tif", "b.tif"])
             }
-            #expect(try String(contentsOf: b, encoding: .utf8) == "b")
-            #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path).sorted() == ["a.tif", "b.tif"])
         }
 
         /// Runs `body` with a fresh FAT32 disk image (64 MB: FAT32 wants more than 32) attached at a folder of its
@@ -230,65 +242,73 @@ extension MemoryHeavy {
 
         @Test("C6: on a FAT32 volume the result is written beside the masters, and never replaces a file",
               .enabled(if: MergeSafetyTests.canAttachFAT32, "hdiutil can't make or attach a FAT32 image here"))
-        func fat32() throws {
-            let ran = try Self.withFAT32 { volume in
-                let url = volume.appending(path: "IMG_1_HDR.tif")
-                try MergeOutput.writeInPlace(url) { try Data("first".utf8).write(to: $0) }
-                #expect(try String(contentsOf: url, encoding: .utf8) == "first")
-                #expect(throws: MergeOutput.Failure.nameTaken) {
-                    try MergeOutput.writeInPlace(url) { try Data("second".utf8).write(to: $0) }
+        func fat32() async throws {
+            try await offCooperativePool {
+                let ran = try Self.withFAT32 { volume in
+                    let url = volume.appending(path: "IMG_1_HDR.tif")
+                    try MergeOutput.writeInPlace(url) { try Data("first".utf8).write(to: $0) }
+                    #expect(try String(contentsOf: url, encoding: .utf8) == "first")
+                    #expect(throws: MergeOutput.Failure.nameTaken) {
+                        try MergeOutput.writeInPlace(url) { try Data("second".utf8).write(to: $0) }
+                    }
+                    #expect(try String(contentsOf: url, encoding: .utf8) == "first")
+                    let visible = try FileManager.default.contentsOfDirectory(atPath: volume.path).filter { !$0.hasPrefix(".") }
+                    #expect(visible == ["IMG_1_HDR.tif"])
+                    #expect(try FileManager.default.contentsOfDirectory(atPath: volume.path).allSatisfy { !$0.hasSuffix(".partial") })
                 }
-                #expect(try String(contentsOf: url, encoding: .utf8) == "first")
-                let visible = try FileManager.default.contentsOfDirectory(atPath: volume.path).filter { !$0.hasPrefix(".") }
-                #expect(visible == ["IMG_1_HDR.tif"])
-                #expect(try FileManager.default.contentsOfDirectory(atPath: volume.path).allSatisfy { !$0.hasSuffix(".partial") })
+                #expect(ran, "hdiutil attached a probe image but not this one")
             }
-            #expect(ran, "hdiutil attached a probe image but not this one")
         }
 
         @Test("L8: a reference whose catalog name or path leaves its folder is refused")
         func plainPlaces() async throws {
-            #expect(MergeNaming.isPlainPlace(fileName: "IMG_1.dng", relativePath: "Trip/Day 2/IMG_1.dng"))
-            #expect(MergeNaming.isPlainPlace(fileName: "IMG_1.dng", relativePath: "IMG_1.dng"))
-            #expect(!MergeNaming.isPlainPlace(fileName: "../IMG_1.dng", relativePath: "Trip/../IMG_1.dng"))
-            #expect(!MergeNaming.isPlainPlace(fileName: "IMG_1.dng", relativePath: "Trip/../IMG_1.dng"))
-            #expect(!MergeNaming.isPlainPlace(fileName: "IMG_1.dng", relativePath: "/Trip/IMG_1.dng"))
-            #expect(!MergeNaming.isPlainPlace(fileName: "x/IMG_1.dng", relativePath: "Trip/x/IMG_1.dng"))
-            #expect(!MergeNaming.isPlainPlace(fileName: "IMG_1.dng", relativePath: "Trip//IMG_1.dng"))
-            var bad = Self.frame(1, url: URL(fileURLWithPath: "/shoot/A.dng"), size: nil, second: 1)
-            bad.relativePath = "shoot/../../A.dng"
-            let selection = MergeSelection(frames: [bad, Self.frame(2, url: URL(fileURLWithPath: "/shoot/B.dng"), size: nil,
-                                                                   second: 2)])
-            let job = HDRMergeJob(catalog: try Catalog.makeInMemory(), metadataReader: ImageIOMetadataReader())
-            await #expect(throws: HDRMergeJob.Failure.invalidName(name: "A")) {
-                _ = try await job.resultURL(for: selection, format: .tiff)
+            try await offCooperativePool {
+                #expect(MergeNaming.isPlainPlace(fileName: "IMG_1.dng", relativePath: "Trip/Day 2/IMG_1.dng"))
+                #expect(MergeNaming.isPlainPlace(fileName: "IMG_1.dng", relativePath: "IMG_1.dng"))
+                #expect(!MergeNaming.isPlainPlace(fileName: "../IMG_1.dng", relativePath: "Trip/../IMG_1.dng"))
+                #expect(!MergeNaming.isPlainPlace(fileName: "IMG_1.dng", relativePath: "Trip/../IMG_1.dng"))
+                #expect(!MergeNaming.isPlainPlace(fileName: "IMG_1.dng", relativePath: "/Trip/IMG_1.dng"))
+                #expect(!MergeNaming.isPlainPlace(fileName: "x/IMG_1.dng", relativePath: "Trip/x/IMG_1.dng"))
+                #expect(!MergeNaming.isPlainPlace(fileName: "IMG_1.dng", relativePath: "Trip//IMG_1.dng"))
+                var bad = Self.frame(1, url: URL(fileURLWithPath: "/shoot/A.dng"), size: nil, second: 1)
+                bad.relativePath = "shoot/../../A.dng"
+                let selection = MergeSelection(frames: [bad, Self.frame(2, url: URL(fileURLWithPath: "/shoot/B.dng"), size: nil,
+                                                                       second: 2)])
+                let job = HDRMergeJob(catalog: try Catalog.makeInMemory(), metadataReader: ImageIOMetadataReader())
+                await #expect(throws: HDRMergeJob.Failure.invalidName(name: "A")) {
+                    _ = try await job.resultURL(for: selection, format: .tiff)
+                }
             }
         }
 
         @Test("C11: the capture date's offset reaches XMP only when it is a real one")
-        func captureDateOffset() {
-            func date(_ offset: String?) -> String? {
-                var exif: [String: any Sendable] = [kCGImagePropertyExifDateTimeOriginal as String: "2016:05:21 08:43:02"]
-                exif[kCGImagePropertyExifOffsetTimeOriginal as String] = offset
-                return MergeOutput.Metadata(sourceProperties: [kCGImagePropertyExifDictionary as String: exif],
-                                            values: SidecarValues()).xmpCaptureDate
+        func captureDateOffset() async {
+            await offCooperativePool {
+                func date(_ offset: String?) -> String? {
+                    var exif: [String: any Sendable] = [kCGImagePropertyExifDateTimeOriginal as String: "2016:05:21 08:43:02"]
+                    exif[kCGImagePropertyExifOffsetTimeOriginal as String] = offset
+                    return MergeOutput.Metadata(sourceProperties: [kCGImagePropertyExifDictionary as String: exif],
+                                                values: SidecarValues()).xmpCaptureDate
+                }
+                #expect(date("+02:00") == "2016-05-21T08:43:02+02:00")
+                #expect(date("-05:30") == "2016-05-21T08:43:02-05:30")
+                #expect(date("Z") == "2016-05-21T08:43:02Z")
+                #expect(date("   :  ") == "2016-05-21T08:43:02")
+                #expect(date("+2:00") == "2016-05-21T08:43:02")
+                #expect(date(nil) == "2016-05-21T08:43:02")
+                #expect(MergeOutput.Metadata(sourceProperties: [:], values: SidecarValues()).xmpCaptureDate == nil)
             }
-            #expect(date("+02:00") == "2016-05-21T08:43:02+02:00")
-            #expect(date("-05:30") == "2016-05-21T08:43:02-05:30")
-            #expect(date("Z") == "2016-05-21T08:43:02Z")
-            #expect(date("   :  ") == "2016-05-21T08:43:02")
-            #expect(date("+2:00") == "2016-05-21T08:43:02")
-            #expect(date(nil) == "2016-05-21T08:43:02")
-            #expect(MergeOutput.Metadata(sourceProperties: [:], values: SidecarValues()).xmpCaptureDate == nil)
         }
 
         @Test("L3: exposure metadata that isn't finite and positive counts as unknown")
-        func absurdExposure() {
-            #expect(MergeExposure.metadataExposure(time: .infinity, fNumber: 8, iso: 100) == nil)
-            #expect(MergeExposure.metadataExposure(time: 1.0 / 60, fNumber: .nan, iso: 100) != nil)
-            #expect(MergeExposure.metadataExposure(time: 0, fNumber: 8, iso: 100) == nil)
-            #expect(!MergeExposure.plausible.contains(.infinity))
-            #expect(!MergeExposure.plausible.contains(pow(2, 20)))
+        func absurdExposure() async {
+            await offCooperativePool {
+                #expect(MergeExposure.metadataExposure(time: .infinity, fNumber: 8, iso: 100) == nil)
+                #expect(MergeExposure.metadataExposure(time: 1.0 / 60, fNumber: .nan, iso: 100) != nil)
+                #expect(MergeExposure.metadataExposure(time: 0, fNumber: 8, iso: 100) == nil)
+                #expect(!MergeExposure.plausible.contains(.infinity))
+                #expect(!MergeExposure.plausible.contains(pow(2, 20)))
+            }
         }
     }
 }

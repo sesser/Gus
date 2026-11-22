@@ -34,25 +34,27 @@ extension MemoryHeavy {
         }
 
         @Test("A hand-held bracket lines up: shifted and rotated frames land within half a pixel")
-        func linesUpShiftedFrames() throws {
-            let frames = [
-                HDRBracket.Frame(ev: -2, shift: SIMD2(7.5, -4.25), rotationDegrees: 0.45),
-                HDRBracket.Frame(ev: 0),
-                HDRBracket.Frame(ev: 2, shift: SIMD2(-5.0, 6.5), rotationDegrees: -0.3),
-            ]
-            let images = frames.map { Self.bitmap(HDRBracket.image($0, width: Self.width, height: Self.height)) }
-            let homographies = try MergeAlignment.align(images, reference: 1)
-            for (index, frame) in frames.enumerated() {
-                let error = Self.worstError(homographies[index], frame: frame, width: Self.width, height: Self.height)
-                let h = homographies[index]
-                for top in [SIMD2(0.0, 0.0), SIMD2(Double(Self.width), 0), SIMD2(600.0, 400.0)] {
-                    let truth = HDRBracket.positionInReference(top, frame: frame, width: Self.width, height: Self.height)
-                    let m = h.apply(SIMD2(top.x, Double(Self.height) - top.y))
-                    let mi = h.inverse.apply(SIMD2(top.x, Double(Self.height) - top.y))
-                    print("pt \(top) truth \(truth) H \(SIMD2(m.x, Double(Self.height) - m.y)) Hinv \(SIMD2(mi.x, Double(Self.height) - mi.y))")
+        func linesUpShiftedFrames() async throws {
+            try await offCooperativePool {
+                let frames = [
+                    HDRBracket.Frame(ev: -2, shift: SIMD2(7.5, -4.25), rotationDegrees: 0.45),
+                    HDRBracket.Frame(ev: 0),
+                    HDRBracket.Frame(ev: 2, shift: SIMD2(-5.0, 6.5), rotationDegrees: -0.3),
+                ]
+                let images = frames.map { Self.bitmap(HDRBracket.image($0, width: Self.width, height: Self.height)) }
+                let homographies = try MergeAlignment.align(images, reference: 1)
+                for (index, frame) in frames.enumerated() {
+                    let error = Self.worstError(homographies[index], frame: frame, width: Self.width, height: Self.height)
+                    let h = homographies[index]
+                    for top in [SIMD2(0.0, 0.0), SIMD2(Double(Self.width), 0), SIMD2(600.0, 400.0)] {
+                        let truth = HDRBracket.positionInReference(top, frame: frame, width: Self.width, height: Self.height)
+                        let m = h.apply(SIMD2(top.x, Double(Self.height) - top.y))
+                        let mi = h.inverse.apply(SIMD2(top.x, Double(Self.height) - top.y))
+                        print("pt \(top) truth \(truth) H \(SIMD2(m.x, Double(Self.height) - m.y)) Hinv \(SIMD2(mi.x, Double(Self.height) - mi.y))")
+                    }
+                    print("frame \(index): worst error \(error) px, rotation \(homographies[index].rotationDegrees)°")
+                    #expect(error < 0.5, "frame \(index)")
                 }
-                print("frame \(index): worst error \(error) px, rotation \(homographies[index].rotationDegrees)°")
-                #expect(error < 0.5, "frame \(index)")
             }
         }
     }
