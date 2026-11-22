@@ -382,13 +382,16 @@ extension MemoryHeavy {
                 let count = try await library.catalog.allImages().count
                 let selection = try await library.selection(["IMG_0001.dng", "IMG_0002.dng", "IMG_0003.dng"])
                 let job = library.job
-                let started = AsyncStream<Void>.makeStream()
+                // Stopped from the job's own task when it reports Aligning, as the
+                // export and import tests stop theirs. A cancel sent from this task
+                // had to arrive before the measuring ended: 0.13 s here now that the
+                // library is built optimized (3 s before), and a busy runner can
+                // deliver it later than that.
                 let task = Task {
                     try await job.run(selection, format: .tiff) { progress in
-                        if case .aligning = progress.phase { started.continuation.yield() }
+                        if case .aligning = progress.phase { withUnsafeCurrentTask { $0?.cancel() } }
                     }
                 }
-                for await _ in started.stream { task.cancel(); break }
                 await #expect(throws: CancellationError.self) { try await task.value }
                 #expect(try library.files() == before)
                 #expect(try await library.catalog.allImages().count == count)

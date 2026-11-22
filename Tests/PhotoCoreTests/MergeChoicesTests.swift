@@ -17,6 +17,14 @@ extension MemoryHeavy.HDRMergerTests {
     /// the measured exposure's 1%.
     static func radianceError(_ merged: MergeBitmap, scale: Float, against frame: HDRBracket.Frame) -> (Float, Int) {
         let truth = HDRBracket.radianceImage(width: Self.width, height: Self.height, as: frame)
+        // Each pixel's luminance, once: every window below reads 25 of them.
+        var luminance = [Float](repeating: 0, count: Self.width * Self.height)
+        for y in 0..<Self.height {
+            for x in 0..<Self.width {
+                let p = truth[x, y]
+                luminance[y * Self.width + x] = MergeBitmap.luminance(SIMD3(p.x, p.y, p.z))
+            }
+        }
         var worst: Float = 0
         var worstAt = (0, 0, SIMD3<Float>.zero, SIMD3<Float>.zero)
         var compared = 0
@@ -25,13 +33,18 @@ extension MemoryHeavy.HDRMergerTests {
         for y in margin..<(Self.height - margin) {
             for x in margin..<(Self.width - margin) {
                 var low = Float.infinity, high: Float = 0
-                for dy in -2...2 {
-                    for dx in -2...2 {
-                        let p = truth[x + dx, y + dy]
-                        let l = MergeBitmap.luminance(SIMD3(p.x, p.y, p.z))
+                // `while`, not ranges: unoptimized, the 25 steps of two range
+                // loops were most of this function's time (5.4 million a call).
+                var dy = -2
+                while dy <= 2 {
+                    var dx = -2
+                    while dx <= 2 {
+                        let l = luminance[(y + dy) * Self.width + x + dx]
                         low = min(low, l)
                         high = max(high, l)
+                        dx += 1
                     }
+                    dy += 1
                 }
                 guard high < low * 1.25 else { continue }
                 compared += 1

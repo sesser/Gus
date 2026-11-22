@@ -68,25 +68,34 @@ enum MergeReference {
                     }
                     let c00 = tap(0, 0), c10 = tap(1, 0), c01 = tap(0, 1), c11 = tap(1, 1)
                     let rgb = (c00 * (1 - t.x) + c10 * t.x) * (1 - t.y) + (c01 * (1 - t.x) + c11 * t.x) * t.y
+                    // Each tap's brightest channel, once (no arrays and no
+                    // generic reductions here: this runs for every pixel of
+                    // every frame in an unoptimized build).
+                    let p00 = max(max(c00.x, c00.y), c00.z), p10 = max(max(c10.x, c10.y), c10.z)
+                    let p01 = max(max(c01.x, c01.y), c01.z), p11 = max(max(c11.x, c11.y), c11.z)
                     let share = MergeMath.tapShare
-                    var peak = c00.max()
-                    if t.x >= share { peak = max(peak, c10.max()) }
-                    if t.y >= share { peak = max(peak, c01.max()) }
-                    if t.x >= share, t.y >= share { peak = max(peak, c11.max()) }
+                    var peak = p00
+                    if t.x >= share { peak = max(peak, p10) }
+                    if t.y >= share { peak = max(peak, p01) }
+                    if t.x >= share, t.y >= share { peak = max(peak, p11) }
                     if abs(t.x - share) < 1e-4 || abs(t.y - share) < 1e-4 { conditioned = false }
                     // The kernel's sample position is a float: the inverse
                     // homography's entries rounded to float, three products and
                     // two sums per coordinate and a division, each within 2^-24
                     // of the coordinate's magnitude: about 2^-20 of it in all.
                     // Across a steep edge that moves the mix by spread × error.
-                    let peaks = [c00, c10, c01, c11].map { $0.max() }
+                    let peakSpread = max(max(p00, p10), max(p01, p11)) - min(min(p00, p10), min(p01, p11))
                     let positionError = max(p.x, p.y) * pow(2, -20)
                     // The mix of each channel moves by that channel's spread
                     // over the four taps (the brightest channels' spread can be
                     // far smaller: a red edge under an even blue).
-                    let taps = [c00, c10, c01, c11]
-                    let spread = (0..<3).map { c in taps.map { $0[c] }.max()! - taps.map { $0[c] }.min()! }.max()!
-                    let sampleError = max(spread, peaks.max()! - peaks.min()!) * positionError
+                    var spread = 0.0
+                    for c in 0..<3 {
+                        let high = max(max(c00[c], c10[c]), max(c01[c], c11[c]))
+                        let low = min(min(c00[c], c10[c]), min(c01[c], c11[c]))
+                        spread = max(spread, high - low)
+                    }
+                    let sampleError = max(spread, peakSpread) * positionError
                     let ghost = min(max(Double(plan.ghosts[index][x, row]), 0), 1)
                     let h = hat(peak / framePlan.clip, openTop: index == darkest, openBottom: index == brightest)
                     if h > 0, h < conditionedHat { conditioned = false }
