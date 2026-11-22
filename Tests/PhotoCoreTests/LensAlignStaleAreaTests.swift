@@ -11,6 +11,10 @@ import Testing
 /// around). `lensAlign`'s callback reads only the input's extent and the
 /// red and blue values, which the kernel also takes as arguments, so each
 /// pair of values has a digest of its own. These tests pin that.
+///
+/// Each test's body runs `offCooperativePool`: on CI its renders hold a thread
+/// for seconds, which on the cooperative pool starved the tests running beside
+/// them (bug #253, docs/features/core-image-split-render/status.md, "CI").
 @Suite("Color alignment's input area", .serialized)
 struct LensAlignStaleAreaTests {
     static let width = 2000, height = 1400
@@ -67,15 +71,17 @@ struct LensAlignStaleAreaTests {
     /// here: if the decode were read lazily again, the JPEG case would show an
     /// area again and `jpegDragInOneContext` would again guard it.
     @Test("The tile shows an input area too small for the values", arguments: [false, true])
-    func tileSeesTheInputArea(jpeg: Bool) throws {
-        if jpeg {
-            try Self.withJPEG { url in
-                try Self.expectTileSeesInputArea(PreviewGenerator(engine: Self.fresh()).image(source: url, stack: .identity,
-                                                                                               longEdge: nil),
-                                                 sees: false)
+    func tileSeesTheInputArea(jpeg: Bool) async throws {
+        try await offCooperativePool {
+            if jpeg {
+                try Self.withJPEG { url in
+                    try Self.expectTileSeesInputArea(PreviewGenerator(engine: Self.fresh()).image(source: url, stack: .identity,
+                                                                                                   longEdge: nil),
+                                                     sees: false)
+                }
+            } else {
+                try Self.expectTileSeesInputArea(Self.input, sees: true)
             }
-        } else {
-            try Self.expectTileSeesInputArea(Self.input, sees: true)
         }
     }
 
@@ -94,33 +100,37 @@ struct LensAlignStaleAreaTests {
     }
 
     @Test("One context renders every value of a drag as a fresh context does")
-    func dragInOneContext() {
-        let shared = RenderEngine(contextCount: 1, name: "align-shared")
-        for values in Self.drag {
-            let image = AdjustmentRenderer.align(Self.input, ColorAlignment(red: values.red, blue: values.blue))
-            let rendered = Self.render(image, shared, bounds: Self.tile)
-            let expected = Self.render(image, Self.fresh(), bounds: Self.tile)
-            let differing = zip(rendered, expected).filter { $0 != $1 }.count
-            #expect(differing == 0, "\(values): \(differing) components differ from a fresh context's render")
+    func dragInOneContext() async {
+        await offCooperativePool {
+            let shared = RenderEngine(contextCount: 1, name: "align-shared")
+            for values in Self.drag {
+                let image = AdjustmentRenderer.align(Self.input, ColorAlignment(red: values.red, blue: values.blue))
+                let rendered = Self.render(image, shared, bounds: Self.tile)
+                let expected = Self.render(image, Self.fresh(), bounds: Self.tile)
+                let differing = zip(rendered, expected).filter { $0 != $1 }.count
+                #expect(differing == 0, "\(values): \(differing) components differ from a fresh context's render")
+            }
         }
     }
 
     /// The issue's case: a live drag on a JPEG, at full size, through the
     /// whole pipeline, rendering the visible area as the loupe does at 100%.
     @Test("A JPEG's drag through the whole pipeline renders as a fresh context does")
-    func jpegDragInOneContext() throws {
-        let shared = RenderEngine(contextCount: 1, name: "align-shared")
-        let generator = PreviewGenerator(engine: shared)
-        try Self.withJPEG { url in
-            for values in Self.drag {
-                var adjustments = Adjustments()
-                adjustments.colorAlignment = ColorAlignment(red: values.red, blue: values.blue)
-                let image = try generator.image(source: url, stack: adjustments.editStack, longEdge: nil)
-                let tile = Self.tile.offsetBy(dx: image.extent.minX, dy: image.extent.minY)
-                let rendered = Self.render(image, shared, bounds: tile)
-                let expected = Self.render(image, Self.fresh(), bounds: tile)
-                let differing = zip(rendered, expected).filter { $0 != $1 }.count
-                #expect(differing == 0, "\(values): \(differing) components differ from a fresh context's render")
+    func jpegDragInOneContext() async throws {
+        try await offCooperativePool {
+            let shared = RenderEngine(contextCount: 1, name: "align-shared")
+            let generator = PreviewGenerator(engine: shared)
+            try Self.withJPEG { url in
+                for values in Self.drag {
+                    var adjustments = Adjustments()
+                    adjustments.colorAlignment = ColorAlignment(red: values.red, blue: values.blue)
+                    let image = try generator.image(source: url, stack: adjustments.editStack, longEdge: nil)
+                    let tile = Self.tile.offsetBy(dx: image.extent.minX, dy: image.extent.minY)
+                    let rendered = Self.render(image, shared, bounds: tile)
+                    let expected = Self.render(image, Self.fresh(), bounds: tile)
+                    let differing = zip(rendered, expected).filter { $0 != $1 }.count
+                    #expect(differing == 0, "\(values): \(differing) components differ from a fresh context's render")
+                }
             }
         }
     }

@@ -16,6 +16,10 @@ import UniformTypeIdentifiers
 /// right half's pixels: the loupe at 100% showed two halves that didn't line
 /// up. Serialized: each render holds a 20 MP photo.
 ///
+/// Each test's body runs `offCooperativePool`: its renders wait for the GPU and
+/// its comparisons take seconds on CI's three cores, which, on the cooperative
+/// pool, starved the tests running beside them (bug #253, status.md "CI").
+///
 /// The 20 MP soak (`largeRenderKeepsItsParts`) runs only with
 /// `LARGE_RENDER_TESTS=1 swift test --filter ImageIOFullDecodeTests`: the CI
 /// runners' paravirtual GPU fails renders that size, as `DeferredRenderTests`
@@ -79,6 +83,26 @@ struct ImageIOFullDecodeTests {
         }
     }
 
+    /// How many values of `a` and `b` differ (`!=`, as Float compares), the
+    /// arrays being the same length. A loop over raw pointers: in a debug
+    /// build `zip(a, b).filter { $0 != $1 }.count` runs unspecialized generic
+    /// code per value, about 4 s for the 24 million values of a 3000 × 2000
+    /// float render (bug #253, status.md "CI").
+    static func differingCount(_ a: [Float], _ b: [Float]) -> Int {
+        precondition(a.count == b.count)
+        return a.withUnsafeBufferPointer { a in
+            b.withUnsafeBufferPointer { b in
+                guard let left = a.baseAddress, let right = b.baseAddress else { return 0 }
+                var count = 0, index = 0
+                while index < a.count {
+                    if left[index] != right[index] { count += 1 }
+                    index += 1
+                }
+                return count
+            }
+        }
+    }
+
     /// The fault's signature: the left half repeats the right half. On the
     /// pattern the halves differ by about half of red's range everywhere.
     static func leftHalfRepeatsRight(_ rows: [[UInt8]]) -> Bool {
@@ -95,45 +119,49 @@ struct ImageIOFullDecodeTests {
 
     @Test("A full-size decode of an ImageIO file is read from the GPU, not from the file")
     func fullDecodeIsResident() async throws {
-        try await RepositoryFiles.withTemporaryDirectory { folder in
-            let tiff = folder.appending(path: "large.tif")
-            try SyntheticImages.write(Self.pattern(width: 640, height: 480).cgImageForTest(), to: tiff, type: .tiff)
-            let jpeg = folder.appending(path: "photo.jpg")
-            try SyntheticImages.writeJPEG(to: jpeg, width: 640, height: 480, seed: 3)
-            for url in [tiff, jpeg] {
-                // Core Image's own reader keeps the file's URL on the image it reads.
-                #expect(CIImage(contentsOf: url, options: [.applyOrientationProperty: true])?.url == url)
-                let decoded = try PreviewGenerator.decode(url, longEdge: nil, draft: false)
-                #expect(decoded.image.url == nil, "\(url.lastPathComponent)")
-                #expect(decoded.image.extent == CGRect(x: 0, y: 0, width: 640, height: 480))
-                // Measuring the graph only (the loupe's early size) still reads just the header.
-                let measured = try PreviewGenerator.decode(url, longEdge: nil, draft: false, forSizeOnly: true)
-                #expect(measured.image.url == url)
+        try await offCooperativePool {
+            try await RepositoryFiles.withTemporaryDirectory { folder in
+                let tiff = folder.appending(path: "large.tif")
+                try SyntheticImages.write(Self.pattern(width: 640, height: 480).cgImageForTest(), to: tiff, type: .tiff)
+                let jpeg = folder.appending(path: "photo.jpg")
+                try SyntheticImages.writeJPEG(to: jpeg, width: 640, height: 480, seed: 3)
+                for url in [tiff, jpeg] {
+                    // Core Image's own reader keeps the file's URL on the image it reads.
+                    #expect(CIImage(contentsOf: url, options: [.applyOrientationProperty: true])?.url == url)
+                    let decoded = try PreviewGenerator.decode(url, longEdge: nil, draft: false)
+                    #expect(decoded.image.url == nil, "\(url.lastPathComponent)")
+                    #expect(decoded.image.extent == CGRect(x: 0, y: 0, width: 640, height: 480))
+                    // Measuring the graph only (the loupe's early size) still reads just the header.
+                    let measured = try PreviewGenerator.decode(url, longEdge: nil, draft: false, forSizeOnly: true)
+                    #expect(measured.image.url == url)
+                }
             }
         }
     }
 
     @Test("The GPU copy renders the file's pixels, in bands that cover the photo once")
     func residentCopyIsTheFile() async throws {
-        try await RepositoryFiles.withTemporaryDirectory { folder in
-            let url = folder.appending(path: "large.tif")
-            // Wider than a band is tall at this width: several bands.
-            try SyntheticImages.write(Self.pattern(width: 3000, height: 2000).cgImageForTest(), to: url, type: .tiff)
-            let lazy = try #require(CIImage(contentsOf: url))
-            #expect(ResidentDecode.bands(of: lazy.extent).count > 1)
-            let resident = try #require(ResidentDecode.resident(lazy))
-            #expect(resident.extent == lazy.extent)
-            let engine = RenderEngine(contextCount: 1, name: "full-decode-test")
-            func values(_ image: CIImage) -> [Float] {
-                var out = [Float](repeating: 0, count: 3000 * 2000 * 4)
-                engine.withContext {
-                    $0.render(image, toBitmap: &out, rowBytes: 3000 * 16, bounds: image.extent, format: .RGBAf,
-                              colorSpace: RenderEngine.workingColorSpace)
+        try await offCooperativePool {
+            try await RepositoryFiles.withTemporaryDirectory { folder in
+                let url = folder.appending(path: "large.tif")
+                // Wider than a band is tall at this width: several bands.
+                try SyntheticImages.write(Self.pattern(width: 3000, height: 2000).cgImageForTest(), to: url, type: .tiff)
+                let lazy = try #require(CIImage(contentsOf: url))
+                #expect(ResidentDecode.bands(of: lazy.extent).count > 1)
+                let resident = try #require(ResidentDecode.resident(lazy))
+                #expect(resident.extent == lazy.extent)
+                let engine = RenderEngine(contextCount: 1, name: "full-decode-test")
+                func values(_ image: CIImage) -> [Float] {
+                    var out = [Float](repeating: 0, count: 3000 * 2000 * 4)
+                    engine.withContext {
+                        $0.render(image, toBitmap: &out, rowBytes: 3000 * 16, bounds: image.extent, format: .RGBAf,
+                                  colorSpace: RenderEngine.workingColorSpace)
+                    }
+                    return out
                 }
-                return out
+                let differing = Self.differingCount(values(resident), values(lazy))
+                #expect(differing == 0, "\(differing) values differ")
             }
-            let differing = zip(values(resident), values(lazy)).filter { $0 != $1 }.count
-            #expect(differing == 0, "\(differing) values differ")
         }
     }
 
@@ -172,42 +200,47 @@ struct ImageIOFullDecodeTests {
     /// are the same every time.
     @Test("A render of the GPU copy is the render of the file's image", arguments: ["photo.jpg", "pattern.tif"])
     func renderUnchanged(name: String) async throws {
-        try await RepositoryFiles.withTemporaryDirectory { folder in
-            let url = folder.appending(path: name)
-            if name.hasSuffix(".jpg") {
-                try SyntheticImages.writeJPEG(to: url, width: 1200, height: 800, seed: 4)
-            } else {
-                try SyntheticImages.write(Self.pattern(width: 1500, height: 1000).cgImageForTest(), to: url, type: .tiff)
-            }
-            let engine = RenderEngine(contextCount: 1, name: "full-decode-test")
-            let renderer = AdjustmentRenderer()
-            let context = RenderContext(scale: 1, isRaw: false, lens: .notRaw)
-            let file = try #require(CIImage(contentsOf: url, options: [.applyOrientationProperty: true]))
-            let decoded = try PreviewGenerator.decode(url, longEdge: nil, draft: false).image
-            #expect(decoded.url == nil)
-            func values(_ image: CIImage) -> [Float] {
-                let width = Int(image.extent.width), height = Int(image.extent.height)
-                var out = [Float](repeating: 0, count: width * height * 4)
-                engine.withContext {
-                    $0.render(image, toBitmap: &out, rowBytes: width * 16, bounds: image.extent, format: .RGBAf,
-                              colorSpace: RenderEngine.workingColorSpace)
+        try await offCooperativePool {
+            try await RepositoryFiles.withTemporaryDirectory { folder in
+                let url = folder.appending(path: name)
+                if name.hasSuffix(".jpg") {
+                    try SyntheticImages.writeJPEG(to: url, width: 1200, height: 800, seed: 4)
+                } else {
+                    try SyntheticImages.write(Self.pattern(width: 1500, height: 1000).cgImageForTest(), to: url, type: .tiff)
                 }
-                return out
-            }
-            let unedited = zip(values(file), values(decoded)).filter { $0 != $1 }.count
-            #expect(unedited == 0, "\(name), unedited: \(unedited) values differ")
+                let engine = RenderEngine(contextCount: 1, name: "full-decode-test")
+                let renderer = AdjustmentRenderer()
+                let context = RenderContext(scale: 1, isRaw: false, lens: .notRaw)
+                let file = try #require(CIImage(contentsOf: url, options: [.applyOrientationProperty: true]))
+                let decoded = try PreviewGenerator.decode(url, longEdge: nil, draft: false).image
+                #expect(decoded.url == nil)
+                func values(_ image: CIImage) -> [Float] {
+                    let width = Int(image.extent.width), height = Int(image.extent.height)
+                    var out = [Float](repeating: 0, count: width * height * 4)
+                    engine.withContext {
+                        $0.render(image, toBitmap: &out, rowBytes: width * 16, bounds: image.extent, format: .RGBAf,
+                                  colorSpace: RenderEngine.workingColorSpace)
+                    }
+                    return out
+                }
+                let unedited = Self.differingCount(values(file), values(decoded))
+                #expect(unedited == 0, "\(name), unedited: \(unedited) values differ")
 
-            var healed = Adjustments()
-            healed.spots.spots = [Spot(center: MaskPoint(x: 0.4, y: 0.6), size: 0.05, source: MaskPoint(x: 0.4, y: 0.75))]
-            for (label, stack, gain) in [("owner", Self.ownerValues, Self.ownerGain), ("heal", healed, 1.0)] {
-                let expected = try #require(engine.makeCGImage(renderer.render(stack, to: file, context: context)))
-                let actual = try #require(engine.makeCGImage(renderer.render(stack, to: decoded, context: context)))
-                let result = LiveRegionRendererTests.compare(
-                    frame: actual, whole: LiveRegionRendererTests.bytes(expected), wholeWidth: expected.width,
-                    region: CGRect(x: 0, y: 0, width: actual.width, height: actual.height)
-                ) { LiveRegionRendererTests.allowedSteps(gain: gain, encoded: $0) }
-                LiveRegionRendererTests.report("\(name), \(label)", result, pixels: actual.width * actual.height)
-                #expect(result.over == 0, "\(name), \(label): \(result.overValues)")
+                var healed = Adjustments()
+                healed.spots.spots = [Spot(center: MaskPoint(x: 0.4, y: 0.6), size: 0.05, source: MaskPoint(x: 0.4, y: 0.75))]
+                for (label, stack, gain) in [("owner", Self.ownerValues, Self.ownerGain), ("heal", healed, 1.0)] {
+                    let expected = try #require(engine.makeCGImage(renderer.render(stack, to: file, context: context)))
+                    let actual = try #require(engine.makeCGImage(renderer.render(stack, to: decoded, context: context)))
+                    // The tolerance depends on the encoded value only: worked out once per
+                    // value, not once per channel (a `pow` each, millions of them).
+                    let allowed = (0...255).map { LiveRegionRendererTests.allowedSteps(gain: gain, encoded: UInt8($0)) }
+                    let result = LiveRegionRendererTests.compare(
+                        frame: actual, whole: LiveRegionRendererTests.bytes(expected), wholeWidth: expected.width,
+                        region: CGRect(x: 0, y: 0, width: actual.width, height: actual.height)
+                    ) { allowed[Int($0)] }
+                    LiveRegionRendererTests.report("\(name), \(label)", result, pixels: actual.width * actual.height)
+                    #expect(result.over == 0, "\(name), \(label): \(result.overValues)")
+                }
             }
         }
     }
@@ -231,6 +264,14 @@ struct ImageIOFullDecodeTests {
         let over = CIImage(color: CIColor(red: 0.5, green: 0.5, blue: 0.5))
             .cropped(to: CGRect(x: 0, y: 0, width: 10000, height: 10001))
         #expect(ResidentDecode.resident(over) == nil)
+    }
+
+    @Test("The value comparison counts every differing value, as Float compares them")
+    func differingCountCountsEveryDifference() {
+        #expect(Self.differingCount([], []) == 0)
+        #expect(Self.differingCount([1, 2, 3, 4], [1, 2, 3, 4]) == 0)
+        #expect(Self.differingCount([1, 2, 3, 4], [0, 2, 3, 5]) == 2)
+        #expect(Self.differingCount([0, .nan], [-0, .nan]) == 1)
     }
 
     @Test("Bands cover the extent top first, without gaps or overlaps")
@@ -262,25 +303,27 @@ struct ImageIOFullDecodeTests {
     /// review second pass).
     @Test("An EXIF orientation is still applied to the full-size decode")
     func fullDecodeIsOriented() async throws {
-        try await RepositoryFiles.withTemporaryDirectory { folder in
-            let url = folder.appending(path: "turned.jpg")
-            try SyntheticImages.writeJPEG(to: url, width: 640, height: 480, seed: 4,
-                                          exif: SyntheticImages.Exif(orientation: 6))
-            let decoded = try PreviewGenerator.decode(url, longEdge: nil, draft: false)
-            let reference = try #require(CIImage(contentsOf: url, options: [.applyOrientationProperty: true]))
-            #expect(decoded.image.extent == reference.extent)
-            #expect(decoded.image.extent.size == CGSize(width: 480, height: 640))
-            let engine = RenderEngine(contextCount: 1, name: "full-decode-test")
-            func values(_ image: CIImage) -> [Float] {
-                var out = [Float](repeating: 0, count: 480 * 640 * 4)
-                engine.withContext {
-                    $0.render(image, toBitmap: &out, rowBytes: 480 * 16, bounds: image.extent, format: .RGBAf,
-                              colorSpace: RenderEngine.workingColorSpace)
+        try await offCooperativePool {
+            try await RepositoryFiles.withTemporaryDirectory { folder in
+                let url = folder.appending(path: "turned.jpg")
+                try SyntheticImages.writeJPEG(to: url, width: 640, height: 480, seed: 4,
+                                              exif: SyntheticImages.Exif(orientation: 6))
+                let decoded = try PreviewGenerator.decode(url, longEdge: nil, draft: false)
+                let reference = try #require(CIImage(contentsOf: url, options: [.applyOrientationProperty: true]))
+                #expect(decoded.image.extent == reference.extent)
+                #expect(decoded.image.extent.size == CGSize(width: 480, height: 640))
+                let engine = RenderEngine(contextCount: 1, name: "full-decode-test")
+                func values(_ image: CIImage) -> [Float] {
+                    var out = [Float](repeating: 0, count: 480 * 640 * 4)
+                    engine.withContext {
+                        $0.render(image, toBitmap: &out, rowBytes: 480 * 16, bounds: image.extent, format: .RGBAf,
+                                  colorSpace: RenderEngine.workingColorSpace)
+                    }
+                    return out
                 }
-                return out
+                let differing = Self.differingCount(values(decoded.image), values(reference))
+                #expect(differing == 0, "\(differing) values differ")
             }
-            let differing = zip(values(decoded.image), values(reference)).filter { $0 != $1 }.count
-            #expect(differing == 0, "\(differing) values differ")
         }
     }
 
@@ -303,33 +346,35 @@ struct ImageIOFullDecodeTests {
           .enabled(if: ProcessInfo.processInfo.environment["LARGE_RENDER_TESTS"] == "1",
                    "Set LARGE_RENDER_TESTS=1 to run: 20 MP renders the CI runners' GPU can't do"))
     func largeRenderKeepsItsParts() async throws {
-        try await RepositoryFiles.withTemporaryDirectory { folder in
-            let url = folder.appending(path: "IMG_1.tif")
-            try Self.writeLargeTIFF(to: url)
-            var exposureOnly = Adjustments()
-            exposureOnly.exposure.ev = 1.05
-            var first: [[UInt8]]?
-            var swapped = 0, unlike = 0
-            for _ in 0..<4 {
-                let generator = PreviewGenerator(engine: RenderEngine(contextCount: 1, name: "full-decode-test"))
-                _ = try generator.cgImage(source: url, stack: exposureOnly.editStack)
+        try await offCooperativePool {
+            try await RepositoryFiles.withTemporaryDirectory { folder in
+                let url = folder.appending(path: "IMG_1.tif")
+                try Self.writeLargeTIFF(to: url)
+                var exposureOnly = Adjustments()
+                exposureOnly.exposure.ev = 1.05
+                var first: [[UInt8]]?
+                var swapped = 0, unlike = 0
                 for _ in 0..<4 {
-                    let image = try generator.cgImage(source: url, stack: Self.ownerValues.editStack)
-                    #expect(image.width == Self.width && image.height == Self.height)
-                    let red = Self.sampledRed(image)
-                    if Self.leftHalfRepeatsRight(red) { swapped += 1 }
-                    if let first {
-                        let differs = zip(red, first).contains { row, firstRow in
-                            zip(row, firstRow).contains { abs(Int($0) - Int($1)) > 2 }
+                    let generator = PreviewGenerator(engine: RenderEngine(contextCount: 1, name: "full-decode-test"))
+                    _ = try generator.cgImage(source: url, stack: exposureOnly.editStack)
+                    for _ in 0..<4 {
+                        let image = try generator.cgImage(source: url, stack: Self.ownerValues.editStack)
+                        #expect(image.width == Self.width && image.height == Self.height)
+                        let red = Self.sampledRed(image)
+                        if Self.leftHalfRepeatsRight(red) { swapped += 1 }
+                        if let first {
+                            let differs = zip(red, first).contains { row, firstRow in
+                                zip(row, firstRow).contains { abs(Int($0) - Int($1)) > 2 }
+                            }
+                            if differs { unlike += 1 }
+                        } else {
+                            first = red
                         }
-                        if differs { unlike += 1 }
-                    } else {
-                        first = red
                     }
                 }
+                #expect(swapped == 0, "\(swapped) of 16 renders showed the right half on the left")
+                #expect(unlike == 0, "\(unlike) of 15 renders differed from the first")
             }
-            #expect(swapped == 0, "\(swapped) of 16 renders showed the right half on the left")
-            #expect(unlike == 0, "\(unlike) of 15 renders differed from the first")
         }
     }
 }

@@ -8,9 +8,11 @@ Owner: swift-macos-engineer. Bug fix (no PRD or design, `docs/WORKFLOW.md`
 the owner found the bug at sign-off; it is cherry-picked here as `390cb83` and
 made independent of that branch.
 
-**Status: Done** (2026-11-21, again after code review C1 to C4 and the flaky
-orientation test; see Review findings). Next: code-reviewer's second pass, then
-qa-tester. No UI changed, so no design review.
+**Status: Done** (2026-11-22, again after the pull request's CI failure; see
+CI). Next: code-reviewer's pass on the CI fix (tests only: no behavior, so no
+QA or owner check needed unless the reviewer says otherwise). Earlier: Done
+2026-11-21 after code review C1 to C4 and the flaky orientation test (Review
+findings), reviewed, QA'd and signed off. No UI changed, so no design review.
 
 States: Not started · In progress · Done · Blocked · Deferred.
 
@@ -210,6 +212,13 @@ ImageIO decodes", `.serialized`: each render holds a 20 MP photo):
 - `fullDecodeIsOriented`: an EXIF-rotated JPEG decodes to Core Image's own
   reading of it, compared in float in the working space (was 8-bit Display P3:
   flaky, see Review findings).
+- `differingCountCountsEveryDifference`: the float comparison the suite uses
+  (`differingCount`, added by the CI fix) counts every differing value, as
+  Float's `!=` does (−0 equals 0, NaN differs from NaN).
+
+Every test of this suite and of `LensAlignStaleAreaTests` that renders runs its
+body through `offCooperativePool` (CI fix, see CI), and
+`Tests/PhotoCoreTests/BlockingWorkTests.swift` checks that helper.
 
 Changed: `LensAlignStaleAreaTests.tileSeesTheInputArea`'s JPEG case (#228's
 guard) asserted that the pipeline's full-size JPEG could show a stale input
@@ -245,6 +254,14 @@ under `MemoryHeavy` there if wanted.
   `startTask(toRender:from:to:at:)`, `CIImage(mtlTexture:options:)`,
   `.rgba32Float`) are macOS 10.13 or older, and `LiveRegionRenderer` already
   used them on `develop`.
+- After the CI fix (2026-11-22, see CI): `swift build --build-tests` clean (the
+  two older warnings only). Full `swift test` twice: 1337 tests in 191 suites
+  passed (95.1 s, 95.9 s). With the copy turned off (scratch edit, not
+  committed) the guards still fail as before (`fullDecodeIsResident`,
+  `renderUnchanged` both files, `tileSeesTheInputArea` JPEG case: 5 issues),
+  so issues raised off the cooperative pool still reach their tests.
+  `LARGE_RENDER_TESTS=1 swift test --filter ImageIOFullDecodeTests`: 8 of 8
+  passed (the soak 9.5 s). `Scripts/build-app.sh all`: both bundles build.
 - Affected suites (`ImageIOFullDecodeTests`, `LensAlignStaleAreaTests`,
   `LiveRegionRendererTests`, `SpotTests`): 47 tests in 6 suites passed.
 - After the review fixes (2026-11-21): `swift build --build-tests` clean (the
@@ -271,6 +288,78 @@ under `MemoryHeavy` there if wanted.
   copied file: the unfixed bundle showed the seam on 8 of 8 zooms, the fixed
   one on none, all eight snapshots byte for byte the same. For QA: the Bug
   section's step 1 with the window active.
+
+## CI
+
+**What failed.** PR #256's CI (run 44992559236, and its rerun), macOS 15 and
+macOS 26: one test, `WorkLaneTests.cancellingTheLastWaiterCancelsTheJob`
+(`PreviewTests.swift:371` "an error was expected but none was thrown" and
+`:373` `sawCancellation`; on macOS 26 only `:373`). Neither the test nor
+`WorkLane` is touched by this branch, and `develop`'s CI (run 44934276425)
+passed. The test's job sleeps 10 s and expects to be cancelled first; the
+cancellation needs about six hops through Swift concurrency's cooperative pool
+(the test resuming, the lane actor's `cancelWaiter` tasks, the job). It failed
+because more than 10 s went by before those hops ran: the job's sleep ended
+normally.
+
+**Why: tests blocking the cooperative pool.** The pool has one thread per core
+(three on the CI runners) and Swift Testing runs all 1335 tests in parallel on
+it, so a test that blocks a pool thread for seconds holds back every other
+test's continuations. Evidence:
+- The starvation exists on `develop` too: there this test took 221 s and 242 s
+  from start to end, and trivial tests 200 s or more. In all four runs
+  (`develop` and this branch, both systems) it finished within 0.1 s to 3 s
+  of the end of `LensAlignStaleAreaTests` (`jpegDragInOneContext`, 7 to 11 s
+  on CI): its last hops waited on the serialized suites' renders. On `develop`
+  it made the 10 s with little room.
+- On this branch the serialized `ImageIOFullDecodeTests` ran beside that tail:
+  `residentCopyIsTheFile` 12.6 s and 9.8 s on CI, `renderUnchanged` 22.4 s and
+  12.2 s, each holding one pool thread from start to end (their bodies are
+  synchronous after the first `await`).
+- Reproduced here with the pool narrowed to about three threads (a scratch
+  probe test held 11 of the 14 pool threads with high-priority blocking tasks;
+  `sample` of the test process every 2 s; event stream of test start and end
+  times; not committed): the job's sleep to `running.cancel()` took 7.9 s and
+  6.1 s in two runs (1.2 s with the whole pool), and in the first run it ended
+  0.02 s after `residentCopyIsTheFile` and `dragInOneContext` ended, as on CI.
+  A high-priority probe waited up to 4.4 s for any pool thread. The samples
+  over the stall show `residentCopyIsTheFile` on a pool thread the whole time,
+  in `zip(values(resident), values(lazy)).filter { $0 != $1 }.count`:
+  unspecialized generic code per value in a debug build, over 24 million
+  floats (4.2 s of the test's 4.3 s on an idle machine).
+- `ResidentDecode` itself is not the cause: across the full suite it made 101
+  copies taking 0.47 s in all (at most 57 ms each, at most five at once), and
+  no sample over a stall showed it.
+
+**The fix (tests only).**
+- `Tests/PhotoCoreTests/Support/BlockingWork.swift` (new): `offCooperativePool`
+  runs a body with a task executor preference for `BlockingWorkExecutor`, a
+  concurrent Dispatch queue (`withTaskExecutorPreference`, `TaskExecutor`,
+  macOS 15, SE-0417). The body's nonisolated code then runs on Dispatch threads,
+  never on a pool thread, and stays in the test's task, so `#expect` and
+  `#require` report to its test as before (checked: with the copy turned off
+  the guards still fail). `BlockingWorkTests` checks the queue, across an
+  await, the task, and that errors pass through.
+- Every rendering test of `ImageIOFullDecodeTests` and
+  `LensAlignStaleAreaTests` runs its body through it (the three tests of the
+  latter became `async`; their assertions are unchanged).
+- `ImageIOFullDecodeTests.differingCount`: the same count of differing
+  values (`!=`) in a loop over raw pointers. `residentCopyIsTheFile` 4.2 s to
+  0.2 s here. `renderUnchanged` works out its tolerance once per 8-bit value
+  (`allowedSteps` for 0 to 255, then a table) instead of once per channel:
+  the same values; 4.2 s to 2.1 s (the rest is `LiveRegionRendererTests.compare`,
+  left as it is).
+- Not changed: `WorkLane`, its test, `ResidentDecode`, any assertion, tolerance
+  or image size.
+
+**Measured after the fix**, same narrowed pool: the job's sleep to
+`running.cancel()` 2.2 s; the high-priority probe waited at most 2.75 s (the
+other suites' renders, as on `develop`); and the samples show no frame of
+either suite on a pool thread (943 sampled 5 ms intervals on pool threads
+before, 0 after, 288 on the blocking-work queue). One run each, so noisy; CI is
+the real check. Other suites still block the pool (`MaskDetectionTests`,
+`ColorAlignmentTests`, `DeferredRenderTests` and more appeared in the samples):
+older than this branch (proposed follow-up below).
 
 ## Not verified
 
@@ -310,6 +399,22 @@ resampling of straightened full-size renders).
   soak like `RAW_CONTEXT_SOAK`); if Core Image no longer splits wrongly,
   `ResidentDecode` can go and the linear resampling of straightened non-raw
   renders can be reconsidered.
+- **Tests that block Swift concurrency's cooperative pool** (`bug`, tests
+  only). Body: Swift Testing runs every test in parallel on the cooperative
+  pool (three threads on the CI runners). Many suites block a pool thread for
+  seconds with synchronous Core Image renders that wait for the GPU, Vision
+  requests or large comparisons in a debug build (seen in samples:
+  `MaskDetectionTests`, `ColorAlignmentTests.everyRenderAppliesTheStoredCorrection`,
+  `DeferredRenderTests`, `LiveRegionRendererTests`, `SpotTests`), so on CI
+  trivial tests take 200 s from start to end, and any test that needs its
+  continuations to run within a time limit is at risk:
+  `WorkLaneTests.cancellingTheLastWaiterCancelsTheJob` (10 s) failed on PR
+  #256 and made it on `develop` with little room (bug #253, status.md "CI").
+  Run the heavy suites' bodies through `offCooperativePool`
+  (`Tests/PhotoCoreTests/Support/BlockingWork.swift`), or make the WorkLane
+  test independent of wall time (its job could wait on a gate that only
+  cancellation ends, instead of a 10 s sleep), and make
+  `LiveRegionRendererTests.compare` cheaper in debug builds.
 
 ## Review findings
 
@@ -325,6 +430,7 @@ review (a flaky test, #150's `code-review.md`):
 | Q2 | "The one render change" names Straighten only | **Fixed** in the wording, then measured by QA (`qa.md` Q2): Manual Distortion ±30 unchanged (at most 1 level), Manual Color Alignment (red +20, blue −20) at most 4 levels in 0.03% of values. |
 | QA Q1 | "Export resize at most one step" holds only without Straighten | **Fixed** in the wording: Straighten plus an export resize, up to 22 to 24 levels in 16% to 17% of values on a dense checker, no halo (`qa.md` Q1). |
 | F (hdr-merge review) | `fullDecodeIsOriented` failed once in a full run (bytes differ), passed alone | **Fixed.** Not timing, shared GPU state or the parallel suites: the test compared two different Core Image graphs in 8-bit Display P3. Over the file, Core Image builds the conversion to the output from the file's encoding; over the copy, from linear floats. The two programs round a value near a level boundary differently now and then. Measured (scratch probe, not committed): of eight synthetic EXIF-6 JPEGs (seeds 1 to 8, 640 to 752 pixels wide), five differed from the copy's render in exactly one byte by one level in four runs and all eight in another, the same run after run within a process, serial or eight at once; the copy and the file rendered twice each were stable, and the **float values in the working space were equal in every case**. Which files round differently varies between processes, which is why seed 4 passed alone and failed once in a long run. The test now compares the working-space floats (as `residentCopyIsTheFile` and `renderUnchanged`' unedited case do): exact, no tolerance, and still the claim (the orientation and the copy's values). No sleep, no serialization needed. |
+| CI | PR #256: `WorkLaneTests.cancellingTheLastWaiterCancelsTheJob` failed on macOS 15 and 26, twice | **Fixed** in the branch's tests (see CI): the full-size decode and lens-align suites ran their renders and a 24-million-value generic comparison on cooperative pool threads, which on CI's three threads held back that test's cancellation past its 10 s. Their bodies now run off the pool (`offCooperativePool`), and the comparisons are cheaper. `WorkLane`, its test, `ResidentDecode` and every assertion unchanged. |
 
 ## Open questions
 
