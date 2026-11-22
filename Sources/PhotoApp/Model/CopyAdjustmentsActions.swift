@@ -121,8 +121,10 @@ extension LibraryModel {
     func pasteAdjustments() {
         guard let copied = copiedAdjustments else { return }
         let actionName = String(localized: "Paste Adjustments", comment: "Undo action name")
-        // Asks first when it moves the frame of photos with masks or spots (lens-corrections design §6).
-        confirmingLensFrameChange(actionName: actionName, { copied.pasted(onto: $0) }) { [self] targets in
+        // Asks first when it moves the frame of photos that have masks or spots
+        // (lens-corrections design §6; R7): the target's own, not the spots the
+        // paste brings (code review C1).
+        confirmingLensFrameChange(actionName: actionName, { copied.pastedForFrameQuestion(onto: $0) }) { [self] targets in
             if copied.includesSpots {
                 pasteMeasuringSpotFrames(copied, actionName: actionName, targets: targets)
             } else if copied.values.needsAlignmentMeasurement {
@@ -137,20 +139,39 @@ extension LibraryModel {
     }
 
     /// A paste that carries Spots (R8): each photo's frame is measured from
-    /// its master's header first, in Activity with Stop, and its spots are
-    /// replaced only when the frame has the size of the one they were copied
-    /// from; the other copied items apply to every photo. Then, after the
-    /// change has landed, one warning says how many photos kept their own
-    /// spots (design §5.1).
+    /// its master first, and its spots are replaced only when the frame has
+    /// the size of the one they were copied from; the other copied items
+    /// apply to every photo. Then, after the change has landed, at most two
+    /// warnings say how many of the photos it wrote kept their own spots, and
+    /// why (design §5.1, §15 DQ-1).
+    ///
+    /// One photo (the loupe's, or one selected) is measured on the write
+    /// chain, so its undo step is registered before this returns (code
+    /// review C4). Several are measured before the write, four at a time, in
+    /// Activity with Stop; ⌘Z during that read undoes the step before the
+    /// paste (the measuring paste's known limit, lens-corrections).
     private func pasteMeasuringSpotFrames(_ copied: CopiedAdjustments, actionName: String, targets: [CatalogItem]) {
         let ids = batchSelection(action: actionName, targets: targets).versionIDs
         guard !ids.isEmpty else { return }
         let byID = Dictionary(targets.map { ($0.versionID, $0) }, uniquingKeysWith: { first, _ in first })
-        let photos = ids.compactMap { byID[$0] }
         let masters = ids.map { ($0, byID[$0].flatMap(sourceURL(for:))) }
-        let measuresAlignment = copied.values.needsAlignmentMeasurement
-        // Offline photos: the measuring paste leaves them out whole and says so itself.
-        let offline = Set(photos.filter(isOffline).map(\.versionID))
+        let report: @MainActor (SpotPastePlan, Set<Int64>) -> Void = { [weak self] plan, written in
+            self?.reportSpotsLeftOut(plan.reaching(written), actionName: actionName)
+        }
+        if ids.count == 1, !copied.values.needsAlignmentMeasurement {
+            let planned = Pending<SpotPastePlan>()
+            changeAdjustments(ofVersions: ids, actionName: actionName, preparing: {
+                // Nil only when cancelled: then no frame is known and the photo keeps its spots.
+                let plan = await Self.spotPastePlan(copied, masters: masters)
+                    ?? SpotPastePlan(ids: ids, sourceFrame: nil, frames: [:])
+                planned.value = plan
+                return Self.spotPaste(copied, plan)
+            }, then: { written in
+                if let plan = planned.value { report(plan, written) }
+            })
+            return
+        }
+        let photos = ids.compactMap { byID[$0] }
         batchAutoTask?.cancel()
         let run = batchAutoRun.begin()
         setBatchAutoProgress((0, ids.count), title: actionName)
@@ -161,46 +182,59 @@ extension LibraryModel {
                     batchAutoTask = nil
                 }
             }
-            let source = copied.sourceURL
-            let sourceFrame = await Task.detached(priority: .userInitiated) {
-                source.flatMap(PreviewGenerator.maskFrameSize)
-            }.value
-            var frames: [Int64: CGSize] = [:]
-            var done = 0
-            // Without the source's size no photo can match: nothing to read.
-            let reads = sourceFrame == nil ? [] : masters
-            for chunk in stride(from: 0, to: reads.count, by: 4).map({ Array(reads[$0..<min($0 + 4, reads.count)]) }) {
-                guard !Task.isCancelled, batchAutoRun.owns(run) else { return }
-                await withTaskGroup(of: (Int64, CGSize?).self) { group in
-                    for (id, url) in chunk {
-                        group.addTask { (id, url.flatMap(PreviewGenerator.maskFrameSize)) }
-                    }
-                    for await (id, size) in group { frames[id] = size }
-                }
-                done += chunk.count
-                guard batchAutoRun.owns(run) else { return }
+            let plan = await Self.spotPastePlan(copied, masters: masters) { [self] done in
+                guard batchAutoRun.owns(run) else { return false }
                 setBatchAutoProgress((done, ids.count), title: actionName)
+                return true
             }
-            guard !Task.isCancelled, batchAutoRun.owns(run) else { return }
-            let outcome = SpotPastePlan(ids: ids.filter { !measuresAlignment || !offline.contains($0) },
-                                           sourceFrame: sourceFrame, frames: frames)
-            let matching = outcome.matching
-            let transform: @Sendable (Int64, Adjustments) -> Adjustments = { id, values in
-                copied.pasted(onto: values, pastingSpots: matching.contains(id))
-            }
-            let reportLeftOut: @MainActor () -> Void = { [self] in
-                afterPendingWrites { model in model.reportSpotsLeftOut(outcome, actionName: actionName) }
-            }
-            if measuresAlignment {
-                changeAdjustmentsMeasuringAlignment(actionName: actionName, targets: photos, then: reportLeftOut, transform)
+            guard let plan, !Task.isCancelled, batchAutoRun.owns(run) else { return }
+            let transform = Self.spotPaste(copied, plan)
+            if copied.values.needsAlignmentMeasurement {
+                changeAdjustmentsMeasuringAlignment(actionName: actionName, targets: photos,
+                                                    then: { report(plan, $0) }, transform)
             } else {
-                changeAdjustments(ofVersions: ids, actionName: actionName, transform)
-                reportLeftOut()
+                changeAdjustments(ofVersions: ids, actionName: actionName, then: { report(plan, $0) }, transform)
             }
         }
     }
 
-    /// One warning per paste for the photos that kept their own spots.
+    /// Each photo gets the copied items, and the spots when its frame matched.
+    private static func spotPaste(_ copied: CopiedAdjustments,
+                                  _ plan: SpotPastePlan) -> @Sendable (Int64, Adjustments) -> Adjustments {
+        let matching = plan.matching
+        return { id, values in copied.pasted(onto: values, pastingSpots: matching.contains(id)) }
+    }
+
+    /// Measures the source's frame and each master's, off the main actor,
+    /// four at a time. `progress` gets the count read after each four and
+    /// ends the read by returning false (then the result is nil). Without
+    /// the source's size no photo can match, and nothing else is read.
+    private static func spotPastePlan(_ copied: CopiedAdjustments, masters: [(Int64, URL?)],
+                                      progress: (@MainActor (Int) -> Bool)? = nil) async -> SpotPastePlan? {
+        let source = copied.sourceURL
+        let sourceFrame = await Task.detached(priority: .userInitiated) {
+            source.flatMap(PreviewGenerator.maskFrameSize)
+        }.value
+        var frames: [Int64: CGSize] = [:]
+        var done = 0
+        let reads = sourceFrame == nil ? [] : masters
+        for chunk in stride(from: 0, to: reads.count, by: 4).map({ Array(reads[$0..<min($0 + 4, reads.count)]) }) {
+            guard !Task.isCancelled else { return nil }
+            await withTaskGroup(of: (Int64, CGSize?).self) { group in
+                for (id, url) in chunk {
+                    group.addTask { (id, url.flatMap(PreviewGenerator.maskFrameSize)) }
+                }
+                for await (id, size) in group { frames[id] = size }
+            }
+            done += chunk.count
+            if let progress, !progress(done) { return nil }
+        }
+        return SpotPastePlan(ids: masters.map(\.0), sourceFrame: sourceFrame, frames: frames)
+    }
+
+    /// At most two warnings per paste for the photos that kept their own
+    /// spots: the size differs first, then the size could not be read
+    /// (design §15 DQ-1).
     private func reportSpotsLeftOut(_ outcome: SpotPastePlan, actionName: String) {
         if outcome.otherSize > 0 {
             report(CopyAdjustmentsText.spotsOtherSize(outcome.otherSize), action: actionName, warning: true)

@@ -220,6 +220,16 @@ public struct CopiedAdjustments: Hashable, Sendable {
         return result
     }
 
+    /// The paste as the lens frame question sees it (R7, design §5.2, code
+    /// review C1): the copied items with the target's own spots kept. The
+    /// question asks about targets that already have spots or masks; spots
+    /// the paste brings come with the source's frame and corrections, and a
+    /// target of another size never gets them (R8). The lens change is the
+    /// same as the real paste's.
+    public func pastedForFrameQuestion(onto target: Adjustments) -> Adjustments {
+        pasted(onto: target, pastingSpots: false)
+    }
+
     /// Whether spots copied from a frame of `sourceFrame` go onto a photo
     /// whose frame is `targetFrame` (R8): both known and the same size,
     /// in whole pixels. No remapping to another size or orientation.
@@ -230,26 +240,51 @@ public struct CopiedAdjustments: Hashable, Sendable {
     }
 }
 
-/// Which photos of a paste get the copied spots (R8), and how many keep
-/// their own and why.
+/// Which photos of a paste get the copied spots (R8), and which keep their
+/// own and why.
 public struct SpotPastePlan: Hashable, Sendable {
     public let matching: Set<Int64>
     /// Photos whose frame has another size than the source's.
-    public let otherSize: Int
+    public let otherSizeIDs: Set<Int64>
     /// Photos whose frame, or the source's, could not be read (an offline or
     /// unreadable master).
-    public let unknownSize: Int
+    public let unknownSizeIDs: Set<Int64>
+
+    public var otherSize: Int { otherSizeIDs.count }
+    public var unknownSize: Int { unknownSizeIDs.count }
 
     /// - Parameters:
     ///   - ids: The photos the paste reaches.
     ///   - sourceFrame: The frame the spots were copied from, nil when unknown.
     ///   - frames: Each photo's frame; a missing one is unknown.
     public init(ids: [Int64], sourceFrame: CGSize?, frames: [Int64: CGSize]) {
-        let matching = Set(ids.filter { CopiedAdjustments.pastesSpots(sourceFrame: sourceFrame, targetFrame: frames[$0]) })
+        var matching = Set<Int64>(), other = Set<Int64>(), unknown = Set<Int64>()
+        for id in ids {
+            if CopiedAdjustments.pastesSpots(sourceFrame: sourceFrame, targetFrame: frames[id]) {
+                matching.insert(id)
+            } else if sourceFrame != nil, frames[id] != nil {
+                other.insert(id)
+            } else {
+                unknown.insert(id)
+            }
+        }
+        self.init(matching: matching, otherSizeIDs: other, unknownSizeIDs: unknown)
+    }
+
+    private init(matching: Set<Int64>, otherSizeIDs: Set<Int64>, unknownSizeIDs: Set<Int64>) {
         self.matching = matching
-        let known = sourceFrame == nil ? [] : ids.filter { frames[$0] != nil }
-        otherSize = known.filter { !matching.contains($0) }.count
-        unknownSize = ids.count - matching.count - otherSize
+        self.otherSizeIDs = otherSizeIDs
+        self.unknownSizeIDs = unknownSizeIDs
+    }
+
+    /// The plan for the photos the change wrote (`written`) only (code
+    /// review C3): a photo the change never reached (its stack unreadable by
+    /// this build, its original unreadable for a measured Color Alignment, or
+    /// offline then) is reported once, by what left it out, and is not also
+    /// counted as keeping its spots.
+    public func reaching(_ written: Set<Int64>) -> SpotPastePlan {
+        SpotPastePlan(matching: matching.intersection(written), otherSizeIDs: otherSizeIDs.intersection(written),
+                      unknownSizeIDs: unknownSizeIDs.intersection(written))
     }
 }
 

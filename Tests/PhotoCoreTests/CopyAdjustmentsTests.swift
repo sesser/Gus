@@ -321,7 +321,60 @@ struct CopyAdjustmentsTests {
         #expect(all.matching == [1] && all.otherSize == 0 && all.unknownSize == 0)
     }
 
-    @Test("R8: the frame size is the oriented decode of the whole sensor, read from the header")
+    @Test("C3: a photo the change never wrote is not counted as keeping its spots")
+    func spotPastePlanReachesWrittenPhotosOnly() {
+        let frame = CGSize(width: 300, height: 200)
+        let plan = SpotPastePlan(ids: [1, 2, 3, 4, 5], sourceFrame: frame,
+                                 frames: [1: frame, 2: CGSize(width: 200, height: 300), 3: CGSize(width: 10, height: 10),
+                                          5: frame])
+        #expect(plan.otherSize == 2 && plan.unknownSize == 1)
+        // 3 (another size) had an unreadable stack and 4 (no size) an unreadable original: neither was written.
+        let written = plan.reaching([1, 2, 5])
+        #expect(written.matching == [1, 5] && written.otherSizeIDs == [2] && written.unknownSize == 0)
+        #expect(plan.reaching([]).otherSize == 0 && plan.reaching([]).unknownSize == 0)
+    }
+
+    // MARK: R7: the lens frame question
+
+    /// A source with two spots and Manual Distortion; `target`'s stack as the catalog holds it.
+    static func frameQuestion(target: Adjustments, items: Set<CopyItem>) -> [LensFrameQuestion.Candidate] {
+        var source = Adjustments()
+        source.spots.spots = [spot(1), spot(2)]
+        source.distortion = LensDistortion(isOn: true, source: .manual, amount: 10)
+        let copied = CopiedAdjustments(source, items: items)
+        return LensFrameQuestion.candidates([7: target.editStack], transform: copied.pastedForFrameQuestion,
+                                            open: nil, openAnswer: nil)
+    }
+
+    static func movesFrame(_ candidate: LensFrameQuestion.Candidate) -> Bool {
+        LensCorrectionPlan(candidate.before.effective, lens: nil)
+            .movesFrame(comparedWith: LensCorrectionPlan(candidate.after.effective, lens: nil))
+    }
+
+    @Test("C1: Spots and Distortion pasted onto a photo with no spots or masks don't ask the frame question")
+    func frameQuestionIgnoresPastedSpots() {
+        // The spots the paste brings come with the source's Distortion: nothing of the target's moves.
+        #expect(Self.frameQuestion(target: Adjustments(), items: [.group(.spots), .group(.distortion)]).isEmpty)
+        // Copying Distortion alone asks nothing either, as before.
+        #expect(Self.frameQuestion(target: Adjustments(), items: [.group(.distortion)]).isEmpty)
+    }
+
+    @Test("C1: a target with its own spot or mask is asked about, whatever the paste brings")
+    func frameQuestionCountsTheTargetsOwn() throws {
+        var spotted = Adjustments()
+        spotted.spots.spots = [Self.spot(9, x: 0.8)]
+        var masked = Adjustments()
+        masked.local.masks = [Mask(name: "Sky")]
+        for target in [spotted, masked] {
+            let candidates = Self.frameQuestion(target: target, items: [.group(.spots), .group(.distortion)])
+            let candidate = try #require(candidates.first)
+            #expect(candidates.count == 1 && Self.movesFrame(candidate))
+            // As the question sees it, the target keeps its own spots.
+            #expect(candidate.after.spots == target.spots && candidate.after.local == target.local)
+        }
+    }
+
+    @Test("R8: the frame size is the oriented decode of the whole sensor, measured without a decode")
     func maskFrameSizeMatchesTheDecode() async throws {
         try await offCooperativePool {
             try await RepositoryFiles.withTemporaryDirectory { folder in

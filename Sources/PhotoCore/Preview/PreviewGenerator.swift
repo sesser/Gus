@@ -184,8 +184,12 @@ public struct PreviewGenerator: Sendable {
     /// camera crop undone, `CameraFrame`), before turns, straightening and
     /// crop. The Lens heading's corrections keep that frame's size
     /// (`LensCorrectionRenderer` crops its result to its input), so this is
-    /// the size after any paste too. Read from the file's header; nothing is
-    /// decoded. Nil when no decoder reads the file.
+    /// the size after any paste too. Nothing is decoded: only the decoder's
+    /// output extent is asked for. Most files are read as far as their
+    /// headers, but an Olympus, OM System or Panasonic raw with a camera
+    /// crop is read whole into memory (`CameraFrame.fullFrameFilter` patches
+    /// a copy of its bytes; tens of megabytes; code review C2). Nil when no
+    /// decoder reads the file.
     public static func maskFrameSize(of url: URL) -> CGSize? {
         if SupportedFormats.isRaw(pathExtension: url.pathExtension) {
             // The decoders in `rawImage`'s order: the system's for the whole

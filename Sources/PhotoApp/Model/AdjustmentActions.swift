@@ -23,10 +23,11 @@ extension LibraryModel {
     }
 
     /// As above, with each version's id, for changes that differ per photo
-    /// (a paste's spots, #243 R8). `then` runs once the change is handed to
-    /// the write chain; never when Stop or a newer command ended the measuring.
+    /// (a paste's spots, #243 R8). `then` runs after the write, with the
+    /// versions it wrote; never when Stop or a newer command ended the
+    /// measuring.
     func changeAdjustmentsMeasuringAlignment(actionName: String, toolbarTitle: String? = nil, targets: [CatalogItem]? = nil,
-                                             then: (@MainActor () -> Void)? = nil,
+                                             then: (@MainActor (_ written: Set<Int64>) -> Void)? = nil,
                                              _ transform: @escaping @Sendable (Int64, Adjustments) -> Adjustments) {
         let selection = batchSelection(action: actionName, targets: targets, needsMaster: { _ in true })
         let sources = selection.versionIDs.compactMap { id -> (Int64, URL, String)? in
@@ -88,12 +89,12 @@ extension LibraryModel {
             // Only when the open photo is itself one whose original could not be read (code review C15).
             if opensTarget(), let open = editor.item?.versionID, measured.failed(open) { editor.noteAlignmentMeasureFailed() }
             let alignments = measured.alignments
-            changeAdjustments(ofVersions: measured.versionsToChange(from: sources.map(\.0)), actionName: actionName) { id, values in
+            changeAdjustments(ofVersions: measured.versionsToChange(from: sources.map(\.0)), actionName: actionName,
+                              then: then) { id, values in
                 let changed = transform(id, values)
                 guard changed.needsAlignmentMeasurement, let alignment = alignments[id] else { return changed }
                 return changed.measuringAlignment(alignment)
             }
-            then?()
         }
     }
 
@@ -128,7 +129,21 @@ extension LibraryModel {
     /// R10): a file that is not RAW gets the other values, and an Activity
     /// row says how many were left without it.
     func changeAdjustments(ofVersions ids: [Int64], actionName: String,
+                           then: (@MainActor (_ written: Set<Int64>) -> Void)? = nil,
                            _ transform: @escaping @Sendable (Int64, Adjustments) -> Adjustments) {
+        changeAdjustments(ofVersions: ids, actionName: actionName, preparing: { transform }, then: then)
+    }
+
+    /// As above, with the change worked out on the write chain just before it
+    /// is written (`prepare` may read files). The undo step is registered
+    /// before this returns and the chain runs it after the change, so ⌘Z at
+    /// once undoes this change, never the one before it (#243 code review
+    /// C4). `prepare` holds back every later save while it runs: keep it to
+    /// a few quick reads. `then` runs after the write with the versions it
+    /// wrote (stacks this build can't read are skipped and reported).
+    func changeAdjustments(ofVersions ids: [Int64], actionName: String,
+                           preparing prepare: @escaping @MainActor () async -> @Sendable (Int64, Adjustments) -> Adjustments,
+                           then: (@MainActor (_ written: Set<Int64>) -> Void)? = nil) {
         guard !ids.isEmpty else { return }
         let change = Pending<(before: [Int64: EditStack], after: [Int64: EditStack])>()
         let skipped = Pending<Int>()
@@ -136,13 +151,14 @@ extension LibraryModel {
         let label = HistoryText.label(actionName, undoing: undoManager.isUndoing, redoing: undoManager.isRedoing)
         let notRaw = Set(ids.filter { item(versionID: $0).map { $0.fileKind != .raw } ?? false })
         let leftOff = LeftOffCounter()
-        let rawOnly: @Sendable (Int64, Adjustments) -> Adjustments = { id, values in
-            let changed = transform(id, values)
-            guard notRaw.contains(id), changed.asksForMachineLearning else { return changed }
-            leftOff.add(id)
-            return changed.forNonRawFile()
-        }
         persist {
+            let transform = await prepare()
+            let rawOnly: @Sendable (Int64, Adjustments) -> Adjustments = { id, values in
+                let changed = transform(id, values)
+                guard notRaw.contains(id), changed.asksForMachineLearning else { return changed }
+                leftOff.add(id)
+                return changed.forNonRawFile()
+            }
             // Stacks this build cannot read are left as they are (a newer build's edits).
             let result = try await catalog.changeEditStacks(ofVersions: ids, historyLabel: label, rawOnly)
             change.value = (result.before, result.after)
@@ -160,6 +176,7 @@ extension LibraryModel {
                                     comment: "Activity, after a batch adjustment: stacks this build cannot read"),
                              action: actionName, warning: true)
             }
+            if let then, let value = change.value { then(Set(value.after.keys)) }
         }
         registerEditStacksUndo(change, isUndo: true, actionName: actionName)
     }
