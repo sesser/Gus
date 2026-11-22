@@ -85,6 +85,8 @@ bundle (Info.plist from `Branding.xcconfig`, String Catalog compiled by the
 `catalog-strings` tool, ad-hoc signature); `importer` builds the standalone
 importer and `all` builds both.
 
+Debug builds compile `PhotoCore` and `PhotoFixtures` optimized (`Package.swift`: `-O`, with assertions and the debug-only bounds checks kept by `-assert-config Debug`), because unoptimized per-pixel Swift made `swift test` take about 12 minutes instead of about 77 s.
+
 The app's minimum is macOS 15, but the SDK it links decides its look: linked
 with the macOS 26 SDK or later it runs in the current design on 26+, linked
 with an older one in the earlier design. `build-app.sh` needs Xcode 26 or
