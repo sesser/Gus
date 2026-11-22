@@ -372,6 +372,9 @@ after the change has landed, in the loupe too (one photo). It is
 `report(…, warning: true)`, so VoiceOver announces it. It follows the same
 sentence style as the neighbors ("‹n› photos were left unchanged: …").
 
+- **A size that can't be read** (an offline or unreadable original, the
+  source's included) is a second reason with its own row: see §15 DQ-1, which
+  also changes "one row per paste" to "one row per reason, at most two".
 - **Nothing is posted when every target matched**, or when Spots was not
   copied.
 - **A source with no spots, Spots checked** (a reset): the same size rule
@@ -517,6 +520,8 @@ Add by hand to `Sources/PhotoUI/Resources/Localizable.xcstrings`, each with a
 | `%lld items` | the list's long form (plural) |
 | `Spots were not pasted onto %lld photos: their size differs from the photo the spots were copied from.` | the Activity warning (plural; the 1 form "…photo: its size differs…") |
 | `Presets leave spots out. Copy Adjustments can copy them to photos of the same size.` | the Spots heading's note |
+| `Spots were not pasted onto %lld photos: their size, or the size of the photo they were copied from, could not be read.` | the second Activity warning (plural; DQ-1, §15) |
+| `Paste Adjustments: %@` | tooltip of the toolbar's Paste item (DQ-2, §15) |
 
 **Reused unchanged:** `Copy Adjustments` (sheet title, Activity and undo
 names, the toolbar label), `Paste Adjustments`, `Copy`, `Cancel`, `From %@`
@@ -623,4 +628,64 @@ History label stays "Paste Adjustments" by R6 and Undo is one step.
 
 ## 15. Design questions from implementation
 
-None yet. Rulings go here, numbered, for the engineer to cite.
+Rulings, numbered, for the engineer to cite. Ruled 2026-11-22 (design
+review, [review.md](review.md)).
+
+### DQ-1. A spots paste onto a photo whose size can't be read
+
+**Ruling: keep a second warning, with wider wording.** §5.1's "their size
+differs" is false for a photo whose original is offline or unreadable, and
+false in a worse way when it is the *source's* original that can't be read at
+paste time: every target would be blamed for something that is not theirs.
+Folding the two into one sentence would give a wrong reason (option b); one
+combined sentence ("differs or could not be read") would hide the one case a
+person can act on (a volume to reconnect). So:
+
+- **Two reasons, two rows.** A paste posts at most two warnings, in this order,
+  each only when its count is above 0, each `report(…, warning: true)` titled
+  "Paste Adjustments", after the change has landed. §5.1's "one Activity row per
+  paste" now reads "one row per reason, at most two".
+  1. `Spots were not pasted onto %lld photos: their size differs from the photo
+     the spots were copied from.` (as §5.1)
+  2. `Spots were not pasted onto %lld photos: their size, or the size of the
+     photo they were copied from, could not be read.`
+     The 1 form: `Spots were not pasted onto %lld photo: its size, or the size
+     of the photo they were copied from, could not be read.`
+- **Why this wording, not the engineer's** ("…their size could not be read."):
+  it is true whichever side could not be read. It stays one sentence and names
+  what to check without saying how (the person knows which volume they unplugged).
+- The count is photos, as §5.1. A photo left out whole by a Color Alignment
+  measurement (offline) is not counted here: the measuring paste reports it, as
+  the engineer built it.
+- The catalog key changes with the text; the old key
+  (`…their size could not be read.`) is removed. §10's table gains this row.
+
+### DQ-2. The toolbar Paste item's tooltip (R14)
+
+**Ruling: specify it; build it.** Small, and it is the only place a person can
+see what is on the clipboard.
+
+- **Where.** `.help` on the toolbar's Paste Adjustments item (`pasteAdjustments`
+  in `LibraryToolbar`), nowhere else: menu items have no tooltips, and the ⋯ menu
+  and the context menu are not the place for a status line.
+- **String.** New key `Paste Adjustments: %@`; `%@` is the copied items' list,
+  built by the function the announcement uses (the names of
+  `CopiedAdjustments.summary`, a heading standing for all its groups, joined
+  with ", "; more than five entries read "‹n› items", the existing `%lld items`
+  key). Examples: `Paste Adjustments: Light, Color Grading`; `Paste Adjustments:
+  7 items`. No trailing period (a tooltip is a label, not a sentence; the
+  announcement keeps its period). Refactor the list-building out of
+  `CopyAdjustmentsText.announcement` so the two cannot drift.
+- **With nothing copied** the tooltip is the existing `Paste Adjustments` (the
+  item is dimmed; the system shows its label anyway).
+- **It follows the clipboard**: after a Copy the tooltip shows the new list
+  without any other state change. The summary must come from the same state
+  that enables the item, so a stale tooltip is not possible.
+- Not added to the Adjust menu item (menu bar titles stay stable: HIG Menus) and
+  not to the History label, which stays "Paste Adjustments" (R6).
+
+### DQ-3. Observed deviation accepted (no question was asked)
+
+Check All and Uncheck All sit before the list in the Tab order (they are in the
+header), where §8 said after it. Accepted: they are in reading order, Return and
+Esc are unaffected, and §8's order was a preference, not a requirement.
