@@ -785,3 +785,181 @@ measure the 11 x 11 core of each ghost, not its rim.
   `079bf79`'s flaky orientation test for bug #253.
 - No `/security-review` is needed for this pass: no parser, subprocess, file
   placement or network code changed.
+
+## Eighth pass (second pass on the seventh): C17 and C18
+
+Owner: code-reviewer. Date: 2026-11-21. Reviewed: `feature/hdr-merge`,
+`051ec27` (fix and tests) and `a175ef2` (status), against `e787efe`. Build
+and tests: `swift build` clean at `a175ef2`, no warnings. `swift test --filter
+HDRMergerTests` (the "HDR merge core" suite, which holds both touched test
+files): 15 tests passed (413.7 s), including `outlinesWithoutAlignment`,
+`stillNoisyBracket`, `stillNonLinearBracket`, `ghostFree`,
+`ghostsFollowTheReference` and `extremeReferences`. I did not run the full
+suite; the engineer's full run is 1348 passed. Also run here, in two clones
+of the branch in the scratchpad (nothing in the worktree changed, nothing
+committed): the two new tests on `a175ef2` with `e787efe`'s `MergeGhosts`,
+and one probe test over the current rule, `e787efe`'s rule, and one variant
+of the current rule (see C19). The app was not launched (QA's job).
+
+### Verdict
+
+Ready for QA. C17 and C18 are fixed, and the measurements in `status.md`'s
+"Seventh review pass" hold wherever I re-measured them. The darkest-reference
+noise finding the engineer reported is real. It is older than every change
+since the first de-ghosting commit, and it is a mirror image of C17 in the
+reference-black test. It does not block QA. I record it as C19 so the owner
+can rule on it under A13. The proposed issue text needs two corrections
+(below). One documentation nit, C20.
+
+### Follow-up (seventh pass)
+
+| # | State | Commit | Note |
+|---|---|---|---|
+| C17 | Fixed | `051ec27` | The black-frame test is now `reference.low > max(frame.high, lowF) / exposure * 1.5`. Because it takes the larger of `frame.high` and `lowF`, it fires only where both `c1d10c3`'s test (`frame.high`) and `e787efe`'s test (`lowF`) fire. Where the frame's whole neighborhood is black (`frame.high <= lowF`) it is `e787efe`'s test, which is the C14 case. Re-measured, still linear bracket, noise σ 0.004, moved by over 1% against the same plan with no masks, darkest / default / brightest reference: ±2 EV aligned 769 / 9 / 99, ±2 EV unaligned 767 / 0 / 77, ±3 EV aligned 12,163 / 430 / 547, ±3 EV unaligned 12,440 / 431 / 545. All four rows match `status.md` to the pixel. `stillNoisyBracket` fails on `e787efe` (94 moved, worst 0.0296) and passes now (0, worst 0.0). |
+| C18 | Fixed | `051ec27` | `MergeGhosts` is `c1d10c3`'s again except for that one line (`git diff c1d10c3 051ec27` on the file: the black test and its comment only), so `usableElsewhere` and the second plane are gone. Rim, walker, every reference, alignment on and off, ±1 and ±2 EV: 0 pixels over 5% in all 12 cases. Worst 0.0085 aligned (±2 EV, default reference) and 2.7e-7 unaligned. Core, object and elsewhere match the seventh pass to the printed digit. The mask sums match `status.md` ([6734.6, 0, 6820.6] at ±2 EV, default reference). `outlinesWithoutAlignment` fails on `e787efe` (±1 EV, reference 1: 2 pixels, 21.24x; ±2 EV, reference 1: 1 pixel, 10.38x) and passes now. |
+
+### Checked in this pass
+
+- **Widened `ghostCheck`.** Sound. `grow` is `max(2, 600/256) * 2 + 4 = 8`
+  pixels. The masks are computed on full-size copies here, so the dilation
+  of 2 plus a box of 2 reaches 4 pixels past the cleaned mask, with about 1
+  more from resampling. A disc plus 8 therefore covers every pixel a
+  stopped-short mask could leave. The windows can't reach the reference's own
+  object: places are 84 px apart, so a neighbor's disc plus 8 ends at 38 px,
+  16 px short of the reference's object edge at 54 px. The one band nothing
+  measured was the reference's own outline, from radius − 1.5 to radius + 8
+  at the reference's place. I probed it against the reference frame on its
+  trusted pixels: 0 pixels over 5% in all 12 cases, worst 0.0077. No test is
+  needed for it; this is recorded here so the gap is known to be clean.
+- **`stillNonLinearBracket` and the linear extreme-reference walker.**
+  Unchanged. Toe 0.01 and 0.005 and shoulder 1, ±2 EV, every reference: no
+  mask, nothing moved. The walker tests pass with their earlier core and
+  object figures.
+- **S-curve (toe 0.01, shoulder 1), brightest reference.** ±2 EV: 23,559
+  moved, 66 where the reference clips, worst 12.6%. ±3 EV: 57,188 / 657 /
+  38.8%. Both match `status.md`. `e787efe` here gave 24,152 / 66 / 12.6% and
+  68,201 / 872 / 38.8%, as recorded. I did not re-run the rule before
+  `be5bf92`, so the "+4,392 against before `be5bf92`" comparison rests on
+  the engineer's run.
+- **JPEG-like toe cases.** No regression, by construction and by
+  measurement. By construction: the new black test fires only where
+  `c1d10c3`'s fires, and cleaning (a majority threshold) and dilation are
+  monotone. Each mask is therefore at most `c1d10c3`'s at every pixel, so
+  nothing `c1d10c3` left alone is masked now. Measured, still bracket, no
+  noise: toe 0.02 and 0.05 at ±2 EV move nothing with any reference (toe 0.02,
+  brightest reference: a 64-pixel mask that moves nothing by over 1%). At ±3
+  EV, toe 0.02 with the darkest reference moves 7,883 (none where the
+  reference clips, worst 69%), and toe 0.02 and 0.05 with the default move
+  414 and 688 (worst under 2%). That is "as before `be5bf92`", as recorded,
+  and identical on `e787efe`. Toe 0.01 at ±3 EV, which `status.md` leaves out,
+  moves 14 with the darkest reference (worst 4.4%), the same on `e787efe`.
+  Noise σ 0.004 applied before a toe (a JPEG of a noisy sensor), ±2 EV,
+  darkest / default / brightest, now against `e787efe`: toe 0.01 9,009 / 1,288
+  / 1,138 against 9,009 / 1,533 / 1,420, and toe 0.02 6,327 / 1,018 / 852
+  against 6,327 / 1,033 / 971. Never worse. Most of the darkest-reference
+  count is C19.
+- **Rules.** No migration, no persisted name, no new string,
+  `currentPipelineVersion` 13, no golden touched, no `@unchecked Sendable` or
+  `nonisolated(unsafe)` added. The probe's `nonisolated(unsafe)` switch
+  exists only in my scratch clone.
+- **C17's comment** in `disagreement` and the type's doc comment both state
+  the new rule correctly and give both reasons (toe, noise).
+
+### On the reported finding: darkest reference, noise near black
+
+**Real?** Yes. **Older than the C14 to C18 changes?** Yes. The reference-black
+branch (`MergeGhosts.swift:119-122`, `frame.low / exposure > lowR * 1.5`) has
+been the same since `4f7fb55`, and the counts are the same under every rule.
+But "pre-existing" here means pre-existing on this branch. All of HDR merge
+is new in #150, so on `develop` this would ship with the feature, not before
+it.
+
+**Mechanism, measured.** The cause is the reference's own noise. Noise in
+the brighter frames plays no part:
+
+| Noise on | ±2 EV, darkest reference | ±3 EV, darkest reference |
+|---|---|---|
+| every frame (σ 0.004) | 769 moved, worst 130% | 12,163, worst 11.4x |
+| the reference only | 772, worst 137% | 11,482, worst 6.8x |
+| the other frames only | 0 | 0 |
+
+Where the reference's light is just above its black level, noise drags its
+3 x 3 minimum under `lowR`. That sends the pixel into the one-sided
+reference-black test. There a brighter frame is compared with `lowR * 1.5`,
+not with what the reference actually holds. It sees light above that bound,
+so it "disagrees", and the mask hands the pixel to the reference's noisy,
+near-black values. Of the 769 moved pixels, 767 are where the reference's
+brightest channel is under 3% of its clipping level. This is C17 mirrored:
+there the frame's minimum fell under `lowF`, here the reference's falls under
+`lowR`.
+
+**A fix of the same shape, probed (untested as a change).** Change that line
+to `frame.low / exposure > max(reference.high, lowR) * 1.5`. It fires only
+where today's test fires, so it cannot mask more than today. On the fixture:
+
+- Noisy ±2 EV, darkest reference: 769 → 0 aligned, 767 → 0 unaligned.
+- Noisy ±3 EV, darkest reference: 12,163 → 1,870 (worst 11.4x → 4.7x) aligned,
+  and 12,440 → 2,071 unaligned.
+- Default and brightest references: unchanged.
+- Walker, 12 cases: identical in core, rim, object and elsewhere.
+- `stillNonLinearBracket`'s three responses: still nothing.
+- S-curve: never worse. ±2 EV, default reference: 1,437 → 97. ±3 EV: 28,606 →
+  25,521 (darkest) and 70,541 → 59,727 (default).
+- Noisy toe 0.01 and 0.02, ±2 EV: darkest 9,009 → 1,516 and 6,327 → 2,121,
+  default 1,288 → 842 and 1,018 → 378.
+
+What remains at ±3 EV with the darkest reference is where the reference's
+neighborhood is black all around, so the bound is `lowR` itself. A noise
+model, as the issue text proposes, would be needed there.
+
+**Should it block this branch?** Not QA. For the pull request it is the
+owner's call under A13, as C14 and C18 were. The owner asked whether an
+extreme reference makes de-ghosting visibly worse. On a still noisy bracket
+it does, in deep shadows only: about 0.3% of the frame at ±2 EV and 5% at
+±3 EV take the darkest frame's noise there. The darkest frame is never the
+default. My recommendation: if the engineer is taking another pass anyway,
+the one-line change above is cheap, measured, and never looser than today,
+and it would need a `stillNoisyBracket` case with the darkest reference. If
+not, ship with the follow-up filed. That is C19.
+
+**Is the proposed issue text accurate?** The numbers are: 769 / 130%,
+12,163 / 11x, and the default's 9 and 430 with worst 2.4% and 98% all
+re-measured to the pixel. "The same under every rule since before `be5bf92`"
+is also right. Two corrections:
+
+1. **Mechanism.** "noise in the brighter frame (scaled down by its exposure)
+   and in the reference is enough" is wrong in its first half. The table
+   above shows that noise in the brighter frames alone moves nothing. Suggested
+   wording: "noise drags the reference's 3 x 3 minimum under its black level
+   where its light is above that level, so the pixel goes to the one-sided
+   reference-black test. That test compares the brighter frames with the
+   black level, not with the reference's own values, and they disagree."
+2. **Scope of the title.** It is not only the darkest frame. Any reference
+   with a brighter frame shows it once the bracket is wide enough: the default
+   reference at ±3 EV moves 430. Suggested title: "HDR merge: de-ghosting reads
+   the reference's noise near black as movement". Name the darkest reference
+   as the worst case in the body.
+
+Also add to the text the `max(reference.high, lowR)` variant and its numbers
+as a candidate that needs no noise model, with the noise model for the
+remainder. Its fixture is the noisy still bracket of `stillNoisyBracket`,
+with each reference.
+
+### Findings (eighth pass)
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C19 | Should fix, or follow-up by the owner's ruling (does not block QA) | `Sources/PhotoCore/Merge/MergeGhosts.swift:119-122` | The reference-black test compares a brighter frame with `lowR * 1.5`, the black level, even where the reference's own light is above that level and only its noise reached black. The pixel is then masked to the reference's noisy, near-black values. This is the mirror of C17. The engineer reported it, and it is older than C14 to C18. | Still linear bracket, noise σ 0.004 on the reference alone, darkest reference: ±2 EV 772 pixels moved by over 1% against the unmasked merge, worst 137%; ±3 EV 11,482, worst 6.8x. Noise on the other frames alone: 0. With noise on every frame, the default reference at ±3 EV: 430. A candidate that is never looser than today is `frame.low / exposure > max(reference.high, lowR) * 1.5`. On the fixture it takes the ±2 EV darkest case to 0 and ±3 EV to 1,870, and the walker is unchanged (see above). | A13; R10; correctness (still scenes) |
+| C20 | Nit | `docs/features/hdr-merge/status.md`, "Corrected after code review C14", paragraph after the walker table | "the rim … has no pixel more than 5% off with any reference, aligned or not (worst 0.016 of the clean value…)". 0.016 was `e787efe`'s value at ±2 EV with the default reference. The rule now gives 0.0085 there, which is its worst, as the same file's C18 table says. | A reader comparing the two sections sees two different worst values for the same rule. | Docs accuracy |
+
+### Still open for the main session
+
+- C19: the owner's ruling under A13, either fix on this branch or file the
+  follow-up with the corrected text above. If it becomes a follow-up, the
+  product manager records it in A13 as C14 and C18 were recorded. C20 is a
+  one-word fix for the engineer whenever `status.md` is next touched.
+- Unchanged: the #88 `maskRasters` heads-up, F5's place in the guide
+  (designer), filing the `WriteChain.read`-from-its-own-tail follow-up, and
+  `079bf79`'s flaky orientation test for bug #253.
+- No `/security-review` is needed for this pass: no parser, subprocess, file
+  placement or network code changed.
