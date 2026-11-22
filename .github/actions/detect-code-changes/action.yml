@@ -1,0 +1,30 @@
+name: Detect code changes
+description: >
+  Says whether the commit changes anything besides documentation. Needs a
+  checkout with fetch-depth 2.
+
+# Every job of the Build and test workflow is a required check, so each must
+# report even when only documentation changed: the job runs this, and every
+# build step is skipped. paths-ignore would leave the checks waiting forever.
+# HEAD^1 is the base on a pull request's merge commit and the previous tip on
+# a push. --no-renames lists both ends of a move, so moving a file out of the
+# code counts as code. If the comparison fails, everything runs.
+
+outputs:
+  code:
+    description: "'true' when the build steps must run, 'false' for a documentation-only change"
+    value: ${{ steps.changes.outputs.code }}
+
+runs:
+  using: composite
+  steps:
+    - id: changes
+      shell: bash
+      run: |
+        code=true
+        if [ "$GITHUB_EVENT_NAME" != workflow_dispatch ] \
+          && files=$(git diff --no-renames --name-only HEAD^1 HEAD) && [ -n "$files" ] \
+          && ! printf '%s\n' "$files" | grep -qvE '^(docs/|\.claude/)|\.md$|^\.gitignore$'; then
+          code=false
+        fi
+        echo "code=$code" | tee -a "$GITHUB_OUTPUT"

@@ -24,7 +24,9 @@ jobs:
           - os: macos-15
             xcode: "26.3"
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
+    # Checkout and Build (up to about 5 minutes), the Test step's limit, and
+    # the uploads after a failure.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v6
         with:
@@ -32,20 +34,8 @@ jobs:
 
       - name: Detect code changes
         id: changes
-        # Both jobs are required checks, so they must report even when only
-        # documentation changed: the job runs and every build step is skipped.
-        # paths-ignore would leave the checks waiting forever. HEAD^1 is the
-        # base on a pull request's merge commit and the previous tip on a push.
-        # --no-renames lists both ends of a move, so moving a file out of the
-        # code counts as code. If the comparison fails, everything runs.
-        run: |
-          code=true
-          if [ "$GITHUB_EVENT_NAME" != workflow_dispatch ] \
-            && files=$(git diff --no-renames --name-only HEAD^1 HEAD) && [ -n "$files" ] \
-            && ! printf '%s\n' "$files" | grep -qvE '^(docs/|\.claude/)|\.md$|^\.gitignore$'; then
-            code=false
-          fi
-          echo "code=$code" | tee -a "$GITHUB_OUTPUT"
+        # See the action for the rule; the bundles job uses the same one.
+        uses: ./.github/actions/detect-code-changes
 
       - name: Select Xcode ${{ matrix.xcode }}
         if: matrix.xcode && steps.changes.outputs.code == 'true'
@@ -57,13 +47,6 @@ jobs:
           sw_vers
           xcodebuild -version
           swift --version
-
-      - uses: actions/cache@v5
-        if: steps.changes.outputs.code == 'true'
-        with:
-          path: .build
-          key: spm-${{ matrix.os }}-xcode${{ matrix.xcode }}-${{ hashFiles('Package.resolved') }}
-          restore-keys: spm-${{ matrix.os }}-xcode${{ matrix.xcode }}-
 
       - name: Build
         if: steps.changes.outputs.code == 'true'
@@ -80,6 +63,11 @@ jobs:
         # A crash with signal 11 (Apple's virtual GPU driver on these runners,
         # roadmap ci-test-crash) is retried once in this step. Any other
         # failure fails at once.
+        # The limit covers two full runs, the second being that retry: the
+        # step took 344 to 522 s (median 416 s) on the six jobs measured after
+        # PR #258. A hang then fails here, with the crash reports below
+        # uploaded, instead of the job being cancelled with nothing kept.
+        timeout-minutes: 15
         env:
           GOLDENS_REPORT: "1"
           GOLDEN_FAILURES_DIR: ${{ runner.temp }}/golden-failures
@@ -122,6 +110,33 @@ jobs:
           name: crash-reports-${{ matrix.os }}
           path: ${{ runner.temp }}/crash-reports
           if-no-files-found: ignore
+
+  bundles:
+    name: Build app bundles (${{ matrix.os }})
+    # Beside the tests, not after them: the bundles took 286 to 437 s of each
+    # job. A required check like the jobs above, so it reports on
+    # documentation-only changes the same way.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-26
+          - os: macos-15
+            xcode: "26.3"
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      - name: Detect code changes
+        id: changes
+        uses: ./.github/actions/detect-code-changes
+
+      - name: Select Xcode ${{ matrix.xcode }}
+        if: matrix.xcode && steps.changes.outputs.code == 'true'
+        run: sudo xcode-select -s "/Applications/Xcode_${{ matrix.xcode }}.app"
 
       - name: Build app bundles
         if: steps.changes.outputs.code == 'true'
