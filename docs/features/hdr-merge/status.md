@@ -55,12 +55,30 @@ The still non-linear brackets, the linear extreme-reference walker, the rim and
 the noisy still bracket all hold; see "Seventh review pass". Next:
 code-reviewer (second pass on this commit), then qa-tester.
 
+**2026-11-21: code review's eighth pass (C19, C20; the owner ruled C19 fixed on
+this branch): Done.** The reference-black test now compares a brighter frame
+with the larger of the reference's highest value and its black level (the
+reviewer's candidate), so the darkest reference's own noise near black no
+longer masks the other frames: noisy ±2 EV, nothing moves (was 769); ±3 EV, a
+residual of 1,870 aligned and 2,071 unaligned (was 12,163 and 12,440), from
+the two-sided test, left for a noise model (proposed follow-up). Every other
+case re-measured: nothing regresses. C20 corrected. See "Eighth review pass".
+Next: code-reviewer (second pass on this commit), then qa-tester.
+
 ## Baseline
 
 - `swift build` on `develop` at `ed423d7` (plus the design commit): clean.
 - `swift test` before any change: 1253 tests in 179 suites passed (70.6 s).
 
-## Latest results (2026-11-21, after code review's seventh pass: C17, C18)
+## Latest results (2026-11-21, after code review's eighth pass: C19, C20)
+
+- `swift build`: clean; no new warnings.
+- `swift test`: 1348 tests in 194 suites passed (712.2 s). No golden moved;
+  `UPDATE_GOLDENS` was not run; `PreviewCacheKey.currentPipelineVersion`
+  unchanged (13).
+- `Scripts/build-app.sh`: builds; checks in "Eighth review pass".
+
+## Results after code review's seventh pass: C17, C18 (2026-11-21)
 
 - `swift build`: clean; no new warnings.
 - `swift test`: 1348 tests in 194 suites passed (672.9 s). No golden moved;
@@ -501,11 +519,16 @@ stands after C17 and C18 (seventh pass):** a black frame disagrees where the
 reference, all around, is clearly brighter than the larger of the frame's
 highest value and its black level (`reference.low > max(frame.high, lowF) /
 exposure * 1.5`). Values under the black level say nothing, crushed by a toe
-(C14) or dragged there by noise (C17). Every test's result goes into one plane,
+(C14) or dragged there by noise (C17). The mirror for the reference, after C19
+(eighth pass): where the reference is black, a brighter frame disagrees only if
+it is clearly above the larger of the reference's highest value and its black
+level (`frame.low / exposure > max(reference.high, lowR) * 1.5`), since the
+reference's own noise reaches its black level too. Every test's result goes into one plane,
 cleaned and grown together, as before C14. (The sixth pass's separate plane for
 the frame-bound tests, kept only where another frame is trusted, let a moving
 object's rim through, C18, and with this black test it changed nothing else.)
-See "Sixth review pass" and "Seventh review pass" below for the numbers.
+See "Sixth review pass", "Seventh review pass" and "Eighth review pass" below
+for the numbers.
 
 Measured on the synthetic walker (600 x 400, objects on a dim wall), object
 error inside the reference's object / ghost error at the other frames' places:
@@ -522,8 +545,8 @@ Where nothing moved, every case is the same merge as one with no ghosts (0.0).
 The C14 correction leaves every number in this table as it was.
 The C17 and C18 changes leave it as it was too, and the rim (each other
 frame's whole disc and the masks' growth around it, not only the 11 x 11 core)
-has no pixel more than 5% off with any reference, aligned or not (worst 0.016
-of the clean value; `outlinesWithoutAlignment` and the rim checks in
+has no pixel more than 5% off with any reference, aligned or not (worst 0.0085
+of the clean value, ±2 EV aligned with the default reference; `outlinesWithoutAlignment` and the rim checks in
 `ghostFree`, `ghostsFollowTheReference`, `extremeReferences`).
 So, answering A13: with this change an extreme reference no longer makes
 de-ghosting visibly worse on the fixture; on real files that is for the owner's
@@ -531,13 +554,14 @@ eye (M12, M13). For non-linear frames (JPEG brackets), after C14 and C17: on a
 still bracket with a toe (`L·L/(L + c)`, c 0.01 and 0.005) or a shoulder, no
 mask fires and nothing moves, with any frame as the reference
 (`stillNonLinearBracket`); on a still linear bracket with noise σ 0.004 and the
-default reference, nothing moves either (`stillNoisyBracket`). One thing an
-extreme reference does make worse, the same under every rule since before
-`be5bf92`: with the darkest frame as the reference, noise in the deep shadows
-masks the other frames there (the reference is black, and the one-sided test
-against it reads noise), so those areas take the reference's own noisy values
-(±2 EV σ 0.004: 769 pixels moved by over 1%, worst 130%; ±3 EV: 12,163, worst
-11 times; proposed follow-up below). What stays for JPEG brackets is older than this change and the same with
+default reference, nothing moves either (`stillNoisyBracket`). Noise near the
+darkest reference's black level, after C19: at ±2 EV nothing moves (769 pixels
+before, worst 130%); at ±3 EV 1,870 pixels (0.8% of the frame, worst 4.7
+times; unaligned 2,071, worst 9.6 times) still take the darkest frame's noisy
+values in deep shadows (12,163 before, worst 11 times). That residual is
+mostly the two-sided test reading the darkest frame's noise where its light is only a few
+σ above its black level; it needs a noise model (proposed follow-up). The
+default reference at ±3 EV moves 430 the same way, under every rule. What stays for JPEG brackets is older than this change and the same with
 the rule before it: a strong S-curve (toe and shoulder together) makes the
 two-sided test see still mid-tones disagree, and an area de-ghosting takes
 from fewer frames differs in tone from the blend around it. Both come from not
@@ -968,6 +992,79 @@ copy of the bundle with its own identifier and a scratch library
 (`--library-root`), `Raw-0` merges with the darkest frame as reference, De-ghost
 on, written beside it.
 
+### Eighth review pass (2026-11-21, `code-review.md` "Eighth pass")
+
+C17 and C18 closed. The owner ruled C19 fixed on this branch.
+
+**C19 (Should fix): the reference-black test read the reference's noise.**
+Where the reference's light is just above its black level, its noise drags
+its 3 x 3 minimum under that level; the pixel then goes to the one-sided
+reference-black test, which compared a brighter frame with the black level
+(`lowR × 1.5`) instead of with what the reference holds. Now
+`frame.low / exposure > max(reference.high, lowR) * 1.5`, the reviewer's
+candidate: never looser than before (it fires only where the old test fired),
+and the mirror of C17's black-frame test. One line in `MergeGhosts`.
+
+Re-measured, every case of the seventh pass's tables, `a175ef2` → now
+(the same probe as before, not kept as a test).
+
+Noise σ 0.004, still linear bracket, pixels moved by over 1% against the same
+plan with no masks, darkest / default / brightest reference:
+
+| Bracket | `a175ef2` | Now |
+|---|---|---|
+| ±2 EV, aligned | 769 / 9 / 99 | 0 / 9 / 99 |
+| ±2 EV, unaligned | 767 / 0 / 77 | 0 / 0 / 77 |
+| ±3 EV, aligned | 12163 (worst 11.4x) / 430 / 547 | 1870 (worst 4.7x) / 430 / 547 |
+| ±3 EV, unaligned | 12440 (worst 13.5x) / 431 / 545 | 2071 (worst 9.6x) / 431 / 545 |
+
+The ±3 EV residual with the darkest reference, measured by counting each test's
+raw disagreeing pixels (before cleaning, both other frames, aligned): the
+reference-black test 0 now (4,777 before), the frame-black test 45, the
+two-sided test 3,362 (the same before). So what is left is the two-sided test
+reading the darkest frame's noise where its light is a few σ above its black
+level, which the proposed follow-up's noise model is for (its title and
+mechanism as the reviewer corrected them). The default and brightest
+references' counts are those of every rule before.
+
+Still non-linear brackets (aligned; moved / where the reference clips / worst;
+darkest, default, brightest reference):
+
+| Response, bracket | `a175ef2` | Now |
+|---|---|---|
+| toe 0.01, toe 0.005, shoulder 1, ±2 EV | none | none |
+| toe 0.02 and 0.05, ±2 EV | none (toe 0.02 brightest: worst 0.4%) | the same |
+| toe 0.02, ±3 EV | 7883 / 0 / 69%; 414 / 0 / 1.6%; none | the same |
+| toe 0.05, ±3 EV | none; 688 / 0 / 1.9%; none | the same |
+| shoulder 0.3, ±2 EV | 28366; 28338; 16315 (none where the reference clips) | the same |
+| S (toe 0.01, shoulder 1), ±2 EV | 15183 / 0 / 49.5%; 1437 / 0 / 42.5%; 23559 / 66 / 12.6% | 15183 / 0 / 49.5%; **97 / 0 / 1.6%**; 23559 / 66 / 12.6% |
+| S, ±3 EV | 28606 / 0 / 83%; 70541 / 0 / 63%; 57188 / 657 / 38.8% | **25521** / 0 / 83%; **59727** / 0 / 55%; 57188 / 657 / 38.8% |
+
+Walker (linear), ±1 and ±2 EV, alignment on and off, each reference: core,
+object and elsewhere unchanged to the printed digit; rim 0 pixels over 5% in
+all 12 cases, worst 0.0085 aligned (±2 EV, default reference) and under 3e-7
+unaligned. Two mask sums moved by about a pixel's worth, with no error moving:
+±2 EV aligned, default reference, frame +2 6820.6 → 6819.5; ±1 EV aligned,
+default reference, [6763.6, 0, 6885.2]. Nothing regresses anywhere.
+
+**Tests.** `stillNoisyBracket` now has five cases: the default reference at ±2
+EV unaligned (nothing moves, C17); the darkest reference at ±2 EV, aligned and
+unaligned (nothing moves); the darkest at ±3 EV, aligned and unaligned (at
+most 1% of the frame, 2,400 pixels: the residual's order, 1,870 and 2,071,
+against 12,163 and 12,440 before; a bound that records the residual rather
+than one derived from the noise, which needs the follow-up's model). On
+`245c415`'s rule it fails in the four darkest-reference cases (769, 767,
+12,163 and 12,440 moved);
+it passes now.
+
+**C20 (Nit).** The rim's worst in the A13 paragraph now reads 0.0085 (±2 EV
+aligned, default reference), as the C18 table says; 0.016 was `e787efe`'s.
+
+**Results.** `swift build` clean, no new warnings. Full `swift test`: 1348
+tests in 194 suites passed (712.2 s). No golden moved, `UPDATE_GOLDENS` not
+run, pipeline version unchanged (13); merges are new files. `Scripts/build-app.sh`
+builds.
+
 ## Bug: tiles at 100% (owner sign-off P5, 2026-11-21)
 
 **Report.** `IMG_3894_HDR.tif` (a merge of five Canon EOS 6D CR2s, 5472 × 3648,
@@ -1222,18 +1319,25 @@ Ruled at design review (D-H1 to D-H4, design.md §19), as built:
 
 ## Proposed follow-ups
 
-- **De-ghosting with the darkest frame as reference reads noise in the deep
-  shadows** (bug, PhotoCore `MergeGhosts`; found by the seventh pass's probes,
-  the same under every rule since before `be5bf92`): where the reference is
-  black, a brighter frame disagrees when its lowest value over its exposure is
-  over 1.5 times the reference's black level, and noise in the brighter frame
-  (scaled down by its exposure) and in the reference is enough near black, so
-  those areas are taken from the reference's own noisy black values. Fixture,
-  still linear bracket, noise σ 0.004, alignment on: ±2 EV, 769 pixels moved by
-  over 1% against the merge with no masks, worst 130%; ±3 EV, 12,163, worst 11
-  times (default reference: 9 and 430, worst 2.4% and 98%). A noise-aware
-  threshold near black (the reference's and the frame's expected noise at that
-  level) would fix it; needs real high-ISO brackets to set.
+- **HDR merge: de-ghosting reads the reference's noise near black as
+  movement** (bug, PhotoCore `MergeGhosts`; the residual after C19): where the
+  reference's light is only a few noise σ above its black level, the two-sided
+  test (log ratio over 1.5 between a frame's and the reference's blurred
+  values, with a floor of 0.2% of clipping) reads the reference's noise as
+  disagreement, so those areas take the reference's own noisy values. The
+  one-sided reference-black test did the same until C19 (fixed:
+  `max(reference.high, lowR)`). At ±3 EV with the darkest reference, of the
+  raw disagreeing pixels (before cleaning, both other frames) 3,362 are the
+  two-sided test's, 45 the frame-black test's and none the reference-black
+  test's (before C19: 4,777 more from it). The darkest reference is the worst case, but any reference with a
+  brighter frame shows it once the bracket is wide enough. Fixture, still
+  linear bracket, noise σ 0.004 (`stillNoisyBracket`): ±3 EV, darkest
+  reference, 1,870 pixels moved by over 1% against the merge with no masks
+  (worst 4.7 times; unaligned 2,071, worst 9.6 times), default reference 430
+  (worst 98%); ±2 EV, nothing with the darkest or the default reference. A
+  threshold from a noise model near black (the reference's and the frame's
+  expected noise at that level, after exposure) would fix it; needs real
+  high-ISO brackets to set.
 
 - **`WriteChain.read` called from inside a write waits for itself**
   (enhancement or bug, PhotoCore): QA Q1 was this mistake in the merge's Redo.
