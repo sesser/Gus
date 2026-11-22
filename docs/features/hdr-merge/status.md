@@ -6,9 +6,10 @@ Owner: swift-macos-engineer. Branch `feature/hdr-merge` (worktree `Gus-hdr-merge
 Spec: the PRD (issue #150 body, approved and revised 2026-11-20) and
 [`design.md`](design.md).
 
-**2026-11-22: CI on PR #258 Blocked** on a crash in `HDRMergeJob.run` with
-the CI toolchains (Swift 6.2.4 and 6.3.3), a fix in Sources waiting for a
-ruling; the WorkLane test (#259) and the merge suites' pool use fixed in tests.
+**2026-11-22: CI on PR #258: Done here, CI to confirm.** A crash in
+`HDRMergeJob.run` with the CI toolchains (Swift 6.2.4 and 6.3.3): its
+`catalogue` parameter is now an optional with no default closure (ruled option
+1). The WorkLane test (#259) and the merge suites' pool use are fixed in tests.
 See "CI on PR #258".
 
 **State: Done** (2026-11-20, after the review fixes below). Every criterion of the PRD as revised (prd4: R4 widened to the stem, R19, AC2a, AC15) built and tested; nothing blocked. Next: code review's second pass (and the designer for the three new strings), then QA.
@@ -1227,7 +1228,7 @@ which never showed the fault, but it was not soaked. Camera raws (system
 decoder) were not soaked either; #181 found them stable. Photos larger than
 16384 pixels on a side keep the lazy decode.
 
-## CI on PR #258 (2026-11-22): Blocked on a fix in Sources
+## CI on PR #258 (2026-11-22): fixed here, CI is the only confirmation
 
 Run 45034608676 (after the merge of `develop`, `4f50003`, and Ship,
 `2c4d93f`) failed on macOS 15 and macOS 26 in both attempts, each after the
@@ -1264,7 +1265,8 @@ closure that no CI test covers. `develop` is green because it has no merge code.
 No crash comes from memory: the merge core suite peaks at 627 MB resident here
 (`/usr/bin/time -l`, 15 tests, 427 s, CPU-bound on one thread in debug).
 
-**Options (Sources, not changed; for the main session to rule on):**
+**Options put to the main session** (option 1 ruled and built; see "The fix"
+below):
 
 1. **`catalogue` optional, default nil** (recommended). When nil, the detached
    task calls the catalog insert directly; with a closure, as now. No async
@@ -1306,10 +1308,48 @@ expectations failed. Here the whole suite now takes 729 s, with the
   suites (sheet, selection, rules, progress) are unchanged. No image size,
   tolerance or assertion changed.
 
-Results: `swift build` clean; full `swift test` 1427 tests in 205 suites passed
-(728.7 s); `Scripts/build-app.sh` builds. Not verified: CI, until the Sources
-fix is ruled on. Risk to watch there: with a signal 11 retry, the suite's
-length (about 12 minutes here, more on the runners) and the 45-minute job limit.
+Results of the tests-only change: `swift build` clean; full `swift test` 1427
+tests in 205 suites passed (728.7 s); `Scripts/build-app.sh` builds.
+
+**The fix (option 1).** `HDRMergeJob.run(…, catalogue:)` takes
+`(@Sendable (@escaping @Sendable () async throws -> MergedMaster) async throws
+-> MergedMaster)? = nil`. The insert is a named closure, and the detached task
+calls `catalogue(insert)` when one is given, else `insert()` directly. No async
+closure is a default argument any more, and the doc comment says why. Both
+callers compile unchanged: the app's `MergeModel` passes its write-chain closure
+and `photocli merge` passes none. Behavior is the same, including how errors
+from either path map (`sameContent`, `alreadyInLibrary`).
+
+- **Why toolchain specific.** The fault is in code the compiler generates for
+  calling an async closure given as a default argument (the frame is "closure
+  #1 in default argument 4"; the crash is inside `swift_task_dealloc`, the task
+  allocator, when that closure's frame is torn down). It shows with Swift 6.2.4
+  and 6.3.3 and not with 6.4.2, which is all this Mac has, so it can't be
+  reproduced here.
+- **`photocli` was exposed.** Its `merge` used the default and so would crash
+  on every merge when built with Xcode 26.3 or 26.6. The app passes its own
+  closure, which no crash frame names; no CI test runs the app target, so that
+  is not proven either way.
+- **Other default arguments of that shape: none.** A scan of `Sources/` (every
+  parameter of function type with a `= { … }` default, outside the vendored
+  LibRaw) found 47 matches. This was the only async one; the rest are
+  synchronous. Async
+  closures passed as literals at a call site (for example `MainActorWait`'s
+  `sleep: { try? await Task.sleep(for: $0) }`) are a different shape and were
+  left alone.
+- **Tests.** The default path is every job test that calls `run` without
+  `catalogue` (`mergesToTIFF` first). New `catalogueOptional`: a given closure
+  is called once around the insert and its result is the job's; its
+  `alreadyInLibrary` error still gives that version as `existingVersionID`; and
+  without one the job catalogues directly. `refusedFileRemoved` still covers a
+  given closure's `sameContent` (file removed only while its name holds it).
+- **Confirmation.** Only CI can confirm the fix (no Swift 6.2 or 6.3 toolchain
+  here). Risk to watch there: with a signal 11 retry, the suite's length (about
+  12 minutes here, more on the runners) and the 45-minute job limit.
+
+Results after the fix: `swift build` clean, no new warnings; full `swift
+test` 1428 tests in 205 suites passed (730.2 s); `Scripts/build-app.sh all`
+builds both apps (the app's `MergeModel` call compiles unchanged).
 
 ## Debug-script checks
 
