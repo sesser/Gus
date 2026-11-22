@@ -11,11 +11,14 @@ a longer CI limit (code review C22). The merge suites took 11 of `swift
 test`'s 12 minutes because debug builds don't optimize per-pixel Swift; debug
 builds now compile `PhotoCore` and `PhotoFixtures` optimized (`Package.swift`,
 needs code review and the owner's nod), and three tests' own code is cheaper
-or no longer timing-dependent. Merge suites 646.8 s to 40.2 s, full `swift
-test` 741.3 s to about 75 s, no assertion, tolerance or image size changed.
-C23 and C24 fixed. CI workflow changes are proposed, not made. See "Test and
-CI time". Next: code-reviewer (second pass: `Package.swift` and the test
-changes), then push for CI.
+or no longer timing-dependent. Merge suites 646.8 s to 42.8 s, full `swift
+test` 741.3 s to about 78 s, no assertion, tolerance or image size changed.
+C23 and C24 fixed. CI workflow changes are proposed, not made. After code
+review's eleventh pass the flags are `-O -assert-config Debug`, so the
+standard library's debug-only bounds checks stay on (C25), and the build and
+the merge suites are recorded with CI's Swift 6.2.4 (C26). See "Test and CI
+time". Next: code-reviewer (a short pass on the one-line flag change), then
+push for CI.
 
 **2026-11-22: CI on PR #258: Done here, CI to confirm.** A crash in
 `HDRMergeJob.run` with the CI toolchains (Swift 6.2.4 and 6.3.3): its
@@ -90,8 +93,9 @@ Next: code-reviewer (second pass on this commit), then qa-tester.
 ## Latest results (2026-11-22, after "Test and CI time")
 
 - `swift build`: clean; no new warnings.
-- `swift test`: 1428 tests in 205 suites passed (73.0 s and 79.4 s in two
-  runs; 741.3 s before the change, 70.6 s on `develop` before this branch). No
+- `swift test`: 1428 tests in 205 suites passed (77.8 s and 78.1 s in two
+  runs with `-O -assert-config Debug`; 741.3 s before the change, 70.6 s on
+  `develop` before this branch). No
   golden moved; `UPDATE_GOLDENS` was not run;
   `PreviewCacheKey.currentPipelineVersion` unchanged (13).
 - `Scripts/build-app.sh all`: builds both apps.
@@ -1369,16 +1373,18 @@ from either path map (`sameContent`, `alreadyInLibrary`).
   `alreadyInLibrary` error still gives that version as `existingVersionID`; and
   without one the job catalogues directly. `refusedFileRemoved` still covers a
   given closure's `sameContent` (file removed only while its name holds it).
-- **Confirmation.** Only CI can confirm the fix (no Swift 6.2 or 6.3 toolchain
-  here). Risk to watch there: with a signal 11 retry, the suite's length (about
+- **Confirmation.** Only CI can confirm the fix (no Swift 6.3 toolchain
+  here; Swift 6.2.4 is, as Xcode 26.3, and was not used for this fix: C26,
+  see "Test and CI time", "With CI's Swift 6.2.4"; the crash was on macOS 15's
+  and 26's runtimes, which this Mac doesn't have either). Risk to watch there: with a signal 11 retry, the suite's length (about
   12 minutes here, more on the runners) and the 45-minute job limit. (Answered
-  the same day: see "Test and CI time"; the suite takes about 75 s here now.)
+  the same day: see "Test and CI time"; the suite takes about 78 s here now.)
 
 Results after the fix: `swift build` clean, no new warnings; full `swift
 test` 1428 tests in 205 suites passed (730.2 s); `Scripts/build-app.sh all`
 builds both apps (the app's `MergeModel` call compiles unchanged).
 
-## Test and CI time (2026-11-22): the merge suites from 11 minutes to 40 seconds
+## Test and CI time (2026-11-22): the merge suites from 11 minutes to 43 seconds
 
 The owner's ruling on code review's C22: a 45 or 90 minute CI job is not
 acceptable for a gating pipeline, so the limit is not raised; the tests get
@@ -1416,7 +1422,7 @@ owner's nod (see "Needs a decision").
   bracket, reference or options.
 - **Memory is not the limit.** The serialized chain alone peaks at 0.99 GB
   resident (1.28 GB after the change, with the same tests); the full run at
-  5.95 GB before and 6.1 GB after.
+  5.95 GB before and 6.1 to 6.4 GB after.
 - **In the full run the chain was the critical path**: every other suite ended
   by about 97 s, and the chain ran alone for the remaining 10 minutes, one
   thread, CPU-bound.
@@ -1424,13 +1430,15 @@ owner's nod (see "Needs a decision").
 ### What changed
 
 1. **`Package.swift`: debug builds compile `PhotoCore` and `PhotoFixtures`
-   with the optimizer** (`.unsafeFlags(["-O"], .when(configuration: .debug))`).
+   with the optimizer** (`.unsafeFlags(["-O", "-assert-config", "Debug"],
+   .when(configuration: .debug))`; `-assert-config Debug` since code review's
+   C25, see "Review findings (eleventh pass)").
    Release builds are untouched. `@testable import` works as before (it needs
    `-enable-testing`, which stays). The flag follows SwiftPM's `-Onone` on the
    compiler's command line in both build systems (checked with `-v`: `-Onone
    -enable-testing … -O` with the native one, which the CI toolchains use), so
-   it wins. This alone: merge suites 646.8 s to 57.6 s, full `swift test`
-   741.3 s to 93.1 s. The other suites gain too (they ended by 97 s, now by
+   it wins. This alone (measured with `-O` only, before C25): merge suites
+   646.8 s to 57.6 s, full `swift test` 741.3 s to 93.1 s. The other suites gain too (they ended by 97 s, now by
    about 47 s). No test changed for it.
 2. **`MergeReference.radianceAndConditioning` (tests' CPU reference)**: the
    two statements that built nine arrays per frame and pixel (the taps'
@@ -1462,16 +1470,16 @@ unoptimized one gave.
 
 ### Results
 
-| | Before | After |
-|---|---|---|
-| Merge suites alone (`swift test --filter MemoryHeavy`, 59 tests) | 646.8 s, 642 s CPU | 40.2 s, 38 s CPU |
-| "HDR merge core" | 430.2 s | 22.7 s |
-| "HDR merge job" | 130.2 s (208 to 224 s inside the full run) | 6.9 s (39 s inside the full run) |
-| "HDR merge job, reference and options" | 41.2 s | 2.3 s |
-| "photocli merge" | 19.9 s | 1.5 s |
-| "HDR merge alignment" | 18.3 s | 0.5 s |
-| Full `swift test` (1428 tests in 205 suites) | 741.3 s, 1,772 s CPU, 5.95 GB peak | 73 to 79 s (three runs), 513 s CPU, 6.1 GB peak |
-| Clean debug build with tests | 34.3 s, 288 s CPU | 43.3 s, 391 s CPU |
+| | Before | With `-O` (as first committed) | With `-O -assert-config Debug` (now) |
+|---|---|---|---|
+| Merge suites alone (`swift test --filter MemoryHeavy`, 59 tests) | 646.8 s, 642 s CPU | 40.2 s, 38 s CPU | 42.8 s (twice), 40 s CPU |
+| "HDR merge core" | 430.2 s | 22.7 s | 24.3 s |
+| "HDR merge job" | 130.2 s (208 to 224 s inside the full run) | 6.9 s (39 s inside the full run) | 7.3 s |
+| "HDR merge job, reference and options" | 41.2 s | 2.3 s | 2.6 s |
+| "photocli merge" | 19.9 s | 1.5 s | 1.5 s |
+| "HDR merge alignment" | 18.3 s | 0.5 s | 0.6 s |
+| Full `swift test` (1428 tests in 205 suites) | 741.3 s, 1,772 s CPU, 5.95 GB peak | 73 to 79 s (three runs), 513 s CPU, 6.1 GB peak | 77.8 s and 78.1 s, 521 to 535 s CPU, 6.1 to 6.4 GB peak |
+| Clean debug build with tests | 34.3 s, 288 s CPU | 43.3 s, 391 s CPU | 47.4 s, 417 s CPU |
 
 `swift build` clean with no new warnings (the two in `SmartAlbumTests.swift:165`
 and `VirtualCopiesTests.swift:170` are `develop`'s); `swift test` 1428 tests
@@ -1485,7 +1493,7 @@ in 205 suites passed; `Scripts/build-app.sh all` builds both apps.
   duplicate of another, so none was cut.
 - **Running the chain's tests concurrently.** `MemoryHeavy` is serialized so
   that `ImportHashMemoryTests` never measures a merge's frames (QA Q3), not to
-  cap memory. Concurrency would shorten 40 s on this Mac and nothing on a
+  cap memory. Concurrency would shorten 43 s on this Mac and nothing on a
   three-core runner, where the run is CPU-bound.
 - **Optimizing the test target too**, or running the tests in release. The
   22 s left in the core suite is the tests' own unoptimized loops, spread thin
@@ -1509,16 +1517,18 @@ The failed run on this branch (45034608676) crashed 1 min 45 s to 4 min 15 s
 into its first merge test.
 
 - **Test run**: the suites `develop` has take about half as long here (97 s to
-  47 s) and the merge chain is 40 s of one thread: about 2.5 to 3.5 min on a
+  47 s) and the merge chain is 43 s of one thread: about 2.5 to 3.5 min on a
   runner, where `develop`'s run is 4.3 min today.
 - **Build**: about 1 min more (the two optimized targets).
 - **Job**: about 15 to 18 min, as `develop` today, where this branch could not
   finish in 45. With the bundles in a job of their own (proposed below), about
   10 to 11 min.
-- **Risks only CI can show**: Swift 6.2.4 and 6.3.3 compile `PhotoCore`
-  optimized with testing enabled for the first time (they already compile it
-  optimized for the bundles), and tests whose timing leaned on slow code. The
-  one found is fixed (`cancelLeavesNothing`); the full suite passed here three
+- **Risks only CI can show**: Swift 6.3.3 (Xcode 26.6, the macOS 26 job)
+  compiles `PhotoCore` optimized with testing enabled for the first time (it
+  already compiles it optimized for the bundles); Swift 6.2.4 has done so here
+  (see "With CI's Swift 6.2.4" below), though on this Mac's macOS 27.2, not
+  macOS 15's runtime. And tests whose timing leaned on slow code: the one
+  found is fixed (`cancelLeavesNothing`); the full suite passed here six
   times with the change.
 
 ### CI workflow: proposed, not changed (needs the owner's go-ahead)
@@ -1572,16 +1582,69 @@ Nothing under `.github/` was edited.
 - **The debug optimization in `Package.swift`** (owner, and code review). What
   it costs: a debugger steps through optimized code in `PhotoCore` and
   `PhotoFixtures` (variables optimized away, lines out of order), and a clean
-  debug build takes a third more processor time. What it buys: 12 minutes to
-  75 seconds for every `swift test`, here and on CI, and tests that run the
-  library as the app ships it. `Sources/` has no `assert` and no `#if DEBUG`,
-  so no check is lost. If the owner would rather keep unoptimized debug
-  builds, the alternative is the same flag for tests only (`swift test
+  debug build takes about 45% more processor time (288 s to 417 s). What it
+  buys: 12 minutes to 78 seconds for every `swift test`, here and on CI, and tests that run the
+  library as the app ships it. What it does not cost, since C25: checks.
+  `Sources/` has no `assert` and no `#if DEBUG`; `precondition`, overflow and
+  exclusivity checks are on at every level; and `-assert-config Debug` keeps
+  the standard library's debug-only checks (the bounds checks on unsafe buffer
+  pointers) that `-O` alone turns off. If the owner would rather keep
+  unoptimized debug builds, the alternative is the same flag for tests only (`swift test
   -Xswiftc -O` in CI and `CLAUDE.md`), which rebuilds everything whenever a
   plain `swift build` came before it.
 - **The CI proposals above.**
 - **`CLAUDE.md`** (the owner's): its Commands section could say that debug
-  builds of `PhotoCore` and `PhotoFixtures` are optimized, and why.
+  builds of `PhotoCore` and `PhotoFixtures` are optimized, with the debug
+  checks (bounds checks on unsafe buffers) kept on, and why.
+
+### Review findings (eleventh pass)
+
+- **C25 (Should fix): fixed.** The reviewer is right and the record was
+  wrong: `-O` alone turns off the standard library's debug-only checks
+  (`_debugPrecondition`), among them the bounds checks on
+  `UnsafeBufferPointer` and `UnsafeRawBufferPointer`, which `swift test` had
+  on the library's unsafe reads until `bc68ed5` (`NoiseModel.swift`,
+  `LibRawDecoder+GPU.swift`, `BrushRasterizer.swift`). The flags are now
+  `["-O", "-assert-config", "Debug"]`, and the `Package.swift` comment and
+  "Needs a decision" say what is kept. Checked:
+  - The reviewer's case as a program (`[UInt8](repeating: 7, count: 3)
+    .withUnsafeBufferPointer { $0[5] }`, and `withUnsafeBytes`), with Swift
+    6.4.2 and 6.2.4: "Fatal error" at `-Onone`, reads 0 and goes on at `-O`,
+    "Fatal error" again at `-O -assert-config Debug`.
+  - In this package, the same two reads in a function added to
+    `PhotoFixtures` for the check and called from a test (both removed
+    again): with the new flags the test process stops with "Fatal error"; with
+    `-O` alone, as `bc68ed5` had it, the function returned (0, 0) and the
+    test passed.
+  - The flags reach the compiler with the native build system (Xcode 26.3's
+    SwiftPM, `-v`): the driver gets `-Onone -enable-testing … -O
+    -assert-config Debug` for `PhotoCore` and `PhotoFixtures` and `-Onone`
+    only for every other target; their frontend jobs get `-O -assert-config
+    Debug` and no `-Onone`.
+  - Cost: merge suites 40.2 s to 42.8 s (6%), full `swift test` 73 to 79 s
+    to 78 s, a clean debug build 391 s to 417 s of processor time. All 70
+    lines the merge tests print are still identical to the unoptimized
+    build's.
+- **C26 (Nit): recorded**, below. `docs/WORKFLOW.md`'s CI-toolchain build was
+  not run before Done was reported for this change; it is now.
+
+### With CI's Swift 6.2.4 (Xcode 26.3)
+
+`DEVELOPER_DIR=/Applications/Xcode-26.3.0.app/Contents/Developer` (Swift
+6.2.4, the macOS 15 job's toolchain; native build system), scratch path
+outside the repository, at the tree with the C25 flags:
+
+- `swift build --build-tests`: clean (55.6 s; the only warnings are the two
+  in `SmartAlbumTests.swift` and `VirtualCopiesTests.swift` that `develop`
+  has).
+- `swift test --skip-build --filter "MemoryHeavy|WorkLaneTests"`: 64 tests in
+  10 suites passed (40.3 s), among them `catalogueOptional`,
+  `refusedFileRemoved` and the three "photocli merge" tests, the new shapes
+  of `HDRMergeJob.run`'s `catalogue`. The 70 printed lines are identical to
+  the unoptimized Swift 6.4.2 build's.
+- This is Swift 6.2.4's compiler on macOS 27.2's runtime, so it does not
+  replace the macOS 15 job. Swift 6.3.3 (Xcode 26.6, the macOS 26 job) is not
+  installed here: CI's alone.
 
 ## Debug-script checks
 
