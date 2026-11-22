@@ -37,3 +37,15 @@ The "Default" ruleset targets the default branch and the "master" one guards rel
 
 ## Follow-up
 After the engineer's fixes: each finding with Fixed, Not fixed (and why) or Withdrawn, and the commit.
+
+## Second pass
+Date: 2026-11-22. Reviewed: `33c2938` only (`git show 33c2938 -- .github`). Build and tests: not run (no Swift touched). `build.yml` parses (ruby `YAML.load_file`).
+
+| # | Result | Commit | Notes |
+|---|--------|--------|-------|
+| C1 | Fixed | 33c2938 | Test step limit is 20 min: 2 x 522 s (slowest measured run) = 17.4 min fits with 2.6 min to spare, and the comment now states that arithmetic. Job limit 30 min = checkout and Xcode select (about 1 min) + Build (up to 5 min) + 20 + uploads: 26 to 27 min, so on a hang the step limit still fires before the job limit and the `failure()` uploads run. |
+| C2 | Fixed | 33c2938 | The bundles job's Toolchain step (`sw_vers`, `xcodebuild -version`, `swift --version`) is identical to the test job's, has the same `if: steps.changes.outputs.code == 'true'` and indentation, and sits after Select Xcode and before Build app bundles, so it logs the selected Xcode. It is skipped on docs-only changes like the steps around it. |
+| C3 | Left open | | The inventory row is the product manager's, at its next reconcile. Not a blocker. |
+| Q1 | Open | | Runner capacity for four macOS jobs: watch the pull request's first runs. |
+
+No new findings in the commit. The commit also adds this file's first pass; no other change under `.github/` beyond the two hunks above.
