@@ -12,7 +12,7 @@ import Foundation
 /// as they are and written back after the modules.
 public struct Adjustments: Hashable, Sendable {
     /// Turns, straightening and crop. Not one of the `Group`s: presets never
-    /// carry it, copy and paste does.
+    /// carry it; Copy Adjustments does when it is checked (`CopyItem.crop`).
     public var crop = Crop()
     /// What builds with a Profile group stored about the decode. Not one of
     /// the `Group`s: presets, copy and paste never carry it (issue #219, R6);
@@ -33,7 +33,8 @@ public struct Adjustments: Hashable, Sendable {
     public var colorFringes = ColorFringes()
     /// Heal and clone spots, after the Lens heading's steps and before the
     /// crop (`SpotRenderer`). Their group, `.spots`, turns them off and on;
-    /// presets and paste leave them out (`Group.presetGroups`).
+    /// presets leave them out (`Group.presetGroups`); Copy Adjustments carries
+    /// them only when checked, onto photos of the same frame size (#243, R8).
     public var spots = Spots()
     public var whiteBalance = WhiteBalance()
     public var exposure = Exposure()
@@ -249,7 +250,7 @@ public struct Adjustments: Hashable, Sendable {
     }
 
     /// Takes one module's values, and whether it is on, from `source`.
-    private mutating func copyModule(_ kind: EditOperationKind, from source: Adjustments) {
+    mutating func copyModule(_ kind: EditOperationKind, from source: Adjustments) {
         switch kind {
         case Crop.kind: crop = source.crop
         case RawDecode.kind: decode = source.decode
@@ -368,12 +369,12 @@ public struct Adjustments: Hashable, Sendable {
         /// Black & White, their check boxes also switch them on (`setEnabled`).
         case distortion, lensVignetting
         case colorFringes, colorAlignment
-        /// Heal and clone spots: a group only so its heading has an on/off
-        /// check box (PRD R18). Not a preset group: presets, copy and paste
-        /// leave it out (R11).
+        /// Heal and clone spots: a group so its heading has an on/off check
+        /// box (healing PRD R18). Not a preset group: presets leave it out
+        /// (R11). Copy Adjustments carries it only when checked (#243, R8).
         case spots
 
-        /// The groups presets carry and paste replaces: every group but `.spots`.
+        /// The groups presets carry: every group but `.spots`.
         public static let presetGroups: [Group] = allCases.filter { $0 != .spots }
 
         public var kinds: [EditOperationKind] {

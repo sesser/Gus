@@ -90,20 +90,12 @@ struct AdjustmentPresetRecord: Codable, FetchableRecord, MutablePersistableRecor
 }
 
 extension Adjustments {
-    /// These adjustments applied over `target`'s: everything is replaced except
-    /// the target's masks, spots, stored decode and operations this build does
-    /// not understand.
+    /// These adjustments applied over `target`'s as Copy Adjustments with
+    /// every item but Spots checked would (`CopiedAdjustments`): every group
+    /// and the crop replaced; the target's masks, spots, stored decode and
+    /// operations this build does not understand kept.
     public func pasted(onto target: Adjustments) -> Adjustments {
-        // The stored decode (a Look an older build saved) is never pasted and
-        // the target's stays (issue #219, R3, R6).
-        var result = keepingDecode(of: target)
-        result.preserved = target.preserved
-        // Masks and spots are drawn on one photo's content: paste leaves the
-        // target's, spots with their on/off state (PRD R11, R18).
-        result.local = target.local
-        result.spots = target.spots
-        result.setEnabled(.spots, target.isEnabled(.spots))
-        return result
+        CopiedAdjustments(self, items: Set(CopyItem.all).subtracting([.group(.spots)])).pasted(onto: target)
     }
 }
 
