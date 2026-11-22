@@ -6,6 +6,11 @@ Owner: swift-macos-engineer. Branch `feature/hdr-merge` (worktree `Gus-hdr-merge
 Spec: the PRD (issue #150 body, approved and revised 2026-11-20) and
 [`design.md`](design.md).
 
+**2026-11-22: CI on PR #258 Blocked** on a crash in `HDRMergeJob.run` with
+the CI toolchains (Swift 6.2.4 and 6.3.3), a fix in Sources waiting for a
+ruling; the WorkLane test (#259) and the merge suites' pool use fixed in tests.
+See "CI on PR #258".
+
 **State: Done** (2026-11-20, after the review fixes below). Every criterion of the PRD as revised (prd4: R4 widened to the stem, R19, AC2a, AC15) built and tested; nothing blocked. Next: code review's second pass (and the designer for the three new strings), then QA.
 
 **2026-11-21: owner finding at sign-off (P5) fixed**, see "Bug: tiles at
@@ -1221,6 +1226,90 @@ build) on none of 8, all eight snapshots byte for byte the same.
 which never showed the fault, but it was not soaked. Camera raws (system
 decoder) were not soaked either; #181 found them stable. Photos larger than
 16384 pixels on a side keep the lazy decode.
+
+## CI on PR #258 (2026-11-22): Blocked on a fix in Sources
+
+Run 45034608676 (after the merge of `develop`, `4f50003`, and Ship,
+`2c4d93f`) failed on macOS 15 and macOS 26 in both attempts, each after the
+workflow's own retry.
+
+**The signal 11 is a crash in `HDRMergeJob.run`, not the runner's (#77).**
+Every crash has the same frame. The three macOS 15 crash reports (artifacts
+`crash-reports-macos-15`, `.ips`, `EXC_BAD_ACCESS` at 0x18) and both macOS 26
+backtraces in the log (`Bad pointer dereference at 0x14`) show:
+
+```
+swift_task_dealloc (libswift_Concurrency)
+closure #1 in default argument 4 of HDRMergeJob.run(_:format:options:progress:catalogue:)  HDRMergeJob.swift:128
+closure #5 in HDRMergeJob.run(…)  HDRMergeJob.swift:246   (the Task.detached around catalogue)
+completeTaskWithClosure (libswift_Concurrency)
+```
+
+Default argument 4 is `catalogue`'s `{ try await $0() }`, called inside
+`Task.detached` once the file is written. The test that was running is the
+first in the serialized `MemoryHeavy` suites, `HDRMergeJobTests.mergesToTIFF`
+("AC2, AC3, AC5: …names a TIFF beside it…"). It started about 4 to 5 minutes
+before each crash and never finished, on both systems and in all four runs. Its
+first `job.run` uses the default `catalogue`. The last test name printed before
+the crash ("Distortion moves the grid's lines…") is only another suite's output
+running in parallel. CI builds with Swift 6.2.4 (Xcode 26.3, macOS 15) and 6.3.3
+(Xcode 26.6, macOS 26); here it is 6.4.2, where the same tests pass. So this is
+a toolchain-dependent fault at that call: a miscompile of an async
+default-argument closure, or a task-allocator ordering fault in those runtimes.
+It is not load: it happens at the first such call. It is also not limited to
+tests. `photocli merge` (`MergeCommands.swift:84`) calls `run` with the default
+`catalogue` too, so a `photocli` built with Xcode 26.3 or 26.6 would likely
+crash on every merge. The app passes its own closure (`MergeModel`), a different
+closure that no CI test covers. `develop` is green because it has no merge code.
+No crash comes from memory: the merge core suite peaks at 627 MB resident here
+(`/usr/bin/time -l`, 15 tests, 427 s, CPU-bound on one thread in debug).
+
+**Options (Sources, not changed; for the main session to rule on):**
+
+1. **`catalogue` optional, default nil** (recommended). When nil, the detached
+   task calls the catalog insert directly; with a closure, as now. No async
+   closure is a default argument any more. The signature is source-compatible
+   for both callers (the app passes `catalogue:`, `photocli` passes nothing),
+   and behavior is the same. It can only be confirmed on CI (no 6.2 or 6.3
+   toolchain here).
+2. An overload without `catalogue` that passes an explicit closure literal.
+   This is smaller, but the same closure shape may hit the same fault.
+3. Pass an explicit `catalogue` in the tests only. Rejected: it hides the crash
+   and leaves `photocli merge` exposed.
+
+**The WorkLane failure (macOS 26, retry run) is #259, made worse by the
+branch's long serialized suites.** On `develop`'s green run
+`cancellingTheLastWaiterCancelsTheJob` already "passes after" 222 to 226 s, so
+the pool is starved there too. The test's job slept 10 s and its waiters'
+cancellation arrives through an unstructured task. On the starved pool that
+task ran after the 10 s, so the job finished, the pending job ran, and all four
+expectations failed. Here the whole suite now takes 729 s, with the
+`MemoryHeavy` suites (serialized) as the critical path ("HDR merge job" 208 s,
+"HDR merge core" 433 s, until now on a cooperative thread).
+
+**Tests changed (no change under Sources):**
+
+- `WorkLaneTests.cancellingTheLastWaiterCancelsTheJob` no longer depends on
+  wall time (#259, fix 1). The running job waits on a gate that only
+  cancellation opens, not a 10 s sleep. The pending job is cancelled once
+  `lane.pendingCount` shows it queued, not after 20 ms. The job's own
+  cancellation is awaited through a gate, not a 50 ms sleep. "A pending job
+  with no waiters must not start" is checked after the next job has run
+  (one slot: a pending job still queued would have run first). `WorkLane` is
+  unchanged.
+- Every test of the heavy merge suites (`HDRMergerTests` with
+  `MergeChoicesTests`, `MergeDNGTests`, `HDRMergeJobTests`, `MergeCommandTests`,
+  the reference and options suite, `MergeSafetyTests`, `MergeAlignmentTests`;
+  53 tests) runs its body through `offCooperativePool`, so their synchronous
+  renders and measuring hold a Dispatch thread, not one of the pool's three
+  (#259, fix 2). They were already serialized (`MemoryHeavy`). The cheap merge
+  suites (sheet, selection, rules, progress) are unchanged. No image size,
+  tolerance or assertion changed.
+
+Results: `swift build` clean; full `swift test` 1427 tests in 205 suites passed
+(728.7 s); `Scripts/build-app.sh` builds. Not verified: CI, until the Sources
+fix is ruled on. Risk to watch there: with a signal 11 retry, the suite's
+length (about 12 minutes here, more on the runners) and the 45-minute job limit.
 
 ## Debug-script checks
 
