@@ -223,11 +223,16 @@ extension MemoryHeavy.HDRMergerTests {
     /// (relative differences, worst of each area): inside the object at the
     /// reference's place against the reference frame itself (`object`); at
     /// the other frames' places against a merge of the same plan with no
-    /// ghosts and nothing moving (`ghosts`); and everywhere far from every
-    /// object against that clean merge (`elsewhere`, over `compared` pixels).
+    /// ghosts and nothing moving (`ghosts`, the 11 x 11 pixels at each
+    /// place's center; `rim`, the whole disc and the masks' growth around it,
+    /// with `rimOver` pixels more than 5% off, code review C18); and
+    /// everywhere far from every object against that clean merge
+    /// (`elsewhere`, over `compared` pixels).
     struct GhostCheck {
         var object: Float
         var ghosts: Float
+        var rim: Float
+        var rimOver: Int
         var elsewhere: Float
         var compared: Int
         var plan: HDRMerger.Plan
@@ -280,9 +285,27 @@ extension MemoryHeavy.HDRMergerTests {
                 }
             }
         }
-        print("evs \(evs) reference \(reference) \(options): exposures \(plan.frames.map(\.exposure)); ghost masks \(plan.ghosts.map { $0.values.reduce(0, +) }); object \(objectWorst), ghosts \(ghostWorst), elsewhere \(cleanWorst) over \(compared)")
-        return GhostCheck(object: objectWorst, ghosts: ghostWorst, elsewhere: cleanWorst, compared: compared, plan: plan,
-                          merged: merged)
+        // The same over each other place's whole disc and the growth around
+        // it: a moving object's outline, where a mask that stops short leaves
+        // a colored speck.
+        var rimWorst: Float = 0, rimOver = 0
+        for y in 0..<Self.height {
+            for x in 0..<Self.width {
+                let p = SIMD2(Double(x) + 0.5, Double(y) + 0.5)
+                let near = places.indices.contains { index in
+                    index != reference
+                        && simd_distance(p, places[index] * SIMD2(Double(Self.width), Double(Self.height))) < radius + grow
+                }
+                guard near else { continue }
+                let m = merged.rgb(x: x, y: y), t = clean.rgb(x: x, y: y)
+                let e = simd_reduce_max(abs(m - t) / (t + 1e-4))
+                rimWorst = max(rimWorst, e)
+                if e > 0.05 { rimOver += 1 }
+            }
+        }
+        print("evs \(evs) reference \(reference) \(options): exposures \(plan.frames.map(\.exposure)); ghost masks \(plan.ghosts.map { $0.values.reduce(0, +) }); object \(objectWorst), ghosts \(ghostWorst), rim \(rimWorst) (\(rimOver) over 5%), elsewhere \(cleanWorst) over \(compared)")
+        return GhostCheck(object: objectWorst, ghosts: ghostWorst, rim: rimWorst, rimOver: rimOver, elsewhere: cleanWorst,
+                          compared: compared, plan: plan, merged: merged)
     }
 
     @Test("AC8: a moving object shows once, from the reference, and the rest matches a merge with nothing moving")
@@ -290,6 +313,8 @@ extension MemoryHeavy.HDRMergerTests {
         let check = try Self.ghostCheck(evs: [-2, 0, 2], reference: 1)
         #expect(check.object < 0.05)
         #expect(check.ghosts < 0.05)
+        // The outline too: no pixel of a moved object's disc or its margin off by 5% (C18).
+        #expect(check.rimOver == 0)
         // The same math on the same pixels: float rounding only.
         #expect(check.elsewhere < 1e-5)
     }

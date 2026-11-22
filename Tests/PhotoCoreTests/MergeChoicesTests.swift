@@ -108,6 +108,7 @@ extension MemoryHeavy.HDRMergerTests {
             let check = try Self.ghostCheck(evs: [-1, 0, 1], reference: reference)
             #expect(check.object < 0.05, "reference \(reference)")
             #expect(check.ghosts < 0.05, "reference \(reference)")
+            #expect(check.rimOver == 0, "reference \(reference)")
             #expect(check.elsewhere < 1e-5, "reference \(reference)")
         }
     }
@@ -120,7 +121,55 @@ extension MemoryHeavy.HDRMergerTests {
             let check = try Self.ghostCheck(evs: [-2, 0, 2], reference: reference)
             #expect(check.object < 0.05, "reference \(reference)")
             #expect(check.ghosts < 0.05, "reference \(reference)")
+            #expect(check.rimOver == 0, "reference \(reference)")
         }
+    }
+
+    @Test("AC8, A13: with Auto-align off too, a moved object's outline is taken out whole, whichever frame is the reference")
+    func outlinesWithoutAlignment() throws {
+        // C18 (code review, seventh pass): with the frame-bound tests cleaned
+        // apart from the others, a few pixels of a ghost's rim got through
+        // (up to 21 times the clean value at ±1 EV), measured over the whole
+        // disc and its margin rather than the 11 x 11 core.
+        for evs in [[-1.0, 0, 1], [-2.0, 0, 2]] {
+            for reference in evs.indices {
+                let check = try Self.ghostCheck(evs: evs, reference: reference, options: MergeOptions(align: false))
+                #expect(check.object < 0.05, "\(evs) reference \(reference)")
+                #expect(check.ghosts < 0.05, "\(evs) reference \(reference)")
+                #expect(check.rimOver == 0, "\(evs) reference \(reference)")
+            }
+        }
+    }
+
+    @Test("A13: a still linear bracket with noise is merged as with no masks (the default reference, Auto-align off)")
+    func stillNoisyBracket() throws {
+        // C17 (code review, seventh pass): noise drags a neighborhood's darkest
+        // value under the black level where the light is above it, so a black
+        // frame's test must not read values under that level. On a tripod
+        // series (Auto-align off: no sub-pixel resampling) nothing may move.
+        let merger = HDRMerger()
+        let evs = [-2.0, 0, 2]
+        let linear = evs.enumerated().map { index, ev in
+            HDRBracket.image(HDRBracket.Frame(ev: ev), width: Self.width, height: Self.height, noise: 0.004,
+                             seed: UInt64(index + 7))
+        }
+        let copies = linear.map { MergeBitmap(width: $0.width, height: $0.height, pixels: $0.pixels) }
+        let frames = linear.map(\.ciImage)
+        let plan = try merger.plan(measuring: copies, reference: 1, metadataExposures: evs.map { _ in nil },
+                                   options: MergeOptions(align: false))
+        var unmasked = plan
+        unmasked.ghosts = plan.ghosts.map { MergePlane(width: $0.width, height: $0.height) }
+        let merged = try #require(MergeBitmap.render(try merger.radiance(plan, frames: frames), context: merger.context))
+        let plain = try #require(MergeBitmap.render(try merger.radiance(unmasked, frames: frames), context: merger.context))
+        var moved = 0
+        var worst: Float = 0
+        for index in 0..<merged.count {
+            let difference = simd_reduce_max(abs(merged.rgb(index) - plain.rgb(index)) / (plain.rgb(index) + 1e-4))
+            worst = max(worst, difference)
+            if difference > 0.01 { moved += 1 }
+        }
+        print("still noisy ±2 EV, default reference: moved over 1% \(moved), worst \(worst)")
+        #expect(moved == 0)
     }
 
     /// A camera response that isn't proportional to the light, as a JPEG's is
