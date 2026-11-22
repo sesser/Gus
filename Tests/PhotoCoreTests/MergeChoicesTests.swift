@@ -141,35 +141,56 @@ extension MemoryHeavy.HDRMergerTests {
         }
     }
 
-    @Test("A13: a still linear bracket with noise is merged as with no masks (the default reference, Auto-align off)")
+    @Test("A13: a still linear bracket with noise is merged as with no masks, the default and the darkest reference")
     func stillNoisyBracket() throws {
-        // C17 (code review, seventh pass): noise drags a neighborhood's darkest
-        // value under the black level where the light is above it, so a black
-        // frame's test must not read values under that level. On a tripod
-        // series (Auto-align off: no sub-pixel resampling) nothing may move.
+        // C17 (code review, seventh pass): noise drags a black frame's
+        // neighborhood minimum under its black level where the light is above
+        // it. C19 (eighth pass), the mirror: the darkest reference's own noise
+        // reaches its black level, and the reference-black test compared the
+        // brighter frames with that level. Each case: still frames, noise
+        // σ 0.004, against the same plan with no masks; `allowed` pixels may
+        // move by more than 1%.
+        // The default reference on a tripod series (Auto-align off, no
+        // sub-pixel resampling): nothing. The darkest at ±2 EV, aligned or
+        // not: nothing (before C19, 769 and 767). The darkest at ±3 EV keeps a
+        // residual, 1,870 aligned and 2,071 not (before C19, 12,163 and
+        // 12,440): not the reference-black test (it fires nowhere there now)
+        // but mostly the two-sided test reading the darkest frame's noise
+        // where its light is only a few σ above its black level, which needs
+        // a noise model (proposed follow-up). Bounded at 1% of the frame, the
+        // residual's order; the rule before C19 moved 5%.
+        let frameSize = Self.width * Self.height
+        let cases: [(evs: [Double], reference: Int, align: Bool, allowed: Int)] = [
+            ([-2, 0, 2], 1, false, 0),
+            ([-2, 0, 2], 0, true, 0), ([-2, 0, 2], 0, false, 0),
+            ([-3, 0, 3], 0, true, frameSize / 100), ([-3, 0, 3], 0, false, frameSize / 100),
+        ]
         let merger = HDRMerger()
-        let evs = [-2.0, 0, 2]
-        let linear = evs.enumerated().map { index, ev in
-            HDRBracket.image(HDRBracket.Frame(ev: ev), width: Self.width, height: Self.height, noise: 0.004,
-                             seed: UInt64(index + 7))
+        for (evs, reference, align, allowed) in cases {
+            let linear = evs.enumerated().map { index, ev in
+                HDRBracket.image(HDRBracket.Frame(ev: ev), width: Self.width, height: Self.height, noise: 0.004,
+                                 seed: UInt64(index + 7))
+            }
+            let copies = linear.map { MergeBitmap(width: $0.width, height: $0.height, pixels: $0.pixels) }
+            let frames = linear.map(\.ciImage)
+            let plan = try merger.plan(measuring: copies, reference: reference, metadataExposures: evs.map { _ in nil },
+                                       options: MergeOptions(align: align))
+            var unmasked = plan
+            unmasked.ghosts = plan.ghosts.map { MergePlane(width: $0.width, height: $0.height) }
+            let merged = try #require(MergeBitmap.render(try merger.radiance(plan, frames: frames),
+                                                         context: merger.context))
+            let plain = try #require(MergeBitmap.render(try merger.radiance(unmasked, frames: frames),
+                                                        context: merger.context))
+            var moved = 0
+            var worst: Float = 0
+            for index in 0..<merged.count {
+                let difference = simd_reduce_max(abs(merged.rgb(index) - plain.rgb(index)) / (plain.rgb(index) + 1e-4))
+                worst = max(worst, difference)
+                if difference > 0.01 { moved += 1 }
+            }
+            print("still noisy \(evs), reference \(reference), align \(align): moved over 1% \(moved), worst \(worst)")
+            #expect(moved <= allowed, "\(evs), reference \(reference), align \(align)")
         }
-        let copies = linear.map { MergeBitmap(width: $0.width, height: $0.height, pixels: $0.pixels) }
-        let frames = linear.map(\.ciImage)
-        let plan = try merger.plan(measuring: copies, reference: 1, metadataExposures: evs.map { _ in nil },
-                                   options: MergeOptions(align: false))
-        var unmasked = plan
-        unmasked.ghosts = plan.ghosts.map { MergePlane(width: $0.width, height: $0.height) }
-        let merged = try #require(MergeBitmap.render(try merger.radiance(plan, frames: frames), context: merger.context))
-        let plain = try #require(MergeBitmap.render(try merger.radiance(unmasked, frames: frames), context: merger.context))
-        var moved = 0
-        var worst: Float = 0
-        for index in 0..<merged.count {
-            let difference = simd_reduce_max(abs(merged.rgb(index) - plain.rgb(index)) / (plain.rgb(index) + 1e-4))
-            worst = max(worst, difference)
-            if difference > 0.01 { moved += 1 }
-        }
-        print("still noisy ±2 EV, default reference: moved over 1% \(moved), worst \(worst)")
-        #expect(moved == 0)
     }
 
     /// A camera response that isn't proportional to the light, as a JPEG's is

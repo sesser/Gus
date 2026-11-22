@@ -24,6 +24,10 @@ import Foundation
 /// C14), and noise drags a neighborhood's darkest value under the black level
 /// where the light is above it (C17).
 ///
+/// Where the reference is black, the same holds the other way round: a frame
+/// disagrees only if it is clearly brighter than the larger of the
+/// reference's highest value and its black level (C19).
+///
 /// Measured on the reduced copies, slightly blurred so a fraction of a pixel
 /// of alignment error doesn't count at edges, then cleaned (isolated pixels
 /// dropped), grown and feathered, so a moving object is taken out whole.
@@ -118,8 +122,11 @@ public enum MergeGhosts {
                 differs = !frameClipped && frame.high[index] / exposure * factor < highR
             } else if reference.low[index] <= lowR {
                 // The reference is black here or next to here: the frame
-                // disagrees only if all around it is clearly above black.
-                differs = !frameBlack && frame.low[index] / exposure > lowR * factor
+                // disagrees only if all around it is clearly above the larger of
+                // the reference's highest value and its black level. Not above
+                // the black level alone: where the reference's light is just
+                // above that level, its noise reaches it (C19, the mirror of C17).
+                differs = !frameBlack && frame.low[index] / exposure > max(reference.high[index], lowR) * factor
             } else if frameClipped {
                 // The frame clips where the reference doesn't: it disagrees if
                 // even its lowest value is clearly above the reference's highest.
