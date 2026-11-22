@@ -179,6 +179,29 @@ public struct PreviewGenerator: Sendable {
         return pixelSize(source)
     }
 
+    /// The size in pixels of the frame masks and spots are placed in for a
+    /// photo with spots: the oriented decode of the whole sensor (a raw's
+    /// camera crop undone, `CameraFrame`), before turns, straightening and
+    /// crop. The Lens heading's corrections keep that frame's size
+    /// (`LensCorrectionRenderer` crops its result to its input), so this is
+    /// the size after any paste too. Read from the file's header; nothing is
+    /// decoded. Nil when no decoder reads the file.
+    public static func maskFrameSize(of url: URL) -> CGSize? {
+        if SupportedFormats.isRaw(pathExtension: url.pathExtension) {
+            // The decoders in `rawImage`'s order: the system's for the whole
+            // sensor, the system's as the camera framed it, then LibRaw's.
+            for raw in [CameraFrame.fullFrameFilter(for: url), CIRAWFilter(imageURL: url)].compactMap({ $0 }) {
+                if let extent = RAWDecodeGraph.output(of: raw)?.extent, !extent.isEmpty, !extent.isInfinite {
+                    return extent.size
+                }
+            }
+            if let size = LibRawDecoder.frameSize(url) { return size }
+        }
+        guard let image = CIImage(contentsOf: url, options: [.applyOrientationProperty: true]),
+              !image.extent.isEmpty, !image.extent.isInfinite else { return nil }
+        return image.extent.size
+    }
+
     /// A decoded master and what the renderer needs to know about it.
     public struct Decoded {
         public var image: CIImage
