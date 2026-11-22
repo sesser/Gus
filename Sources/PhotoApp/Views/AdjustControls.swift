@@ -803,6 +803,8 @@ struct AppKitCheckbox: NSViewRepresentable {
     /// check box. A titled one is named by its title.
     var title: String?
     var isEnabled = true
+    /// Small in the inspector; regular in a sheet's list (the Copy Adjustments sheet).
+    var controlSize: NSControl.ControlSize = .small
     let action: () -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -810,8 +812,8 @@ struct AppKitCheckbox: NSViewRepresentable {
     func makeNSView(context: Context) -> NSButton {
         let button = NSButton(checkboxWithTitle: "", target: context.coordinator, action: #selector(Coordinator.click(_:)))
         button.allowsMixedState = true
-        button.controlSize = .small
-        button.font = .systemFont(ofSize: 11)
+        button.controlSize = controlSize
+        button.font = .systemFont(ofSize: NSFont.systemFontSize(for: controlSize))
         return button
     }
 

@@ -232,6 +232,29 @@ public struct CopiedAdjustments: Hashable, Sendable {
     }
 }
 
+/// Which photos of a paste get the copied spots (R8), and how many keep
+/// their own and why.
+public struct SpotPastePlan: Hashable, Sendable {
+    public let matching: Set<Int64>
+    /// Photos whose frame has another size than the source's.
+    public let otherSize: Int
+    /// Photos whose frame, or the source's, could not be read (an offline or
+    /// unreadable master).
+    public let unknownSize: Int
+
+    /// - Parameters:
+    ///   - ids: The photos the paste reaches.
+    ///   - sourceFrame: The frame the spots were copied from, nil when unknown.
+    ///   - frames: Each photo's frame; a missing one is unknown.
+    public init(ids: [Int64], sourceFrame: CGSize?, frames: [Int64: CGSize]) {
+        let matching = Set(ids.filter { CopiedAdjustments.pastesSpots(sourceFrame: sourceFrame, targetFrame: frames[$0]) })
+        self.matching = matching
+        let known = sourceFrame == nil ? [] : ids.filter { frames[$0] != nil }
+        otherSize = known.filter { !matching.contains($0) }.count
+        unknownSize = ids.count - matching.count - otherSize
+    }
+}
+
 extension Adjustments {
     /// These adjustments with `items` taken from `source`, values and on/off.
     mutating func take(_ items: Set<CopyItem>, from source: Adjustments) {

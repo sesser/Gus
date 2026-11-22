@@ -126,6 +126,8 @@ struct LibraryMenuState: Equatable {
     var flagRule: LibraryFilter.FlagRule
     var isFiltered: Bool
     var hasCopiedAdjustments: Bool
+    /// Copy Adjustments… opens its sheet (`LibraryModel.canCopyAdjustments`).
+    var canCopyAdjustments: Bool
     var presetCollections: [AdjustmentPresetCollection]
     var albums: [AlbumSummary]
     var isInAlbum: Bool
@@ -261,6 +263,7 @@ struct LibraryMenuState: Equatable {
         flagRule = model.flagRule
         isFiltered = model.isFiltered
         hasCopiedAdjustments = model.copiedAdjustments != nil
+        canCopyAdjustments = model.canCopyAdjustments
         presetCollections = model.adjustmentPresetCollections
         albums = model.albums
         isInAlbum = model.currentAlbumID != nil

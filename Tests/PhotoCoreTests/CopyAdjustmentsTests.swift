@@ -308,6 +308,19 @@ struct CopyAdjustmentsTests {
         #expect(!CopiedAdjustments.pastesSpots(sourceFrame: frame, targetFrame: nil))
     }
 
+    @Test("R8: the plan counts photos of another size apart from photos whose size is unknown")
+    func spotPastePlan() {
+        let frame = CGSize(width: 300, height: 200)
+        let plan = SpotPastePlan(ids: [1, 2, 3, 4], sourceFrame: frame,
+                                 frames: [1: frame, 2: CGSize(width: 200, height: 300), 3: frame])
+        #expect(plan.matching == [1, 3] && plan.otherSize == 1 && plan.unknownSize == 1)
+        // The source's frame unknown: nothing matches, and every photo is unknown, none of another size.
+        let unknown = SpotPastePlan(ids: [1, 2], sourceFrame: nil, frames: [1: frame, 2: frame])
+        #expect(unknown.matching.isEmpty && unknown.otherSize == 0 && unknown.unknownSize == 2)
+        let all = SpotPastePlan(ids: [1], sourceFrame: frame, frames: [1: frame])
+        #expect(all.matching == [1] && all.otherSize == 0 && all.unknownSize == 0)
+    }
+
     @Test("R8: the frame size is the oriented decode of the whole sensor, read from the header")
     func maskFrameSizeMatchesTheDecode() async throws {
         try await offCooperativePool {
@@ -358,7 +371,7 @@ struct CopyAdjustmentsTests {
         let stored = try await fixture.catalog.editStacks(forVersions: ids)
         for id in ids {
             #expect(try #require(stored.stacks[id]).hasSameContent(as: try #require(original.stacks[id])))
-            #expect(try #require(stored.stacks[id]) != change.after[id])
+            #expect(stored.stacks[id] != change.after[id])
         }
     }
 

@@ -165,8 +165,13 @@ final class LibraryModel {
     let merge = MergeModel()
     /// The video loupe's player (View ▸ Play / Pause).
     let playback = VideoPlayback()
-    /// Adjustments taken by Copy Adjustments.
-    var copiedAdjustments: Adjustments?
+    /// What Copy Adjustments… took: the checked items and their values (issue #243).
+    var copiedAdjustments: CopiedAdjustments?
+    /// The Copy Adjustments sheet's state while it is up.
+    var copySheet: CopySheet?
+    /// The catalog read before the sheet opens, outside the loupe: a second
+    /// request meanwhile does nothing (design §2).
+    @ObservationIgnored var copySheetRead: Task<Void, Never>?
     var adjustmentPresets: [AdjustmentPreset] = []
     let lookTables: LookTableStore
     /// Stored detection results of mask components, as the renderer reads them (issue #88).
@@ -215,6 +220,15 @@ final class LibraryModel {
     /// files in the way is stopped and never answers (issue #163).
     var showsExportSheet = false {
         didSet { if !showsExportSheet { export.cancelRequest() } }
+    }
+    /// The Copy Adjustments sheet is up (`LibraryModal.copyAdjustments`).
+    var showsCopySheet = false {
+        didSet {
+            if !showsCopySheet {
+                copySheet?.close()
+                copySheet = nil
+            }
+        }
     }
     /// The Merge to HDR sheet is up (`LibraryModal.merge`).
     var showsMergeSheet = false {

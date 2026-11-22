@@ -141,7 +141,9 @@ struct AdjustHeader: View {
             }
             Spacer()
             AppKitMenuButton(title: "", symbol: "ellipsis.circle", entries: [
-                .item(String(localized: "Copy Adjustments"), isEnabled: model.focusedItem != nil) { model.copyAdjustments() },
+                .item(CopyAdjustmentsText.menuItem, isEnabled: model.focusedItem != nil && model.canCopyAdjustments) {
+                    model.openCopySheet()
+                },
                 .item(String(localized: "Paste Adjustments"), isEnabled: model.copiedAdjustments != nil) {
                     model.pasteAdjustments()
                 },
