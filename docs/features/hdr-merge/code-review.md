@@ -703,3 +703,85 @@ changes).
   goes beside the reference, now any frame of the series, whose folder comes
   from the catalog and passes `isPlainPlace`. `--reference` is an integer
   checked against the series before anything is read.
+
+## Seventh pass (second pass on the sixth): C14, C16 and the F6 to F8 commits
+
+Owner: code-reviewer. Date: 2026-11-21. Reviewed: `feature/hdr-merge`,
+`57ac0f3` and `cc9a325` (the design review's F6 to F8), `c562d0c` (C14),
+`921cf28` (C16) and `e787efe` (status). `079bf79` (moving to bug #253) is not
+reviewed. Build and tests: `swift build` clean on `e787efe`. `swift test
+--filter` on the merge suites touched (`stillNonLinearBracket`,
+`extremeReferences`, `ghostFree`, `ghostsFollowTheReference`,
+`MergeSheetState`, `MergeSelection`): 34 tests in 5 suites passed (153.7 s).
+`BrandingTests` and `LocalizationTests` passed. I did not run the full suite
+again; the engineer's full run is 1346 passed. Also run here: three throwaway
+probe suites in a clone of the worktree in the scratchpad (not committed, and
+nothing in the worktree touched). They put the masks of `e787efe`, of
+`c1d10c3` and of the rule before `be5bf92` side by side, plus variants of the
+C14 change, on still and moving brackets. The app was not launched (QA's
+job).
+
+### Verdict
+
+Ready for QA. C14 and C16 are fixed, and F6 to F8 are correct in code. Two new
+nits come from probing C14's second half, and neither blocks. C17: the narrowed
+black-frame test fires on noise, at noise level. C18: keeping the frame-bound
+masks only where another frame is trusted, and cleaning them in their own
+plane, lets 1 to 4 measuring pixels of a ghost's rim through on the walker,
+with the default reference too. On the same fixture, `c1d10c3` let none
+through. The engineer's figures for the extreme references hold, but they
+measure the 11 x 11 core of each ghost, not its rim.
+
+### Follow-up (sixth pass)
+
+| # | State | Commit | Note |
+|---|---|---|---|
+| C14 | Fixed (two nits on the fix, C17 and C18) | `c562d0c` | Re-run here, and the numbers match `status.md` to the printed digit. `stillNonLinearBracket` gives no mask and nothing moved for toe 0.01, toe 0.005 and shoulder 1, with each frame as the reference. The linear walker: `ghostFree` 0.0 / 0.0076 / 0.0; `extremeReferences` −2 EV 9.3e-8 / 0.0052 / 0.0 and +2 EV 0.0 / 0.00011 / 0.0; `ghostsFollowTheReference` 1.3e-7 / 0.0057 / 0.0 and 9.3e-8 / 0.00026 / 0.0. The mask sums 6768.0 (±2, default, frame +2) and 6617.6 / 6482.1 (±1, −1 EV reference) are as recorded. Beyond the test: toe 0.02 and 0.05 at ±2 EV, and toe 0.02 and 0.05 at ±3 EV, move nothing more than the rule before `be5bf92` does, with any reference. `c1d10c3` moved up to 4,368 pixels there, 4,328 of them where the reference clips, worst 97%. The S-curve with the +2 EV reference and alignment on reproduces the engineer's 24,152 / 66 / 0.13. Why item 2 can't hide a real disagreement: the frame-bound tests fire only where the reference is neither black nor clipped all around, so the reference is itself trusted at every raw bound pixel, and `usableElsewhere` trims only what cleaning and growth added. Determinism: plain CPU loops and a summed-area table in `Double`. Two runs of `masks` on 2048 x 1365 copies gave identical planes. Cost, debug build only, with another session's tests running alongside: 52 s for `c1d10c3`'s masks against 52 s, 64 s and 75.5 s for the new ones with references +2, −2 and 0 EV. That is +0% to +45% of the ghost step, and only for frames where a bound test fired (one more clean-and-grow and one pass per other frame). Release wasn't timed. The ghost step is part of measuring's 3.3 to 5.4 s in release (`docs/PROFILING.md`), so a `photobench merge` timing before and after would settle it. |
+| C15 | Recorded | — | Noted in `status.md`. |
+| C16 | Fixed | `921cf28` | The rule moved into `MergeSheetState` (`spinner`: `hidden`, `waiting(n)`, `shown`), and the model keeps only the timer. Both of my traces now end right. (A): back to an answered folder hides the spinner at once (`decideSpinner` sees `isDiskChecked`), the timer is cancelled, and Merge is on. (B): a wait that ended for a superseded reference has a stale number, so `spinnerWaitEnded` ignores it. Nothing guards on `slowTask == nil` any more, so the next folder gets its own wait. Stale waits: the timer is cancelled on every new wait, on `hidden`, and in `stopSheetTasks` (close, reopen, `begin`). A timer that wakes after being cancelled returns on `Task.isCancelled`, and even one that didn't would carry a stale number. A reopened sheet is a new state, numbered from 1 again, but the old timer was cancelled in `begin`, so it can't collide. A spinner already shown stays when the reference moves to another folder still being asked, rather than blinking, which fits §5.8. `isCheckingSlowly` is now computed from the observed `sheet`, so the view still refreshes. The three tests pin traces A and B and the pending-to-pending case. |
+
+### Also checked in this range (F6 to F8)
+
+- **F6 (`57ac0f3`).** The captions are folded into their controls' rows. The
+  Format picker sits in a `LabeledContent` with its label hidden, and its
+  `accessibilityLabel` is kept. `idealHeight` is 640 and the bars' padding 12.
+  The "Photos" header is gone from the Form, but `MergeText.photosSection` is
+  still used as the table's accessibility label, so the key isn't orphaned.
+  One key was replaced in the String Catalog, the old one removed, with its
+  comment. The layout and the measured height are the designer's to confirm
+  (M15).
+- **F7.** `resultNameIsTentative` is `!isFinal || refusal != nil`, which is
+  D-H12's rule word for word. `refusal` is the sheet's own (disk refusals
+  included).
+- **F8 (`cc9a325`).** `MergeSelection.item(showing:in:)` takes the frame's own
+  item, then the target item whose `partnerVersionID` is the frame, then the
+  first target. Frames come from the targets or their partners, so the third
+  fallback is reached only if an item has gone missing meanwhile. Tested in
+  `MergeSelectionTests`.
+- **Swift 6.2 and CI.** Read only. `LabeledContent`, `.labelsHidden()`,
+  `Task.sleep(for:)` and an enum `case .waiting where …` pattern with no
+  binding have all been available since Swift 5 or macOS 13/14. There is no
+  `@concurrent`, no `Test.cancel`, no new `nonisolated` or `@unchecked
+  Sendable`, and no macOS 27 symbol. `MergeSheetState` gained two stored
+  properties and stays `Sendable, Equatable`, synthesized.
+- **Rules.** No migration, no new package, no persisted name, and
+  `currentPipelineVersion` stays 13 (merges are new files). The debug-script
+  additions only print. The status.md claims for C16's debug-script traces
+  match the code paths.
+
+### Findings (seventh pass)
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C17 | Nit | `Sources/PhotoCore/Merge/MergeGhosts.swift:145,161-166` | The narrowed black-frame test compares the reference with what the frame's black level can hide. But whether the frame counts as black still comes from `frame.low`, the 3 x 3 minimum, and noise drags that under `lowF` where the light is above it. The old test read `frame.high`, which noise pushes the other way. | Probe, still linear ±2 EV bracket with noise σ 0.004, alignment off. Default reference: 94 pixels move by over 1% against the same plan with no masks, worst 3.0%. `c1d10c3` and the rule before `be5bf92`: 0. ±3 EV, default: 766 against 431, worst 11.4% against 7.6%. Five frames, the +2 EV reference: 692 against 23, worst 16.7% against 2.5%. None of these pixels is where the reference clips, and `usableElsewhere` leaves the other frames' weight, so each moved pixel is the blend without the darkest frame. That is a change at noise level in dim areas, not a visible defect. With noise σ 0.002 under a toe the difference is 1 pixel. Recorded, so nobody reads `stillNonLinearBracket` as covering noisy frames. If the engineer wants it gone, try (untested) `reference.low > max(frame.high, lowF) / exposure * 1.5`. That is never looser than today's test, and it equals today's where the whole neighborhood is black, which is the C14 case. Re-check it against `stillNonLinearBracket` plus a noisy case. | A13; correctness (still scenes) |
+| C18 | Nit | `Sources/PhotoCore/Merge/MergeGhosts.swift:60-69` | The frame-bound plane is cleaned and grown on its own, and its growth is kept only where some other frame is trusted. Item 2's premise is that a mask grown past the evidence "could only hand the pixel to the reference's clipped or black values". That premise fails at a real object's rim. There the masked frame is the only trusted one because it shows the object, and handing the pixel to a black (not clipped) reference is what R10 asks for. Separate cleaning also loses the 3 x 3 majority where main and bound pixels interleave. | Probe, the walker of `ghostFree` (linear, no noise), the default reference. Error against the clean merge over each other frame's disc plus 2 px, rather than the tests' 11 x 11 core. ±1 EV, alignment on: 4 pixels over 5%, worst 2.41x the clean value at (266, 145), on the +2 frame's ghost rim. The brightest frame keeps its weight down to black (`openBottom`), and the reference there is dim wall below `lowR`. ±2 EV, alignment off: 1 pixel, worst 10.4x at (258, 140). ±1 EV, alignment off: 2 pixels, worst 21.2x. `c1d10c3` (alignment off), and the new black test with both planes cleaned and grown together (alignment on and off): 0 pixels, worst under 0.01. Window edges, ±1 EV, alignment off, references −1 and 0 EV: 1,186 and 2,211 pixels over 5%, against 1,113 and 2,103 with both planes together. In the first, worst 3.06x against 0.81x. Inside the +1 EV reference's own object (toe 0.01, ±1 EV, alignment on or off), one edge pixel takes both other frames' clipped sky at mask 0.8 instead of 1. Its green/red ratio is 55% off. Both planes together give 0. The catch: cleaning both planes together gives back the S-curve case C14's item 2 was for (+2 EV reference, alignment on: 30,612 moved, 149 where the reference clips, worst 29%, against 24,152 / 66 / 13% now). Keeping item 2 only where the reference is clipped fixes the alignment-off ±2 pixel and nothing else. So no single variant I tried wins everywhere, and this is a trade for the engineer to weigh, not a clear bug. In measuring pixels it is small: a 2048-pixel copy of a 6000-pixel raw makes each one about 3 full-size pixels, feathered. Asked: widen `ghostCheck`'s ghost window to the disc plus the growth so the rim is measured, and record the rim numbers beside the core ones in `status.md` A13. Then either change the rule or accept the rim with those numbers, and add the walker rim to M12/M13's eye check ("no colored speck on the outline where something moved"). | AC8, R10, A13; tests |
+
+### Still open for the main session
+
+- C17 and C18 are for the engineer, as nits. If C18 is accepted as measured,
+  it is A13's record for the product manager, like C14 was.
+- Unchanged: the #88 `maskRasters` heads-up, F5's place in the guide
+  (designer), filing the `WriteChain.read`-from-its-own-tail follow-up, and
+  `079bf79`'s flaky orientation test for bug #253.
+- No `/security-review` is needed for this pass: no parser, subprocess, file
+  placement or network code changed.
