@@ -26,7 +26,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     # Checkout and Build (up to about 5 minutes), the Test step's limit, and
     # the uploads after a failure.
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
         with:
@@ -65,9 +65,10 @@ jobs:
         # failure fails at once.
         # The limit covers two full runs, the second being that retry: the
         # step took 344 to 522 s (median 416 s) on the six jobs measured after
-        # PR #258. A hang then fails here, with the crash reports below
-        # uploaded, instead of the job being cancelled with nothing kept.
-        timeout-minutes: 15
+        # PR #258, so two of the slowest are 17.4 minutes. A hang then fails
+        # here, with the crash reports below uploaded, instead of the job
+        # being cancelled with nothing kept.
+        timeout-minutes: 20
         env:
           GOLDENS_REPORT: "1"
           GOLDEN_FAILURES_DIR: ${{ runner.temp }}/golden-failures
@@ -137,6 +138,13 @@ jobs:
       - name: Select Xcode ${{ matrix.xcode }}
         if: matrix.xcode && steps.changes.outputs.code == 'true'
         run: sudo xcode-select -s "/Applications/Xcode_${{ matrix.xcode }}.app"
+
+      - name: Toolchain
+        if: steps.changes.outputs.code == 'true'
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
 
       - name: Build app bundles
         if: steps.changes.outputs.code == 'true'
