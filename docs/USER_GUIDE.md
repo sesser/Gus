@@ -413,8 +413,9 @@ in the loupe its own frame back, without turns or straightening, as one undo ste
 outside a crop, turn the photo at once as one undo step; in the grid they turn
 every selected photo. **Auto Exposure**, **Reset All Adjustments**, **Paste
 Adjustments** and **Apply Preset** also act on every selected photo in the
-grid, as one undo step; videos are left out. Moving to another photo keeps the crop. Copy and Paste Adjustments
-carry the crop; presets never do. Photos shot at 1:1, 3:2 or 16:9 on a camera
+grid, as one undo step; videos are left out. Moving to another photo keeps the crop. **Copy Adjustments…** carries the
+crop when **Crop & Straighten** is checked (it starts unchecked), and pastes it
+as it is, whatever the other photo's size or shape; presets never do. Photos shot at 1:1, 3:2 or 16:9 on a camera
 with a 4:3 sensor show the camera's crop; on Olympus, OM System and Panasonic
 raw files, cropping starts from that frame over the whole sensor, so it can be
 widened. Other raw formats are cropped within the frame their decoder gives.
@@ -456,8 +457,13 @@ limit a click beeps, the heading says so and the loupe's caption shows
 large spot), nothing is added and the heading says why. Spots are fixed
 before every other adjustment and the crop, so they stay on the same
 content when the photo is cropped or turned later, and they show in
-previews, exports and `photocli render`. Presets and Paste Adjustments leave
-spots out and never change a photo's own; Duplicate gives the copy the
+previews, exports and `photocli render`. Presets leave spots out and never
+change a photo's own. **Copy Adjustments…** copies them when **Spots** is
+checked (it starts unchecked), and Paste Adjustments then replaces the spots,
+and whether they are turned on, only on photos of the same size as the one
+they came from (the photo's own pixels, turned as the camera recorded it; a
+portrait and a landscape shot differ). The others keep their own spots, and
+Activity says how many. Duplicate gives the copy the
 original's spots, then each has its own. Spots are per file (the two files
 of a RAW+JPEG pair have their own) and never go into sidecars. Adding a spot
 needs a click or a touch; everything after that can be done from the
@@ -511,7 +517,7 @@ menu) looks again and replaces the saved result; it is one undo step, and
 Undo brings back the earlier result without looking again. If Update fails,
 the earlier result keeps applying and the row says so, with Update to try
 again. While cropping, detecting and Update wait until you finish. Masks from the
-photo are left out of Copy and Paste Adjustments and of presets; a duplicate
+photo are left out of Copy Adjustments… and of presets; a duplicate
 starts with its original's result and is then independent, and the two files
 of a RAW+JPEG pair each have their own. They are for the loupe, one photo at
 a time. Saved results nothing refers to any more (after Update, Undo or
@@ -681,8 +687,8 @@ amount and **Color** is dimmed: its value is kept and applies again when you
 deselect **Use machine learning**. Rendering with it takes longer, often a
 second or more: the photo you see stays on screen, a small spinner in the
 caption shows after half a second, and you can keep moving between photos and
-culling meanwhile. Copy and Paste Adjustments, presets that include Noise
-Reduction and Reset All carry it or clear it; pasting onto files that are not
+culling meanwhile. Copy Adjustments… with Noise Reduction checked, presets
+that include Noise Reduction and Reset All carry it or clear it; pasting onto files that are not
 raw leaves it off for them, and Activity says how many. It needs macOS 27 or
 later and a camera the decoder supports. Elsewhere the check box is dimmed and
 says why. A photo that asks for it where it cannot apply (on an older Mac, for
@@ -755,8 +761,8 @@ read **Turn On Distortion** and **Turn Off Distortion**, **Distortion Source**,
 **Distortion Amount**, **Turn On Constrain to Image** and **Turn Off Constrain to
 Image**, the Lens Vignetting forms (**Turn On Lens Vignetting**, **Turn Off Lens
 Vignetting**, **Lens Vignetting Source**, **Lens Vignetting Amount**), and **Reset
-Lens** for the heading's reset. Copy and paste and presets
-carry both groups; each photo reads its own file's table for Auto, so a photo
+Lens** for the heading's reset. Copy Adjustments… (with them checked; they
+start unchecked) and presets carry both groups; each photo reads its own file's table for Auto, so a photo
 without one is left as it was and says so in its caption. To correct a whole
 shoot, save a preset of the two groups set to Auto and apply it to the selection.
 
@@ -845,10 +851,32 @@ and the groups the preset sets, and its context menu has **Apply** and
 Mac while you edit. With Full Keyboard Access, Tab reaches the control and each
 row; Space or Return applies the focused row. Hovering has no keyboard
 equivalent. The **Save…**, **Import…** and **Manage…** buttons match the menu
-commands below. **Copy Adjustments**, **Paste Adjustments** and
+commands below. **Copy Adjustments…**, **Paste Adjustments** and
 **Reset All Adjustments** are in the ⋯ menu at the top of the Adjust tab, next
-to **Original** (`\`). **Save Adjustments as
-Preset…** asks for a name, a collection and the groups of controls to include
+to **Original** (`\`).
+
+**Copy Adjustments…** (⇧⌘C; also in the Adjust menu, the context menus, the ⋯
+menu and as a toolbar item) asks what to copy from the photo: the focused photo
+in the grid, the photo on screen in the loupe, or the active photo while
+comparing. Its sheet lists **Crop & Straighten** and the Adjust tab's headings
+in the tab's order, each group with a check box; a heading's box checks or
+unchecks all its groups and shows a dash when only some are checked. A group the
+photo has changed starts checked, except **Crop & Straighten**, **Spots** and
+the **Lens** groups, which start unchecked; a group it has not changed says
+**No changes**, and **Resets on paste** once you check it, since pasting it
+puts the other photos' group back to its defaults. A group the photo has
+changed but turned off says **Turned off** and is pasted turned off; the Spots
+row says how many spots there are. **Check All** and **Uncheck All** set every
+box. **Copy** (Return) keeps what is checked and replaces any earlier copy;
+with nothing checked it is dimmed. **Cancel** (Esc) changes nothing. The
+choices are not remembered: each Copy starts again from the photo. Masks are
+never copied. **Paste Adjustments** (⇧⌘V) then changes only what was copied,
+values and on/off, on every selected photo, as one undo step: a photo's other
+groups, its crop (unless Crop & Straighten was copied), its masks and its own
+spots (unless Spots was copied and the size matches) stay as they are. With
+Full Keyboard Access, Tab reaches every box and Space checks it.
+
+**Save Adjustments as Preset…** asks for a name, a collection and the groups of controls to include
 (those the photo changes are checked): applying the preset replaces only those
 and leaves the photo's other settings alone. A preset with all settings,
 including one saved before Color Fringes and Color Alignment existed, also

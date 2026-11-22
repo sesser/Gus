@@ -143,16 +143,17 @@ extension LibraryModel {
     /// change has landed, one warning says how many photos kept their own
     /// spots (design §5.1).
     private func pasteMeasuringSpotFrames(_ copied: CopiedAdjustments, actionName: String, targets: [CatalogItem]) {
-        let selection = batchSelection(action: actionName, targets: targets)
-        let photos = selection.versionIDs.compactMap { item(versionID: $0) }
-        guard !photos.isEmpty else { return }
-        let masters = photos.map { ($0.versionID, sourceURL(for: $0)) }
+        let ids = batchSelection(action: actionName, targets: targets).versionIDs
+        guard !ids.isEmpty else { return }
+        let byID = Dictionary(targets.map { ($0.versionID, $0) }, uniquingKeysWith: { first, _ in first })
+        let photos = ids.compactMap { byID[$0] }
+        let masters = ids.map { ($0, byID[$0].flatMap(sourceURL(for:))) }
         let measuresAlignment = copied.values.needsAlignmentMeasurement
         // Offline photos: the measuring paste leaves them out whole and says so itself.
         let offline = Set(photos.filter(isOffline).map(\.versionID))
         batchAutoTask?.cancel()
         let run = batchAutoRun.begin()
-        setBatchAutoProgress((0, photos.count), title: actionName)
+        setBatchAutoProgress((0, ids.count), title: actionName)
         batchAutoTask = Task {
             defer {
                 if batchAutoRun.owns(run) {
@@ -166,7 +167,9 @@ extension LibraryModel {
             }.value
             var frames: [Int64: CGSize] = [:]
             var done = 0
-            for chunk in stride(from: 0, to: masters.count, by: 4).map({ Array(masters[$0..<min($0 + 4, masters.count)]) }) {
+            // Without the source's size no photo can match: nothing to read.
+            let reads = sourceFrame == nil ? [] : masters
+            for chunk in stride(from: 0, to: reads.count, by: 4).map({ Array(reads[$0..<min($0 + 4, reads.count)]) }) {
                 guard !Task.isCancelled, batchAutoRun.owns(run) else { return }
                 await withTaskGroup(of: (Int64, CGSize?).self) { group in
                     for (id, url) in chunk {
@@ -176,10 +179,10 @@ extension LibraryModel {
                 }
                 done += chunk.count
                 guard batchAutoRun.owns(run) else { return }
-                setBatchAutoProgress((done, photos.count), title: actionName)
+                setBatchAutoProgress((done, ids.count), title: actionName)
             }
             guard !Task.isCancelled, batchAutoRun.owns(run) else { return }
-            let outcome = SpotPastePlan(ids: photos.map(\.versionID).filter { !measuresAlignment || !offline.contains($0) },
+            let outcome = SpotPastePlan(ids: ids.filter { !measuresAlignment || !offline.contains($0) },
                                            sourceFrame: sourceFrame, frames: frames)
             let matching = outcome.matching
             let transform: @Sendable (Int64, Adjustments) -> Adjustments = { id, values in
@@ -191,7 +194,7 @@ extension LibraryModel {
             if measuresAlignment {
                 changeAdjustmentsMeasuringAlignment(actionName: actionName, targets: photos, then: reportLeftOut, transform)
             } else {
-                changeAdjustments(ofVersions: photos.map(\.versionID), actionName: actionName, transform)
+                changeAdjustments(ofVersions: ids, actionName: actionName, transform)
                 reportLeftOut()
             }
         }
