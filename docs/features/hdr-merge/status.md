@@ -45,12 +45,30 @@ blocks the next. See "Sixth review pass" below. Next: code-reviewer (second
 pass on these commits), then qa-tester; no layout or text changed, so no
 design review.
 
+**2026-11-21: code review's seventh pass (C17, C18): Done.** The black-frame
+test now compares the reference with the larger of the frame's highest value and
+its black level (the reviewer's suggestion), and the separate plane for the
+frame-bound tests is gone again: one plane, cleaned and grown together, as in
+`c1d10c3`. With that black test the separate plane no longer bought anything
+(measured the same in every case), and without it the walker's rim is clean.
+The still non-linear brackets, the linear extreme-reference walker, the rim and
+the noisy still bracket all hold; see "Seventh review pass". Next:
+code-reviewer (second pass on this commit), then qa-tester.
+
 ## Baseline
 
 - `swift build` on `develop` at `ed423d7` (plus the design commit): clean.
 - `swift test` before any change: 1253 tests in 179 suites passed (70.6 s).
 
-## Latest results (2026-11-21, after code review's sixth pass: C14, C16)
+## Latest results (2026-11-21, after code review's seventh pass: C17, C18)
+
+- `swift build`: clean; no new warnings.
+- `swift test`: 1348 tests in 194 suites passed (672.9 s). No golden moved;
+  `UPDATE_GOLDENS` was not run; `PreviewCacheKey.currentPipelineVersion`
+  unchanged (13).
+- `Scripts/build-app.sh`: builds; checks in "Seventh review pass".
+
+## Results after code review's sixth pass: C14, C16 (2026-11-21)
 
 - `swift build`: clean; no new warnings.
 - `swift test`: 1346 tests in 194 suites passed (676.7 s). No golden moved;
@@ -478,14 +496,16 @@ black only masks frames that carry almost no weight there).
 **Corrected after code review C14 (sixth pass):** the last sentence holds only
 for values proportional to the light (raws). A JPEG's camera curve crushes its
 toe below proportional by any amount, so a black frame's own values are no
-upper bound, and the black-frame test fired across a still wall. The black
-frame's test now reads only its black level: it disagrees where the reference,
-all around, is clearly brighter than the light that level can hide
-(`reference.low > lowF / exposure * 1.5`, the form the reference-black test
-already had). And what the frame's own black or clipping says is cleaned and
-grown on its own and kept only where some other frame has a trusted value, so
-a mask that grows past its evidence can't hand a pixel to the reference's
-clipped values. See "Sixth review pass" below for the numbers.
+upper bound, and the black-frame test fired across a still wall. **As it
+stands after C17 and C18 (seventh pass):** a black frame disagrees where the
+reference, all around, is clearly brighter than the larger of the frame's
+highest value and its black level (`reference.low > max(frame.high, lowF) /
+exposure * 1.5`). Values under the black level say nothing, crushed by a toe
+(C14) or dragged there by noise (C17). Every test's result goes into one plane,
+cleaned and grown together, as before C14. (The sixth pass's separate plane for
+the frame-bound tests, kept only where another frame is trusted, let a moving
+object's rim through, C18, and with this black test it changed nothing else.)
+See "Sixth review pass" and "Seventh review pass" below for the numbers.
 
 Measured on the synthetic walker (600 x 400, objects on a dim wall), object
 error inside the reference's object / ghost error at the other frames' places:
@@ -500,14 +520,24 @@ error inside the reference's object / ghost error at the other frames' places:
 
 Where nothing moved, every case is the same merge as one with no ghosts (0.0).
 The C14 correction leaves every number in this table as it was.
+The C17 and C18 changes leave it as it was too, and the rim (each other
+frame's whole disc and the masks' growth around it, not only the 11 x 11 core)
+has no pixel more than 5% off with any reference, aligned or not (worst 0.016
+of the clean value; `outlinesWithoutAlignment` and the rim checks in
+`ghostFree`, `ghostsFollowTheReference`, `extremeReferences`).
 So, answering A13: with this change an extreme reference no longer makes
 de-ghosting visibly worse on the fixture; on real files that is for the owner's
-eye (M12, M13). For non-linear frames (JPEG brackets), after C14: on a still
-bracket with a toe (`L·L/(L + c)`, c 0.01 and 0.005) or a shoulder, no mask
-fires and nothing moves, with any frame as the reference
-(`stillNonLinearBracket`); de-ghosting never takes a pixel from the reference
-where the masked frame is the only one with a trusted value, however its mask
-grew. What stays for JPEG brackets is older than this change and the same with
+eye (M12, M13). For non-linear frames (JPEG brackets), after C14 and C17: on a
+still bracket with a toe (`L·L/(L + c)`, c 0.01 and 0.005) or a shoulder, no
+mask fires and nothing moves, with any frame as the reference
+(`stillNonLinearBracket`); on a still linear bracket with noise σ 0.004 and the
+default reference, nothing moves either (`stillNoisyBracket`). One thing an
+extreme reference does make worse, the same under every rule since before
+`be5bf92`: with the darkest frame as the reference, noise in the deep shadows
+masks the other frames there (the reference is black, and the one-sided test
+against it reads noise), so those areas take the reference's own noisy values
+(±2 EV σ 0.004: 769 pixels moved by over 1%, worst 130%; ±3 EV: 12,163, worst
+11 times; proposed follow-up below). What stays for JPEG brackets is older than this change and the same with
 the rule before it: a strong S-curve (toe and shoulder together) makes the
 two-sided test see still mid-tones disagree, and an area de-ghosting takes
 from fewer frames differs in tone from the blend around it. Both come from not
@@ -608,7 +638,10 @@ short window). M12 and M13 also with a JPEG bracket (the camera's own JPEGs,
 not raws) of a scene with a bright window or sky, the brightest frame as the
 reference, De-ghost on: no clipped band along the bright area's edge, and
 compared with De-ghost off where nothing moved (code review C14; the fixture
-can't stand in for a real camera's curve). Initial focus: D-H13 withdrew "focus on Merge"; what to check
+can't stand in for a real camera's curve). In M12 and M13, with De-ghost on,
+also look at 100% along the outline of whatever moved (the walker, with the
+default and with the darkest and brightest reference): no colored speck on the
+outline where something moved (code review C18). Initial focus: D-H13 withdrew "focus on Merge"; what to check
 is M10 (Return and Esc with the table focused: after a click on a row, after
 Tab, on opening). After the design review's fixes also M15 (each caption
 inside its control's group row, no divider between them; no "Photos" header
@@ -707,6 +740,9 @@ line as before), Cancel, and the folder refusal following the reference on
 
 `079bf79` and the Core Image files are untouched (that fix moves to bug #253's
 branch).
+
+(Item 2 below and the black test of item 1 were revised in the seventh pass,
+C17 and C18: see "Seventh review pass".)
 
 **C14 (Should fix): de-ghosting a still JPEG bracket with an extreme
 reference.** Fixed as the review suggested, both halves
@@ -837,6 +873,100 @@ scratch library from `photobench generate --output $S/src --jpeg 2 --dng 0
   with the default, De-ghost on, both written beside their reference. The
   fixture's JPEGs have no camera curve (linear light through the sRGB profile),
   so they are no eye check for C14; that is M12/M13 on a real camera's JPEGs.
+
+### Seventh review pass (2026-11-21, `code-review.md` "Seventh pass")
+
+C14 and C16 closed; two nits on C14's fix, both fixed in one change to
+`MergeGhosts` (`079bf79` and the Core Image files untouched).
+
+**The rule now.** `MergeGhosts` is `c1d10c3`'s again (one disagreement plane,
+cleaned and grown together) with one line changed, the black-frame test:
+`reference.low > max(frame.high, lowF) / exposure * 1.5` (the reviewer's
+suggestion for C17). The sixth pass's separate plane for the frame-bound tests,
+and `usableElsewhere`, are gone (C18).
+
+**How it was chosen.** Five variants measured side by side on the fixture
+(probe not kept as a test), then the rules of `c1d10c3` and before `be5bf92`
+as baselines: V0, the sixth pass (`e787efe`); V1, V0 with the new black test;
+V2, one plane with the new black test, with the sixth pass's restriction only
+where the reference clips and no other frame is trusted; V3, the same
+restriction wherever no other frame is trusted; V4, one plane with the new
+black test and no restriction. V1 and V3 keep the rim leak. V2 and V4 gave the
+same numbers in every case measured, so V4, the one with less code, is the
+rule. With the new black test the separate plane bought nothing: the S-curve
+case that item 2 was for comes out as with the rule before `be5bf92` with one
+plane too (the reviewer's 30,612 for one plane was with the sixth pass's black
+test).
+
+**C17, noise (still linear bracket, σ 0.004).** Pixels moved by over 1%
+against the same plan with no masks, darkest / default / brightest reference:
+
+| Bracket | Rule before `be5bf92` | `c1d10c3` | `e787efe` | Now |
+|---|---|---|---|---|
+| ±2 EV, alignment on | 769 / 9 / 99 | the same | 769 / 30 / 108 | 769 / 9 / 99 |
+| ±3 EV, alignment on | 12163 / 430 / 547 | the same | 12163 / 533 / 673 | 12163 / 430 / 547 |
+| ±2 EV, alignment off | 0 at the default (review) | 0 at the default (review) | 767 / 94 (worst 3.0%) / 230 | 767 / 0 / 77 |
+| ±3 EV, alignment off | 431 at the default (review) | | 12440 / 766 / 950 | 12440 / 431 / 545 |
+
+New test `stillNoisyBracket` (±2 EV, default reference, alignment off: nothing
+moves); it fails on `e787efe`. The darkest-reference numbers are the same under
+every rule: a separate, older matter (proposed follow-up "De-ghosting with the
+darkest frame as reference reads noise in the deep shadows").
+
+**C18, the rim.** `ghostCheck` now also measures each other frame's whole
+disc and the masks' growth around it (`rim`, worst relative difference from the
+clean merge, and `rimOver`, pixels over 5%), beside the 11 x 11 core. Pixels
+over 5% / worst, the walker (linear):
+
+| Bracket, alignment, reference | Rule before `be5bf92` | `c1d10c3` | `e787efe` | Now |
+|---|---|---|---|---|
+| ±1 EV, on, 0 EV (default) | 2953 / 64x | 0 / 0.008 | 4 / 2.41x | 0 / 0.008 |
+| ±1 EV, off, 0 EV | 2876 / 64x | 0 / 0 | 2 / 21.2x | 0 / 2.4e-7 |
+| ±2 EV, on, 0 EV | 33 / 24.5x | 0 / 0.009 | 0 / 0.016 | 0 / 0.0085 |
+| ±2 EV, off, 0 EV | 56 / 27.1x | 0 / 0 | 1 / 10.4x | 0 / 2.4e-7 |
+| ±1 EV, on and off, −1 EV | 2969 and 2876 / 63x | 0 | 0 | 0 |
+| ±1 and ±2 EV, on and off, the brightest | 0 | 0 | 0 | 0 |
+| ±2 EV, on and off, −2 EV | 44 and 56 / 24x to 26x | 0 | 0 | 0 |
+
+The core, object and elsewhere figures of every walker case are as in
+`c1d10c3` and the sixth pass (to the printed digit), and the mask sums are
+`c1d10c3`'s again (±2 EV default: [6734.6, 0, 6820.6]). Tests: `rimOver == 0`
+added to `ghostFree`, `ghostsFollowTheReference` and `extremeReferences`, and
+the new `outlinesWithoutAlignment` (±1 and ±2 EV, each reference, alignment
+off: object, core and rim); it fails on `e787efe`.
+
+**Still non-linear brackets** (alignment on; moved by over 1%, of them where
+the reference clips, worst), the brightest reference unless named:
+
+| Response, bracket | Rule before `be5bf92` | `c1d10c3` | `e787efe` | Now |
+|---|---|---|---|---|
+| toe 0.01, 0.005; shoulder 1; ±2 EV, every reference | none | up to 1637 / 1067 / 95% | none | none |
+| toe 0.02 and 0.05, ±2 and ±3 EV, every reference | none, except at ±3 EV: 7883 / 0 / 69% (toe 0.02, −3 EV), 414 and 688 / 0 / under 2% (0 EV) | up to 4970 / 4553 / 99% | as before `be5bf92` | as before `be5bf92` |
+| shoulder 0.3, ±2 EV | 28366 / 28338 / 16315 moved, none where the reference clips | the same | the same | the same |
+| S (toe 0.01, shoulder 1), ±2 EV | 23559 / 66 / 12.6% | 37737 / 2279 / 94% | 24152 / 66 / 12.6% | 23559 / 66 / 12.6% |
+| S, ±3 EV | 52796 / 620 / 38.8% | 84412 / 3774 / 97.7% | 68201 / 872 / 38.8% | 57188 / 657 / 38.8% |
+
+The one case where the rule now does worse than before `be5bf92` is the
+S-curve at ±3 EV with the brightest reference (4,392 more pixels moved, 37 more
+where the reference clips, the same worst). It is the case the two-sided test
+already gets wrong under every rule (the response-curve follow-up), and the
+`be5bf92` rule there fails the linear walker (above). The shoulder-only rows
+are the two-sided test reading a shoulder, the same under every rule.
+
+**Cost.** One plane again: the ghost step is `c1d10c3`'s (the reviewer timed
+the sixth pass's second plane at up to +45% in a debug build).
+
+**M12 and M13** now also ask for no colored speck on the outline of what moved
+(see "For a person" above).
+
+**Results.** `swift build` clean, no new warnings. Full `swift test`: 1348
+tests in 194 suites passed (672.9 s; new: `outlinesWithoutAlignment`,
+`stillNoisyBracket`). Both new tests fail on `e787efe` (rim 2 pixels at 21.2x
+and 1 at 10.4x; 94 pixels moved, worst 3.0%). No golden moved, `UPDATE_GOLDENS`
+not run, pipeline version unchanged (13). `Scripts/build-app.sh` builds; on a
+copy of the bundle with its own identifier and a scratch library
+(`--library-root`), `Raw-0` merges with the darkest frame as reference, De-ghost
+on, written beside it.
 
 ## Bug: tiles at 100% (owner sign-off P5, 2026-11-21)
 
@@ -1091,6 +1221,19 @@ Ruled at design review (D-H1 to D-H4, design.md §19), as built:
   generate --brackets` also writes a `TwoFolders` series.
 
 ## Proposed follow-ups
+
+- **De-ghosting with the darkest frame as reference reads noise in the deep
+  shadows** (bug, PhotoCore `MergeGhosts`; found by the seventh pass's probes,
+  the same under every rule since before `be5bf92`): where the reference is
+  black, a brighter frame disagrees when its lowest value over its exposure is
+  over 1.5 times the reference's black level, and noise in the brighter frame
+  (scaled down by its exposure) and in the reference is enough near black, so
+  those areas are taken from the reference's own noisy black values. Fixture,
+  still linear bracket, noise σ 0.004, alignment on: ±2 EV, 769 pixels moved by
+  over 1% against the merge with no masks, worst 130%; ±3 EV, 12,163, worst 11
+  times (default reference: 9 and 430, worst 2.4% and 98%). A noise-aware
+  threshold near black (the reference's and the frame's expected noise at that
+  level) would fix it; needs real high-ISO brackets to set.
 
 - **`WriteChain.read` called from inside a write waits for itself**
   (enhancement or bug, PhotoCore): QA Q1 was this mistake in the merge's Redo.
