@@ -1,6 +1,20 @@
 // swift-tools-version: 6.0
 import PackageDescription
 
+// Debug builds compile the two targets that hold per-pixel Swift with the
+// optimizer on. Unoptimized, generic and SIMD code is not specialized and a
+// pixel costs microseconds: the HDR merge's measuring (`HDRMerger.plan`) took
+// 5 s for a 600 x 400 copy and a bracket fixture 1 s a frame, which made the
+// merge suites 11 of `swift test`'s 12 minutes (issue #150, PR #258;
+// docs/features/hdr-merge/status.md, "Test and CI time"). With the flag the
+// whole run takes about 75 s. It follows SwiftPM's own -Onone on the command
+// line, so it wins (checked with both build systems). Release builds are as
+// before, and so is `@testable import`, which needs -enable-testing, not
+// -Onone. The cost: a debugger steps through optimized code in these two
+// targets, and a clean debug build takes about a third more processor time
+// (288 s to 391 s on an M4 Pro). The test target stays unoptimized.
+let optimizedInDebug: [SwiftSetting] = [.unsafeFlags(["-O"], .when(configuration: .debug))]
+
 let package = Package(
     name: "PhotoWorkspace",
     defaultLocalization: "en",
@@ -47,7 +61,8 @@ let package = Package(
         ),
         .target(
             name: "PhotoCore",
-            dependencies: [.product(name: "GRDB", package: "GRDB.swift"), "CLibRaw"]
+            dependencies: [.product(name: "GRDB", package: "GRDB.swift"), "CLibRaw"],
+            swiftSettings: optimizedInDebug
         ),
         // UI shared by the library app and the standalone importer: the import
         // window and its model, colors and the String Catalog.
@@ -79,7 +94,8 @@ let package = Package(
         ),
         .target(
             name: "PhotoFixtures",
-            dependencies: ["PhotoCore"]
+            dependencies: ["PhotoCore"],
+            swiftSettings: optimizedInDebug
         ),
         .executableTarget(
             name: "StringCatalogCompiler"
