@@ -1,11 +1,347 @@
 # HDR merge: QA
 
-Owner: qa-tester. Date: 2026-11-20. Step 4 of `docs/WORKFLOW.md`.
-Tested: `feature/hdr-merge` at d3545ad (clean worktree `Gus-hdr-merge`), on a
+Owner: qa-tester. Date: 2026-11-21. Step 4 of `docs/WORKFLOW.md`.
+Tested: `feature/hdr-merge` at 9e178a8 (the worktree `Gus-hdr-merge`, clean), on a
 Mac16,8 (Apple M4 Pro, 24 GB), macOS 27.2.1 (26B131), Xcode SDK 27.2; the bundle's
 executable records minos 15.0 and sdk 27.2.
 
+This is the run after the sign-off revision (the reference chosen in the sheet,
+Auto-align and De-ghost, `photocli --reference`, `--no-align`, `--no-deghost`), the design
+review's F6 to F8 and code review's sixth to ninth passes (C14 to C19). The first
+run (d3545ad) and its rerun (d635e12) are kept at the end, under "Earlier runs".
+
 ## Verdict
+
+**Passes. Ready for the owner's sign-off: no blocker, no failing criterion.** All 23
+acceptance criteria of the PRD as revised 2026-11-21 pass by test (full `swift test`: 1348
+tests in 194 suites, 0 failed), and 20 of them also by a script run on a copy of the
+bundle against scratch libraries. Four small findings for the engineer (Q7 to Q10, nits
+and one missing test; none blocks sign-off) and one scope note for the main session
+(the "GPU copy cap 100 MP" is not on this branch, see Scope notes). What only a person can check is
+P11 to P20 below (the sheet's look, real input, real cameras), plus P1 to P10 of the
+first run, still open as listed under "Earlier runs".
+
+## Results at a glance
+
+- `Scripts/build-app.sh`: builds; the executable records sdk 27.2, minos 15.0.
+  `swift build -c release --product photobench --product photocli`: builds.
+- `swift test` (the whole suite, the `HDRMergerTests` included): **1348 tests in 194
+  suites passed, 0 failed, 710.6 s**, the FAT32 test (`C6`) ran against a real image (it
+  was not skipped), and the opt-in suites skipped for their environment variables as
+  usual. No golden moved and `UPDATE_GOLDENS` was not run. The count includes the six
+  `ImageIOFullDecodeTests` of commit `079bf79`, which goes to #253 (Scope notes).
+- No migration (the newest is v14); `Package.swift`, `Scripts/` and the goldens are
+  untouched by the branch's later commits; `PreviewCacheKey.currentPipelineVersion` 13.
+- Mutation check (scratch clone outside the checkout, `MergeGhosts.swift` put back to
+  `245c415`'s reference-black test, the line C19 changed): `stillNoisyBracket` ("A13: a
+  still linear bracket with noise…") **fails with 4 issues**, 769, 767, 12,163 and
+  12,440 pixels moved (darkest reference, ±2 and ±3 EV, aligned and unaligned), exactly as
+  `status.md` records; it passes on `9e178a8`. The clone was deleted.
+- Safety after the run: no `Gus` or `photocli` process left; the owner's
+  `~/Library/Application Support/Gus` has no file newer than my start marker (its
+  `library.lock` and WAL are still from 2026-11-20 16:16); nothing under `~/gus-scratch`
+  was written (the three ORFs were copied to a scratch folder first and their SHA-256
+  compared); every launch carried `--library-root` on a scratch library; no bare `open`;
+  the worktree is clean.
+
+## Acceptance criteria
+
+All 23 criteria of the PRD (issue #150, as revised 2026-11-21). Test names are the
+suite's display names in `Tests/PhotoCoreTests`; scripts are in "Scripts" (A to N).
+
+| AC | How | Evidence | Result |
+|---|---|---|---|
+| AC1 | Test, Script | `MergeRuleTests` (running and sheet up), `MergeSelectionTests` (every refusal), script L: three targets with a video: `canMerge true`, the context menu lists Merge to HDR…, the sheet refuses naming the video; one photo and one video: `canMerge false reason fewer than two`; script A: `canMerge false reason sheet up` while the sheet is open; script J: `reason running`. The menu's enabled state needs a key window: P1 (first run) | Pass |
+| AC2 | Test, Script | `HDRMergeJobTests` "AC2, AC3, AC5…" (hashes unchanged, folder, `_HDR-2`), "AC2: an existing file with the result's name is left alone", `MergeSelectionTests` naming. Script D and G: the sources' SHA-256 equal the pristine copies' after merges; the result is in the reference's folder; a repeat is `-2` (script G: `RAW_102_HDR.tif`, `-2.tif`, `-4.tif`) | Pass |
+| AC2a | Test, Script | "C3: a file of the same stem in any format, or its sidecar, numbers the result", "AC2a: a TIFF and a DNG… each keep their own sidecar". Script G (`photocli`): TIFF, TIFF, DNG, TIFF of one bracket gave `RAW_102_HDR.tif`, `-2.tif`, `-3.dng`, `-4.tif`; script D: the result's `.xmp` holds its own values | Pass |
+| AC3 | Test, Script | `MergeSheetStateTests` "AC3, AC9a…" (0 EV frame second in time is the default), `MergeSelectionTests`, "AC3: with no compensation recorded…". Scripts A, B, D: `RAW_102` (0 EV, shot second) is the reference and names `RAW_102_HDR.tif` | Pass |
+| AC3a | Test, Script | `MergeReferenceJobTests` "AC3a…" (two folders, two projects: name, folder, project, capture date, rating, label, title), `MergeSheetStateTests` "AC3a: the Name line follows…", `MergeCommandTests` "AC14: photocli merge takes a reference…". Script A/D: the Name follows the chosen row (`RAW_103_HDR.tif`, `RAW_101_HDR.tif`); script D: with ratings 4 on RAW_102 and 2 on RAW_103, choosing RAW_103 gives `RAW_103_HDR.tif` with rating 2 in the catalog and in its `.xmp`, DateTimeOriginal and ExposureTime of RAW_103, the same project; script C: TwoFolders: the Name and the folder follow the frame in `Open`; script M: real ORFs, reference `10M10355` and `10M10356` name and give their capture date | Pass |
+| AC3b | Test, Script | `MergeChoicesTests` "AC3b: the frames are lined up to the chosen reference…", "AC3b: what moved is taken from the chosen reference, at its place there", `MergeReferenceJobTests` "AC3b, AC8a at the job…". Script F (walker, TIFF to PNG, looked at): the red disc is at the reference's place: left with RAW_101, in the middle with RAW_102, right with RAW_103; the pixels differ between references (over 1.1 million pixels differ by more than 1/256) | Pass |
+| AC3c | Test, Script | `MergeSheetStateTests` "AC3c, AC9a: a sheet opened again…". Script A: Cancel then `merge sheet` again: RAW_102 and both boxes on, whatever was chosen (RAW_101, align off, deghost off). Script E: after a refused merge, the next sheet has Auto-align on | Pass |
+| AC4 | Test, Script | "AC4: DNG writes a linear floating-point DNG the system's RAW decoder reads, catalogued", "AC4: a sidecar is written… only then", `MergeDNGTests`. Script G: `exiftool -validate` OK on a `photocli` DNG (BitsPerSample 16, SampleFormat Float, LinearRaw, BaselineExposure 1.845); script D: the sidecar exists beside the TIFF because the photo has a rating. The loupe at the brightness BaselineExposure gives: first run, P5 | Pass |
+| AC5 | Test, Script | "AC2, AC3, AC5…" (every field and the file's), `MergeReferenceJobTests` (the chosen frame's). Script D (above); script M: the real bracket's TIFF carries the reference's ExposureCompensation and DateTimeOriginal | Pass |
+| AC6 | Test, Script | "AC6: three JPEGs merge", "AC6: a raw with two JPEGs is refused…", "AC6: a RAW+JPEG pair… counts once". Script K: three JPEGs merge (reference JPEG_103); script C: the mixed series is refused with the mixed message and Merge off; script PAIR: three RAW+JPEG pairs are three frames | Pass |
+| AC7 | Test, Script | `MergeAlignmentTests` (derived 0.5 px), "AC7: a frame of another scene is refused, named…". Script E: Unrelated with Auto-align on stops at Aligning: "“UNRELATED_103” doesn't line up with “UNRELATED_102”. Merge photos of the same scene, or turn off Auto-align."; no file | Pass |
+| AC7a | Test, Script | `MergeChoicesTests` "AC7a: with Auto-align off nothing is measured or moved, and the merge is the CPU reference's…", "AC7a: with Auto-align off frames of another scene are merged as given…", `MergeReferenceJobTests` "AC7a, design §7.1…", `MergeCommandTests` "AC14, AC7a…". Script E: with Auto-align off the Unrelated bracket merges (`UNRELATED_102_HDR.tif`), details Reading, Merging, Saving, Adding (no Aligning), bar ends 1.000; script G: `photocli --no-align` the same; with it off the walker bracket is not lined up (script F3: every pixel differs from the aligned result) | Pass |
+| AC7b | Test | `MergeReferenceJobTests` "AC7b: with Auto-align off the other refusals still apply" (a different size, an offline frame, a video, a read-only folder, each refused, nothing read). No fixture series has two sizes, so no script | Pass |
+| AC8 | Test, Script | `HDRMergerTests` "AC8: a moving object shows once, from the reference…", `MergeChoicesTests` "AC8, A13: with Auto-align off too, a moved object's outline is taken out whole…". Script F1: the walker's disc appears once, from the reference (the other frames' discs are gone); the outline looked at 2x on the default, +2 EV and −2 EV references: no speck. The synthetic scene, not a real person: P15 | Pass |
+| AC8a | Test, Script | `MergeChoicesTests` "AC8a: with De-ghost off the moving object is blended, as the CPU reference's plain blend…". Script F2: De-ghost off shows the disc at its three places (a plain blend, one a faint ring); where nothing moved, F1 and F2 agree (the 60,291 pixels that differ by more than 1/256 are all inside the box x 87 to 1413, y 102 to 550: the disc's places and the light patches in the window, the things that moved; nothing below y 550) | Pass |
+| AC9 | Test, Script | "AC9: stopping mid-merge leaves no file, no partial file and no catalog row". Script J: `merge stop`: "The merge was stopped. Nothing was added to the library.", no new file, no hidden `.partial`; polling `print merge` during runs gave live progress (main thread free); script E: a failure writes its reason in Activity | Pass |
+| AC9a | Test, Script | `MergeSheetStateTests` "AC9a: the two boxes are independent…", `MergeChoicesTests` "AC9a: each of the four combinations…". Script A: both on at open and after reopening; each box changes only itself; script F: all four combinations merged (F1 default, F2 de-ghost off, F3 align off, F6 both off) | Pass |
+| AC10 | Test | `HDRMergerTests` "AC10: the merge and tone mapping match their CPU reference", "AC10: the result holds shadow and highlight steps…". Not rerun by script (first run) | Pass |
+| AC11 | Test | "AC11: the merged photo renders, takes an edit with history, and exports"; the full suite with every golden unmoved. Not rerun by script (first run) | Pass |
+| AC12 | Test, Script | `MergeSheetStateTests` "AC12: the read-only folder's refusal follows the reference…", "§6.4…", `MergeReferenceJobTests` "AC12: a read-only folder refuses only while the reference is in it", `MergeSelectionTests` (every refusal), `MergeSafetyTests`. Script C: TwoFolders opens refused (the default reference in `Locked`, the row flagged, Merge off), choosing the `Open` frame lifts it (Merge on, "Merge is available."), choosing the first frame brings it back naming TWOFOLDERS_101; Mixed, 13 frames ("At most 9…") and script L (a video, named and flagged) refuse with Merge off. Script I: a slow answer for a superseded reference is discarded (`merge on` follows the current reference). Offline, unreadable, copies, sizes and the oversize cases: first run | Pass |
+| AC13 | Test, Script | "AC13: Undo takes the photo out of the library and leaves the file; Redo brings it back…". Script H: after the merge with RAW_103 as reference: Undo (3 items, "removed" message), Redo (the photo is back, `undo 'Merge to HDR'`), then a rating pressed afterwards reaches the catalog (`RAW_101.dng|5`): the write chain is free | Pass |
+| AC14 | Test, Script | `MergeCommandTests` "AC14: photocli merge writes a fixture series and prints the path; refuses while the library is locked", "…takes a reference and off switches…", "…refused naming --no-align…". Script G: defaults print `align true`, `deghost true`; `--reference 9` names `RAW_103_HDR.tif`; `--reference 7 --no-deghost` gives a DNG; a reference outside the `--version`s is `invalidValue`, nothing written; the unrelated series fails naming `--no-align` and merges with it. `photocli`'s pixels are bit for bit the app's for the same choices (three comparisons: default, both off, reference RAW_103). The locked-library refusal: test, and first run | Pass |
+| AC15 | Test, Script | "AC15…" in `mergesToTIFF`, "AC15: merging again after the first photo was removed…". Script G: two TIFFs of one bracket (`RAW_102_HDR.tif`, `-2.tif`) have different SHA-256 (`0108…`, `41f4…`), as do the DNG and TIFF written after them (`-3`, `-4`); each is a new photo with its own versionID (22 to 26 and on) | Pass |
+
+The revision's requirements that are not one AC, and the design's checks:
+
+| Item | How | Evidence | Result |
+|---|---|---|---|
+| Open question 7 / A14: Auto-align off, no different-scene refusal | Test, Script | `unrelatedWithoutAlignment` (core), `MergeReferenceJobTests` job, `photocli` `unrelatedWithSwitch`; scripts E and G | Pass |
+| Open question 8 / A13: no warning for an extreme reference | Script (no test, Q8) | Scripts A, C, F and K: choosing the darkest (RAW_101) or brightest (RAW_103, JPEG_103) frame prints `message none … merge on true` and merges; the sheet and `merge reference` show no note | Pass (Q8: no test asserts it) |
+| A13, de-ghost after C14 to C19: extreme references, still noisy and non-linear brackets, the rim | Test | `MergeChoicesTests`: `extremeReferences` ("A13 measured…"), "AC8, A13: with Auto-align off too…" (outline and rim), "A13: a still linear bracket with noise…" (mutation-checked above), "A13: a still bracket with a camera-like response…"; `HDRMergerTests` `ghostFree` and `ghostsFollowTheReference`. Real-camera JPEG: P16 | Pass |
+| Sheet layout: 560 x 640, nothing scrolled at three frames | Script, snapshot | `merge sheet` at three frames (raws, JPEGs, Unrelated, the walker): `sheet 560x640 (ideal 640) form content 517 shown 522 scrolls false`; with a two-line message (Mixed) 517 against 504 and a three-line folder refusal 531 against 490 it scrolls by 13 and 41 pt (accepted, D-H11 item 7); 13 frames: 681 against 518, the table at its cap. A window shorter than the sheet could not be made by `windowsize`: P18 | Pass (P18 for the short window) |
+| F6 folded captions | Snapshot (`sheet-default.png`, looked at) | The reference caption sits under the table in the same group row, the Auto-align and De-ghost captions under their boxes, the Format caption under the picker, the result caption under the Folder; no "Photos" header; the divider falls between the rows, not between a control and its caption | Pass (look: P11) |
+| F7 Name line secondary while a refusal shows | Script, snapshot | `merge sheet`/`merge reference` print `(secondary)` on `TwoFolders-0` (folder refusal) and Mixed, and no `(secondary)` once the `Open` frame is chosen; the snapshot shows the Name gray | Pass |
+| F8 header thumbnail follows the reference | Test, Script | `MergePreviewItemTests`; script PAIR (three RAW+JPEG pairs): the thumbnail is `RAW_102.dng`, `RAW_103.dng`, `RAW_101.dng` as the reference moves, and `RAW_102.jpg`, `RAW_103.jpg`, `RAW_101.jpg` after `pairfile jpeg`; the snapshots show the thumbnail change (the walker moves). Not seen on a real pair: P19 | Pass |
+| D-H13 Return and Esc with the table focused | Person | P13 | Open |
+| §7.1 progress without alignment | Test, Script | `MergeProgressScheduleTests`; scripts D (Reading, Aligning, Merging, Saving, Adding) and E, F3 (no Aligning), bar ends 1.000 | Pass |
+| §11 announcement | Test, Script | `MergeSheetStateTests` "§11…"; scripts C, A: "Reference RAW_103. Result RAW_103_HDR.tif." and "… Merge is available." / the new refusal | Pass |
+| C16 slow-disk spinner | Test, Script | the three `MergeSheetStateTests` spinner tests; script I: spinner off at once for an answered folder, on after the pause for a folder still being asked, off when it answers | Pass |
+| A9 de-ghost follows the reference with both off: the reference still names the result | Script | script F6 (both off) writes `RAW_102_HDR.tif`; script G `--reference 8 --no-align --no-deghost` | Pass |
+
+## Findings
+
+For the engineer. None blocks sign-off. Q1 to Q6 were the first run's (all fixed: see
+"Earlier runs").
+
+**Q7 (Nit, look). The sheet's Photo column cuts a seven-character name when it carries the
+Reference mark.** Steps: script B (`search RAW_10; selectall; merge sheet; snapshot`),
+`shots/sheet-default.png`. Expected (design §5.2): the mark stays whole and the name gives
+way first, middle-cut with its full text as the tooltip. Actual: that rule holds, but at
+the default width the name is cut when it need not be: the row reads `RA…102 Reference`
+while the Type, Shutter and Compensation columns have a quarter of the width each, mostly
+empty. A name like `IMG_1234` would be cut the same way; with a flagged row's symbol
+(script C, TwoFolders) it is `T…2 Reference` for `TWOFOLDERS_102`. The column is the
+table's, so M8 (P11) should judge it: widen the Photo column's ideal width at the cost of
+Type and Compensation, or let the person drag it.
+
+**Q8 (Nit, missing test). No test asserts "no warning for an extreme reference".**
+`MergeSheetStateTests.choosing` picks the darkest frame (IMG_1) but checks only the
+reference, not that `message` stays nil and `canStart` true; Open question 8 and A13 say
+no warning. Scripts A, C, F and K show none for the darkest and the brightest frame, so
+the behavior is right today. Add the two assertions (and the same for each of the four
+box combinations) so a later refusal that depends on the reference's exposure is caught.
+
+**Q9 (Observation, no action asked; feeds P16). A JPEG bracket merged with the brightest
+frame as reference and De-ghost on has flatter highlights than with De-ghost off.**
+Steps: scripts K, K2, K3 (the fixture's three 8-bit JPEGs, `search JPEG_1; selectall;
+merge sheet; merge reference JPEG_103; [merge deghost off]; merge start`), results read
+back with `tifdiff.py`/`region.py`. The window pane's brightness: standard deviation 0.0030
+(reference +2 EV, De-ghost on), 0.0058 (De-ghost off), 0.0086 (default reference); the
+snapshot shows the pane as one flat near-white tone with De-ghost on and with blotches
+with it off. The same bracket as raws does not do this (script F: the same window pane,
+0.0192 to 0.0195 whatever the reference or the box). This is the known limit of JPEG
+brackets (the camera's response isn't recovered: the proposed follow-up; status.md
+"Seventh review pass"), not a regression, and the fixture JPEGs are 8-bit with no camera
+curve, so only a real camera's JPEGs can say whether it matters: P16.
+
+**Q10 (Nit, debug script only). `print merge` goes on printing the sheet's line after the
+sheet has closed.** Script L: after `merge cancelsheet`, `print merge` still ends with
+`merge sheet reference MVI_00003 disk answered merge on false spinner off` (the model's
+`sheet` is kept until the next `begin`). Not visible to a person; it can make a script
+read a closed sheet as open. Print it only while `model.showsMergeSheet`.
+
+### Scope notes (not findings)
+
+- **"GPU copy cap 100 MP" is not on this branch.** `ResidentDecode.maximumDimension` here
+  is 16,384 pixels on a side (commit `079bf79`). The 100 megapixel limit
+  (`maximumPixels`, `lazyReason`, the opt-in soak) is in `bug/core-image-split-render`
+  (#253, commit `34a614c`), whose own `qa.md` is `66be81d`. Nothing about it can be
+  tested here, and what this run covers of `079bf79` is that its tests pass (the six
+  `ImageIOFullDecodeTests`, `LensAlignStaleAreaTests`) in the 1348. When `079bf79` is dropped via
+  #253 the count falls and this branch's "Bug: tiles at 100%" section in `status.md` goes
+  with it; the sign-off's P5 (the owner's tile bug) is then #253's to confirm. Nothing here
+  depends on that commit: the revision and the merge's files do not touch it.
+- **#88 merge order** (the `maskRasters` column in `Catalog.removeMergedMaster` and
+  `restoreMergedMaster`) is unchanged since the first run: whichever branch merges second
+  adds the column there.
+- C21 (two clauses of `status.md`'s eighth-pass text) is a docs nit for the engineer,
+  recorded by the reviewer; it needs no QA.
+
+## Scripts
+
+Every launch: a copy of the bundle with `CFBundleIdentifier`
+`me.sesser.gus.debugtest.qa150c`, re-signed ad hoc, on a scratch library made by
+`photobench`, a fresh copy of the sources and a fresh import per run, `--library-root`
+on every launch, no `open`. Set up (zsh, from the worktree; `$S` is a scratch folder):
+
+```zsh
+cd ~/Projects/Gus-hdr-merge && Scripts/build-app.sh && swift build -c release --product photobench --product photocli
+cp -R build/Gus.app $S/Gus.app
+plutil -replace CFBundleIdentifier -string me.sesser.gus.debugtest.qa150c $S/Gus.app/Contents/Info.plist
+codesign --force --deep --sign - $S/Gus.app
+.build/release/photobench generate --output $S/src --jpeg 2 --dng 0 --heic 0 --videos 1 --brackets 1
+```
+
+`run.sh NAME "SCRIPT"` is: `R=$S/runs/NAME; cp -R $S/src $R/src; photobench import
+--library-root $R/lib --source $R/src; timeout 240 $S/Gus.app/Contents/MacOS/Gus
+--library-root $R/lib --debug-script "SCRIPT"`. Every script starts `wait 2; rating any;
+flag any;` (the copy keeps its own filters) and ends `quit`; after `search` a `wait 1`. A
+`snapshot` taken while the sheet is up writes the sheet itself (1120 x 1280 for 560 x 640).
+
+- **A. Defaults, choosing, boxes, table, reopening:** `search RAW_10; wait 1; selectall;
+  print merge; merge sheet; print merge; merge reference 3; merge reference RAW_101;
+  merge format dng; merge format tiff; merge align off; merge deghost off; merge table
+  deselect; merge table select 2; merge table deselect; merge cancelsheet; print merge;
+  merge sheet; merge cancelsheet`. Showed: three frames, reference RAW_102 (0 EV, shot
+  second), no message, Name `RAW_102_HDR.tif`, both boxes on, the caption naming the
+  reference, `sheet 560x640 (ideal 640) form content 517 shown 522 scrolls false`; `print
+  merge` `canMerge false reason sheet up` with the sheet open; choosing 3 then RAW_101: the Name,
+  announcement and thumbnail follow, Merge stays on; the format changes only the extension and
+  caption; each box changes only itself; `table deselect` leaves row 1 (then row 2) chosen; after
+  Cancel and `merge sheet` the sheet is RAW_102 with both boxes on.
+- **B. Sheet snapshots:** `windowsize 1400 900; search RAW_10; selectall; merge sheet;
+  snapshot sheet-default.png; merge reference 3; snapshot sheet-ref3.png`. Looked at both
+  (dark): the folded captions, the Reference mark moving, the thumbnail changing (the
+  walker moves), the Photo column cut (Q7).
+- **C. Refusals, snapshots:** `search TWOFOLDERS; selectall; merge sheet; snapshot
+  sheet-folder-refusal.png; merge reference 3; merge reference 1; merge cancelsheet; search
+  MIXED; …; search .dng; …` (13 frames). TwoFolders: refused naming TWOFOLDERS_102 in
+  `Locked`, the Name gray, Merge off, form 531 against 490; row 3 (`Open`): none, Merge on, "Merge is
+  available."; row 1: refused again naming TWOFOLDERS_101 and flagged. Mixed: the mixed
+  message, 517 against 504. 13 frames: "At most 9 photos can be merged at once. Select
+  fewer.", the table at its cap, 681 against 518.
+- **D. A real merge with the +2 EV frame as reference** (ratings 4 on RAW_102, 2 on
+  RAW_103): `search RAW_10; focus RAW_102; key 4; focus RAW_103; key 2; selectall; merge
+  sheet; merge reference RAW_103; merge start; search HDR; print items`. `RAW_103_HDR.tif`
+  beside RAW_103, `items RAW_103_HDR:2`, its `.xmp` rating 2, DateTimeOriginal
+  `10:00:02` (RAW_103's), same project; the masters' SHA-256 equal the pristine copies';
+  details Reading, Aligning, Merging, Saving, Adding.
+- **E. Unrelated scenes:** `search UNRELATED; selectall; merge sheet; merge start; merge
+  sheet; merge align off; merge start; sidebar builtin all; search HDR; print items`. The first
+  ends at Aligning (0.700): "The photos couldn't be merged. Nothing was added to the library.
+  “UNRELATED_103” doesn't line up with “UNRELATED_102”. Merge photos of the same scene, or turn off
+  Auto-align."; the second sheet opens with Auto-align on again; with it off the merge
+  runs (Reading, Merging, Saving, Adding) and adds `UNRELATED_102_HDR`.
+- **F. The walker bracket, six choices, one fresh library each** (`search RAW_10; selectall;
+  merge sheet;` then): F1 `merge start`; F2 `merge deghost off; merge start`; F3 `merge align
+  off; merge start`; F4 `merge reference RAW_103; …`; F5 `merge reference RAW_101; …`; F6
+  `merge align off; merge deghost off; …`. TIFFs read with a stdlib reader
+  (`tifdiff.py`, a scratch script) and converted with `sips` to look at. F1: the red disc once
+  (the reference's place); F2: three discs (blend); F4 and F5: the disc at the +2 EV and −2 EV
+  frames' places; the discs' outlines at 2x clean; F1 against F2 differ only where things moved
+  (60,291 pixels, box x 87 to 1413, y 102 to 550); the others differ everywhere (a different frame to align to, or no
+  alignment); F1/F2 window pane 0.0192 sd for every choice.
+- **G. `photocli merge`** on `runs/G` (no app running): the seven calls listed under AC14
+  and AC2a (`--format tiff|dng`, `--reference`, `--no-align`, `--no-deghost`; the unrelated
+  series; a reference not among the versions), then a DNG and a TIFF again. JSON as
+  listed; `exiftool -validate` OK on the DNG.
+- **H. Undo and Redo:** `sidebar builtin all; search RAW_10; selectall; merge sheet; merge
+  reference RAW_103; merge start; print items; undo; wait 1; print items; print messages;
+  redo; wait 2; print items; print undo; search RAW_101; wait 1; focus RAW_101; key 5; wait 2`.
+  Four items, three, then four again; the rating 5 after the Redo is in the catalog.
+- **I. Slow disk** (`search TWOFOLDERS; selectall; merge sheet; merge slowdisk 3000; merge
+  reference 3 nowait; print merge; wait 0.8; print merge; merge reference 2 nowait; print merge;
+  wait 3.5; print merge; merge reference 3 nowait; print merge; wait 3.5; print merge`): the
+  spinner off at first, on after the pause for `Open`, off at once on returning to the answered
+  `Locked`, and `Open` answered afterwards (kept) gives Merge on and no spinner.
+- **J. Stop, then another merge:** `search RAW_10; selectall; merge sheet; merge start
+  nowait; print merge; merge stop; print items; print messages; merge sheet; merge reference 1;
+  merge deghost off; merge start nowait; print merge; wait 0.3; print merge; merge wait`.
+  `canMerge false reason running`, `canRemove false`, `stop merge`; stopped: "The merge was
+  stopped. Nothing was added to the library.", no new file and no `.partial`; the next merge
+  writes `RAW_101_HDR.tif`.
+- **K. JPEG bracket:** `search JPEG_1; selectall; merge sheet; merge reference JPEG_103; merge
+  start` (K2 default; K3 adds `merge deghost off`; K4 also `merge align off`): Q9.
+- **L. AC1 and a video:** `search 0000; selectall; print merge; contextmenu cell 0; merge
+  sheet; merge reference 3; print merge; merge cancelsheet; focus 0; print merge; search MVI;
+  selectall; print merge`. `canMerge true`, the menu lists Merge to HDR…, "“MVI_00003” is a
+  video. Only photos can be merged." with the video flagged; then `fewer than two` for one
+  photo and one video; Q10.
+- **M. Real ORFs** (`10M10354/55/56.ORF` copied from `~/gus-scratch`, hashes compared;
+  imported in place), three libraries: default; `merge reference 10M10355`; `merge reference
+  10M10356; merge deghost off`. Default reference `10M10354` (0 EV); the others name and take
+  the metadata of the chosen frame; the TIFFs look right (trees, clouds, the reservoir, no
+  doubled edge at fit).
+- **N. Short window:** `windowsize 900 520; merge sheet`: the sheet stays 560 x 640 (the
+  window has a minimum size); the clamp is P18's.
+- **PAIR. Header thumbnail with RAW+JPEG pairs** (the three raws with three JPEGs renamed
+  beside them): `search RAW_10; selectall; merge sheet; merge reference 3; merge reference 1;
+  pairfile jpeg; …`: as listed under F8.
+
+## For a person
+
+VoiceOver, macOS 15 and macOS 26 are not asked (standing ruling). The first run's P1,
+P3 to P10 are unchanged and listed under "Earlier runs"; P2 (the sheet's look) and P7 (long
+names) are covered by P11 and P20 below.
+
+- **P11 (design M8, M15; Q7). The sheet's look at the default size.** Select the three
+  `RAW_10x` frames, ⇧⌘L. At three frames: no scrolling; the "Reference" mark whole; the
+  Auto-align and De-ghost captions indented to their labels on one line; each caption inside its
+  control's row with no divider between them; no "Photos" header; the Name line gray while a
+  refusal shows and black when Merge is on. Light, Dark, Increase Contrast, Reduce
+  Transparency (my snapshots are dark only). Say whether the Photo column's cut names
+  (`RA…102 Reference`, Q7) are acceptable. Nine frames: the Form scrolls, header and buttons
+  stay.
+- **P12 (design M9). Choosing by pointer.** Click each row; ⌘-click the chosen row; click the
+  empty space under the rows: one stays chosen (any one-frame flicker?). Is it clear from the
+  caption alone that rows can be clicked? (If not, the pop-up fallback of design §5.5.)
+- **P13 (design M10, D-H13). Keyboard, Full Keyboard Access on.** Tab order (table,
+  Auto-align, De-ghost, Format, Cancel, Merge); arrows move the reference at once; Space toggles a box;
+  **Return and Esc with the table focused**: after a click on a row, after Tab, and as the sheet opens
+  (Return presses Merge when it is on, Esc cancels). What has the focus when the sheet opens? Reopen: the
+  defaults again.
+- **P14 (design M11). The folder refusal on a real slow volume.** `TwoFolders-0` is in the scratch
+  library (`search TWOFOLDERS`): the refusal names the default reference, choosing the frame in
+  `Open` lifts it, the other brings it back. Optional: one frame on a slow network share or a
+  USB stick: the spinner appears only after a pause and Merge never comes on with a stale Name
+  (scripted with `merge slowdisk`, script I; not tried on a real slow disk).
+- **P15 (design M12; AC8's real case; "no colored speck"). A real merge with another frame as the
+  reference.** On a hand-held bracket of yours with something moving (a person, branches),
+  merge twice, the default and with another frame as the reference (copies of your files):
+  name, folder, project and Info tab values are the chosen frame's; the moving thing appears
+  once, in the chosen frame's place; at 100%, along the outline of whatever moved
+  (also with the darkest and the brightest frame as the reference, De-ghost on): **no
+  colored speck on the outline** (code review C18); no doubled edge.
+- **P16 (design M12/M13, code review C14; Q9). A JPEG bracket from a real camera, the
+  brightest frame as the reference.** Three JPEGs (not raws) of a scene with a bright window
+  or sky, the brightest as the reference, De-ghost on: **no clipped band along the bright
+  area's edge**; then De-ghost off where nothing moved: compare the highlights (on the fixture
+  the on result is flatter, Q9). Say whether the difference matters on a real camera's files.
+- **P17 (design M13). The two boxes on real files.** Frames of two different scenes with
+  Auto-align on (refused, Activity ends "or turn off Auto-align") and off (merged, no
+  "Aligning"); a tripod series with Auto-align off; a still scene with a flickering light with
+  De-ghost off.
+- **P18 (design M14). Height on a 13-inch laptop and in a short window.** The sheet fits the
+  screen and a library window shorter than it (it clamps and the Form scrolls with the header and buttons
+  in place); a two-line refusal; the "same exposure" note (no fixture has it). Script N could not make the
+  short window.
+- **P19 (design M16). The header thumbnail with RAW+JPEG pairs** shown as the JPEG (RAW+JPEG
+  Pair ▸ Show JPEG): choosing another frame changes the thumbnail. Scripted on a made-up pair
+  library, not seen.
+- **P20 (carried from the first run's P2 and P7). Long names.** A frame with a 40-character
+  file name: in the table (middle-cut, full name as the tooltip), the Name row (one line, middle-cut,
+  tooltip), the Folder row with a long path (cut at its head), the toolbar's Activity item while it
+  merges.
+
+The owner's command (zsh, from the worktree; builds the bundle, gives it its own identifier,
+a scratch library with a bracket series, the real ORF bracket and `TwoFolders-0`, and opens it on
+`--library-root`; add your own bracket's copy under `$S/src/Mine` before the import):
+
+```zsh
+cd ~/Projects/Gus-hdr-merge && Scripts/build-app.sh && S=$(mktemp -d /tmp/gus-hdr-signoff.XXXXXX) && cp -R build/Gus.app $S/Gus.app && plutil -replace CFBundleIdentifier -string me.sesser.gus.debugtest.hdrmerge $S/Gus.app/Contents/Info.plist && codesign --force --deep --sign - $S/Gus.app && swift run -c release photobench generate --output $S/src --jpeg 2 --dng 0 --heic 0 --videos 1 --brackets 1 && mkdir -p $S/src/Real && cp ~/gus-scratch/photos/2016-05-21/10M1035[456].ORF $S/src/Real/ && swift run -c release photobench import --library-root $S/lib --source $S/src && open -n $S/Gus.app --args --library-root $S/lib
+```
+
+Search `RAW_10` for the walker series (`Brackets/Raw-0`; the red disc is the moving thing),
+`10M` for the real bracket, `TWOFOLDERS` for the reference-folder refusal, `UNRELATED` for the
+different scenes, `JPEG_1`, `MIXED`, `READONLY` for the rest. Merged files land beside their
+reference in `$S/src`.
+
+## Follow-up
+
+### Rerun 2026-11-21 (this run, 9e178a8)
+
+First-run findings: Q1 to Q4 **Fixed** (rerun at d635e12, below), Q5 recorded in
+`docs/PROFILING.md`, Q6 (a refused Redo leaves the undo step offered) left as a nit; script H
+repeats Q1's check on this build with a chosen reference and it holds. New: Q7 to Q10 above,
+open, none blocking. The owner's sign-off, the commit signed off, its date and any checks
+left open: not yet given.
+
+---
+
+## Earlier runs (kept as written)
+
+The first run at d3545ad and its rerun at d635e12 (2026-11-20; before the sign-off revision).
+Their P1 to P10 are open unless the owner reports them done.
+
+### First run, d3545ad (2026-11-20)
+
+Tested: `feature/hdr-merge` at d3545ad, the same Mac. The first run's text follows, its headings one level down (its Follow-up holds the rerun at d635e12).
+
+### Verdict
 
 **Superseded by the rerun in Follow-up (d635e12): Q1 to Q5 are fixed and the feature is ready for the owner's sign-off.** What follows is the first run, at d3545ad.
 
@@ -19,7 +355,7 @@ fails), the full `swift test` is green on the second run, and every other path I
 drove (TIFF and DNG, repeat merges, same-stem numbering, Stop, Undo, every
 refusal, FAT32, `photocli`, the owner's real bracket) works.
 
-## Results at a glance
+### Results at a glance
 
 - `swift build`: clean. `Scripts/build-app.sh all`: builds both apps.
 - `swift test`: run 1, 1307 tests in 188 suites, **1 failure**:
@@ -40,7 +376,7 @@ refusal, FAT32, `photocli`, the owner's real bracket) works.
   first); every launch passed `--library-root` on a scratch library; no bare
   `open`. The worktree is clean.
 
-## Acceptance criteria
+### Acceptance criteria
 
 | AC | How | Evidence | Result |
 |---|---|---|---|
@@ -67,7 +403,7 @@ view), the quit text (`about quitask merging`: "Quit While Merging?", "The merge
 is stopped and nothing is added.", Keep Merging, on the library window), removal
 off while merging (`canRemove false` in the run), File ▸ Stop's job is the merge.
 
-## Findings
+### Findings
 
 **Q1 (Blocker). Redo of "Merge to HDR" deadlocks the window's catalog write
 chain.** (`Sources/PhotoApp/Model/MergeModel.swift`, `registerUndo`, lines
@@ -141,7 +477,7 @@ guide or PROFILING if anyone is to merge by `photocli` from a source checkout.
 
 No test is missing for a criterion except the app-layer Redo of Q1.
 
-## Scripts
+### Scripts
 
 Every launch: a copy of the bundle with `CFBundleIdentifier`
 `me.sesser.gus.debugtest.qa150`, re-signed ad hoc, on a scratch library made by
@@ -241,7 +577,7 @@ Also: `swift run -c release photobench generate --brackets 1 --bracket-size
 **peak 2.73 GB** (the PRD's placeholder: about 3 GB). Synthetic, not a real
 24 MP raw (P8).
 
-## Known limits (accepted or not for this feature)
+### Known limits (accepted or not for this feature)
 
 - R18 ("Show in Library" on the Activity row) not built (design D-H3, a Could).
 - No detection of a merged DNG chosen as a frame beside its own source raws
@@ -265,7 +601,7 @@ Also: `swift run -c release photobench generate --brackets 1 --bracket-size
 - The standing ruling: VoiceOver, macOS 15 and macOS 26 are never asked of the
   owner; CI covers them.
 
-## For a person
+### For a person
 
 The owner can run everything below on the scratch library built by the command
 at the end of this section.
@@ -332,9 +668,9 @@ Search `RAW_10` for the synthetic raws (`Brackets/Raw-0`), `10M` for the
 real bracket, `JPEG_1`, `MIXED`, `READONLY`, `UNRELATED` for the refusals. The
 merged files land next to the sources in `$S/src`.
 
-## Follow-up
+### Follow-up
 
-### Rerun 2026-11-20 at d635e12 (fixes bb2ab53 and d635e12)
+#### Rerun 2026-11-20 at d635e12 (fixes bb2ab53 and d635e12)
 
 Tested: `feature/hdr-merge` at d635e12 (worktree `Gus-hdr-merge`; the only
 uncommitted change in it is `code-review.md`, not mine), same Mac (Mac16,8,
