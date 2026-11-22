@@ -235,4 +235,12 @@ last line (or run the last line with your folder in place of `$S/photos`).
 ## Follow-up
 
 Reruns after fixes and the owner's sign-off are recorded here when relayed.
-Open: P1, P2, P3 (P3 optional); B13 is CI's.
+
+**Owner's sign-off.** Signed off, commit 8330206, 2026-11-21 ("#253 is
+signed off, go ahead"), after running the scratch app from `run-253.zsh`.
+- P1 (real-key Z zoom x8 with Highlights -45 and Shadows +70 on the 20 MP
+  TIFF) and P2 (real straightened photo at 100% and in export): available to
+  him; he reported no problems.
+- P3 (batch memory) was optional; he did not report on it, so it is recorded
+  as not reported.
+- No checks named as left open. B13 is CI's.
