@@ -1,0 +1,51 @@
+# CI speed-up (#260): code review
+
+Owner: code-reviewer. Date: 2026-11-22. Step 4 of `docs/WORKFLOW.md`.
+Reviewed: `feature/ci-speedup`, d796078..ba092ae. Build and tests: not run (no Swift source changed; no `actionlint` here, the workflow cannot run off GitHub). Both YAML files parse (ruby); I ran the detection script's `run` body locally against this branch's commits (`code=true`, as expected for a diff that touches `.github/`).
+
+## Verdict
+Ready for the pull request after one wording or limit decision (C1). The composite action, the second job and the cache removal are correct as far as can be checked without a run; the Test step's limit does not cover what its comment says it covers.
+
+## Findings
+| # | Severity | Where | Finding | Failure | Rule |
+|---|----------|-------|---------|---------|------|
+| C1 | Should fix | `.github/workflows/build.yml:66-70` (the limit at `:70`) | The comment says the 15-minute limit "covers two full runs, the second being that retry". It does not: 2 x 522 s (the slowest measured step) = 1044 s = 17.4 min, and 2 x 433 s = 866 s leaves 34 s. Only the median (2 x 416 = 832 s) fits. The issue asked for "about 2x the median" and 15 min is that, so the number follows the issue, but the comment states a guarantee the number does not give. | A signal 11 crash late in a run on a slow runner (a 522 s run that crashes at minute 8) followed by a 522 s retry is killed at 15 min as a timeout, and the retry that would have passed is lost: a red required check on a good commit. A crash that kills the process early costs less, so this needs the crash to land late, but the crash is random (issue #77) and a rerun would then be needed. | Issue #260 c ("the step limit must cover two full runs") |
+| C2 | Nit | `.github/workflows/build.yml:127` | The bundles job has no Toolchain step (`sw_vers`, `xcodebuild -version`, `swift --version`) that the old job logged before it built. `build-app.sh` fails on an SDK older than 26 and says so, but a failed run no longer shows which Xcode and macOS image it ran on without opening the script's output. | Diagnosing a bundles failure that is specific to one image (the macos-15 job and Xcode 26.3) has less in its log than the same failure had before. | none (log quality) |
+| C3 | Nit | `docs/features/_inventory.md:304` | The CI row reads "Build and test on `macos-26` and `macos-15`; CodeQL; ..." and says nothing of the bundles job. The product manager owns the file and updates it at Ship, which this change skips; it is wording that will be a little stale, not wrong. | None that breaks anything. | Ownership table |
+
+## Questions
+- **Q1 (for the owner, about runner capacity).** `codeql.yml:3-6` records that a second macOS runner requested beside the build job "often goes unassigned until GitHub cancels it". This change runs four macOS jobs per push or pull request instead of two (and a push to `master` adds CodeQL's fifth). I could not check the plan's macOS concurrency limit from here. If it is 5, two runs started close together (a push to `develop` and a pull request, or a push and a quick re-push when the earlier run is not yet cancelled) queue on it; the new job limits (`timeout-minutes`) do not count queue time. Worth watching in the first few runs after the merge; if the owner has seen the unassigned-runner failure on this repository recently, say so in the PR. Not a finding, since it cannot be shown from the diff.
+- **Q2 (for the main session, ruleset order).** See "Ruleset ordering" below.
+
+## Checked and fine
+- **Local composite action after checkout.** `uses: ./.github/actions/detect-code-changes` resolves from the workspace after `actions/checkout@v6`, so it needs the checkout step first, which both jobs have. For a `pull_request` run the action is read from the merge ref, so the PR's own copy is what runs. The step keeps `id: changes` and the action's `outputs.code` maps `steps.changes.outputs.code` inside the action, so the callers' `steps.changes.outputs.code == 'true'` conditions still hold. A step with `uses:` may carry `name` and `id`.
+- **Inside the composite step.** A composite `run` step has `shell: bash` (present), starts in `$GITHUB_WORKSPACE` (no `working-directory` set, so the repository root, where `git diff HEAD^1 HEAD` is the same command as before), sees `GITHUB_EVENT_NAME` (the runner sets it for every step, composite ones included) and has its own `$GITHUB_OUTPUT` file, which the output mapping reads. `fetch-depth: 2` is set in both jobs, which the action's description requires. The script body is byte for byte the old one.
+- **`.github/` counts as code.** The pattern `^(docs/|\.claude/)|\.md$|^\.gitignore$` matches none of `.github/workflows/build.yml`, `.github/actions/detect-code-changes/action.yml` (`.yml`, not `.md`) or any other `.github/*.yml`, so this very change runs the full build. A `.md` file under `.github/` (a template) would count as docs, as every Markdown file does by the repository's rule.
+- **`if: failure()` after a step timeout.** A step stopped by its own `timeout-minutes` ends as failed, so the job continues with `failure()` steps (the golden-failures upload, the crash-report collection and its upload) and the job is not cancelled; only the job-level limit cancels without running them. The comment's claim that a hang now leaves the uploads is right (a hang with no crash leaves no `.ips` reports, only golden images if any).
+- **Limits against the measurements.** Test step 15 min against 344 to 522 s: C1 for the retry case, otherwise 1.7x the slowest single run. Test job 25 min = checkout and Xcode select (about a minute) + Build (188 to 278 s, say 5 min) + 15 + uploads: 21 to 22 min, so the step limit, not the job limit, is what fires on a hang. Bundles 20 min against 286 to 437 s (7.3 min): 2.7x margin; generous, not wrong. The bundles job does not retry, so nothing multiplies it.
+- **What the bundles job needed from the old job.** Nothing. `Scripts/build-app.sh` runs its own `swift build -c release` (`:74`; configuration defaults to release), so it never used the debug build the Build step made, and the `.build` cache was a no-op (the issue's evidence), so nothing was relying on it. It needs the selected Xcode (the macos-15 matrix entry has the same `xcode: "26.3"` and the same select step, with the same condition) and fails clearly on an SDK older than 26. The matrix and `runs-on` are copied correctly.
+- **Docs-only run.** On a docs-only change the bundles job runs checkout and the action and skips Select Xcode and Build, so it reports success; both jobs report under their matrix names. A bundles failure no longer follows a test failure (it runs regardless), which is the intent.
+- **Concurrency.** `${{ github.workflow }}-${{ github.ref }}` is workflow-level, so both jobs of a run share one group and a newer push cancels all four jobs of the older run. Unchanged behavior.
+- **Cache removal.** `actions/cache` is gone from the workflow; nothing else in `.github/`, `README.md`, `CLAUDE.md`, `.claude/agents/` or `docs/WORKFLOW.md` names it or the old single-job layout. `docs/WORKFLOW.md`'s one-word change ("both required checks" to "every required check") is right for three or four checks. `codeql.yml` is unaffected (it builds on its own).
+- **Rules from CLAUDE.md.** The change touches no Swift, no catalog, no originals; no new dependency, no network use beyond the actions already used (`actions/checkout@v6`, `upload-artifact@v4`) and no new action from outside the repository.
+
+## Ruleset ordering
+The plan (add `Build app bundles (macos-15)` and `(macos-26)` to rulesets "Default" and "master: required checks" after the merge) is the safe order for this pull request: the PR's own run is the first to report those names, and adding them to the rulesets first would not block this PR but would block every other open pull request, whose last run (on a merge ref from before this workflow) never reported them. Two consequences to plan for:
+1. Between the merge and the ruleset edit a broken bundle does not block a merge, since `Build and test (...)` no longer builds the bundles. Make the edit right after the merge.
+2. After the edit, a pull request opened before the merge has no `Build app bundles` result and waits forever until it is updated (merge or rebase `develop` into it, or push) so that a run on the new workflow reports. Tell the owner or re-run those.
+The "Default" ruleset targets the default branch and the "master" one guards releases: a `release/*` to `master` pull request runs the workflow from its own merge ref, so it will report the new names too once `develop` carries them.
+
+## Follow-up
+After the engineer's fixes: each finding with Fixed, Not fixed (and why) or Withdrawn, and the commit.
+
+## Second pass
+Date: 2026-11-22. Reviewed: `33c2938` only (`git show 33c2938 -- .github`). Build and tests: not run (no Swift touched). `build.yml` parses (ruby `YAML.load_file`).
+
+| # | Result | Commit | Notes |
+|---|--------|--------|-------|
+| C1 | Fixed | 33c2938 | Test step limit is 20 min: 2 x 522 s (slowest measured run) = 17.4 min fits with 2.6 min to spare, and the comment now states that arithmetic. Job limit 30 min = checkout and Xcode select (about 1 min) + Build (up to 5 min) + 20 + uploads: 26 to 27 min, so on a hang the step limit still fires before the job limit and the `failure()` uploads run. |
+| C2 | Fixed | 33c2938 | The bundles job's Toolchain step (`sw_vers`, `xcodebuild -version`, `swift --version`) is identical to the test job's, has the same `if: steps.changes.outputs.code == 'true'` and indentation, and sits after Select Xcode and before Build app bundles, so it logs the selected Xcode. It is skipped on docs-only changes like the steps around it. |
+| C3 | Left open | | The inventory row is the product manager's, at its next reconcile. Not a blocker. |
+| Q1 | Open | | Runner capacity for four macOS jobs: watch the pull request's first runs. |
+
+No new findings in the commit. The commit also adds this file's first pass; no other change under `.github/` beyond the two hunks above.
