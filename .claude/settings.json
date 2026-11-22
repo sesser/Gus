@@ -4,6 +4,7 @@
     "allow": [
       "Bash(swift build)",
       "Bash(swift build *)",
+      "Bash(DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer swift build *)",
       "Bash(swift test)",
       "Bash(swift test *)",
       "Bash(GOLDENS_REPORT=1 swift test *)",

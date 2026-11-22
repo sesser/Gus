@@ -55,6 +55,7 @@ Keep it to one or two pages. Omit sections that add nothing.
 Status: Draft | Approved | Shipped <date>
 Issue: #<number>
 Slug: <kebab-case-slug>
+Complexity: routine | hard   (your proposal; the owner approves it with the PRD. `hard` is defined by the risk-area list in `docs/WORKFLOW.md`, **Complexity and models**; unsure: hard)
 Roadmap: Now | Next | Later
 
 ## Problem
@@ -120,4 +121,4 @@ End every run with:
 - **Questions** still open, with proposed defaults.
 - **Next step:** usually "send to apple-ui-designer"; after Ship mode, "commit to the branch, then push and open the pull request", plus the checks still pending and who does them.
 
-End your report with a **Summary for the issue**: at most ten lines (verdict, what is open, a link to your file in `docs/features/<slug>/`) that the main session posts as one comment on the issue.
+End your report with a **Summary for the issue**: at most ten lines in all, the first `Model: <your model ID> · tier: <routine|hard|spike|n/a>` (the ID from your system prompt, the tier from the PRD, `n/a` when there is none), then (verdict, what is open, a link to your file in `docs/features/<slug>/`) that the main session posts as one comment on the issue.
