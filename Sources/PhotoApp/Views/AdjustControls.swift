@@ -797,8 +797,11 @@ struct AppKitCheckbox: NSViewRepresentable {
     var isVisible = true
     /// What VoiceOver names it: the section or mask ("Light, checkbox, checked").
     var label: String
-    /// The tooltip, and VoiceOver's help.
+    /// The tooltip, and VoiceOver's help unless `accessibilityHelp` says otherwise.
     var help: String
+    /// VoiceOver's help when it is not the tooltip: `.some(nil)` gives none
+    /// (a Copy Adjustments row whose tooltip is only its name, design §8).
+    var accessibilityHelp: String?? = .none
     /// Shown on the trailing side at the slider labels' size; nil for a bare
     /// check box. A titled one is named by its title.
     var title: String?
@@ -829,7 +832,7 @@ struct AppKitCheckbox: NSViewRepresentable {
         button.isHidden = !isVisible
         button.toolTip = help
         button.setAccessibilityLabel(title == nil ? label : nil)
-        button.setAccessibilityHelp(help)
+        button.setAccessibilityHelp(accessibilityHelp ?? help)
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSButton, context: Context) -> CGSize? {

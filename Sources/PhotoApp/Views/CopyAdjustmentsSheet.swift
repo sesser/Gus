@@ -224,8 +224,11 @@ private struct CopySheetRow: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: CopySheetMetrics.boxGap) {
                 // VoiceOver reads the name and the text once, as the box's label.
+                // The tooltip is the full name (it may be cut); VoiceOver's
+                // help is the caption only, so the name is not read twice.
                 AppKitCheckbox(state: state, label: [title, note].compactMap { $0 }.joined(separator: ", "),
-                               help: caption ?? title, controlSize: .regular, action: click)
+                               help: caption ?? title, accessibilityHelp: .some(caption),
+                               controlSize: .regular, action: click)
                     .fixedSize()
                 Text(title)
                     .font(.system(size: 13, weight: isBold ? .semibold : .regular))

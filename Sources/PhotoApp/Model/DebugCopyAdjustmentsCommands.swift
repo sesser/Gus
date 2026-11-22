@@ -19,9 +19,11 @@ import PhotoUI
 ///                                   40 pt past the box: the row's own hit area; then prints the sheet)
 ///     copyadjust sheet confirm|cancel
 ///                                  (presses Copy or Cancel; prints the clipboard)
-///     print copysheet              (each row: name, box, trailing text, enabled; Copy, the note, the sheet's size
+///     print copysheet              (each row: name, box, trailing text, enabled, the box's VoiceOver label and help
+///                                   and its tooltip; Copy, the note, the sheet's size
 ///                                   against its ideal and the list's content against what it shows)
-///     print clipboard              (the copied items by name, or none)
+///     print clipboard              (the copied items by name, or none; the announcement and the toolbar Paste
+///                                   item's tooltip, read from the menu state the toolbar reads)
 ///     print messages               (every Activity message, oldest first, warnings marked)
 ///     print stacks                 (each photo shown: its saved operations after pending writes, off ones marked,
 ///                                   with the crop's rectangle, the spot count and the exposure, contrast and
@@ -177,7 +179,8 @@ enum DebugCopyAdjustmentsCommands {
             let shown = box.map { $0.state == .on ? "on" : $0.state == .mixed ? "mixed" : "off" } ?? "?"
             let indent = entry.item == nil ? "" : "  "
             print("debug-script: copysheet row \(indent)\(title) [\(entry.name)] \(check) box \(shown)"
-                  + " enabled \(box?.isEnabled ?? false) note '\(note)' ax '\(box?.accessibilityLabel() ?? "-")'")
+                  + " enabled \(box?.isEnabled ?? false) note '\(note)' ax '\(box?.accessibilityLabel() ?? "-")'"
+                  + " axhelp '\(box?.accessibilityHelp() ?? "-")' tooltip '\(box?.toolTip ?? "-")'")
         }
         print("debug-script: copysheet copy \(state.canCopy ? "on" : "off")"
               + (state.canCopy ? "" : " note '\(CopyAdjustmentsText.checkSomething)'") + " boxes \(boxes.count)")
@@ -225,8 +228,12 @@ enum DebugCopyAdjustmentsCommands {
     }
 
     static func printClipboard(_ model: LibraryModel) {
-        guard let copied = model.copiedAdjustments else { return print("debug-script: clipboard none") }
+        let tooltip = CopyAdjustmentsText.pasteHelp(LibraryMenuState(model).copiedSummary)
+        guard let copied = model.copiedAdjustments else {
+            return print("debug-script: clipboard none tooltip '\(tooltip)'")
+        }
         let names = CopyItem.all.filter(copied.items.contains).map(\.name)
-        print("debug-script: clipboard \(names.joined(separator: " ")) announcement '\(CopyAdjustmentsText.announcement(copied.summary))'")
+        print("debug-script: clipboard \(names.joined(separator: " "))"
+              + " announcement '\(CopyAdjustmentsText.announcement(copied.summary))' tooltip '\(tooltip)'")
     }
 }

@@ -59,13 +59,28 @@ enum CopyAdjustmentsText {
         }
     }
 
-    /// "Copied Light, Color Grading." for VoiceOver once Copy is pressed;
-    /// more than five names read as a count.
-    static func announcement(_ entries: [CopySummaryEntry]) -> String {
-        let list = entries.count > 5
-            ? String(localized: "\(entries.count) items", comment: "Copy Adjustments: the announcement's list when it is long")
+    /// What was copied, as the announcement and the Paste tooltip name it:
+    /// five names or fewer joined with ", ", more read as a count. One
+    /// function for both, so they can't drift (design §15 DQ-2).
+    static func list(_ entries: [CopySummaryEntry]) -> String {
+        entries.count > 5
+            ? String(localized: "\(entries.count) items",
+                     comment: "Copy Adjustments: the list of what was copied when it is long, in the announcement and the toolbar Paste item's tooltip")
             : entries.map(name).joined(separator: ", ")
-        return String(localized: "Copied \(list).", comment: "VoiceOver, after Copy in the Copy Adjustments sheet; %@ is what was copied")
+    }
+
+    /// "Copied Light, Color Grading." for VoiceOver once Copy is pressed.
+    static func announcement(_ entries: [CopySummaryEntry]) -> String {
+        String(localized: "Copied \(list(entries)).", comment: "VoiceOver, after Copy in the Copy Adjustments sheet; %@ is what was copied")
+    }
+
+    /// The toolbar Paste Adjustments item's tooltip (design §15 DQ-2):
+    /// "Paste Adjustments: Light, Color Grading", no period; the item's own
+    /// name with nothing copied.
+    static func pasteHelp(_ entries: [CopySummaryEntry]?) -> String {
+        guard let entries else { return String(localized: "Paste Adjustments") }
+        return String(localized: "Paste Adjustments: \(list(entries))",
+                      comment: "Tooltip of the toolbar's Paste Adjustments item; %@ is what was copied (the Copy Adjustments announcement's list)")
     }
 
     private static func name(_ entry: CopySummaryEntry) -> String {
@@ -82,9 +97,10 @@ enum CopyAdjustmentsText {
     }
 
     /// Activity, after a paste with Spots onto photos whose size could not
-    /// be read (an offline or unreadable original, or the source's).
+    /// be read (an offline or unreadable original, or the source's; design
+    /// §15 DQ-1).
     static func spotsUnknownSize(_ count: Int) -> String {
-        String(localized: "Spots were not pasted onto \(count) photos: their size could not be read.",
-               comment: "Activity, after Paste Adjustments with Spots: photos (or the photo copied from) whose original could not be read kept their own spots")
+        String(localized: "Spots were not pasted onto \(count) photos: their size, or the size of the photo they were copied from, could not be read.",
+               comment: "Activity, after Paste Adjustments with Spots: photos whose original, or the original of the photo the spots were copied from, could not be read kept their own spots")
     }
 }

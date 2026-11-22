@@ -154,6 +154,7 @@ struct LibraryToolbar: CustomizableToolbarContent {
         }
         ToolbarItem(id: "pasteAdjustments", showsByDefault: false) {
             Button { model.pasteAdjustments() } label: { Label("Paste Adjustments", systemImage: "doc.on.clipboard") }
+                .help(CopyAdjustmentsText.pasteHelp(state.copiedSummary))
                 .disabled(!state.hasCopiedAdjustments || !state.targetsIncludePhoto || state.isComparing)
         }
         ToolbarItem(id: "addKeywords", showsByDefault: false) {

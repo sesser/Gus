@@ -321,7 +321,7 @@
       "comment" : "Import report: tools of a preset carried over approximately"
     },
     "%lld items" : {
-      "comment" : "Copy Adjustments: the announcement's list when it is long",
+      "comment" : "Copy Adjustments: the list of what was copied when it is long, in the announcement and the toolbar Paste item's tooltip",
       "localizations" : {
         "en" : {
           "variations" : {
@@ -3776,8 +3776,8 @@
         }
       }
     },
-    "Spots were not pasted onto %lld photos: their size could not be read." : {
-      "comment" : "Activity, after Paste Adjustments with Spots: photos (or the photo copied from) whose original could not be read kept their own spots",
+    "Spots were not pasted onto %lld photos: their size, or the size of the photo they were copied from, could not be read." : {
+      "comment" : "Activity, after Paste Adjustments with Spots: photos whose original, or the original of the photo the spots were copied from, could not be read kept their own spots",
       "localizations" : {
         "en" : {
           "variations" : {
@@ -3785,13 +3785,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "Spots were not pasted onto %lld photo: its size could not be read."
+                  "value" : "Spots were not pasted onto %lld photo: its size, or the size of the photo they were copied from, could not be read."
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "Spots were not pasted onto %lld photos: their size could not be read."
+                  "value" : "Spots were not pasted onto %lld photos: their size, or the size of the photo they were copied from, could not be read."
                 }
               }
             }
@@ -10605,6 +10605,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Paste Adjustments"
+          }
+        }
+      }
+    },
+    "Paste Adjustments: %@" : {
+      "comment" : "Tooltip of the toolbar's Paste Adjustments item; %@ is what was copied (the Copy Adjustments announcement's list)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paste Adjustments: %@"
           }
         }
       }
