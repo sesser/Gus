@@ -1597,6 +1597,12 @@ Nothing under `.github/` was edited.
   builds of `PhotoCore` and `PhotoFixtures` are optimized, with the debug
   checks (bounds checks on unsafe buffers) kept on, and why.
 
+**Decided by the owner, 2026-11-22** (relayed by the main session): the debug
+optimization stays, with `-assert-config Debug`; the one sentence in
+`CLAUDE.md`'s Commands section is authorized and added, nothing else there
+touched; the CI proposals become an issue the main session files, and nothing
+under `.github/` is changed on this branch.
+
 ### Review findings (eleventh pass)
 
 - **C25 (Should fix): fixed.** The reviewer is right and the record was
@@ -1645,6 +1651,65 @@ outside the repository, at the tree with the C25 flags:
 - This is Swift 6.2.4's compiler on macOS 27.2's runtime, so it does not
   replace the macOS 15 job. Swift 6.3.3 (Xcode 26.6, the macOS 26 job) is not
   installed here: CI's alone.
+
+### The daily cost: an incremental rebuild (owner's question, 2026-11-22)
+
+The owner keeps `-O -assert-config Debug`. What it costs each time one
+`PhotoCore` file is edited: the time of the next debug build, measured with
+everything else up to date, five runs each, the median, on this Mac (a
+scratch path for each manifest; the edits were reverted).
+
+| Edit | Command | Before (`d9f75e5`'s `Package.swift`) | After (the final flags) |
+|---|---|---|---|
+| A comment added to `Merge/MergeGhosts.swift` (178 lines) | `swift build` | 3.1 s (3.0 to 3.3) | 4.2 s (4.1 to 4.3) |
+| | `swift build --build-tests` | 3.0 s (3.0 to 3.3) | 4.2 s (4.2 to 4.4) |
+| A statement added to a function body there | `swift build` | 3.0 s (3.0 to 3.1) | 4.2 s (4.2 to 4.3) |
+| | `swift build --build-tests` | 3.1 s (3.1 to 3.3) | 4.4 s (4.1 to 4.5) |
+| A statement added to a function body in `Edits/AdjustmentRenderer.swift` (1,059 lines) | `swift build` | 3.1 s (3.1 to 3.3) | 4.4 s (4.3 to 4.5) |
+| | `swift build --build-tests` | 3.2 s (3.1 to 3.3) | 4.4 s (4.3 to 4.6) |
+
+About 1.2 s more per rebuild (3.1 s to 4.3 s). None of these edits changes
+what the module declares, so in neither case is another target compiled
+again; an edit that does (a public or internal signature) recompiles the
+targets that use it, unoptimized as before. A clean debug build with tests:
+34.3 s to 47.4 s (288 s to 417 s of processor time).
+
+### Where the test time is now
+
+The full run without parallelism (`swift test --no-parallel`, the final
+flags) gives each suite's own cost: 1428 tests in 205 suites in 171.5 s, 156 s
+of processor time. (The parallel run takes 77 s of wall time and 520 to 545 s
+of processor time: 14 threads contend. Its per-suite times mostly say when a
+suite finished, about 32 s for most, so they don't rank cost.)
+
+| Suite | Alone, in the serial run | In the parallel run |
+|---|---|---|
+| "HDR merge core" | 24.0 s | 25.1 s (inside the serialized chain) |
+| "Detection masks: rendering" | 19.1 s | 48.4 s |
+| "Edit history" | 10.5 s | 41.4 s |
+| "GPU demosaic in decodes" | 9.4 s | 32.0 s |
+| "Lens rendering" | 9.1 s | 49.7 s |
+| "HDR merge job" | 7.2 s | 40.3 s |
+| "RAW+JPEG pairs" | 6.1 s | 42.0 s |
+| "Live render session" | 5.3 s | 39.9 s |
+| "Camera color step" | 5.2 s | 30.6 s |
+| "CPU references" | 4.6 s | 30.6 s |
+| "No license text in Swift sources or the String Catalog" | 4.3 s | 30.6 s |
+| "HDR merge safety" | 3.7 s | 3.7 s (inside the chain) |
+
+- These twelve are 108 s of the 171.5 s (63%); the whole `MemoryHeavy` chain
+  is 42.0 s (24%).
+- The slowest single tests: "Nothing found, a failed detection, a missing row
+  and damaged bytes render as without…" 8.5 s; "When the GPU fails, or there
+  is no device, a decode is LibRaw's own…" 8.4 s; "The guided filter matches
+  its CPU reference…" 8.2 s (3 cases); "The default budget bounds the history
+  of a photo with long, scribbled brush work" 7.6 s;
+  `selectingTheWholeLibraryStaysUnderTheVariableLimit` 6.1 s.
+- **"Full-size ImageIO decodes" (`ImageIOFullDecodeTests`)** costs 2.3 s of
+  its own, 20th of the 192 suites that report a time. In the parallel run it
+  shows 40.7 s, the sixth longest counting the chain, because it is
+  serialized and waits its turn among the others; it was not moved or
+  changed.
 
 ## Debug-script checks
 
