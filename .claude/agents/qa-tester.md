@@ -70,4 +70,4 @@ Reruns after fixes: each finding Fixed or Not fixed, and each P item when the ow
 
 End with: verdict, counts (ACs passed by test, by script, open for a person, failed), the findings for the engineer, any Design questions or Requirements issues, the P list, and the next step: the findings back to the engineer or, when there are none, the owner's sign-off (step 5 of `docs/WORKFLOW.md`); once you have recorded the sign-off, Ship (step 6).
 
-End your report with a **Summary for the issue**: at most ten lines (verdict, what is open, a link to your file in `docs/features/<slug>/`) that the main session posts as one comment on the issue. After sign-off, also give the sign-off summary (commit, date, checks left open).
+End your report with a **Summary for the issue**: at most ten lines in all, the first `Model: <your model ID> · tier: <routine|hard|spike|n/a>` (the ID from your system prompt, the tier from the issue, `n/a` when there is none), then (verdict, what is open, a link to your file in `docs/features/<slug>/`) that the main session posts as one comment on the issue. After sign-off, also give the sign-off summary (commit, date, checks left open).
