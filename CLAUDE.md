@@ -1237,12 +1237,73 @@ covered by CI only. Not built: search or filter, a picture or group badges on a
 row, a keyboard or VoiceOver way to preview without applying (hover has none for
 thumbnails either), a view choice per collection.
 
+HDR merge (`docs/features/hdr-merge/`, issue #150, branch `feature/hdr-merge`):
+File ▸ Merge to HDR… (⇧⌘L, also the grid's context menu after Duplicate) merges
+2 to 9 selected photos of one scene into one new, tone-mapped photo: a 16-bit
+Display P3 TIFF (default) or a 16-bit floating-point linear DNG (the merged
+light, not tone-mapped, opening as bright as its reference; half floats because
+the system's RAW decoder gives no image for 32-bit float DNGs). The command is
+off only for fewer than two targets (a lone video is one), a merge running or a
+sheet up; every other refusal (a video, an offline or unreadable master, a
+read-only folder, frames of different sizes, a photo with its own copy, a raw
+mixed with non-raw, over 9 frames, over 150 MP a frame, over half the Mac's
+memory for the held frames) is shown in the sheet before anything runs, naming
+the frame, with Merge off. A RAW+JPEG pair counts once, as its raw. The sheet
+(`MergeSheetState` in PhotoCore, views in PhotoApp) lists the frames; clicking a
+row chooses the **reference** (default: the 0 EV frame, else the first by capture
+time), which names the result, decides its folder and project (written beside it,
+cataloged as a new master in its project with its metadata, rating, flag, label
+and an XMP sidecar when sidecars apply), is the frame everything is aligned to
+and the one that wins where something moved. The folder check, the Name line
+and the refusal follow the reference. **Auto-align** and **De-ghost** are check
+boxes, both on at every open and never stored: with Auto-align off nothing is
+measured or warped and a frame of another scene is merged, not refused; with
+De-ghost off the merge is the plain exposure-weighted blend. A name is the
+reference's stem plus `_HDR`, numbered (`-2`) past any file or master of the same
+stem in any extension, so a TIFF and a DNG never share a sidecar and nothing is
+replaced; the file is written hidden and moved into place only when complete
+(FAT32 and exFAT included), and Stop, a failure or Quit leave no file and no row
+(`MergeModel.waitUntilDone`, `MainActorWait`). Undo (one step, "Merge to HDR")
+takes the photo out of the catalog and leaves the file; Redo puts it back
+(`Catalog/MergedMasters.swift`, which also carries `editHistory.maskRasters`).
+Merging the same frames again is a new photo: every file's XMP has its own
+`DocumentID`; every date is the reference's capture date. Method, from published
+sources only (Debevec and Malik, Granados et al. weights, Ward 2003 with Vision's
+homographic registration on luminance ranks, Grosch 2006 for ghosts, Durand and
+Dorsey with a guided filter for the tone map; the list is in `status.md`): linear
+decodes by the decoder each raw gets (system, LibRaw, ImageIO), exposure measured
+from the pixels, rendered in bands so three 24 MP raws peak near 2.8 GB. Code:
+PhotoCore `Merge/` (`HDRMerger`, `MergeGhosts`, `MergeToneMap`, `MergeSelection`,
+`MergeNaming`, `LinearDNGWriter`, `HDRMergeJob`), `Catalog/MergedMasters.swift`,
+`Reference/MergeReference.swift`; PhotoApp `Model/MergeModel.swift` and the sheet;
+`photocli merge --version N … [--format tiff|dng] [--reference N] [--no-align]
+[--no-deghost]` (refused while the app has the library open; JSON has the path,
+`align` and `deghost`); `photobench merge`, and `photobench generate --brackets N`
+writes bracket series for the debug script (`merge sheet|reference|align|deghost|
+start|stop|…`). A merged DNG chosen beside its own source raws is neither flagged
+nor refused. No migration, no `PreviewCacheKey.currentPipelineVersion` bump (13),
+no golden moved, no rendering of an existing photo changed. Known limits: a JPEG,
+HEIC, TIFF or PNG bracket is linearized by its color profile only, so a camera's
+tone curve skews the measured exposures and a strong S-curve makes de-ghosting
+see still mid-tones as movement (a follow-up: recover the response curve);
+where the reference sits only a few noise σ above black (a wide bracket's
+darkest frame) its noise can still be read as movement (#257); no link from a
+result to its frames, no "merged" mark or smart album rule; an Activity row has no Show in Library. Shipped; the owner signed off
+by eye on 2026-11-22, no checks left open (`docs/features/hdr-merge/qa.md`).
+Left as nits: the Photo column cuts a seven-character name beside the
+Reference mark (accepted), no test asserts that an extreme reference draws no
+warning, and the debug script's `print merge` goes on printing the sheet's line
+after it closes. Covered by CI only: VoiceOver, macOS 15 and macOS 26.
+
 Not yet: local Black & White through masks, Lightroom Black & White mapping on
 import, Black & White items for a grid selection, sky and named-object masks,
 picking one instance, people beyond four, a feather or refine control on AI
 masks, AI masks in presets, paste and batches, automatic dust detection, a Remove brush, automatic lens corrections from tables other than
 Fujifilm RAF and DNG ones (Sony, Panasonic, Olympus; DNG GainMap), lens profiles
-(no lensfun or `.lcp`), perspective and keystone, DNG export, `.dcp` profiles
+(no lensfun or `.lcp`), perspective and keystone, DNG export of existing
+photos (the merge writes its own DNG only), a recovered camera response for
+JPEG merges, a noise model for merge de-ghosting, finding merged photos (a
+stored link, a mark, a smart album rule), panorama merge (#151), `.dcp` profiles
 and built-in look profiles (dropped 2026-11-18, #89 and #216; a profile's
 hue/saturation and look tables are not applied), a Profile group or any
 Neutral or Flat base look (#219 removed it; the loss is accepted),

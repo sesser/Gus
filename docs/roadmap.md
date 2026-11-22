@@ -40,9 +40,9 @@ Principles (drawn from `README.md` and `CLAUDE.md`):
 
 ## Now (maximum three)
 
-Set by the owner 2026-11-20 (replacing #219, #218 and #87, all done); #241 and #88 left it when they shipped (2026-11-21), so two slots are free. A PRD is required for every Now item before any work starts: #150 has one.
+Set by the owner 2026-11-20 (replacing #219, #218 and #87, all done); #241 and #88 left it when they shipped (2026-11-21) and #150 when it shipped (2026-11-22), so all three slots are free. A PRD is required for every Now item before any work starts. The owner picks what moves in; #243 is first in Next.
 
-1. [#150](https://github.com/sesser/Gus/issues/150) `hdr-merge`: No way to merge several exposures of a scene into one tone-mapped HDR image, with automatic alignment and de-ghosting (PRD approved 2026-11-20; owner, 2026-11-11)
+(empty)
 
 ## Next
 
@@ -54,7 +54,7 @@ and DCP profiles (#89) first, in that order.
 On 2026-11-18 the owner dropped #89, then #216 (built-in looks) the same day, in favour of
 removing the Profile group (#219) and a B&W module (#218). Both shipped (2026-11-19), and
 so did lens corrections (#87, 2026-11-19).
-On 2026-11-20 the owner set Now to AI masks (#88), the preset list view (#241) and HDR merge (#150); they are no longer in Next. The preset list view (#241) shipped 2026-11-21.
+On 2026-11-20 the owner set Now to AI masks (#88), the preset list view (#241) and HDR merge (#150); they are no longer in Next. The preset list view (#241) shipped 2026-11-21, and HDR merge (#150) 2026-11-22.
 On 2026-11-20 the owner asked for a choice of what Copy Adjustments copies (#243); it goes first in Next, not Now (Now is full).
 The small fixes and tooling items can each go as a bug fix (`docs/WORKFLOW.md`).
 
