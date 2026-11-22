@@ -173,3 +173,116 @@ copy is used.
 **Verdict, second pass.** C1 to C4 and the flaky test are closed, and no new
 findings. The branch is ready for qa-tester. `/security-review` is still not
 needed (no parser, subprocess, file writing or network code).
+
+### Third pass (CI fix), 2026-11-22
+
+Reviewed: `74a5256..42657d3` (one commit, `42657d3`, tests and `status.md`
+only: `Support/BlockingWork.swift` and `BlockingWorkTests.swift` new,
+`ImageIOFullDecodeTests.swift` and `LensAlignStaleAreaTests.swift` changed).
+Nothing in `Sources/`, `Scripts/` or `Package.swift`. The merge `74a5256` was
+not reviewed (a merge of `develop` with no hand-resolved code). `42657d3` is
+not pushed yet (`origin` is at `74a5256`), so CI has not run on it.
+Build and tests: `swift build --build-tests` clean, with no warning from the
+four changed test files (rebuilt from scratch). `swift test`: 1337 tests in 191
+suites passed (95.0 s). `LARGE_RENDER_TESTS=1 swift test --filter
+ImageIOFullDecodeTests`: 8 of 8 passed (the soak 9.3 s). Local toolchain:
+Swift 6.4.2. CI builds with 6.2.4 (macOS 15) and 6.3.3 (macOS 26), and neither
+is installed here, so CI is the only check of those compilers.
+
+**Nothing weakened.** In `git show -w 42657d3` the test bodies change only
+by being wrapped in `offCooperativePool { … }`, plus three comparison lines
+and one tolerance line. Every `#expect` and `#require`, every image size
+(640 × 480, 3000 × 2000, 1200 × 800, 1500 × 1000, 480 × 640, the 20 MP soak),
+the `.serialized` traits and the `LARGE_RENDER_TESTS` gate are as before.
+`WorkLane`, `WorkLaneTests` and `ResidentDecode` are untouched.
+
+- **`differingCount` is the old `!=`.** It is the same per-element Float `!=`
+  as `zip(a, b).filter { $0 != $1 }.count`, so 0 and −0 are equal, NaN differs
+  from NaN, and every index is counted. `differingCountCountsEveryDifference`
+  pins this (`[0, .nan]` against `[-0, .nan]` gives 1). An empty array gives 0
+  through the `baseAddress` guard. The one difference is a length mismatch,
+  which the old `zip` cut to the shorter array and this traps on (C5).
+- **The tolerance table is `allowedSteps` exactly.** `compare` calls
+  `allowed(wholeValue)` with a `UInt8`. `allowedSteps(gain:encoded:)` is a
+  pure function of `gain` and that byte. The table is built for all 256 bytes,
+  inside the loop, so each stack gets its own `gain`. `allowed[Int($0)]` is
+  always in range. The same value for every input, computed once per byte.
+- **`offCooperativePool` is correct.**
+  - *APIs.* `withTaskExecutorPreference`, `TaskExecutor`,
+    `UnownedJob.runSynchronously(on: UnownedTaskExecutor)` and
+    `asUnownedTaskExecutor()` are macOS 15 / Swift 6.0 (SE-0417), the
+    package's minimum. There is no `#available` and no `Test.cancel`.
+  - *Sendable.* `BlockingWorkExecutor` is a `final class` with only `let`
+    Sendable state (a `DispatchQueue`, a `String`), so it needs no
+    `@unchecked`. The `queue.async` closure captures only `UnownedJob` and
+    `UnownedTaskExecutor`, which are both Sendable. No `nonisolated(unsafe)`.
+  - *Isolation.* Every caller is a nonisolated test method, so `#isolation` is
+    nil and the body runs on the preferred executor. An actor-isolated caller
+    would keep its actor. The doc comment says as much ("its nonisolated
+    code").
+  - *Reporting and saturation.* I checked both in a scratch package outside
+    the repository, with `BlockingWork.swift` copied in unchanged:
+    - A failing `#expect` and a failing `#require` inside `offCooperativePool`
+      are recorded against their own test, at their own line.
+    - 200 child tasks of a group in the body, each blocking for 0.2 s, all ran
+      on `tests.blocking-work`. So child tasks inherit the preference. They
+      finished in 1.04 s: Dispatch adds threads as its threads block, and no
+      deadlock occurs.
+    - While 28 blocking bodies ran, 50 tasks on the cooperative pool finished
+      in 0.1 ms.
+
+    No body waits synchronously on work that needs this queue: the bodies
+    wait on the GPU, on files or on their own awaits.
+  - *What `BlockingWorkTests` covers.* It checks the queue label (also after
+    an await), that `Test.current` is the same test, and that errors pass
+    through. The engineer also reports that the guards still fail with the
+    copy turned off. I did not repeat that, because it needs a source edit.
+    The scratch check above covers the same reporting path.
+- **The causal claim is supported and stated with fair hedging. It is
+  correlational, not proven.**
+  - What holds:
+    - In this branch's four CI jobs (run 44992559236, both attempts, both
+      systems) the test failed every time.
+    - Every `develop`-era job I checked passed: runs 44934276425 (221 s and
+      242 s), 44919066660 (156 s, 188 s), 44926001368 (221 s, 218 s) and
+      44556278405 (190 s). Each time the test, which needs about 0.1 s
+      alone, spent minutes waiting.
+    - The new `Full-size ImageIO decodes` suite starts beside
+      `LensAlignStaleAreaTests` in every failing job.
+    - The pool is starved locally too. In my full run the trivial
+      `BlockingWorkTests` took 64 s and the WorkLane test 80 s, which matches
+      the follow-up's point that other suites still block the pool.
+  - Where the evidence is weaker than it reads:
+    - GitHub's log timestamps are batched. For example, "One context renders…
+      started" and its "passed after 1.901 seconds" are stamped 10 ms apart.
+      So "finished within 0.1 s to 3 s of the end of `LensAlignStaleAreaTests`"
+      shows ordering at most, not timing.
+    - The narrowed-pool reproduction slowed the cancellation from 1.2 s to
+      7.9 s and 6.1 s but never went past 10 s. It shows the mechanism, not
+      the failure.
+    - The fix takes this branch's suites off the pool. It does not remove the
+      starvation that `develop` already has, so the 10 s margin stays
+      load-dependent. `status.md`'s "CI is the real check" is right; the
+      Review findings row's **Fixed** gets ahead of it (C6).
+- **The proposed follow-up is sound.** The title, the `bug` label, "tests
+  only", and the named suites agree with the samples, and both remedies are
+  given. I'd put the wall-time-independent WorkLane test first: it removes the
+  failure whatever the load. Moving suites off the pool only lowers the odds.
+  One more data point for its body: in a local full run on 14 cores, trivial
+  tests waited 64 to 80 s.
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|----------|-------|---------|---------|------|
+| C5 | Nit | `Tests/PhotoCoreTests/ImageIOFullDecodeTests.swift:92` | `differingCount` checks the lengths with `precondition`. In `renderUnchanged` (`:226`) the two arrays are sized from each image's own extent, so a regression where the decode's extent differs from the file's is a trap, not a recorded issue. The old `zip` compared the shorter prefix and still counted differences. | A decode whose extent no longer matches the file (an orientation or frame regression) gives `differingCount` arrays of different lengths. The `precondition` stops the test process, so `swift test` ends there: the issue is not attributed to the test and the other suites' results are lost. Fix: `#expect(a.count == b.count)` at the call sites (or `try #require` in the helper), then count over `min(a.count, b.count)`. | Tests: a failure reports as a failure |
+| C6 | Nit | `docs/features/core-image-split-render/status.md:297`, `:316`, `:433` | The CI record has three small slips. (1) "on macOS 26 only `:373`" is true of the rerun only: attempt 1 on macOS 26 (job 137116586292) recorded `:371` and `:373`. (2) The CI times quoted (`residentCopyIsTheFile` 12.6 s and 9.8 s, `renderUnchanged` 22.4 s and 12.2 s) are the rerun's; attempt 1's were 20.1 s and 19.9 s, and 24.9 s and 26.7 s. That understates the case rather than overstating it. (3) The Review findings row says **Fixed** for a commit CI has not run on, while the CI section says CI is the real check. | A reader (QA, the owner, the PR description) takes the CI failure as fixed before any CI run of `42657d3`. If it fails again, the record says otherwise. Fix: "macOS 26's rerun only `:373`", give both attempts' times, and "Fixed in tests, pending CI on `42657d3`" until the PR's CI is green. | Record keeping |
+
+**Verdict, third pass.** The CI fix is correct and weakens nothing. Every
+assertion, tolerance and image size is unchanged, `differingCount` and the
+tolerance table are the same comparisons, and the executor is sound on
+macOS 15 and under strict concurrency. C5 and C6 are nits and don't block. The
+branch can be pushed for CI. That run is the real test of the fix: if the
+WorkLane test fails again, the remedy is the follow-up's wall-time-independent
+WorkLane test, not more suites moved off the pool. The change has no behavior,
+so qa-tester and the owner need nothing new, unless the fix for a renewed CI
+failure touches `Sources/`. `/security-review` is not needed: no parser,
+subprocess, file writing or network code.
