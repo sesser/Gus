@@ -327,8 +327,18 @@ reference in `$S/src`.
 First-run findings: Q1 to Q4 **Fixed** (rerun at d635e12, below), Q5 recorded in
 `docs/PROFILING.md`, Q6 (a refused Redo leaves the undo step offered) left as a nit; script H
 repeats Q1's check on this build with a chosen reference and it holds. New: Q7 to Q10 above,
-open, none blocking. The owner's sign-off, the commit signed off, its date and any checks
-left open: not yet given.
+open, none blocking.
+
+### Sign-off 2026-11-22
+
+The owner signed off on 2026-11-22 (relayed by the main session), commit 36ca94e, after
+running the scratch app on 2026-11-21 and 2026-11-22: P11 to P20 and the first run's P1 and
+P3 to P10 pass. No checks left open ("nothing left open").
+
+- Q7 (cut names in the Photo column): accepted as is by the owner; the Photo column is not
+  widened.
+- Q8 (no test for the extreme-reference choice) and Q10 (the debug script's print after close):
+  left as nits.
 
 ---
 
