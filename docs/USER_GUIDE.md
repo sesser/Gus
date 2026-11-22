@@ -463,7 +463,15 @@ checked (it starts unchecked), and Paste Adjustments then replaces the spots,
 and whether they are turned on, only on photos of the same size as the one
 they came from (the photo's own pixels, turned as the camera recorded it; a
 portrait and a landscape shot differ). The others keep their own spots, and
-Activity says how many. Duplicate gives the copy the
+Activity says how many. A photo whose size can't be read keeps its own spots
+too: its original is offline or unreadable, or the original of the photo the
+spots came from is (that photo is measured when you paste, not when you copy).
+Activity says how many of those, in a line of its own after the one for
+photos of another size. Pasting Spots onto many photos first measures them,
+with progress and **Stop** in Activity (⌘Z pressed while that runs undoes the
+change before the paste, and the paste still lands after it; press **Stop**
+instead); pasting onto one photo measures it as it saves, so ⌘Z right after
+undoes the paste. Duplicate gives the copy the
 original's spots, then each has its own. Spots are per file (the two files
 of a RAW+JPEG pair have their own) and never go into sidecars. Adding a spot
 needs a click or a touch; everything after that can be done from the
@@ -751,7 +759,9 @@ whether to go ahead, since they can move away from what they cover: **Change**
 it was, the slider included. A drag asks when you let go. It asks once per visit
 to the photo (again after you add a mask or spot), once for a whole paste or
 preset with how many of the photos have masks or spots, and never for Undo, Redo,
-History or Reset All Adjustments. To know whether to ask, a paste or preset on a
+History or Reset All Adjustments. A paste counts only the masks and spots a photo
+already has: spots that Copy Adjustments… brings come with the Distortion of the
+photo they were copied from. To know whether to ask, a paste or preset on a
 selection may first read the files of photos with masks or spots whose
 Distortion is, or would be, on Auto; Activity then shows its progress under the command's
 name, and **Stop** ends it without changing anything, as does any newer paste or
@@ -868,7 +878,10 @@ puts the other photos' group back to its defaults. A group the photo has
 changed but turned off says **Turned off** and is pasted turned off; the Spots
 row says how many spots there are. **Check All** and **Uncheck All** set every
 box. **Copy** (Return) keeps what is checked and replaces any earlier copy;
-with nothing checked it is dimmed. **Cancel** (Esc) changes nothing. The
+VoiceOver says what was copied, and the toolbar's **Paste Adjustments** item
+names it in its tooltip. With nothing checked Copy is dimmed. A photo with no
+adjustments at all says so under the sheet's title, since checking a group then
+only resets it on the photos you paste onto. **Cancel** (Esc) changes nothing. The
 choices are not remembered: each Copy starts again from the photo. Masks are
 never copied. **Paste Adjustments** (⇧⌘V) then changes only what was copied,
 values and on/off, on every selected photo, as one undo step: a photo's other

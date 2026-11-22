@@ -6,11 +6,12 @@ Owner: swift-macos-engineer. Branch `feature/copy-adjustments-selective` (off
 `develop`). Spec: the PRD (issue #243, revised 2026-11-22: R1 to R14, AC1 to
 AC12) and [design.md](design.md).
 
-**State: Done** (2026-11-22). Every Must and Should requirement is built, and
-R14's Could items as the design specifies them except the Paste tooltip (not
-designed: DQ-2). Every acceptance criterion has a Swift Testing test or a
-debug-script check (below). One Design question is open on a string I had to
-add (DQ-1); nothing waits on it. Next: code-reviewer and the designer review,
+**State: Done** (2026-11-22, after the first review round). Every Must and
+Should requirement is built, and R14's Could items as the design specifies
+them, the Paste tooltip included (design §15 DQ-2). Every acceptance criterion
+has a Swift Testing test or a debug-script check (below). The code review's C1
+to C4 and the design review's F1 to F4 are fixed (see **Review findings**).
+Next: code-reviewer's second pass and the designer's (F1 to F3 change the UI),
 then qa-tester.
 
 ## Build and test
@@ -18,9 +19,10 @@ then qa-tester.
 | When | `swift build` | `swift test` |
 |---|---|---|
 | Baseline (branch at ade878b, before any change) | `swift build --build-tests` passes | 1428 tests in 205 suites pass |
-| Latest (2026-11-22) | Pass, no new warnings | 1449 tests in 206 suites pass (21 new, `CopyAdjustmentsTests`); `LibraryModalTests` expects the new modal |
-| Bundle | `Scripts/build-app.sh` passes | |
-| CI toolchain | `DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer swift build --build-tests --scratch-path .build-xcode26.3` passes (2026-11-22; `/Applications/Xcode_26.3.app` is a symlink to `/Applications/Xcode-26.3.0.app`) | |
+| First implementation (2026-11-22, 890588c) | Pass, no new warnings | 1449 tests in 206 suites pass (21 new, `CopyAdjustmentsTests`); `LibraryModalTests` expects the new modal |
+| Latest (2026-11-22, after the review fixes) | `swift build --build-tests` passes, no new warnings (the two in `SmartAlbumTests` and `VirtualCopiesTests` are older) | 1452 tests in 206 suites pass (3 new: C1 twice, C3) |
+| Bundle | `Scripts/build-app.sh` passes (after the fixes too) | |
+| CI toolchain | `DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer swift build --build-tests --scratch-path .build-xcode26.3` passes (2026-11-22, again after the fixes; `/Applications/Xcode_26.3.app` is a symlink to `/Applications/Xcode-26.3.0.app`) | |
 
 No catalog migration. `PreviewCacheKey.currentPipelineVersion` unchanged (13).
 No golden touched, `UPDATE_GOLDENS` not run. No rendering changed: the
@@ -113,8 +115,12 @@ changed.
   with spots: the oriented decode of the whole sensor (`CameraFrame`'s full
   frame for Olympus, OM System and Panasonic raws, else the system decoder's;
   LibRaw's frame for raws only LibRaw reads; ImageIO with the orientation
-  applied for everything else), before turns, straightening and crop. It
-  reads headers only (no decode). The Lens heading's corrections keep that
+  applied for everything else), before turns, straightening and crop. Nothing
+  is decoded (only the decoder's output extent is asked for), and most files
+  are read only as far as their headers; an Olympus, OM System or Panasonic
+  raw with a camera crop is read whole into memory, since `CameraFrame`
+  patches a copy of its bytes to get the whole sensor (code review C2: this
+  said "headers only" before). The Lens heading's corrections keep that
   size (`LensCorrectionRenderer` crops its result to its input), so the frame
   "after the Lens corrections the paste leaves" has the same size as before
   it: one measurement per photo is the R8 test. Sizes are compared in whole
@@ -151,7 +157,7 @@ changed.
 | AC5 (R5) | Done | `onlyColorGrading` (stored stacks compared by content and render hash); scripted: Color Grading and Spots pasted on a grid selection changed only those; crops, exposure and other photos' values unchanged (`print stacks`). |
 | AC6 (R5) | Done | `copiedDefaultsReset` (a turned-off Tone Curve reset and on). |
 | AC7 (R5, R6) | Done | `batchPasteHistory` (three photos, one write each, "Paste Adjustments" once per photo, undo restores all); scripted: one undo step "Paste Adjustments", Undo restored all five photos, Redo again, History rows "Paste Adjustments", "Undo …", "Redo …". |
-| AC8 (R7) | Done | Scripted: Distortion (Manual) and Color Grading copied, pasted on a photo with a spot: the frame question asks; Cancel writes nothing; Change pastes both. A paste without a Lens group never asks. Per-photo table reads and the "left unchanged" sentence are the unchanged `confirmingLensFrameChange` and lens paste paths (their tests and #87's checks); no real files with tables were used here. |
+| AC8 (R7) | Done | Scripted: Distortion (Manual) and Color Grading copied, pasted on a photo with a spot: the frame question asks; Cancel writes nothing; Change pastes both. A paste without a Lens group never asks. Only a target's own spots and masks count, not those the paste brings (C1: `frameQuestionIgnoresPastedSpots`, `frameQuestionCountsTheTargetsOwn`). Per-photo table reads and the "left unchanged" sentence are the unchanged `confirmingLensFrameChange` and lens paste paths (their tests and #87's checks); no real files with tables were used here. |
 | AC9 (R8) | Done | `spotsPasteBySize`, `sameSizeRule`, `spotPastePlan`, `maskFrameSizeMatchesTheDecode`; scripted: spots copied from a 1200×800 photo went onto the other 1200×800 photo (one undo step with the rest), and the 900×600 and the turned 800×1200 photos kept theirs, with "Spots were not pasted onto 3 photos: their size differs from the photo the spots were copied from." |
 | AC10 (R9) | Done | `cropPastesAsStored`; scripted: Crop unchecked by default, so pastes left every crop alone. |
 | AC11 (R6) | Done | Scripted `menuitems`: Copy Adjustments… dimmed for a video (and `copyadjust sheet` opens nothing), Paste dimmed until a copy exists and while comparing; while comparing Copy takes the active photo ("From SML_00002"). |
@@ -205,7 +211,9 @@ preset pack import ending while the sheet is up. VoiceOver, macOS 15 and macOS
 
 ## Design questions
 
-- **DQ-1 (open; a string not in §10).** A paste with Spots onto a photo whose
+Both ruled in design §15 (2026-11-22) and built (F1, F2 below).
+
+- **DQ-1 (ruled: a second warning, the designer's wording).** A paste with Spots onto a photo whose
   size can't be read (its original offline or unreadable, or the source's
   original offline when the paste runs) keeps that photo's spots. The design's
   one sentence says "their size differs", which would be wrong there, so I
@@ -216,12 +224,39 @@ preset pack import ending while the sheet is up. VoiceOver, macOS 15 and macOS
   Recommendation (a). Note: with a Color Alignment paste, offline photos are
   left out whole and already reported by the measuring paste, so they are not
   counted here.
-- **DQ-2 (R14's Paste tooltip, not built).** R14 lists "a tooltip on the
+- **DQ-2 (ruled: built as design §15 specifies).** R14 lists "a tooltip on the
   toolbar's Paste item naming what was copied"; design §14 noted it as a Could
   "not specified" and gives no string. I did not invent one. If wanted: the
   string (for example "Paste Adjustments: %@", the list as the announcement
   builds it) and whether the menu item gets it too. Cost: one string and a
   `.help` on the toolbar item.
+
+## Review findings (first round, 2026-11-22)
+
+From [code-review.md](code-review.md) (C1 to C4) and [review.md](review.md)
+(F1 to F4). Commits: 05b0e8b (C1 to C4), b034487 (F1 to F3), and the commit
+that adds this section (F4, the user guide and this file).
+
+| # | Outcome | What was done |
+|---|---|---|
+| C1 | Fixed, 05b0e8b | The frame question now tests `CopiedAdjustments.pastedForFrameQuestion(onto:)` (the paste with the target's own spots kept), on both the loupe path and the selection path, so only spots and masks a target already has count (R7, design §5.2). The candidate rule (`frameCandidates`, `FrameCandidate`, the masks-and-spots count) moved unchanged from `LensCorrectionActions.swift` to PhotoCore `Edits/LensFrameQuestion.swift`, so the tests run the app's rule. The stale comment on `noteLensFrameAnswered` now says spots a paste brings were not asked about and a later change that moves them asks. Tests: `frameQuestionIgnoresPastedSpots`, `frameQuestionCountsTheTargetsOwn`; both fail with the old transform (`pasted(onto:)`, spots included): run with the body swapped back, 3 issues recorded, then restored. Scripted: Spots and Distortion pasted in the loupe onto a photo with no spots asks nothing; onto a photo with its own spot asks "1 of 1"; on all five photos (one with its own spot) the alert said "1 of the 5 photos has masks or spots" (the old rule gave 3). |
+| C2 | Fixed (the record), 05b0e8b | `maskFrameSize(of:)`'s comment and this file no longer say header-only: a cropped Olympus, OM System or Panasonic raw is read whole (tens of MB), four at a time on a batch. The behavior is unchanged: the whole-sensor size comes from the system decoder on the patched bytes, and working it out from the tags instead would be a second rule that has to match the decoder's extent exactly, with no real files here to check it. The test's title no longer says "read from the header". |
+| C3 | Fixed, 05b0e8b | `SpotPastePlan` keeps the ids per reason (`otherSizeIDs`, `unknownSizeIDs`) and `reaching(_:)` narrows it to the photos the change wrote. `changeAdjustments` (and the measuring paste) hand `then` the versions written (`EditStackChange.after`'s keys: readable stacks only), and the warnings use that set. Unreadable stacks and originals a Color Alignment measurement could not read (or offline then) are reported once, by what left them out. Test: `spotPastePlanReachesWrittenPhotosOnly`. Scripted: a schema-99 photo of another size in the selection gave "1 photo was left unchanged: its edits can't be changed…" and the size-differs row counted 2, not 3. |
+| C4 | Fixed for one photo, 05b0e8b; the many-photo case stays the known limit | A Spots paste that reaches one photo (the loupe's, or one selected) without Color Alignment measures both frames on the write chain (`changeAdjustments(preparing:then:)`: the transform is worked out inside `persist`, just before the write), so its undo step is registered before `pasteAdjustments` returns and ⌘Z runs after the paste lands. Structural: `registerEditStacksUndo` is called synchronously and its undo is queued on the same ordered chain as the change. The loupe's own decode does not give the frame size (its live session decodes a reduced, often camera-framed image), so taking the target's frame from the editor was not possible without a wait. A paste onto several photos still measures first, with progress and Stop in Activity, and ⌘Z during that read undoes the step before the paste (the measuring paste's limit from #87; recorded in the user guide's Spots passage). A paste that also measures Color Alignment is as before. |
+| F1 | Fixed, b034487 | `Spots were not pasted onto %lld photos: their size, or the size of the photo they were copied from, could not be read.` (1: `…onto %lld photo: its size, …`), new key and comment, the old key removed; at most two rows, the size-differs row first. No test pinned the old wording (the app target has no unit tests). Scripted: the source's master renamed before a paste: "…onto 5 photos: their size, or …" for the grid and "…onto 1 photo: its size, or …" for the loupe; a missing target master with two of another size: both rows, differs first. |
+| F2 | Fixed, b034487 | `.help(CopyAdjustmentsText.pasteHelp(state.copiedSummary))` on the toolbar's Paste Adjustments item only. `CopyAdjustmentsText.list(_:)` is the one list function for the announcement and the tooltip (five names or fewer, else `%lld items`); key `Paste Adjustments: %@` with a comment; plain `Paste Adjustments` with nothing copied. `LibraryMenuState.copiedSummary` is what enables the item (`hasCopiedAdjustments` is now derived from it), so the tooltip follows the clipboard. Scripted: `print clipboard` prints the tooltip from that state: `'Paste Adjustments'` before a copy, `'Paste Adjustments: Spots, Distortion'`, then `'Paste Adjustments: Tone'` after another copy. Hovering the real item is M8 for QA or a person. |
+| F3 | Fixed, b034487 | `AppKitCheckbox.accessibilityHelp: String??` (default: the tooltip, so the inspector's boxes are unchanged); the sheet's rows pass `.some(caption)`. Scripted (`print copysheet` now prints each box's VoiceOver help and tooltip): Crop & Straighten and Spots have their captions as help; every other row has no help and keeps its name as the tooltip. |
+| F4 | Fixed, this commit | `docs/USER_GUIDE.md`: the Spots passage says a photo whose size can't be read (its original, or the copied-from photo's, offline or unreadable) keeps its spots, with its own Activity line after the size one; how a many-photo and a one-photo Spots paste measure, and the ⌘Z limit while a many-photo one measures. The sheet paragraph: VoiceOver says what was copied, the toolbar Paste item's tooltip names it, and a photo with no adjustments says so under the title. The Lens passage: a paste counts only the masks and spots a photo already has. |
+
+Debug-script checks of these fixes: a copy of the bundle with
+`CFBundleIdentifier` `me.sesser.gus.debugtest.copyadjust`, re-signed ad hoc, on
+a fresh copy of a scratch library per run (`photobench generate` 3 JPEGs
+1200×800 and 2 at 900×600, renamed SML_*, imported with `photobench import`;
+`IMG_00001` and `SML_00001` carry EXIF orientation 6, so they are turned and
+of another size), every launch with `--library-root`. Results as above. Not
+scripted: the Color Alignment path with an unreadable original (it shares
+`reaching` and `then` with the plain path) and the ⌘Z race itself (the script
+waits after each paste; the C4 claim rests on the structural argument).
 
 ## Requirements issues
 
