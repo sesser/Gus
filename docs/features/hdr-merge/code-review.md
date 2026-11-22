@@ -1171,3 +1171,226 @@ the new shapes.
   orientation test (#253).
 - No `/security-review` is needed: no parser, subprocess, file placement or
   network code changed. The CI timeout is configuration only.
+
+## Eleventh pass (second pass on the tenth): test and CI time, C23, C24
+
+Owner: code-reviewer. Date: 2026-11-22. Reviewed: `feature/hdr-merge`,
+`d9f75e5..edc22e7`: `45f89f3` (WorkLane test, C23), `bc68ed5` (`Package.swift`:
+`PhotoCore` and `PhotoFixtures` optimized in debug builds), `be7b393` (the CPU
+reference, `radianceError`, `cancelLeavesNothing`), `edc22e7` (status, C24).
+Build and tests: `swift build` clean; full `swift test` at `edc22e7`, 1428 tests
+in 205 suites passed in 76.2 s (79.4 s wall, Swift 6.4.2, M4 Pro); with Xcode
+26.3 (Swift 6.2.4, CI's macOS 15 toolchain, `/Applications/Xcode-26.3.0.app`)
+in a scratch path, `swift build --build-tests` clean and `swift test --filter
+"MemoryHeavy|WorkLaneTests"`, 64 tests in 10 suites, passed in 39.0 s. The app
+was not launched.
+
+### Verdict
+
+Ready to push for CI once C25 is settled. The build change does what it says,
+on CI's native build system as well, and the three test changes keep their
+values and assertions. One claim the owner is asked to rely on is wrong: `-O`
+does turn off checks, the standard library's debug-only bounds checks on unsafe
+buffers, which the tests had until now (C25, Should fix). Adding one flag keeps
+them at a cost of about 5% on the merge suites. C23 and C24 are fixed.
+
+### Follow-up (tenth pass)
+
+| # | State | Commit | Note |
+|---|---|---|---|
+| C22 | Closed differently | `bc68ed5`, `be7b393` | The owner refused the longer limit. The suites now take 76 s in all instead of 12 min, so the 45-minute limit has room for a signal 11 retry. The CI step limit and parallel bundles are proposals in `status.md`, not changes; any change under `.github/` comes back here. |
+| C23 | Fixed | `45f89f3` | `PreviewTests.swift:382-387`: "after" runs at priority 0. `WorkLane.nextJob` takes the maximum of `(priority, sequence)`, so a stale "pending" at priority 1 starts before "after" whichever reaches the actor first. Either `finish` frees the slot first and starts "pending" then, or "after" queues behind it. In both cases `pendingRan` is set before "after" returns. That argument is structural, and the engineer's 1,800 of 1,800 mutant detections agree with it. The comment says this now. |
+| C24 | Fixed | `edc22e7` | "CI on PR #258": the gaps (4 min 15 s, 3 min 32 s; 1 min 45 s, 3 min 18 s) match the log times I read in the tenth pass. The two macOS 26 `.ips` reports are named, and the macOS 15 retry without a report is said. |
+
+### Checked and fine
+
+- **The flag reaches the compiler and wins, on CI's toolchain.** I built
+  `PhotoFixtures` with `-v` using Xcode 26.3's SwiftPM (native build system).
+  For `PhotoCore` and `PhotoFixtures` the driver gets `-Onone -enable-testing …
+  -DDEBUG … -O`. The frontend jobs then get `-enable-testing -g … -O -D DEBUG
+  … -enable-default-cmo`, with no `-Onone` (the driver keeps the last option
+  of the optimization group). GRDB and the other targets still get `-Onone`
+  only. SwiftPM has placed target `unsafeFlags` after its configuration flags
+  for years, and Xcode 26.6 uses the same native path. Its exact command line
+  isn't checked here, since 26.6 isn't installed; CI's log will show it.
+- **Release builds are untouched.** `.when(configuration: .debug)` only.
+  `Scripts/build-app.sh` builds `-c release` unless `CONFIGURATION=debug` is
+  set, and a debug bundle then gets the same optimized library as tests do.
+  CodeQL's `swift build` (master, weekly) is a debug build and now compiles
+  these two targets optimized. That doesn't matter for extraction, but its
+  next run is the first such build.
+- **`@testable import` works.** `-enable-testing` is still passed, and the test
+  target compiles against the optimized module with both toolchains.
+- **`unsafeFlags` in a root package is allowed.** The manifest already uses it
+  (`CLibRaw`'s `-w` and release `-O3`). `PhotoCore` was therefore already
+  unusable as a versioned dependency of another package, and no package
+  depends on this one. No new restriction.
+- **Debug-only behavior other than C25.** No `assert`, `assertionFailure` or
+  `#if DEBUG` in `Sources/` (outside `CLibRaw`). `DEBUG` stays defined anyway
+  (`-D DEBUG` above). `precondition` (8 sites) and `fatalError` still trap at
+  `-O`. Integer overflow still traps (only `-Ounchecked` removes it), and
+  exclusivity checking is on at every level since Swift 5. The lifetime
+  differences at `-O` are already covered: `GPUDemosaic` holds its buffers
+  with `withExtendedLifetime`, and `MergeOutput`'s band provider retains
+  itself with `Unmanaged.passRetained` and releases in the release callback.
+  The shipped app has always run this code optimized, so tests now run what
+  ships.
+- **Floating point.** Swift emits no fused multiply-add without explicit
+  calls, and `-O` doesn't add fast-math. The engineer's 70 printed figures
+  being identical to the last digit agrees with that. The full run (goldens,
+  references) passes.
+- **`MergeReference.radianceAndConditioning`** (`MergeReference.swift:71-98`)
+  gives the same values.
+  - `p00…p11` are `max(max(x, y), z)`, the same reduction order as
+    `SIMD3.max()`.
+  - `peak` uses the same four conditions on `t` and `share`.
+  - `peakSpread` is the maximum minus the minimum of the same four peaks.
+  - `spread` is each channel's maximum minus minimum over the same four taps,
+    maxed over the channels. Starting it at `0.0` changes nothing, because
+    each `high - low` is at least 0.
+  - Selection by `max` and `min` is exact and associative for non-NaN values,
+    and the taps are finite pixel values. The only possible difference is the
+    sign of a zero, which can't change `hat`, the products or the tolerance.
+  - The conditioning flag (`abs(t - share) < 1e-4`, `h < conditionedHat`) and
+    the tolerance line didn't change.
+  - The engineer's bit-for-bit comparison on 960,000 pixels agrees.
+- **`radianceError`** (`MergeChoicesTests.swift:18-57`) reads the same 25
+  values in the same order. The luminance is computed per pixel of `truth`
+  with the same `MergeBitmap.luminance`, stored as `Float` (its return type),
+  and indexed `y * width + x` like `truth[x, y]`. With `margin = 12`, the
+  flat index never leaves the image or wraps a row. `min`, `max` and the 25%
+  test are unchanged.
+- **`cancelLeavesNothing` still proves AC9** (`HDRMergeJobTests.swift:376-399`).
+  The progress closure is called synchronously on the job's own task
+  (`HDRMergeJob.swift:179`, the first Aligning report). So
+  `withUnsafeCurrentTask` cancels the task `Task {}` created, which is the
+  same handle the app's Stop cancels. The next check
+  (`MergeAlignment.swift:89`, then `HDRMergeJob.swift:197`) throws
+  `CancellationError`, which none of `run`'s typed `catch` clauses take. The
+  test then checks that the folder is unchanged and the row count is the
+  same. A job that ignored cancellation would finish and fail the `#expect`.
+  Calls from other threads (alignment's callback) find no task and do
+  nothing. Determinism is structural: the cancel is set before the first
+  check, with no timing or pool order involved. As before, the cancel lands
+  before any file is opened, so "no partial file" is checked here as it was
+  (the safety suite covers partial files).
+- **Timing elsewhere.** I read every test that cancels from outside a task
+  (`.cancel()` without `withUnsafeCurrentTask`). Each either cancels before
+  the work starts (a gate stream: `GPUDemosaicDecodeTests`, `MaskDetection`)
+  or is paced by its own delay (`ImporterTests`' 15 ms hasher). None depends
+  on the library being slow.
+
+### Findings (eleventh pass)
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C25 | Should fix | `Package.swift:16` (and its comment, `:4-15`); `status.md` "Needs a decision" ("`Sources/` has no `assert` and no `#if DEBUG`, so no check is lost") | `-O` also turns off the standard library's debug-only checks (`_debugPrecondition`) in `PhotoCore` and `PhotoFixtures`. These include the bounds checks on `UnsafeBufferPointer` and `UnsafeRawBufferPointer` subscripts and `load(fromByteOffset:)`. Shown in a scratch program built with Swift 6.2.4. `[UInt8](repeating: 7, count: 3).withUnsafeBufferPointer { $0[5] }` (and `withUnsafeBytes { $0[5] }`) stops with "Fatal error" at `-Onone`. At `-O` it reads 0 and goes on. With `-O -assert-config Debug` it stops again (same on 6.4.2). Sites in these targets: `NoiseModel.swift:71-72` (`values[…]` over `SensorMosaic.values`, LibRaw's unpack of an outside raw), `LibRawDecoder+GPU.swift:64-66` (`raw.load(fromByteOffset:)`), and `BrushRasterizer.swift:81` onward (writes through the band buffer). `LinearDNGWriter.write(rows:)` is safe: it checks with an explicit `precondition`. Nothing is wrong at these sites today. | An off-by-one added later at such a site used to fail `swift test` with "Index out of range". Now it reads or writes the memory next to the buffer, and the test can pass. The app's release build never had these checks, so the app itself doesn't change. What is lost is the tests' safety net on the code that handles raws and masks, and the owner is asked to approve on the claim that nothing is lost. **Fix (preferred):** `.unsafeFlags(["-O", "-assert-config", "Debug"], .when(configuration: .debug))`. This keeps `assert` and the debug preconditions on in optimized code. Measured here with `-Xswiftc -assert-config -Xswiftc Debug` in a scratch path: the 59 merge tests pass in 42.4 s, against 40.3 s without it. Say so in the comment and `status.md`. **Or** keep `-O` alone and correct the sentence in `status.md` and the `Package.swift` comment, so the owner decides knowing the bounds checks go. | Tests that would fail without the change; correctness of the record the owner signs |
+| C26 | Nit | `status.md` "Test and CI time", "Risks only CI can show", and "CI on PR #258", "Confirmation" ("no Swift 6.2 or 6.3 toolchain here") | This Mac has Xcode 26.3 (Swift 6.2.4) at `/Applications/Xcode-26.3.0.app`, the path `docs/WORKFLOW.md`'s Build section names. `status.md` doesn't record the CI-toolchain `swift build --build-tests` that step 3 asks for. I ran it in a scratch path: clean, and the merge and WorkLane suites pass when built with Swift 6.2.4 (64 tests, 39.0 s). My tenth pass said the same wrong thing about the toolchain. | A reader thinks Swift 6.2.4 had never compiled the optimized `PhotoCore` with testing on before CI. It has, here. Nothing else depends on it. **Fix:** record the 26.3 build and run in `status.md` (the engineer's own, or cite this pass). Only Swift 6.3.3 (Xcode 26.6, macOS 26) is CI's alone. | `docs/WORKFLOW.md` Build |
+
+### Still open for the main session
+
+- C25: the engineer adds `-assert-config Debug`, or the owner decides on `-O`
+  alone with the record corrected. Either way the owner's nod on the build
+  setting is still needed (`status.md`, "Needs a decision"). A one-line
+  `Package.swift` change needs only a short pass here.
+- C26: a line in `status.md`.
+- `CLAUDE.md` (the owner's): the engineer proposes a note in Commands that debug
+  builds of these two targets are optimized. I agree. If C25's flag is taken,
+  the note should say that bounds checks stay on.
+- The CI proposals (a parallel bundles job, a Test-step limit, the `.build`
+  cache) are the owner's to decide. Any edit under `.github/` comes back here.
+- Still from the tenth pass: after the next CI run, read the crash artifacts
+  even if it is green, and check that `catalogueOptional`,
+  `refusedFileRemoved` and "photocli merge" ran on both systems. They passed
+  here built with Swift 6.2.4, but on macOS 27.2's concurrency runtime, not
+  macOS 15's, so that doesn't replace CI.
+- Unchanged: C21, the #88 `maskRasters` heads-up, F5's place in the guide, the
+  `WriteChain.read` follow-up, and `079bf79`'s flaky orientation test (#253).
+- No `/security-review` is needed. The range adds no parser, subprocess, file
+  writing outside the library or network code. C25 concerns test coverage of
+  the existing parsers' unsafe reads, not a new attack surface.
+
+## Twelfth pass (second pass on the eleventh): C25 and C26
+
+Owner: code-reviewer. Date: 2026-11-22. Reviewed: `feature/hdr-merge`,
+`edc22e7..c6b9f6e`: `bd93f12` (`Package.swift`: `-assert-config Debug`, C25),
+`86dddf5` (status: C25, C26, timings, the Swift 6.2.4 build), `65f5a56`
+(`CLAUDE.md`: the owner's authorized line), `c6b9f6e` (status: incremental
+rebuilds, per-suite costs, the owner's decisions). Build and tests: `swift
+build` clean, no warnings; full `swift test` at `c6b9f6e`, 1428 tests in 205
+suites passed in 80.5 s (84.1 s wall, 559 s user CPU, Swift 6.4.2, M4 Pro). The
+app was not launched.
+
+### Verdict
+
+Ready to push for CI. C25 and C26 are fixed: the flags are `-O -assert-config
+Debug` in debug builds only, the comment and `status.md` now say what is kept
+and what it costs, and the Swift 6.2.4 build and run are recorded. The
+`CLAUDE.md` line is accurate and is the only change there. No new findings.
+
+### Follow-up (eleventh pass)
+
+| # | State | Commit | Note |
+|---|---|---|---|
+| C25 | Fixed | `bd93f12`, `86dddf5` | `Package.swift:25-27`: `.unsafeFlags(["-O", "-assert-config", "Debug"], .when(configuration: .debug))`, used by `PhotoCore` (`:76`) and `PhotoFixtures` (`:109`) only. The comment (`:4-24`) says `assert` and the standard library's debug-only checks stay, release builds are as before, and gives the cost (about 6% of the merge suites, 288 s to 417 s of processor time for a clean debug build). `status.md`'s "Needs a decision" no longer says no check is lost; it lists what stays on. Checked here, below. |
+| C26 | Fixed | `86dddf5` | `status.md` "With CI's Swift 6.2.4 (Xcode 26.3)": `swift build --build-tests` clean in a scratch path (55.6 s, `develop`'s two warnings only), 64 tests in 10 suites passed in 40.3 s (my eleventh pass: 39.0 s), with the caveat that this is macOS 27.2's runtime. "Confirmation" and "Risks only CI can show" now leave only Swift 6.3.3 (Xcode 26.6) to CI. |
+
+### Checked and fine
+
+- **The trap works with the final flags, on both toolchains.** A scratch
+  program reading index 5 of a 3-element `[UInt8]` through
+  `withUnsafeBufferPointer`, and `withUnsafeBytes { $0.load(fromByteOffset:
+  5, as: UInt8.self) }` (the index from a non-inlined function so it isn't
+  folded): with Swift 6.4.2 and with Xcode 26.3's Swift 6.2.4, `-Onone` stops
+  (exit 133), `-O` reads 0 twice and exits 0, and `-O -assert-config Debug`
+  stops (exit 133, "Fatal error", and for the raw load "UnsafeRawBufferPointer.load
+  out of bounds").
+- **The flags reach the package's compiler.** `swift build -v --target
+  PhotoFixtures` in a scratch path with Swift 6.4.2 (Swift Build): the driver
+  gets `-Onone … -O -assert-config Debug` for `PhotoCore` and `PhotoFixtures`
+  (the later `-O` wins, as checked in the eleventh pass) and `-Onone` alone for
+  GRDB. The engineer's in-package check (a temporary out-of-bounds read in
+  `PhotoFixtures`, removed again) and the frontend jobs with Xcode 26.3 agree.
+  I did not repeat the in-package check: it needs a source edit.
+- **Debug only.** `.when(configuration: .debug)`; `CLibRaw`'s release `-O3` and
+  `-w` are untouched, and nothing else in the manifest moved.
+- **`CLAUDE.md`.** `65f5a56` adds one line (and its blank line) in Commands,
+  after the `build-app.sh` paragraph; nothing else in the file changed in this
+  range. It is accurate: the two targets, `-O`, `assert` and the debug-only
+  bounds checks kept by `-assert-config Debug`, about 12 minutes (741.3 s)
+  against about 77 s (77.8 s and 78.1 s recorded; 80.5 s here; the comment
+  and `status.md` say about 78 s, a rounding difference only). It is not
+  wrapped like the paragraphs around it; the file already has unwrapped lines
+  (160 to 164), and the line is the owner's.
+- **The measurements in "Test and CI time" hold together.** Merge suites 40.2
+  s to 42.8 s is 6.5% ("about 6%"); clean build 288 s to 417 s is 45% ("about
+  45%"); the "With `-O`" column keeps the first commit's figures and the step
+  that quotes 57.6 s and 93.1 s now says they were measured with `-O` alone.
+  The serial table's twelve suites add up to 108.5 s of 171.5 s (63%), and the
+  chain's 42.0 s is 24.5% ("24%"). "Six times" fits the three earlier runs,
+  the two with the final flags and the serial run (my reading; `status.md`
+  doesn't list them). The incremental-rebuild table
+  (3.1 s to 4.3 s) is internally consistent; I did not re-measure it. My full
+  run (80.5 s, "HDR merge core" 25.0 s, "HDR merge job" 44.1 s inside the
+  run) is within run-to-run spread of the recorded 77.8 s and 78.1 s, 24.3 s
+  alone, and 40.3 s inside the run.
+- **The owner's decisions** (debug optimization kept with `-assert-config
+  Debug`, the `CLAUDE.md` sentence, the CI proposals as an issue with nothing
+  under `.github/` changed) are recorded in "Needs a decision", and the range
+  touches nothing under `.github/`.
+
+### Findings (twelfth pass)
+
+None.
+
+### Still open for the main session
+
+- File the CI proposals as an issue (the owner's decision); any edit under
+  `.github/` comes back here.
+- From the tenth pass: after the next CI run, read the crash artifacts even if
+  it is green, and check that `catalogueOptional`, `refusedFileRemoved` and
+  "photocli merge" ran on both systems. Swift 6.3.3 compiling `PhotoCore`
+  optimized with testing on is first seen there.
+- Unchanged: C21, the #88 `maskRasters` heads-up, F5's place in the guide, the
+  `WriteChain.read` follow-up, and `079bf79`'s flaky orientation test (#253).
+- No `/security-review` is needed for this range: build flags and docs only.
