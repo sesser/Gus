@@ -379,9 +379,12 @@ struct WorkLaneTests {
         await jobCancelled.wait()
         #expect(sawCancellation.withLock { $0 })
 
-        // The lane keeps working afterwards. With one slot, a pending job still
-        // queued would have run before this one.
-        #expect(try await lane.run(key: "after", priority: 1) { 3 } == 3)
+        // The lane keeps working afterwards. With one slot and this job at a
+        // lower priority, a pending job still queued (priority 1) would have run
+        // before it, whichever reached the lane first: at equal priority the
+        // lane starts the newer request, and this one could overtake it (code
+        // review C23).
+        #expect(try await lane.run(key: "after", priority: 0) { 3 } == 3)
         #expect(!pendingRan.withLock { $0 }, "a pending job with no waiters must not start")
     }
 
