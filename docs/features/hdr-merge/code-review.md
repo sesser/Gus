@@ -1036,3 +1036,138 @@ in small ways, recorded as C21 (Nit). Neither touches code.
   `079bf79`'s flaky orientation test for bug #253.
 - No `/security-review` is needed for this pass: no parser, subprocess, file
   placement or network code changed.
+
+## Tenth pass (CI on PR #258): the catalogue crash, WorkLane, the pool
+
+Owner: code-reviewer. Date: 2026-11-22. Reviewed: `feature/hdr-merge`,
+`2c4d93f..e63720e`: `a269f4c` (WorkLane test), `784c6fc` (merge suites off the
+cooperative pool), `49db131` (`HDRMergeJob.run`'s `catalogue` optional, test
+`catalogueOptional`), `d848182` and `e63720e` (status). Build and tests: full
+`swift test` at `e63720e`, 1428 tests in 205 suites passed (738.3 s; 12 min 25 s
+wall with the incremental build; Swift 6.4.2, M4 Pro). Evidence read: run
+45034608676 (both attempts tested `2c4d93f` merged into `develop` `89320fe`),
+the logs of jobs 137250754674 (macOS 15) and 137250755022 (macOS 26) and all
+four `crash-reports-*` artifacts. No Swift 6.2 or 6.3 toolchain here, so the fix
+can't be run where it failed. The app was not launched.
+
+### Verdict
+
+Ready to push for CI, with one thing to settle first (C22, the 45-minute job
+limit). The crash evidence is real and points where the engineer says. The new
+`run` behaves exactly like the old one on both paths and has no async default
+argument left. The pool change touches only wrappers and signatures. The
+WorkLane test no longer depends on time. One of its expectations is weaker than
+its comment says (C23, Nit), and `status.md` gives the time to crash slightly
+wrong (C24, Nit). Only CI can confirm the toolchain fix, and CI will run both of
+the new shapes.
+
+### Checked
+
+- **The crash evidence.** Five `.ips` reports in the artifacts: three from
+  macOS 15.8.2 and two from macOS 26.7.2, across both attempts. Every one is
+  `EXC_BAD_ACCESS` (SIGSEGV at 0x18 on macOS 15, 0x14 on macOS 26), with the
+  faulting thread's frames `swift_task_dealloc` ← `closure #1 in default
+  argument 4 of HDRMergeJob.run(…)` (HDRMergeJob.swift:128) ← `closure #5 in
+  HDRMergeJob.run` (:246, the `Task.detached`) ← `completeTaskWithClosure`. The
+  macOS 26 log has two symbolicated backtraces with the same frames ("Bad
+  pointer dereference at 0x…14"; 15:15:56 and the retry at 15:22:04). The
+  macOS 15 retry crash of attempt 2 (15:20:51) left no report and no backtrace
+  (the backtracer refuses privileged executables there), so "every crash" means
+  every crash that recorded a frame: six distinct ones.
+- **The first-test claim.** In attempt 2, on both systems, in both the first
+  run and the retry, "AC2, AC3, AC5: the 0 EV frame…" (`mergesToTIFF`, the
+  first test of the serialized "HDR merge job" suite) started and never
+  finished before the crash. It started 4 min 15 s, 3 min 32 s (macOS 15), and
+  1 min 45 s, 3 min 18 s (macOS 26) before each crash. Its first `job.run`
+  passes no `catalogue`. The "Distortion…" line printed next to the crash
+  belongs to another suite running in parallel. Toolchains: Xcode 26.3 is
+  selected on macOS 15 and Xcode 26.6 is the toolchain on macOS 26, per the log.
+- **Same behavior, both paths** (`HDRMergeJob.swift:130-133, 247-276`). Before,
+  the detached task ran `catalogue(insertBody)`, and the default was
+  `{ try await $0() }`, so the default path was `insertBody()`. Now nil runs
+  `insert()` directly and a given closure gets `insert`. `insert` captures the
+  same four values (`catalog`, `master`, `referenceFrame`, `values`) the nested
+  closure did. The `do`/`catch` around `Task.detached { … }.value` is
+  unchanged, so `alreadyInLibrary` still gives `existingVersionID`,
+  `sameContent` still removes only the file this job wrote (identity check)
+  before throwing, and anything else is still `catalogFailed`. Errors from
+  either path reach that `catch` the same way, through `.value`. Cancellation:
+  the task is still detached, so a Stop arriving now still doesn't cancel the
+  write (design §7.1). Ordering: `progress(.adding, 1)` still follows the
+  insert. Callers: `MergeModel.swift:363-367` passes its write-chain closure and
+  compiles unchanged. `MergeCommands.swift:84` passes none and now takes the
+  direct path. Nothing else calls `run` (photobench and the debug script go
+  through these two).
+- **Sendable and strict concurrency.** The optional parameter is
+  `(@Sendable (…) async throws -> MergedMaster)?`, which is Sendable and
+  implicitly escaping. `insert` is `@Sendable` and captures only what the old
+  nested closure captured. The detached closure captures both. It builds clean
+  in Swift 6 mode here; no `@unchecked Sendable` or `nonisolated(unsafe)` was
+  added.
+- **No new fragile shape, and none elsewhere.** No async closure is a default
+  argument now. I scanned every `func` and `init` parameter list in `Sources/`
+  and `Tests/` (outside CLibRaw) for a `= { … }` default whose type mentions
+  `async`. There are none, and the same scan finds the old `catalogue` in
+  `49db131^`. The merge path's other detached tasks (`newMaster`'s hash and
+  metadata reads, `HDRMergeJob.swift:295-296`) are literal closures. On CI they
+  ran before the crash in every attempt, since `newMaster` precedes the
+  insert. Whether Swift 6.2.4 and 6.3.3 also mishandle a *given* async closure
+  called from the detached task (the app's shape) can't be known here, because
+  CI never got that far. CI will tell: `catalogueOptional` and
+  `refusedFileRemoved` pass a closure, and every other job test, plus
+  `photocli merge`, takes the nil path. The app itself is built with the
+  owner's Xcode, not CI's.
+- **`catalogueOptional`** (`HDRMergeJobTests.swift:442-473`) checks the given
+  closure is called once and its result is the job's, that its
+  `alreadyInLibrary` gives `existingVersionID` with no master, and that nil
+  catalogues directly as a new version. It runs inside `offCooperativePool`.
+  Passed here (14.4 s).
+- **`784c6fc` changes nothing but wrappers** (`git show -w`). Across the six
+  files: 53 `offCooperativePool {` openers (35 + 15 `try await`, 3 `await`)
+  with their closing braces, and 24 `func … throws` made `async throws` (or
+  `async`) to allow the `await`. No other line differs. No size, tolerance,
+  fixture or expectation changed. Task executor preference isn't inherited by
+  `Task.detached`, so the job's own detached tasks run as before.
+- **The WorkLane test (`a269f4c`)** still proves the first two things it
+  claims. (1) Cancelling the last waiter cancels the running job: that job now
+  waits on a gate only its task's cancellation opens, so `jobCancelled` opens
+  only if `cancelWaiter` cancelled `job.task`. `sawCancellation` can't be
+  reached by finishing on time any more. (2) The lane keeps working: the
+  "after" job runs with the slot freed. The old failure on CI (macOS 26 retry:
+  `pending.value` and `running.value` threw nothing, `sawCancellation` false) is
+  the 10 s sleep running out before the unstructured cancellation reached the
+  lane. That can't happen now. Waiting on `lane.pendingCount` before cancelling
+  is stronger than the 20 ms sleep. (3) "A pending job with no waiters never
+  starts" is weaker than its comment says: see C23. Note also that a regression
+  in (1) now hangs the test (the gate never opens) instead of failing it. No
+  test in the project uses `.timeLimit`, so a hang costs the CI job up to its
+  limit (C22).
+- **Local run:** "HDR merge job" 223.8 s, "HDR merge core" 428.2 s, "photocli
+  merge" 20.2 s, reference and options 40.9 s, alignment 18.1 s, safety 3.7 s,
+  DNG 0.7 s. Those make up `MemoryHeavy`'s 738.3 s, which is the whole run's
+  critical path: every other suite finished by about 77 s. `Work lane` 76.9 s,
+  as starved here as on CI.
+
+### Findings (tenth pass)
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C22 | Should fix (before the next CI run) | `.github/workflows/build.yml:27` (`timeout-minutes: 45`) and the Test step (`:72-97`, no step timeout, one retry on signal 11) | The serialized merge chain is now most of CI's test time, and the job limit has little room for it. **Estimate:** fixed costs in the failing run were setup about 0.5 min, Build 2.3 to 2.6 min and the test build about 2.5 min. On `develop`'s last green runs, app bundles took 5 to 7 min after Test. That is about 11 to 12.5 min before any test runs. The merge chain takes 12.3 min here on an M4 Pro. On CI, `mergesToTIFF`'s *first* merge took 1 min 45 s to 4 min 15 s to reach its insert. Here the whole test, three merges, takes 75 s (about 25 s a merge). That is 4x to 10x, measured while the parallel phase starved the pool, which `784c6fc` now relieves. Even at 2x the chain is about 25 min, so the job takes about 37 min. At 3x it takes about 49 min. A single signal 11 (#77) reruns the whole suite in the same step, which adds the test time again and goes far past 45 min at any of these ratios. | The PR's CI times out at 45 min instead of passing or failing. That wastes a 45-minute run per attempt and leaves no crash or failure to read. If a WorkLane-style regression hangs, it costs the full limit too. **What to do:** raise the job's `timeout-minutes` (90, as `codeql.yml` uses, is enough for one retry), and optionally give the Test step its own `timeout-minutes` (about 75) so a hang ends before the bundles are skipped anyway. This is a CI change, so per `docs/WORKFLOW.md` it needs code review and the owner's go-ahead. The other way is to wait for one CI run's real figure, at the risk of one wasted 45-minute run. | CI / WORKFLOW step 7 |
+| C23 | Nit | `Tests/PhotoCoreTests/PreviewTests.swift:381-385` | The comment says "With one slot, a pending job still queued would have run before this one." It wouldn't. At equal priority, `WorkLane.nextJob` starts the most recent request first (`max` by `(priority, sequence)`). Shown with a copy of `WorkLane` in a scratch package: two priority-1 jobs queued behind a busy slot start as `["queuedSecond", "queuedFirst"]`. So if a bug kept the cancelled "pending" job queued, and `run(key: "after")` reached the actor before the cancelled job's `finish`, "after" would run first and `!pendingRan` could be read before "pending" starts. That ordering is a scheduling race: the job's task opens `jobCancelled` *before* it throws and hops to `finish`. On this Mac the race always went the detecting way. With the mutant (`cancelWaiter` keeping the pending job), the branch's test body detected it 300 of 300 times, idle and with `LIBDISPATCH_COOPERATIVE_POOL_STRICT=1`. Unmutated, it passed 300 of 300. So it is not a flake, only an expectation weaker than written on a differently starved pool. | A regression that starts orphaned pending jobs can pass this test on a starved runner. **Fix:** give "after" a lower priority (`priority: 0`). A stale "pending" (priority 1) then always starts first, whichever reaches the actor first. Same results here (mutant detected 300 of 300, clean passes 300 of 300). Or correct the comment. | Tests that would fail without the change |
+| C24 | Nit | `docs/features/hdr-merge/status.md`, "CI on PR #258", crash paragraph | "It started about 4 to 5 minutes before each crash … in all four runs". In attempt 2 the gaps were 4 min 15 s and 3 min 32 s (macOS 15) and 1 min 45 s and 3 min 18 s (macOS 26). It also says "the three macOS 15 crash reports … and both macOS 26 backtraces in the log". The artifacts also hold two macOS 26 `.ips` reports with the same frames. | A reader timing the next run against "4 to 5 minutes" is misled. Nothing else depends on it. | Docs accuracy |
+
+### Still open for the main session
+
+- C22: decide the job limit before pushing. If it is raised, that commit is a
+  CI change and comes back here.
+- C23 and C24: one-line changes for the engineer when next in those files. A
+  test-only change to C23 needs only a short second pass.
+- After the next CI run, read the crash artifacts even if it is green, and
+  check that `catalogueOptional`, `refusedFileRemoved` and "photocli merge"
+  ran on both systems. They are the only runs of the new shapes on Swift 6.2.4
+  and 6.3.3.
+- Unchanged from the ninth pass: C21, the #88 `maskRasters` heads-up, F5's
+  place in the guide, the `WriteChain.read` follow-up, and `079bf79`'s flaky
+  orientation test (#253).
+- No `/security-review` is needed: no parser, subprocess, file placement or
+  network code changed. The CI timeout is configuration only.
