@@ -30,19 +30,26 @@ content arrives after its first layout (`InfoInspector`'s `.task` loads the
 details, keywords and metadata), so the document is first laid out at 300 pt
 with no scroller. Once the content is tall enough, the legacy scroller appears
 and `NSScrollView` shrinks the clip view to 283 pt. That resize happens inside
-the scroll view's own layout pass and leaves the clip view marked clean, so
-Auto Layout never re-solves the document's trailing constraint: the document
-stays 300 pt wide for good (a window resize does not touch it either), and
-SwiftUI keeps laying the content out at 300 pt. The constraints themselves are
-right: forcing `clip.needsLayout = true` and a layout pass in the debug script
-moved the document to 283 at once (setting only `document.needsLayout` did
-not). The Adjust tab is tall from its first layout, so it never hits this.
+the scroll view's own layout pass, and the document's trailing constraint is not
+re-solved: the document stays 300 pt wide and SwiftUI keeps laying the content
+out at 300 pt. How that happens is a hypothesis that fits the experiments, not
+something shown: the clip view's resize inside the scroll view's layout pass
+seems to leave it with no pending layout, so Auto Layout does not re-solve the
+constraint until something else marks it. What was seen: the constraints
+themselves are right (forcing `clip.needsLayout = true` and a layout pass in the
+debug script moved the document to 283 at once; setting only
+`document.needsLayout` did not), and on the unfixed build a later window resize
+did re-solve the width (QA saw `fits` after a `windowsize` that followed the
+overflow), so the width stays wrong only until something else lays the clip
+view out. The Adjust tab is tall from its first layout, so it never hits this.
 
 **Fix.** `FlippedClipView.setFrameSize` (the clip view `AppKitScrollView` always
 uses) marks itself for layout on the next run-loop turn when its width changed
 (`Sources/PhotoApp/Views/AppKitScrollView.swift`). Marking it synchronously
-inside the resize did not work (still `overflow`: the flag is cleared at the end
-of the pass in progress); the deferred mark does.
+inside the resize did not work (still `overflow`); the deferred mark does. Why
+the synchronous mark fails is not established; a plausible reason is that the
+flag is cleared at the end of the layout pass in progress, which the deferred
+mark, made on a later turn, survives.
 
 **The test that fails without the fix.** No unit test can reach it: the code is
 in PhotoApp, which no test target imports (the same limit #223 recorded), and
@@ -118,6 +125,20 @@ No rendering, migration, golden, pipeline-version or stack change.
   running app: the script cannot set the pane's width. The fix runs on every
   width change of the clip view, so these take the same path.
 - macOS 15 and 26: covered by CI only.
+
+## Review findings
+
+- **C1** (code review, nit): several deferred marks can queue in one turn when
+  `NSScrollView.tile` resizes the clip view more than once; the mark is
+  idempotent. Left unfixed by the main session's choice, pending the owner.
+- **C2** (code review) and **Q1** (QA), both nits: the Root cause overstated its
+  evidence, and said a window resize does not touch the stale width, which QA
+  saw it does on the unfixed build. Corrected above: the mechanism is worded as
+  a hypothesis and the window-resize claim is replaced by what was observed.
+- **Q2** (QA, note): on the unfixed build the overflow depends on AppKit's layout
+  timing (the first Info step overflowed in 4 of 4 runs, the "other photo" step
+  in one run and not in three later ones). With the fix every run fits (10 of
+  10), so the before side is shown by the runs that overflow. Noted, no change.
 
 ## README
 
