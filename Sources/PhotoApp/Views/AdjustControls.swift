@@ -797,12 +797,17 @@ struct AppKitCheckbox: NSViewRepresentable {
     var isVisible = true
     /// What VoiceOver names it: the section or mask ("Light, checkbox, checked").
     var label: String
-    /// The tooltip, and VoiceOver's help.
+    /// The tooltip, and VoiceOver's help unless `accessibilityHelp` says otherwise.
     var help: String
+    /// VoiceOver's help when it is not the tooltip: `.some(nil)` gives none
+    /// (a Copy Adjustments row whose tooltip is only its name, design §8).
+    var accessibilityHelp: String?? = .none
     /// Shown on the trailing side at the slider labels' size; nil for a bare
     /// check box. A titled one is named by its title.
     var title: String?
     var isEnabled = true
+    /// Small in the inspector; regular in a sheet's list (the Copy Adjustments sheet).
+    var controlSize: NSControl.ControlSize = .small
     let action: () -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -810,8 +815,8 @@ struct AppKitCheckbox: NSViewRepresentable {
     func makeNSView(context: Context) -> NSButton {
         let button = NSButton(checkboxWithTitle: "", target: context.coordinator, action: #selector(Coordinator.click(_:)))
         button.allowsMixedState = true
-        button.controlSize = .small
-        button.font = .systemFont(ofSize: 11)
+        button.controlSize = controlSize
+        button.font = .systemFont(ofSize: NSFont.systemFontSize(for: controlSize))
         return button
     }
 
@@ -827,7 +832,7 @@ struct AppKitCheckbox: NSViewRepresentable {
         button.isHidden = !isVisible
         button.toolTip = help
         button.setAccessibilityLabel(title == nil ? label : nil)
-        button.setAccessibilityHelp(help)
+        button.setAccessibilityHelp(accessibilityHelp ?? help)
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSButton, context: Context) -> CGSize? {

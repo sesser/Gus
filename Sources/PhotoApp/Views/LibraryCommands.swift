@@ -595,9 +595,9 @@ struct LibraryCommands: Commands {
 
     private var adjustCommands: some Commands {
         CommandMenu("Adjust") {
-            Button("Copy Adjustments") { model?.copyAdjustments() }
+            Button(CopyAdjustmentsText.menuItem) { model?.openCopySheet() }
                 .keyboardShortcut("c", modifiers: [.command, .shift])
-                .disabled(!can { $0.focusedIsPhoto })
+                .disabled(!can { $0.canCopyAdjustments })
             Button("Paste Adjustments") { model?.pasteAdjustments() }
                 .keyboardShortcut("v", modifiers: [.command, .shift])
                 .disabled(!can { $0.hasCopiedAdjustments && $0.targetsIncludePhoto && !$0.isComparing })

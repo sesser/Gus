@@ -320,6 +320,29 @@
       },
       "comment" : "Import report: tools of a preset carried over approximately"
     },
+    "%lld items" : {
+      "comment" : "Copy Adjustments: the list of what was copied when it is long, in the announcement and the toolbar Paste item's tooltip",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld item"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld items"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld K" : {
       "comment" : "Color temperature in kelvin",
       "localizations" : {
@@ -1099,7 +1122,7 @@
       }
     },
     "%lld spots" : {
-      "comment" : "How many spots a photo has: the Spots context row at the limit, captions and VoiceOver",
+      "comment" : "How many spots a photo has: the Spots context row at the limit, captions and VoiceOver; the Copy Adjustments sheet's Spots row",
       "localizations" : {
         "en" : {
           "variations" : {
@@ -1114,6 +1137,29 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "%lld spots"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld spots, turned off" : {
+      "comment" : "Copy Adjustments sheet: the Spots row, how many the photo has, with the group turned off",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld spot, turned off"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld spots, turned off"
                 }
               }
             }
@@ -1931,6 +1977,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Adjust"
+          }
+        }
+      }
+    },
+    "Adjustments to copy" : {
+      "comment" : "Copy Adjustments sheet: VoiceOver name of the list of check boxes",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adjustments to copy"
           }
         }
       }
@@ -2860,6 +2917,28 @@
         }
       }
     },
+    "Check All" : {
+      "comment" : "Copy Adjustments sheet: checks every box",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check All"
+          }
+        }
+      }
+    },
+    "Check something to copy." : {
+      "comment" : "Copy Adjustments sheet: beside the dimmed Copy button while nothing is checked, and its VoiceOver hint",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check something to copy."
+          }
+        }
+      }
+    },
     "Choose the reference" : {
       "comment" : "VoiceOver: the hint of the Merge to HDR sheet's photos table; choosing a row makes it the reference",
       "localizations" : {
@@ -2871,6 +2950,17 @@
         }
       }
     },
+    "Choose which adjustments to copy" : {
+      "comment" : "Tooltip of the toolbar's Copy Adjustments item",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose which adjustments to copy"
+          }
+        }
+      }
+    },
     "Constrain to image" : {
       "comment" : "Check box under Distortion: scale the corrected photo to fill its frame",
       "localizations" : {
@@ -2878,6 +2968,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Constrain to image"
+          }
+        }
+      }
+    },
+    "Copied %@." : {
+      "comment" : "VoiceOver, after Copy in the Copy Adjustments sheet; %@ is what was copied",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copied %@."
+          }
+        }
+      }
+    },
+    "Copy Adjustments…" : {
+      "comment" : "Adjust menu, the context menus and the Adjust tab's ⋯ menu: opens the sheet that asks what to copy",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy Adjustments…"
           }
         }
       }
@@ -3312,6 +3424,17 @@
         }
       }
     },
+    "No changes" : {
+      "comment" : "Copy Adjustments sheet: the photo has not changed this group",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No changes"
+          }
+        }
+      }
+    },
     "No Filter" : {
       "comment" : "Adjust ▸ Black & White menu item: all five filters at 0",
       "localizations" : {
@@ -3444,6 +3567,28 @@
         }
       }
     },
+    "Pasted as it is, whatever a photo's size or shape." : {
+      "comment" : "Copy Adjustments sheet: under Crop & Straighten, and its VoiceOver hint",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pasted as it is, whatever a photo's size or shape."
+          }
+        }
+      }
+    },
+    "Pasted only onto photos of the same size." : {
+      "comment" : "Copy Adjustments sheet: under Spots, and its VoiceOver hint",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pasted only onto photos of the same size."
+          }
+        }
+      }
+    },
     "People" : {
       "comment" : "Mask detection kind: menu item, row title and a new mask's name",
       "localizations" : {
@@ -3484,6 +3629,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Positive values straighten lines that bow outward; negative values straighten lines that bow inward."
+          }
+        }
+      }
+    },
+    "Presets leave spots out. Copy Adjustments can copy them to photos of the same size." : {
+      "comment" : "The Spots heading's note (copy-adjustments-selective design §6)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Presets leave spots out. Copy Adjustments can copy them to photos of the same size."
           }
         }
       }
@@ -3539,6 +3695,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Red filter: much darker skies, lighter reds and skin, darker leaves."
+          }
+        }
+      }
+    },
+    "Resets on paste" : {
+      "comment" : "Copy Adjustments sheet: a checked group the photo has not changed",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resets on paste"
           }
         }
       }
@@ -3605,6 +3772,52 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Show presets as thumbnails"
+          }
+        }
+      }
+    },
+    "Spots were not pasted onto %lld photos: their size, or the size of the photo they were copied from, could not be read." : {
+      "comment" : "Activity, after Paste Adjustments with Spots: photos whose original, or the original of the photo the spots were copied from, could not be read kept their own spots",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Spots were not pasted onto %lld photo: its size, or the size of the photo they were copied from, could not be read."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Spots were not pasted onto %lld photos: their size, or the size of the photo they were copied from, could not be read."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Spots were not pasted onto %lld photos: their size differs from the photo the spots were copied from." : {
+      "comment" : "Activity, after Paste Adjustments with Spots: photos whose size differs kept their own spots",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Spots were not pasted onto %lld photo: its size differs from the photo the spots were copied from."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Spots were not pasted onto %lld photos: their size differs from the photo the spots were copied from."
+                }
+              }
+            }
           }
         }
       }
@@ -3719,6 +3932,17 @@
         }
       }
     },
+    "This photo has no adjustments. Checking a group resets it on the photos you paste onto." : {
+      "comment" : "Copy Adjustments sheet: under the title when the photo has no adjustments at all",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This photo has no adjustments. Checking a group resets it on the photos you paste onto."
+          }
+        }
+      }
+    },
     "This photo has no color, so the filters change nothing." : {
       "comment" : "Black & White caption when the photo's file is already monochrome",
       "localizations" : {
@@ -3759,6 +3983,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Turn On Constrain to Image"
+          }
+        }
+      }
+    },
+    "Turned off" : {
+      "comment" : "Copy Adjustments sheet: a group the photo has changed but turned off",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turned off"
+          }
+        }
+      }
+    },
+    "Uncheck All" : {
+      "comment" : "Copy Adjustments sheet: unchecks every box",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uncheck All"
           }
         }
       }
@@ -5147,7 +5393,7 @@
       }
     },
     "Copy" : {
-      "comment" : "Loupe caption badge: the photo is a copy made with Duplicate",
+      "comment" : "Loupe caption badge: the photo is a copy made with Duplicate; the Copy Adjustments sheet's default button",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -5158,7 +5404,7 @@
       }
     },
     "Copy Adjustments" : {
-      "comment" : "Photo menu and Presets menu item",
+      "comment" : "Copy Adjustments sheet title, toolbar item label, Activity action name",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6976,7 +7222,7 @@
       }
     },
     "From %@" : {
-      "comment" : "Export and Merge to HDR sheets: the sidebar source",
+      "comment" : "Export, Merge to HDR and Copy Adjustments sheets: the sidebar source, or (Copy Adjustments) the photo's display name",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -10363,6 +10609,17 @@
         }
       }
     },
+    "Paste Adjustments: %@" : {
+      "comment" : "Tooltip of the toolbar's Paste Adjustments item; %@ is what was copied (the Copy Adjustments announcement's list)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paste Adjustments: %@"
+          }
+        }
+      }
+    },
     "Pause" : {
       "comment" : "View menu (Space) and the video loupe's context menu while a video plays; VoiceOver action on a video",
       "localizations" : {
@@ -11143,23 +11400,12 @@
       }
     },
     "Presets and Paste Adjustments leave masks out." : {
-      "comment" : "Masks heading note",
+      "comment" : "Masks heading note; also the Copy Adjustments sheet's footer",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Presets and Paste Adjustments leave masks out."
-          }
-        }
-      }
-    },
-    "Presets and Paste Adjustments leave spots out." : {
-      "comment" : "The Spots heading's note, in the Masks heading's words (healing design §11)",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Presets and Paste Adjustments leave spots out."
           }
         }
       }

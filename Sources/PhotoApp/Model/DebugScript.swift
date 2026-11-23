@@ -115,7 +115,10 @@ import PhotoUI
 ///     lutwindow open|close|all|collection <name>|expand <name>|select <name>|apply|manage|back|snapshot <file> (the sheet)
 ///            | importmenu <folder> (Adjust ▸ Import Look-Up Tables… once its panel returns the folder) | importrun
 ///            (the import page's Import) | page (prints it)
-///     copyadjust            pasteadjust [uncheck|loupeuncheck]            preset save|apply|delete|preview <name> | preset (prints them)
+///     copyadjust [all|<item>…]   (copies without the sheet: its defaults, everything, or those items: crop, light,
+///            colorGrade, spots, …)   copyadjust sheet [check|uncheck <item>…|all | click <row> | confirm | cancel]
+///            print copysheet | print clipboard   (the Copy Adjustments sheet; see DebugCopyAdjustmentsCommands)
+///     pasteadjust [uncheck|loupeuncheck]            preset save|apply|delete|preview <name> | preset (prints them)
 ///     preset import <path>…  (prints the summary)   preset summary <path>… (imports, shows the alert)
 ///     preset export <file> [<name>]                 preset window | windowshot <png> (the sheet)
 ///     preset previewend     (ends a preset preview, as the pointer leaving it does)
@@ -555,8 +558,7 @@ enum DebugScript {
         case "lut", "lutimport", "luts", "lutwindow":
             await DebugLookTableCommands.run(verb, rest, model: model)
         case "copyadjust":
-            model.copyAdjustments()
-            try? await Task.sleep(for: .milliseconds(200))
+            await DebugCopyAdjustmentsCommands.run(rest, model: model)
         case "pasteadjust":
             model.pasteAdjustments()
             if let mode = rest.first { await DebugLensCommands.uncheckDuringPaste(mode, model: model) }
@@ -826,6 +828,14 @@ enum DebugScript {
             await DebugMergeCommands.run(rest, model: model)
         case "print" where rest.first == "merge":
             DebugMergeCommands.printState(model)
+        case "print" where rest.first == "copysheet":
+            DebugCopyAdjustmentsCommands.printSheet(model)
+        case "print" where rest.first == "clipboard":
+            DebugCopyAdjustmentsCommands.printClipboard(model)
+        case "print" where rest.first == "messages":
+            DebugCopyAdjustmentsCommands.printMessages(model)
+        case "print" where rest.first == "stacks":
+            await DebugCopyAdjustmentsCommands.printStacks(model)
         case "print" where rest.first == "copies":
             DebugCopyCommands.printCopies(model, window: window)
         case "print":
@@ -861,6 +871,7 @@ enum DebugScript {
             // through their bindings.
             model.showsExportSheet = false
             model.showsMergeSheet = false
+            model.showsCopySheet = false
             model.showsLookTableSheet = false
             model.showsPresetSheet = false
             try? await Task.sleep(for: .milliseconds(500))

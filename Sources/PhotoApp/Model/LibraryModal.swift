@@ -13,7 +13,7 @@ import Foundation
 /// present more than this lists. Panels and alerts run through `WindowModal`
 /// (AppKit) are not covered.
 enum LibraryModal: CaseIterable {
-    case export, lookTables, sidebarSheet, sidebarDeletion, removal, importSummary, merge
+    case export, lookTables, sidebarSheet, sidebarDeletion, removal, importSummary, merge, copyAdjustments
 
     enum Kind {
         /// Calls `modalDidClose()` from its `onDismiss`, once it has gone.
@@ -24,7 +24,7 @@ enum LibraryModal: CaseIterable {
 
     var kind: Kind {
         switch self {
-        case .export, .lookTables, .sidebarSheet, .merge: .sheet
+        case .export, .lookTables, .sidebarSheet, .merge, .copyAdjustments: .sheet
         case .sidebarDeletion, .removal, .importSummary: .dialog
         }
     }
@@ -40,6 +40,7 @@ extension LibraryModel {
         case .removal: pendingRemoval != nil
         case .importSummary: presetImportSummary != nil
         case .merge: showsMergeSheet
+        case .copyAdjustments: showsCopySheet
         }
     }
 

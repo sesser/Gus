@@ -125,7 +125,12 @@ struct LibraryMenuState: Equatable {
     var ratingRule: LibraryFilter.RatingRule
     var flagRule: LibraryFilter.FlagRule
     var isFiltered: Bool
-    var hasCopiedAdjustments: Bool
+    /// What Copy Adjustments… took, nil with nothing copied: Paste is
+    /// enabled by it, and the toolbar's Paste item names it (design §15 DQ-2).
+    var copiedSummary: [CopySummaryEntry]?
+    var hasCopiedAdjustments: Bool { copiedSummary != nil }
+    /// Copy Adjustments… opens its sheet (`LibraryModel.canCopyAdjustments`).
+    var canCopyAdjustments: Bool
     var presetCollections: [AdjustmentPresetCollection]
     var albums: [AlbumSummary]
     var isInAlbum: Bool
@@ -260,7 +265,8 @@ struct LibraryMenuState: Equatable {
         ratingRule = model.ratingRule
         flagRule = model.flagRule
         isFiltered = model.isFiltered
-        hasCopiedAdjustments = model.copiedAdjustments != nil
+        copiedSummary = model.copiedAdjustments?.summary
+        canCopyAdjustments = model.canCopyAdjustments
         presetCollections = model.adjustmentPresetCollections
         albums = model.albums
         isInAlbum = model.currentAlbumID != nil

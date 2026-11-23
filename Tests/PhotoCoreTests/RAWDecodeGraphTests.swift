@@ -241,7 +241,7 @@ struct RAWDecodeGraphTests {
     func rawFiltersAreMadeInKnownPlaces() throws {
         /// File → whether it renders the filter's image.
         let known = [
-            "Sources/PhotoCore/Preview/PreviewGenerator.swift": true,   // decodeRAW; nativeSize reads a size
+            "Sources/PhotoCore/Preview/PreviewGenerator.swift": true,   // decodeRAW; nativeSize and maskFrameSize read sizes
             "Sources/PhotoCore/Preview/CameraFrame.swift": false,       // hands its filter to decodeRAW
             "Sources/PhotoCore/Preview/SystemRAWDecoder.swift": false,  // asks whether there is an image (keyed, never rendered)
             "Sources/PhotoCore/Edits/AutoAdjust.swift": true,           // Auto White Balance; RawDefaults reads values

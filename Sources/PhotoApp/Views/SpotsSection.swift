@@ -85,8 +85,8 @@ private struct SpotControls: View {
                 editor.setSpotOpacity(value, phase: phase)
             }
             caption
-            Text("Presets and Paste Adjustments leave spots out.",
-                 comment: "The Spots heading's note, in the Masks heading's words (healing design §11)")
+            Text("Presets leave spots out. Copy Adjustments can copy them to photos of the same size.",
+                 comment: "The Spots heading's note (copy-adjustments-selective design §6)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

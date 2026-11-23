@@ -91,7 +91,7 @@ extension AdjustmentEditor {
 
     /// Masks and spots of a photo, whether their groups are on or not.
     func masksAndSpots(_ values: Adjustments) -> Int {
-        values.local.masks.count + values.spots.spots.count
+        LensFrameQuestion.masksAndSpots(values)
     }
 
     /// A commit from `previous` to `next` asks first: it moves the corrected
@@ -202,7 +202,7 @@ extension LibraryModel {
                 return body(commandTargets)
             }
             let candidates = await Task.detached(priority: .userInitiated) {
-                Self.frameCandidates(stored.stacks, transform: transform, open: open, openAnswer: openAnswer)
+                LensFrameQuestion.candidates(stored.stacks, transform: transform, open: open, openAnswer: openAnswer)
             }.value
             // Files are read only where Auto could make a difference.
             let reads = candidates.filter { $0.usesAuto && $0.id != open }.compactMap { candidate in
@@ -269,30 +269,6 @@ extension LibraryModel {
         body()
     }
 
-    /// A target that holds masks or spots, with its values before and after.
-    struct FrameCandidate: Sendable {
-        var id: Int64
-        var before: Adjustments
-        var after: Adjustments
-        /// Distortion uses Auto before or after: its file decides what moves.
-        var usesAuto: Bool
-    }
-
-    nonisolated static func frameCandidates(_ stacks: [Int64: EditStack], transform: (Adjustments) -> Adjustments,
-                                            open: Int64?, openAnswer: Int?) -> [FrameCandidate] {
-        stacks.compactMap { id, stack in
-            let before = Adjustments(stack: stack)
-            let after = transform(before)
-            let count = max(before.local.masks.count + before.spots.spots.count,
-                            after.local.masks.count + after.spots.spots.count)
-            guard count > 0 else { return nil }
-            if id == open, let openAnswer, count <= openAnswer { return nil }
-            let usesAuto = (before.distortion.isOn && before.distortion.source == .auto)
-                || (after.distortion.isOn && after.distortion.source == .auto)
-            return FrameCandidate(id: id, before: before, after: after, usesAuto: usesAuto)
-        }
-    }
-
     /// One file's lens state, off the main actor (`CameraLensState.read`).
     nonisolated static func readLensState(_ url: URL) async -> CameraLensState {
         CameraLensState.read(url)
@@ -305,7 +281,9 @@ extension AdjustmentEditor {
     }
 
     /// A paste or preset reaching the open photo was confirmed: asked on this
-    /// visit, for the masks and spots it has (a paste never brings any).
+    /// visit, for the masks and spots it has now. Spots a paste brings were
+    /// not asked about (the question counts the target's own, #243 C1), so
+    /// a later change that moves them asks again.
     func noteLensFrameAnswered() {
         lensFrameAnswer = masksAndSpots(adjustments)
     }

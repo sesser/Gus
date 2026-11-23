@@ -181,7 +181,7 @@ enum PhotoContextMenu {
             menu.addItem(.separator())
         }
         if state.focusedIsPhoto {
-            menu.addItem(ActionMenuItem(String(localized: "Copy Adjustments")) { model.copyAdjustments() })
+            menu.addItem(ActionMenuItem(CopyAdjustmentsText.menuItem) { model.openCopySheet() })
         }
         // Nothing edits a photo while comparing; Copy Adjustments does not.
         if state.hasCopiedAdjustments && state.targetsIncludePhoto && !state.isComparing {

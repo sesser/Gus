@@ -148,11 +148,13 @@ struct LibraryToolbar: CustomizableToolbarContent {
                 .disabled(state.mode == .grid ? !state.targetsIncludePhoto : !state.canEditLoupePhoto || state.isCropping)
         }
         ToolbarItem(id: "copyAdjustments", showsByDefault: false) {
-            Button { model.copyAdjustments() } label: { Label("Copy Adjustments", systemImage: "doc.on.doc") }
-                .disabled(!state.focusedIsPhoto)
+            Button { model.openCopySheet() } label: { Label("Copy Adjustments", systemImage: "doc.on.doc") }
+                .help(CopyAdjustmentsText.toolbarHelp)
+                .disabled(!state.canCopyAdjustments)
         }
         ToolbarItem(id: "pasteAdjustments", showsByDefault: false) {
             Button { model.pasteAdjustments() } label: { Label("Paste Adjustments", systemImage: "doc.on.clipboard") }
+                .help(CopyAdjustmentsText.pasteHelp(state.copiedSummary))
                 .disabled(!state.hasCopiedAdjustments || !state.targetsIncludePhoto || state.isComparing)
         }
         ToolbarItem(id: "addKeywords", showsByDefault: false) {

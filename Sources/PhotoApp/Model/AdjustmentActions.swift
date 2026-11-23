@@ -3,45 +3,7 @@ import Synchronization
 import PhotoCore
 
 extension LibraryModel {
-    // MARK: Copy and paste
-
-    /// Remembers the focused photo's adjustments for Paste Adjustments.
-    func copyAdjustments() {
-        guard let item = focusedItem, !item.isVideo else { return }
-        if editor.item?.versionID == item.versionID, editor.state == .ready {
-            copiedAdjustments = editor.adjustments
-            return
-        }
-        let catalog = self.catalog
-        let writes = self.writes
-        Task {
-            do {
-                // After pending saves: right after a paste, the catalog still has the values from before it.
-                copiedAdjustments = try await writes.savedAdjustments(ofVersion: item.versionID, in: catalog)
-            } catch is CancellationError {
-                return
-            } catch {
-                report(AdjustText.unreadableMessage(EditStack.ReadFailure(error)),
-                       action: String(localized: "Copy Adjustments"), warning: true)
-            }
-        }
-    }
-
-    /// Gives the selection (grid) or the photo on screen (loupe) the copied
-    /// adjustments; videos are left out (`batchSelection`).
-    func pasteAdjustments() {
-        guard let copiedAdjustments else { return }
-        let actionName = String(localized: "Paste Adjustments", comment: "Undo action name")
-        // Asks first when it moves the frame of photos with masks or spots (lens-corrections design §6).
-        confirmingLensFrameChange(actionName: actionName, { copiedAdjustments.pasted(onto: $0) }) { [self] targets in
-            if copiedAdjustments.needsAlignmentMeasurement {
-                changeAdjustmentsMeasuringAlignment(actionName: actionName, targets: targets) { copiedAdjustments.pasted(onto: $0) }
-                return
-            }
-            applyAdjustments(copiedAdjustments, toVersions: batchSelection(action: actionName, targets: targets).versionIDs,
-                             actionName: actionName)
-        }
-    }
+    // MARK: Measuring paste and presets
 
     /// A paste or preset that carries automatic color alignment: each photo
     /// it reaches is measured for itself (chromatic-aberration R16), one at a
@@ -55,6 +17,18 @@ extension LibraryModel {
     /// `targets` are the command's photos when it asked first (code review C11).
     func changeAdjustmentsMeasuringAlignment(actionName: String, toolbarTitle: String? = nil, targets: [CatalogItem]? = nil,
                                              _ transform: @escaping @Sendable (Adjustments) -> Adjustments) {
+        changeAdjustmentsMeasuringAlignment(actionName: actionName, toolbarTitle: toolbarTitle, targets: targets) { _, values in
+            transform(values)
+        }
+    }
+
+    /// As above, with each version's id, for changes that differ per photo
+    /// (a paste's spots, #243 R8). `then` runs after the write, with the
+    /// versions it wrote; never when Stop or a newer command ended the
+    /// measuring.
+    func changeAdjustmentsMeasuringAlignment(actionName: String, toolbarTitle: String? = nil, targets: [CatalogItem]? = nil,
+                                             then: (@MainActor (_ written: Set<Int64>) -> Void)? = nil,
+                                             _ transform: @escaping @Sendable (Int64, Adjustments) -> Adjustments) {
         let selection = batchSelection(action: actionName, targets: targets, needsMaster: { _ in true })
         let sources = selection.versionIDs.compactMap { id -> (Int64, URL, String)? in
             guard let item = item(versionID: id), let url = sourceURL(for: item) else { return nil }
@@ -92,7 +66,7 @@ extension LibraryModel {
                 guard !Task.isCancelled else { return }
                 // Stacks this build can't read stay in the list below: the catalog skips and reports them.
                 guard let stack = stored.stacks[id] else { continue }
-                let values = transform(Adjustments(stack: stack))
+                let values = transform(id, Adjustments(stack: stack))
                 if values.needsAlignmentMeasurement {
                     let alignment = await Task.detached(priority: .userInitiated) {
                         try? ColorAlignmentMeasurement.measure(source: url, adjustments: values, generator: generator)
@@ -115,8 +89,9 @@ extension LibraryModel {
             // Only when the open photo is itself one whose original could not be read (code review C15).
             if opensTarget(), let open = editor.item?.versionID, measured.failed(open) { editor.noteAlignmentMeasureFailed() }
             let alignments = measured.alignments
-            changeAdjustments(ofVersions: measured.versionsToChange(from: sources.map(\.0)), actionName: actionName) { id, values in
-                let changed = transform(values)
+            changeAdjustments(ofVersions: measured.versionsToChange(from: sources.map(\.0)), actionName: actionName,
+                              then: then) { id, values in
+                let changed = transform(id, values)
                 guard changed.needsAlignmentMeasurement, let alignment = alignments[id] else { return changed }
                 return changed.measuringAlignment(alignment)
             }
@@ -142,12 +117,6 @@ extension LibraryModel {
 
     // MARK: Applying to many photos
 
-    /// Replaces the adjustments of `ids` (keeping operations this build does not
-    /// know), as one undo step.
-    func applyAdjustments(_ values: Adjustments, toVersions ids: [Int64], actionName: String) {
-        changeAdjustments(ofVersions: ids, actionName: actionName) { values.pasted(onto: $0) }
-    }
-
     /// Gives each of `ids` `transform` of its adjustments, as one undo step.
     func changeAdjustments(ofVersions ids: [Int64], actionName: String,
                            _ transform: @escaping @Sendable (Adjustments) -> Adjustments) {
@@ -160,7 +129,21 @@ extension LibraryModel {
     /// R10): a file that is not RAW gets the other values, and an Activity
     /// row says how many were left without it.
     func changeAdjustments(ofVersions ids: [Int64], actionName: String,
+                           then: (@MainActor (_ written: Set<Int64>) -> Void)? = nil,
                            _ transform: @escaping @Sendable (Int64, Adjustments) -> Adjustments) {
+        changeAdjustments(ofVersions: ids, actionName: actionName, preparing: { transform }, then: then)
+    }
+
+    /// As above, with the change worked out on the write chain just before it
+    /// is written (`prepare` may read files). The undo step is registered
+    /// before this returns and the chain runs it after the change, so ⌘Z at
+    /// once undoes this change, never the one before it (#243 code review
+    /// C4). `prepare` holds back every later save while it runs: keep it to
+    /// a few quick reads. `then` runs after the write with the versions it
+    /// wrote (stacks this build can't read are skipped and reported).
+    func changeAdjustments(ofVersions ids: [Int64], actionName: String,
+                           preparing prepare: @escaping @MainActor () async -> @Sendable (Int64, Adjustments) -> Adjustments,
+                           then: (@MainActor (_ written: Set<Int64>) -> Void)? = nil) {
         guard !ids.isEmpty else { return }
         let change = Pending<(before: [Int64: EditStack], after: [Int64: EditStack])>()
         let skipped = Pending<Int>()
@@ -168,13 +151,14 @@ extension LibraryModel {
         let label = HistoryText.label(actionName, undoing: undoManager.isUndoing, redoing: undoManager.isRedoing)
         let notRaw = Set(ids.filter { item(versionID: $0).map { $0.fileKind != .raw } ?? false })
         let leftOff = LeftOffCounter()
-        let rawOnly: @Sendable (Int64, Adjustments) -> Adjustments = { id, values in
-            let changed = transform(id, values)
-            guard notRaw.contains(id), changed.asksForMachineLearning else { return changed }
-            leftOff.add(id)
-            return changed.forNonRawFile()
-        }
         persist {
+            let transform = await prepare()
+            let rawOnly: @Sendable (Int64, Adjustments) -> Adjustments = { id, values in
+                let changed = transform(id, values)
+                guard notRaw.contains(id), changed.asksForMachineLearning else { return changed }
+                leftOff.add(id)
+                return changed.forNonRawFile()
+            }
             // Stacks this build cannot read are left as they are (a newer build's edits).
             let result = try await catalog.changeEditStacks(ofVersions: ids, historyLabel: label, rawOnly)
             change.value = (result.before, result.after)
@@ -192,6 +176,7 @@ extension LibraryModel {
                                     comment: "Activity, after a batch adjustment: stacks this build cannot read"),
                              action: actionName, warning: true)
             }
+            if let then, let value = change.value { then(Set(value.after.keys)) }
         }
         registerEditStacksUndo(change, isUndo: true, actionName: actionName)
     }
