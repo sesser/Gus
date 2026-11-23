@@ -74,6 +74,22 @@ struct AppKitScrollView<Content: View>: NSViewRepresentable {
 
 final class FlippedClipView: NSClipView {
     override var isFlipped: Bool { true }
+
+    /// The scroll view resizes its clip view when a legacy scroller appears or
+    /// goes (the Info tab's content arrives after its first layout, so its
+    /// scroller comes later). The document view is pinned to the clip view's
+    /// edges, but a resize made inside the scroll view's own layout pass leaves
+    /// the clip view marked clean, so the document kept its old width and its
+    /// controls ran under the scroller (#236). Marking the clip view for layout
+    /// on the next turn of the run loop, outside that pass, makes Auto Layout
+    /// move the document's edges.
+    override func setFrameSize(_ newSize: NSSize) {
+        let widthChanged = newSize.width != frame.width
+        super.setFrameSize(newSize)
+        if widthChanged {
+            DispatchQueue.main.async { [weak self] in self?.needsLayout = true }
+        }
+    }
 }
 
 /// Scrolls the view it is the background of into view in the enclosing
