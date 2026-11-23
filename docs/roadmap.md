@@ -40,7 +40,7 @@ Principles (drawn from `README.md` and `CLAUDE.md`):
 
 ## Now (maximum three)
 
-Set by the owner 2026-11-20 (replacing #219, #218 and #87, all done); #241 and #88 left it when they shipped (2026-11-21) and #150 when it shipped (2026-11-22), so all three slots are free. A PRD is required for every Now item before any work starts. The owner picks what moves in; #243 is first in Next.
+Set by the owner 2026-11-20 (replacing #219, #218 and #87, all done); #241 and #88 left it when they shipped (2026-11-21) and #150 when it shipped (2026-11-22), so all three slots are free. #243 moved in on 2026-11-22 and shipped the same day. A PRD is required for every Now item before any work starts. The owner picks what moves in.
 
 (empty)
 
@@ -55,10 +55,9 @@ On 2026-11-18 the owner dropped #89, then #216 (built-in looks) the same day, in
 removing the Profile group (#219) and a B&W module (#218). Both shipped (2026-11-19), and
 so did lens corrections (#87, 2026-11-19).
 On 2026-11-20 the owner set Now to AI masks (#88), the preset list view (#241) and HDR merge (#150); they are no longer in Next. The preset list view (#241) shipped 2026-11-21, and HDR merge (#150) 2026-11-22.
-On 2026-11-20 the owner asked for a choice of what Copy Adjustments copies (#243); it goes first in Next, not Now (Now is full).
+On 2026-11-20 the owner asked for a choice of what Copy Adjustments copies (#243); it went first in Next (Now was full), moved to Now on 2026-11-22 and shipped 2026-11-22.
 The small fixes and tooling items can each go as a bug fix (`docs/WORKFLOW.md`).
 
-1. [#243](https://github.com/sesser/Gus/issues/243) `copy-adjustments-selective`: Copy Adjustments copies everything and Paste applies it all; a dialog with a check box per heading and group chooses what is copied (owner, 2026-11-20)
 1. [#64](https://github.com/sesser/Gus/issues/64) `reads-beside-write-chain`: Five reads still take a photo's edits from the catalog without waiting for pending saves, so right after a change they can get the older…
 1. [#65](https://github.com/sesser/Gus/issues/65) `full-render-main-thread-stall`: At 100%, every arrival at a photo and every change that is let go freezes the window for about 0.4 s (about 1.3 s with machine learning…
 1. [#66](https://github.com/sesser/Gus/issues/66) `adjust-tab-rebuild-on-arrival`: With the inspector open on Adjust, every arrival at a photo rebuilds the whole Adjust tab (the editor goes loading, then ready) and its…

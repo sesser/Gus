@@ -1297,7 +1297,58 @@ Reference mark (accepted), no test asserts that an extreme reference draws no
 warning, and the debug script's `print merge` goes on printing the sheet's line
 after it closes. Covered by CI only: VoiceOver, macOS 15 and macOS 26.
 
-Not yet: local Black & White through masks, Lightroom Black & White mapping on
+Choose what Copy Adjustments copies (`docs/features/copy-adjustments-selective/`,
+issue #243, branch `feature/copy-adjustments-selective`): Adjust ▸ Copy
+Adjustments… (⇧⌘C, the grid, loupe and video loupe context menus, the Adjust
+tab's ⋯ menu, the palette's toolbar item) opens a sheet (`LibraryModal
+.copyAdjustments`) with a check box per Adjust tab heading and group plus Crop &
+Straighten, in the tab's order and names (22 boxes; a heading's box is mixed
+when only some groups are checked; Check All and Uncheck All). Crop & Straighten,
+Spots and the four Lens groups start unchecked; of the rest a group is checked
+when the source changed it (a group off in the source but holding values counts)
+and otherwise unchecked, marked "No changes". Defaults are worked out per copy
+and not remembered; Copy (Return) is off with nothing checked; Esc keeps any
+earlier copy; no sheet for a video or unreadable edits (the existing warning).
+The source is the editor's saved values in the loupe, else the catalog's after
+pending saves. Paste Adjustments (⇧⌘V) replaces exactly the copied items'
+values and on/off state (a group at its defaults in the source resets the
+target's) and nothing else: masks, the stored decode, unknown operations and
+the camera profile reference stay the target's. One undo step, "Paste
+Adjustments", videos skipped, as before. Plain Copy then Paste no longer carries
+the crop or resets groups the source never changed. Lens groups paste as before
+(each photo reads its own table; Color Alignment measures each); the lens frame
+question counts only the masks and spots a target already has, not those the
+paste brings. Spots paste only onto a photo whose mask-frame size
+(`PreviewGenerator.maskFrameSize(of:)`: the oriented whole-sensor decode, no
+turns or crop, nothing decoded) equals the source's, a copy from a source with
+no spots included; the others keep theirs and Activity says how many and why
+(size differs; size or the source's original unreadable). The crop pastes as
+stored, with no remapping. The clipboard is still in the app. Code: PhotoCore
+`Edits/CopyAdjustments.swift` (`CopyItem`, `CopyRow`, `CopySheetState`,
+`CopiedAdjustments`, `SpotPastePlan`) and `Edits/LensFrameQuestion.swift`;
+PhotoApp `Model/CopyAdjustmentsActions.swift`, `CopyAdjustmentsText.swift`,
+`DebugCopyAdjustmentsCommands.swift`, `Views/CopyAdjustmentsSheet.swift`
+(`AppKitCheckbox`, system check boxes). The Paste toolbar item's tooltip names
+what was copied. Debug script: `copyadjust`, `copyadjust all|<item>…`,
+`copyadjust sheet …`, `print copysheet|clipboard|stacks|messages`. 18 strings
+added, the Spots note now says Copy Adjustments can copy them. Rulings
+2026-11-20: Q1 (changed groups only), Q2 (spots with the same-size rule), Q3
+(crop unchecked); 2026-11-22: design §15 DQ-1 (a second warning when a size
+can't be read) and DQ-2 (the Paste tooltip). No migration, no
+`PreviewCacheKey.currentPipelineVersion` bump (13), no golden moved, no
+rendering changed. Known: a one-photo Spots paste reads two files inside a
+write-chain step with no Stop (C6; up to about 100 ms for a cropped RW2 or ORF,
+seconds on a slow card reader or share; measuring at copy time would change
+DQ-1); in the grid a ⌘Z in the first instant of a paste can undo the step before
+it, and ⌘Z while a several-photo Spots paste measures does too (the measuring
+paste's limit from #87); a cropped Olympus, OM System or Panasonic raw is read
+whole to get its size. Shipped; the owner signed off 2026-11-22 after building
+the bundle on a scratch library, no checks left open
+(`docs/features/copy-adjustments-selective/qa.md`; P1 to P6 were not recorded
+one by one). Covered by CI only: VoiceOver, macOS 15 and macOS 26.
+
+Not yet: Copy Adjustments' remembering choices, copying without asking, masks
+(#92) and remapping a crop or spots to another frame size, local Black & White through masks, Lightroom Black & White mapping on
 import, Black & White items for a grid selection, sky and named-object masks,
 picking one instance, people beyond four, a feather or refine control on AI
 masks, AI masks in presets, paste and batches, automatic dust detection, a Remove brush, automatic lens corrections from tables other than

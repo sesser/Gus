@@ -94,8 +94,9 @@ I built this with Claude. AI did the work, I did the orchestration.
   from a clean patch nearby, chosen for you; drag the source if you want
   another, switch a spot between Heal and Clone, and set its size, feather
   and opacity. Spots stay on the same picture content when you crop or
-  rotate, can be turned off to compare, and are left out of copy, paste and
-  presets (at most 100 per photo; many spots slow the loupe down)
+  rotate, can be turned off to compare, and are left out of presets (Copy
+  Adjustments can carry them to photos of the same size; at most 100 per
+  photo; many spots slow the loupe down)
 - A History panel in the loupe's inspector lists a photo's saved edits and
   keeps them across restarts; click an earlier entry to go back to it, and
   undo that if you change your mind
@@ -119,6 +120,11 @@ I built this with Claude. AI did the work, I did the orchestration.
 - Presets show as a compact list of names (the default) or as thumbnails, with
   a switch at the right of the Presets buttons; hovering a preset previews it
   on the photo in either view, and Gus remembers your choice
+- Copy Adjustments (⇧⌘C) asks what to copy: a check box per heading and group
+  (Crop & Straighten, Spots and the Lens groups start unchecked, the groups the
+  photo has not changed are marked "No changes"), and Paste Adjustments (⇧⌘V)
+  changes only what was copied, in one undo step. Masks are never copied.
+  Spots paste only onto photos of the same size
 - Before/after, copy and paste, and presets, including import of Lightroom
   presets (`.lrtemplate`, `.xmp`, `.dng`) and Luminar preset packs (`.lnpc`,
   several at once) with a report of anything that doesn't carry over. Luminar's
