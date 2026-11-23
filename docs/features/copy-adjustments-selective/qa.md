@@ -306,5 +306,15 @@ use a library with a few photos, one pair of the same size and one of another.
 
 ## Follow-up
 
-(Nothing yet: no findings. The owner's sign-off, the commit signed off, its date and any checks left open go here
-when the main session relays them.)
+No findings to rerun. Nothing was opened against this file after the first QA pass.
+
+### Owner's sign-off
+
+- **Signed off:** 2026-11-22, by the owner.
+- **Commit signed off:** `5ddaae0` (this file's own commit). The last commit that changed source or tests is
+  `b034487`; `a4a7108` and everything after it change docs only.
+- **How:** the owner built the bundle (`Scripts/build-app.sh`) and ran it on a `photobench` scratch library with
+  `--library-root`, then answered "Signed off". The owner named no finding and no check to leave open.
+- **Checks left open:** none named. The owner did not say which of P1 to P6 they did one by one, so this records the
+  sign-off as given and claims nothing more about the individual P items.
+- **Covered by CI only:** VoiceOver, macOS 15 and macOS 26 (no hand checks, by the owner's standing ruling).
