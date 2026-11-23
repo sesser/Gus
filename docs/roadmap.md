@@ -56,18 +56,29 @@ removing the Profile group (#219) and a B&W module (#218). Both shipped (2026-11
 so did lens corrections (#87, 2026-11-19).
 On 2026-11-20 the owner set Now to AI masks (#88), the preset list view (#241) and HDR merge (#150); they are no longer in Next. The preset list view (#241) shipped 2026-11-21, and HDR merge (#150) 2026-11-22.
 On 2026-11-20 the owner asked for a choice of what Copy Adjustments copies (#243); it went first in Next (Now was full), moved to Now on 2026-11-22 and shipped 2026-11-22.
+On 2026-11-23 the owner dropped the closed items (#64, #65, #71, #73) and set Next to features: #28, #85, #90, #151, #199, #110, #108, #107, #104, in that order. The bugs and tooling items that were in Next went to the top of Later: none has affected the owner's use of the app, so features come first until a bug does (or others report one on GitHub).
 The small fixes and tooling items can each go as a bug fix (`docs/WORKFLOW.md`).
 
-1. [#64](https://github.com/sesser/Gus/issues/64) `reads-beside-write-chain`: Five reads still take a photo's edits from the catalog without waiting for pending saves, so right after a change they can get the older…
-1. [#65](https://github.com/sesser/Gus/issues/65) `full-render-main-thread-stall`: At 100%, every arrival at a photo and every change that is let go freezes the window for about 0.4 s (about 1.3 s with machine learning…
+1. [#28](https://github.com/sesser/Gus/issues/28) `publishing-engine`: Getting edited photos into Apple Photos or Immich means exporting to a folder and uploading by hand
+1. [#85](https://github.com/sesser/Gus/issues/85) `dng-export`: No DNG output
+1. [#90](https://github.com/sesser/Gus/issues/90) `stacks`: No hand-made or burst stacks
+1. [#151](https://github.com/sesser/Gus/issues/151) `panorama-merge`: No way to merge overlapping photos into a panorama. Open for the PRD: approach (Core Image if it offers stitching, the Hugin libraries, or a stitcher of our own); GRDB is the only dependency (ask first) and Hugin is GPL (owner, 2026-11-11)
+1. [#199](https://github.com/sesser/Gus/issues/199) `xtrans-demosaic-sharper`: A sharper X-Trans demosaic (homogeneity-directed); the GPU demosaic's X-Trans kernel from #196 is 0.3 to 1.1 dB under LibRaw's three passes and softer on some files (owner, 2026-11-17)
+1. [#110](https://github.com/sesser/Gus/issues/110) `ml-denoise-missing-model`: On a Mac with macOS 27 but without the RAW 9 model, a photo that asks for machine learning noise reduction would say "could not be…
+1. [#108](https://github.com/sesser/Gus/issues/108) `viewport-faster-frames`: At 100% on the owner's display a typical stack draws 6 to 7 sharp frames a second while a value moves (p95 about 140–160 ms);
+1. [#107](https://github.com/sesser/Gus/issues/107) `in-app-help`: The app has no help;
+1. [#104](https://github.com/sesser/Gus/issues/104) `mcp-server`: No MCP access to the command registry
+
+## Later
+
+Roughly ordered by dependency, then by how often a photographer would hit the gap.
+
 1. [#66](https://github.com/sesser/Gus/issues/66) `adjust-tab-rebuild-on-arrival`: With the inspector open on Adjust, every arrival at a photo rebuilds the whole Adjust tab (the editor goes loading, then ready) and its…
 1. [#67](https://github.com/sesser/Gus/issues/67) `raw-edge-smear-stored-alignment`: Photos whose Color Alignment was measured with Align automatically before the raw-edge-smear fix may store slightly wrong values (red…
 1. [#68](https://github.com/sesser/Gus/issues/68) `raw-edge-smear-os-watch`: The raw-edge-smear fix rests on undocumented Core Image behavior seen on macOS 27.2 only
 1. [#69](https://github.com/sesser/Gus/issues/69) `loupe-caption-narrow`: At narrow window widths the loupe caption's items collide
 1. [#70](https://github.com/sesser/Gus/issues/70) `classical-noise-strength`: The classical noise sliders (RAW decoder and Core Image filter) are mild at 100;
-1. [#71](https://github.com/sesser/Gus/issues/71) `local-sharpen-group-off`: Turning the Sharpening group off makes local Sharpness use the default Radius 1, Detail 25 and Masking 0 instead of the user's values,…
 1. [#72](https://github.com/sesser/Gus/issues/72) `sharpen-masking-scale`: Masking holds back much more noise at fit than in a full-size export:
-1. [#73](https://github.com/sesser/Gus/issues/73) `dehaze-above-white`: Dehaze and local tone estimates jump on extended-range (above white) input
 1. [#74](https://github.com/sesser/Gus/issues/74) `slider-field-shift-step`: ⇧↑ / ⇧↓ in an adjustment slider's value field likely don't step by 10 as the design asks
 1. [#75](https://github.com/sesser/Gus/issues/75) `export-missing-file-reason`: An export whose original is missing from a connected volume says "the volume … is not connected"
 1. [#76](https://github.com/sesser/Gus/issues/76) `appkitbutton-enablement`: Some inspector buttons look enabled when they should be dimmed (the mask eye button and other Adjust tab buttons are likely affected):
@@ -76,19 +87,10 @@ The small fixes and tooling items can each go as a bug fix (`docs/WORKFLOW.md`).
 1. [#79](https://github.com/sesser/Gus/issues/79) `debug-script-undo-groups`: Debug-script commands that change nothing (ml wait, ml ready, ml override, a key with no effect, adjust crop show, adjust crop begin)…
 1. [#80](https://github.com/sesser/Gus/issues/80) `debug-resignkeyboard-inactive`: The debug command magnifier resignkeyboard can silently do nothing in a process that isn't active:
 1. [#81](https://github.com/sesser/Gus/issues/81) `qa-test-gaps`: Three tests don't check what they are named for
-
-## Later
-
-Roughly ordered by dependency, then by how often a photographer would hit the gap.
-
 1. [#82](https://github.com/sesser/Gus/issues/82) `ui-redesign-onscreen-check`: Shipped work that only a person can check
-1. [#28](https://github.com/sesser/Gus/issues/28) `publishing-engine`: Getting edited photos into Apple Photos or Immich means exporting to a folder and uploading by hand
 1. [#29](https://github.com/sesser/Gus/issues/29) `publishing-plugins`: Destinations beyond the built-ins need app changes
 1. [#83](https://github.com/sesser/Gus/issues/83) `pick-colors-magnifier`: The Color Range mask's Pick Colors doesn't use the Pixel Magnifier, so the person can't see which pixel a click takes or read its values
 1. [#84](https://github.com/sesser/Gus/issues/84) `apple-feedback-raw-lens-state`: Core Image's RAW decoder reuses a context's prepared lens correction regions for a different raw with the same graph digest, which…
-1. [#85](https://github.com/sesser/Gus/issues/85) `dng-export`: No DNG output
-1. [#151](https://github.com/sesser/Gus/issues/151) `panorama-merge`: No way to merge overlapping photos into a panorama. Open for the PRD: approach (Core Image if it offers stitching, the Hugin libraries, or a stitcher of our own); GRDB is the only dependency (ask first) and Hugin is GPL (owner, 2026-11-11)
-1. [#90](https://github.com/sesser/Gus/issues/90) `stacks`: No hand-made or burst stacks
 1. [#91](https://github.com/sesser/Gus/issues/91) `hierarchical-keywords`: Keywords are flat
 1. [#92](https://github.com/sesser/Gus/issues/92) `masks-in-presets-and-paste`: Presets, paste and sync leave masks out;
 1. [#93](https://github.com/sesser/Gus/issues/93) `whole-mask-invert`: Inverting a whole mask takes a first Subtract component
@@ -102,14 +104,9 @@ Roughly ordered by dependency, then by how often a photographer would hit the ga
 1. [#101](https://github.com/sesser/Gus/issues/101) `avchd-video`: MTS/M2TS files are not catalogued
 1. [#102](https://github.com/sesser/Gus/issues/102) `second-loupe-display`: No loupe on a second display
 1. [#103](https://github.com/sesser/Gus/issues/103) `cli-writes-while-open`: photocli cannot write while the app has the library open
-1. [#104](https://github.com/sesser/Gus/issues/104) `mcp-server`: No MCP access to the command registry
 1. [#105](https://github.com/sesser/Gus/issues/105) `people-recognition`: No way to find photos of a person
 1. [#106](https://github.com/sesser/Gus/issues/106) `metadata-reader-status`: When ExifTool isn't installed, metadata silently comes from ImageIO, which changes what the Info tab, smart albums and sidecar…
-1. [#107](https://github.com/sesser/Gus/issues/107) `in-app-help`: The app has no help;
-1. [#108](https://github.com/sesser/Gus/issues/108) `viewport-faster-frames`: At 100% on the owner's display a typical stack draws 6 to 7 sharp frames a second while a value moves (p95 about 140–160 ms);
 1. [#109](https://github.com/sesser/Gus/issues/109) `viewport-large-photos`: Above 24 MP, sharp frames at 100% are slower (over 100 ms even in small windows at 54 MP) and the full-resolution copy held at 100%…
-1. [#110](https://github.com/sesser/Gus/issues/110) `ml-denoise-missing-model`: On a Mac with macOS 27 but without the RAW 9 model, a photo that asks for machine learning noise reduction would say "could not be…
-1. [#199](https://github.com/sesser/Gus/issues/199) `xtrans-demosaic-sharper`: A sharper X-Trans demosaic (homogeneity-directed); the GPU demosaic's X-Trans kernel from #196 is 0.3 to 1.1 dB under LibRaw's three passes and softer on some files (owner, 2026-11-17)
 
 ## Dropped
 
