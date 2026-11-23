@@ -4,7 +4,7 @@ Owner: qa-tester. Date: 2026-11-22. Step 4 of `docs/WORKFLOW.md`.
 Tested: `bug/info-tab-legacy-scroller` at 395bdbe (the fix is 9825316), on an Apple M4 Pro, macOS 27.2.1 (26B131), macOS SDK 27.2 (`Scripts/build-app.sh`). Issue #236, Complexity: routine. A bug fix: no PRD; the criteria are `status.md`'s **Bug** section and the issue.
 
 ## Verdict
-Passes. With a legacy scroller the Info tab's controls now stay inside the visible width (`controls 12...271 … fits`; before the fix `12...288 … overflow`, reproduced here on `develop`), nothing changed with overlay scrollers, in the Adjust tab or in #223's per-control verdicts, and the full `swift test` passes. The regression check is the debug script only (PhotoApp has no test target); one thing is left for a person: the look beside a real legacy scroller (P1).
+Passes, and the owner signed off on 2026-11-22 (commit 06f3477, no checks left open; see Follow-up). With a legacy scroller the Info tab's controls now stay inside the visible width (`controls 12...271 … fits`; before the fix `12...288 … overflow`, reproduced here on `develop`), nothing changed with overlay scrollers, in the Adjust tab or in #223's per-control verdicts, and the full `swift test` passes. The regression check is the debug script only (PhotoApp has no test target); the one check for a person, the look beside a real legacy scroller (P1), was done by the owner and is closed by the sign-off.
 
 ## Acceptance criteria
 The Bug section and the issue give four things to check.
@@ -16,7 +16,7 @@ The Bug section and the issue give four things to check.
 | B3. Overlay scrollers, the Adjust tab (in the loupe and, outside it, in the grid) and #223's segmented-control verdicts do not change | Script | S1 and S4 before and after, `diff` of the outputs: only the Info lines differ (legacy); overlay output identical | Pass |
 | B4. The test that fails without the fix | Script (no test can reach it) | `status.md` names `print inspectorwidth` as the check: `overflow` before, `fits` after, both shown here (S1, S3). PhotoApp has no test target, so nothing guards it automatically (the code reviewer says the same). | Pass, manual only |
 | B5. Nothing else broke: `swift test` | Test | `swift test`: `Test run with 1452 tests in 206 suites passed after 79.885 seconds` | Pass |
-| B6. The fields' right edge beside a real legacy scroller looks right | Person | P1 (the script measures frames and cannot draw the panes in the current design) | Open |
+| B6. The fields' right edge beside a real legacy scroller looks right | Person | P1 (the script measures frames and cannot draw the panes in the current design) | Pass (owner, 2026-11-22: built the bundle with P1's commands, ran it on `/tmp/qa236lib`, replied "Signed off"; no item-by-item description) |
 
 ## Findings
 No failures. Two observations for the engineer, neither blocks.
@@ -83,9 +83,9 @@ wait 2; inspector on; wait 1; focus IMG_00001; tab info; wait 2; <windowsize 140
 `swift test`: `Test run with 1452 tests in 206 suites passed after 79.885 seconds`. After the runs: no `Gus` process running (`pgrep -x Gus` finds none); the owner's library folder (`~/Library/Application Support/Gus/Library`) has no file newer than the run's start (newest: `catalog.sqlite-wal`, Nov 20); the copies' defaults domains were deleted; the scratch worktree of `develop` was removed; the checkout is clean (`git status` empty).
 
 ## For a person
-Only one thing, and the owner needs no VoiceOver, macOS 15 or macOS 26 check (CI only).
+Only one thing, and the owner needs no VoiceOver, macOS 15 or macOS 26 check (CI only). Status: P1 done by the owner on 2026-11-22 (see Follow-up); nothing is left open.
 
-- **P1 (the look beside a real legacy scroller; covers B6; no M-number, there was no design review).** Build the bundle and run it on a scratch library, never the real one:
+- **P1 (done 2026-11-22; the look beside a real legacy scroller; covers B6; no M-number, there was no design review).** Build the bundle and run it on a scratch library, never the real one:
   ```
   swift run -c release photobench generate --output /tmp/qa236src --jpeg 4 --dng 2 --heic 1
   swift run -c release photobench import --library-root /tmp/qa236lib --source /tmp/qa236src
@@ -95,4 +95,11 @@ Only one thing, and the owner needs no VoiceOver, macOS 15 or macOS 26 check (CI
   Turn on System Settings ▸ Appearance ▸ Show scroll bars: Always (or attach a mouse). Open a photo with Return (the loupe), show the inspector (View menu) at its default width, choose the Info tab. Look for: the Keywords entry and the Metadata fields end a clear gap (about 12 pt) before the vertical scroller, as the Adjust tab's controls do; nothing is cut off or runs under the scroller. Then drag the inspector's left edge wider and narrower (the script cannot) and fold and unfold the Keywords and Metadata headings so the scroller comes and goes: the fields should follow the visible width each time, with no jump or flicker at the end of the animation. Set Show scroll bars back to what it was.
 
 ## Follow-up
-Not yet rerun after any change; no sign-off recorded.
+Not rerun after any change to source or tests: the source last changed at 9825316, and 06f3477 only corrects `status.md`'s root cause for the code review's C2 and my Q1 (docs only, after my pass). Q1 is therefore addressed by that commit; Q2 was a note and needed no fix.
+
+### Owner's sign-off
+- **Signed off: 2026-11-22**, commit **06f3477** (source last changed at 9825316).
+- How: the owner built the bundle with the commands in P1, ran it on the scratch library `/tmp/qa236lib`, and replied "Signed off". The choice offered was signing off, or signing off with P1 left open. The owner did not describe what they saw item by item, so B6 and P1 are recorded as done on the strength of the sign-off alone.
+- Checks left open: none.
+- Code review's C1 (nit) is left unfixed.
+- `develop` had no new commits to merge into the branch.
