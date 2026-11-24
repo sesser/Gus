@@ -7,7 +7,7 @@ import PhotoCore
 ///     import source <path> | dest <path> | job <text> | delete on|off | eject on|off
 ///            | videos on|off (waits) | rescan (waits) | toggle <index of a shown shot>
 ///            | accessibility <role>|any [<n> press|<action name>] (see AccessibilityProbe)
-///            | run (waits) | start (does not wait) | close (the window) | terminate (as ⌘Q)
+///            | run (waits) | start (does not wait) | stop (as Stop; waits) | close (the window) | terminate (as ⌘Q)
 ///            | alert [<button title>] (prints the window's alert, or presses a button) | confirm yes|no | snapshot <file> | print
 ///            | template folder|file|project <text> | tokens … (see TemplateFieldProbe)
 ///            | grid (each cell: name, checked, focus) | key left|right|up|down|space|return (to the grid)
@@ -28,7 +28,7 @@ public enum ImportDebugCommands {
             model.includesVideos = argument == "on"
             await waitForScan(model)
         case "rescan":
-            model.rescan(keepingPicks: true)
+            model.rescanSource()
             await waitForScan(model)
         case "toggle":
             guard let index = Int(argument), model.visibleShots.indices.contains(index) else { return false }
@@ -56,6 +56,11 @@ public enum ImportDebugCommands {
             model.startImport()
             try? await Task.sleep(for: .milliseconds(100))
             while model.isImporting { try? await Task.sleep(for: .milliseconds(100)) }
+            try? await Task.sleep(for: .milliseconds(500))
+        case "stop":
+            // As Stop (⌘.): waits for the import to end.
+            model.cancelImport()
+            for _ in 0..<300 where model.isImporting { try? await Task.sleep(for: .milliseconds(100)) }
             try? await Task.sleep(for: .milliseconds(500))
         case "start":
             // As Import N Photos, without waiting for the copy.
@@ -159,7 +164,9 @@ public enum ImportDebugCommands {
 
     private static func waitForScan(_ model: CardImportModel) async {
         try? await Task.sleep(for: .milliseconds(100))
-        while model.isScanning { try? await Task.sleep(for: .milliseconds(100)) }
+        while model.isScanning || model.browse?.isConnecting == true || model.browse?.isLoadingPage == true {
+            try? await Task.sleep(for: .milliseconds(100))
+        }
     }
 
     public static func printState(_ model: CardImportModel) {
