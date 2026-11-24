@@ -584,3 +584,136 @@ project. This matches design §5.3 ("When **Add to** names an existing project
 the field is absent") and DQ-13. The guide's "A card or folder import set to
 **New Project** still always makes a new one" still holds:
 `CopyImporter` and `Importer` call `createProject`.
+
+## Seventh pass
+
+Reviewed: `feature/immich-import`, 465fbec..9dca22c (9dca22c: the CI failure on
+PR #278; `RemoteHTTPSession.swift`, `FakeImmichServer.swift`,
+`RemoteReviewFixTests.swift`, `status.md`). Date: 2026-11-24. Build and tests:
+`swift build --build-tests` clean. `swift test --filter
+"RemoteReviewFixTests|RemoteConnectionTests|RemoteBoundaryTests|RemoteImportTests|RemoteSecurityTests"`:
+54 tests in 6 suites pass. The three cap tests (`caps`, `streamingCaps`,
+`capWhileCallerStarved`) 50 of 50 runs clean. `gh pr checks 278`: all four
+jobs pass (test and bundle, macos-15 and macos-26). Probes ran in a throwaway
+worktree and in standalone programs under the scratchpad, never in the
+repository; they are described below.
+
+### Verdict
+
+The fix is right for what CI showed. Bytes are now taken on the session's
+delegate queue, so neither the cap nor the request timeout depends on the
+caller being scheduled. `capWhileCallerStarved` fails on the old client, and
+nothing an earlier pass or `security-review.md` checked has regressed. Two
+Should-fix findings stay open. C22 is new in the JSON path: a cancellation
+that lands as `perform` starts can lose the result, and the call then never
+returns. C23 is older than this commit and was found while checking
+compressed bodies: a `Content-Encoding` answer gets past the memory bound C4
+asked for, because URLSession decodes before any cap sees the bytes.
+`/security-review` should run again on `RemoteHTTPSession.swift` (see below).
+
+### Findings
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C22 | Should fix | `Sources/PhotoCore/Remote/RemoteHTTPSession.swift:155-162` (`perform`), `:278-280` and `:315-333` (`MemorySink.start` / `finished`); the same pattern was already in `download` (`:222-229`, `DownloadSink.start` `:359`) | If the task is already cancelled when `withTaskCancellationHandler` is entered, `onCancel` runs first: `task.cancel()` on the suspended data task. URLSession then sends `didCompleteWithError` (-999) to the delegate without any `resume`. Measured here: 0.2 to 2.7 ms later, on the delegate's queue. `finished` drops its result when `start` has not yet stored the continuation (`continuation?.resume` on nil). `start` then stores a continuation that nothing will ever resume. The completed task gives no further callback and no timeout. | A thumbnail request (`RemoteThumbnails.thumbnail`: cancelled between its `Task.isCancelled` check and `perform`), or step 2 of `check()` after Cancel, enters `perform` cancelled. If the calling thread is preempted for about 0.3 ms between `onCancel` and `sink.start`, the call never returns. The thumbnail holds one of six slots for good (its `defer { release() }` never runs). An import page or download blocks Stop until `waitUntilDone`'s timeout. The sink and continuation leak. Probe: the exact structure of `perform`, `MemorySink` and `SessionDelegate` in a standalone program. With a 2 ms delay before `sink.start`, 500 of 500 pre-cancelled calls never returned. Without the delay, 0 of 220,000 calls hung (20,000 idle, 200,000 under 3x CPU oversubscription). The window is real, rare, and the result is permanent. `bytes(for:)` handled this inside Foundation, so it is new for JSON and thumbnails. Fix: `finished` keeps its result when there is no continuation yet, and `start` resumes at once when a result is already there. Do the same in `DownloadSink`. Test: call `finished` before `start` on each sink, and expect the continuation to be resumed. | Concurrency: "cancellation honored", no hang |
+| C23 | Should fix (older than this commit) | `RemoteHTTPSession.swift:302-313` (`MemorySink.received(_ data:)`) and `:380-399` (`DownloadSink`); C4's fix | URLSession decodes `Content-Encoding: gzip` (and deflate and br) before the delegate sees the bytes, and hands the decoded body over in very large pieces. The cap counts decoded bytes, so it refuses the piece only after it has been allocated. `expectedContentLength` is -1 for an encoded answer even when `Content-Length` is sent, so the check at the head never fires. Sending `Accept-Encoding: identity` does not stop the decoding (probed). | Probe: a local server answers with 1 MiB of gzip that decodes to 1 GiB of spaces. A delegate data task with the 16 MiB cap logic received 2 pieces, the larger 672,080,196 bytes, and peaked at 1.37 GB resident before it cancelled. The old `bytes(for:)` client peaked at 2.16 GB on the same answer, so this commit did not cause it and makes it a little smaller. In the app, any address typed in Add Server… (not yet known to be Immich) answers the unauthenticated `/api/server/version` (cap 64 KiB) this way, and the app allocates on the order of a thousand times what was sent. A few MiB sent this way would likely end the app, which C4 was meant to prevent; only 1 GiB decoded was measured. Thumbnails and originals are reachable the same way. The fix is for the engineer and `/security-review` to choose. Options: refuse any `Content-Encoding` on thumbnails and originals (images are not sent compressed); for JSON, read through a transport that does not decode automatically, or accept a documented bound. | Security: "bounds, sizes and counts checked before allocation"; C4 |
+
+### Checked and fine
+
+- **The CI failure and its test.** The cause in `status.md` holds:
+  `bytes(for:)` is pulled by the caller's task, and the new data task is not.
+  Probe: in a throwaway worktree at 9dca22c with the old
+  `RemoteHTTPSession.swift` (from 465fbec) restored, `capWhileCallerStarved`
+  failed after 60.02 s with both expectations (`error == .tooLarge` at `:398`,
+  `heldUntilAnswered == true` at `:399`). With the fix it passes in about
+  0.04 s. Determinism, a structural argument: the result is decided on the
+  session's delegate queue (an `OperationQueue` on GCD, not Swift's pool) by
+  counting bytes. The hold is a GCD serial queue the test owns. It is released
+  by an event (`onAnswered`: all bytes handed off, or the client closed the
+  connection). The 60 s is only a bound that ends a hold that would never end.
+  On the fixed client the caller can only resume after the cap, whichever
+  comes first, so an early `onAnswered` (bytes buffered by the kernel) still
+  passes. The 50 clean runs rule out a flake rate above about 1 in 17. The
+  test's power to catch a regression depends on the loopback buffers holding
+  less than 17 MiB. That held here (the old client stayed stuck) and on both
+  runners (CI's original failure).
+- **Caps (C4, C16, C19).** A `Content-Length` over the cap is refused at the
+  head (`received(response)` returns false, and the disposition is
+  `.cancel`), and `refusal` wins over the -999 that follows. Chunked or
+  length-less bodies are checked before each append
+  (`count + piece <= limit`). Exactly `limit` bytes is accepted, as before.
+  The data is dropped at refusal. The held memory is at most `limit` plus
+  `reserveCapacity` (which is bounded by `limit`). The download half is
+  unchanged (`DownloadSink.received`). C19's test still discriminates. Gaps:
+  C23.
+- **Statuses, redirects, not-HTTP.** A non-2xx answer becomes
+  `.status(code)` at the head with no body read. The redirect delegate
+  (`completionHandler(nil)`) is untouched, so a 3xx stays the answer
+  (`redirectNotFollowed` passes, and the second server gets no request). An
+  answer that is not HTTP is `.malformed`. A completion with no response
+  (`status == 0`) is `.malformed`.
+- **TLS and pinning.** Data tasks made by `session.dataTask(with:)` carry no
+  per-task delegate, so the session's `SessionDelegate` gets the server-trust
+  challenge (both the session-level and the task-level method go to
+  `handle`). That is the same path downloads already used, and the same one
+  `bytes(for:)` without a delegate used. A refusal is now taken in
+  `didCompleteWithError` for the failing task and carried in
+  `TaskFailure.transport`. If the delegate took none, `mapped(error)` still
+  tries `takeRefused` again, as before. `noTrustBypass` still scans the file.
+  There is no end-to-end TLS test (the fake is plain http), as before.
+  Observation, not a finding: `refused` is still session-wide. A concurrent
+  task's error completion can now take a refusal meant for another task,
+  including the cap's and status's own cancels, which did not call it before.
+  That needs a refused handshake and another task failing between that
+  handshake's two callbacks on the serial delegate queue. Then the refused
+  task reads as "cancelled" instead of `.certificate`. All tasks go to one
+  host with one pin, so it is unlikely. Downloads already shared it.
+- **Session posture.** No change to the ephemeral configuration (no cookies,
+  `urlCache` nil, no credential storage, `reloadIgnoringLocalCacheData`),
+  `makeRequest` (allowlist before the URL exists, the built host checked
+  against the connection's, `x-api-key` only when `sendsKey`), or
+  `TransportPolicy` in `init`.
+- **Timeouts and retries.** `timeoutIntervalForRequest` is a session
+  configuration, so it applies to the data task as it did to `bytes(for:)`.
+  Probe: a delegate data task against a server that accepts and never answers
+  failed with -1001 after 2.0 s at a 2 s timeout. The resource timeout is the
+  default, as before. A timeout maps to `.unreachable(reason)`, which is
+  `isTransient`, so `RemoteImporter`'s 1, 2, 4 s retries still apply.
+- **Error mapping.** `.remote` carries the sink's own decision (status,
+  `tooLarge`, `malformed`). `.transport` goes through `mapped(error)`, with
+  `.cancelled` only when `Task.isCancelled`; that is read in `perform` after
+  the resume, in the caller's task. Otherwise it becomes
+  `.unreachable(reason)` without the URL. `DownloadSink.finished` maps exactly
+  as the old delegate code did. `download` still gives `.cancelled` only when
+  the task is cancelled.
+- **Concurrency and memory.** `MemorySink` is a final class with `let`
+  properties (`Int`, `Mutex`), so it is checked `Sendable`, not unchecked.
+  `TaskFailure`'s `any Error` is `Sendable`. The result is moved out under the
+  lock and resumed outside it, so nothing reads `data` after completion
+  without the lock. `unregister` runs after every resume, because nothing
+  throws between them. There is no retain cycle: URLSession holds the
+  delegate until `deinit`'s `invalidateAndCancel`, the delegate holds the
+  sinks until `unregister`, and the sinks hold only their continuation, which
+  is cleared in `finished`. The one leak is C22's.
+- **Fake server.** `onRequest` runs before the drop fault and the answer.
+  `onAnswered` runs on `contentProcessed` for every path. The slow path stops
+  after its first half when the send fails. There are no other changes to
+  answers; the remote suites pass.
+- **Risk area.** Yes: network code, which enforces the caps, redirects,
+  certificates, allowlist and key header; cancellation; and off-main-actor
+  shared state.
+
+### `/security-review`
+
+Run it again, on `Sources/PhotoCore/Remote/RemoteHTTPSession.swift`. The rules
+themselves (allowlist, key header, redirect refusal, challenge handling,
+session configuration) are unchanged lines. But the layer that enforces the
+response caps and maps certificate refusals was rewritten. Only the cap paths
+have tests that exercise the new code, and the TLS path has no end-to-end
+test. C23 is a gap in an earlier security fix (C4). Ask it to look at C22,
+C23 and the session-wide `refused`.
+
+### Follow-up
+
+C22 and C23 are open. Record each here with its commit, or with the ruling if
+C23 is accepted as a documented bound.
