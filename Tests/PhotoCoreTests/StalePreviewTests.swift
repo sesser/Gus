@@ -84,18 +84,19 @@ struct StalePreviewTests {
         try await RepositoryFiles.withTemporaryDirectory { root in
             let service = PreviewService(cache: PreviewDiskCache(root: root.appending(path: "cache")),
                                          editStack: { _ in .identity })
-            // A JPEG with a gain map: its HDR rendition has a patch at four times SDR white.
+            // A PQ-encoded HEIC with a patch at four times SDR white (a gain map
+            // alone is not HDR content, issue #277).
             let plain = root.appending(path: "plain.jpg")
             try SyntheticImages.writeJPEG(to: plain, width: 800, height: 600, seed: 4,
                                           exif: .init(dateTimeOriginal: "2024:01:01 00:00:00", orientation: 1))
             let sdr = try #require(CIImage(contentsOf: plain))
             let patch = CIImage(color: CIColor(red: 4, green: 4, blue: 4, colorSpace: RenderEngine.hdrColorSpace)!)
                 .cropped(to: CGRect(x: 100, y: 100, width: 200, height: 150))
-            let data = try #require(service.generator.engine.withContext {
-                $0.jpegRepresentation(of: sdr, colorSpace: RenderEngine.outputColorSpace,
-                                      options: [.hdrImage: patch.composited(over: sdr)])
-            })
-            let source = root.appending(path: "gain-map.jpg")
+            let data = try service.generator.engine.withContext {
+                try $0.heif10Representation(of: patch.composited(over: sdr),
+                                            colorSpace: CGColorSpace(name: CGColorSpace.displayP3_PQ)!, options: [:])
+            }
+            let source = root.appending(path: "pq.heic")
             try data.write(to: source)
 
             let edit = Self.edited(ev: -2)

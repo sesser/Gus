@@ -5,16 +5,16 @@ import PhotoFixtures
 import Testing
 @testable import PhotoCore
 
-/// Issue #277: a gain-map HEIC looks a stop brighter in the loupe than in
-/// Quick Look, and a slider edit seems to snap back on release.
+/// Issue #277: a gain-map HEIC looked about a stop brighter in the loupe
+/// than in Quick Look, and a slider edit seemed to snap back on release.
 ///
-/// These tests record the cause as the code behaves today (status.md, Bug):
-/// on a display with extended dynamic range the loupe shows `hdrImage`, the
-/// gain map's HDR rendition, which for an iPhone-style gain map is brighter
-/// than the SDR rendition below SDR white too, while live frames, previews,
-/// exports and stacks `preservesExtendedRange` turns away are the SDR one.
-/// The fix waits on the ruling in status.md (RI-1); these expectations
-/// change with it.
+/// The cause (status.md, Bug): on a display with extended dynamic range the
+/// loupe showed `hdrImage`, the gain map's HDR rendition, which for an
+/// iPhone-style gain map is brighter than the SDR rendition below SDR white
+/// too, while live frames, previews, exports and stacks
+/// `preservesExtendedRange` turns away are the SDR one. Ruled (RI-1, option
+/// A): a gain map alone is not HDR content, so the loupe shows the SDR
+/// rendition throughout. HLG and PQ files keep their HDR rendition.
 @Suite("Gain-map renditions (issue #277)")
 struct GainMapRenditionTests {
     /// Luminance statistics in linear Display P3 relative to SDR white, of
@@ -33,8 +33,12 @@ struct GainMapRenditionTests {
             let space = CGColorSpace(name: CGColorSpace.extendedLinearDisplayP3)!
             CIContext(options: [.workingFormat: CIFormat.RGBAf])
                 .render(reduced, toBitmap: &pixels, rowBytes: width * 16, bounds: bounds, format: .RGBAf, colorSpace: space)
-            var luminance = (0..<(width * height)).map {
-                0.2290 * pixels[$0 * 4] + 0.6917 * pixels[$0 * 4 + 1] + 0.0793 * pixels[$0 * 4 + 2]
+            var luminance = [Float](repeating: 0, count: width * height)
+            for index in luminance.indices {
+                let red: Float = 0.2290 * pixels[index * 4]
+                let green: Float = 0.6917 * pixels[index * 4 + 1]
+                let blue: Float = 0.0793 * pixels[index * 4 + 2]
+                luminance[index] = red + green + blue
             }
             mean = luminance.reduce(0, +) / Float(luminance.count)
             luminance.sort()
@@ -52,79 +56,82 @@ struct GainMapRenditionTests {
 
     static let contrast = EditStack(operations: [EditOperation(kind: "tone", parameters: ["contrast": .number(20)])])
 
-    /// One stop of gain: the HDR rendition is twice the SDR one's light everywhere.
+    /// One stop of gain: the HDR picture is twice the SDR one's light everywhere.
     static let gain = 2.0
 
-    @Test("A gain map that lifts the whole picture makes the loupe's HDR rendition brighter below white too",
-          arguments: [GainMapImages.Container.heic, .jpeg])
-    func hdrRenditionIsBrighterBelowWhite(container: GainMapImages.Container) async throws {
-        try await RepositoryFiles.withTemporaryDirectory { root in
-            let url = root.appending(path: container == .heic ? "lifted.heic" : "lifted.jpg")
-            try GainMapImages.write(to: url, width: 800, height: 600, seed: 277, gain: Self.gain, container: container)
-            let source = try #require(CGImageSourceCreateWithURL(url as CFURL, nil))
-            #expect([kCGImageAuxiliaryDataTypeISOGainMap, kCGImageAuxiliaryDataTypeHDRGainMap].contains {
-                CGImageSourceCopyAuxiliaryDataInfoAtIndex(source, 0, $0) != nil
-            })
-
-            let generator = PreviewGenerator()
-            // The SDR rendition is the system's own SDR decode (what previews,
-            // exports, live frames and an unfocused Quick Look show).
-            let system = Light(try #require(CGImageSourceCreateImageAtIndex(source, 0, nil)))
-            let sdr = Light(try generator.cgImage(source: url, stack: .identity, longEdge: 800))
-            #expect(abs(sdr.stops(over: system)) < 0.05)
-
-            // The loupe's HDR rendition: about a stop brighter, mid-tones included.
-            let hdr = Light(try #require(try generator.hdrImage(source: url, stack: .identity, longEdge: 800)))
-            #expect(hdr.stops(over: sdr) > 0.8)
-            #expect(hdr.median > sdr.median * 1.7)
+    static func hasGainMap(_ url: URL) -> Bool {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return false }
+        return [kCGImageAuxiliaryDataTypeISOGainMap, kCGImageAuxiliaryDataTypeHDRGainMap].contains {
+            CGImageSourceCopyAuxiliaryDataInfoAtIndex(source, 0, $0) != nil
         }
     }
 
-    @Test("The rendition after a slider's release is not the one its live frames showed")
-    func editsSwitchBetweenRenditions() async throws {
+    @Test("A gain map alone gets no HDR rendition: the loupe shows the system's SDR rendition",
+          arguments: [HDRTestImages.Container.heic, .jpeg])
+    func gainMapStaysSDR(container: HDRTestImages.Container) async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let url = root.appending(path: container == .heic ? "lifted.heic" : "lifted.jpg")
+            try HDRTestImages.writeGainMap(to: url, width: 800, height: 600, seed: 277, gain: Self.gain, container: container)
+            #expect(Self.hasGainMap(url))
+            let generator = PreviewGenerator()
+            // Before the fix: a rendition a stop brighter, mid-tones included.
+            #expect(try generator.hdrImage(source: url, stack: .identity, longEdge: 800) == nil)
+            #expect(try generator.hdrImage(source: url, stack: .identity, longEdge: nil) == nil)
+
+            // What the loupe shows instead is the system's own SDR decode.
+            let source = try #require(CGImageSourceCreateWithURL(url as CFURL, nil))
+            let system = Light(try #require(CGImageSourceCreateImageAtIndex(source, 0, nil)))
+            let sdr = Light(try generator.cgImage(source: url, stack: .identity, longEdge: 800))
+            #expect(abs(sdr.stops(over: system)) < 0.05)
+        }
+    }
+
+    @Test("A slider's release lands on the rendition its live frames showed")
+    func editsStayOnOneRendition() async throws {
         try await RepositoryFiles.withTemporaryDirectory { root in
             let url = root.appending(path: "lifted.heic")
-            try GainMapImages.write(to: url, width: 800, height: 600, seed: 278, gain: Self.gain)
+            try HDRTestImages.writeGainMap(to: url, width: 800, height: 600, seed: 278, gain: Self.gain)
             let generator = PreviewGenerator()
-            // Exposure keeps the HDR rendition (while something stays above
-            // white): after release the loupe shows it, a stop brighter than
-            // the SDR live frames of the same value.
-            let live = Light(try generator.cgImage(source: url, stack: Self.exposure(-0.5), longEdge: 800))
-            let settled = Light(try #require(try generator.hdrImage(source: url, stack: Self.exposure(-0.5), longEdge: 800)))
-            #expect(settled.stops(over: live) > 0.8)
-            // Contrast turns it away: the loupe drops to the SDR rendition, a
-            // stop darker than the unedited photo it showed before.
-            #expect(try generator.hdrImage(source: url, stack: Self.contrast, longEdge: 800) == nil)
+            // Before the fix, Exposure kept the HDR rendition, a stop brighter
+            // than the SDR live frames of the same value, and Contrast dropped
+            // to SDR: the loupe jumped on release either way. Now every stack
+            // settles on the SDR rendition, the one live frames render.
+            for stack in [EditStack.identity, Self.exposure(-0.5), Self.exposure(1), Self.contrast] {
+                #expect(try generator.hdrImage(source: url, stack: stack, longEdge: 800) == nil)
+            }
+        }
+    }
+
+    @Test("An HLG or PQ HEIC keeps its HDR rendition, with or without a gain map",
+          arguments: [HDRTestImages.Transfer.pq, .hlg], [false, true])
+    func hdrEncodingStaysHDR(transfer: HDRTestImages.Transfer, gainMap: Bool) async throws {
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let url = root.appending(path: "encoded.heic")
+            try HDRTestImages.writeHDREncoded(to: url, width: 800, height: 600, seed: 279, gain: Self.gain,
+                                              transfer: transfer, gainMap: gainMap)
+            let source = try #require(CGImageSourceCreateWithURL(url as CFURL, nil))
+            #expect(PreviewGenerator.hasHDREncoding(source))
+            let image = try #require(try PreviewGenerator().hdrImage(source: url, stack: .identity, longEdge: 800))
+            #expect(image.contentHeadroom >= RenderEngine.minimumHDRHeadroom)
         }
     }
 
     /// The owner's file (never committed): `HEIC_GAINMAP_SAMPLE=path/to/IMG.HEIC`.
-    /// Prints what status.md records; checks only that the file has a gain
-    /// map and both renditions render.
-    @Test("A real gain-map HEIC's renditions, measured",
+    /// It gets no HDR rendition; prints the SDR measurements status.md records.
+    @Test("A real gain-map HEIC gets no HDR rendition",
           .enabled(if: ProcessInfo.processInfo.environment["HEIC_GAINMAP_SAMPLE"] != nil))
-    func sampleRenditions() throws {
+    func sampleStaysSDR() throws {
         let url = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["HEIC_GAINMAP_SAMPLE"]))
+        #expect(Self.hasGainMap(url))
         let source = try #require(CGImageSourceCreateWithURL(url as CFURL, nil))
-        let kinds = [("ISO", kCGImageAuxiliaryDataTypeISOGainMap), ("Apple", kCGImageAuxiliaryDataTypeHDRGainMap)]
-            .filter { CGImageSourceCopyAuxiliaryDataInfoAtIndex(source, 0, $0.1) != nil }.map(\.0)
-        #expect(!kinds.isEmpty)
-        print("sample: gain maps \(kinds.joined(separator: ", "))")
         let generator = PreviewGenerator()
         let system = Light(try #require(CGImageSourceCreateImageAtIndex(source, 0, nil)))
         for (name, stack) in [("identity", EditStack.identity), ("exposure -1", Self.exposure(-1)),
                               ("contrast +20", Self.contrast)] {
+            #expect(try generator.hdrImage(source: url, stack: stack, longEdge: 2560) == nil)
             let sdr = Light(try generator.cgImage(source: url, stack: stack, longEdge: 2560))
-            let hdrImage = try generator.hdrImage(source: url, stack: stack, longEdge: 2560)
-            let line = String(format: "sample: %@ SDR mean %.3f median %.3f p90 %.3f (%+.2f stops over the system's SDR)",
-                              name, sdr.mean, sdr.median, sdr.p90, sdr.stops(over: system))
-            if let hdrImage {
-                let hdr = Light(hdrImage)
-                print(line + String(format: "; HDR mean %.3f median %.3f p90 %.3f headroom %.2f (%+.2f stops over SDR)",
-                                    hdr.mean, hdr.median, hdr.p90, hdrImage.contentHeadroom, hdr.stops(over: sdr)))
-            } else {
-                print(line + "; no HDR rendition")
-            }
+            print(String(format: "sample: %@ SDR mean %.3f median %.3f p90 %.3f (%+.2f stops over the system's SDR)",
+                         name, sdr.mean, sdr.median, sdr.p90, sdr.stops(over: system)))
         }
     }
 }

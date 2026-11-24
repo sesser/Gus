@@ -108,9 +108,13 @@ public struct PreviewGenerator: Sendable {
     /// master has nothing brighter than SDR white.
     ///
     /// Only HDR content counts: floating-point DNGs (HDR merges), decoded with the
-    /// RAW decoder's standard amount of extended range, and images with a gain map
-    /// or HLG or PQ encoding. Camera raws stay SDR, although their highlights
-    /// would also go above white with extended range.
+    /// RAW decoder's standard amount of extended range, and images with HLG or PQ
+    /// encoding. Camera raws stay SDR, although their highlights would also go
+    /// above white with extended range. So do images whose HDR comes only from a
+    /// gain map (issue #277): the gain map's HDR rendition is a different, often
+    /// brighter picture, not the SDR one with highlights added (an iPhone HEIC's
+    /// was 0.86 stops brighter on average), and live frames, previews and exports
+    /// are the SDR one, so the loupe jumped between the two.
     public func hdrImage(source: URL, stack: EditStack, longEdge: Int?) throws -> CGImage? {
         guard renderer.preservesExtendedRange(stack),
               let decoded = try Self.decodeHDR(source, longEdge: decodeLongEdge(source, stack: stack, longEdge: longEdge),
@@ -460,6 +464,11 @@ public struct PreviewGenerator: Sendable {
 
     /// Decodes with extended range, or returns nil for an image without HDR content
     /// (see `hdrImage`). Videos are never decoded here.
+    ///
+    /// A gain map alone is not HDR content here (issue #277): a HEIC, JPEG or
+    /// other non-raw file is HDR only when it is HLG or PQ encoded, whether or
+    /// not it also has a gain map, and a raw only when it is a floating-point
+    /// DNG, whatever auxiliary images it carries.
     static func decodeHDR(_ url: URL, longEdge: Int?, settings: RAWDecodeSettings = .none) throws -> Decoded? {
         if SupportedFormats.isRaw(pathExtension: url.pathExtension) {
             guard DNGLayout(contentsOf: url)?.hasFloatingPointRaw == true else { return nil }
@@ -467,17 +476,19 @@ public struct PreviewGenerator: Sendable {
         }
         guard FileKind(pathExtension: url.pathExtension) != .video,
               let source = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
-              CGImageSourceGetCount(source) > 0
+              CGImageSourceGetCount(source) > 0,
+              hasHDREncoding(source)
         else { return nil }
-        let hasGainMap = [kCGImageAuxiliaryDataTypeISOGainMap, kCGImageAuxiliaryDataTypeHDRGainMap].contains {
-            CGImageSourceCopyAuxiliaryDataInfoAtIndex(source, 0, $0) != nil
-        }
-        // Creating the image only reads its header; the pixels are not decoded.
-        let isHLGOrPQ = CGImageSourceCreateImageAtIndex(source, 0, nil)?.colorSpace.map(CGColorSpaceUsesITUR_2100TF) ?? false
-        guard hasGainMap || isHLGOrPQ else { return nil }
+        // Decoded as before #277, `.expandToHDR` included, so HLG and PQ files keep their look.
         guard let image = CIImage(contentsOf: url, options: [.applyOrientationProperty: true, .expandToHDR: true]) else {
             throw Failure.undecodable(url)
         }
         return Decoded(image: image, context: RenderContext(scale: 1, isRaw: false, lens: .notRaw))
+    }
+
+    /// Whether the first image is HLG or PQ encoded. Creating the image only
+    /// reads its header; the pixels are not decoded.
+    static func hasHDREncoding(_ source: CGImageSource) -> Bool {
+        CGImageSourceCreateImageAtIndex(source, 0, nil)?.colorSpace.map(CGColorSpaceUsesITUR_2100TF) ?? false
     }
 }

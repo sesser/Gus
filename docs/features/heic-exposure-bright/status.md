@@ -5,12 +5,12 @@ Issue: #277 · Complexity: Hard
 Owner: swift-macos-engineer. Bug fix (no PRD or design, `docs/WORKFLOW.md`
 "Bug fixes"). Branch `bug/heic-exposure-bright`, from `develop` at `139b39e`.
 
-**Status: Blocked** on RI-1 (what a gain-map photo should look like in the
-loupe on a display with extended dynamic range). The cause is established
-(below); no code that changes behavior is written. What is committed: this
-file, a synthetic gain-map fixture (`Sources/PhotoFixtures/GainMapImages.swift`)
-and tests that record the cause (`Tests/PhotoCoreTests/GainMapRenditionTests.swift`),
-with an opt-in suite for the owner's file.
+**Status: Done.** Fixed as ruled (RI-1, option C: option A now, HDR editing
+later as #282). A new Requirements issue (RI-2) reports HLG files with the same
+kind of jump, measured, behavior left unchanged as instructed. Next:
+code-reviewer (on opus: Hard, and the change alters how existing photos are
+shown in the loupe); the UI changed (the loupe's look and HDR badge for
+gain-map photos), so a design review; then qa-tester.
 
 States: Not started · In progress · Done · Blocked · Deferred.
 
@@ -18,79 +18,77 @@ States: Not started · In progress · Done · Blocked · Deferred.
 
 **Steps to reproduce** (scratch library only; the owner's `IMG_0546.HEIC`, an
 iPhone HEIC, or any HEIC or JPEG whose gain map lifts the picture below SDR
-white, such as `GainMapImages.write(…, gain: 2)`).
+white, such as `HDRTestImages.writeGainMap(…, gain: 2)`).
 1. A display whose `maximumPotentialExtendedDynamicRangeColorComponentValue`
    is above 1 (here a DELL U2723QE in HDR mode: 4.18), View ▸ Show HDR
    Highlights on (the default).
-2. Open the photo in the loupe, unedited. Compare with Quick Look of the file
-   while Gus is the active app.
+2. Open the photo in the loupe, unedited. Compare with Quick Look of the file.
 3. Drag Exposure (or Highlights to the left) and let go.
 
-**Expected** (as filed). The unedited photo looks like the system's own
-rendering of it; a slider's edit stays applied after release. Which system
-rendering is meant is open: see RI-1.
+**Expected** (as ruled, RI-1). A photo whose HDR comes only from a gain map
+shows in the loupe as its SDR rendition, the one live frames, previews,
+exports and the system's own SDR decode give. A slider's edit stays on screen
+after release, at the brightness the drag showed.
 
-**Actual** (measured, macOS 27.2.1, this Mac).
-- The loupe shows the gain map's HDR rendition (`print hdr`: loupe headroom
+**Actual** (before the fix, measured on macOS 27.2.1, this Mac).
+- The loupe showed the gain map's HDR rendition (`print hdr`: loupe headroom
   2.73). For the owner's file it is 0.86 stops brighter than the SDR rendition
   by mean luminance, and brighter at every level, not only above white: median
-  0.258 → 0.426 (×1.65), 90th percentile 0.581 → 1.106 (+0.93 stops). The SDR
-  rendition is what Gus's previews, thumbnails, exports, `photocli render` and
-  live frames show, and it equals ImageIO's own SDR decode (−0.01 stops).
-- While the slider moves, the loupe shows live frames, which are SDR (`print
-  hdr`: headroom none). On release it swaps the HDR rendition back in, with the
-  edit applied (Exposure −1: headroom 1.37): 0.86 stops brighter than the frames
-  the drag showed. So the edit is applied, but the picture jumps up by most of
-  a stop, which reads as the edit snapping back.
+  0.258 → 0.426 (×1.65), 90th percentile 0.581 → 1.106 (+0.93 stops).
+- While the slider moved, the loupe showed live frames, which are SDR (`print
+  hdr`: headroom none). On release it swapped the HDR rendition back in, with
+  the edit applied (Exposure −1: headroom 1.37), 0.86 stops brighter than the
+  frames the drag showed: the edit was applied, but the picture jumped up by
+  most of a stop, which reads as the edit snapping back.
 - Any value `Adjustments.preservesExtendedRange` turns away (Contrast, Whites,
   Blacks, Highlights above 0, Tone Curve, Color Mixer, Color Grading, a look-up
-  table, Dehaze, Grain) makes the loupe settle on the SDR rendition instead:
-  Contrast +20 drops the photo 0.86 stops darker than before the change; reset
-  it and it jumps bright again. Exposure low enough that nothing stays above
-  1.05 does the same (`RenderEngine.minimumHDRHeadroom`).
+  table, Dehaze, Grain) made the loupe settle on the SDR rendition instead:
+  Contrast +20 dropped the photo 0.86 stops; resetting it jumped back.
 
-**Root cause.** One cause gives both symptoms. On an EDR-capable display the
-loupe replaces the SDR preview with `PreviewGenerator.hdrImage`, which decodes
-gain-map files with `CIImage` `.expandToHDR` (`decodeHDR`) and so shows the
-gain map's alternate (HDR) rendition at its full headroom. The design assumed
-that rendition is the SDR picture plus highlights above white ("Show HDR
-Highlights", the user guide's "highlights above white"). For an iPhone gain map
-it is not: the gain map lifts the mid-tones and shadows too (here its ISO
-21496-1 metadata: gain from −0.15 to +1.39 stops, alternate headroom 2.62×).
-Everything else (live frames, previews, exports, stacks that turn HDR away)
-is the SDR rendition, so the loupe moves between two renditions about a stop
-apart: at open (against an SDR reference), on every slider release, and on
-every value that crosses `preservesExtendedRange`.
+**Root cause.** One cause gave both symptoms. On an EDR-capable display the
+loupe replaces the SDR preview with `PreviewGenerator.hdrImage`, and
+`decodeHDR` counted a gain map as HDR content, decoding the file with `CIImage`
+`.expandToHDR`: the gain map's alternate (HDR) rendition at full headroom. The
+design assumed that rendition is the SDR picture plus highlights above white
+("Show HDR Highlights"). For an iPhone gain map it is not: the gain map lifts
+mid-tones and shadows too (this file's ISO 21496-1 metadata: gain −0.15 to
++1.39 stops, alternate headroom 2.62×). Everything else (live frames,
+previews, exports, stacks that turn HDR away) is the SDR rendition, so the
+loupe moved between two renditions about a stop apart: at open, on every
+slider release, and on every value that crosses `preservesExtendedRange`.
 
-Why Quick Look looked darker: Quick Look's image view is HDR-aware and follows
-the system's HDR suppression policy (its `Image.qldisplay` has
-`hostAppIsHDRSuppressed`, `isAppHDRSuppressed`, `hdrFocusMode`,
-`reloadWithHDR:`; AppKit's `NSApplication.applicationShouldSuppressHighDynamicRangeContent`,
-macOS 26, and WebKit's handling of backgrounded apps describe the policy).
-With Gus active, Quick Look is in the background and likely shows the SDR
-rendition; focused, it likely shows the same HDR rendition Gus does. Gus does
-not follow that policy (nothing reads `applicationShouldSuppressHighDynamicRangeContent`).
-This last part cannot be measured from a shell (screen capture of EDR content
-needs permission and clips); it is check M1 below.
+**Quick Look.** Observed by the owner (M1, 2026-11-24): Quick Look shows the
+file darker than Gus did, also when its window is focused; it does not
+brighten. Why Quick Look shows it that way was not established. An earlier
+version of this file suggested Quick Look follows macOS 26's HDR suppression
+for background apps; M1 does not support that, and it is withdrawn. (HDR
+suppression stays an unverified item in #282.)
 
-**Which files.** Non-raw files with a gain map, Apple's (`HDRGainMap`) or ISO
-21496-1 (`ISOGainMap`): iPhone HEICs and JPEGs from recent iPhones, Android
-Ultra HDR JPEGs, Core Image-written gain maps. How far the picture jumps is
-how much the gain map lifts below white, which varies by photo (a gain map
-that only lifts highlights barely shows it). Plain HEICs and JPEGs and every
-camera raw are unaffected (no HDR rendition). Only with View ▸ Show HDR
-Highlights on and a display with potential extended range above 1; elsewhere
-the loupe is SDR throughout and matches the system. Not measured: HLG/PQ files
-and floating-point DNGs (HDR merges), the other HDR content; whether their HDR
-rendition agrees with their SDR one below white is open (RI-1, part b).
+**Fix.** `decodeHDR` no longer counts a gain map as HDR content
+(`PreviewGenerator.hasHDREncoding`). What each kind of file does now:
 
-**Test that fails without the fix.** Not yet written: what it asserts depends
-on RI-1. Under option A it is "`hdrImage` returns nil for a gain-map HEIC and
-JPEG" (fails today: `GainMapRenditionTests.hdrRenditionIsBrighterBelowWhite`
-shows it returns a rendition a stop brighter); under option B it is a live
-frame and the settled rendition agreeing for the same values. The committed
-tests record the cause as the code behaves today and will be turned around by
-the fix.
+| File | Before | Now |
+| --- | --- | --- |
+| HEIC, JPEG (or other non-raw) with a gain map only | HDR rendition (gain map applied) | SDR, as previews and exports |
+| HLG or PQ HEIC, no gain map | HDR | HDR, unchanged (same decode, `.expandToHDR`) |
+| HLG or PQ HEIC with a gain map | HDR | HDR, unchanged: the encoding decides, not the gain map |
+| Floating-point DNG (HDR merges), with or without a gain map | HDR | HDR, unchanged: raws were never asked about gain maps |
+| Integer DNG (ProRAW, camera DNGs) or camera raw, with or without a gain map | SDR | SDR, unchanged |
+
+The comparison view's panes use the same `hdrImage` and follow. No stored
+stack renders differently anywhere it is stored or exported (previews and
+exports were always SDR), so no `PreviewCacheKey.currentPipelineVersion` bump
+and no golden moved. HDR renditions live in memory only, so no cache to clear.
+
+**Test that fails without the fix.** `GainMapRenditionTests`:
+"A gain map alone gets no HDR rendition" (HEIC and JPEG; `hdrImage` at fit and
+full size is nil, and Gus's SDR render equals ImageIO's SDR decode within 0.05
+stops) and "A slider's release lands on the rendition its live frames showed"
+(Identity, Exposure −0.5, Exposure +1 and Contrast +20 all give no HDR
+rendition). Run against the unfixed `decodeHDR` (2026-11-24): both fail, 7
+issues, at every case but Contrast (which had no HDR rendition before either);
+`PreviewTests.hdrRenditionsKeepHighlightsAboveWhite`'s gain-map line fails too.
+With the fix, all pass.
 
 ## Evidence
 
@@ -101,7 +99,7 @@ gain −0.151 to +1.389 stops, gamma 0.73), Apple's HDR gain map (headroom
 2.62) and a sky matte.
 
 Mean, median and 90th-percentile luminance, linear Display P3, relative to SDR
-white (800-pixel reductions; `HEIC_GAINMAP_SAMPLE`, and the scratch tools):
+white (800-pixel reductions), before the fix:
 
 | Rendition | Mean | Median | p90 | vs SDR |
 | --- | --- | --- | --- | --- |
@@ -115,112 +113,136 @@ white (800-pixel reductions; `HEIC_GAINMAP_SAMPLE`, and the scratch tools):
 | Gus HDR, Highlights −100 | 0.269 | 0.276 | 0.532 | +0.49 stops |
 | Gus SDR, Contrast +20 (no HDR rendition offered) | 0.292 | 0.273 | 0.634 | |
 
-Gus's HDR rendition equals ImageIO's own HDR decode, so the gain map is
-applied as the system applies it; the difference is which rendition is shown.
+Gus's HDR rendition equalled ImageIO's own HDR decode: the gain map was
+applied as the system applies it; the difference was which rendition is shown.
 
-In the app (bundle copy `me.sesser.gus.debugtest.heicbright`, scratch library
-from `photobench import` of a copy of the file, `--debug-script "windowsize
-1800 1200; wait 2; focus 0; loupe; wait 4; print hdr; adjust scrub exposure 0
--1 10 16 hold; print hdr; adjust scrub exposure -1 -1 1; wait 4; print hdr;
-adjust contrast 20; wait 4; print hdr; hdr off; wait 3; print hdr; quit"`):
-
-```
-hdr setting true screen potential 4.18 loupe headroom 2.73   (opened: HDR rendition)
-hdr setting true screen potential 4.18 loupe headroom none   (dragging: SDR live frames)
-hdr setting true screen potential 4.18 loupe headroom 1.37   (released at −1 EV: HDR again, edit applied)
-hdr setting true screen potential 4.18 loupe headroom none   (Contrast +20: SDR)
-hdr setting false screen potential 4.18 loupe headroom none  (Hide HDR Highlights: SDR)
-```
+Debug script, before the fix (bundle copy `me.sesser.gus.debugtest.heicbright`,
+scratch library from `photobench import` of a copy of the file):
+`hdr on; windowsize 1800 1200; wait 2; focus 0; loupe; wait 4; print hdr;
+adjust scrub exposure 0 -1 10 16 hold; print hdr; adjust scrub exposure -1 -1
+1; wait 4; print hdr; adjust contrast 20; wait 4; print hdr; …` printed loupe
+headroom 2.73 (opened), none (dragging), 1.37 (released), none (Contrast).
 
 ## Requirements issue (for the product manager / owner)
 
-**RI-1. What should a gain-map photo look like in the loupe on an EDR display,
-and while it is edited?** `CLAUDE.md`'s Rendering rule and the user guide say
-the loupe swaps in an HDR render for gain-map content on EDR displays, as
-"highlights above white". For iPhone gain maps that render is a different,
-brighter picture, and every edit path is SDR. Fixing the symptoms means
-changing that rule one way or the other, so it is not mine to decide.
+**RI-1. Ruled 2026-11-24 (owner): option C.** Gain-map photos show as SDR in
+the loupe now (option A, this fix); HDR editing of gain-map photos is the
+follow-up, #282.
 
-- **A. Gain-map files stay SDR in the loupe** (`decodeHDR` no longer counts a
-  gain map as HDR content). The loupe then shows what live frames, previews,
-  exports and Quick Look in the background show; edits never jump. Loses the
-  brighter HDR view of iPhone photos (the HDR badge and Show HDR Highlights
-  then apply to HLG/PQ files and HDR merges only). Cost: small; no stack renders
-  differently anywhere it is stored or exported, so no
-  `PreviewCacheKey.currentPipelineVersion` bump and no golden moves; the user
-  guide's HDR paragraph and the Rendering rule's list change.
-- **B. Keep the HDR rendition and make editing match it.** Live frames (the
-  whole frame and the 100% region) rendered as half-float HDR whenever the
-  loupe would settle on HDR, the histogram over the same, and every module
-  `preservesExtendedRange` turns away made to work above white (or the
-  remaining jumps accepted); plus following macOS 26's HDR suppression policy
-  so Gus in the background shows SDR as Quick Look does. Matches Quick Look and
-  Preview when focused. Cost: large (`LiveRenderSession`, `LiveRegionRenderer`,
-  frame formats at twice the memory, ten modules), and previews and exports
-  would still be SDR, so what is edited is not what is exported: this is an
-  HDR editing feature and needs its own PRD and design.
-- **C. A, now, and B later** as an enhancement (HDR editing and HDR export of
-  gain-map photos), filed as an issue.
-- **D. Show HDR only above white** (the SDR rendition below white, the gain map
-  only for highlights). Not recommended: a rendering no other app shows, and
-  its look would be invented here.
+**RI-2. HLG files jump the same way, by more (part b, measured; behavior not
+changed).** Synthetic files from `HDRTestImages` (1600 × 1200, the HDR picture
+twice the SDR one's light), measured with `GainMapRenditionTests.Light`
+(scratch probe, not committed: `cgImage` at long edge 2560 against `hdrImage`
+at long edge 2560, unedited and at Exposure −0.5):
 
-Part b, under A: should HLG/PQ files and HDR merges keep their HDR rendition?
-Their HDR and SDR renditions were not compared below white; if they differ the
-same jumps apply. I would measure them as part of the fix.
+| File | SDR mean (loupe at fit, live frames) | SDR mean at full size (100%) | HDR mean | HDR over SDR |
+| --- | --- | --- | --- | --- |
+| PQ HEIC | 0.439 | 0.459 | 0.466 | +0.09 stops (−0.5 EV: +0.02) |
+| PQ HEIC with a gain map (SDR base) | 0.233 | 0.233 | 0.467 | +1.00 stops (−0.5 EV: +1.00) |
+| HLG HEIC | 0.149 | 0.459 | 0.466 | +1.64 stops (−0.5 EV: +1.53) |
+| HLG HEIC with a gain map (SDR base) | 0.087 | 0.233 | 0.466 | +2.43 stops (−0.5 EV: +2.32) |
+| Floating-point DNG (as the merge writes) | 0.664 | 0.664 | 0.707 | +0.09 stops; at −0.5 EV no HDR rendition |
 
-**Recommendation: C.** The loupe should show the picture being edited and
-exported; A does that with a small change and no rendering change, and B is
-real feature work. Before ruling, check M1: it says whether "expected" is
-Quick Look in the background (A's look) or focused (today's look).
+- **HLG HEICs** (some cameras' HDR HEIF modes): the SDR rendition the loupe
+  shows at fit, in live frames and in previews (ImageIO's thumbnail decode,
+  `decodeWithImageIO` with a size) is 1.6 stops darker than the HDR rendition,
+  and also 1.6 stops darker than the full-size SDR decode used at 100%. So an
+  HLG photo jumps about 1.5 stops on every slider release, as gain-map photos
+  did, and its preview disagrees with its own 100% view. Not changed here.
+- **PQ HEICs and floating-point DNGs**: within 0.1 stops; no visible jump.
+  A DNG merge at −0.5 EV falls below `minimumHDRHeadroom` and settles on SDR,
+  0.1 stops off: negligible.
+- **HLG or PQ with a gain map**: synthetic only (Core Image wrote an SDR base
+  in an HDR encoding with a gain map up to the HDR picture); its SDR rendition
+  is the base, its HDR rendition the gain map's, a stop or more apart. No real
+  file of this kind was available; whether cameras write such files is unknown.
+- Options for the product manager: (a) leave HLG/PQ as they are and file the
+  HLG jump and the thumbnail-versus-full-size mismatch as a bug; (b) treat HLG
+  like gain maps now (SDR in the loupe), which loses HLG's HDR view; (c) fold
+  it into #282. Recommendation: (a), a bug of its own: the HLG thumbnail
+  decode disagreeing with the full-size decode by 1.6 stops is wrong whatever
+  the HDR ruling, and it would need a real HLG HEIF to confirm first.
+
+## Proposed wording for CLAUDE.md's Rendering rule (owner's text)
+
+Replace "HDR content only: floating-point DNGs, gain maps, HLG/PQ." with:
+"HDR content only: floating-point DNGs and HLG/PQ-encoded images. A gain map
+alone is not HDR content (issue #277): its HDR rendition is a different,
+often brighter picture, and everything that edits or exports is SDR, so
+gain-map photos show their SDR rendition (HDR editing of them is #282)."
 
 ## For the owner, by eye (on the Dell, which has extended range)
 
-- **M1.** Open `IMG_0546.HEIC` in Quick Look beside Gus's loupe, then click into
-  the Quick Look window so it is the active app. Does Quick Look brighten to
-  look like Gus (its HDR rendition), and darken again when Gus is clicked?
-- **M2.** In Gus, View ▸ Hide HDR Highlights: does the loupe now match Quick
-  Look as it looked in the issue's screenshot? Show HDR Highlights again, drag
-  Exposure to −1 and let go: the jump on release is the swap described above.
-- **M3.** With HDR highlights shown, set Contrast to +20, then back to 0: the
-  photo drops about a stop and comes back (the `preservesExtendedRange` switch).
+- **M1** (done 2026-11-24): Quick Look stays darker than Gus showed, focused or
+  not.
+- **M2.** Open `IMG_0546.HEIC` in the loupe: does it look like Quick Look now,
+  with no HDR badge in the caption? Drag Exposure to −1 and let go: does the
+  picture stay at the brightness the drag showed?
+- **M3.** Set Contrast to +20, then back to 0: the photo's brightness changes
+  only by what Contrast does, no stop-sized drop and return.
+- **M4.** A floating-point DNG merge (File ▸ Merge to HDR…, DNG) still shows
+  its HDR badge and bright highlights.
+
+M2 and M3 (before the fix) were not reported.
 
 ## Tests
 
-- `GainMapRenditionTests` (new, synthetic, always run): a HEIC and a JPEG
-  written by `GainMapImages` with a one-stop gain everywhere have a gain map;
-  Gus's SDR render equals ImageIO's SDR decode within 0.05 stops; the HDR
-  rendition is more than 0.8 stops brighter by mean and its median above 1.7×
-  the SDR median; at Exposure −0.5 the settled HDR rendition is more than 0.8
-  stops brighter than the SDR live frame of the same value; Contrast +20 gets
-  no HDR rendition. These record today's behavior and change with the fix.
-  Determinism: the assertions compare renditions a stop apart against 0.8-stop
-  and 0.05-stop margins; GPU rounding is 2⁻¹¹ per half-float step, so no run
-  order or timing enters (no shared state, no timing, no pool order).
-- `GainMapRenditionTests.sampleRenditions`, opt-in:
-  `HEIC_GAINMAP_SAMPLE=path/to/IMG.HEIC swift test --filter GainMapRenditionTests`.
-  Prints the table's Gus rows; asserts only that the file has a gain map.
+- `GainMapRenditionTests` (new, synthetic, always run):
+  - "A gain map alone gets no HDR rendition" (HEIC and JPEG): the files have a
+    gain map; no HDR rendition at fit or full size; SDR equals ImageIO's SDR
+    decode within 0.05 stops. Fails without the fix.
+  - "A slider's release lands on the rendition its live frames showed":
+    Identity, Exposure −0.5 and +1, Contrast +20 give no HDR rendition. Fails
+    without the fix.
+  - "An HLG or PQ HEIC keeps its HDR rendition, with or without a gain map"
+    (four cases): `hasHDREncoding` is true and an HDR rendition with headroom
+    of at least `minimumHDRHeadroom` is made.
+  - "A real gain-map HEIC gets no HDR rendition", opt-in:
+    `HEIC_GAINMAP_SAMPLE=path/to/IMG.HEIC swift test --filter GainMapRenditionTests`.
+    On the owner's file: passes, SDR mean 0.273, at Exposure −1 0.137,
+    Contrast +20 0.292.
+- `PreviewTests.hdrRenditionsKeepHighlightsAboveWhite`: its gain-map JPEG now
+  expects no HDR rendition; the HDR case is a PQ HEIC (headroom above 2).
+- `StalePreviewTests` ("The HDR rendition is not kept under a hash the loaded
+  stack does not have"): its source is now a PQ HEIC with the same patch at 4×
+  SDR white, since a gain-map JPEG has no HDR rendition any more.
+- Determinism: the assertions compare a nil against a rendition, or levels a
+  stop apart against 0.05-stop margins; GPU rounding is 2⁻¹¹ per half-float
+  step. No shared state, timing or pool order enters.
 
 ## Build and test results
 
 - Baseline at `139b39e`: `swift build` clean.
-- `swift test --filter GainMapRenditionTests`: 3 tests (4 cases) pass, the
-  sample suite skipped; with `HEIC_GAINMAP_SAMPLE` set, all pass and print the
-  measurements above.
-- Full `swift test` (2026-11-24, with the new tests): 1532 tests in 216
-  suites pass, 77 s.
-- CI toolchain (`DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer
-  swift build --build-tests --scratch-path .build-xcode26.3`, Xcode 26.3 at
-  `/Applications/Xcode_26.3.app`): exit 0, no warnings in the new files. Not
-  yet the Done check: nothing that fixes the bug is built.
+- Full `swift test` (2026-11-24, with the fix): 1533 tests in 216 suites pass,
+  78 s.
+- `Scripts/build-app.sh all`: both bundles built and signed.
+- CI toolchain, `DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer
+  swift build --build-tests --scratch-path .build-xcode26.3`: exit 0, no
+  warnings in the changed files. (A first run failed: Xcode 26.3's type checker
+  gave up on the luminance expression in `GainMapRenditionTests.Light`; split
+  into three terms.)
+- Debug script with the fix (bundle copy `me.sesser.gus.debugtest.heicbright`,
+  scratch library with a copy of the owner's file; same script as above, `hdr
+  on` first): loupe headroom none when opened, while dragging, after release at
+  −1 EV (stack saved, ev −1), at Contrast +20 and back at 0. Positive control: a
+  PQ HEIC (gray with a 4× patch, made in the scratchpad) in its own scratch
+  library: loupe headroom 4.11.
+
+## Review findings
+
+None yet.
+
+## README
+
+No change: no requirements, build commands or layout changed. The user guide's
+HDR paragraph is updated in this change.
 
 ## Open questions
 
-- RI-1 (above).
+- RI-2 (above).
 
-## Follow-ups (proposed issues)
+## Follow-ups
 
-- Gus does not follow macOS 26's HDR suppression policy
-  (`applicationShouldSuppressHighDynamicRangeContent` and its notifications):
-  in the background it keeps showing HDR. Part of B; on its own it would only
-  make Gus darker when another app is active.
+- #282: HDR editing of gain-map photos (filed by the main session).
+- RI-2's HLG jump and thumbnail mismatch, if the product manager files it as a
+  bug.

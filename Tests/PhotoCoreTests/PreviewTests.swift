@@ -167,8 +167,17 @@ struct PreviewPipelineTests {
             })
             let gainMapped = root.appending(path: "gain-map.jpg")
             try data.write(to: gainMapped)
+            // A gain map alone is not HDR content (issue #277): its HDR
+            // rendition is another picture, not the SDR one with highlights.
+            #expect(try generator.hdrImage(source: gainMapped, stack: .identity, longEdge: 512) == nil)
 
-            let image = try #require(try generator.hdrImage(source: gainMapped, stack: .identity, longEdge: 512))
+            // A PQ-encoded HEIC is: its highlights stay above white.
+            let pq = root.appending(path: "pq.heic")
+            let pqData = try engine.withContext {
+                try $0.heif10Representation(of: hdr, colorSpace: CGColorSpace(name: CGColorSpace.displayP3_PQ)!, options: [:])
+            }
+            try pqData.write(to: pq)
+            let image = try #require(try generator.hdrImage(source: pq, stack: .identity, longEdge: 512))
             #expect((image.width, image.height) == (512, 384))
             #expect(image.bitsPerComponent == 16 && image.bitmapInfo.contains(.floatComponents))
             #expect(image.colorSpace?.name == CGColorSpace.extendedLinearDisplayP3)
