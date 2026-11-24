@@ -131,7 +131,8 @@ public final class RemoteHTTPSession: Sendable {
         request.httpShouldHandleCookies = false
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         // Bodies as sent: an encoded answer is decoded by the system before
-        // any cap sees its bytes, so one is refused (code review C23).
+        // any cap sees its bytes, so one is refused at its head (code review
+        // C23; what the system may decode before the head is #279).
         request.setValue(ContentCoding.identity, forHTTPHeaderField: "Accept-Encoding")
         if let body {
             request.httpBody = body
@@ -259,8 +260,12 @@ enum TaskFailure: Error, Sendable {
 /// decoded body over in pieces of any size (a 1 MiB gzip answer arrived as a
 /// 672 MB piece), with no length to check at the head. Asking for
 /// `identity` does not stop a server that compresses anyway, so an answer
-/// with any other coding is refused at its head, before a byte of its body
-/// is read.
+/// with any other coding is refused at its head: no decoded byte reaches a
+/// sink. That does not bound what the system decodes before it hands over
+/// the head: an answer with no `Content-Type` (or `text/plain`) whose body
+/// arrives after its head is sniffed, and about 1 MiB of gzip was decoded
+/// into 0.16 to 2.5 GB first (security review, second pass; accepted by the
+/// owner 2026-11-24, issue #279). URLSession offers no way to turn that off.
 enum ContentCoding {
     static let identity = "identity"
 

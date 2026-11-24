@@ -5,8 +5,9 @@ import Testing
 @testable import PhotoCore
 
 /// Issue #271, the seventh code review pass: a call that starts cancelled
-/// always returns (C22), and an encoded answer is refused at its head,
-/// before the system decodes a byte of it (C23).
+/// always returns (C22), an encoded answer is refused at its head, so no
+/// decoded byte of it reaches a sink (C23), and a refused certificate is
+/// taken only by a task that had no answer (C24).
 @Suite("Remote session: cancelled calls and encoded answers")
 struct RemoteSessionTests {
     /// `operation`'s value, or nil when it has not returned within `bound`,
@@ -67,7 +68,11 @@ struct RemoteSessionTests {
         let downloaded = await Self.returns { await withCheckedContinuation { download.start($0) } }
         #expect(downloaded == .failure(.cancelled))
 
-        // The usual order still works, and a second end is dropped.
+        // The answer still arrives when the caller may wait first, and a
+        // second end is dropped. Which comes first here, the child task's
+        // wait or the calls below, is up to the scheduler; both orders must
+        // end with the answer. The wait-then-deliver order is the one every
+        // network test takes (`start` runs before `task.resume()`).
         let usual = MemorySink(limit: 1 << 10)
         async let waited = Self.returns { await withCheckedContinuation { usual.start($0) } }
         #expect(usual.received(try Self.response([:])))
@@ -118,9 +123,58 @@ struct RemoteSessionTests {
         }
     }
 
+    // MARK: C24
+
+    static let refusal = TrustDecision.changed(CertificateSummary(
+        subject: "photos.lan", issuer: "Other", notBefore: nil, notAfter: nil,
+        fingerprint: CertificateFingerprint(certificateData: Data("other".utf8))))
+
+    @Test("A task that ends before any answer takes the refused certificate; one that had an answer does not (C24)")
+    func refusedCertificateTaken() async throws {
+        let session = try RemoteHTTPSession(connection: RemoteConnection(
+            address: RemoteConnectionTests.address("http://127.0.0.1:9"), key: "k", unencryptedConfirmed: true))
+        let file = FileManager.default.temporaryDirectory.appending(path: "refused-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: file) }
+
+        // No answer: the handshake was refused, so the call is the certificate.
+        let memory = MemorySink(limit: 1 << 10)
+        memory.finished(URLError(.cancelled), takeRefused: { Self.refusal })
+        guard case .failure(let failure)? = await Self.returns({ await withCheckedContinuation { memory.start($0) } }) else {
+            Issue.record("The memory sink gave no failure")
+            return
+        }
+        #expect(session.mapped(failure) == .certificate(Self.refusal))
+        #expect(FileManager.default.createFile(atPath: file.path, contents: nil))
+        let download = DownloadSink(handle: try FileHandle(forWritingTo: file), limit: 1 << 10, progress: { _ in })
+        download.finished(URLError(.cancelled), takeRefused: { Self.refusal })
+        #expect(await Self.returns { await withCheckedContinuation { download.start($0) } } == .failure(.certificate(Self.refusal)))
+
+        // An answer came: that task got past its handshake, so a refusal
+        // waiting is another task's and is left where it is.
+        let answered = MemorySink(limit: 1 << 10)
+        #expect(answered.received(try Self.response([:])))
+        answered.finished(URLError(.networkConnectionLost), takeRefused: {
+            Issue.record("A task with an answer took the refusal")
+            return Self.refusal
+        })
+        guard case .failure(let lost)? = await Self.returns({ await withCheckedContinuation { answered.start($0) } }) else {
+            Issue.record("The memory sink gave no failure")
+            return
+        }
+        #expect(session.mapped(lost) == .unreachable(RemoteHTTPSession.reason(URLError(.networkConnectionLost))))
+        let answeredDownload = DownloadSink(handle: try FileHandle(forWritingTo: file), limit: 1 << 10, progress: { _ in })
+        #expect(answeredDownload.received(try Self.response([:])))
+        answeredDownload.finished(URLError(.networkConnectionLost), takeRefused: {
+            Issue.record("A download with an answer took the refusal")
+            return Self.refusal
+        })
+        #expect(await Self.returns { await withCheckedContinuation { answeredDownload.start($0) } }
+            == .failure(.unreachable(RemoteHTTPSession.reason(URLError(.networkConnectionLost)))))
+    }
+
     // MARK: C23
 
-    @Test("An answer is refused at its head when it is encoded, before a byte of it is read (C23)")
+    @Test("An answer is refused at its head when it is encoded, and no byte of it reaches a sink (C23)")
     func encodedRefusedAtHead() throws {
         for coding in ["gzip", "deflate", "br", "GZIP", " x-gzip ", "gzip, identity"] {
             let memory = MemorySink(limit: 1 << 10)

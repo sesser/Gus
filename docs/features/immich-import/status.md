@@ -33,6 +33,11 @@ Visible change: a server that compresses answers it was not asked to compress
 is refused (user guide). Next: `/security-review` on `RemoteHTTPSession.swift`
 and code review's eighth pass.
 
+**2026-11-24, eighth code review (C24, C25) and second security review:** C24
+and C25 fixed (tests and a test comment); Vuln 1 and L1 accepted by the owner
+as a measured bound (#279) and the record corrected. State **Done** again (see
+**Eighth code review and second security review**).
+
 ## API verification (first task, 2026-11-23)
 
 Read from the OpenAPI spec of the tags `v3.2.0` (the minimum, Q1) and
@@ -667,6 +672,13 @@ Ruled in design.md §15 (1978f2a) and built above. As asked:
 - Downloads are one at a time; thumbnails six at a time.
 - `Retries and timeouts` numbers are the engineer's (R20); the PRD asked for a
   proposal.
+- Memory a hostile server can cost (security review, second pass; accepted by
+  the owner 2026-11-24; #279): an encoded answer is refused at its head, but
+  one with no `Content-Type` (or `text/plain`) whose body comes after its head
+  makes URLSession decode about 1 MiB of gzip into 0.16 to 2.5 GB before the
+  head reaches the delegate (12 to 28 MB with `application/json`); a response
+  head is unbounded until the 30 s timeout (L1). The call still ends
+  `.malformed` or timed out; nothing is written, trusted or leaked.
 - A server or proxy that compresses answers it was not asked to compress is
   refused (code review C23): not Immich at Add Server, an unreadable answer
   while browsing. An import whose original comes compressed stops as "stopped
@@ -825,8 +837,9 @@ sinks use it, so `perform` and `download` are covered.
 the owner's default.** Every request sends `Accept-Encoding: identity`, and an
 answer whose `Content-Encoding` is present and is not `identity` (compared
 trimmed and without regard to case, so `GZIP` and `gzip, identity` are
-refused) is refused in the delegate's response callback, before a byte of its
-body is read: `.malformed`, the existing case for "the server's answer could
+refused) is refused in the delegate's response callback, so no decoded byte
+of it reaches a sink or a cap (what the system decodes before that callback is
+not bounded: see **Correction** below): `.malformed`, the existing case for "the server's answer could
 not be read" (check: "This doesn't look like an Immich server"; browsing:
 Activity's "The server's answer could not be read", or the grid's failure;
 thumbnails: no picture). No new `RemoteError` case and no new string. A status
@@ -842,7 +855,9 @@ JSON (it was `.cancelled`).
   pieces, and a peak of 30 MB resident (20.9 MB footprint), against 1.37 GB
   for the reviewer's delegate that counted bytes. With the decision held 2 s
   before the disposition, the same: the system does not decode ahead while
-  the head waits. Also probed: `deflate` and an upper-case `GZIP` are decoded
+  the head waits. (This probe sent the head and body in one write with a
+  `Content-Type`; the second security review found the case it missed, see
+  **Correction** below.) Also probed: `deflate` and an upper-case `GZIP` are decoded
   by the system (so both must be refused); `Transfer-Encoding: gzip` is not
   decoded (the compressed bytes are delivered as they are and counted by the
   cap, so no bypass); `Content-Encoding: identity` is delivered as sent, with
@@ -860,8 +875,9 @@ JSON (it was `.cancelled`).
   before). Against the unfixed session both refusal tests failed (21 and 9
   issues), the identity test passed.
 - Peak memory is not tested in the suite: building a decoded bomb in the test
-  process allocates as much as it would measure. The head refusal is the
-  evidence, with the probe's numbers above.
+  process allocates as much as it would measure. The head refusal is tested;
+  the memory bound it gives is the one in **Correction** below, not the
+  probe's 30 MB.
 - **Compatibility cost.** A server that compresses whatever it is asked is
   refused everywhere. Immich and the usual reverse proxies (nginx, Caddy,
   Traefik, Cloudflare) compress only for a client that asks, so with
@@ -871,6 +887,26 @@ JSON (it was `.cancelled`).
   originals are images, not compressed either way). The caps already counted
   decoded bytes, so none changes. The user guide says so under Importing from
   an Immich server.
+
+**Correction (security review, second pass, Vuln 1 and L1; owner ruling
+2026-11-24: accept the measured bound, no new transport; follow-up #279).**
+The text above claimed more than is true. With `Accept-Encoding: identity`
+and the refusal at the head, an encoded answer always ends `.malformed`, no
+decoded byte reaches a sink, and nothing is written, trusted or leaked. But
+what URLSession decodes before it hands the head to the delegate is not
+bounded by anything here:
+- an answer with `Content-Type: application/json` costs 12 to 28 MB;
+- an answer that omits `Content-Type` (or sends `text/plain`) and sends its
+  body after its head is sniffed by the system, which decodes what it has
+  read first: about 1 MiB of gzip became 0.16 to 2.5 GB, held after the call;
+- a response head itself is unbounded until the 30 s request timeout (L1:
+  1.04 GB for one endless header line, 2.66 GB for endless 1 KB lines at
+  40 MiB/s).
+Both are URLSession behavior with no public switch; closing them needs a
+transport that never decodes (#279). The user guide no longer says a server
+can't make the app read far more than it sent, and says to add only servers
+you trust. `RemoteHTTPSession.swift`'s comment on `ContentCoding` says the
+same (comment-only change).
 
 **Reviewer observation (refused certificate shared by the session): narrowed,
 not made per task.** Server-trust challenges come to the session-level
@@ -909,3 +945,29 @@ compresses images regardless of the request, and such a proxy is normally
 refused at Add Server first. Options: keep it (no cost); or list the photo as
 "could not be imported" with a reason, which needs one new report string.
 Recommendation: keep it.
+
+## Eighth code review and second security review (2026-11-24)
+
+- **C24 (a refused certificate had no test): fixed.**
+  `RemoteSessionTests.refusedCertificateTaken`: a `MemorySink` and a
+  `DownloadSink` that got no answer and end with -999 take the refusal
+  (`.certificate(decision)`, through `mapped(_:)` for the memory sink); both
+  sinks that got an answer don't call `takeRefused` (it records an issue if
+  called) and end `.unreachable`. Mutations, run and reverted: removing the
+  take (`refused: nil` in `MemorySink.finished`, the `takeRefused()` line in
+  `DownloadSink.finished`) fails the positive half (2 issues); taking it
+  whatever the head fails the negative half (4 issues). Structural: the sinks
+  are called directly, in a fixed order, on one thread.
+- **C25 (comment in `endBeforeWait`): fixed.** It now says the scheduler
+  decides which comes first, the child's wait or the deliveries, that both
+  must end with the answer, and that the wait-then-deliver order is the one
+  every network test takes.
+- **Security review Vuln 1 (Medium) and L1:** accepted by the owner
+  (2026-11-24), follow-up #279; the record is corrected (see **Correction**
+  under **Seventh code review**, Known limits, the user guide, and the comment
+  on `ContentCoding`). No code change.
+- **Results:** `swift build --build-tests` clean, no new warnings; full
+  `swift test` 1529 tests in 215 suites pass; the CI-toolchain build
+  (`DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer swift build
+  --build-tests --scratch-path .build-xcode26.3`) passes; `Scripts/build-app.sh`
+  passes. CI on 573ef5c (run 45462650032): all four jobs passed.
