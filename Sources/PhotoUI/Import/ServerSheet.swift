@@ -289,8 +289,9 @@ struct ServerSheet: View {
             }
         }
         .frame(width: ServerSheetMetrics.width)
-        .frame(minHeight: ServerSheetHeight.minimum, idealHeight: sheet.idealHeight)
-        .presentationSizing(.fitted)
+        // The height follows the content (the notice, a result, the page),
+        // clamped to the window (S2); the form scrolls inside it.
+        .frame(height: sheet.idealHeight)
     }
 }
 

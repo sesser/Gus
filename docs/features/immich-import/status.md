@@ -6,14 +6,15 @@ Owner: swift-macos-engineer. Branch `feature/immich-import` (off `develop`).
 Spec: the PRD (issue #271, rev3: R1 to R25, AC1 to AC17, rulings RI-2 and
 RI-6) and [design.md](design.md) (DQ-1 to DQ-4 ruled, §14.3).
 
-**State: Done** (2026-11-23). Every requirement of PRD rev4 (R1 to R25, R10b
-and R15b) is built, and every acceptance criterion has a Swift Testing test or
-a debug-script check (tables below); P1 to P7 are for a person. The first round
-built against rev3; the second applies the rev4 rulings (RI-E1 to RI-E3) and
-the designer's DQ-5 and DQ-6. Three pieces of copy the rulings imply are built
-with provisional wording for the designer to confirm at design review
-(DQ-7 to DQ-9); none changes behaviour. Next: code-reviewer and the designer's
-review, then qa-tester.
+**State: Done** (2026-11-23, after the first review round). Every requirement
+of PRD rev4 (R1 to R25, R10b and R15b) is built, and every acceptance
+criterion has a Swift Testing test or a debug-script check (tables below); P1
+to P7 are for a person. The first round built against rev3; the second applied
+the rev4 rulings (RI-E1 to RI-E3) and DQ-5, DQ-6; the third fixes the code
+review's C1 to C9 and the design review's B1, S1 to S6, N1, N3 to N6 and the
+DQ-8, DQ-9 wording (see **Review findings**). Held for the owner, unchanged:
+C10, the Tailscale range and the Info.plist string. Next: the second passes
+of code review and design review, then qa-tester.
 
 ## API verification (first task, 2026-11-23)
 
@@ -106,7 +107,8 @@ Nothing about the triggers changed.
 | UI step (536845f) | passes, no new warnings (the two in `SmartAlbumTests` and `VirtualCopiesTests` are older) | 1483 tests in 210 suites pass |
 | Latest (2026-11-23, end of session) | `swift build --build-tests` passes, no new warnings | 1489 tests in 211 suites pass; 9 of 10 full runs this session passed, one failed with output lost to a pipe (not identified; see **Determinism**) |
 | Rulings applied (2026-11-23) | `swift build --build-tests` passes, no new warnings | 1492 tests in 211 suites pass, twice in a row; the remote suites 10 of 10 runs |
-| Bundle | `Scripts/build-app.sh` passes (after the rulings too) | |
+| Review fixes (2026-11-23, 977427c and the sheet-height commit) | `swift build --build-tests` passes, no new warnings | 1501 tests in 212 suites pass; the remote suites (48 tests in 6 suites) pass |
+| Bundle | `Scripts/build-app.sh` passes (after the rulings and the review fixes too) | |
 | CI toolchain | passes (see **CI toolchain**) | |
 
 No `PreviewCacheKey.currentPipelineVersion` bump, no golden touched, no
@@ -347,10 +349,10 @@ Ruled by the designer, design.md §15 (742c7c3):
 - **DQ-6**: "Couldn't load the albums of “‹name›”: ‹reason›. Choose Rescan to
   try again." (`loadAlbums`).
 
-## Design questions (new, copy the rulings imply)
+## Design questions (new, copy the rulings imply): ruled
 
-Built with wording that follows the existing sentences; the designer should
-confirm or replace it (none blocks behaviour):
+The designer ruled these in design.md §15 (ec4b29b): DQ-7 confirmed; DQ-8 and
+DQ-9 rewritten and built as worded there (977427c). As first built:
 - **DQ-7.** The key caption and the missing-permission detail named four
   permissions. Now: "…these permissions: asset.read, asset.view,
   asset.download, album.read and user.read." and "…create a new key with the
@@ -362,6 +364,48 @@ confirm or replace it (none blocks behaviour):
 - **DQ-9.** R13's new failure, an external photo with no size to check, has no
   reason in design §6.2's table. Built: "‹name›: the server gave no size to
   check the download against, so it was discarded."
+
+## Review findings (first round, 2026-11-23)
+
+Code review: [code-review.md](code-review.md). Design review: [review.md](review.md).
+
+| Finding | Fix | Test or check |
+|---|---|---|
+| C1 verified file stranded after the move; Stop as a failure; empty project | After verification a Stop check, then the photo is finished in `RemoteImporter.finish` run in an unstructured task (Stop can't cut it in half: named, moved, cataloged, linked, or nothing); any error after the move removes the moved file and reports the system's reason; the project is made inside that step | `RemoteReviewFixTests.stopWhileFinishing` (a Stop while the metadata is read: that photo cataloged with its link, no stray file, `.stopped`, no failure), `catalogErrorAfterMove` |
+| C2 server values split a pair | `insertRemoteMaster` writes the description to every image of the pair (`descriptiveImages`) where empty, and the rating to the version and its partner (`partnerVersionIDs`) when the pair is unrated | `pairGetsServerValues` (RAW unrated listed first, JPEG rated 4 "Beach": both 4, both "Beach", one pair) |
+| C3 overflow on sizes | `RemoteAsset.saneSize` (0…64 GiB, else nil) at decode, in the total (overflow-checked), the limit and `verify` | `insaneSizes` (`Int64.max`, negative, two `Int64.max` assets import) |
+| C4 unbounded bodies | `ImmichEndpoint.maximumResponseSize` (version 64 KiB, key and user 1 MiB, albums 16 MiB, search 32 MiB, thumbnail 16 MiB), enforced on `Content-Length` and while reading; a download stops past its limit (the reported size, else 64 GiB) as `tooLarge`, counted as incomplete | `caps` (200 KiB `/server/version` is not Immich; 17 MiB albums fail; an original 1 KiB over its size fails with no file) |
+| C5 numeric hosts | `LocalNetwork` reads IPv4 with `inet_aton` (decimal, octal, hex, short forms) and never counts a numeric-looking name as a local name | `numericHosts` (134744072, 0x08080808, 010.010.010.010, 8.8.2056, 08 refused; 2130706433, 0x7f000001, 10.1, 012.0.0.1, 3232235781 local); scripted: `http://134744072` refused in the sheet |
+| C6 test launch reaches the release Keychain service | `RemoteKeyStores.forLaunch`: memory with no bundle, `--debug-script` or `--benchmark-scroll`; `KeychainKeyStore` takes a bundle identifier, no fallback | `keyStoreForLaunch` |
+| C7 Quit leaves a partial | `CardImportModel.waitUntilDone(timeout:)` (`MainActorWait`, 10 s) after Stop and Quit, beside the merge's | Code; the cleanup itself is `stop`'s and `stopWhileFinishing`'s |
+| C8 Keychain on the main thread | The window's check is `nonisolated`; the sheet reads and writes the key in a detached task; removal runs in the catalog's async call | Code |
+| C9 developer text in Activity | `reason` maps every `RemoteError` to the system's words, the certificate title, or "The server's answer could not be read" | Code |
+| C10 fake server in the app | Held for the owner (no change) | |
+| C11 AC1's parts | Recorded below | |
+| B1 Trust Certificate does nothing in Edit | `ServerFormRules.canSubmit` and `needsCheck` take `trustedPending`; the sheet passes it, so the check runs with the stored key and saves the pin | `trustedPendingIsAChange`; a real changed certificate is M2 (the fake has no TLS) |
+| S1 key field empties | The key lives in `ServerSheetModel` (observed, memory only), the field binds to it | M2 (view state; the script drives the model) |
+| S2 no height rule | `ServerSheetHeight` (form 380, +90 notice, +60 result, certificate 470 / 540, clamped to the window less 40, at least 300); the sheet's frame follows it (without `.presentationSizing(.fitted)`, which kept the first height); `sheet print` shows size and ideal | `sheetHeight`; scripted: 460×380, notice 460×470, notice and result 460×530 |
+| S3 confirmation during the sheet's close | `remove()` keeps the server in `removalAfterSheet`; `.sheet(onDismiss:)` asks | Scripted `import server sheet remove`: "sheet closed asks Home" |
+| S4 grid without the keyboard after Add | `focusesGridWhenShown`, taken by the grid controller when the new grid enters the window | Scripted: after Add, `import grid` "first responder true" |
+| S5 `.combine` hides the button | `.contain` | Code |
+| S6 unbounded toolbar titles | Album and Date Range titles: one line, middle truncation, at most 180 pt | M6 |
+| N1 result as field hint | Address and key fields carry the result as their accessibility hint | Code |
+| N2 dates beside both fingerprints | Left: the trusted certificate's dates are not stored (only its fingerprint and when it was trusted, which the first paragraph names); the new one's dates are in the Valid row | |
+| N3 subtitle slice | "Not encrypted" is its own string | Code |
+| N4 "Imported 0 photos" | "No photos were imported. ‹n› could not be imported." when nothing imported | Code |
+| N5 duplicate names | Pickers named "From date", "To date"; the reversed-range line is not announced (left) | Code |
+| N6 long name | Name row: two lines and a tooltip | Code |
+| DQ-8, DQ-9 | The two strings as design.md §10 words them, catalog keys replaced | `LocalizationTests` |
+
+**AC1, test or scripted (C11):** catalog rows (every value of every table) and
+the import's report are a Swift Testing test (`keyOnlyInTheStore`); log lines
+and prints are a source check (`keyUsesInSources`); preferences and the debug
+script's output are scripted checks (each run's output and the test copy's
+`defaults read` grepped for the key: 0 hits).
+
+**Disagreements:** none. One note on C1: a Stop that lands after a photo
+verified now finishes that photo (cataloged and linked) rather than discarding
+it; R18 keeps finished photos, and a verified download is finished.
 
 ## Known limits
 
