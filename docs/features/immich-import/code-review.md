@@ -141,4 +141,106 @@ test launch (C6), and partial files left by Quit (C7).
 
 ## Follow-up
 
-(Second pass: each finding Fixed, Not fixed or Withdrawn, with the commit.)
+Second pass, 2026-11-23, at efb8425 (fixes in 977427c, 1deda12, efb8425).
+
+| # | Status | Commit | Evidence |
+|---|---|---|---|
+| C1 | Fixed | 977427c | After verification, a Stop check removes the partial file. From there `finish` runs in an unstructured `Task` that the Stop does not cancel, so GRDB's cancellation checks never fire inside it. `failed()` removes the partial file and the moved file only when this call moved it (`moved` is set after `moveItem` succeeds, and `moveItem` never replaces a file), so no master is touched. `makeTarget` now runs inside the step, so a Stop can't leave an empty project. I ran `stopWhileFinishing` against 2552143: it fails there (a `CancellationError` failure, 0 imported, and the stray file the finding described). `catalogErrorAfterMove` does not test what its name says (C13). |
+| C2 | Partly fixed | 977427c | When the RAW is listed first, both files now get the rating and the description, and `pairGetsServerValues` tests this. When the JPEG is listed first, the description still splits the pair (C12). |
+| C3 | Fixed | 977427c | `saneSize` (0 to 64 GiB) is applied at decode, in the total, in the download limit and in `verify`. The total is added with overflow checking. `insaneSizes` would trap on the old `reduce(0, +)`. |
+| C4 | Fixed | 977427c | JSON and thumbnail answers are capped by `Content-Length` and while reading. A download stops past its limit (`tooLarge`, reported as incomplete) and its partial file is removed. The caps are ample for a real library: a 250-asset search page is about 1 to 3 MB against 32 MiB; an album without its assets is about 1 to 2 KB, so 16 MiB holds about 8,000 albums; a `size=thumbnail` webp is tens of KB against 16 MiB. The tests cover only the `Content-Length` path (C16). |
+| C5 | Fixed | 977427c, efb8425 | `inet_aton` forms are now read as addresses. A numeric-looking name is never local, and only ASCII names are local. `isHexDigit` also accepts fullwidth digits, but the ASCII guard and `inet_aton` both reject them, so those hosts are refused. A trailing-dot host is refused too. Every failure refuses, never allows. |
+| C6 | Fixed | 977427c | `RemoteKeyStores.forLaunch` uses memory when there is no bundle, for `--debug-script` and for `--benchmark-scroll`. `KeychainKeyStore` takes the identifier and has no release fallback. |
+| C7 | Fixed | 977427c | Stop and Quit waits up to 10 s for `importTask` to become nil, after the merge's own 10 s wait. Residual: a finish that takes longer than that (a stuck ExifTool read; its `PendingResponse` was never cancellable after queueing, so this is not a regression) can exit between the move and the insert. That case is bounded and rare. |
+| C8 | Fixed | 977427c, efb8425 | `check` is `nonisolated`. The sheet reads the stored key in `Task.detached`. `Catalog.saveRemoteService(_:key:keys:)` is a nonisolated async method on a `Sendable` final class, so its key-store calls run off the main actor. `RemoteKeyStore: Sendable`. No key text is logged or put into a result. |
+| C9 | Fixed | 977427c | Every `RemoteError` now maps to the system's words or a catalogued sentence. `LocalizationTests` passes. |
+| C10 | Held for the owner | | No change, as agreed. |
+| C11 | Accepted | 977427c | `status.md` says which AC1 parts are tests (`keyOnlyInTheStore`) and which are a source check or scripted checks. QA should record the same split. |
+| B1, S1 to S4 (design review) | Not harmful | 977427c, 1deda12 | B1: `trustedPending` applies only in Edit. Add still needs a key and a check, and `trusted` is set only on the certificate page. S1: the key lives in an observed property of the sheet model, in memory only; it is never shown, printed or reflected (the same as the ignored property before), and it is released with the sheet. S2: a fixed frame that follows `idealHeight` (the designer's N-1 covers the certificate page). S3: the confirmation is asked from `onDismiss`. S4: a one-shot flag taken when the new grid enters the window. |
+| F1 (security) | Verified | efb8425 | See the Second pass section. |
+| F2 (security) | Verified | efb8425 | When the row fails, the previous key is put back. A new connection has its key deleted. A refused read of the previous key changes nothing. `keyRollback` covers all three. If putting the key back also fails, that failure is swallowed, but the store has just accepted a write, so this is unlikely. |
+
+## Second pass
+
+Reviewed: `feature/immich-import`, 2552143..efb8425 (code commits 977427c,
+1deda12, efb8425). Build and tests: `swift build --build-tests` clean.
+`swift test --filter Remote` passes: 54 tests in 7 suites, 15 of 15 runs
+(`--skip-build`). `LocalizationTests` and `BrandingTests` pass. I did not run
+the full suite; the engineer reports 1507 tests passing after the security
+fixes. Two probes were run in throwaway copies under the scratchpad, never in
+the repository: the new tests against 2552143, and the C12 and C14 scenarios
+against efb8425.
+
+### Verdict
+
+Not ready for QA yet. Two findings need code fixes and one needs a test. The
+fixes for C1, C3 to C9 and both security findings hold. But C2 is fixed in
+only one listing order (C12). The test said to cover C1's cleanup after the
+move never reaches the move (C13). F1's decode check hides legitimate photos
+whose names hold invisible format characters (C14). All three are small.
+
+### Findings
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C12 | Should fix | `Sources/PhotoCore/Catalog/RemoteServices.swift:243-248` | The description is filled per image: any image of the pair whose caption is empty gets the server's value. That works when the file with the description is inserted after its partner. It fails the other way round, because pairing (`ImagePairing.mergeDefaultVersions`) merges ratings, flags, labels, keywords and albums, but not captions. | `IMG_0200.JPG` (rated 4, "Beach" on the server) is listed before `IMG_0200.DNG` (newer `fileCreatedAt`, or an equal one in the server's order). A probe at efb8425 gave rows `DNG caption=nil rating=4` and `JPG caption=Beach rating=4`, one pair, and `descriptiveSummary` for the photo returned `mixed = [caption]`. The Info tab shows Description as mixed for one photo. The sidecar is written from its owner, the RAW, so it has no description. A second case: the RAW has a description and the JPEG gets a different one from the server. Both are kept, so the pair is again mixed. The code comment says "only where the pair's own value is empty", but the description code does not do that. Fix: treat the pair as one. When the new image is paired and a partner has a caption, copy it to the new image if its caption is empty. Write the server's description only when every image of the pair is empty. Add a test with the companion listed first. | CLAUDE.md, RAW+JPEG pairs; R17, AC12 |
+| C13 | Should fix | `Tests/PhotoCoreTests/RemoteReviewFixTests.swift:47-63` | `catalogErrorAfterMove` sets `.existing(9_999)`, so `createImportRun` fails on the `importRun.projectId` foreign key inside `makeTarget`, before the move. The test never reaches the code it is named for, the removal of the moved file (`moved`) after a failed insert. That path has no test. | Run against 2552143 (the unfixed code), the test **passes**. It printed "SQLite error 19: FOREIGN KEY constraint failed - while executing `INSERT INTO "importRun"`…", so it would not catch a regression of C1's cleanup after the move. Fix: make the failure come after `moveItem`. For example, catalog a first photo, then make the insert fail for the second (drop or rename the project or volume row between photos through a test hook), or have `relativePath` return nil. Assert that no file is left and that the reason is the system's. | WORKFLOW, tests that fail without the fix; C1 |
+| C14 | Should fix | `Sources/PhotoCore/Remote/RemoteAsset.swift:46-49`, used at `ImmichAPI.swift:237` | `isPlainFileName` refuses every scalar in `CharacterSet.controlCharacters`. That set is Unicode categories Cc **and Cf**: zero-width joiner U+200D, zero-width non-joiner U+200C, LRM and RLM, the soft hyphen and the BOM. F1 needs only `/`, `\`, NUL and Cc refused; `sanitize` already drops Cf characters when it builds a name. | A probe at efb8425: `isPlainFileName("Family 👨‍👩‍👧.jpg")` is false (emoji ZWJ sequence), and a Persian name with the ZWNJ its spelling requires is false. Such a photo is dropped by `compactMap` in `ImmichClient.page` and never listed. Nothing tells the person, and an album shows the server's count with fewer tiles. `a..b.jpg` is accepted, as it should be. Fix: refuse `/`, `\` and Cc (NUL included), not Cf. Layers 1 and 3 do not depend on this check. | R9 and R10 (the account's photos are listed); F1 |
+| C15 | Nit | `Sources/PhotoCore/Remote/RemoteImporter.swift:277` | `result.project` is read with `try?` in the import's own task. When a Stop lands while the first photo finishes, GRDB's read throws `CancellationError` and the project is nil. | That photo is cataloged in its new project, but `didFinishCopyImport` gets `project == nil`. It does not select the project, warm its previews or suggest keywords for the photo. Fix: return the project summary from `finish`, which runs in the task that isn't cancelled. | R18 |
+| C16 | Nit | `Sources/PhotoCore/Remote/RemoteHTTPSession.swift:167-172` (the read loop), `:291-295` (`DownloadSink.received(_ data:)`) | The fake always sends `Content-Length`, so `caps` exercises only the up-front refusal. The checks that stop a body while it streams (a chunked answer, as a proxy can send) are untested. | They read correctly, but a regression there would not be caught. Fix: add a fault to the fake that sends a chunked or length-less body, for one JSON endpoint and for an original. | C4 |
+| C17 | Nit | `Tests/PhotoCoreTests/RemoteReviewFixTests.swift:33-34` | `reader.task` is set after the import's `Task` has started. If the import reaches its first metadata read before that assignment, `cancel()` acts on nil and the test fails. The run has to make a localhost download, two hashes and three catalog writes first, so the window is small. | This can only cause a false failure, never a false pass. 15 of 15 runs were clean here. Fix: have `CancellingReader` wait until the task is set. | Determinism |
+| C18 | Nit | `Sources/PhotoCore/CardImport/ImportTemplate.swift:173` | The doc comment "Makes a value safe as one path component." now sits above `fallbackStem`, not above `sanitize`. | It documents the wrong declaration. | Documentation |
+
+### Questions
+
+- **For the main session (a possible follow-up, not this branch).** When Stop
+  lands, `writeSidecars(forImages:)` at the end of `run` fails in the
+  cancelled task (`try?`). Photos imported before the Stop with a metadata
+  preset then get no sidecar until something changes them: the preset's
+  values are their baseline, so nothing queues them. The card import has
+  the same gap (its `run` throws on cancellation before the same call), so
+  this branch keeps R18's "as in card import". It may deserve an issue for
+  both imports.
+
+### Checked and fine
+
+- **F1, layer 3 (`isInside`).** The final URL is built by appending
+  sanitized parts to `options.destination`, so the destination's text is
+  always its prefix. Trailing slashes, `.`, `..` within the destination's own
+  path, case, Unicode normalization and a destination that is itself a
+  symlink all compare equal by text. Symlinks inside the destination are the
+  person's own folders, and folder names can't contain `/` or start with
+  `.`, so a server can't add one. `/a/bc` is not inside `/a/b`, and the
+  `/private/tmp` case is tested. The check refuses before the move and
+  removes the partial file.
+- **F1, layer 1 (`render`).** For a name without `/` or `\` whose extension
+  is plain, the extension is the same as before. The only change for card
+  imports is that an empty template's fallback is now sanitized, so it equals
+  what `{name}` gives. Every extension `FileKind` accepts (`cr3 cr2 nef arw
+  dng raf orf rw2 jpg jpeg heic heif tif tiff png`, and the video ones) is
+  ASCII alphanumeric and at most 4 characters. No file that passes
+  `FileKind`, at a server's decode or a card's scan, can lose its extension,
+  so no master ends up without one. `3FR`, `IIQ` and `X3F` would also pass
+  the rule, but they are not supported formats. Names with spaces, several
+  dots or `.jpeg` are not pinned by a test of `render`, but the code they go
+  through is unchanged.
+- **C1 and Stop.** R18 is respected: a verified download counts as finished
+  (the card import also finishes a verified copy), and `finish` sends no
+  request. Stop waits for at most one photo's metadata read, move and
+  transaction. Before this change, a queued ExifTool read could not be
+  interrupted either.
+- **`perform` over `session.bytes(for:)`.** The trust challenge, the redirect
+  refusal and the ephemeral configuration are still session-level and work
+  as before. Answers that are not 2xx cancel the body. `tooLarge` is not
+  transient, so it is not retried.
+- **Concurrency.** No new `@unchecked Sendable` or `nonisolated(unsafe)`.
+  `FinishStep`, `Target` and `FinishOutcome` are `Sendable`.
+- **Determinism.** 15 clean runs here plus the engineer's runs, which
+  `status.md` doesn't count for the new tests. On their own, 15 runs rule
+  out a flake rate above about 1 in 5. The structural argument is the
+  stronger evidence: `caps`, `insaneSizes`, `keyRollback`, `endToEnd` and
+  `containment` have no timing. In `stopWhileFinishing`, the cancel happens
+  in step with the first metadata read, and `finish` can't be cancelled.
+  Its only race is C17, and that race can only cause a false failure.
+- **Held, not findings:** C10, the Tailscale `100.64.0.0/10` range and the
+  `Info.plist` string wait on the owner.
