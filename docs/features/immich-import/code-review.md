@@ -244,3 +244,87 @@ whose names hold invisible format characters (C14). All three are small.
   Its only race is C17, and that race can only cause a false failure.
 - **Held, not findings:** C10, the Tailscale `100.64.0.0/10` range and the
   `Info.plist` string wait on the owner.
+
+## Third pass
+
+Reviewed: `feature/immich-import`, 3093030..22103c2 (one code commit, 22103c2;
+47bfd58 after it is the designer's `review.md` only). Build and tests:
+`swift build --build-tests` clean. `swift test --filter Remote`: 59 tests in
+7 suites pass. Full `swift test`: 1512 tests in 213 suites pass (76.9 s). One probe ran in a throwaway copy
+of 2552143 under the scratchpad, never in the repository: the new
+`catalogErrorAfterMove` body, with its temporary trigger.
+
+### Verdict
+
+Ready for QA from the code-review side. C12 to C18 are fixed. The new code
+has no defect that needs a fix before QA. One nit: half of the new streaming
+test cannot fail (C19).
+
+### Findings
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C19 | Nit | `Tests/PhotoCoreTests/RemoteReviewFixTests.swift:323-331` (`streamingCaps`, the original's half) | The chunked original 1 KiB past its listed size fails as `.incomplete` whether or not `DownloadSink.received(_ data:)` stops it. Without the cap the sink writes the whole body. `verify` (`RemoteImporter.swift:426`) then finds `byteCount != expected` and gives the same `.incomplete`. The partial is removed and the same single file is left. | If the limit check in `received(_ data:)` (`RemoteHTTPSession.swift:292-295`) is deleted, this half still passes. A server that streams an endless original fills the disk before `verify` runs, and no test catches that. The album half does discriminate: without the read-loop cap, 17 MiB of spaces would fail to decode as `malformed`, not `tooLarge`. Fix: call `setup.client.download(assetID:to:limit:)` directly on the chunked oversize asset. Expect `RemoteError.tooLarge` and a file no larger than the limit. | C16; WORKFLOW, tests that fail without the fix |
+
+### Confirmations
+
+| Finding | Status | Evidence |
+|---|---|---|
+| C12 | Fixed | `Catalog.fillPairCaption` runs inside `insertRemoteMaster`'s `database.write`, after the insert and the pairing, in the same transaction. I checked all four cases. **Neither image has a caption:** the server's trimmed description goes to both, and nothing is written when it is empty. **One image has one:** the empty one takes that caption, read back untrimmed. The server's is ignored, so the library wins (R17). **Both have different ones:** `empty` is empty and the function returns without writing (`pairCaptionsKept`). **No partner:** `descriptiveImages` returns the image alone, which is the old behavior. The function writes only to rows whose caption is NULL or blank after trimming, so a caption the person wrote is never overwritten. It is a plain `UPDATE … caption`, so `sidecar_description` queues each changed image. The RAW's sidecar, which owns the pair's, is queued when the RAW takes the value. One difference from card import is intended: when the photo just imported has a caption from its own file, that caption also fills the partner's empty one. This is C12's "treat the pair as one". |
+| C13 | Fixed | The probe at 2552143 reached the insert. It failed with "SQLite error 19: the test refuses this insert … `INSERT OR IGNORE INTO "image"`" (`RAISE(ABORT)` wins over `OR IGNORE`), left `Photos/IMG_0001.JPG` behind, and failed the files expectation. At 22103c2 it passes. The trigger is `TEMP` on the test's own `Catalog.makeInMemory()` queue, so it lives only as long as that test's private connection and cannot reach another test. It is never dropped, and doesn't need to be. |
+| C14 | Fixed | The test now refuses `generalCategory == .control` (Cc) and accepts Cf. `formatCharacters` covers both sides, including NEL (U+0085, Cc). See "Checked and fine" for names that hold bidi or zero-width characters. |
+| C15 | Fixed | `makeTarget` reads the `ProjectRecord` inside `finish`, which runs in its own unstructured `Task` that Stop doesn't cancel. The loop takes `made.project`, so no read is left in the cancelled task. On the old code, `stopWhileFinishing`'s new expectation would read nil: the cancel lands at the first metadata read, before the `try?` read in the cancelled task. |
+| C16 | Partly | The `.chunked` fault sends `Transfer-Encoding: chunked` with no `Content-Length`, in 64 KiB chunks. `.huge` sets no length header, so the album half reaches the read loop's cap (`expectedContentLength` is -1). The original's half does not test the sink (C19). |
+| C17 | Fixed | The import's task first waits on an `AsyncStream`. `reader.task` is set before `yield`, so `cancel()` can no longer act on nil. That was the only race. The test is now structurally deterministic: the cancel happens inside the first metadata read, and `finish` cannot be cancelled. |
+| C18 | Fixed | The comment is on `sanitize`. |
+| N-3 (design), `ServerFormRules.pin` | Correct | The fields are `.disabled(isChecking)` and the certificate page replaces the form, so the address at Trust time is the address the check ran for. `trusted.address` is therefore the right binding. `addressEdited` clears `trusted` on any change, cosmetic ones included. `pin` also compares normalized addresses on both branches, so a pin from address A is never sent with address B. The saved pin is used only while `existing.address` equals the normalized address. A trailing slash normalizes to the same address, so that edit keeps the saved pin. After a real address change there is no pin. When a cleared or unused trust drops a pin, it is never silent. Either the next check shows the certificate page again (untrusted or changed), or the new address has a certificate the system trusts and the record saves with no pin. That is design §3.6's "a pin is for one address". A name-only edit saves `existing` and keeps its pin. `pinFollowsAddress` covers the four branches. |
+| N-1 (design), certificate page | Correct | Only the body is in the `ScrollView`. The header (Back, ⌘[) and the button bar (Cancel with `.cancelAction`, then Trust Certificate with no shortcut) are outside it, so neither is ever scrolled away. There is still no default button: Return does nothing on this page. The scroll view is in a sheet, not under the window's toolbar. `CopyAdjustmentsSheet` and `LookTableBrowserSheet` use the same pattern. The body is static text and the fingerprint elements, so focus order is unchanged. VoiceOver scrolls the fingerprint into view. How it looks in a short window is M1 and M2 for the person. |
+| N-4, N-5, DQ-11 | Fine | `focusesGridWhenShown` is cleared on a failed connect. The comment was corrected. The new alert sentence has one catalog key with both plural forms, and `LocalizationTests` passes. |
+
+### Checked and fine
+
+- **Names with format characters (C14), path safety.** `sanitize` still drops
+  Cc and Cf (`CharacterSet.controlCharacters`), so no bidi control (U+202A
+  to U+202E, U+2066 to U+2069), zero-width character, LRM or RLM reaches a
+  file name on disk or the library's `fileName`. A name made only of format
+  characters (`"\u{200B}.jpg"`) gives an empty `{name}`, then an empty
+  fallback stem, then `photo.jpg`. `"\u{202E}..\u{202E}.jpg"` sanitizes to
+  `..`, loses its leading dots and becomes `photo.jpg`. Dots and a separator
+  can't form `..` as a component: every value goes through `sanitize` (it
+  turns `/`, `\` and `:` into `-` and strips leading dots), and the extension
+  is appended to the stem. A Cf character in an extension makes it
+  non-plain, and `FileKind` refuses it at decode anyway. `a\u{200B}.jpg`
+  next to `a.jpg` lands as `a.jpg`, then `freeName` numbers it. Combining
+  sequences (Mn) were accepted before this change too. APFS's
+  normalization-insensitive lookup sends NFC/NFD twins through `freeName`
+  as well. `isInside` (layer 3) does not depend on any of this.
+- **Names with format characters, display.** An RLO in a server's name only
+  changes how that name is drawn where the server's name is shown as is.
+  The browse tile draws the stem without its extension (`ImportCell`), and
+  the type badge comes from the real kind. Failure lines in Activity and
+  the alerts use the full name, so `a\u{202E}2wr.jpg` would read
+  "agpj.rw2". Nothing is decided from the drawn text. The file lands as
+  `a2wr.jpg`. The names come from the person's own account, and Finder draws
+  such names the same way. This doesn't matter for safety and is not a
+  finding.
+- **`fillPairCaption`'s blank test.** It trims `.whitespacesAndNewlines`;
+  the old SQL `trim()` trimmed spaces only. So a caption that is only a tab
+  or a newline now counts as empty and is filled. That is not a value a
+  person writes, and Info treats blank the same way.
+- **`makeTarget` ordering.** The extra read comes after `createImportRun`. A
+  failure there throws inside `finish`, and the partial is removed as before.
+  A target that was made when the photo then fails still names its project,
+  as the old `projectSummaries` read did.
+- **Determinism.** `pairCaptionEitherOrder`, `pairCaptionsKept`,
+  `formatCharacters`, `streamingCaps`, `pinFollowsAddress` and
+  `catalogErrorAfterMove` have no timing or shared state. Each uses its own
+  fake server and in-memory catalog. Listing order comes from `takenAt`,
+  one second apart. `stopWhileFinishing`: see C17 above. That is a
+  structural argument, not a run count.
+- **Held, not findings:** C10, the Tailscale `100.64.0.0/10` range and the
+  `Info.plist` string.
+
+### Follow-up
+
+C19 is a nit and does not block QA. If it is taken, record it here with
+its commit.
