@@ -641,7 +641,11 @@ A server source's **Project name** is a **plain text field** (not a template
 field), prefilled **‹connection name› - ‹scope›**: **Home Server - All Photos**
 or **Home Server - Holiday 2024**. It is prefilled again when the album changes,
 unless the person edited it for this window; it is not remembered across
-windows. One project per import run. When **Add to** names an existing project
+windows. A server import **adds to the oldest existing project whose name is
+exactly the cleaned Project name** (case counts; the spaces are already collapsed
+and trimmed by the field's cleaning) and otherwise creates one; a reused project
+keeps its original source folder (owner ruling of 2026-11-24, §15 DQ-12; layout
+and note: DQ-13 and DQ-14). When **Add to** names an existing project
 the field is absent, as the template is today. Why plain: the template tokens
 (`{capture:yyyy}`, `{job}`) have no connection or album token, and a card's
 default (`{capture:yyyy-MM-dd} {job}`) is meaningless for 3,000 photos from
@@ -1388,3 +1392,151 @@ Choose Review Certificate… in the window to see the new one.`, keeping both pl
 forms (`one`: `%lld photo was imported …`) and the comment. No test asserts the old
 sentence (check with grep of `Tests/`). The user guide needs no change (it names
 **Review Certificate…** and does not route through Edit Server…).
+
+### DQ-12. A server import reuses a project of the same name
+
+**Owner's ruling of 2026-11-24** (sign-off finding O1; recorded, not the designer's).
+§5.3's "One project per import run." is replaced by the rule as built
+(`Catalog.projectForImport`): a server import adds to the **oldest** existing
+project (`createdAt`, then `id`) whose name is **exactly** the cleaned Project name
+(Swift string equality: case counts, canonically equivalent Unicode forms are equal;
+the field's cleaning has already collapsed and trimmed spaces, or fallen back on the
+server's address when the field is empty), else creates one. A reused project keeps
+its original source folder. The project is chosen when the first photo verifies, so
+an import that brings nothing touches none. Card and folder imports are unchanged.
+**Engineer's change:** none (§5.3 is corrected; nothing else in this file said
+otherwise).
+
+### DQ-13. "New Project" stays; one note under the Project name field
+
+Ruled by the designer, 2026-11-24 (judgment; the HIG has no rule for this case):
+**option (b)**.
+
+- **Why not (a).** The pop-up and the field are where the decision is made; the
+  user guide is read afterwards. With reuse by name, the person who types a name
+  that exists will put photos into a project that may already hold hundreds, and
+  nothing on screen says so. That is a surprise at the moment it can still be
+  avoided (a different name costs one keystroke), which is what Hierarchy and
+  Consistency in the HIG ask a control not to do.
+- **Why not (c).** The pop-up's items are the choice between "a new one, named by
+  the field" and "this specific project". Renaming the first for one source kind,
+  or by what is typed, makes the same pop-up read differently by source and still
+  leaves "New" wrong half the time. The consequence belongs next to the name that
+  causes it.
+- **Why a note and not more.** One line of the form's existing 11 pt secondary
+  caption (`Caption`, as under Server and under Preset). No icon, no colour, no
+  extra control, no confirmation. It is information, not a warning: adding to the
+  project is what the owner asked for.
+
+**The string (the key is the English text, as every key in the catalog):**
+
+> **Adds to the existing project with this name.**
+
+Comment: `Import options, server source: caption under Project name while an
+existing project already has that name; the import adds to it`. One `en` entry,
+state `translated`. Sentence case, a full sentence with its period, like the other
+captions. It is about 44 characters: one line at the default inspector width, two
+at the narrowest (it wraps, never truncates).
+
+**State rules**
+
+- **Shown** only when all hold: the source is a server, **Add to** is **New
+  Project** (so the field is on screen), and the **cleaned** name
+  (`RemoteProjectName.cleaned`, the very value the importer will use, so an empty
+  field that falls back on the address is compared as the address) is equal (`==`,
+  as the importer compares) to the name of any project in the already loaded
+  `library.projects`. It sits directly under the field, inside the same stack as
+  the field (DQ-14), 6 pt below it.
+- **Hidden** otherwise: no match, **Add to** names a project (the field is absent),
+  card and folder sources (their name is a template; they are unchanged), and the
+  library's list not loaded yet.
+- It follows the field on every change of the text (typing, the prefill after an
+  album change) and of `library.projects` (after an import creates the project,
+  the note appears for the next one; a rename or removal updates it). It is
+  computed, never stored. No animation: the form below it moves by its height,
+  which is accepted; reserving an empty line would be a gap on every window.
+- With several projects of the name the note is the same (the oldest takes the
+  photos; the note does not name it, since the name is the one just above it).
+- While an import runs the form is as it is today for the other fields; the note
+  follows the field.
+
+**VoiceOver.** The note is the field's **accessibility hint**, and the caption
+itself is hidden from VoiceOver so the sentence is not read twice (the pattern of
+§8: a visible result that is also the field's hint). When the note **appears
+because the name changed** (typing, or the prefill following an album change), it
+is announced once at medium priority (`AccessibilityText.announce(_,
+priority: .medium)`), since the person's focus is elsewhere in the latter case. It
+is **not** announced when the window opens, when the source changes, or when Add to
+changes (the hint covers those), and it is not announced when it disappears.
+
+**Engineer's change for DQ-13**, exactly this: the one string and the state rules
+above in `ImportOptionsForm`'s server branch; a pure function for "does the cleaned
+name match" in PhotoCore beside `RemoteProjectName.cleaned`, with tests (match,
+case, NFD against NFC, empty field with the address, no match, no projects, Add to
+set); no change to the pop-up, to `Catalog.projectForImport` or to any other
+string. `docs/USER_GUIDE.md`: one sentence in the server import paragraph that a
+line under the field says so.
+
+### DQ-14. The server Project name field is stacked, label above, leading-aligned
+
+Ruled by the designer, 2026-11-24, **from the owner's screenshots; a correction of
+my own spec** (§5 said "a plain text field" and gave no layout, so the
+`LabeledContent` with a hidden label inherited the grouped form's value
+alignment, trailing).
+
+- **Why it is wrong.** A grouped form right-aligns *values*, which suits what a
+  pop-up or a short read-only value shows. A name the person edits is *text*: it
+  is read from its start, and it can be long ("Home Server - Holiday 2024"). Flush
+  right leaves a gap before a short name and scrolls a long one with its start
+  clipped, so the person cannot check what they typed. The card import's template
+  fields (Subfolders, File names, Project name) already answer this: label above,
+  field at the column's full width. HIG (Text fields, Layout): give an editable
+  field room for its content and align it to the reading edge; Consistency: the
+  same field in the same window looks the same.
+- **Layout to build** (replace the `LabeledContent` of the server branch, line
+  ~416 of `ImportWindow.swift`):
+
+  ```
+  VStack(alignment: .leading, spacing: 6) {
+      Text("Project name")                      // plain, as TemplateField's title
+      TextField("Project name", text: …)        // existing binding
+          .textFieldStyle(.roundedBorder)
+          .labelsHidden()
+          .multilineTextAlignment(.leading)
+          .frame(maxWidth: .infinity)
+      note (DQ-13), when shown
+  }
+  ```
+
+  The same spacing (6 pt), the same label (regular weight, primary colour, no
+  Insert menu: the field is plain text, §5.3), the same full-width field as
+  `TemplateField`. The system rounded-border field, no custom control. Text starts
+  at the field's leading inset, a short name has its empty space on the right, and
+  a long one shows its start (it scrolls to the caret while editing, as any text
+  field does; at rest it is clipped at the end).
+- **VoiceOver.** The visible `Text` is hidden from VoiceOver and the field keeps
+  the label **Project name** (otherwise the label is read twice); no other change.
+  Full Keyboard Access: the field is a text field, a Tab stop as before.
+- **Narrowest inspector (min 300 pt).** The field takes the column's width, no
+  fixed or minimum width of its own, so it cannot push the column wider or be cut
+  at the trailing edge; the note wraps to two lines; the label, field and note
+  stack on the same leading edge. Check by eye at the minimum width with a long
+  name, and with `print inspectorwidth` if the import window has it (do not add
+  a command for this).
+- **Increase Contrast.** Nothing of our own: the rounded-border field gets the
+  system's stronger border, the label is primary text and the note is
+  `.secondary`, which the system strengthens. No hard-coded colour or border.
+  Light and Dark follow the system.
+- **Job code stays as it is** (`LabeledContent` with the recent-codes menu): it is
+  a short code, shares its row with a menu button, and belongs to the card import,
+  not to this branch. The pop-ups (Add to, Preset) are right-aligned values and
+  that is the system convention. The card import's template Project name is
+  unchanged. A stacked Job code is a possible follow-up for the owner to file; it
+  would change a card-import control and needs its own look.
+
+**Engineer's change for DQ-14**, exactly the layout above; no new string (the label
+and field title are the existing **Project name**); no model change. Add a debug
+script `print` line or reuse an existing one only if the stack's alignment is
+otherwise unverifiable in the current design (the inspector is a glass pane, so
+`snapshot` leaves it blank): the look is one manual check for the owner (M1 in the
+review): a short and a long name, at the narrowest width, in Increase Contrast.
