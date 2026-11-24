@@ -1347,7 +1347,130 @@ the bundle on a scratch library, no checks left open
 (`docs/features/copy-adjustments-selective/qa.md`; P1 to P6 were not recorded
 one by one). Covered by CI only: VoiceOver, macOS 15 and macOS 26.
 
-Not yet: Copy Adjustments' remembering choices, copying without asking, masks
+Import from Immich (`docs/features/immich-import/`, issue #271, branch
+`feature/immich-import`): the library app's Import window takes a server as a
+third source beside a card and a folder (the Source pop-up's server rows and
+Add Server…; File ▸ Add / Edit / Remove Server…; View ▸ Album, Date Range…).
+A connection is a name, an address and an API key; the key lives only in the
+macOS Keychain (service `<bundle id>.servers`, account the connection's uuid),
+the name, address and trusted-certificate fingerprint in the catalog. The
+Server sheet checks the server (reachable, is Immich, version 3.2.0 or newer,
+key accepted, and the five permissions `asset.read`, `asset.view`,
+`asset.download`, `album.read`, `user.read`, or `all`: RI-E1 added `user.read`
+so only the key's own account's photos are listed) and names each failure.
+Browsing shows the account's images only (no video, archived, hidden, locked,
+trashed or partners' photos), newest capture first, in pages as the grid
+scrolls, with thumbnails fetched on demand (six at once, memory only), a scope
+(All Photos or an album, with the server's counts) and an optional capture
+date range. Nothing is checked on opening, Select All takes what is loaded and
+not yet imported, photos already linked are marked In Library and unchecked
+and skipped, an edited asset carries an Edited badge and imports its original
+(never Immich's render: every request says `edited=false`). Import copies each
+original to the chosen destination by the import template, downloaded to a
+hidden temporary name, verified (byte count; SHA-1 against the asset's
+`checksum`; assets from an external library, whose checksum is a path hash, by
+size alone and counted as such: RI-E2), then the catalog's SHA-256 and the
+duplicate rule, and moved into place only when complete; description and star
+rating fill the library's empty values (queued to the sidecar by the existing
+triggers); favorite, tags, albums, people and Immich edits are not mapped. A
+Live Photo comes as its still, its video not downloaded and counted. Stop and
+the quit question work as in a card import; a failed photo (deleted on the
+server, corrupt, short, name the destination refuses) is counted with its
+reason and the job goes on; an unreachable server or a rejected key stops it
+after bounded retries and says which, keeping what verified. One Activity job
+with counts of imported, already imported, duplicates, left out and failed.
+Catalog: migration v16, tables `remoteService` (provider, name, address,
+trusted fingerprint; no key) and `remoteLink` (service, remote asset id,
+remote fingerprint; one link per version, deleted with the photo in
+`LibraryRemoval`'s transaction; kept when a connection is removed, so
+re-adding the server finds them again; a virtual copy carries none). No
+product name in any stored name; the provider is a value (`immich`), so a later
+source adds a row, not a table, and publishing (#28) is meant to build on
+these tables and the connection layer. Transport (R5 to R7): `https://` by
+default; plain `http://` only to a local-network host (private ranges,
+loopback, link-local, `.local`, single-label names, numeric forms decoded) and
+only after the person confirms the notice that the key and photos cross the
+network in the clear (the window's subtitle then says "Not encrypted"); any other host is
+refused. A certificate the system does not trust is never accepted silently:
+the Server sheet shows its SHA-256 fingerprint and the person may trust that
+one certificate; it is then the only one accepted for that server, and a
+different one fails as "certificate changed" with Review Certificate…, never a
+prompt in the middle of an import. There is no switch that turns checking off.
+Only the seven allowlisted requests are ever built (GET only, plus the one
+search POST), checked before a request exists; the key is sent only as
+`x-api-key` and only to the connection's host; redirects are never followed;
+no cookies, cache or credential storage; bodies and downloads are capped.
+Code: PhotoCore `Remote/` (`ServerAddress`, `RemoteKeyStore`, `RemoteTrust`,
+`ImmichAPI`, `RemoteHTTPSession`, `ImmichClient`, `RemoteImporter`,
+`RemoteAsset`, `RemoteBrowseRules`), `Catalog/RemoteServices.swift`; PhotoUI
+`Import/ServerSource.swift`, `ServerSheet.swift`, `ServerText.swift` and the
+Import window's server states; PhotoApp `DebugServerCommands.swift`;
+`Sources/PhotoFixtures/FakeImmichServer.swift` (an Immich in the test
+process). The library app's `Support/Info.plist` has `NSAppTransportSecurity`
+▸ `NSAllowsLocalNetworking` and `NSLocalNetworkUsageDescription`; the
+standalone importer has neither and no server code (R24; AC16 reads "no path to
+the connection code", RI-E3). A test launch (`--debug-script`, another bundle
+identifier, no bundle) uses an in-memory key store, never the Keychain. About
+and the user guide say the About window contacts nothing and the app contacts
+only a server the person adds. Project reuse (owner finding O1, DQ-12, 2026-11-24):
+the Project name field starts as "‹server name› - ‹scope›" (the album's name or
+All Photos), and a server import adds to the oldest project whose name is
+exactly the field's cleaned text (case counts, canonically equal Unicode is
+equal, spaces already collapsed, an empty field is the server's address), else
+makes one, chosen when the first photo verifies (so an import that brings
+nothing touches no project); a reused project keeps its original source folder,
+each import is still its own `importRun`, and an album keeps its own project
+because its name differs. A note under the field, "Adds to the existing project
+with this name.", shows while the name matches and Add to is New Project (DQ-13;
+the field is stacked, label above, DQ-14; set to an existing project the field
+goes). Card and folder imports are unchanged and still always make a new
+project (`createProject`). The consequence: a RAW and a JPEG of one stem that
+arrive in two imports of one scope now land in one project and pair by the
+library's own rule (before, two projects, never paired); the RAW's values win
+and the server's rating and description only fill empties. Renaming a server
+changes the default name, so its next import makes a new project. Code:
+`Catalog.projectForImport`, `RemoteProjectName` (`Remote/RemoteBrowseRules.swift`),
+`RemoteImporter.makeTarget`. No `PreviewCacheKey.currentPipelineVersion` bump
+(13), no golden moved, no rendering changed, no new package (Foundation's
+`URLSession` and the Security framework). Debug script: `import server …`
+(`fake start`, `add`, `sheet …`, `album`, `dates`, `scroll`, `stop`, `project`,
+`print`), `import grid`; `photocli` has no server access. Rulings: the owner's
+2026-11-23 defaults for Q1 to Q11 (minimum 3.2.0; local-network http after a
+confirmation; per-certificate trust with no off switch; no Immich in the
+standalone importer), RI-E1 to RI-E3, the designer's DQ-1 to DQ-14 (design.md
+§14 and §15), and the held decisions the owner ruled on 2026-11-24: Tailscale's
+100.64.0.0/10 and MagicDNS names stay non-local (plain http to them is refused,
+use https), the fake test server stays linked into the app (C10; the release
+binary carries it and only a scripted launch starts it, on 127.0.0.1), and the
+Info.plist permission text stays plain English outside the String Catalog (the
+catalog compiler writes only `Localizable.strings`). Known and left: downloads
+are one at a time; the check runs in the sheet and again when the saved server
+becomes the source; the project note can lag when another path makes a project
+between opening the window and Import (the import is right either way);
+"Imported 0 photos" in the window after a run that found only duplicates
+(Activity says it right); a ⌘Q with a sheet up is ignored by AppKit for every
+sheet in the app, the Server sheet included (#276); the debug script cannot
+open the certificate page by itself. Follow-ups: #273, #274 (a preview test that
+flakes), #275, #276. Shipped; the owner signed off 2026-11-24 at ce3b75e after
+checking P1 to P8 and P14 by hand (sheet size and the certificate page, trusting
+a certificate, Remove Server three ways, alert keys and a real outage, keyboard,
+toolbar at 900 pt, the Keychain prompt, ⌘Q with the sheet up, the Project name
+field), no checks left open (`docs/features/immich-import/qa.md`). Covered by CI
+only: VoiceOver, macOS 15 and macOS 26. The "Network" architecture rule, the
+Catalog tables list, Layout and the Library launch guard paragraph are the
+owner's to update (proposed in the Ship report).
+
+Not yet: publishing back to Immich or Apple Photos (#28; it will build on the
+`remoteService` and `remoteLink` tables and the connection layer, widen the
+key's permissions and the read-only allowlist, and change the network wording
+again), servers other than Immich, Apple Photos as a source, Immich in the
+standalone importer or `photocli`, videos, Live Photo motion, Immich's edits,
+favorites, tags, albums and people, archived photos, search, other users' and
+partners' photos, a photo count for All Photos (the server gives none),
+re-downloading a photo changed on the server, resuming a download across
+launches, moving the connection code to a library-only target (so the
+standalone importer links none; with #28), a stacked Job code field, Copy
+Adjustments' remembering choices, copying without asking, masks
 (#92) and remapping a crop or spots to another frame size, local Black & White through masks, Lightroom Black & White mapping on
 import, Black & White items for a grid selection, sky and named-object masks,
 picking one instance, people beyond four, a feather or refine control on AI
