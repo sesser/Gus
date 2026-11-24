@@ -891,6 +891,7 @@ and appears only where the person needs it.** Plural forms as the neighbors
 | `Trust Certificate` | button |
 | `Remove the server “%@”?` | alert title |
 | `The API key is deleted from the Keychain. Photos you already imported stay in the library. The key itself still works on the server until you delete it in Immich.` | alert message |
+| `The server “%@” wasn't removed` / `The Keychain wouldn't delete the API key: %@. Nothing was removed. Choose Remove Server… to try again. If it keeps failing, delete the key in Immich so it stops working.` | alert when the Keychain refuses to delete the key (§15, DQ-5); the second argument is the system's text without its final period |
 | `Insert a Card, Choose a Folder or Add a Server`, `Insert a Card, Choose a Folder or Open a Server`, `Open Server` | empty state |
 | `Album`, `%@ (%lld)`, `Albums unavailable` | scope pop-up (`All Photos` exists in the sidebar's strings and is reused) |
 | `Date Range`, `Show only photos taken within a date range`, `Date Range…`, `Capture date`, `To`, `The start date is after the end date.`, `Any date`, `On or after %@`, `On or before %@` (`From`, `Clear`, `Apply` exist, and `From %@` is taken by the Copy Adjustments header, so it is not reused; `%@ to %@` is the range's text, as for validity above) | date range |
@@ -910,6 +911,7 @@ and appears only where the person needs it.** Plural forms as the neighbors
 | `%@: it was deleted on the server during the import.` | Activity failure |
 | `%@: the server could not provide the original (%@).` | Activity failure |
 | `Couldn't load more photos from “%@”: %@. Scroll to try again.` | Activity warning |
+| `Couldn't load the albums of “%@”: %@. Choose Rescan to try again.` | Activity warning when the album list fails but photos load (§15, DQ-6); the second argument is the same plain reason as the line above |
 | `Imported %lld photos. %lld could not be imported.` / `The reasons are listed in Activity in the library window.` | alert (title, message) |
 | `“%@” stopped responding` / `%lld photos were imported before the import stopped. Photos already imported are marked, so importing again takes only the rest.` | alert |
 | `“%@” rejected the API key` / `…The key may have been deleted or expired. Choose Edit Server… to enter a new one.` | alert |
@@ -1130,6 +1132,91 @@ link as the default; the Server sheet has no Type pop-up in v1; no sandbox
 
 ## 15. Design questions from implementation
 
-None yet. The engineer returns each as a **Design question**; each ruling is
+The engineer returns each as a **Design question**; each ruling is
 recorded here as `### DQ-‹n›` and cited by number. DQ-1 to DQ-4 are taken by the
 owner's rulings in §14.3, so the first question from implementation is **DQ-5**.
+
+### DQ-5. The Keychain refuses to delete the key during Remove Server
+
+Ruled by the designer, 2026-11-23 (judgment, not Apple policy; the HIG is silent
+on this case). **The behavior built stands**: nothing is removed, and the person
+is told. **The alert built does not match**: it puts the Keychain sentence in the
+alert's title with no message and no explanation. It must be a normal alert
+(the `serverAlert` path of §6.3: title, message, one **OK**).
+
+- **Why nothing is removed.** §3.7's confirmation promised "The API key is
+  deleted from the Keychain." Removing the row anyway would make that false and
+  leave a live secret on this Mac with nothing in the app that names it, which
+  the person can't find (the item's account is a UUID, §3.7's data rule) and the
+  app can't offer to delete again. A server that stays listed is recoverable:
+  the next Remove Server… tries again. Why not offer "remove anyway": it is the
+  one choice here that cannot be undone and cannot be seen afterwards.
+- **What counts as success.** An item that is already gone (`errSecItemNotFound`)
+  is a successful removal, not a refusal; the build already does this
+  (`KeychainKeyStore.deleteKey`). Keep it, and keep a test for it. Any other
+  status, including the person's own Deny on a Keychain access prompt, is a
+  refusal and shows this alert.
+- **The alert.** Window-modal on the Import window, the same host as the
+  confirmation, shown after it closes:
+
+  > **The server “Home Server” wasn't removed**
+  > The Keychain wouldn't delete the API key: ‹the system's text›. Nothing was
+  > removed. Choose Remove Server… to try again. If it keeps failing, delete the
+  > key in Immich so it stops working.
+  >
+  > [ OK ]
+
+  One button, **OK**, which is the default (Return and Esc both dismiss; the
+  alert is informational and nothing here is destructive, so the destructive
+  no-default rule of §3.7 doesn't apply; HIG Alerts: use a single button when
+  the alert only informs). The title says what did not happen, in the sentence
+  form of §6.3's titles; the message says why, what state things are in, and the
+  next step, naming the control by its exact title without quotes. There is no
+  **Try Again** button: the likely causes (a locked Keychain, a Deny) need the
+  person to act first, and repeating a delete from a default button is the wrong
+  default. The last sentence is there because the person who removes a server
+  to be safe must still end up with a dead key (the same reason as §3.7's last
+  sentence).
+- **State after.** The server stays in the list and stays the current source if
+  it was; the window does not change otherwise. The key and the row are as before.
+  No log line contains the key.
+- **The system's text.** Keychain messages end with a period
+  ("The specified item could not be found in the keychain."), so the string would
+  end ".." as built. The engineer trims one trailing period (and surrounding
+  white space) from the system text before it goes into this sentence and into
+  `The Keychain returned an error: %@.` (§3.4), whose copy is otherwise
+  unchanged. That is a fix to the build of the existing string, not new copy.
+
+### DQ-6. The album list fails but photos load
+
+Ruled by the designer, 2026-11-23. **The Album pop-up is as built and stays as
+§4.2 says**: it is enabled, shows **All Photos** (checked) and a dimmed
+**Albums unavailable**, and the person can import everything the grid lists; only
+choosing an album is lost. Nothing blocks the photos, so nothing but the one
+Activity warning is shown (no alert, no state in the grid). **The Activity text
+built does not match**: it is the bare reason. The sentence is:
+
+> **Couldn't load the albums of “Home Server”: ‹reason›. Choose Rescan to try again.**
+
+- The title of the Activity row stays the server's (**Import from “‹name›”**),
+  as built; the sentence names the server again, because the row can be read
+  after the Import window has closed. It is a warning row
+  (`exclamationmark.triangle`), as built.
+- The reason is the same plain reason as **Couldn't load more photos from
+  “‹name›”: ‹reason›. Scroll to try again.** (§10), in the same position, so the
+  two warnings read alike. The sentence names the way on, **Rescan**, which §4.2
+  already says retries both the albums and the photos (the toolbar item and
+  File ▸ Rescan; the exact title, no quotes).
+- One warning per failed load: each Rescan that fails again posts another.
+  Choosing an album is not offered, so nothing else can post it.
+
+**Engineer's changes for DQ-5 and DQ-6**
+
+1. DQ-5: replace `alertText` in `CardImportModel.removeServer` with a
+   `serverAlert` (title and message above, one OK); trim the one trailing period
+   from the Keychain's text for both Keychain sentences; add a test that a
+   refusing store leaves the row and key and sets the alert, and that
+   `errSecItemNotFound` removes the row.
+2. DQ-6: wrap the reason in the sentence above in `loadAlbums`.
+3. Add the two new strings in §10 to `Localizable.xcstrings` with comments and
+   the user guide's sentences for both if it describes either case.
