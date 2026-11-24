@@ -4,7 +4,8 @@ Owner: apple-ui-designer. Date: 2026-11-23.
 Issue: #271. Status: complete. Four design questions for the owner (§14.2),
 all answered 2026-11-23 ("Accept defaults"; rulings DQ-1 to DQ-4 in §14.3), and
 six notes for the product manager (§14.1), whose PRD revision is pending; none
-blocks the engineer.
+blocks the engineer. Implementation rulings DQ-5 and DQ-6 (§15, 2026-11-23);
+DQ-7 to DQ-9 (§15, design review 2026-11-23). Review: [review.md](review.md).
 
 **Inputs.**
 
@@ -162,7 +163,7 @@ exists the sheet gains a **Type** pop-up as its first row.
 │ API key         [ ••••••••••••                        ] │
 │                 Create the key in Immich, in your account settings. It
 │                 needs only these permissions: asset.read, asset.view,
-│                 asset.download and album.read.
+│                 asset.download, album.read and user.read.
 │                 This Mac keeps its copy of the key in the Keychain.
 │ ⚠ result for the check, under the field it concerns     │
 ├─────────────────────────────────────────────────────────┤
@@ -196,7 +197,7 @@ exists the sheet gains a **Type** pop-up as its first row.
 
 Add and Save run the check; so does choosing a server in the Source pop-up (with
 its result shown in the grid, §4.7). One check is: reach the server, read its
-version, confirm the key is accepted, confirm the four permissions. While it
+version, confirm the key is accepted, confirm the five permissions (§15, DQ-7). While it
 runs the sheet shows a spinner and **Checking the server…** at the button bar's
 leading edge (where Merge puts its spinner), and the fields are disabled.
 The check is bounded (the engineer proposes the timeout, R20) and Cancel always
@@ -250,7 +251,7 @@ they appear (§8).
 | Unreachable (no route, refused, DNS, timeout) | Address | **Can't reach “‹host›”** | "Check the address, that the server is running, and that this Mac can reach it." + the system's own reason in one clause ("The request timed out.", "Could not connect to the server.") + for a local host: "If macOS asked to allow access to your local network, check System Settings ▸ Privacy & Security ▸ Local Network." |
 | Not Immich (answers, but not as Immich) | Address | **This doesn't look like an Immich server** | "“‹host›” answered, but not as Immich does. Check the address, including any path or port." |
 | Key rejected (401, or 403 on every read) | API key | **The server rejected this API key** | "The key may be mistyped, expired or deleted. Create a new key in Immich and paste it here." |
-| Missing permission | API key | **This API key is missing permissions** | "Add ‹asset.download, album.read› to the key in Immich, or create a new key with the four permissions listed above." The names are the missing ones, in the order the caption lists them, set in the monospaced font |
+| Missing permission | API key | **This API key is missing permissions** | "Add ‹asset.download, album.read› to the key in Immich, or create a new key with the five permissions listed above." The names are the missing ones, in the order the caption lists them, in plain text (design review 2026-11-23: a localized sentence is a plain `String`, and the names are tokens the person matches by their characters, so the monospaced font is dropped; §15, DQ-7) |
 | Server too old (R2: both versions) | Address | **This Immich server is too old** | "It runs version ‹3.1.0›. Importing needs version ‹3.2.0› or newer." |
 | Certificate changed (R6) | Address | **The server's certificate has changed** | "It is no longer the certificate you trusted for “‹name›”. That is expected if the certificate was renewed, but it can also mean that someone is intercepting the connection. Nothing was sent to the server." Action: **Review Certificate…** (opens page 2 in its changed variant) |
 | Keychain failure | API key | **The key couldn't be saved** | "The Keychain returned an error: ‹system text›." Nothing is saved. |
@@ -689,10 +690,17 @@ its count is not zero (the shape `ExportModel.detail` already uses):
 Imported 46 photos.
 3 were already in the library.
 2 Live Photo videos were not downloaded.
+5 imported photos were checked by size only, not against the server's checksum, because they are in an Immich external library.
 2 could not be imported.
 IMG_0412.HEIC: the download did not match the server's checksum and was discarded.
 IMG_0413.HEIC: it was deleted on the server during the import.
 ```
+
+The size-only line (R13, R19; §15, DQ-8) counts photos **imported** after a size
+check without the checksum, never a photo found to be a duplicate, and sits after
+the Live Photo line so every count of what was done comes before the failures. It
+names its own noun ("imported photos"), since it follows lines whose subject
+differs.
 
 - When nothing was imported the first line is **No photos were imported.**
 - "Already in the library" counts a photo found to be a content duplicate
@@ -707,6 +715,7 @@ IMG_0413.HEIC: it was deleted on the server during the import.
 |---|---|
 | Checksum differs | **the download did not match the server's checksum and was discarded.** |
 | Short read or size differs | **the download was incomplete and was discarded.** |
+| External-library photo with no size to check against (R13; §15, DQ-9) | **the server did not say how large the file is, so the download could not be checked and was discarded.** |
 | Asset gone (not found) | **it was deleted on the server during the import.** |
 | Server error for this file | **the server could not provide the original (‹status›).** with the numeric status |
 | Disk | the existing write-failure sentence with the system's reason |
@@ -773,14 +782,22 @@ are unchanged (§9).
   (judgment: a selection among live, changing items, not a command).
 - **File ▸ Import from Card or Folder…** in the library window keeps its name in
   this branch (§14.3, DQ-1).
-- **In the library window's own menus nothing changes.** Server items appear
-  only while the Import window is key.
+- **In the library window's own menus nothing changes in behavior.** Server
+  items are enabled only while the Import window is key. Design review
+  2026-11-23: they are *present but dimmed* the rest of the time (File ▸ Add /
+  Edit / Remove Server…, View ▸ Album ▸, Date Range…), the way Choose Folder…,
+  Rescan and Show Videos already are in the library app, and HIG Menus asks for
+  dimming rather than removing in the menu bar. Not a violation. Whether a
+  dimmed **Album** submenu in the library window's View menu reads as the
+  library's own albums is a manual check (M9).
 
 **Keyboard in the Server sheet.** **Return** is the default button (Add or
 Save) from anywhere in the sheet; it is dimmed when its conditions are not met
 and Return then does nothing. **Esc** cancels (on page 2, Back). **Tab** order:
-Name, Server address, API key, the unencrypted check box when it shows, Remove
-Server…, Cancel, Add. The unencrypted check box is toggled by **Space**. A field
+Name, Server address, the unencrypted check box when it shows (it sits under
+the address, so the order follows the layout; design review 2026-11-23 corrects
+the earlier order that put it after API key), API key, Remove Server…, Cancel,
+Add. The unencrypted check box is toggled by **Space**. A field
 taking focus scrolls into view when the sheet is clamped. The initial focus is
 the system's (the Name field); do not set it in code (CA §8). On page 2 nothing
 is the default and **Tab** reaches Back, Cancel and Trust Certificate in that
@@ -866,7 +883,7 @@ and appears only where the person needs it.** Plural forms as the neighbors
 | `Will connect to %@` | normalized address under the field |
 | `Use an address that starts with https:// or http://.` | scheme error |
 | `A server named “%@” already exists.` | name clash |
-| `Create the key in Immich, in your account settings. It needs only these permissions: asset.read, asset.view, asset.download and album.read.` | key caption (the permission names are not translated) |
+| `Create the key in Immich, in your account settings. It needs only these permissions: asset.read, asset.view, asset.download, album.read and user.read.` | key caption (the permission names are not translated; five, §15 DQ-7) |
 | `This Mac keeps its copy of the key in the Keychain.` | key caption |
 | `Checking the server…` | sheet status |
 | `“%@” is not on your local network. http:// is only allowed for servers on your local network; use https://.` | refusal |
@@ -877,7 +894,7 @@ and appears only where the person needs it.** Plural forms as the neighbors
 | `If macOS asked to allow access to your local network, check System Settings ▸ Privacy & Security ▸ Local Network.` | unreachable, local hosts |
 | `This doesn't look like an Immich server` / `“%@” answered, but not as Immich does. Check the address, including any path or port.` | not Immich |
 | `The server rejected this API key` / `The key may be mistyped, expired or deleted. Create a new key in Immich and paste it here.` | key rejected |
-| `This API key is missing permissions` / `Add %@ to the key in Immich, or create a new key with the four permissions listed above.` | missing permission (the argument is the list) |
+| `This API key is missing permissions` / `Add %@ to the key in Immich, or create a new key with the five permissions listed above.` | missing permission (the argument is the list; §15, DQ-7) |
 | `This Immich server is too old` / `It runs version %@. Importing needs version %@ or newer.` | too old |
 | `The server's certificate has changed` / `It is no longer the certificate you trusted for “%@”. That is expected if the certificate was renewed, but it can also mean that someone is intercepting the connection. Nothing was sent to the server.` | changed (§3.4) |
 | `Review Certificate…` | action |
@@ -908,6 +925,8 @@ and appears only where the person needs it.** Plural forms as the neighbors
 | `Imported %lld photos.`, `No photos were imported.`, `%lld were already in the library.`, `%lld Live Photo videos were not downloaded.`, `%lld could not be imported.`, `Import stopped after %lld photos.` | Activity (plurals; the 1 forms "1 was already in the library.", "1 Live Photo video was not downloaded.", "1 could not be imported.") |
 | `%@: the download did not match the server's checksum and was discarded.` | Activity failure |
 | `%@: the download was incomplete and was discarded.` | Activity failure |
+| `%@: the server did not say how large the file is, so the download could not be checked and was discarded.` | Activity failure, external-library photo with no size (§15, DQ-9) |
+| `%lld imported photos were checked by size only, not against the server's checksum, because they are in an Immich external library.` (plural; the 1 form "1 imported photo was checked by size only, not against the server's checksum, because it is in an Immich external library.") | Activity, after the Live Photo line (§15, DQ-8) |
 | `%@: it was deleted on the server during the import.` | Activity failure |
 | `%@: the server could not provide the original (%@).` | Activity failure |
 | `Couldn't load more photos from “%@”: %@. Scroll to try again.` | Activity warning |
@@ -970,7 +989,7 @@ Server…**, **Album**, **Date Range**, **Server** (inspector section), **Edited
 paragraph (a third source and its sentence on choosing nothing by default),
 line 1044 ("the app itself contacts nothing" becomes "the About window contacts
 nothing", per the PRD), and the permission list ("asset.read, asset.view,
-asset.download and album.read") appears once, copied from §3.2's caption. New
+asset.download, album.read and user.read") appears once, copied from §3.2's caption. New
 section **Importing from an Immich server** covering: adding a server and its key,
 the two prompts and what they mean, the Album and Date Range controls, what the
 grid never lists (videos, archived, hidden, locked, trashed), that nothing is
@@ -1220,3 +1239,88 @@ built does not match**: it is the bare reason. The sentence is:
 2. DQ-6: wrap the reason in the sentence above in `loadAlbums`.
 3. Add the two new strings in §10 to `Localizable.xcstrings` with comments and
    the user guide's sentences for both if it describes either case.
+
+### DQ-7. The API key caption and the missing-permission detail name five permissions
+
+Ruled by the designer, 2026-11-23 (judgment; the HIG has no rule for this copy).
+**Confirmed as built.** RI-E1 added `user.read`, so the caption reads **Create
+the key in Immich, in your account settings. It needs only these permissions:
+asset.read, asset.view, asset.download, album.read and user.read.** and the
+missing-permission detail reads **Add ‹names› to the key in Immich, or create a
+new key with the five permissions listed above.** §3.2, §3.4 and §10 are updated.
+
+- **Why the count stays in the detail.** It lets the person check that they
+  ticked all of them; the cost is that Publish (#28), which widens the list,
+  changes this string again, which it must do anyway because the caption changes
+  with it.
+- **Why the caption does not say why `user.read`.** The person is working from a
+  checklist in Immich's own key screen; the reason (it tells the app which photos
+  are yours) is in the user guide, where it already is. A sixth line in a caption
+  that already runs three would push the Keychain line off a short sheet.
+- **"above" is true:** the result renders under the key field, below both
+  captions (`resultView(concernsAddress: false)` follows them).
+- **Plain text, not monospaced.** §3.4 asked for the missing names in the
+  monospaced font. A localized sentence with an interpolated list is a plain
+  `String`; styling one run needs an `AttributedString` and a second catalog
+  path for no gain, since the names are matched by their characters, which a
+  proportional font shows as well. The requirement is dropped, not deferred.
+- **No string changes** for this ruling.
+
+### DQ-8. The size-only line in Activity
+
+Ruled by the designer, 2026-11-23 (judgment). **Rewritten.** The built line,
+"‹n› were checked by size only (photos in an Immich external library).", depends
+on the line above it for its subject: after "2 Live Photo videos were not
+downloaded." the "‹n›" reads as more Live Photo videos. It also does not say what
+the person should take from it. The line is now a complete sentence with its own
+noun, the reason and the consequence:
+
+> **5 imported photos were checked by size only, not against the server's
+> checksum, because they are in an Immich external library.**
+> One: **1 imported photo was checked by size only, not against the server's
+> checksum, because it is in an Immich external library.**
+
+- "Imported photos" is exact: the count is photos that landed (`.inserted`), never
+  a duplicate (the engineer's rule, kept; a duplicate counts only as "already in
+  the library").
+- "not against the server's checksum" is the true limit: the copy is still read
+  back and hashed, the one comparison skipped is the server's checksum, which for
+  an external library can be of the file's path (user guide, same words).
+- "Immich external library" is Immich's own term, so the person can find it in
+  Immich; "external library" is kept, not paraphrased.
+- Position unchanged: after the Live Photo line, before the failures (§6.2).
+- Plural on the number, both forms as above, as the neighbors.
+
+### DQ-9. An external-library photo with no size to check against
+
+Ruled by the designer, 2026-11-23 (judgment). **Rewritten.** The built reason
+("the server gave no size to check the download against, so it was discarded.")
+ends in a dangling preposition and does not say that the file itself may be fine.
+The reason is now, in the shape of the table's other rows:
+
+> **‹name›: the server did not say how large the file is, so the download could
+> not be checked and was discarded.**
+
+- Consistent with "the download was incomplete and was discarded.": a download,
+  not a photo, is what is discarded, and the person can try again later.
+- No action is offered: nothing the person can do changes what the server
+  reports, and the user guide already says such a photo is not imported.
+- No server text, URL or key.
+
+**Engineer's changes for DQ-7 to DQ-9** (exactly these)
+
+1. DQ-7: none.
+2. DQ-8: in `ServerText.line(for:)` (`.verifiedBySizeOnly`) and the catalog, replace
+   the key `%lld were checked by size only (photos in an Immich external library).`
+   with `%lld imported photos were checked by size only, not against the server's
+   checksum, because they are in an Immich external library.`; plural `one`:
+   `%lld imported photo was checked by size only, not against the server's
+   checksum, because it is in an Immich external library.`; keep the comment.
+3. DQ-9: in `ServerText.failureLine` (`.unverifiable`) and the catalog, replace
+   the key `%@: the server gave no size to check the download against, so it was
+   discarded.` with `%@: the server did not say how large the file is, so the
+   download could not be checked and was discarded.`; keep the comment.
+4. No test asserts either old sentence (grep of `Tests/`); if one is added for the
+   Activity text, it uses the new strings. `docs/USER_GUIDE.md` needs no change
+   ("Activity says how many were" and "one whose size the server doesn't give is
+   not imported" still hold).
