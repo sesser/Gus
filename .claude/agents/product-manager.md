@@ -55,7 +55,7 @@ Keep it to one or two pages. Omit sections that add nothing.
 Status: Draft | Approved | Shipped <date>
 Issue: #<number>
 Slug: <kebab-case-slug>
-Complexity: routine | hard   (your proposal; the owner approves it with the PRD. `hard` is defined by the risk-area list in `docs/WORKFLOW.md`, **Complexity and models**; unsure: hard)
+Complexity: Routine | Hard   (your proposal; the owner approves it with the PRD and the main session sets the issue's Complexity field. `Hard` is defined by the risk-area list in `docs/WORKFLOW.md`, **Complexity and models**; unsure: Hard)
 Roadmap: Now | Next | Later
 
 ## Problem
