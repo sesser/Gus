@@ -324,6 +324,19 @@ struct RemoteReviewFixTests {
             let listed = try await RemoteImportTests.listed(setup)
             setup.server.add(.chunked)
             setup.server.add(.oversize(listed[0].id))
+            // The download itself stops at its limit while it streams (C19):
+            // no more than the limit is ever written, and the file goes.
+            let limit = try #require(listed[0].byteCount)
+            let file = root.appending(path: "download.jpg")
+            let written = Mutex<Int64>(0)
+            await #expect(throws: RemoteError.tooLarge) {
+                _ = try await setup.client.download(assetID: listed[0].id, to: file, limit: limit) { bytes in
+                    written.withLock { $0 += bytes }
+                }
+            }
+            #expect(written.withLock { $0 } <= limit)
+            #expect(!FileManager.default.fileExists(atPath: file.path))
+            // And the import reports that photo as incomplete.
             let result = await RemoteImportTests.importer(setup).run(listed, options: RemoteImportTests.options(root, setup))
             #expect(result.imported == 1)
             #expect(result.failures == [RemoteImportFailure(name: listed[0].fileName, kind: .incomplete)])

@@ -487,7 +487,7 @@ private struct CertificatePage: View {
                     } else {
                         FingerprintView(title: String(localized: "SHA-256 fingerprint"), fingerprint: summary.fingerprint)
                     }
-                    Text(String(localized: "If you trust it, this Mac will accept only this exact certificate for “\(sheet.effectiveName)”. If it ever changes, connecting fails until you review it again.",
+                    Text(String(localized: "If you trust it, this Mac will accept only this exact certificate for “\(sheet.effectiveName)” at this address. If it ever changes, connecting fails until you review it again.",
                                 comment: "Certificate page footer"))
                 }
                 .font(.system(size: 13))

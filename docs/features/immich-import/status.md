@@ -471,6 +471,8 @@ is 460×530 (ideal 530); after Add the grid is first responder; two photos
 import; a revoked key mid-import gives the "rejected the API key" alert, OK
 on Return.
 
+Third pass (2026-11-23): C19 `streamingCaps` now calls `download(assetID:to:limit:)` against the chunked fake and expects `tooLarge`, at most the limit written and no file; with the streaming limit check removed it fails (checked); N-7 the certificate page footer says "…for “‹name›” at this address." (one string and its key). 1512 tests pass; CI toolchain build and `Scripts/build-app.sh` pass.
+
 ## Known limits
 
 - The check runs in the sheet and again when the saved server becomes the

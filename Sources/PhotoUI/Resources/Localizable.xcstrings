@@ -4007,13 +4007,13 @@
         }
       }
     },
-    "If you trust it, this Mac will accept only this exact certificate for “%@”. If it ever changes, connecting fails until you review it again." : {
-      "comment" : "Certificate page footer; the server's name",
+    "If you trust it, this Mac will accept only this exact certificate for “%@” at this address. If it ever changes, connecting fails until you review it again." : {
+      "comment" : "Certificate page footer; the server's name (design review N-7: the pin is for the address)",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "If you trust it, this Mac will accept only this exact certificate for “%@”. If it ever changes, connecting fails until you review it again."
+            "value" : "If you trust it, this Mac will accept only this exact certificate for “%@” at this address. If it ever changes, connecting fails until you review it again."
           }
         }
       }
