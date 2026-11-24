@@ -40,6 +40,9 @@ public struct CopyImportProgress: Sendable, Equatable {
     public var bytesDone: Int64 = 0
     public var bytesTotal: Int64 = 0
     public var currentName = ""
+    /// A request failed and is being tried again: "Waiting for “‹name›”…"
+    /// (Immich import, design §6.1).
+    public var waitingForServer = false
 
     public init() {}
 }

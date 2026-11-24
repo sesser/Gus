@@ -289,20 +289,28 @@ extension Catalog {
         guard !masters.isEmpty else { return MasterInsertionResult() }
         return try await database.write { db in
             var result = MasterInsertionResult()
-            for master in masters {
-                try Self.insertMaster(db, master, volumeID: volumeID, projectID: projectID, importRunID: importRunID,
-                                      importedAt: importedAt, into: &result)
-            }
-            // Partners may have come in an earlier batch or an earlier import.
-            let keys = Set(masters.map { ImagePairing.key(forRelativePath: $0.relativePath) })
-            let companions = try ImagePairing.pair(db, volumeID: volumeID, projectID: projectID, keys: keys)
-            result.pairsCreated = companions.count
-            // A pair's sidecar belongs to its RAW.
-            for chunk in companions.chunked(into: 10_000) {
-                try db.execute(sql: "DELETE FROM metadataSync WHERE imageId IN (\(databaseQuestionMarks(count: chunk.count)))",
-                               arguments: StatementArguments(Array(chunk)))
-            }
+            try Self.insertMasters(db, masters, volumeID: volumeID, projectID: projectID, importRunID: importRunID,
+                                   importedAt: importedAt, into: &result)
             return result
+        }
+    }
+
+    /// `insertMasters` inside a transaction the caller holds (the remote
+    /// importer adds the link in the same one).
+    static func insertMasters(_ db: Database, _ masters: [NewMaster], volumeID: Int64, projectID: Int64,
+                              importRunID: Int64?, importedAt: Date, into result: inout MasterInsertionResult) throws {
+        for master in masters {
+            try Self.insertMaster(db, master, volumeID: volumeID, projectID: projectID, importRunID: importRunID,
+                                  importedAt: importedAt, into: &result)
+        }
+        // Partners may have come in an earlier batch or an earlier import.
+        let keys = Set(masters.map { ImagePairing.key(forRelativePath: $0.relativePath) })
+        let companions = try ImagePairing.pair(db, volumeID: volumeID, projectID: projectID, keys: keys)
+        result.pairsCreated += companions.count
+        // A pair's sidecar belongs to its RAW.
+        for chunk in companions.chunked(into: 10_000) {
+            try db.execute(sql: "DELETE FROM metadataSync WHERE imageId IN (\(databaseQuestionMarks(count: chunk.count)))",
+                           arguments: StatementArguments(Array(chunk)))
         }
     }
 
