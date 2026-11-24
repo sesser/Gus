@@ -135,6 +135,9 @@ public final class RemoteImporter: Sendable {
         var volumeID: Int64
         var projectID: Int64
         var runID: Int64?
+        /// Read where the target is made, in the step Stop doesn't cancel,
+        /// so the library always learns the project (code review C15).
+        var project: ProjectRecord?
     }
 
     /// Imports `assets` in order. Never throws for one photo: failures are
@@ -274,8 +277,7 @@ public final class RemoteImporter: Sendable {
             let finished = await Task { await self.finish(step, options: options, importDate: importDate) }.value
             if let made = finished.target, target == nil {
                 target = made
-                result.project = try? await catalog.projectSummaries(groupingPairs: false)
-                    .first { $0.id == made.projectID }?.project
+                result.project = made.project
             }
             switch finished.outcome {
             case .inserted(let imageID, let versionID):
@@ -407,7 +409,8 @@ public final class RemoteImporter: Sendable {
             projectID = id
         }
         let run = try await catalog.createImportRun(sourcePath: options.link.address, projectID: projectID)
-        return Target(volume: volume, volumeID: volumeID, projectID: projectID, runID: run.id)
+        let project = try await catalog.database.read { db in try ProjectRecord.fetchOne(db, key: projectID) }
+        return Target(volume: volume, volumeID: volumeID, projectID: projectID, runID: run.id, project: project)
     }
 
     /// Size and checksum of the bytes as they arrived (R13). An uploaded

@@ -140,6 +140,8 @@ extension CardImportModel {
             browse.isConnecting = false
             switch outcome {
             case .failed(let result):
+                // No grid will appear: a later one must not take the keyboard (N-4).
+                focusesGridWhenShown = false
                 browse.failure = result
                 browse.setClient(nil)
                 shots = []

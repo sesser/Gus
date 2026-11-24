@@ -109,6 +109,32 @@ public struct ServerFormRules: Equatable, Sendable {
         return isEdit ? changed || trustedPending : keyEntered
     }
 
+    /// A certificate trusted on the certificate page and not saved yet, with
+    /// the address it was trusted for.
+    public struct TrustedCertificate: Equatable, Sendable {
+        public var fingerprint: CertificateFingerprint
+        public var trustedAt: Date
+        public var address: String
+
+        public init(fingerprint: CertificateFingerprint, trustedAt: Date, address: String) {
+            self.fingerprint = fingerprint
+            self.trustedAt = trustedAt
+            self.address = address
+        }
+    }
+
+    /// The pin a check uses and a save stores (design §3.6, design review
+    /// N-3): a certificate trusted for this very address; else the saved
+    /// connection's, while its address is unchanged; else none.
+    public static func pin(trusted: TrustedCertificate?, address: String, existing: RemoteServiceRecord?)
+        -> (fingerprint: CertificateFingerprint, trustedAt: Date?)? {
+        if let trusted, trusted.address == address { return (trusted.fingerprint, trusted.trustedAt) }
+        if let existing, existing.address == address, let pinned = existing.pinnedFingerprint {
+            return (pinned, existing.certificateTrustedAt)
+        }
+        return nil
+    }
+
     /// Whether Save must check the server again: the address or the key
     /// changed, or a certificate was trusted and its pin is not saved yet (the
     /// check confirms it, then saves it; B1). A name-only edit saves without

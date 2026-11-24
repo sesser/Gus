@@ -237,16 +237,11 @@ extension Catalog {
                                 at: importedAt)
             // The photo may have just been paired: the values reach its
             // partner too, as every write on a pair does (CLAUDE.md, RAW+JPEG
-            // pairs; code review C2), and only where the pair's own value is
-            // empty. Pairing merged the two ratings, so one empty rating means
-            // both are.
-            if let description = serverDescription?.trimmingCharacters(in: .whitespacesAndNewlines), !description.isEmpty {
-                let images = try Self.descriptiveImages(db, versions: [versionID])
-                try db.execute(sql: """
-                    UPDATE image SET caption = ?
-                    WHERE id IN (\(databaseQuestionMarks(count: images.count))) AND (caption IS NULL OR trim(caption) = '')
-                    """, arguments: StatementArguments([description as (any DatabaseValueConvertible)?] + images))
-            }
+            // pairs; code review C2, C12), and only where the pair's own value
+            // is empty. Pairing merged the two ratings, so one empty rating
+            // means both are. Captions are not merged by pairing, so the pair
+            // is treated as one here, in either listing order.
+            try Self.fillPairCaption(db, versionID: versionID, serverDescription: serverDescription)
             if let rating = serverRating, Rating.range.contains(rating), rating > 0 {
                 let versions = [versionID] + (try ImagePairing.partnerVersionIDs(db, of: [versionID]))
                 let unrated = try Int.fetchOne(db, sql: """
@@ -259,6 +254,30 @@ extension Catalog {
             }
             return .inserted(imageID: imageID, versionID: versionID)
         }
+    }
+
+    /// The description of a photo just imported, with its pair as one (C12):
+    /// when no image of the pair has one, the server's (if any) goes to all;
+    /// when some have one, the empty ones take it (the first, by image id);
+    /// images that already hold different ones keep theirs.
+    static func fillPairCaption(_ db: Database, versionID: Int64, serverDescription: String?) throws {
+        let images = try descriptiveImages(db, versions: [versionID])
+        guard !images.isEmpty else { return }
+        let captions = try Row.fetchAll(db, sql: """
+            SELECT id, caption FROM image WHERE id IN (\(databaseQuestionMarks(count: images.count))) ORDER BY id
+            """, arguments: StatementArguments(images)).map { (id: $0[0] as Int64, caption: ($0[1] as String?)?.trimmingCharacters(in: .whitespacesAndNewlines)) }
+        let empty = captions.filter { ($0.caption ?? "").isEmpty }.map(\.id)
+        guard !empty.isEmpty else { return }
+        let value: String
+        if let held = captions.first(where: { !($0.caption ?? "").isEmpty }) {
+            value = try String.fetchOne(db, sql: "SELECT caption FROM image WHERE id = ?", arguments: [held.id]) ?? ""
+        } else if let server = serverDescription?.trimmingCharacters(in: .whitespacesAndNewlines), !server.isEmpty {
+            value = server
+        } else {
+            return
+        }
+        try db.execute(sql: "UPDATE image SET caption = ? WHERE id IN (\(databaseQuestionMarks(count: empty.count)))",
+                       arguments: StatementArguments([value as (any DatabaseValueConvertible)?] + empty))
     }
 
     /// True when a link was made; false when the asset or the version already

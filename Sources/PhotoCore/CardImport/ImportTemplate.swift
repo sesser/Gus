@@ -170,7 +170,6 @@ public struct ImportTemplate: Codable, Hashable, Sendable {
         return formatter.string(from: date)
     }
 
-    /// Makes a value safe as one path component.
     /// The stem when the template and the original name give none.
     public static let fallbackStem = "photo"
 
@@ -187,6 +186,7 @@ public struct ImportTemplate: Codable, Hashable, Sendable {
         return ext
     }
 
+    /// Makes a value safe as one path component.
     static func sanitize(_ text: String) -> String {
         var cleaned = text.unicodeScalars.map { scalar -> String in
             if CharacterSet.controlCharacters.contains(scalar) { return "" }

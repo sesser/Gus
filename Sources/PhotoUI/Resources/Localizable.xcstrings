@@ -1117,8 +1117,8 @@
         }
       }
     },
-    "%lld photos were imported before the import stopped. Nothing more was downloaded. Choose Edit Server…, then Review Certificate…, to see the new one." : {
-      "comment" : "Server import alert: certificate changed",
+    "%lld photos were imported before the import stopped. Nothing more was downloaded. Choose Review Certificate… in the window to see the new one." : {
+      "comment" : "Server import alert: certificate changed (design §15, DQ-11)",
       "localizations" : {
         "en" : {
           "variations" : {
@@ -1126,13 +1126,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld photo was imported before the import stopped. Nothing more was downloaded. Choose Edit Server…, then Review Certificate…, to see the new one."
+                  "value" : "%lld photo was imported before the import stopped. Nothing more was downloaded. Choose Review Certificate… in the window to see the new one."
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld photos were imported before the import stopped. Nothing more was downloaded. Choose Edit Server…, then Review Certificate…, to see the new one."
+                  "value" : "%lld photos were imported before the import stopped. Nothing more was downloaded. Choose Review Certificate… in the window to see the new one."
                 }
               }
             }

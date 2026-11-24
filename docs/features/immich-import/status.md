@@ -438,6 +438,39 @@ file looked outside the destination and every photo failed. The scripted run
 caught it; the check now resolves `.` and `..` by text, and `containment`
 tests that case.
 
+## Review findings (second round, 2026-11-23)
+
+Code review "Second pass" (C12 to C18) and design review "Second pass" (N-1,
+N-3 to N-5, DQ-11, the guide's wrapping). Held for the owner, unchanged: C10,
+the Tailscale range, the Info.plist string. M4 (Esc on the one-OK alerts) is
+left to the person's check: the script sees OK's key as Return only and can't
+show whether Esc dismisses, so the `.cancel` role is not added on a guess.
+
+| Finding | Fix | Test or check |
+|---|---|---|
+| C12 a pair's description split when the companion is listed first, or differs | `Catalog.fillPairCaption`: the pair is one. No caption on any image: the server's goes to all; some captioned: the empty ones take the first caption; images that already hold different captions keep them | `RemoteReviewFixTests.pairCaptionEitherOrder` (JPEG "Beach" listed first: both "Beach", rating 4, not mixed; RAW "Sunset" and JPEG "Beach": both "Sunset"), `pairCaptionsKept`; the first fails on the old per-image fill (checked) |
+| C13 the after-move test never reached the move | `catalogErrorAfterMove` now installs a temporary trigger that refuses the `image` insert: everything up to the move works, the insert after it fails | Fails on 2552143 (checked in a worktree: the moved file stays) and passes now: no file, no row, the system's reason, no CancellationError |
+| C14 names with format characters never listed | `isPlainFileName` refuses `/`, `\` and category Cc only (NUL included), not Cf | `formatCharacters` (a ZWJ emoji family, a ZWNJ Persian name, an RLM, a soft hyphen, `a..b.jpg` listed; NUL, BEL, ESC, NEL, `.`, `..`, empty, `/`, `\` refused); fails on the old check (checked) |
+| C15 Stop during the first photo lost the project | The target carries its project, read inside the step Stop doesn't cancel | `stopWhileFinishing` expects the project |
+| C16 streaming caps untested | Fake fault `.chunked` (every answer chunked, no `Content-Length`) | `streamingCaps`: a 17 MiB chunked album list fails as too large; a chunked original 1 KiB past its size fails as incomplete with no file |
+| C17 test handoff race | The import waits on a stream until the reader holds its task | `stopWhileFinishing` |
+| C18 doc comment on the wrong declaration | Moved to `sanitize` | Code |
+| N-1 certificate page could clip its buttons | The body is in a `ScrollView` between the fixed header and button bar (inside the sheet, not under the window's toolbar) | M1, M2 (the fake has no TLS) |
+| N-3 trusted kept across an address change | `addressEdited` clears it; the pin rule is `ServerFormRules.pin` (a trusted certificate only for the address it was trusted for, else the saved pin while the address is unchanged) | `pinFollowsAddress` |
+| N-4 grid focus flag left set | Cleared when the check fails | Code; scripted: after Add the grid is first responder |
+| N-5 comment on `key` | Says it is observed | Code |
+| DQ-11 | The certificate-changed alert message and its catalog key (both plural forms) as design.md §10 words it | `LocalizationTests` |
+| Guide wrapping | Re-wrapped | |
+
+| When | `swift build` | `swift test` |
+|---|---|---|
+| Second-pass fixes (2026-11-23) | `swift build --build-tests` passes, no new warnings; CI toolchain build passes; `Scripts/build-app.sh` passes | 1512 tests in 213 suites pass |
+
+Scripted after the fixes: the sheet with the notice and a key-rejected result
+is 460×530 (ideal 530); after Add the grid is first responder; two photos
+import; a revoked key mid-import gives the "rejected the API key" alert, OK
+on Return.
+
 ## Known limits
 
 - The check runs in the sheet and again when the saved server becomes the

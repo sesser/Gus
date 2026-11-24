@@ -42,10 +42,14 @@ public struct RemoteAsset: Hashable, Sendable, Identifiable {
     }
 
     /// A server's file name the app accepts (security review F1): not empty,
-    /// not "." or "..", and no `/`, `\`, NUL or other control character.
+    /// not "." or "..", and no `/`, `\` or control character (Unicode
+    /// category Cc, NUL included). Format characters (Cf: the zero-width
+    /// joiner of an emoji sequence, the ZWNJ some scripts need, direction
+    /// marks) are accepted; the template fallback and the containment check
+    /// keep the path safe whatever the name (code review C14).
     public static func isPlainFileName(_ name: String) -> Bool {
         guard !name.isEmpty, name != ".", name != "..", name.utf8.count <= 1024 else { return false }
-        return !name.unicodeScalars.contains { $0 == "/" || $0 == "\\" || CharacterSet.controlCharacters.contains($0) }
+        return !name.unicodeScalars.contains { $0 == "/" || $0 == "\\" || $0.properties.generalCategory == .control }
     }
 
     /// The largest original a server may report or send: 64 GiB. A size

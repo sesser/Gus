@@ -112,6 +112,8 @@ public final class FakeImmichServer: Sendable {
         case huge(path: String, bytes: Int)
         /// The asset's original has 1 KiB more than the listing says.
         case oversize(String)
+        /// Every answer is sent chunked, with no `Content-Length`.
+        case chunked
     }
 
     public static let ownerID = "11111111-1111-4111-8111-111111111111"
@@ -275,6 +277,7 @@ public final class FakeImmichServer: Sendable {
         var body = Data()
         var headers: [String: String] = [:]
         var pause: Duration?
+        var chunked = false
 
         static func json(_ object: Any, status: Int = 200) -> Response {
             Response(status: status, body: (try? JSONSerialization.data(withJSONObject: object)) ?? Data())
@@ -289,7 +292,8 @@ public final class FakeImmichServer: Sendable {
             return state
         }
         if snapshot.faults.contains(.drop) { return connection.cancel() }
-        let response = answer(request, key: key, state: snapshot)
+        var response = answer(request, key: key, state: snapshot)
+        response.chunked = snapshot.faults.contains(.chunked)
         send(response, on: connection)
     }
 
@@ -431,6 +435,21 @@ public final class FakeImmichServer: Sendable {
         headers["X-Truncate"] = nil
         // Truncated: a shorter file than the listing reported, sent whole.
         let body = truncate ? response.body.prefix(response.body.count / 2) : response.body
+        if response.chunked {
+            var head = "HTTP/1.1 \(response.status) Status\r\nContent-Type: \(response.contentType)\r\n"
+            head += "Transfer-Encoding: chunked\r\nConnection: close\r\n"
+            for (name, value) in headers { head += "\(name): \(value)\r\n" }
+            var data = Data((head + "\r\n").utf8)
+            var offset = body.startIndex
+            while offset < body.endIndex {
+                let end = min(offset + (64 << 10), body.endIndex)
+                data += Data(String(end - offset, radix: 16).utf8) + Data("\r\n".utf8) + body[offset..<end] + Data("\r\n".utf8)
+                offset = end
+            }
+            data += Data("0\r\n\r\n".utf8)
+            connection.send(content: data, completion: .contentProcessed { _ in connection.cancel() })
+            return
+        }
         var head = "HTTP/1.1 \(response.status) \(response.status == 200 ? "OK" : "Status")\r\n"
         head += "Content-Type: \(response.contentType)\r\nContent-Length: \(body.count)\r\nConnection: close\r\n"
         for (name, value) in headers { head += "\(name): \(value)\r\n" }

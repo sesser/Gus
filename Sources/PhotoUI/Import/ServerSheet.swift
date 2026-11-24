@@ -28,10 +28,11 @@ public final class ServerSheetModel: Identifiable {
     public var address: String {
         didSet { if oldValue != address { addressEdited() } }
     }
-    /// The key typed in the field, held here so it survives the page change
-    /// (design review S1). Memory only.
+    /// The key typed in the field, held (and observed) here so the field
+    /// redraws with it after the page changes (design review S1, N-5).
+    /// Memory only; never printed.
     public private(set) var key = ""
-    /// Whether a key was typed (the key itself is not observed).
+    /// Whether a key was typed.
     public private(set) var keyEntered = false
     public var unencryptedConfirmed = false
     public var page: Page = .form
@@ -39,8 +40,9 @@ public final class ServerSheetModel: Identifiable {
     public private(set) var result: ConnectionCheckResult?
     /// The person pressed Add or Save once: errors show from then on.
     public private(set) var submitted = false
-    /// A certificate trusted on page 2, for this sheet's checks.
-    private var trusted: (fingerprint: CertificateFingerprint, at: Date)?
+    /// A certificate trusted on page 2, for this sheet's checks, with the
+    /// address it was trusted for.
+    private var trusted: ServerFormRules.TrustedCertificate?
     @ObservationIgnored private var checkTask: Task<Void, Never>?
 
     init(mode: Mode, model: CardImportModel, keys: any RemoteKeyStore) {
@@ -69,8 +71,10 @@ public final class ServerSheetModel: Identifiable {
     }
 
     private func addressEdited() {
-        // The confirmation is for one address (design §3.3).
+        // The confirmation and a trusted certificate are for one address
+        // (design §3.3, §3.6; design review N-3).
         unencryptedConfirmed = false
+        trusted = nil
         result = nil
     }
 
@@ -134,8 +138,9 @@ public final class ServerSheetModel: Identifiable {
         }
         guard keyEntered || existing != nil else { return }
         // A pin is for one address: a new address starts without one.
-        let pin = trusted?.fingerprint ?? (addressChanged ? nil : existing?.pinnedFingerprint)
-        let pinnedAt = trusted?.at ?? (addressChanged ? nil : existing?.certificateTrustedAt)
+        let chosen = ServerFormRules.pin(trusted: trusted, address: address.normalized, existing: existing)
+        let pin = chosen?.fingerprint
+        let pinnedAt = chosen?.trustedAt
         let unencryptedConfirmed = self.unencryptedConfirmed
         let existing = self.existing
         isChecking = true
@@ -223,7 +228,8 @@ public final class ServerSheetModel: Identifiable {
     /// Trust Certificate: the check runs again against this one certificate.
     public func trustCertificate() {
         guard case .certificate(let summary, _) = page else { return }
-        trusted = (summary.fingerprint, Date())
+        trusted = ServerFormRules.TrustedCertificate(fingerprint: summary.fingerprint, trustedAt: Date(),
+                                                     address: parsedAddress?.normalized ?? "")
         page = .form
         result = nil
         submit()
@@ -457,32 +463,39 @@ private struct CertificatePage: View {
             .padding(.horizontal, 20)
             .padding(.top, 16)
             .padding(.bottom, 8)
-            VStack(alignment: .leading, spacing: 12) {
-                if changed {
-                    Text(String(localized: "“\(host)” presented a different certificate from the one you trusted on \(trustedDate). That is expected if it was renewed. It can also mean that someone is intercepting the connection.",
-                                comment: "Certificate page: a pinned server presented another certificate"))
-                } else {
-                    Text(String(localized: "macOS can't tell who issued the certificate that “\(host)” presented. That is normal for a server you set up yourself, but another device on your network can present a certificate too. Trust it only if the fingerprint below matches your server's.",
-                                comment: "Certificate page: a certificate the system does not trust"))
+            // The body scrolls between the fixed header and button bar, so
+            // Back, Cancel and Trust Certificate stay on screen in a short
+            // window (design review N-1). A sheet, not a scroll view under the
+            // window's toolbar.
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    if changed {
+                        Text(String(localized: "“\(host)” presented a different certificate from the one you trusted on \(trustedDate). That is expected if it was renewed. It can also mean that someone is intercepting the connection.",
+                                    comment: "Certificate page: a pinned server presented another certificate"))
+                    } else {
+                        Text(String(localized: "macOS can't tell who issued the certificate that “\(host)” presented. That is normal for a server you set up yourself, but another device on your network can present a certificate too. Trust it only if the fingerprint below matches your server's.",
+                                    comment: "Certificate page: a certificate the system does not trust"))
+                    }
+                    Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 12, verticalSpacing: 6) {
+                        row(String(localized: "Issued to"), summary.subject)
+                        row(String(localized: "Issued by"), summary.issuer)
+                        row(String(localized: "Valid"), validity(summary))
+                    }
+                    if changed, let before = sheet.existing?.pinnedFingerprint {
+                        FingerprintView(title: String(localized: "Trusted before"), fingerprint: before)
+                        FingerprintView(title: String(localized: "Now"), fingerprint: summary.fingerprint)
+                    } else {
+                        FingerprintView(title: String(localized: "SHA-256 fingerprint"), fingerprint: summary.fingerprint)
+                    }
+                    Text(String(localized: "If you trust it, this Mac will accept only this exact certificate for “\(sheet.effectiveName)”. If it ever changes, connecting fails until you review it again.",
+                                comment: "Certificate page footer"))
                 }
-                Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 12, verticalSpacing: 6) {
-                    row(String(localized: "Issued to"), summary.subject)
-                    row(String(localized: "Issued by"), summary.issuer)
-                    row(String(localized: "Valid"), validity(summary))
-                }
-                if changed, let before = sheet.existing?.pinnedFingerprint {
-                    FingerprintView(title: String(localized: "Trusted before"), fingerprint: before)
-                    FingerprintView(title: String(localized: "Now"), fingerprint: summary.fingerprint)
-                } else {
-                    FingerprintView(title: String(localized: "SHA-256 fingerprint"), fingerprint: summary.fingerprint)
-                }
-                Text(String(localized: "If you trust it, this Mac will accept only this exact certificate for “\(sheet.effectiveName)”. If it ever changes, connecting fails until you review it again.",
-                            comment: "Certificate page footer"))
+                .font(.system(size: 13))
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 16)
             }
-            .font(.system(size: 13))
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.horizontal, 20)
-            .padding(.bottom, 16)
             Divider()
             HStack(spacing: 12) {
                 Spacer()

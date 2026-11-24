@@ -223,7 +223,7 @@ public enum ServerText {
                            comment: "Server import alert: missing permission"))
         case .certificateChanged?:
             return (stopTitle(.certificateChanged, name: name),
-                    String(localized: "\(done) photos were imported before the import stopped. Nothing more was downloaded. Choose Edit Server…, then Review Certificate…, to see the new one.",
+                    String(localized: "\(done) photos were imported before the import stopped. Nothing more was downloaded. Choose Review Certificate… in the window to see the new one.",
                            comment: "Server import alert: certificate changed"))
         case .stopped?, nil:
             let title = done == 0
