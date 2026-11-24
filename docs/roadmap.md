@@ -57,8 +57,10 @@ so did lens corrections (#87, 2026-11-19).
 On 2026-11-20 the owner set Now to AI masks (#88), the preset list view (#241) and HDR merge (#150); they are no longer in Next. The preset list view (#241) shipped 2026-11-21, and HDR merge (#150) 2026-11-22.
 On 2026-11-20 the owner asked for a choice of what Copy Adjustments copies (#243); it went first in Next (Now was full), moved to Now on 2026-11-22 and shipped 2026-11-22.
 On 2026-11-23 the owner dropped the closed items (#64, #65, #71, #73) and set Next to features: #28, #85, #90, #151, #199, #110, #108, #107, #104, in that order. The bugs and tooling items that were in Next went to the top of Later: none has affected the owner's use of the app, so features come first until a bug does (or others report one on GitHub).
+On 2026-11-23 the owner also placed Import from Immich (#271) first in Next, ahead of #28, whose Immich target reuses the connection layer #271 creates.
 The small fixes and tooling items can each go as a bug fix (`docs/WORKFLOW.md`).
 
+1. [#271](https://github.com/sesser/Gus/issues/271) `immich-import`: Photos that live on an Immich server can't be browsed or brought into the library without downloading them by hand first
 1. [#28](https://github.com/sesser/Gus/issues/28) `publishing-engine`: Getting edited photos into Apple Photos or Immich means exporting to a folder and uploading by hand
 1. [#85](https://github.com/sesser/Gus/issues/85) `dng-export`: No DNG output
 1. [#90](https://github.com/sesser/Gus/issues/90) `stacks`: No hand-made or burst stacks
