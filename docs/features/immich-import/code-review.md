@@ -555,3 +555,32 @@ nit: a test comment claims a check the test doesn't make (C21).
 
 C21 is a nit and does not block QA or sign-off. If it is taken, record it here
 with its commit.
+
+## Sixth pass
+
+Reviewed: `feature/immich-import`, e143423..96e1e60 (96e1e60: a test change
+in `RemoteProjectReuseTests.swift`, the user guide and `status.md`; no
+source). Date: 2026-11-24. Build and tests: `swift test --filter
+RemoteProjectReuseTests` 8 of 8 pass.
+
+### Verdict
+
+C21 is fixed and the guide edit (N-9) is true to the code and design. No new
+findings. Ready for QA and the owner's look check (the design review's M12).
+
+### Follow-up
+
+| # | Status | Commit | Check |
+|---|---|---|---|
+| C21 | Fixed | 96e1e60 | `comparison` now calls `projectForImport` with `cleaned("  ")` (created, named the address) and then `cleaned("")` (found, same id). The new `emptyFieldImportsReuse` runs two real imports through `RemoteImporter.run`, so through `makeTarget`, with the field `"  "` then `""`. Two probes ran in a throwaway worktree under the scratchpad (removed afterwards; the repository was never edited). (1) `makeTarget` passes the raw name instead of `cleaned`: the new test fails 3 expectations (`RemoteProjectReuseTests.swift:102, 103, 105`), as `status.md` says. (2) `makeTarget` falls back on a different address (`options.destination.lastPathComponent`) than the one the note uses: it fails 2 (`:102, :105`), and the other 7 tests still pass. So the test catches both drifts C21 named. Determinism, a structural argument: the test has its own `FakeImmichServer`, in-memory catalog and temporary folder. The two imports are awaited one after the other, and nothing depends on timing or pool order. |
+
+Guide (N-9), checked against the code: `ImportWindow.swift:413` shows the
+server's Project name field, and the note inside it, only while
+`existingProjectID == nil`, meaning Add to is New Project.
+`ServerSource.swift:389` sends `.existing(id)` otherwise, so `makeTarget`
+uses that project and never looks up the name.
+`RemoteProjectName.addsToExistingProject` returns false for an existing
+project. This matches design §5.3 ("When **Add to** names an existing project
+the field is absent") and DQ-13. The guide's "A card or folder import set to
+**New Project** still always makes a new one" still holds:
+`CopyImporter` and `Importer` call `createProject`.
