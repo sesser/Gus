@@ -7,12 +7,12 @@ import PhotoCore
 ///     import source <path> | dest <path> | job <text> | delete on|off | eject on|off
 ///            | videos on|off (waits) | rescan (waits) | toggle <index of a shown shot>
 ///            | accessibility <role>|any [<n> press|<action name>] (see AccessibilityProbe)
-///            | run (waits) | start (does not wait) | close (the window) | terminate (as ⌘Q)
+///            | run (waits) | start (does not wait) | stop (as Stop; waits) | close (the window) | terminate (as ⌘Q)
 ///            | alert [<button title>] (prints the window's alert, or presses a button) | confirm yes|no | snapshot <file> | print
 ///            | template folder|file|project <text> | tokens … (see TemplateFieldProbe)
 ///            | grid (each cell: name, checked, focus) | key left|right|up|down|space|return (to the grid)
 ///            | contextmenu <index> [<item title>] | options on|off | duplicates on|off | gridshot <png> (the grid alone)
-///            | optionsshot <png> (the options inspector's content)
+///            | optionsshot <png> (the options inspector's content) | scroll <index>|end (a server's paging)
 @MainActor
 public enum ImportDebugCommands {
     /// Runs one command (the words after "import"). Returns false for a command
@@ -28,7 +28,7 @@ public enum ImportDebugCommands {
             model.includesVideos = argument == "on"
             await waitForScan(model)
         case "rescan":
-            model.rescan(keepingPicks: true)
+            model.rescanSource()
             await waitForScan(model)
         case "toggle":
             guard let index = Int(argument), model.visibleShots.indices.contains(index) else { return false }
@@ -56,6 +56,11 @@ public enum ImportDebugCommands {
             model.startImport()
             try? await Task.sleep(for: .milliseconds(100))
             while model.isImporting { try? await Task.sleep(for: .milliseconds(100)) }
+            try? await Task.sleep(for: .milliseconds(500))
+        case "stop":
+            // As Stop (⌘.): waits for the import to end.
+            model.cancelImport()
+            for _ in 0..<300 where model.isImporting { try? await Task.sleep(for: .milliseconds(100)) }
             try? await Task.sleep(for: .milliseconds(500))
         case "start":
             // As Import N Photos, without waiting for the copy.
@@ -98,6 +103,12 @@ public enum ImportDebugCommands {
             printState(model)
         case "grid":
             ImportGridProbe.printGrid(in: window)
+        case "scroll":
+            // A server's grid: to item <index> or the end; waits for a page it asks for.
+            ImportGridProbe.scroll(to: argument == "end" || argument.isEmpty ? nil : Int(argument), in: window)
+            try? await Task.sleep(for: .milliseconds(150))
+            for _ in 0..<300 where model.browse?.isLoadingPage == true { try? await Task.sleep(for: .milliseconds(50)) }
+            try? await Task.sleep(for: .milliseconds(300))
         case "key":
             ImportGridProbe.send(argument, in: window)
             try? await Task.sleep(for: .milliseconds(150))
@@ -153,7 +164,9 @@ public enum ImportDebugCommands {
 
     private static func waitForScan(_ model: CardImportModel) async {
         try? await Task.sleep(for: .milliseconds(100))
-        while model.isScanning { try? await Task.sleep(for: .milliseconds(100)) }
+        while model.isScanning || model.browse?.isConnecting == true || model.browse?.isLoadingPage == true {
+            try? await Task.sleep(for: .milliseconds(100))
+        }
     }
 
     public static func printState(_ model: CardImportModel) {

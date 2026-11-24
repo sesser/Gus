@@ -124,6 +124,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // photo it already put beside the masters (design §7.1), before the
             // app goes: at most one band or the catalog step (code review C2).
             await library.merge.waitUntilDone(timeout: .seconds(10))
+            // A stopped server import removes its hidden partial download, or
+            // finishes cataloging the photo it verified, before the app goes
+            // (code review C7).
+            await library.cardImport.waitUntilDone(timeout: .seconds(10))
             NSApp.terminate(nil)
         }
         // Cancelled now and asked again after Stop and Quit: with

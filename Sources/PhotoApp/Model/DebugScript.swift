@@ -874,6 +874,11 @@ enum DebugScript {
             model.showsCopySheet = false
             model.showsLookTableSheet = false
             model.showsPresetSheet = false
+            // The import window's own sheet, dialog and alert (QA Q1).
+            model.cardImport.serverSheet = nil
+            model.cardImport.removingServer = nil
+            model.cardImport.serverAlert = nil
+            model.cardImport.browse?.showsDateRange = false
             try? await Task.sleep(for: .milliseconds(500))
             for window in NSApp.windows {
                 if let sheet = window.attachedSheet { window.endSheet(sheet) }
@@ -893,6 +898,7 @@ enum DebugScript {
             return
         }
         let importWindow = NSApp.windows.first { $0.isVisible && $0.title == String(localized: "Import") }
+        if await DebugServerCommands.run(words, model: model, window: importWindow) { return }
         if !(await ImportDebugCommands.run(words, model: model, window: importWindow)) {
             print("debug-script: unknown import command")
         }

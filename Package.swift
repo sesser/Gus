@@ -85,9 +85,11 @@ let package = Package(
             // and String(localized:) do not look by default (they use Bundle.main).
             exclude: ["Resources/Localizable.xcstrings"]
         ),
+        // PhotoFixtures for the debug script's fake Immich server (issue #271,
+        // R25: `import server fake …`), started only by a scripted launch.
         .executableTarget(
             name: "PhotoApp",
-            dependencies: ["PhotoCore", "PhotoUI"]
+            dependencies: ["PhotoCore", "PhotoUI", "PhotoFixtures"]
         ),
         .executableTarget(
             name: "PhotoImporter",

@@ -20,6 +20,7 @@ enum CatalogSchema {
         migrator.registerMigration("v13", migrate: addDescriptiveFields)
         migrator.registerMigration("v14", migrate: addEditHistory)
         migrator.registerMigration("v15", migrate: addMaskRasters)
+        migrator.registerMigration("v16", migrate: addRemoteServices)
         return migrator
     }
 
@@ -462,6 +463,47 @@ enum CatalogSchema {
         }
         try db.alter(table: "editHistory") { t in
             t.add(column: "maskRasters", .text)
+        }
+    }
+
+    /// Servers photos are imported from (issue #271, R22) and the link from a
+    /// cataloged version to the remote asset it came from (R15). Generic: the
+    /// provider is a value (`immich`), so another source adds rows, not
+    /// tables. A connection's key is never stored here: it is in the
+    /// Keychain under the row's `uuid` (R1).
+    ///
+    /// A link is keyed by provider, normalized address and remote id (R16,
+    /// RI-2), not by a connection row, so it outlives a removed connection and
+    /// matches one added again with the same address. `serviceId` is for
+    /// display only and is cleared when the connection goes. A link goes with
+    /// its version (`ON DELETE CASCADE`), so removing a photo removes it in the
+    /// same transaction. One remote asset is linked to at most one version,
+    /// and a version to at most one asset of a server.
+    private static func addRemoteServices(_ db: Database) throws {
+        try db.create(table: "remoteService") { t in
+            t.autoIncrementedPrimaryKey("id")
+            t.column("uuid", .text).notNull().unique()
+            t.column("provider", .text).notNull()
+            t.column("name", .text).notNull()
+            t.column("address", .text).notNull()
+            t.column("certificateFingerprint", .text)
+            t.column("certificateTrustedAt", .datetime)
+            t.column("allowsUnencrypted", .boolean).notNull().defaults(to: false)
+            t.column("createdAt", .datetime).notNull()
+        }
+        try db.create(table: "remoteLink") { t in
+            t.autoIncrementedPrimaryKey("id")
+            t.column("provider", .text).notNull()
+            t.column("address", .text).notNull()
+            t.column("remoteId", .text).notNull()
+            t.column("fingerprint", .text).notNull()
+            t.column("versionId", .integer).notNull().indexed()
+                .references("version", onDelete: .cascade)
+            t.column("serviceId", .integer).indexed()
+                .references("remoteService", onDelete: .setNull)
+            t.column("createdAt", .datetime).notNull()
+            t.uniqueKey(["provider", "address", "remoteId"])
+            t.uniqueKey(["versionId", "provider", "address"])
         }
     }
 }

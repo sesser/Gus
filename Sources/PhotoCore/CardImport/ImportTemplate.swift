@@ -82,9 +82,14 @@ public struct ImportTemplate: Codable, Hashable, Sendable {
             .map { Self.sanitize(Self.expand(String($0), context)) }
             .filter { !$0.isEmpty }
         var stem = Self.sanitize(Self.expand(fileName, context))
-        if stem.isEmpty { stem = (context.originalName as NSString).deletingPathExtension }
-        // The extension stays the original's unless the template already ends with one.
-        let ext = (context.originalName as NSString).pathExtension
+        // A template that comes out empty falls back on the original name,
+        // sanitized like any part (a server's name can hold "../": security
+        // review F1), else a constant.
+        if stem.isEmpty { stem = Self.sanitize((Self.lastComponent(context.originalName) as NSString).deletingPathExtension) }
+        if stem.isEmpty { stem = Self.fallbackStem }
+        // The extension stays the original's unless the template already ends
+        // with one; only a plain one (letters and digits) is kept.
+        let ext = Self.plainExtension(context.originalName)
         let hasExtension = !ext.isEmpty && stem.lowercased().hasSuffix("." + ext.lowercased())
         return (folders, hasExtension || ext.isEmpty ? stem : stem + "." + ext)
     }
@@ -163,6 +168,22 @@ public struct ImportTemplate: Codable, Hashable, Sendable {
         formatter.timeZone = timeZone
         formatter.dateFormat = pattern
         return formatter.string(from: date)
+    }
+
+    /// The stem when the template and the original name give none.
+    public static let fallbackStem = "photo"
+
+    /// The name after its last `/` or `\`.
+    static func lastComponent(_ name: String) -> String {
+        name.split(omittingEmptySubsequences: false, whereSeparator: { $0 == "/" || $0 == "\\" }).last.map(String.init) ?? name
+    }
+
+    /// The original's extension when it is 1 to 16 ASCII letters and digits;
+    /// otherwise none.
+    static func plainExtension(_ name: String) -> String {
+        let ext = (lastComponent(name) as NSString).pathExtension
+        guard (1...16).contains(ext.count), ext.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber) }) else { return "" }
+        return ext
     }
 
     /// Makes a value safe as one path component.

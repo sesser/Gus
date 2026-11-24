@@ -54,9 +54,45 @@ final class ImportGridController: NSObject, NSCollectionViewDataSource, NSCollec
         scrollView.autohidesScrollers = true
         scrollView.drawsBackground = true
         scrollView.backgroundColor = Palette.gridBackground
+        // A server's next page is asked for as the visible area nears the end
+        // (design §4.4, D10).
+        scrollView.contentView.postsBoundsChangedNotifications = true
+        boundsObserver = NotificationCenter.default.addObserver(forName: NSView.boundsDidChangeNotification,
+                                                                object: scrollView.contentView, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.checkPaging() }
+        }
+    }
+
+    private var boundsObserver: (any NSObjectProtocol)?
+
+    /// Asks the model for the next page when the visible area's bottom is
+    /// within one screen of the last loaded photo.
+    func checkPaging() {
+        guard model.browse != nil, !shots.isEmpty else { return }
+        let visible = scrollView.contentView.bounds
+        let last = layout.frame(forItemAt: shots.count - 1)
+        if RemotePaging.isNextPageDue(visibleMaxY: Double(visible.maxY), viewportHeight: Double(visible.height),
+                                      lastItemMaxY: Double(last.maxY)) {
+            model.loadNextPageIfNeeded()
+        }
     }
 
     func update(shots: [SourceShot], selection: Set<URL>) {
+        // A server's page appended: insert the new items, so nothing on
+        // screen moves, reloads or fetches its thumbnail again (D10).
+        if shots.count > self.shots.count, !self.shots.isEmpty,
+           Array(shots.prefix(self.shots.count)) == self.shots {
+            let start = self.shots.count
+            self.shots = shots
+            let selectionChanged = selection != self.selection
+            self.selection = selection
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0
+                collectionView.insertItems(at: Set((start..<shots.count).map { IndexPath(item: $0, section: 0) }))
+            }
+            if selectionChanged { refreshVisibleCells() }
+            return
+        }
         if shots.map(\.id) != self.shots.map(\.id) || shots != self.shots {
             self.shots = shots
             self.selection = selection
@@ -100,7 +136,13 @@ final class ImportGridController: NSObject, NSCollectionViewDataSource, NSCollec
 
     private func configure(_ cell: ImportCell, at index: Int) {
         let shot = shots[index]
-        cell.configure(with: shot, included: selection.contains(shot.id), colorSpace: colorSpace, pixelSize: pixelSize)
+        let server = model.browse.map { browse in
+            ServerMarks(isEdited: model.remoteAsset(for: shot.id)?.isEdited == true, serverName: browse.service.name)
+        }
+        cell.configure(with: shot, included: selection.contains(shot.id), colorSpace: colorSpace, pixelSize: pixelSize,
+                       server: server) { [weak model] url, size, space in
+            await model?.remoteThumbnail(url, pixelSize: size, colorSpace: space)
+        }
         cell.onClick = { [weak self] event in self?.click(shot, event: event) }
         cell.onToggle = { [weak self] in self?.toggle(shot, extend: false) }
     }
@@ -185,12 +227,18 @@ final class ImportGridController: NSObject, NSCollectionViewDataSource, NSCollec
 
     func windowDidChange(_ window: NSWindow?) {
         model.window = window
+        // After Add or Save: the new grid takes the keyboard (design §7, S4).
+        if let window, model.focusesGridWhenShown {
+            model.focusesGridWhenShown = false
+            DispatchQueue.main.async { [collectionView] in window.makeFirstResponder(collectionView) }
+        }
     }
 }
 
 /// The import grid's collection view: keys, the focus ring and the context menu.
 final class ImportCollectionView: NSCollectionView {
     weak var controller: ImportGridController?
+
 
     override var acceptsFirstResponder: Bool { true }
 

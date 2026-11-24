@@ -148,6 +148,11 @@ final class LibraryModel {
     let previews: PreviewService
     let suggester: any KeywordSuggester = VisionKeywordSuggester()
     let sidecars: SidecarSync
+    /// Server keys (issue #271, R1): the Keychain, under a service named from
+    /// the running bundle's identifier; memory with no bundle or in a
+    /// scripted or benchmark launch, so a test launch never reads or writes
+    /// the real app's keys (PRD, library launch guard; P5; code review C6).
+    let remoteKeyStore: any RemoteKeyStore = RemoteKeyStores.forLaunch()
     let cardImport: CardImportModel
     let editor = AdjustmentEditor()
     /// Catalog writes in the order they were made, and the rule for reads

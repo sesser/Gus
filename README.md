@@ -56,6 +56,18 @@ I built this with Claude. AI did the work, I did the orchestration.
 - Every copy is read back and checked by hash before the source can be deleted
 - Drag a folder from Finder to add it in place as a project
 - A standalone importer app for copying cards without a library
+- Import from an Immich server: add a server (its address and an API key),
+  browse its photos in the same import window by album or capture date, pick
+  some and Gus copies the original files to your folder, checks each one
+  against the server's checksum and adds it to the library as an ordinary
+  photo. Photos you already imported are marked and left unchecked. Importing
+  the same album or All Photos again goes into the project of that name
+  instead of making a second one (card and folder imports still make a new
+  project each time). Gus only reads from the server: nothing on it is ever
+  changed, and Immich's own edits, favorites, tags and albums aren't brought
+  over (a description and a star rating are, when yours are empty). Photos
+  only: no videos, and a Live Photo comes as its still. The library app only,
+  not the standalone importer
 
 **Editing**
 
@@ -172,6 +184,20 @@ app doesn't have open.
   scripted launch) won't open your library unless it's given
   `--library-root <folder>`; it says why and quits
 
+**Privacy and network**
+
+Gus does its analysis (keyword suggestions, subject masks) on the Mac and has
+no telemetry. The one thing it contacts over a network is an Immich server you
+add yourself, and only that server: it sends the API key (kept in the macOS
+Keychain, nowhere else) and read requests, never anything else, and it never
+creates, changes or deletes anything on the server. A server must use
+`https://`; plain `http://` is allowed only on your local network and only
+after Gus tells you the key and photos cross the network unencrypted and you
+confirm. A certificate macOS doesn't trust is never accepted silently: you see
+its fingerprint and may trust that one certificate for that server, and Gus
+refuses it if it changes. There is no switch to turn certificate checking off.
+The About window and the standalone importer contact nothing.
+
 ## Not there yet
 
 Removing larger objects (a remove brush) and automatic dust detection,
@@ -181,7 +207,9 @@ export of your own photos (only an HDR merge can write a DNG), recovering a
 camera's tone curve for JPEG merges, sky and named-object masks, DCP camera profiles, hand-made and
 burst stacks, black and white for part of a photo (through a mask), mapping of Lightroom black and white settings on import,
 hierarchical keywords, importing straight from a camera over USB, a second
-backup destination on import. Metadata is never written into original
+backup destination on import, importing from servers other than Immich,
+sending edited photos back to Immich (publishing is planned, #28), importing
+videos or Immich's own edits. Metadata is never written into original
 files; it goes to XMP sidecars.
 
 ## Requirements
@@ -245,13 +273,13 @@ macOS raw decoder can't.
 
 | Path | Contents |
 |---|---|
-| `Sources/PhotoCore` | Catalog (GRDB), import, metadata, edits, masks and rendering, camera color (`CameraColor/`), presets, previews, sidecars, export |
+| `Sources/PhotoCore` | Catalog (GRDB), import, metadata, edits, masks and rendering, camera color (`CameraColor/`), presets, previews, sidecars, export, server connections for Immich import (`Remote/`) |
 | `Sources/PhotoUI` | UI shared by both apps: the import window, the About window, grid pieces, palette, String Catalog |
 | `Sources/PhotoApp` | The library app: window and toolbar, grid, loupe, inspector, sidebar, sheets |
 | `Sources/PhotoImporter` | The standalone importer |
 | `Sources/PhotoCLI` | `photocli` |
 | `Sources/CLibRaw` | LibRaw's source, vendored and built by `Package.swift`; never edited |
-| `Sources/PhotoFixtures` | Synthetic JPEG, HEIC and DNG files for tests and benchmarks |
+| `Sources/PhotoFixtures` | Synthetic JPEG, HEIC and DNG files and a fake Immich server, for tests and benchmarks (the library app also links it, so its debug script can start the fake server) |
 | `Sources/PhotoBench` | Synthetic library generator (`--brackets` makes HDR merge series), test scene files and profiling, `photobench merge` included (`photobench`) |
 | `Sources/StringCatalogCompiler` | Compiles the String Catalog for the build script |
 | `Sources/AppIconCompiler` | Turns `Support/AppIcon.png` into the app icon |

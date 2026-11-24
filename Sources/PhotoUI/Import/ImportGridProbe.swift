@@ -24,8 +24,20 @@ enum ImportGridProbe {
             guard let view = grid.item(at: path)?.view as? ImportCellView else { continue }
             let value = view.accessibilityValue().map { "\($0)" } ?? "-"
             print("debug-script:   \(path.item) \(view.accessibilityRole()?.rawValue ?? "-") "
-                  + "'\(view.accessibilityLabel() ?? "-")' value \(value)")
+                  + "'\(view.accessibilityLabel() ?? "-")' value \(value) [\(view.debugFlags)]")
         }
+    }
+
+    /// Scrolls the grid to item `index`, or its last with nil (a server's
+    /// paging, design §4.4).
+    static func scroll(to index: Int?, in window: NSWindow?) {
+        guard let grid = collectionView(in: window), let controller = grid.controller, !controller.shots.isEmpty else {
+            print("debug-script: import scroll: no grid")
+            return
+        }
+        let item = min(max(index ?? controller.shots.count - 1, 0), controller.shots.count - 1)
+        grid.scrollToItems(at: [IndexPath(item: item, section: 0)], scrollPosition: .bottom)
+        controller.checkPaging()
     }
 
     static func send(_ key: String, in window: NSWindow?) {

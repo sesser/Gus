@@ -129,6 +129,31 @@ extension Catalog {
         }
     }
 
+    /// The project a server import adds to (#271, the owner's ruling of
+    /// 2026-11-24): the existing project whose name is exactly `name` (Swift
+    /// string equality: case and inner white space count, canonically
+    /// equivalent Unicode forms are equal), else a new one made with
+    /// `sourcePath`. When several projects have that name, the oldest
+    /// (`createdAt`, then `id`) is the one, so the choice never moves as
+    /// projects are added. An existing project keeps its `sourcePath`. The
+    /// lookup and the insert are one write, so two imports can't both make
+    /// the project.
+    public func projectForImport(named name: String, sourcePath: String?,
+                                 createdAt: Date = Date()) async throws -> (project: ProjectRecord, created: Bool) {
+        try await database.write { db in
+            // Compared in Swift, not by SQLite's byte-wise `=`, so an NFD name
+            // finds its NFC twin.
+            let existing = try ProjectRecord
+                .order(ProjectRecord.Columns.createdAt.asc, ProjectRecord.Columns.id.asc)
+                .fetchAll(db)
+                .first { $0.name == name }
+            if let existing { return (existing, false) }
+            var project = ProjectRecord(name: name, sourcePath: sourcePath, createdAt: createdAt)
+            try project.insert(db)
+            return (project, true)
+        }
+    }
+
     /// Projects, newest first, with the number of versions in each. With
     /// `groupingPairs`, a RAW+JPEG pair counts once.
     public func projectSummaries(groupingPairs: Bool = true) async throws -> [ProjectSummary] {
@@ -289,20 +314,28 @@ extension Catalog {
         guard !masters.isEmpty else { return MasterInsertionResult() }
         return try await database.write { db in
             var result = MasterInsertionResult()
-            for master in masters {
-                try Self.insertMaster(db, master, volumeID: volumeID, projectID: projectID, importRunID: importRunID,
-                                      importedAt: importedAt, into: &result)
-            }
-            // Partners may have come in an earlier batch or an earlier import.
-            let keys = Set(masters.map { ImagePairing.key(forRelativePath: $0.relativePath) })
-            let companions = try ImagePairing.pair(db, volumeID: volumeID, projectID: projectID, keys: keys)
-            result.pairsCreated = companions.count
-            // A pair's sidecar belongs to its RAW.
-            for chunk in companions.chunked(into: 10_000) {
-                try db.execute(sql: "DELETE FROM metadataSync WHERE imageId IN (\(databaseQuestionMarks(count: chunk.count)))",
-                               arguments: StatementArguments(Array(chunk)))
-            }
+            try Self.insertMasters(db, masters, volumeID: volumeID, projectID: projectID, importRunID: importRunID,
+                                   importedAt: importedAt, into: &result)
             return result
+        }
+    }
+
+    /// `insertMasters` inside a transaction the caller holds (the remote
+    /// importer adds the link in the same one).
+    static func insertMasters(_ db: Database, _ masters: [NewMaster], volumeID: Int64, projectID: Int64,
+                              importRunID: Int64?, importedAt: Date, into result: inout MasterInsertionResult) throws {
+        for master in masters {
+            try Self.insertMaster(db, master, volumeID: volumeID, projectID: projectID, importRunID: importRunID,
+                                  importedAt: importedAt, into: &result)
+        }
+        // Partners may have come in an earlier batch or an earlier import.
+        let keys = Set(masters.map { ImagePairing.key(forRelativePath: $0.relativePath) })
+        let companions = try ImagePairing.pair(db, volumeID: volumeID, projectID: projectID, keys: keys)
+        result.pairsCreated += companions.count
+        // A pair's sidecar belongs to its RAW.
+        for chunk in companions.chunked(into: 10_000) {
+            try db.execute(sql: "DELETE FROM metadataSync WHERE imageId IN (\(databaseQuestionMarks(count: chunk.count)))",
+                           arguments: StatementArguments(Array(chunk)))
         }
     }
 

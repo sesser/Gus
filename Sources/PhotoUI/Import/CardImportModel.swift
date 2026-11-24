@@ -53,6 +53,9 @@ public protocol CardImportLibrary: AnyObject {
     func didFinishCopyImport(_ result: CopyImportResult) async
     /// Posts a message to the library window's Activity item.
     func report(_ text: String, action: String, warning: Bool)
+    /// Where server keys are kept (issue #271, R1): the Keychain, or memory in
+    /// a scripted launch.
+    var remoteKeyStore: any RemoteKeyStore { get }
 }
 
 /// State of the import window.
@@ -62,7 +65,7 @@ public final class CardImportModel {
     /// Nil in the standalone importer: copies are not catalogued, nothing is
     /// marked as already in the library, and there is no project to choose.
     @ObservationIgnored public weak var library: (any CardImportLibrary)?
-    @ObservationIgnored private let metadataReader: any MetadataReader
+    @ObservationIgnored let metadataReader: any MetadataReader
     @ObservationIgnored private let presetStore: any MetadataPresetStore
     @ObservationIgnored private var volumeObservers: [any NSObjectProtocol] = []
 
@@ -71,16 +74,42 @@ public final class CardImportModel {
     // MARK: Source
 
     public private(set) var sources: [ImportSource] = []
+    /// A card or folder; nil while a server is the source (`browse`).
     public var source: ImportSource? {
         didSet { if oldValue != source { rescan(keepingPicks: false) } }
     }
-    public private(set) var shots: [SourceShot] = []
+    /// What the grid shows: a card's or folder's shots, or a server's photos
+    /// as one-file shots (`ServerBrowse`).
+    public internal(set) var shots: [SourceShot] = []
+
+    // MARK: Servers (issue #271)
+
+    /// Saved server connections, by name (library app only).
+    public internal(set) var servers: [RemoteServiceRecord] = []
+    /// The server being browsed, when a server is the source.
+    public internal(set) var browse: ServerBrowse?
+    /// The Server sheet, while it is shown.
+    public var serverSheet: ServerSheetModel?
+    /// The server Remove Server… asks about.
+    public var removingServer: RemoteServiceRecord?
+    /// A server import's alert: title and message (design §6.2, §6.3).
+    public var serverAlert: ServerAlert?
+    @ObservationIgnored var serverImportName = ""
+    /// Remove Server… pressed in the sheet: asked when the sheet is gone (S3).
+    @ObservationIgnored var removalAfterSheet: RemoteServiceRecord?
+    /// After Add or Save the grid takes the keyboard when it appears (S4).
+    @ObservationIgnored var focusesGridWhenShown = false
+
+    /// A card, a folder or a server is chosen.
+    public var hasSource: Bool { source != nil || browse != nil }
+    /// The source's name, for the window and the quit question.
+    public var sourceName: String? { browse?.service.name ?? source?.name }
     /// The newest photo's camera, for the window's subtitle.
     public private(set) var camera: CameraSummary?
     public private(set) var isScanning = false
     /// Why the source could not be read; the grid says so with Rescan.
     public private(set) var readError: String?
-    var selection: Set<URL> = []
+    public internal(set) var selection: Set<URL> = []
     var showsDuplicates = false
     /// The options inspector (View ▸ Show / Hide Options).
     public var showsOptions = true
@@ -90,8 +119,9 @@ public final class CardImportModel {
     @ObservationIgnored private var scanTask: Task<Void, Never>?
     @ObservationIgnored var lastClicked: URL?
 
+    /// A server's marked photos stay visible (design §4.5, D8).
     var visibleShots: [SourceShot] {
-        showsDuplicates ? shots : shots.filter { !$0.isDuplicate }
+        showsDuplicates || browse != nil ? shots : shots.filter { !$0.isDuplicate }
     }
 
     public var duplicateCount: Int { shots.filter(\.isDuplicate).count }
@@ -143,7 +173,7 @@ public final class CardImportModel {
 
     // MARK: Running
 
-    public private(set) var progress: CopyImportProgress? {
+    public internal(set) var progress: CopyImportProgress? {
         didSet { if (oldValue == nil) != (progress == nil) { progressStarted = progress == nil ? nil : Date() } }
     }
     /// When the running copy started (File ▸ Stop names the newest job).
@@ -153,10 +183,10 @@ public final class CardImportModel {
     public var pendingDeletion: [URL]?
     /// "Imported 412 files": the subtitle after an import, until the
     /// selection or the source changes.
-    public private(set) var doneText: String?
+    public internal(set) var doneText: String?
     /// Cancellation, failures, eject failure: a window-modal alert.
     public var alertText: String?
-    @ObservationIgnored private var importTask: Task<Void, Never>?
+    @ObservationIgnored var importTask: Task<Void, Never>?
 
     public var isImporting: Bool { importTask != nil }
 
@@ -206,10 +236,13 @@ public final class CardImportModel {
         if let preferred {
             source = found.first { $0.url.standardizedFileURL == preferred.standardizedFileURL } ?? ImportSource.describe(preferred)
             if let source, !sources.contains(source) { sources.append(source) }
-        } else if source == nil || !(found.contains { $0 == source }) {
+        } else if browse == nil, source == nil || !(found.contains { $0 == source }) {
             source = found.first { $0.isCard } ?? found.first
         }
-        Task { await loadPresets() }
+        Task {
+            await loadPresets()
+            await loadServers()
+        }
     }
 
     /// Follows cards as they come and go, switching to a card when it mounts.
@@ -279,6 +312,7 @@ public final class CardImportModel {
     /// The person picked a source: what the last import said is done with.
     func choose(_ source: ImportSource) {
         doneText = nil
+        closeServer()
         self.source = source
     }
 
@@ -347,7 +381,7 @@ public final class CardImportModel {
     public var canDeselectAll: Bool { !isCopying && !selection.isEmpty }
 
     func selectAll() {
-        selection = Set(shots.filter { !$0.isDuplicate }.map(\.id))
+        selection = ImportSelection.all(of: shots)
         doneText = nil
     }
 
@@ -398,6 +432,7 @@ public final class CardImportModel {
     }
 
     public func startImport() {
+        if browse != nil { return startServerImport() }
         guard let source, importTask == nil else { return }
         let shots = selectedShots
         guard !shots.isEmpty else { return }
@@ -460,7 +495,7 @@ public final class CardImportModel {
               let confirmation = QuitConfirmation.needed(app: copiesOnly ? .importer : .library, trigger: trigger,
                                                          isCopying: isImporting)
         else { return true }
-        let text = QuitGuard.text(for: confirmation, source: source?.name ?? "", copied: progress?.filesDone ?? 0,
+        let text = QuitGuard.text(for: confirmation, source: sourceName ?? "", copied: progress?.filesDone ?? 0,
                                   total: progress?.filesTotal ?? 0)
         guard await QuitGuard.ask(text, in: window) else { return false }
         // Nothing more is said: the app quits before the copy reports.
@@ -500,6 +535,8 @@ public final class CardImportModel {
     /// when the window closes).
     public var progressDetail: String? {
         guard let progress else { return nil }
+        // A server request being tried again (design §6.1).
+        if progress.waitingForServer, let name = sourceName { return ServerText.waiting(name) }
         let done = ByteCountFormatter.string(fromByteCount: progress.bytesDone, countStyle: .file)
         let total = ByteCountFormatter.string(fromByteCount: progress.bytesTotal, countStyle: .file)
         return String(localized: "File \(progress.filesDone) of \(progress.filesTotal) · \(done) of \(total)",

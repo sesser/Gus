@@ -36,7 +36,16 @@ public struct ImportCommands: Commands {
             Button("Choose Folder…") { model?.chooseFolder() }
                 .keyboardShortcut("o", modifiers: .command)
                 .disabled(!can { !$0.isImporting })
-            Button("Rescan") { model?.rescan(keepingPicks: true) }
+            if includesLibraryItems {
+                // Servers (issue #271, design §7): no shortcuts.
+                Button("Add Server…") { model?.showAddServer() }
+                    .disabled(!can { !$0.isImporting })
+                Button("Edit Server…") { model?.showEditServer() }
+                    .disabled(!can { $0.isServer && !$0.isImporting })
+                Button("Remove Server…") { model?.askToRemoveServer() }
+                    .disabled(!can { $0.isServer && !$0.isImporting })
+            }
+            Button("Rescan") { model?.rescanSource() }
                 .keyboardShortcut("r", modifiers: .command)
                 .disabled(!can { $0.hasSource && !$0.isImporting })
             Button("Import Selected Photos") { model?.startImport() }
@@ -62,17 +71,33 @@ public struct ImportCommands: Commands {
                     .keyboardShortcut("i", modifiers: [.command, .option])
                     .disabled(menu == nil)
             }
+            // Dimmed for a server (design §4.5, D8).
             Toggle("Show Videos", isOn: Binding(
                 get: { menu?.state.includesVideos ?? false },
                 set: { model?.includesVideos = $0 }
             ))
-            .disabled(!can { !$0.isImporting })
+            .disabled(!can { !$0.isImporting && !$0.isServer })
             if includesLibraryItems {
                 Toggle("Show Photos Already in Library", isOn: Binding(
                     get: { menu?.state.showsDuplicates ?? false },
                     set: { model?.showsDuplicates = $0 }
                 ))
-                .disabled(!can { !$0.copiesOnly })
+                .disabled(!can { !$0.copiesOnly && !$0.isServer })
+                Menu("Album") {
+                    Picker(selection: Binding(get: { menu?.state.albumID }, set: { model?.chooseAlbum($0) })) {
+                        Text(ServerText.allPhotos).tag(String?.none)
+                        ForEach(menu?.albums ?? []) { album in
+                            Text(ServerText.album(album)).tag(String?.some(album.id))
+                        }
+                    } label: {
+                        EmptyView()
+                    }
+                    .pickerStyle(.inline)
+                    .labelsHidden()
+                }
+                .disabled(!can { $0.isServer && $0.albumsLoaded && !$0.isImporting })
+                Button("Date Range…") { model?.browse?.showsDateRange = true }
+                    .disabled(!can { $0.isServer && !$0.isImporting })
             }
             Divider()
         }
@@ -84,6 +109,9 @@ public struct ImportCommands: Commands {
 public struct ImportMenuContext: Equatable {
     let model: CardImportModel
     let state: ImportMenuState
+
+    /// The server's albums, for View ▸ Album.
+    @MainActor var albums: [RemoteAlbum] { model.browse?.albums ?? [] }
 
     public static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.model === rhs.model && lhs.state == rhs.state
@@ -125,10 +153,18 @@ struct ImportMenuState: Equatable {
     var copiesOnly: Bool
     var showsOptions: Bool
     var canDeselectAll: Bool
+    var isServer: Bool
+    var albumsLoaded: Bool
+    var albumID: String?
+    var albumCount: Int
 
     @MainActor
     init(_ model: CardImportModel) {
-        hasSource = model.source != nil
+        hasSource = model.hasSource
+        isServer = model.browse != nil
+        albumsLoaded = model.browse?.albumsLoaded == true
+        albumID = model.browse?.albumID
+        albumCount = model.browse?.albums.count ?? 0
         selectedCount = model.selectedShots.count
         // `progress` is observed and set with the import task, which is not.
         isImporting = model.progress != nil || model.isImporting
