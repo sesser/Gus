@@ -109,6 +109,9 @@ struct GainMapRenditionTests {
             let url = root.appending(path: "encoded.heic")
             try HDRTestImages.writeHDREncoded(to: url, width: 800, height: 600, seed: 279, gain: Self.gain,
                                               transfer: transfer, gainMap: gainMap)
+            // The encoder may leave the gain map out; then the case would
+            // test a plain PQ or HLG file under the wrong name.
+            #expect(Self.hasGainMap(url) == gainMap)
             let source = try #require(CGImageSourceCreateWithURL(url as CFURL, nil))
             #expect(PreviewGenerator.hasHDREncoding(source))
             let image = try #require(try PreviewGenerator().hdrImage(source: url, stack: .identity, longEdge: 800))
@@ -117,7 +120,9 @@ struct GainMapRenditionTests {
     }
 
     /// The owner's file (never committed): `HEIC_GAINMAP_SAMPLE=path/to/IMG.HEIC`.
-    /// It gets no HDR rendition; prints the SDR measurements status.md records.
+    /// It gets no HDR rendition, and its unedited SDR render matches the
+    /// system's SDR decode within 0.05 stops; prints the SDR measurements
+    /// status.md records.
     @Test("A real gain-map HEIC gets no HDR rendition",
           .enabled(if: ProcessInfo.processInfo.environment["HEIC_GAINMAP_SAMPLE"] != nil))
     func sampleStaysSDR() throws {
@@ -132,6 +137,9 @@ struct GainMapRenditionTests {
             let sdr = Light(try generator.cgImage(source: url, stack: stack, longEdge: 2560))
             print(String(format: "sample: %@ SDR mean %.3f median %.3f p90 %.3f (%+.2f stops over the system's SDR)",
                          name, sdr.mean, sdr.median, sdr.p90, sdr.stops(over: system)))
+            if name == "identity" {
+                #expect(abs(sdr.stops(over: system)) < 0.05)
+            }
         }
     }
 }

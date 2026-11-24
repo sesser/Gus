@@ -6,11 +6,11 @@ Owner: swift-macos-engineer. Bug fix (no PRD or design, `docs/WORKFLOW.md`
 "Bug fixes"). Branch `bug/heic-exposure-bright`, from `develop` at `139b39e`.
 
 **Status: Done.** Fixed as ruled (RI-1, option C: option A now, HDR editing
-later as #282). A new Requirements issue (RI-2) reports HLG files with the same
-kind of jump, measured, behavior left unchanged as instructed. Next:
-code-reviewer (on opus: Hard, and the change alters how existing photos are
-shown in the loupe); the UI changed (the loupe's look and HDR badge for
-gain-map photos), so a design review; then qa-tester.
+later as #282). RI-2 (HLG files jump the same way) was ruled 2026-11-24: its own
+bug, #283; this fix doesn't change HLG behavior. First-pass review findings
+(code review C1 to C3 and Q3, design review F1 and F2) fixed; see Review
+findings. Next: code-reviewer's second pass (on opus, as the first) and the
+designer's confirmation of F1 and F2, then qa-tester.
 
 States: Not started · In progress · Done · Blocked · Deferred.
 
@@ -123,14 +123,16 @@ adjust scrub exposure 0 -1 10 16 hold; print hdr; adjust scrub exposure -1 -1
 1; wait 4; print hdr; adjust contrast 20; wait 4; print hdr; …` printed loupe
 headroom 2.73 (opened), none (dragging), 1.37 (released), none (Contrast).
 
-## Requirements issue (for the product manager / owner)
+## Requirements issues (for the product manager / owner)
 
 **RI-1. Ruled 2026-11-24 (owner): option C.** Gain-map photos show as SDR in
 the loupe now (option A, this fix); HDR editing of gain-map photos is the
 follow-up, #282.
 
 **RI-2. HLG files jump the same way, by more (part b, measured; behavior not
-changed).** Synthetic files from `HDRTestImages` (1600 × 1200, the HDR picture
+changed). Ruled 2026-11-24 (owner): a bug of its own, filed as #283 (option
+(a) below).** This fix doesn't change HLG behavior: HLG and PQ files keep the
+same decode as before. Synthetic files from `HDRTestImages` (1600 × 1200, the HDR picture
 twice the SDR one's light), measured with `GainMapRenditionTests.Light`
 (scratch probe, not committed: `cgImage` at long edge 2560 against `hdrImage`
 at long edge 2560, unedited and at Exposure −0.5):
@@ -168,8 +170,15 @@ at long edge 2560, unedited and at Exposure −0.5):
 Replace "HDR content only: floating-point DNGs, gain maps, HLG/PQ." with:
 "HDR content only: floating-point DNGs and HLG/PQ-encoded images. A gain map
 alone is not HDR content (issue #277): its HDR rendition is a different,
-often brighter picture, and everything that edits or exports is SDR, so
-gain-map photos show their SDR rendition (HDR editing of them is #282)."
+often brighter picture, and live frames, previews and exports are its SDR
+rendition, so gain-map photos show their SDR rendition (HDR editing of them is
+#282)."
+
+(Corrected after code review Q3: the first proposal said "everything that edits
+or exports is SDR", which is wrong. The HDR rendition applies the edit stack:
+an HLG, PQ or floating-point DNG photo shows its edits in HDR in the loupe once
+a slider is let go. What is SDR is the live frames, the cached previews and
+exports.)
 
 ## For the owner, by eye (on the Dell, which has extended range)
 
@@ -195,17 +204,27 @@ M2 and M3 (before the fix) were not reported.
     Identity, Exposure −0.5 and +1, Contrast +20 give no HDR rendition. Fails
     without the fix.
   - "An HLG or PQ HEIC keeps its HDR rendition, with or without a gain map"
-    (four cases): `hasHDREncoding` is true and an HDR rendition with headroom
-    of at least `minimumHDRHeadroom` is made.
+    (four cases): the file has a gain map exactly when the case says so (C1),
+    `hasHDREncoding` is true and an HDR rendition with headroom of at least
+    `minimumHDRHeadroom` is made.
   - "A real gain-map HEIC gets no HDR rendition", opt-in:
     `HEIC_GAINMAP_SAMPLE=path/to/IMG.HEIC swift test --filter GainMapRenditionTests`.
-    On the owner's file: passes, SDR mean 0.273, at Exposure −1 0.137,
-    Contrast +20 0.292.
+    Asserts no HDR rendition for every stack and, unedited, Gus's SDR render
+    within 0.05 stops of the system's SDR decode (C2). On the owner's file:
+    passes, SDR mean 0.273 (−0.01 stops), at Exposure −1 0.137, Contrast +20
+    0.292.
 - `PreviewTests.hdrRenditionsKeepHighlightsAboveWhite`: its gain-map JPEG now
   expects no HDR rendition; the HDR case is a PQ HEIC (headroom above 2).
 - `StalePreviewTests` ("The HDR rendition is not kept under a hash the loaded
   stack does not have"): its source is now a PQ HEIC with the same patch at 4×
-  SDR white, since a gain-map JPEG has no HDR rendition any more.
+  SDR white, since a gain-map JPEG has no HDR rendition any more. The edit is
+  −1 EV (C3; it was −2 EV, whose rendition's headroom, 1.064 to 1.082, sat 1.4
+  to 3 % over `minimumHDRHeadroom`): headroom now 2.16. The check that the
+  rendition is the edit's is "8-bit mean level at least 5 below the unedited
+  rendition's", measured here: unedited renditions at 512 px, 800 px and full
+  size agree within 0.03 levels (95.62 to 95.65), the −1 EV ones are 13.5 lower
+  (82.07). The old margin of 20 fit −2 EV only; drawn into 8-bit sRGB the 2×
+  patch still clips, so −1 EV moves the mean less than a full stop would.
 - Determinism: the assertions compare a nil against a rendition, or levels a
   stop apart against 0.05-stop margins; GPU rounding is 2⁻¹¹ per half-float
   step. No shared state, timing or pool order enters.
@@ -227,22 +246,55 @@ M2 and M3 (before the fix) were not reported.
   −1 EV (stack saved, ev −1), at Contrast +20 and back at 0. Positive control: a
   PQ HEIC (gray with a 4× patch, made in the scratchpad) in its own scratch
   library: loupe headroom 4.11.
+- After the first-pass fixes (2026-11-24): `swift build --build-tests` clean,
+  no warnings. Full `swift test`: 1533 tests in 216 suites pass, 75 s.
+  `HEIC_GAINMAP_SAMPLE=…/IMG_0546.HEIC swift test --filter
+  GainMapRenditionTests`: 4 tests pass, the figures above. CI toolchain,
+  `DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer swift build
+  --build-tests --scratch-path .build-xcode26.3`: exit 0, the two changed test
+  files compiled, no errors or warnings. The changes are tests and docs only, so
+  the bundle and debug-script results above stand.
 
 ## Review findings
 
-None yet.
+First pass, code review (`code-review.md`) and design review (`review.md`),
+2026-11-24. All fixed in one commit after `06188c2`.
+
+| # | From | Finding | Resolution |
+| --- | --- | --- | --- |
+| C1 | code review | The HLG/PQ test never checked that its `gainMap: true` files have a gain map | Fixed: `#expect(Self.hasGainMap(url) == gainMap)` in "An HLG or PQ HEIC keeps its HDR rendition…". Passes here for all four cases |
+| C2 | code review | The opt-in real-file test printed, not asserted, SDR against the system's decode | Fixed: unedited, `abs(sdr.stops(over: system)) < 0.05` is asserted (the owner's file: −0.01) |
+| C3 | code review | The stale-hash test's −2 EV rendition sat 1.4 to 3 % over `minimumHDRHeadroom` | Fixed: −1 EV (headroom 2.16), level margin 5 from measurement (see Tests) |
+| Q1 | code review | Can CI's virtual Macs encode HEIC? | Open, not checkable here (see Open questions); nothing changed |
+| Q2 | code review | RI-2 needs its own issue before `Closes #277` | Done by the owner: #283 |
+| Q3 | code review | The proposed `CLAUDE.md` wording said "everything that edits or exports is SDR" | Fixed in the proposal above; `CLAUDE.md` not edited (the owner's) |
+| F1 | design review | User guide HDR paragraph: the SDR sentences split the HDR ones, "it" lost its referent | Fixed: the designer's suggested text, HDR photos in one paragraph, then the SDR ones |
+| F2 | design review | README section said "No change", but the README lists gain-map files as HDR sources | Fixed: recorded under README for Ship |
 
 ## README
 
-No change: no requirements, build commands or layout changed. The user guide's
-HDR paragraph is updated in this change.
+For Ship (the product manager's; `README.md` not edited here): the Features
+list (`README.md` around lines 144-145) says "HDR display of HDR sources
+(floating-point DNG, gain-map HEIC and JPEG, HLG and PQ) on EDR screens". After
+this fix gain-map HEIC and JPEG photos are shown SDR, so it should read
+floating-point DNG and HLG or PQ only. The same claim is in
+`docs/features/_inventory.md` (the "HDR display" row) and in `CLAUDE.md`'s
+Rendering rule (proposed wording above). Since README and `CLAUDE.md` change,
+Ship (step 6) applies to this fix. No requirements, build commands or layout
+changed. The user guide's HDR paragraph is updated in this change.
 
 ## Open questions
 
-- RI-2 (above).
+- **Q1 (code review): can CI's runners encode HEIC?** This branch is the first
+  time the suite writes HEIC files (`HDRTestImages`, `PreviewTests`,
+  `StalePreviewTests`). It can't be checked on this Mac, and there is no
+  evidence either way, so nothing was changed. If the pull request's CI run
+  shows `heifRepresentation` or `heif10Representation` failing, the fix is a
+  skip with the reason when the encoder is missing (checked with
+  `CGImageDestinationCopyTypeIdentifiers()`), never a weaker assertion.
 
 ## Follow-ups
 
 - #282: HDR editing of gain-map photos (filed by the main session).
-- RI-2's HLG jump and thumbnail mismatch, if the product manager files it as a
-  bug.
+- #283: HLG files jump on slider release and their fitted render disagrees with
+  their 100% render (RI-2, filed by the owner 2026-11-24).
