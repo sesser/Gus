@@ -716,6 +716,7 @@ differs.
 | Checksum differs | **the download did not match the server's checksum and was discarded.** |
 | Short read or size differs | **the download was incomplete and was discarded.** |
 | External-library photo with no size to check against (R13; §15, DQ-9) | **the server did not say how large the file is, so the download could not be checked and was discarded.** |
+| Name refused (security review F1; §15, DQ-10) | **its name on the server would have placed it outside the destination folder, so it was not imported.** |
 | Asset gone (not found) | **it was deleted on the server during the import.** |
 | Server error for this file | **the server could not provide the original (‹status›).** with the numeric status |
 | Disk | the existing write-failure sentence with the system's reason |
@@ -739,7 +740,7 @@ button, and says which fault it is:
 | Unreachable or timing out | **“‹name›” stopped responding** | "‹12› photos were imported before the import stopped. Photos already imported are marked, so importing again takes only the rest." |
 | Key rejected (401 or 403, no named permission) | **“‹name›” rejected the API key** | "‹12› photos were imported before the import stopped. The key may have been deleted or expired. Choose Edit Server… to enter a new one." |
 | A named permission (the 403 names it) | **The API key for “‹name›” is missing a permission** | "‹12› photos were imported before the import stopped. Add ‹asset.download› to the key in Immich, or choose Edit Server… to enter another key." |
-| Certificate changed | **The certificate of “‹name›” has changed** | "‹12› photos were imported before the import stopped. Nothing more was downloaded. Choose Edit Server…, then Review Certificate…, to see the new one." |
+| Certificate changed | **The certificate of “‹name›” has changed** | "‹12› photos were imported before the import stopped. Nothing more was downloaded. Choose Review Certificate… in the window to see the new one." (§15, DQ-11: the first wording sent the person to Edit Server…, which opens a form with nothing to review) |
 
 - **There is no re-trust button in this alert** (R6: a failure, not a prompt in
   the middle of an import). The window rescans after any stop, as it does today,
@@ -749,7 +750,8 @@ button, and says which fault it is:
   counted failure with its reason line, and the import continues (R20).
 - "Choose Edit Server…" in the messages names the Source pop-up's and File
   menu's item by its exact title (HIG Alerts: refer to a control by its exact
-  title without quotes; "choose" works whatever the input).
+  title without quotes; "choose" works whatever the input). The
+  certificate-changed message names **Review Certificate…** instead (DQ-11).
 
 ## 7. Menu bar and keyboard (every command is in a menu)
 
@@ -935,7 +937,8 @@ and appears only where the person needs it.** Plural forms as the neighbors
 | `“%@” stopped responding` / `%lld photos were imported before the import stopped. Photos already imported are marked, so importing again takes only the rest.` | alert |
 | `“%@” rejected the API key` / `…The key may have been deleted or expired. Choose Edit Server… to enter a new one.` | alert |
 | `The API key for “%@” is missing a permission` / `…Add %@ to the key in Immich, or choose Edit Server… to enter another key.` | alert |
-| `The certificate of “%@” has changed` / `…Nothing more was downloaded. Choose Edit Server…, then Review Certificate…, to see the new one.` | alert |
+| `The certificate of “%@” has changed` / `…Nothing more was downloaded. Choose Review Certificate… in the window to see the new one.` | alert (§15, DQ-11) |
+| `%@: its name on the server would have placed it outside the destination folder, so it was not imported.` | Activity failure, a server file name the destination refuses (§15, DQ-10) |
 
 **Reused unchanged:** `Import`, `Choose Folder…`, `Rescan`, `Select All`,
 `Deselect All`, `Stop`, `Stop Import`, `Cancel`, `Remove`, `OK`, `In Library`,
@@ -1324,3 +1327,64 @@ The reason is now, in the shape of the table's other rows:
    Activity text, it uses the new strings. `docs/USER_GUIDE.md` needs no change
    ("Activity says how many were" and "one whose size the server doesn't give is
    not imported" still hold).
+
+### DQ-10. A photo whose server file name the destination refuses
+
+Ruled by the designer, 2026-11-23 (judgment; the HIG has no rule for this copy).
+**Confirmed as built**, no change. The security fix (review F1) added a failure
+reason that had no design copy:
+
+> **‹name›: its name on the server would have placed it outside the destination
+> folder, so it was not imported.**
+
+- **Why it stands.** It has the shape of the table's other reasons (`‹name›:`
+  the cause, then what happened to the photo), uses no server text beyond the
+  name the person can see in the grid, no URL and no path. It says the true
+  thing and the only consequence: the photo was not imported.
+- **"destination folder"** is the inspector's own words (Destination ▸
+  **Folder**), so the person can find what it means.
+- **"its name on the server"** places the fault with the server's file name, not
+  with the person's template or the disk, so they don't go looking in their
+  file-name template for it.
+- **No action is offered.** Nothing the person can do changes the name except
+  renaming the file in Immich, and a name like this is not listed in the first
+  place (names with `/`, `\`, control characters, `.` or `..` are left out of the
+  grid); this reason is the backstop, so it should almost never be read. A
+  sentence that suggested a fix would send people to a problem they cannot have.
+- A **failure** like the others: counted in "‹n› could not be imported.",
+  listed in Activity (the 10-line limit applies), the import goes on.
+- The catalog entry is `%@: its name on the server would have placed it outside
+  the destination folder, so it was not imported.` with the comment as built.
+  **Engineer's changes: none.** `docs/USER_GUIDE.md` needs no change ("each photo
+  that could not be imported, with the reason").
+
+### DQ-11. The certificate-changed alert names the way to Review Certificate…
+
+Ruled by the designer, 2026-11-23: **a correction of my own copy, found in the
+second review pass.** §6.3 told the person to "Choose Edit Server…, then Review
+Certificate…". Edit Server… (File menu, Source pop-up, inspector) opens the form
+with the stored values and no check result; **Review Certificate…** appears in the
+sheet only under a check's "certificate has changed" result, and Save is dimmed
+until something is edited, so there is no way to run that check from an untouched
+form. The one way to the certificate page is the **Review Certificate…** button of
+the grid's Can't Connect state, which the window shows after any stop (§6.3's own
+bullet: the window rescans and lands there). The alert named a route that ends at a
+dimmed button.
+
+The message is now: **‹12› photos were imported before the import stopped. Nothing
+more was downloaded. Choose Review Certificate… in the window to see the new
+one.** (the control named by its exact title without quotes; the window's grid
+shows it once its check ends, a moment after the alert). No other control is
+changed: the grid's button still opens the Edit sheet on the changed-certificate
+page (`showEditServer(reviewingCertificate: true)`), and Edit Server… from the
+menu still opens the plain form.
+
+**Engineer's change for DQ-11** (exactly this): in `ServerText.alert`
+(`.certificateChanged`) and the catalog, replace the key
+`%lld photos were imported before the import stopped. Nothing more was downloaded.
+Choose Edit Server…, then Review Certificate…, to see the new one.` with
+`%lld photos were imported before the import stopped. Nothing more was downloaded.
+Choose Review Certificate… in the window to see the new one.`, keeping both plural
+forms (`one`: `%lld photo was imported …`) and the comment. No test asserts the old
+sentence (check with grep of `Tests/`). The user guide needs no change (it names
+**Review Certificate…** and does not route through Edit Server…).

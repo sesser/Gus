@@ -276,6 +276,238 @@ permissions, which the design now matches.
 
 ## Confirmation of fixes
 
-Open until the engineer reports on B1 and S1 to S6 and DQ-8 and DQ-9; I confirm
-here, in a second pass on `ServerSheet.swift`, `ServerSource.swift`,
-`ImportWindow.swift` and `ServerText.swift`.
+Confirmed in the second pass below (2026-11-23, HEAD efb8425). The manual checks
+above are superseded by the list at the end of that section.
+
+## Second pass
+
+Owner: apple-ui-designer. Date: 2026-11-23. Branch `feature/immich-import` at
+efb8425, after 977427c, 1deda12 and efb8425.
+
+**How this was checked.** From source, as before, with no shell: I could not run
+`git diff 2552143..HEAD`, so I read the current files in full instead
+(`ServerSheet.swift`, `ServerSource.swift`, `ServerText.swift`,
+`ImportWindow.swift`, `ImportGrid.swift`, `RemoteBrowseRules.swift`,
+`DebugServerCommands.swift`, `Localizable.xcstrings`, `RemoteReviewFixTests`,
+`docs/USER_GUIDE.md` lines 30 to 121) against the first pass's findings. I did not
+run the app. "Fixed" below means the code does what the fix said; the looks, keys
+and timing are the manual checks at the end.
+
+### Verdict
+
+**The seven findings of the first pass are fixed in code, and the strings match
+design.md word for word. Two things remain before sign-off: the certificate page
+cannot scroll inside the new fixed sheet height (should fix, N-1), and an alert
+sentence of mine sends the person to a dead end (DQ-11, now ruled; one catalog
+string).** Neither blocks the owner's checks, but N-1 should be fixed before them,
+since M1 is meant to look at exactly that case.
+
+### Confirmation table
+
+| Finding | Result | What I checked in code | Left for a person |
+|---|---|---|---|
+| **B1** Trust Certificate does nothing in Edit | **Fixed** | `ServerFormRules.canSubmit` returns `changed \|\| trustedPending` for an Edit (`RemoteBrowseRules.swift:101-110`); `needsCheck` is `!isEdit \|\| addressChanged \|\| keyEntered \|\| trustedPending` (`:116-118`). The model passes `trustedPending` to both (`ServerSheet.swift:104-108, 126-127`), so after `trustCertificate()` sets `trusted`, `submit()` passes its guard, skips the name-only branch, reads the stored key from the Keychain off the main thread, checks with the new pin (`:137`) and saves `certificateFingerprint` and `certificateTrustedAt` (`:176-177`). **A plain Add cannot skip the check:** for Add `canSubmit` still requires `keyEntered` and `needsCheck` is true because `!isEdit`; `trustedPending` is only ever set by `trustCertificate()`, which exists only on the certificate page, which only a check or Review Certificate… opens. `trustedPendingIsAChange` (`RemoteReviewFixTests.swift:180`) pins the Edit rule. It does not assert Add; I read that rule by hand and it holds | M2: a real changed certificate (the fake has no TLS) |
+| **S1** key field empties | **Fixed** | The key is `public private(set) var key` on the `@Observable` `ServerSheetModel` (`:33`); the field is `SecureField` bound with `Binding(get: { sheet.key }, set: { sheet.setKey($0) })` (`:321-322`), so a page change redraws it with its dots and Add agrees with it (`keyEntered` is set in the same `setKey`). It is never shown: `SecureField`, no `Text(sheet.key)`, no `Mirror`, no log; the debug `sheet print` writes "key entered", never the text (`DebugServerCommands.swift:262`); the field's accessibility hint is the check result, never the value (`:326`). Memory only. **Cleared by release, not by wiping:** Cancel on the form and a successful save both set `model.serverSheet = nil`, which frees the sheet model and its string; Remove from the sheet does the same (`:241-245`); Back and Cancel on the certificate page keep it on purpose (the form as it was). A cancelled check's task holds the model until it ends, which is the request's cancellation. A Swift `String` can't be reliably zeroed, so I do not ask for it; clearing `key` in `cancel()` and after a save would be harmless hygiene (nit, N-3) | M2: dots after Back; VoiceOver is not asked of the owner |
+| **S2** height rule | **Fixed for the form; partly fixed for the certificate page** | The numbers: form 380, notice +90, result +60, certificate 470, changed 540, clamped to `window - 40`, never under 300 (`RemoteBrowseRules.swift:126-141`). `.presentationSizing(.fitted)` is gone from `ServerSheet` (the other three sheets keep it: `ExportSheet.swift:30`, `MergeSheet.swift:32`, `CopyAdjustmentsSheet.swift:46`; the Server sheet is the one whose height changes after it opens, so the difference is right). The frame is `.frame(width: 460).frame(height: sheet.idealHeight)` (`:279-282`); `idealHeight` reads `page`, `result` and `address` (observed), so it follows the notice, a result and the page. The status file's scripted sizes (460 x 380, 470, 530) are the real sheet window's frame (`sheet print` reads `attachedSheet.frame`). **Clamped to small windows:** the import window's minimum is 480 pt (`ImportWindow.swift:18`), so the sheet is at most 440 pt there. **Larger text and Increase Contrast:** macOS has no Dynamic Type; Increase Contrast changes colors and borders, not metrics. The form is a `Form` (scroll-backed) between a fixed title and a fixed button bar, so if its content is taller than the budget it scrolls and **Add never leaves the sheet**: that case is safe. **The certificate page is not scroll-backed** (`CertificatePage`: a plain `VStack` with `fixedSize` texts and fingerprints), so at 440 pt it can overflow its fixed frame: my estimate of the changed page's content is 460 to 500 pt (header, a four-line paragraph, three rows, two two-line fingerprints, a three-line footer, button bar), against 440 in the smallest window. An overflow clips both ends of a centered stack, that is the title and Back at the top and Cancel and Trust Certificate at the bottom. I can't measure this from source: it is **N-1** and M1 | M1: the sheet in the smallest window, both pages |
+| **S3** confirmation while the sheet closes | **Fixed** | `remove()` stores the server in `removalAfterSheet` and sets `serverSheet = nil` (`ServerSheet.swift:241-245`); the window asks from `.sheet(item:onDismiss:)` (`ImportWindow.swift:67`) through `serverSheetDidDismiss()` (`ServerSource.swift:466-470`), so `confirmationDialog` is requested after the sheet has gone. The other dismissals (Cancel, save) leave `removalAfterSheet` nil, so `onDismiss` does nothing for them. The dialog is as before: destructive Remove, `.cancel` Cancel, no default (`ImportWindow.swift:72-81`) | M3: Return does nothing on the dialog; it appears each time |
+| **S4** focus after Add | **Fixed** | `serverSaved` sets `focusesGridWhenShown` after `chooseServer` (`ServerSource.swift:456-463`); `chooseServer` tears the old grid down (`closeServer` sets `browse = nil`) and the new `ImportGridView` is created only when `gridState` becomes `.photos`, so `viewDidMoveToWindow` calls `windowDidChange` with the window, which clears the flag and makes the collection view first responder on the next run-loop turn (`ImportGrid.swift:228-235, 302-304`). Cancel and Esc never touch the first responder. The status file's scripted `import grid` "first responder true" matches. One nit, N-4 | M5 with a real keyboard |
+| **S5** `.combine` hides the button | **Fixed** | `.accessibilityElement(children: .contain)` on the result block (`ServerSheet.swift:399-400`), with the comment; **Review Certificate…** is a child control. The title, detail and button are separate children, which reads title, detail, button in order | Not asked of the owner (VoiceOver policy) |
+| **S6** unbounded titles | **Fixed in code** | Album and Date Range titles: `lineLimit(1)`, `truncationMode(.middle)`, `frame(maxWidth: ServerToolbarMetrics.titleWidth)`, 180 pt (`ImportWindow.swift:752-760, 779-787, 884-887`). Whether a `Text` inside a toolbar `Menu` label honors the line limit and width as written is toolbar rendering I can't read from source | M6 |
+| **N1** result as field hint | **Fixed** | Address and key fields carry `accessibilityHint(resultHint(...))`, which is the result's title and detail, empty when the result belongs to the other field (`ServerSheet.swift:311, 326, 404-410`); no key text | none |
+| **N3** subtitle slice | **Fixed** | `ServerText.notEncrypted` ("Not encrypted") for the empty case and `notEncryptedSuffix` (" · Not encrypted") for the rest, each its own catalog entry (`ServerText.swift:113-119`, `ImportWindow.swift:104-106`); no character slicing. Two entries rather than one built from the other: acceptable, and a translator can move the separator | none |
+| **N4** "Imported 0 photos" | **Fixed** | `alert(...)` uses "No photos were imported. ‹n› could not be imported." when `done == 0` (`ServerText.swift:229-233`); both plural variants of the catalog entry read the same, which is right (the number is only the failure count and "1 could not be imported" is grammatical) | none |
+| **N5** "From" and "To" twice | **Partly fixed, accepted** | The pickers are named "From date" and "To date" (`ImportWindow.swift:846, 854`), so the check boxes keep "From" and "To" and nothing is said twice. The reversed-range line is still not announced; the engineer left it and I accept it: it sits beside the picker that caused it and Apply is dimmed | none |
+| **N6** long name | **Fixed** | Name row `lineLimit(2)` with `.help` (`ImportWindow.swift:626-630`) | M7 |
+
+### DQ-8 and DQ-9: strings as worded
+
+Both match design.md §10 exactly, in `ServerText.swift` and the catalog.
+DQ-8 (`ServerText.swift:159`, `Localizable.xcstrings:445-467`): the `one` form is
+"%lld imported photo was checked by size only, not against the server's checksum,
+because it is in an Immich external library." and `other` the plural form, both
+word for word, with the old key gone (a grep for the old sentence finds nothing).
+DQ-9 (`ServerText.swift:183`, `Localizable.xcstrings:367-373`): "%@: the server did
+not say how large the file is, so the download could not be checked and was
+discarded." Correct, no stale key.
+
+### DQ-10: the new failure sentence (ruled)
+
+**Confirmed as built; no catalog change.** "‹name›: its name on the server would
+have placed it outside the destination folder, so it was not imported." Recorded
+as design.md §15 **DQ-10** (2026-11-23), with the table row in §6.2 and the string
+in §10. Why: it has the shape of its neighbors, uses the inspector's own words
+("destination folder", from Destination ▸ **Folder**), places the fault with the
+server's file name rather than the person's template, and offers no action
+because there is none (a name that could do this is not listed in the first place;
+this is the backstop). The catalog entry is the one at `Localizable.xcstrings:312`.
+
+### New finding ruled: DQ-11 (the certificate-changed alert)
+
+`ServerText.swift:226` says "Choose Edit Server…, then Review Certificate…, to see
+the new one." That was my wording (design §6.3), and it is wrong: Edit Server…
+opens the form with no check result and Save dimmed (`showEditServer()` with
+`reviewingCertificate: false`, `ServerSource.swift:420-427`, nothing seeds
+`result`), and Review Certificate… appears in the sheet only under a "certificate
+has changed" result. The way in is the grid's **Review Certificate…** button, which
+the window shows after any stop (§6.3's bullet). Ruled in §15 as **DQ-11**; the
+engineer changes exactly one catalog string (below). **Engineer, DQ-11:** replace
+the key `%lld photos were imported before the import stopped. Nothing more was
+downloaded. Choose Edit Server…, then Review Certificate…, to see the new one.`
+(`ServerText.swift:226`, `Localizable.xcstrings:1120-1135`) with `%lld photos were
+imported before the import stopped. Nothing more was downloaded. Choose Review
+Certificate… in the window to see the new one.`, keeping both plural forms.
+
+### User guide: the new sentences
+
+Lines 53 to 60 (plain http judges the name you typed), 40 to 44 (five permissions)
+and 99 to 102 (size-only checking), read against the UI and the strings.
+
+- **Terms** match the UI: **Send my key and photos without encryption**, **Not
+  encrypted**, **Will connect to**, **Trust Certificate**, **Review Certificate…**,
+  **Back**, **Edit Server…**; the five permission names are the caption's, in the
+  caption's order. No product name appears.
+- **Tone:** direct and in the second person, like its neighbors. "The app judges
+  the name you typed, not where it leads: a name without dots counts as local even
+  if your network's settings send it elsewhere, so use `http://` only for a server
+  you know is on your own network" says the limit and the consequence once, without
+  alarm. The user.read parenthesis and the size-only sentence ("since Immich's
+  checksum for it can be of its path rather than its content") explain the reason,
+  as the design asks.
+- **Consistent with DQ-8 and DQ-9:** "Activity says how many were" and "one whose
+  size the server doesn't give is not imported" still hold. No guide sentence for
+  DQ-10 is needed.
+- **One formatting nit:** line 60 runs on past the file's wrap (the sentence that
+  starts "Such a server stays marked **Not encrypted**" was joined onto the line
+  before it). Re-wrap it.
+- **The Review Certificate… route is not described** in the guide (it says
+  connecting fails and **Review Certificate…** shows the fingerprints), which is
+  why DQ-11 needs no guide change.
+
+### New findings
+
+**Blocking: none.**
+
+**Should fix**
+
+- **N-1. The certificate page has no scroll rule inside its fixed height.**
+  `ServerSheet.swift:437-496` (`CertificatePage`), with `:279-282` and
+  `RemoteBrowseRules.swift:126-141`. The sheet height is now fixed at 470 pt (540
+  for a changed certificate) and clamped to the window less 40 pt; the smallest
+  import window (480 pt) gives 440 pt, the form page scrolls inside it but this
+  page is a plain `VStack` with `fixedSize` content, so anything over the height
+  is cut at both ends, which includes the Cancel and **Trust Certificate** buttons
+  and the Back button. On a page whose job is to let a person read a fingerprint
+  before deciding, losing the buttons is the worst failure available. Fix: keep the
+  header and the button bar outside, and put the body (paragraph, rows,
+  fingerprints, footer) in a `ScrollView` between the two dividers, as the form's
+  `Form` does; the sheet's frame stays. Principle: Layout, "adapt to window size";
+  the form page already does it. M1 checks the smallest window.
+- **N-2. The certificate-changed alert names a route that ends at a dimmed
+  button.** `ServerText.swift:226` and the catalog entry, ruled as DQ-11 (a string
+  change, above).
+
+**Nits**
+
+- **N-3.** `trusted` is not cleared when the address changes
+  (`ServerSheet.swift:71-75`). In Add: type address A, reach the certificate page,
+  Trust, the check then fails on the key; fix the address to B and Add: the pin
+  from A is applied to B, and a different certificate reads "The server's
+  certificate has changed" for a server never saved. Safe (nothing is trusted that
+  wasn't looked at) but a wrong message. Clear `trusted` in `addressEdited()`; also
+  clearing `key` when the sheet closes is harmless hygiene (S1).
+- **N-4.** `focusesGridWhenShown` stays set when the server's first check fails
+  (`ServerSource.swift:462`, `CardImportModel.swift:101`): the next grid to enter the
+  window, whatever its source, takes the keyboard once. Harmless; clear the flag in
+  `closeServer()` or when the state lands on a failure.
+- **N-5.** `ServerSheetModel.key`'s comment says "the key itself is not observed"
+  (`ServerSheet.swift:34`, on `keyEntered`) while `key` is an `@Observable` stored
+  property that the field reads. The behavior is right (the field must redraw); the
+  comment on `keyEntered` is about the Bool, so nothing misleads, but the one on
+  `key` ("Memory only") could add "observed, so the field redraws".
+
+### What's working
+
+The B1 rule is in PhotoCore with a test, and the Add path is untouched by it. The
+key lives in one model and one field and nowhere else. The removal confirmation now
+waits for the sheet's dismissal through the system's own callback rather than a
+timer. The strings follow design.md and carry plurals on the first number.
+
+### Manual checks for a person (final list, in order)
+
+For the owner at the bundled app, on a scratch library, with a real self-signed
+server for M2 and M11. Nothing here asks for VoiceOver, macOS 15 or macOS 26. The
+first three decide the open findings.
+
+- **M1. The sheet's size and look (S2, N-1).** Add Server… with the import window
+  at its smallest height (480 pt), then taller. Both pages: after typing
+  `http://192.168.1.5` (the notice appears) and pressing Add with a wrong key
+  (a result appears), the sheet grows without jumping and **Add** stays on screen;
+  the form scrolls between the title and the buttons when the window is short. On
+  the certificate page, in the smallest window, **the title, Back, Cancel and Trust
+  Certificate are all visible**, for the first-time page and the changed one (M2
+  gets you there). In Light, Dark and Increase Contrast: row pitch, captions'
+  legibility, the warning icon and text under a field.
+- **M2. The certificate page, with a real self-signed server (B1, S1, DQ-11; PRD
+  P1).** Add: name, address, key; the certificate page opens. Back: **the API key
+  field shows its dots again** and Add is enabled. Return on the page does nothing;
+  Esc returns to the form. Trust Certificate: the sheet checks again and closes.
+  Then renew that server's certificate and choose the server: the grid says the
+  certificate changed; **Review Certificate…** opens the Edit sheet on the page
+  naming "Trusted before" and "Now"; **Trust Certificate must save with nothing
+  else edited** (the server opens afterwards with no further prompt, and a second
+  trust of the same certificate does not ask again). Make the certificate change
+  mid-import: the alert's last sentence names **Review Certificate…**, and that
+  button is in the window once it has checked the server. Read the page aloud: does
+  anything nudge you to trust it?
+- **M3. Remove Server… three ways (S3, D4).** From the sheet's button, the Source
+  pop-up and File ▸ Remove Server…. The confirmation appears each time (from the
+  sheet, after it has closed). Return does nothing; Esc cancels; Remove removes.
+  Then make the Keychain refuse (lock the login keychain, or deny) and check the
+  "wasn't removed" alert.
+- **M4. Alert keys (DQ-5).** On "The server … wasn't removed" and on each stop
+  alert (revoke the key mid-import, pull the network, PRD P3, P4): Return and Esc
+  both dismiss. `serverAlert`'s **OK** has no `.cancel` role
+  (`ImportWindow.swift:63`); if Esc does not dismiss, give it `role: .cancel` and
+  check that Return still does.
+- **M5. Keyboard, Full Keyboard Access on (S4; PRD P1).** Source pop-up to Add
+  Server…, Tab through the sheet (Name, address, the check box when shown, API key,
+  Cancel, Add), Space on the check box, Return with the notice unticked does
+  nothing. After Add: without clicking, ⌘A, Space, arrows, End (a second page
+  loads), Return imports. Also after **Save** on an edited server.
+- **M6. The toolbar at 900 pt (S6).** A server with a long album name and a date
+  range set: the titles truncate in the middle at about 180 pt, Import and Stop stay
+  reachable; View ▸ Date Range… still opens its popover when the item is in the
+  overflow menu.
+- **M7. The narrowest inspector (N6).** Drag it to its minimum with a long server
+  name (two lines then cut, tooltip on hover), "Encrypted, certificate trusted by
+  you" and a long project name: nothing clipped or overlapping; `print
+  inspectorwidth` in the debug script reports `fits`.
+- **M8. The grid (PRD P2).** An album of a few hundred photos: thumbnails arrive, no
+  hitch, the scroll position holds when a page appends. An **Edited** photo that is
+  also **In Library** at the smallest tile size in Light and Dark: both badges fit
+  and read; the tooltips say what the design lists.
+- **M9. Menus and the empty state.** File and View in the Import window and in the
+  library window (the dimmed Server, **Album** and **Date Range…** items): does a
+  dimmed **Album** submenu in the library's View menu read as the library's own
+  albums? If yes, rename it **Server Album**. The empty state's **Open Server**
+  menu button beside **Choose Folder…**: does it look like the other action buttons?
+- **M10. Wording of the Activity lines.** Import from a server with an external
+  library and read the row against DQ-8; with a photo the server gives no size for,
+  DQ-9. DQ-10's sentence can't be produced from the app (a name that triggers it
+  is not listed), so it is covered by `RemoteSecurityTests` and the string's
+  catalog entry, not by a person.
+- **M11. macOS's local network prompt (PRD P7)** on first connecting to a
+  `192.168.x.x` server, and the unreachable result's System Settings sentence.
+
+M1 and M2 grew (the certificate page in the smallest window; the trust-only save;
+the mid-import alert route), M5 gained Save, M6 and M7 name what S6 and N6 changed,
+and M10 gained DQ-10's note. No check was added that needs VoiceOver.
+
+### Held for the owner, not decided here
+
+The Tailscale address range, the fake server linked into the app (C10), and the
+Info.plist permission text are the owner's; nothing in this pass changes them.
+
+### Requirements issues
+
+None.
