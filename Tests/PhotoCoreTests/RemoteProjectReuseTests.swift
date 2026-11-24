@@ -112,6 +112,31 @@ struct RemoteProjectReuseTests {
         }
     }
 
+    @Test("The note under the field shows exactly when the import would add to an existing project (DQ-13)")
+    func reuseNote() {
+        let address = "http://nas.local:2283"
+        let names = ["Home - All Photos", "Caf\u{E9} - Trip", address]
+        func shows(_ typed: String, addTo: Int64? = nil, in projects: [String] = names) -> Bool {
+            RemoteProjectName.addsToExistingProject(typed: typed, address: address, existingProjectID: addTo,
+                                                    projectNames: projects)
+        }
+        // A match, also after the field's cleaning.
+        #expect(shows("Home - All Photos"))
+        #expect(shows("  Home   - All Photos "))
+        // Case counts, as the importer compares.
+        #expect(!shows("home - all photos"))
+        // A decomposed é matches the precomposed one.
+        #expect(shows("Cafe\u{301} - Trip"))
+        // An empty field is compared as the address it falls back on.
+        #expect(shows("   "))
+        #expect(!shows("", in: ["Home - All Photos"]))
+        // No match, and no projects loaded.
+        #expect(!shows("Home - Trip"))
+        #expect(!shows("Home - All Photos", in: []))
+        // Add to names a project: the field is absent, no note.
+        #expect(!shows("Home - All Photos", addTo: 7))
+    }
+
     @Test("Imports that look for the same name at once make one project")
     func concurrentLookups() async throws {
         // Structural: the lookup and the insert are one GRDB write, and writes

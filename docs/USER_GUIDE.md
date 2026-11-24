@@ -96,12 +96,12 @@ project name starts as "‹server name› - ‹album or All Photos›" and is pl
 text you can change. When a project already has that name (exactly, letter
 case included; extra spaces in the field don't count), the photos are added to
 it instead of making a second one, so importing All Photos again goes into the
-same project and each album keeps its own; if several projects share the name,
-the oldest is used, and it keeps its folder for Show in Finder. A card or
-folder import set to **New Project** still always makes a new one. There is
-no After Import section,
-since nothing on the server is ever changed or deleted. **Import N Photos**
-downloads each
+same project and each album keeps its own. A line under the field says so
+while the name matches: **Adds to the existing project with this name.** If
+several projects share the name, the oldest is used, and it keeps its folder
+for Show in Finder. A card or folder import set to **New Project** still
+always makes a new one. There is no After Import section, since nothing on
+the server is ever changed or deleted. **Import N Photos** downloads each
 original under a hidden temporary name, checks its size and the SHA-1 the
 server gave, and moves it into place under your file name template; a
 download that does not match is discarded. A photo in an Immich external

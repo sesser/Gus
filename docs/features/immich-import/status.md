@@ -17,8 +17,10 @@ C10, the Tailscale range and the Info.plist string. Next: the second passes
 of code review and design review, then qa-tester.
 
 **2026-11-24, owner's sign-off finding O1 (project reuse by name):** fixed,
-state **Done** again (see **Owner finding at sign-off**). Next: code review's
-second pass, the designer for DQ-12 and DQ-13, qa-tester, then the owner.
+then the designer's rulings DQ-12 to DQ-14 (design.md §15, 1978f2a) built:
+state **Done** again (see **Owner finding at sign-off** and **DQ-13 and DQ-14
+built**). Next: code review's second pass, the designer's review of the note
+and the stacked field, qa-tester, then the owner (M1).
 
 ## API verification (first task, 2026-11-23)
 
@@ -553,8 +555,59 @@ of that name; `import album Trip` prefills "Home - Trip".
 | CI toolchain | `DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer swift build --build-tests --scratch-path .build-xcode26.3` passes (only the two older test warnings in `SmartAlbumTests` and `VirtualCopiesTests`) | |
 | Bundle | `Scripts/build-app.sh` passes | |
 
-## Design questions (O1, for the designer)
+## DQ-13 and DQ-14 built (2026-11-24)
 
+Ruled in design.md §15 (1978f2a): DQ-12 records the rule as built (no code
+change), DQ-13 (b) the note, DQ-14 the stacked field.
+
+| Item | What was built | Test or check |
+|---|---|---|
+| DQ-13 rule | `RemoteProjectName.addsToExistingProject(typed:address:existingProjectID:projectNames:)` in PhotoCore, beside `cleaned`: false when Add to names a project; else `cleaned(typed, address:)` `==` any of the names | `RemoteProjectReuseTests.reuseNote`: match, match after cleaning, case, NFD against NFC, empty field as the address (and no match when the address isn't a project), no match, no projects, Add to set |
+| DQ-13 state | `CardImportModel.addsToExistingProject` (PhotoUI `ServerSource.swift`): nil without a server source or a library (the standalone importer); computed from `browse.projectName`, the link's address (`browse.address?.normalized`, else the stored one), `existingProjectID` and `library.projects`, so it follows typing, the album prefill, Add to and the project list (an import that creates the project, a rename, a removal). Never stored | Scripted, below |
+| DQ-13 string | "Adds to the existing project with this name." (`ServerText.addsToExistingProject`); catalog entry, key the English text, the designer's comment, `en`, `translated`. Not added to design.md (the designer's file) | `LocalizationTests` passes |
+| DQ-13 view | `Caption` (11 pt, `.secondary`, wraps) under the field in the field's stack, 6 pt below it, only when shown; hidden from VoiceOver; the sentence is the field's `accessibilityHint` while shown, empty otherwise | M1 (look) |
+| DQ-13 announcement | `setServerProjectName` (typing) and `chooseAlbum`'s prefill compare before and after and call `AccessibilityText.announce(_, priority: .medium)` once when the note appears; never when it goes, never on window open, source change, Add to change or a change of the project list | Scripted, below |
+| DQ-14 | The server branch's `LabeledContent` replaced by `VStack(alignment: .leading, spacing: 6)`: `Text("Project name")` (hidden from VoiceOver), the rounded-border `TextField("Project name", …)` with `labelsHidden`, `.multilineTextAlignment(.leading)`, `.frame(maxWidth: .infinity)`, then the note. No new string, no model change. Job code, the pop-ups and the card's template Project name unchanged | M1 (look; the inspector is a glass pane, `snapshot` leaves it blank, and the import window has no `print inspectorwidth`, none added) |
+| Debug script | `import server project <text>` (as typing in the field); `import server print` adds `note shown|hidden` after the project name | |
+| User guide | One sentence: a line under the field says so while the name matches, quoting the caption | |
+
+Scripted (the bundle copy `me.sesser.gus.debugtest.immich`, fresh
+`photobench` scratch libraries, `--library-root` on every launch):
+- Window opened on the fake server: `project 'Home - All Photos' note hidden`,
+  announcement only "5 photos loaded" (none for the note).
+- After importing 2 photos (the project now exists): `note shown`, and no
+  note announcement (a change of the project list, not of the name).
+- `import album Trip`: "Home - Trip" `note hidden`.
+- `import server project Home - All Photos` (typing): `note shown`,
+  announcement "Adds to the existing project with this name."
+- `… project home - all photos`: `note hidden`; back to `Home - All Photos`:
+  `note shown`, announced again (it appeared again because the name changed).
+- Second library: import 1 photo under All Photos, `import album Trip` (hidden),
+  `import album all` (the prefill): `note shown`. The last announcement printed
+  is the page's "5 photos loaded", which the reload makes after the prefill;
+  `AccessibilityText.lastAnnouncement` keeps only the last, so the note's own
+  announcement in this path is shown by the code (both medium: VoiceOver queues
+  them) and by the typing case above, not by this output.
+- Add to set to a project: not scriptable (`existingProjectID` is internal to
+  PhotoUI); covered by `reuseNote`'s Add to case and the view's
+  `existingProjectID == nil` branch.
+
+| When | `swift build` | `swift test` |
+|---|---|---|
+| DQ-13, DQ-14 (2026-11-24) | `swift build --build-tests` passes, no warnings | 1521 tests in 214 suites pass |
+| CI toolchain | `DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer swift build --build-tests --scratch-path .build-xcode26.3` passes | |
+| Bundle | `Scripts/build-app.sh` passes | |
+
+**For a person, M1** (design §15 DQ-14): in the bundle, the server Project
+name field with a short and a long name, at the narrowest inspector (300 pt),
+in Increase Contrast and in Light and Dark: label above, field across the
+column, text from the leading edge, the note under it on one line at the
+default width and wrapping to two at the narrowest, nothing cut at the
+trailing edge.
+
+## Design questions (O1, for the designer): ruled
+
+Ruled in design.md §15 (1978f2a) and built above. As asked:
 - **DQ-12. Design §5.3's "One project per import run." is now wrong.** Built:
   a server import adds to an existing project whose name is exactly the
   cleaned Project name (the oldest when several have it), else makes one. The

@@ -412,12 +412,24 @@ private struct ImportOptionsForm: View {
                     }
                     if model.existingProjectID == nil {
                         if let browse = model.browse {
-                            // Plain text for a server (design §5.3).
-                            LabeledContent("Project name") {
+                            // Plain text for a server (design §5.3), stacked and
+                            // leading-aligned like the template fields (§15 DQ-14),
+                            // with the reuse note under it (DQ-13).
+                            let addsToExisting = model.addsToExistingProject
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Project name")
+                                    .accessibilityHidden(true)
                                 TextField("Project name", text: Binding(get: { browse.projectName },
                                                                         set: { model.setServerProjectName($0) }))
                                     .textFieldStyle(.roundedBorder)
                                     .labelsHidden()
+                                    .multilineTextAlignment(.leading)
+                                    .frame(maxWidth: .infinity)
+                                    .accessibilityHint(Text(addsToExisting ? ServerText.addsToExistingProject : ""))
+                                if addsToExisting {
+                                    Caption(text: ServerText.addsToExistingProject)
+                                        .accessibilityHidden(true)
+                                }
                             }
                         } else {
                             TemplateField(title: String(localized: "Project name"), text: $model.projectNameTemplate,

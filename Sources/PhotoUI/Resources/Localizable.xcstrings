@@ -2366,6 +2366,17 @@
         }
       }
     },
+    "Adds to the existing project with this name." : {
+      "comment" : "Import options, server source: caption under Project name while an existing project already has that name; the import adds to it",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adds to the existing project with this name."
+          }
+        }
+      }
+    },
     "Adjust" : {
       "comment" : "Inspector tab with the photo's adjustments",
       "localizations" : {

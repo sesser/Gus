@@ -183,6 +183,17 @@ public enum RemoteProjectName {
         let cleaned = ImportTemplate.sanitize(typed)
         return cleaned.isEmpty ? address : cleaned
     }
+
+    /// Whether the import window shows "Adds to the existing project with
+    /// this name." under the field (design §15 DQ-13): Add to is New Project
+    /// (`existingProjectID` nil) and the cleaned name equals (`==`, as
+    /// `Catalog.projectForImport` compares) one of `projectNames`.
+    public static func addsToExistingProject(typed: String, address: String, existingProjectID: Int64?,
+                                             projectNames: some Sequence<String>) -> Bool {
+        guard existingProjectID == nil else { return false }
+        let name = cleaned(typed, address: address)
+        return projectNames.contains { $0 == name }
+    }
 }
 
 /// What a finished server import says in Activity (design §6.2), as lines the

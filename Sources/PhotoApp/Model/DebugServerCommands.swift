@@ -18,6 +18,7 @@ import PhotoUI
 ///                        | review [<seed>]   (the Edit sheet's changed-certificate page, a made-up certificate)
 ///     import server list | select <name> (waits) | check | edit | remove [<name>] | confirm yes|no | print
 ///     import server keychain fail|ok   (the in-memory key store refuses, or works again)
+///     import server project <text>   (as typing in the Project name field; `print` shows the DQ-13 note)
 ///     import album <name>|all (waits) | import dates <yyyy-mm-dd|-> <yyyy-mm-dd|->|clear (waits)
 /// (`import scroll <index>|end` is `ImportDebugCommands`'.)
 @MainActor
@@ -112,6 +113,8 @@ enum DebugServerCommands {
             try? await Task.sleep(for: .milliseconds(500))
         case "print":
             printServer(model)
+        case "project":
+            model.setServerProjectName(rest.joined(separator: " "))
         case "keychain":
             // The scripted launch's in-memory store refuses (DQ-5) or works again.
             guard let store = model.library?.remoteKeyStore as? InMemoryKeyStore else {
@@ -312,7 +315,8 @@ enum DebugServerCommands {
         parts.append("version \(browse.info?.version.description ?? "-") "
                      + "connection \(browse.isUnencrypted ? "http" : browse.service.certificateFingerprint != nil ? "pinned" : "https") "
                      + "morePermissions \(browse.info?.hasMoreThanNeeded == true)")
-        parts.append("project '\(browse.projectName)' done \(model.doneText ?? "-")")
+        parts.append("project '\(browse.projectName)' note \(model.addsToExistingProject ? "shown" : "hidden")"
+                     + " done \(model.doneText ?? "-")")
         if let alert = model.serverAlert { parts.append("alert '\(alert.title)' '\(alert.message)'") }
         print("debug-script: " + parts.joined(separator: " "))
     }

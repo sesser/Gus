@@ -216,7 +216,9 @@ extension CardImportModel {
         guard let browse, browse.albumID != id, !isImporting else { return }
         browse.albumID = id
         if !browse.projectNameEdited {
+            let noteWasShown = addsToExistingProject
             browse.projectName = RemoteProjectName.prefill(connection: browse.service.name, scope: browse.scopeName)
+            announceProjectNote(wasShown: noteWasShown)
         }
         doneText = nil
         reloadPhotos(keeping: [])
@@ -232,8 +234,31 @@ extension CardImportModel {
     /// The person typed in the project name field.
     public func setServerProjectName(_ name: String) {
         guard let browse else { return }
+        let noteWasShown = addsToExistingProject
         browse.projectName = name
         browse.projectNameEdited = true
+        announceProjectNote(wasShown: noteWasShown)
+    }
+
+    /// Whether "Adds to the existing project with this name." shows under the
+    /// server's Project name field (design §15 DQ-13): a server source, Add to
+    /// is New Project, and the name the import would use is a loaded
+    /// project's. Computed, never stored; it follows the field and
+    /// `library.projects`.
+    public var addsToExistingProject: Bool {
+        guard let browse, let library else { return false }
+        return RemoteProjectName.addsToExistingProject(
+            typed: browse.projectName, address: browse.address?.normalized ?? browse.service.address,
+            existingProjectID: existingProjectID, projectNames: library.projects.lazy.map(\.project.name))
+    }
+
+    /// Announces the note once, at medium priority, when a change of the
+    /// name (typing, or the prefill after an album change) makes it appear;
+    /// never when it goes, and not for the window, source or Add to changing
+    /// (the field's hint covers those).
+    private func announceProjectNote(wasShown: Bool) {
+        guard !wasShown, addsToExistingProject else { return }
+        AccessibilityText.announce(ServerText.addsToExistingProject, priority: .medium)
     }
 
     /// Loads the scope's first page.

@@ -92,6 +92,13 @@ public enum ServerText {
 
     public static var allPhotos: String { String(localized: "All Photos") }
 
+    /// The caption under the Project name field, also its VoiceOver hint
+    /// (design §15 DQ-13).
+    public static var addsToExistingProject: String {
+        String(localized: "Adds to the existing project with this name.",
+               comment: "Import options, server source: caption under Project name while an existing project already has that name; the import adds to it")
+    }
+
     public static func album(_ album: RemoteAlbum) -> String {
         String(localized: "\(album.name) (\(album.assetCount))", comment: "Album pop-up item: the album and the server's count")
     }
