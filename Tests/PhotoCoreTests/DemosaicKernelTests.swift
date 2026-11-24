@@ -338,6 +338,27 @@ struct DemosaicKernelTests {
         #expect(GPUDemosaic.float(half: 0x7E00).isNaN)
     }
 
+    @Test("Floats convert to the nearest half float, as Swift's Float16 does")
+    func halfBitsMatchFloat16() {
+        for bits in UInt16.min...UInt16.max where bits & 0x7c00 != 0x7c00 {
+            let value = GPUDemosaic.float(half: bits)
+            #expect(GPUDemosaic.halfBits(value) == bits, "\(bits)")
+        }
+        var values: [Float] = [0, -0.0, 1e-9, 0x1p-25, 0x1p-25 * 1.5, 0x1p-24 * 1.5, 65504, 65519, 65520, 1e9, -1e9,
+                               .infinity, -.infinity, 0.1, 1.0004883, 2049, 2051]
+        var state: UInt64 = 0x9E37_79B9_7F4A_7C15
+        for _ in 0..<20_000 {
+            state = state &* 6_364_136_223_846_793_005 &+ 1_442_695_040_888_963_407
+            let bits = UInt32(truncatingIfNeeded: state >> 32)
+            let value = Float(bitPattern: bits)
+            if value.isFinite { values.append(value) }
+        }
+        for value in values {
+            #expect(GPUDemosaic.halfBits(value) == Float16(value).bitPattern, "\(value)")
+        }
+        #expect(GPUDemosaic.halfBits(.nan) & 0x7c00 == 0x7c00 && GPUDemosaic.halfBits(.nan) & 0x3ff != 0)
+    }
+
     @Test("The X-Trans tables exist for every phase of the pattern, and no other 6 x 6 is taken for X-Trans")
     func tablesForEveryPhase() {
         for y in 0..<6 {

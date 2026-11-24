@@ -133,7 +133,7 @@ public struct VisionMaskDetector: MaskDetecting {
         case kCVPixelFormatType_OneComponent32Float:
             (read, bytesPerPixel) = ({ $0.assumingMemoryBound(to: Float.self)[$1] }, 4)
         case kCVPixelFormatType_OneComponent16Half:
-            (read, bytesPerPixel) = ({ Float($0.assumingMemoryBound(to: Float16.self)[$1]) }, 2)
+            (read, bytesPerPixel) = ({ GPUDemosaic.float(half: $0.assumingMemoryBound(to: UInt16.self)[$1]) }, 2)
         case kCVPixelFormatType_OneComponent8:
             (read, bytesPerPixel) = ({ Float($0.assumingMemoryBound(to: UInt8.self)[$1]) / 255 }, 1)
         default: return nil
