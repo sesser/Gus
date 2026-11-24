@@ -36,7 +36,7 @@ For each AC in the PRD (and each design requirement the designer marked "needs m
 
 ## What only a person can check
 
-Typically: how glass panes look, VoiceOver speech, motion and timing, real cameras and cards, other displays, the macOS 15 path. Keep these few and precise. Number them P1, P2…, and cite the designer's manual check (M-number in `review.md`) each one covers, so `qa.md` is the one list of what is still open.
+Typically: how glass panes look, VoiceOver speech, motion and timing, real cameras and cards, other displays, older macOS versions. Keep these few and precise. Number them P1, P2…, and cite the designer's manual check (M-number in `review.md`) each one covers, so `qa.md` is the one list of what is still open.
 
 ## `qa.md`
 
