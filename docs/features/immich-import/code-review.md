@@ -328,3 +328,84 @@ test cannot fail (C19).
 
 C19 is a nit and does not block QA. If it is taken, record it here with
 its commit.
+
+## Fourth pass
+
+Reviewed: `feature/immich-import`, 23438c7..1176625 (0877051: C19's test and
+the certificate footer, N-7; 1176625: QA Q1 to Q4). Date: 2026-11-23. Build and
+tests: `swift build --build-tests` clean. `swift test --filter "Remote|Import"`:
+127 tests in 23 suites pass. Full `swift test`: 1514 tests in 213 suites pass
+(77.6 s), no failure.
+
+### Verdict
+
+Ready for the owner's sign-off checks from the code-review side. C19 is fixed,
+the four QA fixes do what `status.md` says, and none of them reaches a normal
+launch. One nit, older than this pass: `importerHasNoServers` proves that one
+guarded server item exists, not that none is unguarded (C20).
+
+### Findings
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C20 | Nit | `Tests/PhotoCoreTests/RemoteBoundaryTests.swift:105-121` | The window and menu checks are `contains` checks on one guarded occurrence. They do not count occurrences, and they do not check the second `if includesLibraryItems {` block in `ImportCommands.swift:80` (Album and Date Range…). The order of the two `.noSource` cases in `ImportWindow.swift:324` and `:330` is not checked either. Collapsing white space does not make this weaker. It turns runs of white space into one space and adds none, so `{ForEach` with no space would now fail (too strict, harmless). A pattern split across a comment line matched before as well. | Each of these passes the test while the importer shows a server item: (a) a fourth `Button("Add Server…")` added outside `if !model.copiesOnly`, such as a toolbar item; (b) `Menu("Album")` or `Date Range…` moved out of the line-80 block; (c) `case .noSource:` moved above `case .noSource where model.copiesOnly:`, so the importer's empty state says "…or Add a Server" and has an Add Server… button. QA's scripted S11 on the importer bundle would catch all three, so this is a nit. Fix if wanted: count `Button("Add Server…")` and `model.servers` occurrences against the guarded ones, check the line-80 block's text, and check that the `where model.copiesOnly` case comes before the bare one. | Tests that fail without the fix |
+
+### Confirmations
+
+| Item | Status | Evidence |
+|---|---|---|
+| C19 | Fixed (0877051) | The test calls `client.download(assetID:to:limit:)` directly on the chunked oversize asset. It expects `RemoteError.tooLarge`, at most `limit` bytes reported, and no file left. `DownloadSink.received(_:)` (`RemoteHTTPSession.swift:289-307`) reports a chunk to `progress` only after the chunk is under the cap and written. If the cap check is deleted, every chunk is written and reported, the sum is `limit + 1 KiB`, and the download finishes without `tooLarge`. Both expectations then fail. No timing: the fake is in-process and the result does not depend on how the bytes are split into chunks. |
+| Q2, Select All | Same behavior | `ImportSelection.all(of:)` is the old expression moved as is: `Set(shots.filter { !$0.isDuplicate }.map(\.id))`. `CardImportModel.selectAll()` is still the only place that sets the selection to all, and every way in calls it: the window's Select All button (`ImportWindow.swift:138`), the grid's context menu (`ImportGrid.swift:218`), and ⌘A or Edit ▸ Select All through the grid's `selectAll(_:)` override (`:273`, validated by `canSelectAll` at `:341`). It covers loaded shots only, since `shots` is what has been listed. Marked shots stay out because `SourceShot.isDuplicate` is true only when every file is a duplicate, so a pair with one new file is still taken. Nothing loaded gives an empty set. Videos and offline sources have no special case, before or after. The test builds its shots with the product's own `RemoteAsset.shot(linked:)`, so marked means the real `isDuplicate`. It covers the loaded, marked, not-yet-loaded and empty cases. |
+| Q2, AC12 fake | Fine | The fake's listing now carries `isFavorite` and a `tags` array. Its routes, the paths it accepts, the headers it checks and the faults are unchanged, so the allowlist and posture tests (`RemoteBoundaryTests`, the request log) assert the same things. The client's decoder ignores the new keys. `favoritesTagsAlbumsIgnored` would fail if the importer ever mapped a favorite to a flag, tags to keywords or membership to an album, because each of those makes a count non-zero. Deterministic: its own fake and in-memory catalog, no timing. |
+| Q3, `import server sheet review` | Debug only | It lives in `DebugServerCommands`, reached only from `DebugScript.runImportCommand`. `DebugScript.startIfRequested` returns at once unless `LaunchOptions.current.debugScript` is set. The made-up `CertificateSummary` is built in PhotoApp's debug file. The commit adds nothing to PhotoUI or PhotoCore for it: `ServerSheet.page` was already public, and `CertificateSummary.init` and `CertificateFingerprint(certificateData:)` were already used by the product. So no new path exists in a normal launch that puts a certificate the server didn't present on the page. Trust from that page still goes through `trustCertificate()`, which runs the check again with that pin. Against a real TLS server a made-up pin would fail the check. The fake's plain HTTP is what lets the scripted B1 save it. `server list` now prints the pinned fingerprint, which is public, and never the key. |
+| Q1, debug `quit` | Debug only | The four new lines are inside `DebugScript`'s `case "quit":`, beside the library sheets it already closed. `applicationShouldTerminate`, `QuitGuard` and `ImportCommands` are unchanged by 1176625, so a real ⌘Q runs exactly as at the third pass. |
+| Q4, zero-import text | Fine | The new branch comes after the alert branch and the Stopped branch, so a stop or a failure still says what it said before. "No photos were imported" is a key of its own with no argument, so it needs no plural. "Imported %lld photos" keeps its plural variations for 1 and more. The trailing period differs from Activity's "No photos were imported." on purpose, as the subtitle and report lines do elsewhere. `LocalizationTests` passes. |
+| N-7, certificate footer | Fine | The interpolation is unchanged, so the catalog key with `%@` matches. The old key was replaced, not left behind. |
+
+### Question answered: ⌘Q with a sheet up
+
+I agree with the engineer. The question is whether a real ⌘Q with the Server
+sheet up is ignored for every sheet alike, and so is not something this branch
+broke.
+
+- **The app has no sheet check.** `AppDelegate.applicationShouldTerminate`
+  (`PhotoApplication.swift:104-111`) returns `.terminateNow` whenever no import,
+  folder add, export or merge runs. It never looks at sheets, and neither does
+  `QuitGuard`. So when a quit with a sheet up does nothing, AppKit refuses it
+  before or around the delegate, not this app's code.
+- **It is older than this branch.** The debug script's `quit` has closed the
+  library's sheets first since c008987 (2026-10-27), with the comment "An open
+  sheet would keep the app from quitting". The engineer's control shows the
+  same thing: the Copy Adjustments sheet, which this branch doesn't touch,
+  blocks `NSApp.terminate` exactly as the Server sheet does.
+- **What this branch changes.** Its only change to quitting is
+  `cardImport.waitUntilDone(timeout: 10 s)` after Stop and Quit (C7). That runs
+  only after the person chose Stop and Quit, and only while a server import
+  runs. The branch adds one more sheet of the same kind (the Server sheet,
+  certificate page included), and alerts and a confirmation dialog on the
+  import window that behave the way other SwiftUI alerts do. None of this is
+  worse than the other sheets.
+
+That rests on reading the code and on the engineer's scripted runs; I did not
+launch the app. P8 stays a check for a person. Making ⌘Q close sheets would be
+an app-wide follow-up, not a change for this branch.
+
+### Checked and fine
+
+- **The debug `quit` after a removal.** `ServerSheet.remove()` sets
+  `removalAfterSheet`, and `serverSheetDidDismiss` asks the removal question
+  when the sheet has gone. `quit` clears `removingServer` but not
+  `removalAfterSheet`. So `import server sheet remove; quit` with no wait
+  between them could raise the confirmation after `quit` cleared it, and hang
+  as Q1 did. That is a debug script's own ordering: a `wait` avoids it. It is
+  not a finding.
+- **Determinism.** `selectAllRule` is pure. `favoritesTagsAlbumsIgnored` and
+  C19's half of `streamingCaps` have no timing or shared state (structural
+  argument). This rests on the full run here, not on a repeated-run count.
+- **Held for the owner, not findings:** C10, the Tailscale range and the
+  `Info.plist` text.
+
+### Follow-up
+
+C20 is a nit and does not block sign-off. If it is taken, record it here with
+its commit.
