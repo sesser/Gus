@@ -1477,15 +1477,19 @@ between opening the window and Import (the import is right either way);
 "Imported 0 photos" in the window after a run that found only duplicates
 (Activity says it right); a ⌘Q with a sheet up is ignored by AppKit for every
 sheet in the app, the Server sheet included (#276); the debug script cannot
-open the certificate page by itself. Follow-ups: #273, #274 (a preview test that
-flakes), #275, #276. Shipped; the owner signed off 2026-11-24 at ce3b75e after
+open the certificate page by itself; a compressed answer is refused at its head
+(`Accept-Encoding: identity`, any other `Content-Encoding` ends `.malformed`), but
+URLSession can decode before the head reaches the app: about 1 MiB of gzip with no
+`Content-Type` (or `text/plain`), its body sent after its head, became 0.16 to 2.5
+GB (12 to 28 MB with `application/json`), and a response head is unbounded until
+the 30 s request timeout; both are URLSession behavior accepted by the owner on
+2026-11-24, with a transport that never decodes left to #279. Follow-ups: #273,
+#274 (a preview test that flakes), #275, #276, #279. Shipped; the owner signed off 2026-11-24 at ce3b75e after
 checking P1 to P8 and P14 by hand (sheet size and the certificate page, trusting
 a certificate, Remove Server three ways, alert keys and a real outage, keyboard,
 toolbar at 900 pt, the Keychain prompt, ⌘Q with the sheet up, the Project name
 field), no checks left open (`docs/features/immich-import/qa.md`). Covered by CI
-only: VoiceOver, macOS 15 and macOS 26. The "Network" architecture rule, the
-Catalog tables list, Layout and the Library launch guard paragraph are the
-owner's to update (proposed in the Ship report).
+only: VoiceOver, macOS 15 and macOS 26.
 
 Not yet: publishing back to Immich or Apple Photos (#28; it will build on the
 `remoteService` and `remoteLink` tables and the connection layer, widen the
