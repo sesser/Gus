@@ -9,11 +9,25 @@ was built or run, so test and debug-script results are the engineer's, from
 
 ## Verdict
 
-**Pass, with one user guide fix (F1).** The UI is coherent. A gain-map photo
-now looks the same at open, while a slider moves, after release, and by the
-code's paths at 100% and when comparing, and it matches what previews and
-exports hold. The badge and the menu item need no change. F2 is a stale record
-to correct before the pull request.
+**Pass. F1 and F2 are fixed and confirmed (2026-11-24, see Confirmation); no
+design findings are open.** The UI is coherent. A gain-map photo now looks the
+same at open, while a slider moves, after release, and by the code's paths at
+100% and when comparing, and it matches what previews and exports hold. The
+badge and the menu item need no change. Manual checks M2 to M7 are still for a
+person.
+
+## Confirmation of F1 and F2
+
+2026-11-24, by reading the files; nothing was built or run.
+
+| Finding | Result | Evidence |
+| --- | --- | --- |
+| F1 | **Fixed** | `docs/USER_GUIDE.md`, "HDR" (lines 504-516), has the suggested text: the first paragraph holds everything about HDR photos (display, kinds, badge, preview then HDR render, offline original, **View ▸ Hide HDR Highlights**), the second the photos that stay SDR (camera raws, gain-map only) and the thumbnails and cached previews. "HDR display" gives "it" a clear referent. The menu title matches the app's string |
+| F2 | **Fixed** (record); `README.md` waits for Ship by design | `status.md`, **README** heading, no longer says "No change": it quotes the Features line (`README.md` lines 144-145, which still lists gain-map HEIC and JPEG), gives what it should say, names the "HDR display" row of `docs/features/_inventory.md` and `CLAUDE.md`'s Rendering rule, and says Ship (step 6) applies |
+
+At Ship, the product manager corrects the README line and the inventory row;
+the `CLAUDE.md` wording is the owner's. The RI-2 jump noted below is now filed
+as #283 (`status.md`).
 
 ## What the controls do for a gain-map photo
 
@@ -41,9 +55,11 @@ it. Saying that a photo has an HDR version belongs to the design of #282.
 | D7 | 100% shows the same rendition as fit | Pass (code); needs manual check (M5) | A nil HDR rendition falls through to `fullResolutionImage` in both views |
 | D8 | Grid, film strip, previews and loupe agree for a gain-map photo | Pass (code); needs manual check (M5) | All are SDR now; before, the loupe alone differed |
 | D9 | User guide terms match the UI | Pass | **HDR** badge, "caption line" and **View ▸ Hide HDR Highlights** match the app; "floating-point DNG", "HLG or PQ" and "gain map" match the behavior |
-| D10 | The user guide's HDR paragraph describes the behavior clearly | **Fail** (F1) | See below |
+| D10 | The user guide's HDR paragraph describes the behavior clearly | Pass (F1 fixed; failed at first pass) | See Confirmation |
 
 ## Fixes for the engineer
+
+From the first pass, kept as written; both are confirmed above.
 
 **F1. User guide, "HDR" paragraph: the last three sentences now attach to the
 wrong photos.** The new sentences about camera raws and gain-map photos, which

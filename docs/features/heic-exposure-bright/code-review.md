@@ -109,5 +109,58 @@ correction to the proposed `CLAUDE.md` wording.
 
 ## Follow-up
 
-(Second pass: each finding Fixed, Not fixed (and why) or Withdrawn, with the
-commit.)
+Second pass, 2026-11-24, `06188c2..edf82a3` (one signed commit; tests and docs
+only, no change under `Sources/`). Build and tests on `edf82a3`: `swift build
+--build-tests` clean; full `swift test` 1533 tests in 216 suites pass (75 s);
+the CI toolchain build (`.build-xcode26.3`) up to date and clean; the opt-in
+`HEIC_GAINMAP_SAMPLE` run on the owner's file passes (identity −0.01 stops,
+now asserted). `GainMapRenditionTests` and `StalePreviewTests` together 30 of
+30 clean runs (with the structural argument below; the runs alone rule out a
+flake rate of about 1 in 10 or more).
+
+| # | Result | Commit | Notes |
+| --- | --- | --- | --- |
+| C1 | Fixed | `edf82a3` | `#expect(Self.hasGainMap(url) == gainMap)` is in the HLG/PQ test. Checked it bites: in a scratch worktree with the fixture made to write no gain map (`options` always empty), the two `gainMap: true` cases fail on that line, and only there: without it they passed, which is the silent pass C1 described. |
+| C2 | Fixed | `edf82a3` | The opt-in test asserts `abs(sdr.stops(over: system)) < 0.05` for the stack named `identity` (the name the loop prints, so the guard is not dead). Owner's file: −0.01 stops, passes. |
+| C3 | Fixed | `edf82a3` | The edit is −1 EV and the level margin went from 20 to 5. Judged justified, not a loosening to pass: see below. |
+| Q1 | Open | | Not checkable on this Mac; `status.md` records the plan (skip with the reason when the HEIC encoder is missing, never a weaker assertion). Still for the pull request's CI run. |
+| Q2 | Done | | The owner filed RI-2 as #283; `status.md` records it. |
+| Q3 | Fixed | `edf82a3` | `status.md`'s proposed `CLAUDE.md` wording now reads "live frames, previews and exports are its SDR rendition", as suggested; `CLAUDE.md` itself untouched (the owner's). `_inventory.md` and the README's Features line are recorded under README for Ship. |
+
+**C3, the margin.** Measured here with a scratch probe (same fixture, same
+16 × 16 sRGB mean as the test) on `edf82a3`:
+
+| Exposure | Headroom (512 px / full) | Mean level (512 px / full) |
+| --- | --- | --- |
+| 0 | 4.258 / 4.328 | 95.62 / 95.65 |
+| −0.5 | 3.014 / 3.062 | 89.21 / 89.34 |
+| −1 | 2.129 / 2.164 | 81.99 / 82.07 |
+| −2 | 1.064 / 1.082 | 66.60 / 66.71 |
+
+The engineer's figures are right. The test compares the fitted and full-size
+renditions of the edit against the unedited one at 512 px: the edit is 13.55
+to 13.63 levels lower, an unedited rendition at any size is within 0.03, so a
+margin of 5 leaves 8.5 levels on the passing side and more than 4.9 on the
+failing side, and the old 20 could not hold at −1 EV (it was sized for −2 EV's
+29-level drop). What the check is for is that the rendition kept after the
+write lands is the edit's and not the stale stack's. Mutation check: with
+`PreviewService.hdrImage` made to render `.identity` instead of the loaded
+stack (scratch worktree), the test fails on the margin line for both the
+fitted and the full-size image. So it still catches what it exists for, and
+the headroom at −1 EV (2.13 at 512 px) is now twice `minimumHDRHeadroom`
+instead of 1.4 % over it. Structural argument for determinism: one fixed
+synthetic file, no shared state between tests, no timing; the only variable
+is the HEVC encoder's rounding, which moves the level by well under one 8-bit
+step against the 8.5-level slack.
+
+One remark, no action needed: the test comment's reason for the small drop
+("drawn into 8-bit sRGB, the 2× patch still clips"), repeated in `status.md`,
+doesn't account for it. The patch is 6 % of the frame, and the SDR render of
+the same file drops 29.7 levels at −1 EV (119.07 to 89.38) where the HDR
+rendition drops 13.6; the unedited rendition draws at 95.6 against the SDR
+render's 119.1. Most likely the draw into an SDR context tone-maps by the
+image's headroom (4.3 unedited, 2.2 at −1 EV), which compresses the
+difference. The numbers in the comment are right and the assertion doesn't
+depend on the reason.
+
+No new findings. Ready for qa-tester (after the designer confirms F1 and F2).
