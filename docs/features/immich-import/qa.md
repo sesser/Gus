@@ -296,9 +296,9 @@ Then File ▸ Import from Card or Folder…, Source pop-up ▸ Add Server…. Us
 **scratch API key** for your server with the five permissions (asset.read,
 asset.view, asset.download, album.read, user.read) and delete it afterwards. The
 first connect may show macOS's Keychain prompt (P7) and, for a LAN address, the
-Local Network prompt (P13). The numbers P1 to P8 are the ones I ask before
-sign-off: they are the designer's required M1 to M6 plus the two that came out
-of this QA (the Keychain prompt, PRD P5; ⌘Q with the sheet up, P8). P9 to P13 are
+Local Network prompt (P13). The numbers P1 to P8 and P14 are the ones I ask before
+sign-off: they are the designer's required M1 to M6 and M12 plus the two that
+came out of this QA (the Keychain prompt, PRD P5; ⌘Q with the sheet up, P8). P9 to P13 are
 optional. None asks for VoiceOver, macOS 15 or macOS 26.
 
 Required:
@@ -346,8 +346,44 @@ Required:
    reopening the copy with `--library-root ~/immich-qa/lib` still finds the
    key (the server connects without asking for it).
 8. **P8 (Q1). ⌘Q with the Server sheet open.** Add Server… and, with the sheet
-   up, press ⌘Q. Expect the app to quit (no job runs). If it does not, it is a
-   blocking finding for the engineer. Also try ⌘Q with the certificate page up.
+   up, press ⌘Q. **Expect it to be ignored**, like every other sheet in the app
+   (AppKit does not terminate while a window has a sheet attached; the engineer
+   showed the same with the library window's Copy Adjustments sheet, and it is
+   not a regression of this branch: follow-up #276). The app should quit once
+   the sheet is closed (Cancel, then ⌘Q). If ⌘Q with the sheet up quits, or if it
+   stays after the sheet is closed, say so. Also try ⌘Q with the certificate page
+   up (same expectation). The script's `quit` was fixed (Q1) and exits with the
+   sheet up.
+
+14. **P14 (M12; review.md Fourth pass; new, DQ-13 and DQ-14). The Project name
+    field and its note.** Needs a project named like the field: import one
+    photo from the server first (File ▸ Import…, Source ▸ your server, check one
+    photo, Import 1 Photo), then open the window again. With **Add to** set to
+    **New Project**:
+    - Short name ("Home - All Photos"): label **Project name** above, the field
+      across the column, text starting at its left edge (not flush right), and
+      **Adds to the existing project with this name.** under it in small grey
+      type. Type "Trip": the line goes and the form below moves up, nothing else
+      jumps; type the name again: it returns. Capital letters count ("home - all
+      photos" has no line).
+    - Long name, 60 characters, no match: the start shows at rest, it scrolls to
+      the caret while typing, nothing cut at the inspector's trailing edge. A long
+      name that matches (rename a project to it first, then type the same):
+      the line shows.
+    - Inspector at 300 pt (minimum), 320 and 400 (maximum): label, field and note
+      stay on one left edge; the note is one or two lines (say which at 300 pt,
+      N-8) and never cut with "…"; the field is no wider than the section's other
+      rows.
+    - **Add to** set to an existing project: field and note both go; back to
+      **New Project**: both return.
+    - Light, Dark and Increase Contrast: stronger field border, readable label,
+      the note as legible as the captions under **Server** and **Preset**.
+    - Mixed row shapes: **Add to** (label left, value right), the stacked
+      **Project name**, **Job code** (label left, field right): does the section
+      read tidily? "No" is a follow-up to stack Job code (the owner's to file),
+      not a fault of this branch.
+    - Behavior to confirm by eye: import All Photos twice; the sidebar shows one
+      project and its count is the sum. (Scripted: S13.)
 
 Optional:
 
@@ -374,3 +410,187 @@ Optional:
 
 Reruns after fixes: none yet.
 Owner's sign-off: not yet given.
+
+## Follow-up 2 (2026-11-24): owner finding O1, DQ-13, DQ-14
+
+Owner: qa-tester. Tested: `feature/immich-import` at b349266 (everything after
+3e90686: f334d9d O1, 54760d1 DQ-13 and DQ-14, 96e1e60 C21 and N-9; the design
+and code-review commits in between touch docs only), on the same Mac and
+macOS 27.2.1 (26B131), Swift 6.4.2. The bundle was rebuilt at 08:17 today from
+this commit (`Scripts/build-app.sh all`, 85 s, both bundles signed).
+
+### Verdict
+
+Passes. O1's rule (a server import adds to the oldest project whose name is
+the cleaned Project name, else makes one), DQ-13's note and its announcement
+rule, and the new pairing consequence (a RAW and a JPEG of one stem arriving in
+two imports of one scope pair, in either order, by the library's own rule) are
+each shown by a test and by a scripted run; the earlier criteria that the
+change could touch re-ran unchanged. No finding for the engineer. What only a
+person can see is the look of the stacked field and its note, now **P14**
+(M12). Safety held: every launch carried `--library-root` on a scratch
+library, the copy's bundle identifier was `me.sesser.gus.debugtest.immichqa2`
+(the importer's `….immichqa2.importer`), no instance of mine is left running,
+the owner's library folder has no file newer than my start and his
+preferences have the same checksum as before; the copy never wrote to the
+Keychain (`security find-generic-password` for its service finds nothing).
+
+### Builds and tests
+
+| Check | Result |
+|---|---|
+| `swift test` (full) | 1522 tests in 214 suites passed after 79.3 s (wall 1:23); 0 failures; neither known flake (#274, #229) failed |
+| `swift test --filter RemoteProjectReuseTests` | 8 of 8 passed |
+| `Scripts/build-app.sh all` | Passed; Gus.app records SDK 27.2, minos 15.0 |
+| CI toolchain (Xcode 26.3) build | Not rerun; the engineer's and the code reviewer's passes are on `status.md` and `code-review.md` |
+
+### Mapping
+
+| New behavior | How | Evidence | Result |
+|---|---|---|---|
+| O1: a second import of one scope adds to the first project, none made | Test, Script | `RemoteProjectReuseTests.secondImportReuses` (two imports of All Photos: one project, both results name it, four images, two import runs in it); S13 below: `Home - All Photos=2` then `=3`, still one project | Pass |
+| O1: a different name (an album's) makes its own project | Test, Script | `differentNameCreates`; S13: `import album Trip` prefills "Home - Trip", note hidden | Pass |
+| O1: comparison is exact after the field's cleaning (case counts, extra spaces and NFD against NFC do not) | Test, Script | `comparison`; S13: "home - all photos" has no note | Pass |
+| O1: the oldest of several twins; ties by id | Test | `severalWithTheName` | Pass |
+| O1: a reused project keeps its source folder | Test | `keepsSourcePath` | Pass |
+| O1: lookup and insert are one write (no race makes two) | Test | `concurrentLookups` (16 tasks, one project). Structural argument: one serialized GRDB write each; the code reviewer showed it fails 5 of 5 with the lookup moved out of the write | Pass |
+| O1, C21: an empty field falls back on the address, and that name is reused | Test, Script | `emptyFieldImportsReuse` (two real imports through `RemoteImporter.run` with `"  "` then `""`); S14: one project named by the address with 2 photos | Pass |
+| The new tests fail without the change | Script (scratch copy) | `git archive` of this commit in the scratchpad with `makeTarget` put back to `createProject` (cleaned name kept): `swift test --filter RemoteProjectReuseTests` failed 7 issues in 3 tests: `secondImportReuses` (projects were two, results named different projects, runs not in one project), `keepsSourcePath` (`projects.count == 1`), `emptyFieldImportsReuse` (names and ids). The other five test the new catalog functions directly. Checkout untouched | Pass |
+| DQ-13 rule: shown only when the cleaned name equals a project's name and Add to is New Project | Test, Script | `reuseNote` (match, after cleaning, case, NFD, empty field as the address, no match, no projects, Add to set); S13 `import server print` shows `note shown|hidden`: hidden on open with no project, shown after the first import (project list changed), hidden for Trip, shown when "Home - All Photos" is typed, hidden for "home - all photos", shown again, hidden for the empty field when no project has the address as name; S14: shown for the empty field once the address-named project exists | Pass |
+| DQ-13: Add to set to a project hides the field and the note | Test, Person | `reuseNote` (the Add to case). Not scriptable (`existingProjectID` is internal to PhotoUI): P14 | Pass (rule); look P14 |
+| DQ-13 announcement: once, only when the note appears because the name changed | Code, Script | Read `setServerProjectName` and `chooseAlbum`'s prefill in `ServerSource.swift`. The debug script has no VoiceOver output beyond `AccessibilityText.lastAnnouncement` and I did not add a command; the engineer's scripted run in `status.md` (typing shows "Adds to the existing project with this name.") was not repeated. VoiceOver is the owner's standing exclusion | Pass (code); VoiceOver not checked |
+| DQ-13 string and catalog entry | Test | `LocalizationTests`, `BrandingTests` (full run) | Pass |
+| DQ-14 stacked, leading-aligned field | Person | The inspector is a glass pane: `snapshot` leaves it blank (confirmed: the import window's inspector is blank in my snapshot) and the import window has no `print inspectorwidth`. P14 | Open (P14) |
+| An import that brings nothing touches no project | Test, Script | `RemoteImportTests.duplicates`; S16: a second server with the same 3 photos: "No photos were imported. 3 were already in the library.", the catalog's projects are `src` and `Home - All Photos` only (no "Second - All Photos") and no extra `importRun` | Pass |
+| Card and folder imports unchanged (`createProject`) | Code, Test | `CopyImporter.swift:225` and `Importer.swift:256` still call `createProject` (read); the card and folder import suites in the full run pass | Pass |
+| User guide's claims for the rule | Code | The server paragraph (`docs/USER_GUIDE.md` lines 93 to 108) read against S13, S14 and the code: exact name after cleaning (S13), extra spaces do not count (`comparison`), each album keeps its own project (S13), the line quoted character for character, the oldest twin keeps the folder (`severalWithTheName`, `keepsSourcePath`), Add to hides the field and the line (code), card and folder import unchanged (code). True | Pass |
+
+### Scripted case the code review asked for: RAW and JPEG in two imports
+
+A plain-HTTP mock Immich (script below, a scratch file) serves four assets:
+`PAIRA.JPG`, `PAIRA.DNG`, `PAIRB.JPG`, `PAIRB.DNG` (a photobench JPEG and DNG
+each), with the server's rating and description different between the two files
+of a stem. Two scratch libraries, the folder template a literal `pair`, so each
+stem's two files land in one folder; `sidecars on` so the app writes sidecars.
+The scripted launch's key store is in memory, so each later launch removes and
+adds the server again (the links stay: AC11). Results, read from the catalog
+with `sqlite3 -readonly` and from the files on disk:
+
+| Order | What the person had set before the second import | Result after the second import | Matches the library's rule |
+|---|---|---|---|
+| RAW, then JPEG (`lib-pair`) | A: RAW rating 2, flag picked, label red (`photocli`). B: RAW kept the server's 3 | Both stems pair (`imagePair`: RAW = raw, JPEG = companion), one project, three import runs in it. A: the JPEG took 2, picked, red; B: JPEG's server rating 5 not applied, both 3. Both JPEGs' captions became the RAW's ("RAW A", "RAW B"), the server's "JPEG A", "JPEG B" not applied | Pass: RAW's values win; the server's rating and description only fill empties |
+| JPEG, then RAW (`lib-pair2`) | A: JPEG rating 1, flag picked, label green (`photocli`). B: JPEG kept the server's 5 | Both stems pair. A: the new RAW (unrated) took 1, picked, green; B: both 5 (the RAW's server 3 not applied). Both RAWs' captions became the JPEG's | Pass: `mergeDefaultVersions` takes the RAW's value unless it is unset; the server's values fill only where the pair is empty |
+| Sidecars, both orders | `sidecars on`, a wait after each import | One `PAIRA.xmp` and one `PAIRB.xmp` in the folder, nothing named after the JPEG or the DNG; `sidecarQueue` empty after; their rating, flag, label and description are those of the pair (A in the first order: rating 2, flag 1, label Red, "RAW A"; in the second: rating 1, flag 1, label Green, "JPEG A") | Pass: no sidecar for the wrong file |
+
+The pair forming is the consequence of reuse that the code review called out
+(before O1 the two files sat in two projects and never paired); it follows the
+library's rule, the same as a card import set to Add to. Not scripted: a pair
+in which the person has edited the description and then the second file arrives
+(`pairCaptionsKept` covers it); a sidecar another app changed
+(`SidecarSync`'s own tests).
+
+### Re-verified earlier criteria (new bundle, scratch library each time)
+
+| Earlier item | Re-run | Result |
+|---|---|---|
+| AC6, AC8 (S1, S2): listing, paging, album and date scopes, the project name | S1: 30 loaded, the Edited badge on IMG_0002, one POST search, thumbnails; 4 imported, marked 4, "Imported 4 photos", project "Home - All Photos". S2: 300 loaded after the scroll, Trip 5 of `total 7`, the range 3, snapshot looked at (thumbnails, empty check boxes, title bar "Home / All Photos", "0 of 300 selected · Not encrypted") | Pass |
+| AC7 (S4): marks and Select All | 247 of 250 loaded with 3 marked; 247 of 297 after the second page; 297 of 297 after Select All again; the note shows (the project now exists) | Pass |
+| AC3, AC2 (S3): the sheet | `example.com` and `134744072` refused, Add dimmed; the fake's `http://127.0.0.1` shows the notice, Add dimmed until confirmed; sizes 460×380, 460×470, 460×530, each equal to its ideal; `keyRejected`, `notImmich`, `missingPermissions` (pass with `all`), `unreachable` | Pass |
+| AC2 (S10): the Keychain | `keychain fail`: Add gives `keychain`; Remove Server: the "wasn't removed" alert with the designed text and the server still listed | Pass |
+| AC11 (S5): remove and add again | No kept the server, Yes removed it; added again as "Again": `marked 3`, the grid first responder; its project name default is "Again - All Photos" (the connection's name) | Pass |
+| AC9, AC14 (S6): failures and Activity | "Imported 2 photos. 3 could not be imported."; Activity lists the three reasons in words (incomplete, deleted on the server, checksum mismatch) | Pass |
+| AC13 (S8): Stop and quit | Quit While Importing? alert, Keep Importing kept it running, Stop: "Import stopped after 5 photos." and the Live Photo line | Pass |
+| S12: Remove from the sheet | "sheet closed asks Home" both times; No kept, Yes removed | Pass |
+| Q1 (scripted `quit` with the Server sheet up) | `import open; wait 2; import server sheet add; quit` exits | Pass |
+| AC16 (S11): the standalone importer | Copy of `Gus Importer.app` with its own identifier: window "No Card Connected", Choose Folder…, no server item (snapshot looked at); `Info.plist` has no `NSAppTransportSecurity`, local-network or Bonjour key; the Server UI and the note are not in it (`addsToExistingProject` is nil there, and `importerHasNoServers` passes in the full run) | Pass |
+
+Not re-run, because the change cannot touch it: the real-TLS run (S7), the
+slow-link and revoked-key runs (S9), AC1's key leak checks (nothing here reads
+or writes a key; `keyOnlyInTheStore` passes in the full run; the key texts
+`pair-key-ABCDEF` and `fake-key-0123456789` do not occur in the scratch
+catalogs I read), AC4, AC5, AC10, AC12 beyond the pair cases above, AC15
+(no migration in this range: the diff touches no `Migrations` file).
+
+One thing a script needs to know: the copy's preferences persist per bundle
+identifier, so the folder template I set in the pair run (`pair`) stayed for
+later runs under the same identifier (S1's four files went to `…/pair/`). The
+templates were reset by nothing; not a product issue.
+
+### Findings
+
+None for the engineer. Two observations, neither a finding:
+
+- A renamed connection starts a new project name: the Project name default is
+  "‹connection name› - ‹scope›", so renaming "Home" to "Home Server" in Edit
+  Server… and importing All Photos again makes "Home Server - All Photos", not
+  an addition to "Home - All Photos". It follows the owner's ruling (the field's
+  text decides), and the guide says the field starts from the server's name; the
+  guide does not say outright that renaming the server changes the default. A
+  sentence is optional (Ship).
+- The note lags only when a project is made by another path between opening the
+  window and pressing Import (`library.projects` is a snapshot; the code review
+  recorded it). The import is right either way.
+
+### Docs for Ship (project reuse)
+
+`docs/USER_GUIDE.md` is in step (read above). `docs/features/immich-import/design.md`
+§5.3 was corrected by the designer and says the same as the guide and the code.
+Still for the product manager, in addition to the list under "Docs the feature
+must change" above:
+
+- `README.md`: the line under What works today for the Immich import should say
+  that importing the same album or All Photos again goes into the project of that
+  name (no second project), and that card and folder imports are unchanged.
+- `CLAUDE.md` "Scope so far": the Immich entry should carry the rule (a server
+  import adds to the oldest project whose name is exactly the cleaned Project
+  name, else makes one; a reused project keeps its folder; the note under the
+  field; `Catalog.projectForImport`, `RemoteProjectName` in
+  `Remote/RemoteBrowseRules.swift`), and the consequence that a RAW and a JPEG of
+  one stem imported in two runs of one scope now pair. Also the `Remote` rule's
+  statement that a server import "makes one project" if the entry says so
+  (grep "project" in the entry when written).
+- `docs/features/_inventory.md`: the entry should name project reuse.
+- Optional: one sentence in the guide that renaming the server changes the
+  default Project name (above).
+
+### Scripts (Follow-up 2)
+
+Run with a copy of `build/Gus.app` (identifier
+`me.sesser.gus.debugtest.immichqa2`, re-signed ad hoc) on fresh copies of a
+photobench scratch library (`photobench generate --jpeg 4 --dng 0 --heic 0`,
+then `photobench import`), `--library-root` on every launch; `$Q` is the scratch
+folder. The first helper is `run <name> "<script>"` from the Scripts section
+above, with `lib-<name>`.
+
+- **S13, reuse and the note**: `import open; wait 2; import server fake start 5; import server add Home fake; import server print; import dest $Q/dest-s13; import toggle 0; import toggle 1; import run; import server print; print projects; import toggle 2; import run; import server print; print projects; import album Trip; import server print; import album all; import server print; import server project Home - All Photos; import server print; import server project home - all photos; import server print; import server project Home - All Photos; import server print; import server project   ; import server print; quit`. Showed `project 'Home - All Photos' note hidden` on open, `note shown` after 2 imported (`Home - All Photos=2`), `Home - All Photos=3` after a third with still one project of that name, `Home - Trip` hidden, `Home - All Photos` shown after `album all`, shown when typed, hidden for the lower-case name, shown again, and the empty field hidden.
+- **S14, the empty field**: `import open; wait 2; import server fake start 5; import server add Home fake; import dest $Q/dest-s14; import server project; import server print; import toggle 0; import run; import server print; print projects; import toggle 1; import run; print projects; import server project Home - Trip; import server print; import toggle 2; import run; print projects; quit`. One project named `http://127.0.0.1:<port>` with 1 then 2 photos, the note shown for the empty field after the first import, then "Home - Trip=1" as its own project.
+- **S16, nothing imported, no project**: `import open; wait 2; import server fake start 5; import server add Home fake; import dest $Q/dest-s16; import toggle 0; import toggle 1; import toggle 2; import run; print projects; import server fake start 5; import server add Second fake; import toggle 0; import toggle 1; import toggle 2; import run; print projects; print activity; quit`, then `select id,name from project; select id,projectId from importRun`.
+- **S15, RAW and JPEG in two imports** (the pair table above): the mock, started with `python3 -I pairmock.py 18081 $Q/pairsrc` (`photobench generate --output $Q/pairsrc --jpeg 2 --dng 2 --heic 0`). Launch 1: `sidecars on; import open; wait 2; import server add Pair http://127.0.0.1:18081 pair-key-ABCDEF; import dest $Q/dest-pair; import template folder pair; import toggle 3; import toggle 1; import run; import server print; wait 4; print projects; print activity; quit` (indices 1 and 3 are the two DNGs; for the other order, 0 and 2, the JPEGs). Then `swift run photocli rate --version 6 --rating 2 --library-root $Q/lib-pair`, `… flag --version 6 --flag picked …`, `… label --version 6 --label red …` (version 6 is PAIRA's first file; the app must not have the library open). Launch 2: `sidecars on; import open; wait 2; import server remove Pair; import server confirm yes; import server add Pair http://127.0.0.1:18081 pair-key-ABCDEF; import dest $Q/dest-pair; import template folder pair; import toggle 2; import toggle 0; import run; import server print; wait 4; print projects; print activity; quit` (the other files of each stem). Read with `sqlite3 -readonly $Q/lib-pair/Library/catalog.sqlite "select … from image join version …; select * from imagePair; select count(*) from sidecarQueue"` and the `.xmp` files.
+- **S1 to S6, S8, S10 to S12 and Q1** re-run as listed above with the scripts of the first run, the destination folder `$Q/dest-<name>`; a helper `rerun.zsh` in the scratchpad (not committed) holds them.
+
+The mock for S15 (scratch, never committed; plain HTTP on 127.0.0.1; it is the S7 mock with the TLS removed, four fixed assets, and a rating and description per asset):
+
+```python
+import sys, json, hashlib, base64, os
+from http.server import BaseHTTPRequestHandler, HTTPServer
+port, src = int(sys.argv[1]), sys.argv[2]
+KEY = "pair-key-ABCDEF"
+SPEC = [  # (file name, source file in <src>/Shoot-001, capture time, rating, description)
+    ("PAIRB.JPG", "IMG_00002.JPG", "2026-10-06T10:00:00.000Z", 5, "JPEG B"),
+    ("PAIRB.DNG", "RAW_00004.DNG", "2026-10-05T10:00:00.000Z", 3, "RAW B"),
+    ("PAIRA.JPG", "IMG_00001.JPG", "2026-10-04T10:00:00.000Z", 5, "JPEG A"),
+    ("PAIRA.DNG", "RAW_00003.DNG", "2026-10-03T10:00:00.000Z", 3, "RAW A"),
+]
+# handlers as in S7's mock: /api/server/version, /api/api-keys/me, /api/users/me,
+# /api/albums (empty), GET /api/assets/<id>/original|thumbnail, POST search returning all four
+```
+
+(The full file is in the session's scratchpad; the S7 mock above shows the
+handlers, which differ only in the list of assets and in `exifInfo.description`
+and `exifInfo.rating` per asset.)
+
+### Follow-up
+
+Findings: none. Owner's sign-off for this range: not yet given. P1 to P14 are
+open (P14 is new); P8 is corrected to expect the app to ignore ⌘Q with a sheet
+up.
