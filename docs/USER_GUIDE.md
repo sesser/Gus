@@ -48,7 +48,13 @@ concerns: the server can't be reached; it doesn't look like an Immich server;
 the key was rejected; the key is missing permissions (naming them); the
 server is too old (Immich 3.2.0 or newer is needed, and both versions are
 shown); the server's certificate has changed; or the Keychain refused the key.
-A server that passes is saved and becomes the source.
+A server that passes is saved and becomes the source. The app asks the server
+not to compress its answers and refuses any answer that comes compressed, before
+reading it, so a server cannot make it read far more than it sent: if a reverse
+proxy in front of Immich compresses answers even when not asked to, the server
+is reported as not looking like an Immich server (and, while browsing, its
+answer as one that could not be read); set the proxy to compress only for
+clients that ask for it, which is the usual setting.
 
 Two things are asked before a key is sent. An `http://` address is allowed
 only for a server on your local network (a private address such as

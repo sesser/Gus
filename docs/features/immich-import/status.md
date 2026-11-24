@@ -27,6 +27,12 @@ a client bug, fixed; state **Done** again (see **CI failure on PR #278**).
 Next: code review's second pass (client, fake server and tests changed; no
 UI change, no behavior change a person can see).
 
+**2026-11-24, seventh code review (C22, C23):** both fixed in
+`RemoteHTTPSession.swift`; state **Done** again (see **Seventh code review**).
+Visible change: a server that compresses answers it was not asked to compress
+is refused (user guide). Next: `/security-review` on `RemoteHTTPSession.swift`
+and code review's eighth pass.
+
 ## API verification (first task, 2026-11-23)
 
 Read from the OpenAPI spec of the tags `v3.2.0` (the minimum, Q1) and
@@ -120,7 +126,8 @@ Nothing about the triggers changed.
 | Rulings applied (2026-11-23) | `swift build --build-tests` passes, no new warnings | 1492 tests in 211 suites pass, twice in a row; the remote suites 10 of 10 runs |
 | Review fixes (2026-11-23, 977427c and the sheet-height commit) | `swift build --build-tests` passes, no new warnings | 1501 tests in 212 suites pass; the remote suites (48 tests in 6 suites) pass |
 | CI fix (2026-11-24, see **CI failure on PR #278**) | `swift build --build-tests` passes, no new warnings | 1523 tests in 214 suites pass; the three streaming-cap tests 30 of 30 runs |
-| Bundle | `Scripts/build-app.sh` passes (after the rulings and the review fixes too, and after the CI fix) | |
+| Seventh review, C22 and C23 (2026-11-24) | `swift build --build-tests` passes, no new warnings | 1528 tests in 215 suites pass; the remote suites (75 tests in 9 suites) 30 of 30 runs; `RemoteSessionTests` with the three streaming-cap tests 100 of 100 runs under CPU oversubscription |
+| Bundle | `Scripts/build-app.sh` passes (after the rulings and the review fixes too, after the CI fix, and after C22 and C23) | |
 | CI toolchain | passes (see **CI toolchain**) | |
 
 No `PreviewCacheKey.currentPipelineVersion` bump, no golden touched, no
@@ -660,6 +667,13 @@ Ruled in design.md §15 (1978f2a) and built above. As asked:
 - Downloads are one at a time; thumbnails six at a time.
 - `Retries and timeouts` numbers are the engineer's (R20); the PRD asked for a
   proposal.
+- A server or proxy that compresses answers it was not asked to compress is
+  refused (code review C23): not Immich at Add Server, an unreadable answer
+  while browsing. An import whose original comes compressed stops as "stopped
+  responding" (the importer's stop for any answer it can't read).
+- A refused certificate is kept for the session, not per task: a task that
+  fails before its answer at the same moment can take it, and the refusal then
+  reads as cancelled or unreachable (see **Seventh code review**).
 
 ## For a person (beyond PRD P1 to P7)
 
@@ -710,6 +724,10 @@ After the CI fix (2026-11-24): the same command passes (only the two older
 test warnings), and the 70 remote tests pass on that build (`swift test
 --skip-build --scratch-path .build-xcode26.3 --filter Remote`, run on macOS
 27.2, so it shows the toolchain, not macOS 15).
+
+After C22 and C23 (2026-11-24): the same command passes (only the two older
+test warnings), and the 75 remote tests pass on that build
+(`--filter "Remote|Immich"`, macOS 27.2).
 
 ## CI failure on PR #278 (2026-11-24)
 
@@ -777,3 +795,117 @@ sleep. Runs: the three streaming-cap tests (`caps`, `streamingCaps`,
 `capWhileCallerStarved`) 30 of 30 here; the full suite (1523 tests) once, on
 the fix. What could not be checked: macOS 15 and 26 themselves; the next CI
 run is the first there.
+
+## Seventh code review: C22 and C23 (2026-11-24)
+
+Both in `Sources/PhotoCore/Remote/RemoteHTTPSession.swift`; tests in
+`Tests/PhotoCoreTests/RemoteSessionTests.swift`; the fake server gained one
+fault.
+
+**C22 (a call made from a cancelled task could wait for ever): fixed.** The
+result and the caller's continuation now meet in a `ResultHandoff`, whichever
+comes first: a result that arrives before the caller has stored its
+continuation (the system reports the cancel `onCancel` sent before `start`)
+waits there, and `start` resumes at once; a second result is dropped. Both
+sinks use it, so `perform` and `download` are covered.
+- `endBeforeWait` calls `finished` before `start` on a `MemorySink` and a
+  `DownloadSink` (no threads, no sleeps) and expects the result; also the
+  usual order, and a second end dropped. Against the unfixed sinks (adapted to
+  the new `finished` signature only) it failed after its 10 s bound: the
+  bound is a helper (`RemoteSessionTests.returns(within:)`) that fails a call
+  that has not returned, instead of hanging the test; a result that is there
+  returns at once and the timer is cancelled.
+- `alreadyCancelledCalls`: 50 rounds of `data(.serverVersion)`,
+  `data(.thumbnail)` and `download(.original)` from a task cancelled before
+  the call, each `.cancelled`, the download's file gone, under the same bound.
+  It checks the outcome; the preemption window the reviewer measured can't be
+  forced from a test, so `endBeforeWait` is what pins the order.
+
+**C23 (an encoded answer got past the C4 cap): fixed by refusal at the head,
+the owner's default.** Every request sends `Accept-Encoding: identity`, and an
+answer whose `Content-Encoding` is present and is not `identity` (compared
+trimmed and without regard to case, so `GZIP` and `gzip, identity` are
+refused) is refused in the delegate's response callback, before a byte of its
+body is read: `.malformed`, the existing case for "the server's answer could
+not be read" (check: "This doesn't look like an Immich server"; browsing:
+Activity's "The server's answer could not be read", or the grid's failure;
+thumbnails: no picture). No new `RemoteError` case and no new string. A status
+other than 2xx still wins over the coding. Downloads now stop at the head for
+a status other than 2xx too (before, the head was allowed and the first body
+piece refused: a compressed 503 would have been decoded first); they map as
+before (`.status`), and an answer that isn't HTTP is now `.malformed`, as for
+JSON (it was `.cancelled`).
+- **Probe, before building it** (scratchpad, standalone programs and the
+  reviewer's `server.py`, 1 MiB of gzip decoding to 1 GiB): the head reaches
+  the delegate with `Content-Encoding: gzip`, `expectedContentLength` -1 and
+  no byte delivered before it; refusing there (`.cancel`) gave 0 bytes, 0
+  pieces, and a peak of 30 MB resident (20.9 MB footprint), against 1.37 GB
+  for the reviewer's delegate that counted bytes. With the decision held 2 s
+  before the disposition, the same: the system does not decode ahead while
+  the head waits. Also probed: `deflate` and an upper-case `GZIP` are decoded
+  by the system (so both must be refused); `Transfer-Encoding: gzip` is not
+  decoded (the compressed bytes are delivered as they are and counted by the
+  cap, so no bypass); `Content-Encoding: identity` is delivered as sent, with
+  its length.
+- Tests: `encodedRefusedAtHead` (the sinks' head decision for gzip, deflate,
+  br, `GZIP`, ` x-gzip `, `gzip, identity`; identity, ` Identity ` and empty
+  accepted; a 404 still a status; a download writes nothing),
+  `encodedAnswersRefused` (a fake that compresses everything with real
+  deflate, which a plain `URLSession` decodes into the answer, so a client
+  that let it through would read it: the check is `.notImmich`, the version,
+  album list and thumbnail `.malformed`, a download `.malformed` with 0 bytes
+  reported and no file; a `GZIP` label alone refused too; every request sent
+  `Accept-Encoding: identity`), and `identityAnswersRead` (an
+  `identity` answer: the check passes, a thumbnail and a download read as
+  before). Against the unfixed session both refusal tests failed (21 and 9
+  issues), the identity test passed.
+- Peak memory is not tested in the suite: building a decoded bomb in the test
+  process allocates as much as it would measure. The head refusal is the
+  evidence, with the probe's numbers above.
+- **Compatibility cost.** A server that compresses whatever it is asked is
+  refused everywhere. Immich and the usual reverse proxies (nginx, Caddy,
+  Traefik, Cloudflare) compress only for a client that asks, so with
+  `identity` they send plain answers; a proxy set to compress regardless is
+  reported as not Immich at Add Server. JSON now arrives uncompressed: a
+  250-photo search page is a few hundred KB instead of tens (thumbnails and
+  originals are images, not compressed either way). The caps already counted
+  decoded bytes, so none changes. The user guide says so under Importing from
+  an Immich server.
+
+**Reviewer observation (refused certificate shared by the session): narrowed,
+not made per task.** Server-trust challenges come to the session-level
+delegate method, which has no task, so a per-task record would mean dropping
+that method and relying on the task-level one: a change to the TLS path with
+no end-to-end TLS test, left out. What changed instead: a sink asks for the
+refusal only when its task failed before any answer came (a task with an
+answer got past its handshake), and `mapped(_:)` no longer takes it a second
+time. So the cap's and a status's own cancels, a refused encoding and any
+failure after the head no longer consume another task's refusal. Left, as a
+known limit: a task that fails before its head (its caller's cancel, a
+timeout, a refused connection) between another task's refused handshake and
+that task's end can still take the refusal, and the refused call then reads
+as cancelled or unreachable instead of the certificate. All tasks go to one
+host with one pin.
+
+**Results and determinism.** `swift build --build-tests` clean, no new
+warnings; full `swift test` 1528 tests in 215 suites pass; the CI-toolchain
+build passes (see **CI toolchain**); `Scripts/build-app.sh` passes. The new
+tests' outcomes are structural: `endBeforeWait` and `encodedRefusedAtHead`
+call the sinks directly on one thread, in a fixed order; the two fake-server
+tests are decided by the answer's head on the delegate's queue, not by time;
+`alreadyCancelledCalls` cancels its data task before it is resumed, so it
+never reaches the server and always ends -999 with the caller cancelled. The
+10 s bound only fails a call that never returns. Runs: the remote suites
+(75 tests) 30 of 30; `RemoteSessionTests` with `caps`, `streamingCaps` and
+`capWhileCallerStarved` 100 of 100 with 28 `yes` processes on 14 cores
+(rules out a flake rate above about 1 in 33 under load). Not checked: macOS 15
+and 26 themselves (the PR's CI is the first run there).
+
+**Open question (for the designer, not blocking).** An import whose original
+arrives compressed ends with the importer's stop for an answer it can't read,
+"“‹name›” stopped responding" (`RemoteImportStop.unreachable`), as any
+`.malformed` download already did. It is reachable only through a proxy that
+compresses images regardless of the request, and such a proxy is normally
+refused at Add Server first. Options: keep it (no cost); or list the photo as
+"could not be imported" with a reason, which needs one new report string.
+Recommendation: keep it.

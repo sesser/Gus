@@ -9,7 +9,7 @@ import Synchronization
 /// makes, filters the metadata search as Immich does (status.md, "API
 /// verification"), records every request it gets (AC5), and can be told to
 /// fail: drop connections, reject the key, lose an asset, serve corrupt
-/// bytes, redirect, or not be Immich.
+/// bytes, redirect, compress whatever it is asked, or not be Immich.
 public final class FakeImmichServer: Sendable {
     public struct Asset: Sendable {
         public var id: String
@@ -87,6 +87,8 @@ public final class FakeImmichServer: Sendable {
         public var query: String
         public var sentKey: Bool
         public var body: Data
+        /// The request's `Accept-Encoding`, if it sent one.
+        public var acceptEncoding: String?
 
         public var description: String { "\(method) \(path)" + (query.isEmpty ? "" : "?\(query)") }
     }
@@ -117,6 +119,12 @@ public final class FakeImmichServer: Sendable {
         case oversize(String)
         /// Every answer is sent chunked, with no `Content-Length`.
         case chunked
+        /// Every answer says `Content-Encoding: <coding>`, whatever the
+        /// request asked for, as a reverse proxy that compresses everything
+        /// does. `deflate` compresses the body (zlib, RFC 1950), so a client
+        /// that read it would get the answer; any other coding labels the body
+        /// as it is.
+        case contentEncoding(String)
     }
 
     public static let ownerID = "11111111-1111-4111-8111-111111111111"
@@ -302,13 +310,18 @@ public final class FakeImmichServer: Sendable {
         let key = request.headers["x-api-key"]
         let snapshot = state.withLock { state -> State in
             state.requests.append(Request(method: request.method, path: request.path, query: request.query,
-                                          sentKey: key != nil, body: request.body))
+                                          sentKey: key != nil, body: request.body,
+                                          acceptEncoding: request.headers["accept-encoding"]))
             return state
         }
         snapshot.onRequest?(request.path)
         if snapshot.faults.contains(.drop) { return connection.cancel() }
         var response = answer(request, key: key, state: snapshot)
         response.chunked = snapshot.faults.contains(.chunked)
+        for case .contentEncoding(let coding) in snapshot.faults {
+            response.headers["Content-Encoding"] = coding
+            if coding == "deflate" { response.body = Self.zlib(response.body) }
+        }
         let answered = snapshot.onAnswered
         let path = request.path
         send(response, on: connection) { answered?(path) }
@@ -445,6 +458,20 @@ public final class FakeImmichServer: Sendable {
         return .json(["albums": ["total": 0, "count": 0, "items": [], "facets": []],
                       "assets": ["total": items.count, "count": items.count, "items": items, "facets": [],
                                  "nextPage": NSNull(), "nextCursor": next]])
+    }
+
+    /// `data` in the zlib format (RFC 1950): a header, raw deflate, and the
+    /// Adler-32 of the data.
+    static func zlib(_ data: Data) -> Data {
+        guard let deflated = try? (data as NSData).compressed(using: .zlib) as Data else { return data }
+        var a: UInt32 = 1, b: UInt32 = 0
+        for byte in data {
+            a = (a + UInt32(byte)) % 65521
+            b = (b + a) % 65521
+        }
+        let adler = (b << 16) | a
+        return Data([0x78, 0x9C]) + deflated
+            + Data([UInt8(adler >> 24), UInt8((adler >> 16) & 0xFF), UInt8((adler >> 8) & 0xFF), UInt8(adler & 0xFF)])
     }
 
     private func send(_ response: Response, on connection: NWConnection, done: @escaping @Sendable () -> Void) {
