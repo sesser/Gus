@@ -717,3 +717,151 @@ C23 and the session-wide `refused`.
 
 C22 and C23 are open. Record each here with its commit, or with the ruling if
 C23 is accepted as a documented bound.
+
+## Eighth pass
+
+Reviewed: `feature/immich-import`, 9dca22c..573ef5c (573ef5c: C22 and C23;
+`RemoteHTTPSession.swift`, `FakeImmichServer.swift`, the new
+`RemoteSessionTests.swift`, `USER_GUIDE.md`, `status.md`). Date: 2026-11-24.
+Correctness, concurrency, regressions and tests only; a separate security
+review covers the same code. Build and tests: `swift build --build-tests`
+clean. `swift test --filter
+"RemoteSessionTests|RemoteReviewFixTests|RemoteConnectionTests|RemoteBoundaryTests|RemoteImportTests|RemoteSecurityTests|LocalizationTests"`:
+62 tests in 8 suites pass. `gh pr checks 278` on 573ef5c: all four jobs pass
+(test and bundle, macos-15 and macos-26). Probes ran in a throwaway worktree
+(removed) and in standalone programs under the scratchpad.
+
+### Verdict
+
+C22 and C23 are closed, and nothing earlier regressed. The handoff has no path
+that loses a result or resumes twice. An encoded answer is refused at its
+head, and with that refusal a 512 MiB gzip bomb peaks at 16 MB resident. One
+Should-fix finding is new, and it is a test gap only. The commit narrowed when
+a sink takes a refused certificate, but no test checks that a refused
+handshake still becomes `.certificate`. With the take removed from both sinks,
+all 75 remote tests still pass (C24). The code itself is ready; C24 is a
+test-only change.
+
+### Findings
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C24 | Should fix | `Sources/PhotoCore/Remote/RemoteHTTPSession.swift:402` (`MemorySink.finished`), `:496` (`DownloadSink.finished`); `Tests/PhotoCoreTests/RemoteSessionTests.swift` | This commit changed the rule for taking a refused certificate. Before, the delegate passed it for any error. Now each sink takes it only when its task failed with no head (`status == 0`). Nothing tests the positive half: a task that fails before any answer, with a refusal waiting, must end as `.certificate`. The fake is plain http, so there is no end-to-end TLS test either. `encodedRefusedAtHead` checks only the negative half, and only for `MemorySink`: a sink with a head does not take it. | Mutation, in a throwaway worktree at 573ef5c: `refused: state.status == 0 ? takeRefused() : nil` became `refused: nil`, and the `takeRefused()` line in `DownloadSink.finished` was deleted. `swift test --filter "Remote\|Immich\|ServerSheet\|ServerText\|Trust"` then passes all 75 tests in 9 suites. A regression like that (an inverted condition, say) would show a changed certificate as "Can't reach" with the reason "cancelled". The certificate page (R6) would never appear, and nothing in the suite would say so. Fix: a test that calls `finished(URLError(.cancelled), takeRefused: { decision })` on a `MemorySink` and a `DownloadSink` with no head, and expects `.certificate(decision)`, through `mapped(_: TaskFailure)` for the memory sink. Add the `DownloadSink` half of the negative case (a head received, so no refusal is taken). | Tests: a changed behavior has a test that fails without it |
+| C25 | Nit | `Tests/PhotoCoreTests/RemoteSessionTests.swift:72-76` (`endBeforeWait`, "The usual order still works") | `async let waited` starts a child task, and `usual.received` and `finished` run on the parent without waiting for the child to call `start`. Which order is checked (waiting, then delivered; or ready, then waited) depends on scheduling. Both pass, so the test is not flaky, but its comment claims an order it does not pin. The waiting-then-deliver path is exercised by every network test (`start` always runs before `task.resume()`), so nothing is uncovered. | No wrong result. The comment overstates what the lines check. | Tests: deterministic, says what it checks |
+
+### Confirmations
+
+- **C22: closed.** `ResultHandoff` has four states under one `Mutex`:
+  `empty → waiting → handedOver` (the usual order),
+  `empty → ready → handedOver` (the result first), and any later `deliver`
+  dropped. Each continuation is resumed outside the lock, exactly once: only
+  the call that moves the state to `handedOver` returns the continuation or
+  the value. `wait` is called once per sink (`start` in `perform` and
+  `download`). A second `wait` would be a programming error and traps; it
+  cannot be reached. Paths traced:
+  - **Cancel before start.** `onCancel` cancels the suspended task. The -999
+    comes on the delegate's queue either before `start` (`ready`, and `wait`
+    resumes at once) or after (`waiting`). `perform` maps -999 with
+    `Task.isCancelled` to `.cancelled`. `download` removes the file and throws
+    `.cancelled`.
+  - **Cancel during.** Unchanged, and goes through the handoff.
+  - **Finish before start.** Same as cancel before start.
+  - **Error after the head.** `MemorySink` sends `.transport` with no refusal
+    (`status != 0`), mapped as before. `DownloadSink` gives `.unreachable` or
+    `.cancelled`, as before. Its own refusal (status, coding, length, disk)
+    wins over the -999 its cancel causes.
+  - **Downloads remove their partial file.** Every `.failure` goes through
+    `removeItem` in `download`, the cancelled-before-start one included
+    (`alreadyCancelledCalls` checks that the file is gone on every round).
+
+  Lock order is one-way. `takeRefused` (the delegate's lock) is called inside
+  a sink's lock, and the delegate never holds its lock while it calls a sink:
+  `sink(_:)` returns before `received` or `finished` runs. So there is no
+  inversion. `unregister` still follows every resume. `endBeforeWait` fails
+  on the unfixed sinks, as the seventh pass's own probe and the code show: the
+  old `finished` resumed `continuation?` while it was nil, and dropped the
+  result.
+- **C23: closed.** Every request sends `Accept-Encoding: identity`; the fake
+  records it, and `encodedAnswersRefused` asserts it for every request.
+  `ContentCoding.isIdentity` refuses any `Content-Encoding` that is not empty
+  or `identity` after trimming and lower-casing. Probe (Python server,
+  delegate client): two header lines, `identity` then `gzip`, arrive as
+  `"identity, gzip"`. The reverse order gives `"gzip, identity"`, and
+  `identity,gzip` comes through as it was sent. Foundation trims a tab-padded
+  `\tgzip\t` to `"gzip"`. All four are refused by the rule. A non-2xx status
+  is checked before the coding in both sinks, so a gzip 404 is `.status(404)`
+  and a gzip 503 stays transient. No endpoint is HEAD, and no request can get
+  a 304: the allowlist has GET and POST only, and there is no cache and no
+  conditional header. A 204 with a coding would be `.malformed`, and no
+  endpoint answers 204. The memory bound, probed with gzip answers that
+  decode to 1 MiB, 64 MiB and 512 MiB, sent in one write after the head and
+  refused at the head: 0 body bytes, `expectedContentLength` -1, peak
+  resident 14 to 16 MB in every case. `encodedAnswersRefused` fails on the
+  unfixed session: its deflate is real (a plain `URLSession` decodes it), so
+  the old client would have passed the check.
+- **Downloads at the head, against the callers.** Non-2xx is now refused at
+  the head. It maps to the same `.status(code)` as before (`RemoteImporter`:
+  404 deleted on server, 401, 403, 5xx retried, any other code a server error,
+  all unchanged). A non-HTTP head is now `.malformed` (it was `.cancelled`).
+  `RemoteImporter` maps that to the `default` stop, `.unreachable` ("stopped
+  responding") instead of `.stopped`. URLSession gives an `http(s)` task no
+  non-HTTP response, so nobody sees the difference. An encoded original stops
+  the import as "stopped responding". That is recorded in `status.md` with the
+  designer question, and I agree with "keep it". Thumbnails go through
+  `perform`, and `.malformed` gives no picture. The check maps `.malformed` to
+  `.notImmich` at each of its three steps, so of the Server sheet's results an
+  encoded server gives only "This doesn't look like an Immich server". Every
+  other result is unchanged. `ServerSource.reason` gives "The server's answer
+  could not be read" for `.malformed`, the existing string, so there is no new
+  string; `LocalizationTests` passes.
+- **`takeRefused` narrowing.** For the common case, one failing request, it
+  is right. A refused handshake gives no head, so `status == 0`, no sink
+  refusal, an error, and the sink takes the decision: `.certificate` for both
+  sinks. `check()` runs its three requests one at a time on a session made for
+  that check (`ServerSource.check` builds a new `ImmichClient` each time). So
+  step 1's refusal reaches `.untrustedCertificate` or `.certificateChanged`,
+  and the sheet's certificate page appears. That is by reading; C24 is the
+  missing test. `mapped(_ error:)` no longer takes the refusal, and no other
+  caller needs it: every request error comes through a sink.
+
+  The recorded known limit (`status.md`, Seventh code review) is accurate.
+  One form of it is worth knowing: `refused` is one slot, emptied on take. If
+  several tasks are refused at once (parallel thumbnails, or albums and the
+  first page on new connections), one of them reads `.certificate`, and the
+  rest read `.unreachable("cancelled")` or `.cancelled`. That can happen only
+  when the certificate changes after a passed check on the same session. Each
+  open of a server checks first, alone. It is older than this commit (the
+  slot was session-wide before), so it is an observation, not a finding.
+- **User guide.** True. The app sends `identity` and refuses an encoded
+  answer at its head, before reading the body. Add Server and every open of a
+  saved server run the check, which says "doesn't look like an Immich
+  server". While browsing, the album list and later pages report "The
+  server's answer could not be read" in Activity. The precise mapping is in
+  `status.md`: a failing first page shows the grid's not-Immich failure, and a
+  thumbnail shows no picture. The guide's parenthesis simplifies this but
+  says nothing false.
+- **Tests against unfixed code.** `endBeforeWait`, `encodedRefusedAtHead`
+  and `encodedAnswersRefused` fail on it, by reading. The old sinks drop a
+  result that comes before `start`, accept a gzip head, and decode the fake's
+  deflate. That agrees with the engineer's report (21 and 9 issues).
+  `alreadyCancelledCalls` and `identityAnswersRead` are outcome and
+  no-regression tests that pass on old code, which the engineer says.
+- **Determinism.** The claim meets `docs/WORKFLOW.md`, by a structural
+  argument plus a count. `endBeforeWait` and `encodedRefusedAtHead` call the
+  sinks directly in a fixed order, apart from C25's `async let`, where both
+  orders pass. `encodedAnswersRefused` and `identityAnswersRead` are decided
+  by the head on the delegate's queue, not by time. `alreadyCancelledCalls`
+  cancels before `resume`, so it always ends with -999 in a cancelled task.
+  The only timing is the 10 s bound, which fails only a call that has not
+  returned. 100 of 100 runs under 2x CPU oversubscription rule out a flake
+  rate above about 1 in 33. I did not repeat the count; one run here passed.
+- **Fake server.** `contentEncoding` is applied after the answer is built and
+  before it is sent. `zlib` builds a valid RFC 1950 stream (header, raw
+  deflate, big-endian Adler-32), and the test's plain-`URLSession` read proves
+  it. The `acceptEncoding` field is recorded for every request.
+- **Risk area.** Yes: network code (caps, certificate mapping, headers), and
+  cancellation with shared state off the main actor.
+
+### Follow-up
+
+C22 and C23: Fixed in 573ef5c (confirmed above). C24 and C25 are open.
