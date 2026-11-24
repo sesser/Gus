@@ -57,3 +57,162 @@ Notes the review raised, no change asked:
 Both findings fixed on 2026-11-23 (the commit after 1deda12); the tests above
 fail on the unfixed code (checked by reverting the three fixes locally: 43
 issues in `templateFallback`, `keyRollback` and `endToEnd`) and pass with them.
+
+## Second review: RemoteHTTPSession after the CI and C22/C23 fixes (2026-11-24)
+
+Reviewed: `git diff 465fbec..573ef5c` (9dca22c, the delegate-driven data task
+for CI on PR #278; 573ef5c, C22 and C23), mainly
+`Sources/PhotoCore/Remote/RemoteHTTPSession.swift`, with
+`Sources/PhotoFixtures/FakeImmichServer.swift` and the new tests for intent.
+This was a read-only review (model claude-opus-5-5). It changed nothing in the
+repository except this section. Probes ran under the scratchpad:
+- a Python server sending chosen heads and bodies;
+- standalone Swift programs that copy the sinks' head logic
+  (`ContentCoding.isIdentity`, `.cancel` at the head);
+- the branch's own `RemoteHTTPSession.swift`, compiled standalone with
+  `ServerAddress`, `RemoteTrust`, `ImmichAPI`, `RemoteAsset` and stubs for
+  three unrelated types, calling `data(.serverVersion)` over plain http to
+  127.0.0.1.
+
+# Vuln 1: Resource exhaustion (decompression bomb; C23 is not closed): `Sources/PhotoCore/Remote/RemoteHTTPSession.swift:257-273`, `:370-373`, `:457-460` (transport: `:156`, `:225`)
+
+* Severity: Medium
+* Description: The C23 fix assumes the system decodes nothing before the
+  delegate's response callback. That holds only when the system has no reason
+  to read the body before it hands over the head. Two conditions change that:
+  - the answer has no `Content-Type`, or has `text/plain`, so the system
+    sniffs the content type, and the server chooses its headers;
+  - the body arrives after the head, which is normal: most servers write the
+    head and the body separately.
+
+  When both hold, URLSession decodes the gzip body it has already read, and
+  only then delivers the head. The head is still refused (`.malformed`), but
+  the decoded memory has already been allocated, and it stays in the process
+  footprint after the call. The status.md probe (C23: "refusing there gave 0
+  bytes … 30 MB") sent the head and body in one write. The fake server always
+  sends a `Content-Type`. So neither saw this. The identity check itself has
+  no bypass (see "Checked" below).
+
+  Measurements. The answer is 1,043,658 bytes of gzip (1 GiB of spaces) with
+  `Content-Encoding: gzip` and no `Content-Type`:
+  - **The branch's session.** `RemoteHTTPSession.data(.serverVersion)` (cap
+    64 KiB). The server sends the head, waits 200 ms, then sends the body. The
+    call ends `.malformed` after 250 to 300 ms, with a footprint of 164 to
+    405 MB after one call. Eight calls in one session leave 590 MB held.
+  - **The same head logic, 30 runs per case** (peak resident):
+    - head and body in two writes, no pause: 18 of 30 runs at 333 to 798 MB;
+    - a 10 ms pause: every run at 173 MB or more, two at 2,062 MB;
+    - a 200 ms pause: every run at 269 MB or more, 13 of 30 at 1 GB or more,
+      up to 2,062 MB;
+    - 2 MiB of gzip (2 GiB decoded): up to 2,484 MB.
+  - **How much is decoded.** About 1,000 times what the system read in one go
+    before it delivered the head. That depends on socket buffers: a faster
+    link reads more.
+  - **Controls.** The same answer with `Content-Type: application/json`: 12 to
+    28 MB. Head and body in one write: 44 MB.
+* Exploit Scenario: A person types an attacker's address in Add Server…. It
+  can be https with a publicly trusted certificate for the attacker's own
+  name, or plain http to a local host after the notice. The unauthenticated
+  `GET /api/server/version` gets about 1 MiB as above. The app's memory rises
+  by hundreds of MB to over 2 GB per attempt, and each retry adds more. A
+  compromised Immich server can do the same on every thumbnail (six at a
+  time), album list, search page and original. This affects availability
+  only: nothing is read or written.
+* Recommendation: URLSession has no public way to turn off content decoding or
+  sniffing, so no check in the delegate can close this. The owner chooses:
+  - **(a) A transport that never decodes.** Either:
+    - `URLSessionStreamTask` (`streamTask(withHostName:port:)`, then
+      `startSecureConnection()`). Check that the server-trust challenge still
+      reaches `SessionDelegate.handle`.
+    - `NWConnection`, with `sec_protocol_options_set_verify_block` running
+      `TrustDecision.decide`. This changes CLAUDE.md's "Nothing else may use
+      `URLSession`" wording.
+
+    Both need a small HTTP/1.1 reader written here:
+    - the status line and headers under a fixed total (64 KiB, say);
+    - `Content-Length` or chunked bodies;
+    - any `Content-Encoding` other than identity refused;
+    - today's caps counted on the bytes as they arrive.
+
+    That reader is a new parser of outside data, a risk area that needs its
+    own tests (for example: an encoded answer ends at its head and no decoded
+    byte reaches a sink). It also closes Low 1.
+  - **(b) Accept a documented bound.** Hundreds of MB to a few GB per answer,
+    as measured. Then correct the C23 record in status.md ("Seventh code
+    review") and code-review.md, which say the body is refused "before a byte
+    of its body is read".
+
+  Either way, add a fake-server fault that sends the head with no
+  `Content-Type`, pauses, then sends a gzip body, so the case is exercised.
+
+## Lows
+
+- **L1: unbounded response head** (URLSession behavior, older than this
+  diff). The system buffers a head until it ends or the request timeout (30 s)
+  fires. Measured with the branch's session, the server sending at 40 MiB/s:
+  - one endless header line: peak 1.04 GB;
+  - endless 1 KB header lines: peak 2.66 GB, about 2.4 times the bytes sent.
+
+  Both ended `.unreachable("The request timed out.")` after 30.5 s, and the
+  memory stayed held. A flood of `100 Continue` heads peaked at 215 MB before
+  the system dropped the connection (-1005). This is bounded by bandwidth and
+  time and not amplified, so it is rated Low. A 1 GbE link would reach several
+  GB. Option (a) above fixes it.
+
+## Checked and sound
+
+- **The identity check** (probed against the system's parsing):
+  - The header lookup ignores case.
+  - The system joins repeated `Content-Encoding` lines, and every joined form
+    is refused: `gzip, identity`, `identity, gzip`, `identity, ` and `, gzip`.
+  - A folded line reads `identity gzip` and is refused.
+  - Also refused: `Content-Encoding : gzip`, no space, a tab, `\v`, a trailing
+    NUL, `x-gzip` and `identity , gzip`.
+  - `Transfer-Encoding: gzip, chunked` is not decoded: the compressed bytes
+    arrive as they are, in pieces of at most 132 KB, and the cap counts them.
+  - `Content-Type: application/x-gzip` without `Content-Encoding` is not
+    decoded.
+  - In `multipart/x-mixed-replace`, each part's head goes through
+    `received(_ response:)` again, and a part labelled gzip is refused without
+    being decoded.
+- **The key.** `makeRequest` is unchanged: the allowlist is checked first, the
+  built host is checked, and `x-api-key` is sent only when `sendsKey` is set.
+  Data tasks get the same redirect delegate (`completionHandler(nil)`). No
+  description or error carries the key. The new error strings are the
+  system's own: URLError text with the failing URL removed, and `.disk`
+  reasons from the local disk. None carries text the server sent.
+- **Certificates.**
+  - A refusal is recorded only for the connection's own host.
+  - A refused handshake never produces a response, so a refusal taken by the
+    wrong task, or left over, can only change which error is reported
+    (cancelled or unreachable instead of the certificate). It never lets an
+    answer through.
+  - Only `.pinned` and `.systemTrusted` are accepted.
+  - The check sends one request at a time.
+- **Caps on plain answers.**
+  - `Content-Length` is checked at the head.
+  - Each piece is counted before it is appended.
+  - A download is checked against `limit` before each write.
+  - A refusal at the head (status or encoding) writes nothing.
+  - The result is delivered only from `didCompleteWithError`, the last
+    callback, and the handle is closed after it, so nothing is written after
+    close.
+  - The partial file is `.download-<UUID>.<ext>` in the chosen folder, with
+    the extension taken from a name F1 already restricts.
+- **Result handoff (C22).** There is one sink per task identifier, and
+  identifiers are never reused in a session. The first result wins, and a
+  second wait traps. A call already cancelled ends `.cancelled` with its
+  partial file removed. No path delivers twice, delivers to another call or
+  leaves a partial file.
+- **Session posture** is unchanged:
+  - the session is ephemeral;
+  - there are no cookies, no cache and no credential storage;
+  - challenges other than server trust get `.rejectProtectionSpace`.
+- **Fake server.** The changes are for tests only: `onRequest`,
+  `onAnswered` and the `contentEncoding` fault.
+
+## Status
+
+Vuln 1 is open: the owner chooses (a) or (b), and the engineer then builds it
+or corrects the record. L1 is recorded for information; option (a) would
+close it.
