@@ -402,10 +402,12 @@ public final class RemoteImporter: Sendable {
         case .existing(let id):
             projectID = id
         case .named(let name):
-            var cleaned = ImportTemplate.sanitize(name)
-            if cleaned.isEmpty { cleaned = options.link.address }
-            let project = try await catalog.createProject(name: cleaned, sourcePath: options.destination.path)
-            guard let id = project.id else { throw CocoaError(.fileNoSuchFile) }
+            // Added to a project of exactly this name when there is one, so
+            // importing the same scope again doesn't make a second project
+            // (the owner's ruling of 2026-11-24; `projectForImport`).
+            let found = try await catalog.projectForImport(named: RemoteProjectName.cleaned(name, address: options.link.address),
+                                                           sourcePath: options.destination.path)
+            guard let id = found.project.id else { throw CocoaError(.fileNoSuchFile) }
             projectID = id
         }
         let run = try await catalog.createImportRun(sourcePath: options.link.address, projectID: projectID)

@@ -93,8 +93,15 @@ edit.
 The options inspector starts with a **Server** section (name, address,
 Immich version, how the connection is protected, **Edit Server…**). The
 project name starts as "‹server name› - ‹album or All Photos›" and is plain
-text you can change; there is no After Import section, since nothing on the
-server is ever changed or deleted. **Import N Photos** downloads each
+text you can change. When a project already has that name (exactly, letter
+case included; extra spaces in the field don't count), the photos are added to
+it instead of making a second one, so importing All Photos again goes into the
+same project and each album keeps its own; if several projects share the name,
+the oldest is used, and it keeps its folder for Show in Finder. A card or
+folder import set to **New Project** still always makes a new one. There is
+no After Import section,
+since nothing on the server is ever changed or deleted. **Import N Photos**
+downloads each
 original under a hidden temporary name, checks its size and the SHA-1 the
 server gave, and moves it into place under your file name template; a
 download that does not match is discarded. A photo in an Immich external
@@ -102,7 +109,7 @@ library is checked by its size only, since Immich's checksum for it can be of
 its path rather than its content (Activity says how many were); one whose size
 the server doesn't give is not imported. Photos whose content is already
 in the library are not imported again. Imported photos are ordinary photos
-in a new project, each remembering which Immich photo it came from. A
+in that project, each remembering which Immich photo it came from. A
 description and a star rating from Immich are added to a new photo when it
 has none of its own, and then follow the usual sidecar rules. Of a Live
 Photo only the still is imported. **Stop** (⌘.) ends the downloads and keeps

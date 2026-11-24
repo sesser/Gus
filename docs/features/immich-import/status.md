@@ -16,6 +16,10 @@ DQ-8, DQ-9 wording (see **Review findings**). Held for the owner, unchanged:
 C10, the Tailscale range and the Info.plist string. Next: the second passes
 of code review and design review, then qa-tester.
 
+**2026-11-24, owner's sign-off finding O1 (project reuse by name):** fixed,
+state **Done** again (see **Owner finding at sign-off**). Next: code review's
+second pass, the designer for DQ-12 and DQ-13, qa-tester, then the owner.
+
 ## API verification (first task, 2026-11-23)
 
 Read from the OpenAPI spec of the tags `v3.2.0` (the minimum, Q1) and
@@ -488,6 +492,84 @@ Third pass (2026-11-23): C19 `streamingCaps` now calls `download(assetID:to:limi
 | Q4 "Imported 0 photos" in the window | The window says "No photos were imported" when nothing was imported, as Activity does | Scripted: a second server with the same three photos → done "No photos were imported", Activity "No photos were imported." |
 
 1514 tests pass; CI toolchain build and `Scripts/build-app.sh` pass.
+
+## Owner finding at sign-off (2026-11-24)
+
+**O1.** Every server import made a new project named "‹connection› -
+‹scope›" (`RemoteImporter.makeTarget`, `case .named` called
+`createProject`), so two imports of All Photos from one server gave two
+projects of the same name (84 and 9 photos in the owner's sidebar). The
+owner's ruling: **reuse by name**. The prefilled plain-text Project name field
+stays; when the name the import would give a new project matches an existing
+project, the photos go into that project. Albums stay separate because their
+prefilled names differ. Card and folder imports are unchanged
+(`CopyImporter` and `Importer` still call `createProject`).
+
+| Decision | Rule chosen | Why |
+|---|---|---|
+| What is compared | The field's text after the existing cleaning (`RemoteProjectName.cleaned`: `ImportTemplate.sanitize`, else the server's address), against each stored project name as stored | It is the name a new project would get, so "the same name" means "the project this import would otherwise have made a twin of" |
+| How | Exact, Swift string equality: case counts; canonically equivalent Unicode forms are equal (an NFD "é" finds the NFC one); the comparison is in Swift, not SQLite's byte-wise `=` | The library already treats project names as exact strings: `InPlaceRename.resolve` compares `name == current` with case, and two projects may share a name. Spaces are not a separate rule: the cleaning already collapses runs and trims the ends of the field, so "  Home   - All Photos " is "Home - All Photos". A stored name with a double space inside (possible after a rename) is not matched by the cleaned single-space name |
+| Several projects already have the name | The **oldest**: `createdAt` ascending, then `id` ascending | Deterministic, and it never moves: projects made later (a card import, a rename) don't take the server's photos away from the one already holding them. It is the lowest of the twins in the sidebar (newest first). The owner's existing duplicates are left as they are (no merge) |
+| Atomicity | `Catalog.projectForImport(named:sourcePath:)`: lookup and insert in one GRDB write | Writes are serialized, so two imports (or two tasks) can't both create it |
+| Source path | A reused project keeps its `sourcePath`; the photos still land in this import's destination | Same as a card import into an existing project (Add to): `CopyImporter`'s `.existing` never changes it. Project ▸ Show in Finder keeps showing the first import's folder; each photo's Show in Finder shows where it is |
+| When the project is chosen | Unchanged: when the first photo verifies. An import that brings nothing touches no project | |
+| Import runs | Each import is still its own `importRun`, pointing at the reused project | |
+| Wording | No string changed, no String Catalog entry added. There is no helper text under the field. Two places now read differently from what happens: the **Add to** pop-up's "New Project" (it may add to an existing one for a server) and design §5.3. Both are Design questions below | Anything the person sees beyond this is the designer's |
+
+Code: `Catalog.projectForImport` (`Catalog/Catalog.swift`),
+`RemoteProjectName.cleaned` (`Remote/RemoteBrowseRules.swift`),
+`RemoteImporter.makeTarget`. `docs/USER_GUIDE.md`: the server import
+paragraph says the name rule, the oldest twin, the kept folder, and "in that
+project" for "in a new project".
+
+Tests (`RemoteProjectReuseTests`, 6):
+- `secondImportReuses`: two imports of All Photos, two photos each: one
+  project, both results name it, four images in it, two import runs in it.
+- `differentNameCreates`: "Home - Trip" after "Home - All Photos": two
+  projects.
+- `comparison`: extra spaces reuse; "home - all photos" makes a new one; NFD
+  finds NFC; an empty field falls back on the address.
+- `severalWithTheName`: three twins, the oldest made second (larger id) is
+  chosen; a `createdAt` tie goes to the smaller id.
+- `keepsSourcePath`: a second import to another folder reuses the project, the
+  project keeps the first folder, the photo lands in the second.
+- `concurrentLookups`: 16 tasks ask for one name at once: one creates, one
+  project. Structural argument: one write each, serialized by GRDB, no timing.
+
+`secondImportReuses` and `keepsSourcePath` fail with the old `createProject`
+call put back in `makeTarget` (checked: "projects.count == 1" and the name
+list failed); the other four test the new catalog function directly.
+
+Scripted (a bundle copy with `CFBundleIdentifier`
+`me.sesser.gus.debugtest.immich`, a `photobench` scratch library,
+`--library-root` on the launch): `import server fake start 5; import server
+add Home fake`, toggle 0 and 1, `import run` → `print projects` "Home - All
+Photos=2"; toggle 2, `import run` → "Home - All Photos=3", still one project
+of that name; `import album Trip` prefills "Home - Trip".
+
+| When | `swift build` | `swift test` |
+|---|---|---|
+| O1 (2026-11-24) | `swift build --build-tests` passes, no new warnings | 1520 tests in 214 suites pass |
+| CI toolchain | `DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer swift build --build-tests --scratch-path .build-xcode26.3` passes (only the two older test warnings in `SmartAlbumTests` and `VirtualCopiesTests`) | |
+| Bundle | `Scripts/build-app.sh` passes | |
+
+## Design questions (O1, for the designer)
+
+- **DQ-12. Design §5.3's "One project per import run." is now wrong.** Built:
+  a server import adds to an existing project whose name is exactly the
+  cleaned Project name (the oldest when several have it), else makes one. The
+  designer is asked to replace the sentence in §5.3 (and wherever it is
+  repeated) with the rule above. No code waits on it.
+- **DQ-13. "New Project" in the Add to pop-up.** For a server source, "New
+  Project" now adds to an existing project when the typed name matches one.
+  Options: (a) leave it, the user guide explains (no cost); (b) a one-line
+  note under the Project name field while the name matches, e.g. "Adds to the
+  existing project." (one string, a catalog lookup per name change on the
+  main actor against the already loaded `library.projects`, cheap); (c) rename
+  the item for a server source (one string, but "New Project" is shared with
+  card imports and the pop-up's look changes by source). Recommendation: (b),
+  or (a) if the designer thinks the matching name is clear enough. Nothing
+  built until ruled.
 
 ## Known limits
 

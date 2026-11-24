@@ -172,6 +172,17 @@ public enum RemoteProjectName {
     public static func prefill(connection: String, scope: String) -> String {
         "\(connection) - \(scope)"
     }
+
+    /// The project name an import uses: the field's text made safe as one
+    /// path component (`ImportTemplate.sanitize`: control characters
+    /// dropped, `/`, `:` and `\` made `-`, runs of spaces collapsed, leading
+    /// dots and trailing dots and spaces trimmed), else the server's address.
+    /// The import adds to an existing project of exactly this name
+    /// (`Catalog.projectForImport`).
+    public static func cleaned(_ typed: String, address: String) -> String {
+        let cleaned = ImportTemplate.sanitize(typed)
+        return cleaned.isEmpty ? address : cleaned
+    }
 }
 
 /// What a finished server import says in Activity (design §6.2), as lines the

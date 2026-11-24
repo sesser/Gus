@@ -129,6 +129,31 @@ extension Catalog {
         }
     }
 
+    /// The project a server import adds to (#271, the owner's ruling of
+    /// 2026-11-24): the existing project whose name is exactly `name` (Swift
+    /// string equality: case and inner white space count, canonically
+    /// equivalent Unicode forms are equal), else a new one made with
+    /// `sourcePath`. When several projects have that name, the oldest
+    /// (`createdAt`, then `id`) is the one, so the choice never moves as
+    /// projects are added. An existing project keeps its `sourcePath`. The
+    /// lookup and the insert are one write, so two imports can't both make
+    /// the project.
+    public func projectForImport(named name: String, sourcePath: String?,
+                                 createdAt: Date = Date()) async throws -> (project: ProjectRecord, created: Bool) {
+        try await database.write { db in
+            // Compared in Swift, not by SQLite's byte-wise `=`, so an NFD name
+            // finds its NFC twin.
+            let existing = try ProjectRecord
+                .order(ProjectRecord.Columns.createdAt.asc, ProjectRecord.Columns.id.asc)
+                .fetchAll(db)
+                .first { $0.name == name }
+            if let existing { return (existing, false) }
+            var project = ProjectRecord(name: name, sourcePath: sourcePath, createdAt: createdAt)
+            try project.insert(db)
+            return (project, true)
+        }
+    }
+
     /// Projects, newest first, with the number of versions in each. With
     /// `groupingPairs`, a RAW+JPEG pair counts once.
     public func projectSummaries(groupingPairs: Bool = true) async throws -> [ProjectSummary] {
