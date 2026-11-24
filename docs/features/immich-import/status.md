@@ -605,6 +605,26 @@ column, text from the leading edge, the note under it on one line at the
 default width and wrapping to two at the narrowest, nothing cut at the
 trailing edge.
 
+### Review nits after DQ-13 and DQ-14 (2026-11-24)
+
+Code review "Fifth pass" and design review "Fourth pass": no blocking or
+should-fix findings; two nits taken.
+
+| Finding | Fix | Test or check |
+|---|---|---|
+| C21 the empty-field fallback was tested only through `cleaned`, under a comment saying it was reused | `comparison` now calls `projectForImport` with `cleaned("  ")` and `cleaned("")`: the first creates a project named the address, the second finds it; the `" / "` case has its own comment. New `emptyFieldImportsReuse`: two imports with the field `"  "` then `""` give one project named the link's address, both results name it, and `addsToExistingProject` agrees for an empty field | `emptyFieldImportsReuse` fails with `makeTarget` passing the raw name instead of `cleaned` (checked: three expectations fail), passes as built |
+| N-9 the guide didn't tie the rule to Add to | The server paragraph now says "With **Add to** set to **New Project**, a project that already has that name…" and "Choosing a project in **Add to** puts the photos in it, and the field is hidden (and with it the line)." The empty-field fallback stays out, as the reviewer allowed | |
+| N-8 (one line or two at the narrowest) | Nothing to change in code; the owner's look (the review's M12) | |
+
+The look check is the design review's **M12** (this file's "M1" above is the
+same check; the review's numbering wins).
+
+| When | `swift build` | `swift test` |
+|---|---|---|
+| C21, N-9 (2026-11-24) | `swift build --build-tests` passes | 1522 tests in 214 suites pass; `RemoteProjectReuseTests` 8 of 8 |
+| CI toolchain | `DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer swift build --build-tests --scratch-path .build-xcode26.3` passes | |
+| Bundle | `Scripts/build-app.sh` passes | |
+
 ## Design questions (O1, for the designer): ruled
 
 Ruled in design.md §15 (1978f2a) and built above. As asked:

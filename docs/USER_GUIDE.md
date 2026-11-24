@@ -92,15 +92,17 @@ edit.
 
 The options inspector starts with a **Server** section (name, address,
 Immich version, how the connection is protected, **Edit Server…**). The
-project name starts as "‹server name› - ‹album or All Photos›" and is plain
-text you can change. When a project already has that name (exactly, letter
-case included; extra spaces in the field don't count), the photos are added to
-it instead of making a second one, so importing All Photos again goes into the
-same project and each album keeps its own. A line under the field says so
-while the name matches: **Adds to the existing project with this name.** If
-several projects share the name, the oldest is used, and it keeps its folder
-for Show in Finder. A card or folder import set to **New Project** still
-always makes a new one. There is no After Import section, since nothing on
+**Project name** starts as "‹server name› - ‹album or All Photos›" and is
+plain text you can change. With **Add to** set to **New Project**, a project
+that already has that name (exactly, letter case included; extra spaces in the
+field don't count) gets the photos instead of a second one being made, so
+importing All Photos again goes into the same project and each album keeps its
+own. A line under the field says so while the name matches: **Adds to the
+existing project with this name.** If several projects share the name, the
+oldest is used, and it keeps its folder for Show in Finder. Choosing a project
+in **Add to** puts the photos in it, and the field is hidden (and with it the
+line). A card or folder import set to **New Project** still always makes a new
+one. There is no After Import section, since nothing on
 the server is ever changed or deleted. **Import N Photos** downloads each
 original under a hidden temporary name, checks its size and the SHA-1 the
 server gave, and moves it into place under your file name template; a

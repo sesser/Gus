@@ -73,10 +73,38 @@ struct RemoteProjectReuseTests {
         let composed = try await catalog.projectForImport(named: "Caf\u{E9} - All Photos", sourcePath: "/a")
         let decomposed = try await catalog.projectForImport(named: "Cafe\u{301} - All Photos", sourcePath: "/a")
         #expect(composed.created && !decomposed.created && decomposed.project.id == composed.project.id)
-        // An empty field falls back on the address, and that name is reused too.
+        // A field of separators cleans to "-", not to the address.
         #expect(RemoteProjectName.cleaned(" / ", address: address) == "-")
+        // An empty field falls back on the address, and that name is reused too.
         #expect(RemoteProjectName.cleaned("  ", address: address) == address)
-        #expect(try await Self.projects(catalog).count == 3)
+        let blank = try await catalog.projectForImport(named: RemoteProjectName.cleaned("  ", address: address),
+                                                       sourcePath: "/a")
+        let blankAgain = try await catalog.projectForImport(named: RemoteProjectName.cleaned("", address: address),
+                                                            sourcePath: "/b")
+        #expect(blank.created && blank.project.name == address)
+        #expect(!blankAgain.created && blankAgain.project.id == blank.project.id)
+        #expect(try await Self.projects(catalog).count == 4)
+    }
+
+    @Test("Two imports with an empty Project name both go into the project named by the address")
+    func emptyFieldImportsReuse() async throws {
+        // Through `RemoteImporter.makeTarget`, so a change in how it cleans the
+        // field or which address it falls back on is caught (code review C21).
+        try await RepositoryFiles.withTemporaryDirectory { root in
+            let setup = try await RemoteImportTests.setup(assets: try FakeImmichServer.jpegAssets(count: 2))
+            let listed = try await RemoteImportTests.listed(setup)
+            let first = await RemoteImportTests.importer(setup).run([listed[0]],
+                                                                    options: RemoteImportTests.options(root, setup, project: "  "))
+            let second = await RemoteImportTests.importer(setup).run([listed[1]],
+                                                                     options: RemoteImportTests.options(root, setup, project: ""))
+            #expect(first.imported == 1 && second.imported == 1)
+            let projects = try await Self.projects(setup.catalog)
+            #expect(projects.map(\.name) == [setup.link.address])
+            #expect(first.project?.id == projects.first?.id && second.project?.id == projects.first?.id)
+            // The note's rule agrees with the import for the same field and address.
+            #expect(RemoteProjectName.addsToExistingProject(typed: "", address: setup.link.address, existingProjectID: nil,
+                                                            projectNames: projects.map(\.name)))
+        }
     }
 
     @Test("Of several projects with the name, the oldest is used, the earliest made on a tie")
