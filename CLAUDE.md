@@ -216,15 +216,18 @@ compatible and never put `#` comment lines inside pasted command snippets.
   automatic source), `Presets/` (preset files, Lightroom preset
   reading and mapping), preview pipeline, `Sidecars/` (XMP),
   `CardImport/` (templates, copying), `Export/` (rendering, naming, metadata
-  and watermarks for exports), `Suggestions/` (Vision), `Video/`.
-  Everything testable lives here.
+  and watermarks for exports), `Suggestions/` (Vision), `Video/`, `Remote/`
+  (server connections for Immich import: address rules, key store,
+  certificate trust, the allowlisted HTTP session, the client, the importer,
+  browse rules). Everything testable lives here.
 - `Sources/CLibRaw` — LibRaw 0.22.3, vendored (LGPL 2.1, `THIRD_PARTY_NOTICES.md`):
   upstream's `src`, `internal` and `include/libraw`, built by `Package.swift` and
   called only from `Preview/LibRawDecoder.swift`, for raws the system's RAW
   decoder gives no image for. Never edit it.
 - `Sources/PhotoUI` — UI shared by both apps: `Import/` (the import window:
   toolbar, options inspector, the `NSCollectionView` grid of `ImportCell`s
-  with check boxes, its model, `ImportCommands` and debug-script commands),
+  with check boxes, its model, `ImportCommands` and debug-script commands, and
+  the server source with its Server sheet),
   `Grid/` (`UniformGridLayout` and the cell images: symbols, stars, type
   badges), `TemplateField` (the naming template token field; `TemplateParts`
   and `TemplateToken` in PhotoCore split and read templates), `WindowModal`
@@ -247,8 +250,10 @@ compatible and never put `#` comment lines inside pasted command snippets.
   `CommandLineInterface` (argv parsing and the output contract).
 - `Sources/PhotoCLI` — `photocli`, a thin dispatcher over the registry
   (PhotoCore only, no AppKit or SwiftUI).
-- `Sources/PhotoFixtures` — synthetic JPEG/HEIC and Bayer DNG writers, and the
-  `TestScene`s for goldens and references (tests, benchmarks).
+- `Sources/PhotoFixtures` — synthetic JPEG/HEIC and Bayer DNG writers, the
+  `TestScene`s for goldens and references (tests, benchmarks), and
+  `FakeImmichServer`; PhotoApp links it too so the debug script can start the
+  fake server.
 - `Sources/PhotoBench` — synthetic library generator and headless profiling.
 - `Sources/StringCatalogCompiler` — `.xcstrings` to `.strings`/`.stringsdict`.
 - `Sources/AppIconCompiler` — `Support/AppIcon.png` to an `.iconset` (masked to the
@@ -296,7 +301,8 @@ compatible and never put `#` comment lines inside pasted command snippets.
   `keywordSuggestion`, `imagePair`, `importRun`, `importPreset`,
   `metadataSync`, `sidecarQueue`, `adjustmentPreset`
   (with `collection` and `groups`, null for all), `lookTableCollection`,
-  `lookTableEntry`, `exportPreset`, `maskRaster`. Ratings 0–5, flags
+  `lookTableEntry`, `exportPreset`, `maskRaster`, `remoteService`,
+  `remoteLink` (migration v16). Ratings 0–5, flags
   (-1 reject, 0 none, 1 pick) and color labels (0–7) live on versions.
   Never edit an existing migration; add a new one.
 - **Edit stack**: each version stores an ordered, versioned JSON list of
@@ -387,6 +393,24 @@ compatible and never put `#` comment lines inside pasted command snippets.
   with the library app; never fork them. Without a catalog (`CardImportModel.library`
   nil) it copies only, writes preset metadata into new sidecars (never into
   existing ones), and does not mark duplicates.
+- **Network.** The app contacts one kind of host: an Immich server the user
+  adds, and only the library app does it (the standalone importer, About and
+  `photocli` have no path to it). All of it is PhotoCore `Remote/`, behind
+  `RemotePhotoSource`. The key lives only in the Keychain (`KeychainKeyStore`,
+  service `<bundle id>.servers`, account the connection's uuid), never in the
+  catalog, preferences, logs, Activity or debug output. Only the allowlisted
+  requests are ever built (`RemoteRequestAllowlist`: GET, plus the one search
+  POST), checked before a request exists. The key goes only as `x-api-key` and
+  only to the connection's host. Redirects are never followed, and there are no
+  cookies, cache or credential storage. Bodies and downloads are capped.
+  Transport policy: `https://` by default; plain `http://` only to a
+  local-network host after the user confirms the notice. An untrusted
+  certificate is never accepted silently; the user may trust one fingerprint
+  per connection, a changed one fails, and nothing turns checking off. Nothing
+  else may use `URLSession`: `RemoteHTTPSession.swift` is the one HTTP path
+  (the fake server uses the Network framework). Tests use `FakeImmichServer`
+  and `InMemoryKeyStore`. A test launch always uses the in-memory store. No
+  package was added: Foundation and the Security framework.
 - **Dependencies**: GRDB, and LibRaw 0.22.3 vendored in `Sources/CLibRaw` (LGPL 2.1;
   `THIRD_PARTY_NOTICES.md`; never edit the vendored tree), which decodes only raws
   the system's RAW decoder gives no image for (`LibRawDecoder`, the fallback in
@@ -523,7 +547,10 @@ a master of the standard library now overwrites it. Other `photocli` commands
 still fall back on the standard library as documented. Follow-ups: #233 (an
 environment variable that guards agents' `photocli` runs against the standard
 library) and #234 (read commands open the catalog as a writer, so they can
-migrate it).
+migrate it). A test launch (the same definition: another bundle identifier, no
+bundle, `--debug-script` or `--benchmark-scroll`) also never reads the real
+app's Keychain item: `RemoteKeyStores.forLaunch` gives it an in-memory key
+store, so a scripted copy cannot reach the owner's saved server keys.
 
 Chromatic aberration and color fringes (`docs/features/chromatic-aberration/`,
 PR #48): a Lens heading in the Adjust tab with two groups, applied to the
