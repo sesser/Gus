@@ -344,6 +344,61 @@ struct RemoteReviewFixTests {
         }
     }
 
+    /// A task executor on a queue the test can hold: the caller's task runs
+    /// nothing while the queue is held, as when every thread of the shared
+    /// pool is busy (CI's three cores under the whole suite).
+    final class HeldExecutor: TaskExecutor {
+        let queue = DispatchQueue(label: "held-executor")
+
+        func enqueue(_ job: consuming ExecutorJob) {
+            let job = UnownedJob(job)
+            queue.async { job.runSynchronously(on: self.asUnownedTaskExecutor()) }
+        }
+    }
+
+    @Test("The cap does not wait for the caller: a caller that can't run while the answer streams still gets tooLarge (C16, CI)")
+    func capWhileCallerStarved() async throws {
+        let server = try await FakeImmichServer()
+        server.add(.chunked)
+        server.add(.huge(path: "/albums", bytes: 17 << 20))
+        let executor = HeldExecutor()
+        let answered = DispatchSemaphore(value: 0)
+        let heldUntilAnswered = Mutex<Bool?>(nil)
+        // The caller's queue is held from the moment the request arrives,
+        // before any byte of the answer is sent, until the server is done
+        // with the answer: every byte sent, or the connection closed by the
+        // client. The cap must get there with the caller held. The 60 s
+        // bound is no wait for the result (that is an event); it only ends
+        // the hold when the cap never gets there, so the test fails rather
+        // than hangs: the client before this fix stopped reading while its
+        // caller was held, and once held past its request timeout it gave
+        // "The request timed out." (CI on PR #278).
+        server.onRequest { path in
+            guard path == "/api/albums" else { return }
+            executor.queue.async {
+                let result = answered.wait(timeout: .now() + 60)
+                heldUntilAnswered.withLock { $0 = result == .success }
+            }
+        }
+        server.onAnswered { path in
+            if path == "/api/albums" { answered.signal() }
+        }
+        let client = try RemoteConnectionTests.client(server)
+        let outcome = await withTaskExecutorPreference(executor) { () async -> Result<[RemoteAlbum], RemoteError> in
+            do throws(RemoteError) {
+                return .success(try await client.albums())
+            } catch {
+                return .failure(error)
+            }
+        }
+        guard case .failure(let error) = outcome else {
+            Issue.record("An answer past the cap was read")
+            return
+        }
+        #expect(error == .tooLarge)
+        #expect(heldUntilAnswered.withLock { $0 } == true, "The cap waited for the caller")
+    }
+
     @Test("A trusted certificate is used only for the address it was trusted for (design review N-3)")
     func pinFollowsAddress() throws {
         let fingerprint = CertificateFingerprint(certificateData: Data("new".utf8))

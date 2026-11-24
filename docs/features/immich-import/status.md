@@ -22,6 +22,11 @@ state **Done** again (see **Owner finding at sign-off** and **DQ-13 and DQ-14
 built**). Next: code review's second pass, the designer's review of the note
 and the stacked field, qa-tester, then the owner (M1).
 
+**2026-11-24, CI failure on PR #278 (C16 test timed out on both runners):**
+a client bug, fixed; state **Done** again (see **CI failure on PR #278**).
+Next: code review's second pass (client, fake server and tests changed; no
+UI change, no behavior change a person can see).
+
 ## API verification (first task, 2026-11-23)
 
 Read from the OpenAPI spec of the tags `v3.2.0` (the minimum, Q1) and
@@ -114,7 +119,8 @@ Nothing about the triggers changed.
 | Latest (2026-11-23, end of session) | `swift build --build-tests` passes, no new warnings | 1489 tests in 211 suites pass; 9 of 10 full runs this session passed, one failed with output lost to a pipe (not identified; see **Determinism**) |
 | Rulings applied (2026-11-23) | `swift build --build-tests` passes, no new warnings | 1492 tests in 211 suites pass, twice in a row; the remote suites 10 of 10 runs |
 | Review fixes (2026-11-23, 977427c and the sheet-height commit) | `swift build --build-tests` passes, no new warnings | 1501 tests in 212 suites pass; the remote suites (48 tests in 6 suites) pass |
-| Bundle | `Scripts/build-app.sh` passes (after the rulings and the review fixes too) | |
+| CI fix (2026-11-24, see **CI failure on PR #278**) | `swift build --build-tests` passes, no new warnings | 1523 tests in 214 suites pass; the three streaming-cap tests 30 of 30 runs |
+| Bundle | `Scripts/build-app.sh` passes (after the rulings and the review fixes too, and after the CI fix) | |
 | CI toolchain | passes (see **CI toolchain**) | |
 
 No `PreviewCacheKey.currentPipelineVersion` bump, no golden touched, no
@@ -699,3 +705,75 @@ passing.
 --build-tests --scratch-path .build-xcode26.3` passes (2026-11-23, first
 round, and again after the rulings; only the two older test warnings).
 `/Applications/Xcode_26.3.app` is a symlink to `/Applications/Xcode-26.3.0.app`.
+
+After the CI fix (2026-11-24): the same command passes (only the two older
+test warnings), and the 70 remote tests pass on that build (`swift test
+--skip-build --scratch-path .build-xcode26.3 --filter Remote`, run on macOS
+27.2, so it shows the toolchain, not macOS 15).
+
+## CI failure on PR #278 (2026-11-24)
+
+**What failed.** Run 45447881123 (head 465fbec), both test jobs, the same one
+issue: "Bodies without a length are capped while they stream (C16)"
+(`RemoteReviewFixTests.streamingCaps`, line 320, the album list): expected
+`tooLarge`, got `unreachable("The request timed out.")`. macos-15 after 138 s,
+macos-26 after 178 s (its first attempt was the known signal 11, the retry hit
+this). It passed on this Mac in every run, in 0.2 s.
+
+**Evidence from the logs.** On macos-15 the test started at 17:29:40 and the
+issue was recorded at 17:31:38, two seconds after the GPU-bound AC19 magnifier
+tests (93.7 s each, run alongside it) finished at 17:31:36. On macos-26 it
+started at 17:36:56 and failed at 17:40:13, while dozens of tests that started
+with it ran for 116.9 s. The client's timeout in this test is 5 s, so the
+answer did not stall once: the test's task was not running for long stretches
+while the suite kept the runner's three cores busy.
+
+**Cause: the client (b).** `RemoteHTTPSession.perform` read every JSON answer
+through `URLSession.bytes(for:)`, a stream the *caller's task* pulls. When the
+caller can't run (every thread of Swift's shared pool busy), the stream stops
+taking bytes, the session stops reading the socket, and once the caller is
+held past the request timeout the request ends with "The request timed out."
+So the cap (and any answer) depended on the caller being scheduled. Reproduced
+here, deterministically: the new test runs the call on a task executor whose
+queue the test holds from the moment the request arrives until the server is
+done with the answer. On the old client the server never got there (the
+connection stayed open, `lsof` showed it ESTABLISHED for minutes); with a hold
+of 8 s or 60 s the call then failed with exactly CI's
+`unreachable("The request timed out.")`. Not the fake server (a): it hands the
+whole chunked body to Network in one send, which buffers it and keeps sending
+as the peer reads; the stall was the reader. Not a macOS 15 behavior (c): both
+runners and this Mac show it once the caller is held. In the app the same
+thing could turn a good album list, search page or thumbnail into a timeout
+when the pool is busy for 30 s (unlikely, but real).
+
+**Fix.** `perform` now runs a data task whose bytes the session's delegate
+takes as they arrive, on its own queue (`MemorySink`, beside `DownloadSink`,
+both behind a small `TaskSink` protocol in `RemoteHTTPSession.swift`): a
+status other than 2xx, an answer that is not HTTP and a `Content-Length` past
+the cap stop the task at the head, as before; bytes past the cap stop it as
+they arrive; the caller only collects the result. Errors map as before
+(certificate refused, timeouts and other transport errors in the system's
+words, `cancelled` only when the caller's task was cancelled). Downloads were
+already delegate-driven (C19, `.oversize`, the download limit), so they never
+had this weakness; their mapping is unchanged, only moved into `DownloadSink`.
+The fake server gained two hooks, `onRequest` and `onAnswered` (the answer
+handed to the system whole, or the connection gone), and its slow answer now
+stops after its first half when the client has gone.
+
+**Test that fails without the fix.** `RemoteReviewFixTests.capWhileCallerStarved`
+("The cap does not wait for the caller…"): the 17 MiB chunked album list with
+the caller held as above. With the fix the client reaches the cap and closes
+the connection with the caller held, so the server's `onAnswered` ends the
+hold and the call gives `tooLarge` (0.04 s). On the old client it fails after
+its 60 s bound with `unreachable("The request timed out.")` and "The cap
+waited for the caller" (run with the old `RemoteHTTPSession.swift` restored).
+The 60 s is no wait for the result: it only ends a hold that would otherwise
+never end, so a regression fails rather than hangs.
+
+**Determinism.** Structural: the outcome is decided on the session's delegate
+queue by bytes counted, not by time or by when the caller runs, and the test
+releases the caller on an event (the server done with the answer), never a
+sleep. Runs: the three streaming-cap tests (`caps`, `streamingCaps`,
+`capWhileCallerStarved`) 30 of 30 here; the full suite (1523 tests) once, on
+the fix. What could not be checked: macOS 15 and 26 themselves; the next CI
+run is the first there.

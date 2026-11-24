@@ -141,42 +141,39 @@ public final class RemoteHTTPSession: Sendable {
     /// Sends `request` and reads at most `limit` bytes of a 2xx answer: a
     /// longer one is refused as soon as its length is known, or when it passes
     /// the limit, so no answer can grow without bound in memory.
+    ///
+    /// The bytes are taken by the session's delegate as they arrive, not by
+    /// the caller: a stream the caller reads (`URLSession.bytes(for:)`) stops
+    /// taking bytes while the caller can't run, and a caller held up longer
+    /// than the request timeout (every thread of the shared pool busy) got
+    /// "The request timed out." in place of the answer or `tooLarge` (CI on
+    /// PR #278, status.md).
     private func perform(_ request: URLRequest, limit: Int) async throws(RemoteError) -> Data {
-        let bytes: URLSession.AsyncBytes
-        let response: URLResponse
-        do {
-            (bytes, response) = try await session.bytes(for: request)
-        } catch {
-            throw mapped(error)
-        }
-        guard let http = response as? HTTPURLResponse else {
-            bytes.task.cancel()
-            throw .malformed
-        }
-        guard (200..<300).contains(http.statusCode) else {
-            bytes.task.cancel()
-            throw .status(http.statusCode)
-        }
-        guard response.expectedContentLength <= Int64(limit) else {
-            bytes.task.cancel()
-            throw .tooLarge
-        }
-        var data = Data()
-        data.reserveCapacity(max(0, min(Int(response.expectedContentLength), limit)))
-        do {
-            for try await byte in bytes {
-                guard data.count < limit else {
-                    bytes.task.cancel()
-                    throw RemoteError.tooLarge
-                }
-                data.append(byte)
+        let sink = MemorySink(limit: limit)
+        let task = session.dataTask(with: request)
+        delegate.register(sink, for: task.taskIdentifier)
+        let outcome: Result<Data, TaskFailure> = await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                sink.start(continuation)
+                task.resume()
             }
-        } catch let error as RemoteError {
-            throw error
-        } catch {
-            throw mapped(error)
+        } onCancel: {
+            task.cancel()
         }
-        return data
+        delegate.unregister(task.taskIdentifier)
+        switch outcome {
+        case .success(let data):
+            return data
+        case .failure(let failure):
+            throw mapped(failure)
+        }
+    }
+
+    func mapped(_ failure: TaskFailure) -> RemoteError {
+        switch failure {
+        case .remote(let error): error
+        case .transport(let error, let refused): refused.map { .certificate($0) } ?? mapped(error)
+        }
     }
 
     func mapped(_ error: any Error) -> RemoteError {
@@ -242,8 +239,102 @@ public final class RemoteHTTPSession: Sendable {
     }
 }
 
+/// Why a task the delegate followed ended without its answer.
+enum TaskFailure: Error, Sendable {
+    /// Decided here: a status, the cap, the disk, an answer that isn't HTTP.
+    case remote(RemoteError)
+    /// The system's error, and the certificate refused in the handshake, if
+    /// that was why.
+    case transport(any Error, refused: TrustDecision?)
+}
+
+/// What the delegate hands a task's response, bytes and end to.
+protocol TaskSink: AnyObject, Sendable {
+    /// False to stop at once.
+    func received(_ response: URLResponse) -> Bool
+    /// False to stop the task.
+    func received(_ data: Data) -> Bool
+    func finished(_ error: (any Error)?, refused: TrustDecision?)
+}
+
+/// Collects one answer in memory, at most `limit` bytes of it: the count is
+/// checked as each piece arrives, on the delegate's queue, so the cap stops
+/// the task whether or not the caller is running.
+final class MemorySink: TaskSink {
+    private struct State {
+        var continuation: CheckedContinuation<Result<Data, TaskFailure>, Never>?
+        var data = Data()
+        var status = 0
+        var refusal: RemoteError?
+    }
+
+    private let limit: Int
+    private let state = Mutex(State())
+
+    init(limit: Int) {
+        self.limit = limit
+    }
+
+    func start(_ continuation: CheckedContinuation<Result<Data, TaskFailure>, Never>) {
+        state.withLock { $0.continuation = continuation }
+    }
+
+    func received(_ response: URLResponse) -> Bool {
+        state.withLock { state in
+            guard let http = response as? HTTPURLResponse else {
+                state.refusal = .malformed
+                return false
+            }
+            state.status = http.statusCode
+            guard (200..<300).contains(http.statusCode) else {
+                state.refusal = .status(http.statusCode)
+                return false
+            }
+            guard response.expectedContentLength <= Int64(limit) else {
+                state.refusal = .tooLarge
+                return false
+            }
+            state.data.reserveCapacity(max(0, min(Int(response.expectedContentLength), limit)))
+            return true
+        }
+    }
+
+    func received(_ data: Data) -> Bool {
+        state.withLock { state in
+            guard state.refusal == nil else { return false }
+            guard state.data.count + data.count <= limit else {
+                state.refusal = .tooLarge
+                state.data = Data()
+                return false
+            }
+            state.data.append(data)
+            return true
+        }
+    }
+
+    func finished(_ error: (any Error)?, refused: TrustDecision?) {
+        let (continuation, result) = state.withLock { state in
+            let continuation = state.continuation
+            state.continuation = nil
+            let result: Result<Data, TaskFailure>
+            if let refusal = state.refusal {
+                result = .failure(.remote(refusal))
+            } else if let error {
+                result = .failure(.transport(error, refused: refused))
+            } else if state.status == 0 {
+                result = .failure(.remote(.malformed))
+            } else {
+                result = .success(state.data)
+            }
+            state.data = Data()
+            return (continuation, result)
+        }
+        continuation?.resume(returning: result)
+    }
+}
+
 /// Receives one download's bytes: writes them, hashes them, reports them.
-final class DownloadSink: Sendable {
+final class DownloadSink: TaskSink {
     private struct State {
         var continuation: CheckedContinuation<Result<RemoteHTTPSession.Download, RemoteError>, Never>?
         var hasher = Insecure.SHA1()
@@ -307,7 +398,12 @@ final class DownloadSink: Sendable {
         return carryOn
     }
 
-    func finished(_ error: RemoteError?) {
+    func finished(_ error: (any Error)?, refused: TrustDecision?) {
+        let error: RemoteError? = error.map { error in
+            if let refused { return .certificate(refused) }
+            guard let urlError = error as? URLError else { return .unreachable(error.localizedDescription) }
+            return urlError.code == .cancelled ? .cancelled : .unreachable(RemoteHTTPSession.reason(urlError))
+        }
         let (continuation, result) = state.withLock { state in
             let continuation = state.continuation
             state.continuation = nil
@@ -340,7 +436,7 @@ final class DownloadSink: Sendable {
 final class SessionDelegate: NSObject, URLSessionDataDelegate, Sendable {
     private let host: String
     private let pinned: CertificateFingerprint?
-    private let state = Mutex<(refused: TrustDecision?, sinks: [Int: DownloadSink])>((nil, [:]))
+    private let state = Mutex<(refused: TrustDecision?, sinks: [Int: any TaskSink])>((nil, [:]))
 
     init(host: String, pinned: CertificateFingerprint?) {
         self.host = host.lowercased()
@@ -356,7 +452,7 @@ final class SessionDelegate: NSObject, URLSessionDataDelegate, Sendable {
         }
     }
 
-    func register(_ sink: DownloadSink, for task: Int) {
+    func register(_ sink: any TaskSink, for task: Int) {
         state.withLock { $0.sinks[task] = sink }
     }
 
@@ -364,7 +460,7 @@ final class SessionDelegate: NSObject, URLSessionDataDelegate, Sendable {
         _ = state.withLock { $0.sinks.removeValue(forKey: task) }
     }
 
-    private func sink(_ task: URLSessionTask) -> DownloadSink? {
+    private func sink(_ task: URLSessionTask) -> (any TaskSink)? {
         state.withLock { $0.sinks[task.taskIdentifier] }
     }
 
@@ -410,7 +506,7 @@ final class SessionDelegate: NSObject, URLSessionDataDelegate, Sendable {
         completionHandler(nil)
     }
 
-    // MARK: Downloads
+    // MARK: Answers and downloads
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse,
                     completionHandler: @escaping @Sendable (URLSession.ResponseDisposition) -> Void) {
@@ -425,16 +521,6 @@ final class SessionDelegate: NSObject, URLSessionDataDelegate, Sendable {
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: (any Error)?) {
         guard let sink = sink(task) else { return }
-        guard let error else {
-            sink.finished(nil)
-            return
-        }
-        if let refused = takeRefused() {
-            sink.finished(.certificate(refused))
-        } else if let urlError = error as? URLError {
-            sink.finished(urlError.code == .cancelled ? .cancelled : .unreachable(RemoteHTTPSession.reason(urlError)))
-        } else {
-            sink.finished(.unreachable(error.localizedDescription))
-        }
+        sink.finished(error, refused: error == nil ? nil : takeRefused())
     }
 }

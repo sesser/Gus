@@ -132,6 +132,8 @@ public final class FakeImmichServer: Sendable {
         var requests: [Request] = []
         var unavailableLeft: [String: Int] = [:]
         var onOriginal: (@Sendable (String) -> Void)?
+        var onRequest: (@Sendable (String) -> Void)?
+        var onAnswered: (@Sendable (String) -> Void)?
     }
 
     private let state = Mutex(State())
@@ -196,6 +198,15 @@ public final class FakeImmichServer: Sendable {
 
     /// Called (on the server's queue) as each original download starts.
     public func onOriginal(_ handler: (@Sendable (String) -> Void)?) { state.withLock { $0.onOriginal = handler } }
+
+    /// Called (on the server's queue) with each request's path as it
+    /// arrives, before anything is answered.
+    public func onRequest(_ handler: (@Sendable (String) -> Void)?) { state.withLock { $0.onRequest = handler } }
+
+    /// Called (on the server's queue) with a request's path once its answer
+    /// is over: every byte handed to the system, or the connection gone
+    /// first (the client closed it).
+    public func onAnswered(_ handler: (@Sendable (String) -> Void)?) { state.withLock { $0.onAnswered = handler } }
 
     public var requests: [Request] { state.withLock { $0.requests } }
     public func clearRequests() { state.withLock { $0.requests = [] } }
@@ -294,10 +305,13 @@ public final class FakeImmichServer: Sendable {
                                           sentKey: key != nil, body: request.body))
             return state
         }
+        snapshot.onRequest?(request.path)
         if snapshot.faults.contains(.drop) { return connection.cancel() }
         var response = answer(request, key: key, state: snapshot)
         response.chunked = snapshot.faults.contains(.chunked)
-        send(response, on: connection)
+        let answered = snapshot.onAnswered
+        let path = request.path
+        send(response, on: connection) { answered?(path) }
     }
 
     private func answer(_ request: ParsedRequest, key: String?, state snapshot: State) -> Response {
@@ -433,7 +447,11 @@ public final class FakeImmichServer: Sendable {
                                  "nextPage": NSNull(), "nextCursor": next]])
     }
 
-    private func send(_ response: Response, on connection: NWConnection) {
+    private func send(_ response: Response, on connection: NWConnection, done: @escaping @Sendable () -> Void) {
+        let finish: @Sendable (NWError?) -> Void = { _ in
+            connection.cancel()
+            done()
+        }
         let truncate = response.headers["X-Truncate"] != nil
         var headers = response.headers
         headers["X-Truncate"] = nil
@@ -451,7 +469,7 @@ public final class FakeImmichServer: Sendable {
                 offset = end
             }
             data += Data("0\r\n\r\n".utf8)
-            connection.send(content: data, completion: .contentProcessed { _ in connection.cancel() })
+            connection.send(content: data, completion: .contentProcessed(finish))
             return
         }
         var head = "HTTP/1.1 \(response.status) \(response.status == 200 ? "OK" : "Status")\r\n"
@@ -459,15 +477,16 @@ public final class FakeImmichServer: Sendable {
         for (name, value) in headers { head += "\(name): \(value)\r\n" }
         head += "\r\n"
         guard let pause = response.pause, body.count > 1 else {
-            connection.send(content: Data(head.utf8) + body, completion: .contentProcessed { _ in connection.cancel() })
+            connection.send(content: Data(head.utf8) + body, completion: .contentProcessed(finish))
             return
         }
         // Slowly: the head and half the body, a pause, then the rest.
         let half = body.count / 2
-        connection.send(content: Data(head.utf8) + body.prefix(half), completion: .contentProcessed { [queue] _ in
+        connection.send(content: Data(head.utf8) + body.prefix(half), completion: .contentProcessed { [queue] error in
+            if let error { return finish(error) }
             let delay = Double(pause.components.seconds) + Double(pause.components.attoseconds) / 1e18
             queue.asyncAfter(deadline: .now() + delay) {
-                connection.send(content: body.dropFirst(half), completion: .contentProcessed { _ in connection.cancel() })
+                connection.send(content: body.dropFirst(half), completion: .contentProcessed(finish))
             }
         })
     }
