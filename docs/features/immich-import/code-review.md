@@ -865,3 +865,132 @@ test-only change.
 ### Follow-up
 
 C22 and C23: Fixed in 573ef5c (confirmed above). C24 and C25 are open.
+
+## Ninth pass
+
+Reviewed: `feature/immich-import`, 573ef5c..fcbb214. This covers 0c431c7
+(the C24 test, the C25 comment, comment-only changes in
+`RemoteHTTPSession.swift`, and corrections to the user guide and `status.md`)
+and fcbb214 (`CLAUDE.md`). The review files themselves (d18188d, 7f6537c) were
+not re-reviewed. Date: 2026-11-24. Build and tests: `swift test --filter
+"RemoteSessionTests|LocalizationTests"`, 9 tests in 2 suites pass. Mutations
+ran in a throwaway worktree under the scratchpad, which has been removed. The
+repository was not edited apart from this section.
+
+### Verdict
+
+C24 and C25 are closed. The source change is comments only, and the corrected
+record matches the second security review in substance. One nit is new
+(C26): the upper end of the decoded range is quoted for 1 MiB of gzip, but it
+was measured with 2 MiB. It is optional. The branch is ready for its
+follow-up PR.
+
+### Findings
+
+| # | Severity | Where | Finding | Failure | Rule |
+|---|---|---|---|---|---|
+| C26 | Nit | `docs/features/immich-import/status.md:678` and `:899-901` (the **Correction**), `CLAUDE.md:1482-1484`, `Sources/PhotoCore/Remote/RemoteHTTPSession.swift:266-267` (comment) | All four places say "about 1 MiB of gzip … became 0.16 to 2.5 GB". In `security-review.md` (Second review), 1 MiB peaked at 2,062 MB. The 2,484 MB figure came from 2 MiB of gzip (2 GiB decoded). The **Correction** also says "held after the call". The amount measured as held after a call was 164 to 405 MB (590 MB after eight calls); 2.5 GB was a peak. | No wrong behavior. A reader gets a slightly larger amplification than was measured for 1 MiB, and is told a peak is what stays held. Suggested wording: "about 1 MiB of gzip peaked at 0.16 to 2.1 GB (2 MiB: up to 2.5 GB); 0.16 to 0.4 GB stayed held after one call". The user guide's "up to a few gigabytes" is fine as it is. | Records say nothing untrue |
+
+### Confirmations
+
+- **C24: closed.** `RemoteSessionTests.refusedCertificateTaken` calls
+  `finished(URLError(.cancelled), takeRefused:)` with a decision on two sinks
+  that have no head: a `MemorySink`, checked through `mapped(_: TaskFailure)`,
+  and a `DownloadSink`. Both expect `.certificate(decision)`. For the negative
+  half it gives a `MemorySink` and a `DownloadSink` a 200 head, then ends them
+  with -1005 and a `takeRefused` that records an issue if it is called. Both
+  expect `.unreachable(reason)`. I mutated a throwaway worktree at fcbb214 and
+  ran `swift test --filter RemoteSessionTests` on each mutation separately:
+  - Baseline: passes.
+  - M1, `MemorySink`'s take removed (`refused: nil`): fails, 1 issue (`:146`).
+  - M2, the take removed from `DownloadSink.finished`: fails, 1 issue (`:150`).
+  - M3, `MemorySink` takes whatever the head (`refused: takeRefused()`):
+    fails, 2 issues (`:157`, `:164`).
+  - M4, `DownloadSink` takes whatever the head (the `status == 0` guard
+    dropped): fails, 2 issues (`:168`, `:171`).
+
+  Each mutation fails only the new test, and the other five tests in the suite
+  pass. This agrees with the engineer's figures of 2 and 4 issues for the
+  mutations applied in pairs.
+
+  **Determinism.** Structural argument: the test calls the sinks directly and
+  in order, on the test's own task. Every `finished` comes before its `start`,
+  so the handoff is in `ready` and `start` resumes at once. There is no
+  `async let`, network, shared state or sleep. The file name is a UUID, and
+  the session is built but never sends a request. `mapped` reads no
+  `Task.isCancelled` for -1005, and for -999 the refusal decides first. The
+  only timing is `returns`' 10 s bound, which fails only a call that never
+  returns. Count: 30 of 30 runs passed (`--skip-build --filter
+  refusedCertificateTaken`), which rules out a flake rate above about 1 in 10.
+  The count adds to the structural argument and does not replace it.
+
+  **Observation, not a finding.** The test passes its own closure, so neither
+  the delegate's one refusal slot nor the wiring at
+  `RemoteHTTPSession.swift:609` (`sink.finished(error, takeRefused:
+  takeRefused)`) is covered. If that line passed `{ nil }`, the suite would
+  still pass. The eighth pass asked for this form of test, the wiring is one
+  line read here, and an end-to-end TLS test needs a TLS fake, which belongs
+  with the transport in #279.
+- **C25: closed.** The comment in `endBeforeWait` now says the scheduler
+  decides which comes first, the child task's wait or the calls below. It says
+  that both orders must end with the answer, and that every network test
+  takes the wait-then-deliver order. That is what the lines check.
+- **Source: comments only.** I stripped `//` comments and blank lines from
+  `RemoteHTTPSession.swift` at 573ef5c and at fcbb214, and the code that is
+  left is identical. The only other source or test file changed is
+  `RemoteSessionTests.swift` (the new test, its suite comment, C25, and
+  `encodedRefusedAtHead`'s display name). Nothing in `Scripts/` or
+  `Package.swift` changed.
+- **Record against `security-review.md` (Second review).** Checked against
+  the review's figures: 12 to 28 MB with `application/json`; 164 to 405 MB
+  footprint after one call, 173 MB to 2,062 MB peaks with a pause, 2,484 MB
+  for 2 MiB; the head unbounded until the 30 s timeout, at 1.04 GB and 2.66 GB.
+  - **`status.md`** (Known limits, the C23 paragraph's two parentheses, the
+    new **Correction**, the eighth-pass section): it says "no decoded byte
+    reaches a sink or a cap", which is true, because refusal is in
+    `received(_ response:)` and decoded bytes arrive only after it. It says
+    the call still ends `.malformed` or times out, which matches the review's
+    `.malformed` after 250 to 300 ms and `.unreachable("The request timed
+    out.")` after 30.5 s. It says nothing is written, trusted or leaked,
+    which matches the review's "affects availability only". The **Correction**
+    names the probe that missed the case (one write, with a `Content-Type`).
+    Apart from C26, the numbers match.
+  - **User guide.** "Only add servers you trust: macOS may decompress part of
+    a compressed answer before the app can refuse it, so a hostile server can
+    still make the app use a lot of memory (up to a few gigabytes) for each
+    answer." This is true and in proportion. The removed clause ("before
+    reading it, so a server cannot make it read far more than it sent") was
+    the false one. The remark about a reverse proxy that compresses without
+    being asked is unchanged and still right.
+  - **`CLAUDE.md`** (the Immich entry's Known list): head refusal,
+    `Accept-Encoding: identity`, `.malformed`, the sniffed case and its
+    conditions, the `application/json` control, the head unbounded until 30
+    s, the owner's acceptance, and #279. Apart from C26, all of it is right.
+    The removed sentence ("The 'Network' architecture rule … are the owner's
+    to update") was done by 465fbec, so removing it is correct. The Network
+    rule's "Bodies and downloads are capped" is still true of the bytes a sink
+    counts, and the Immich entry states the limit.
+  - **`ContentCoding`'s comment** ("no decoded byte reaches a sink. That does
+    not bound what the system decodes before it hands over the head") is
+    accurate apart from C26's figure.
+- **No leftover claims.** I grepped `docs/`, `CLAUDE.md`, `README.md`,
+  `Sources` and `Tests` for "before a byte of its body is read", "cannot make
+  it read far more", "read far more", "before reading it, so", "decodes
+  nothing", "0 bytes" and "30 MB". Outside the review files, the matches are:
+  - `status.md:907`, the **Correction** saying the guide no longer makes that
+    claim;
+  - `status.md:854-859` and `:880`, the seventh pass's probe, now qualified
+    in place and pointing at the **Correction**;
+  - `status.md:871`, a download refused at its head writing 0 bytes, which is
+    still true.
+
+  `qa.md`, `design.md` and `review.md` have no such claim. Neither does the
+  test that used to say "before a byte of it is read": the test is renamed.
+- **Risk area.** Yes: network code (comments and records here), and tests of
+  the certificate path that runs off the main actor. There is no code change,
+  so `/security-review` does not need to run again for this pass.
+
+### Follow-up
+
+C24 and C25: Fixed in 0c431c7 (confirmed above). C26 (Nit) is open and
+optional.
