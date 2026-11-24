@@ -56,8 +56,10 @@ removing the Profile group (#219) and a B&W module (#218). Both shipped (2026-11
 so did lens corrections (#87, 2026-11-19).
 On 2026-11-20 the owner set Now to AI masks (#88), the preset list view (#241) and HDR merge (#150); they are no longer in Next. The preset list view (#241) shipped 2026-11-21, and HDR merge (#150) 2026-11-22.
 On 2026-11-20 the owner asked for a choice of what Copy Adjustments copies (#243); it went first in Next (Now was full), moved to Now on 2026-11-22 and shipped 2026-11-22.
+On 2026-11-23 the owner placed Import from Immich (#271) first in Next.
 The small fixes and tooling items can each go as a bug fix (`docs/WORKFLOW.md`).
 
+1. [#271](https://github.com/sesser/Gus/issues/271) `immich-import`: Photos that live on an Immich server can't be browsed or brought into the library without downloading them by hand first
 1. [#64](https://github.com/sesser/Gus/issues/64) `reads-beside-write-chain`: Five reads still take a photo's edits from the catalog without waiting for pending saves, so right after a change they can get the older…
 1. [#65](https://github.com/sesser/Gus/issues/65) `full-render-main-thread-stall`: At 100%, every arrival at a photo and every change that is let go freezes the window for about 0.4 s (about 1.3 s with machine learning…
 1. [#66](https://github.com/sesser/Gus/issues/66) `adjust-tab-rebuild-on-arrival`: With the inspector open on Adjust, every arrival at a photo rebuilds the whole Adjust tab (the editor goes loading, then ready) and its…
